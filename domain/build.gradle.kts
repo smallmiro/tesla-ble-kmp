@@ -13,7 +13,7 @@ wire {
 kotlin {
     sourceSets {
         commonTest.dependencies {
-            // Task 6 이후 :testing 추가
+            implementation(project(":testing"))
         }
     }
     compilerOptions {

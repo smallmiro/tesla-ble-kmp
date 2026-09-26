@@ -42,6 +42,10 @@ gradle.projectsEvaluated {
             // bcv(binary-compatibility-validator)는 자체 툴체인용으로 pure-declarable 구성(bcv-*)을 만드는데,
             // capability만으로는 진짜 소스셋 버킷과 구분되지 않는다. 이름으로 명시 제외한다.
             if (name.startsWith("bcv-")) return@configureEach
+            // Kotlin/Native의 Swift Package 상호운용 기능(예: CryptoKit 프로바이더 cinterop)이 빌드 전역에서
+            // 단일 Package.resolved를 만들기 위해 내부적으로 쓰는 집계용 구성. 실제 컴파일/런타임 의존성이
+            // 아니라 전체 서브프로젝트를 가로지르는 북키핑 그래프이므로 bcv-*와 같은 이유로 제외한다.
+            if (name.startsWith("swiftPMDependencies")) return@configureEach
             val isPureDeclarable = isCanBeDeclared && !isCanBeResolved && !isCanBeConsumed
             val hasKnownSuffix = declarableSuffixes.any { suffix -> name.endsWith(suffix, ignoreCase = true) }
             if (!isPureDeclarable && !hasKnownSuffix) return@configureEach
