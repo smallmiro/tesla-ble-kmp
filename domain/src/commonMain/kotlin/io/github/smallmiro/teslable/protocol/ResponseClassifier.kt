@@ -27,8 +27,9 @@ public object ResponseClassifier {
      * Wire는 proto에 없는(범위를 벗어난) enum 값을 만나면 해당 필드를 그 enum의 첫 상수(기본값)로 남기고
      * 원본 정수를 메시지의 `unknownFields`로 옮긴다. 그 결과 신형 펌웨어가 보낸 미인식 코드가 조용히
      * 성공(`OK`)으로 오분류될 수 있다. 이 함수는 세 필드(`signed_message_fault`, `session_info.status`,
-     * `operation_status`) 각각의 태그가 `unknownFields`에 있는지 확인해 Go의 `default: ErrUnknown` 분기를
-     * 재현한다. 원본 정수 코드는 버리고 [VehicleError.UnknownResponse]로만 알린다.
+     * `operation_status`) 각각의 태그가 `unknownFields`에 있는지 확인해 Go의 분기를 재현한다. 모르는 fault는
+     * 원시 코드를 보존해 [VehicleError.UnknownFault]로(Go `RoutableMessageError{Code}`), 모르는 `session_info.status`와
+     * `operation_status`는 코드 없이 [VehicleError.UnknownResponse]로(Go `default: ErrUnknown`) 알린다.
      */
     public fun protocolError(message: RoutableMessage): VehicleError? {
         val status = message.signedMessageStatus
@@ -47,10 +48,9 @@ public object ResponseClassifier {
                 VehicleError.ProtocolFault(fault)
             }
         }
-        if (status != null && unknownVarint(status.unknownFields, TAG_MESSAGE_STATUS_SIGNED_MESSAGE_FAULT) != null) {
-            return VehicleError.UnknownResponse
-        }
-        return null
+        // Go는 등록되지 않은 fault도 &RoutableMessageError{Code: fault}로 코드를 보존한다(error.go 241).
+        val rawFault = status?.let { unknownVarint(it.unknownFields, TAG_MESSAGE_STATUS_SIGNED_MESSAGE_FAULT) }
+        return rawFault?.let { VehicleError.UnknownFault(it) }
     }
 
     /** Go `GetError` 2단계: `session_info` 페이로드. 없으면(null) 다음 단계로 넘어가도록 null. */
