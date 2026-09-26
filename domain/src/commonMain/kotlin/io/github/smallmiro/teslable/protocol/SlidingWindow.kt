@@ -46,6 +46,9 @@ public class SlidingWindow(
         require(size in MIN_WINDOW_SIZE..MAX_WINDOW_SIZE) { "window size must be 1..64" }
     }
 
+    /**
+     * 새 counter를 수용하면 true를 돌려준다. 중복되거나 너무 오래되면 false.
+     */
     public fun update(newCounter: UInt): Boolean {
         if (!used) {
             used = true
@@ -59,6 +62,9 @@ public class SlidingWindow(
     }
 
     public companion object {
+        /**
+         * 기본 sliding window 크기 (32 개 counter).
+         */
         public const val DEFAULT_SIZE: Int = 32
         private const val MIN_WINDOW_SIZE: Int = 1
         private const val MAX_WINDOW_SIZE: Int = 64

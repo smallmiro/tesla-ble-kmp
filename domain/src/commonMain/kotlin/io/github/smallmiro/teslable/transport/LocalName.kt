@@ -8,6 +8,9 @@ import io.github.smallmiro.teslable.port.CryptoPrimitives
  * 광고 Local Name `"S" + hex(SHA1(VIN)[:8]) + "C"` (소문자 hex 16자).
  */
 public class LocalName(
+    /**
+     * BLE 광고 Local Name 문자열 (`"S" + hex(SHA1(VIN)[:8]) + "C"`).
+     */
     public val value: String,
 ) {
     override fun equals(other: Any?): Boolean = other is LocalName && value == other.value
@@ -17,6 +20,9 @@ public class LocalName(
     override fun toString(): String = value
 
     public companion object {
+        /**
+         * VIN에서 Local Name을 생성한다 (SHA1 다이제스트 기반).
+         */
         public fun of(
             vin: Vin,
             crypto: CryptoPrimitives,

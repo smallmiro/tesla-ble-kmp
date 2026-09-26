@@ -6,6 +6,10 @@ import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
+private const val HEADER_SIZE = 2
+private const val BYTE_MASK = 0xff
+private const val BYTE_1_SHIFT = 8
+
 /**
  * 수신 청크를 메시지 단위로 재조립한다. 청크 간격이 [rxTimeout]을 넘으면 버퍼를 버리고,
  * 길이 헤더가 [maxMessageSize]를 넘으면 버퍼를 버린다. 스레드 안전하지 않다(수신 코루틴 하나에서만 호출).
@@ -18,6 +22,9 @@ public class Reassembler(
     private var buffer = ByteArray(0)
     private var lastRx: TimeMark? = null
 
+    /**
+     * 청크를 추가하고 완성된 메시지 목록을 돌려준다. 청크 간격이 rxTimeout을 넘으면 버퍼를 버린다.
+     */
     public fun push(chunk: ByteArray): List<ByteArray> {
         val last = lastRx
         if (last != null && last.elapsedNow() > rxTimeout) buffer = ByteArray(0)
@@ -46,13 +53,10 @@ public class Reassembler(
         return out
     }
 
+    /**
+     * 재조립 버퍼를 비운다.
+     */
     public fun reset() {
         buffer = ByteArray(0)
-    }
-
-    private companion object {
-        const val HEADER_SIZE = 2
-        const val BYTE_MASK = 0xff
-        const val BYTE_1_SHIFT = 8
     }
 }

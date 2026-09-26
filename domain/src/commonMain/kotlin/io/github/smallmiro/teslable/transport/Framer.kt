@@ -5,8 +5,14 @@ package io.github.smallmiro.teslable.transport
  * `2바이트 BE 길이 || 메시지`를 블록 길이(= min(MTU,1024) - 3)로 나눈다.
  */
 public object Framer {
+    /**
+     * 최대 메시지 크기 (바이트).
+     */
     public const val MAX_MESSAGE_SIZE: Int = 1024
 
+    /**
+     * 메시지를 2바이트 BE 길이 헤더와 함께 blockLength 단위 청크로 나눈다.
+     */
     public fun frame(
         message: ByteArray,
         blockLength: Int,
