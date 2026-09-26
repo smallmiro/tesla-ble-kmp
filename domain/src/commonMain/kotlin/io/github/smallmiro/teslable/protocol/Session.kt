@@ -85,8 +85,8 @@ public class Session private constructor(
     }
 
     /**
-     * AES-128-GCM 복호화. 인증 실패, 세션이 닫혔거나 [nonce] 길이가 [NONCE_SIZE]가 아니면 null
-     * (와이어에서 온 신뢰할 수 없는 입력이므로 예외 대신 null로 처리한다).
+     * AES-128-GCM 복호화. 인증 실패, 세션이 닫혔거나 [nonce] 길이가 [NONCE_SIZE]가 아니거나 [tag] 길이가 16바이트가
+     * 아니면 null (와이어에서 온 신뢰할 수 없는 입력이므로 예외 대신 null로 처리하고, 길이가 틀린 입력은 원시 연산에 넘기지 않는다).
      */
     public fun decrypt(
         nonce: ByteArray,
@@ -96,6 +96,7 @@ public class Session private constructor(
     ): ByteArray? {
         if (closed) return null
         if (nonce.size != NONCE_SIZE) return null
+        if (tag.size != TAG_SIZE) return null
         return crypto.aesGcmDecrypt(key, nonce, ciphertext, tag, aad)
     }
 
@@ -111,6 +112,9 @@ public class Session private constructor(
     public companion object {
         /** AES-GCM nonce 길이 (bytes). */
         public const val NONCE_SIZE: Int = 12
+
+        /** AES-GCM 태그 길이 (bytes). */
+        private const val TAG_SIZE: Int = 16
 
         /** Go `NativeECDHKey.Exchange`: ECDH → K. */
         public suspend fun establish(

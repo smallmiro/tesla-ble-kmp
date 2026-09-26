@@ -18,13 +18,17 @@ import kotlin.test.assertTrue
 import io.github.smallmiro.teslable.testing.fixtures.ProtocolVectors as V
 
 /**
- * [TestCrypto.primitives]에 위임하면서 [aesGcmEncrypt]에 전달된 키 배열의 참조를 기록하는 테스트 전용 페이크.
- * `Session.close()`가 세션 자신의 키 배열(전달받은 것과 동일한 참조)을 0으로 덮는지 검증하는 데 쓴다.
+ * [TestCrypto.primitives]에 위임하면서 [aesGcmEncrypt]에 전달된 키 배열의 참조와 [aesGcmDecrypt] 호출 횟수를 기록하는
+ * 테스트 전용 페이크. `Session.close()`가 세션 자신의 키 배열(전달받은 것과 동일한 참조)을 0으로 덮는지,
+ * `Session.decrypt`가 잘못된 입력을 원시 연산에 넘기기 전에 거르는지 검증하는 데 쓴다.
  */
 private class RecordingCryptoPrimitives(
     private val delegate: CryptoPrimitives,
 ) : CryptoPrimitives {
     var recordedEncryptKey: ByteArray? = null
+        private set
+
+    var decryptCalls: Int = 0
         private set
 
     override fun sha1(data: ByteArray): ByteArray = delegate.sha1(data)
@@ -52,7 +56,10 @@ private class RecordingCryptoPrimitives(
         ciphertext: ByteArray,
         tag: ByteArray,
         aad: ByteArray,
-    ): ByteArray? = delegate.aesGcmDecrypt(key, nonce, ciphertext, tag, aad)
+    ): ByteArray? {
+        decryptCalls++
+        return delegate.aesGcmDecrypt(key, nonce, ciphertext, tag, aad)
+    }
 
     override fun constantTimeEquals(
         a: ByteArray,
@@ -253,5 +260,20 @@ class ProtocolVectorTest {
         val aad = crypto.sha256(V.HVAC_METADATA_FLAGS2.hexToBytes())
         val out = session.encrypt(V.HVAC_ON_PLAINTEXT.hexToBytes(), aad, V.HVAC_NONCE.hexToBytes())
         assertNull(session.decrypt(ByteArray(11), out.ciphertext, out.tag, aad))
+    }
+
+    @Test
+    fun decryptReturnsNullForWrongTagLengthWithoutCallingPrimitive() { // 와이어 입력: 태그는 정확히 16바이트
+        val recording = RecordingCryptoPrimitives(crypto)
+        val session =
+            Session.fromSharedKey(V.SHARED_KEY_K.hexToBytes(), TestCrypto.clientPublicKey, TestCrypto.vehiclePublicKey, recording)
+        val aad = crypto.sha256(V.HVAC_METADATA_FLAGS2.hexToBytes())
+        val nonce = V.HVAC_NONCE.hexToBytes()
+        val out = session.encrypt(V.HVAC_ON_PLAINTEXT.hexToBytes(), aad, nonce)
+        assertNull(session.decrypt(nonce, out.ciphertext, out.tag.copyOf(15), aad))
+        assertNull(session.decrypt(nonce, out.ciphertext, out.tag + byteArrayOf(0), aad)) // 앞 16바이트는 올바른 태그
+        assertEquals(0, recording.decryptCalls)
+        assertContentEquals(V.HVAC_ON_PLAINTEXT.hexToBytes(), session.decrypt(nonce, out.ciphertext, out.tag, aad))
+        assertEquals(1, recording.decryptCalls)
     }
 }
