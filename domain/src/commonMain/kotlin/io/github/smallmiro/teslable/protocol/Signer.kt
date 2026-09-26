@@ -51,6 +51,7 @@ public class Signer
         private var counterValue: UInt = initialCounter
         private var timeZero: TimeMark = timeSource.markNow() - age - initialClockTime.toLong().seconds
         private var setTime: UInt = initialClockTime // Go Signer.setTime: 마지막으로 반영한 세션정보의 clock_time
+        private var closed = false
 
         /** 차량 공개키(Go `RemotePublicKeyBytes`). */
         public val vehiclePublicKey: PublicKeyBytes get() = session.vehiclePublicKey
@@ -98,12 +99,17 @@ public class Signer
             return SignerResult.Ok(Unit)
         }
 
-        /** Go `UpdateSignedSessionInfo`: 태그(상수 시간) → 디코딩 → [updateSessionInfo]. */
+        /**
+         * Go `UpdateSignedSessionInfo`: 태그(상수 시간) → 디코딩 → [updateSessionInfo].
+         *
+         * @throws IllegalStateException [close]로 닫힌 뒤 호출하면 발생한다(프로그래밍 오류, ADR-0006).
+         */
         public fun updateSignedSessionInfo(
             challenge: ByteArray,
             encodedInfo: ByteArray,
             tag: ByteArray,
         ): SignerResult<Unit> {
+            checkOpen()
             if (!session.verifySessionInfoTag(vin.toByteArray(), challenge, encodedInfo, tag)) {
                 return SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INVALID_SIGNATURE, "session info hmac invalid")
             }
@@ -141,13 +147,14 @@ public class Signer
          * 검사하지만, 여기서는 `Long`으로 계산한 뒤 음수이거나 [CommandMetadata.EPOCH_LENGTH_SECONDS]를 초과하면 바로
          * 거부한다. 더 안전하고, 정상적인 명령 수명 안에서는 두 방식이 관측 가능하게 다르지 않다.
          *
-         * @throws IllegalStateException [close]로 세션이 닫힌 뒤 호출하면 발생한다([Session.encrypt]에서 전파됨).
-         *   이 시점에는 이미 counter가 소비된 뒤다 — 롤오버 검사와 증가가 세션 종료 여부 검사보다 먼저 일어나기 때문이다.
+         * @throws IllegalStateException [close]로 닫힌 뒤 호출하면 발생한다(프로그래밍 오류, ADR-0006). 이 검사는 롤오버
+         *   검사와 counter 증가보다 먼저 일어나므로, 닫힌 뒤의 호출은 counter를 소비하지 않는다.
          */
         public fun encrypt(
             message: RoutableMessage,
             expiresIn: Duration,
         ): SignerResult<RoutableMessage> {
+            checkOpen()
             if (counterValue == UInt.MAX_VALUE) {
                 return SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INVALID_TOKEN_OR_COUNTER, "counter rollover")
             }
@@ -188,13 +195,15 @@ public class Signer
         /**
          * Go `Decrypt`: AAD = SHA256(TLV{9, from_domain(없으면 0), VIN, counter, flags(항상), request_hash, fault}).
          * 인증 실패는 `INVALID_SIGNATURE`(원본은 암호 라이브러리 오류를 그대로 돌려주지만 의미는 같다), GCM 데이터가 없으면 `BAD_PARAMETER`.
-         * [close]로 세션이 닫힌 뒤에는 예외를 던지지 않고 `INVALID_SIGNATURE`를 돌려준다([Session.decrypt]가 닫힌 세션에
-         * null로 응답하기 때문이다) — [encrypt]와 달리 여기서는 프로그래밍 오류도 값으로 드러난다.
+         *
+         * @throws IllegalStateException [close]로 닫힌 뒤 호출하면 발생한다(프로그래밍 오류, ADR-0006). 와이어 오류와
+         *   구별되도록 `INVALID_SIGNATURE` 값으로 돌려주지 않는다.
          */
         public fun decrypt(
             message: RoutableMessage,
             requestHash: ByteArray,
         ): SignerResult<DecryptedResponse> {
+            checkOpen()
             val gcm =
                 message.signature_data?.AES_GCM_Response_data
                     ?: return SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_BAD_PARAMETER, "missing AES-GCM data")
@@ -235,9 +244,14 @@ public class Signer
             )
         }
 
-        /** 세션 키를 0으로 덮는다. 이후 모든 연산은 실패한다. */
+        /** 세션 키를 0으로 덮는다. 이후 [encrypt]·[decrypt]·[updateSignedSessionInfo]는 `IllegalStateException`을 던진다. */
         override fun close() {
+            closed = true
             session.close()
+        }
+
+        private fun checkOpen() {
+            check(!closed) { "signer closed" }
         }
 
         override fun toString(): String {
