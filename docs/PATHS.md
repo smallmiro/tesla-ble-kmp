@@ -27,7 +27,7 @@
 | `REF_REPO_COMMIT` | `a4b43c1eff0e09d77deb9f2dce97031141fe8c8a` | 포팅 기준 커밋 (2026-09-25) |
 | `POC_DIR` | `reference/poc/` | 검증된 PoC 코드 |
 | `LIB_NAME` | `tesla-ble-kmp` (가칭) | 라이브러리 / Gradle 루트 이름 |
-| `BASE_PACKAGE` | `TBD` (예: `io.github.<owner>.teslable`) | Kotlin 패키지 루트 |
+| `BASE_PACKAGE` | `io.github.smallmiro.teslable` | Kotlin 패키지 루트 (Phase 1 Q5-b에서 확정) |
 
 ## 규칙
 1. 문서와 지침에서는 `{{MANUAL_DIR}}` 처럼 **키로 참조**합니다. 링크가 꼭 필요하면 이 파일로 링크합니다.
