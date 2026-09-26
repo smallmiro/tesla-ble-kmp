@@ -1,6 +1,25 @@
 build:
   maxIssues: 0
 
+comments:
+  active: true
+  UndocumentedPublicClass:
+    active: true
+    excludes: ['**/test/**', '**/*Test/**', '**/build/**', '**/samples/**', '**/testing/**']
+    searchInNestedClass: true
+    searchInInnerClass: true
+    searchInInnerObject: true
+    searchInInnerInterface: true
+    searchInProtectedClass: false
+  UndocumentedPublicFunction:
+    active: true
+    excludes: ['**/test/**', '**/*Test/**', '**/build/**', '**/samples/**', '**/testing/**']
+    searchProtectedFunction: false
+  UndocumentedPublicProperty:
+    active: true
+    excludes: ['**/test/**', '**/*Test/**', '**/build/**', '**/samples/**', '**/testing/**']
+    searchProtectedProperty: false
+
 style:
   ForbiddenImport:
     active: true
