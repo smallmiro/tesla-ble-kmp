@@ -28,7 +28,7 @@
 | `POC_DIR` | `reference/poc/` | 검증된 PoC 코드 |
 | `LIB_NAME` | `tesla-ble-kmp` | 라이브러리 / Gradle 루트 이름 (= GitHub 저장소 이름, 2026-09-26 확정) |
 | `REPO_URL` | `https://github.com/smallmiro/tesla-ble-kmp` | 공개 저장소 (Apache-2.0). 브랜치 `main` 보호 |
-| `PAGES_MAVEN_URL` | `https://smallmiro.github.io/tesla-ble-kmp/` | GitHub Pages Maven 저장소 (`gh-pages` 브랜치, M6에서 활성화) |
+| `PACKAGES_MAVEN_URL` | `https://maven.pkg.github.com/smallmiro/tesla-ble-kmp` | GitHub Packages Maven 레지스트리 (M6에서 첫 배포). 소비자는 `read:packages` 토큰 필요 |
 | `BASE_PACKAGE` | `io.github.smallmiro.teslable` | Kotlin 패키지 루트 (Phase 1 Q5-b에서 확정) |
 
 ## 규칙
