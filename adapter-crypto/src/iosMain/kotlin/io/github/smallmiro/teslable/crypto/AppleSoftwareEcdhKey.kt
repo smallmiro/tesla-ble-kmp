@@ -54,15 +54,15 @@ internal class AppleSoftwareEcdhKey(
                     throw IllegalArgumentException("invalid peer public key", e)
                 }
             try {
-                val error = alloc<CFErrorRefVar>()
+                val cfError = alloc<CFErrorRefVar>()
                 val params =
                     checkNotNull(
                         CFDictionaryCreateMutable(null, 0, kCFTypeDictionaryKeyCallBacks.ptr, kCFTypeDictionaryValueCallBacks.ptr),
                     )
                 try {
                     val result =
-                        SecKeyCopyKeyExchangeResult(privateKey, kSecKeyAlgorithmECDHKeyExchangeStandard, peerKey, params, error.ptr)
-                            ?: throw IllegalArgumentException("ECDH failed: ${error.value.describe()}")
+                        SecKeyCopyKeyExchangeResult(privateKey, kSecKeyAlgorithmECDHKeyExchangeStandard, peerKey, params, cfError.ptr)
+                            ?: throw IllegalArgumentException("ECDH failed: ${cfError.takeDescription()}")
                     result.use { data ->
                         val sharedX = data.toByteArray()
                         check(sharedX.size == SHARED_X_SIZE) { "unexpected shared secret length ${sharedX.size}" }
@@ -77,30 +77,44 @@ internal class AppleSoftwareEcdhKey(
         }
 }
 
-/** `SecKeyCreateWithData`로 P-256 키를 만든다. 실패하면 IllegalStateException. 호출자가 `CFRelease` 책임. */
+/**
+ * `SecKeyCreateWithData`로 P-256 키를 만든다. 실패하면 IllegalStateException. 호출자가 `CFRelease` 책임.
+ * [data]는 사용 후(성공/실패 모두) `fill(0)`으로 지운다 — 개인키 스칼라 등 민감한 바이트가 힙에 남지 않도록 한다.
+ * `SecKeyCreateWithData`에 넘기는 `CFData` 사본은 불변(immutable)이라 지울 수 없다.
+ */
 @OptIn(ExperimentalForeignApi::class)
 internal fun createSecKey(
     data: ByteArray,
     keyClass: CFStringRef?,
 ): SecKeyRef =
     memScoped {
-        val attributes: CFDictionaryRef =
-            checkNotNull(
-                CFDictionaryCreateMutable(
-                    null,
-                    KEY_ATTRIBUTE_CAPACITY,
-                    kCFTypeDictionaryKeyCallBacks.ptr,
-                    kCFTypeDictionaryValueCallBacks.ptr,
-                ),
-            )
-        val bits = alloc<IntVar>().apply { value = P256_BITS }
-        val bitsNumber = CFNumberCreate(null, kCFNumberIntType, bits.ptr)
-        CFDictionaryAddValue(attributes, kSecAttrKeyType, kSecAttrKeyTypeECSECPrimeRandom)
-        CFDictionaryAddValue(attributes, kSecAttrKeyClass, keyClass)
-        CFDictionaryAddValue(attributes, kSecAttrKeySizeInBits, bitsNumber)
-        val cfError = alloc<CFErrorRefVar>()
-        val key = data.toCFData().use { cfData -> SecKeyCreateWithData(cfData, attributes, cfError.ptr) }
-        CFRelease(bitsNumber)
-        CFRelease(attributes)
-        key ?: error("SecKeyCreateWithData failed: ${cfError.value.describe()}")
+        try {
+            val attributes: CFDictionaryRef =
+                checkNotNull(
+                    CFDictionaryCreateMutable(
+                        null,
+                        KEY_ATTRIBUTE_CAPACITY,
+                        kCFTypeDictionaryKeyCallBacks.ptr,
+                        kCFTypeDictionaryValueCallBacks.ptr,
+                    ),
+                )
+            try {
+                val bits = alloc<IntVar>().apply { value = P256_BITS }
+                val bitsNumber = checkNotNull(CFNumberCreate(null, kCFNumberIntType, bits.ptr))
+                try {
+                    CFDictionaryAddValue(attributes, kSecAttrKeyType, kSecAttrKeyTypeECSECPrimeRandom)
+                    CFDictionaryAddValue(attributes, kSecAttrKeyClass, keyClass)
+                    CFDictionaryAddValue(attributes, kSecAttrKeySizeInBits, bitsNumber)
+                    val cfError = alloc<CFErrorRefVar>()
+                    val key = data.toCFData().use { cfData -> SecKeyCreateWithData(cfData, attributes, cfError.ptr) }
+                    key ?: error("SecKeyCreateWithData failed: ${cfError.takeDescription()}")
+                } finally {
+                    CFRelease(bitsNumber)
+                }
+            } finally {
+                CFRelease(attributes)
+            }
+        } finally {
+            data.fill(0)
+        }
     }

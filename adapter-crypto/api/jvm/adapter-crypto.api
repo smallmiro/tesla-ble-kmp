@@ -1,6 +1,4 @@
 public final class io/github/smallmiro/teslable/crypto/JcaCryptoPrimitives : io/github/smallmiro/teslable/port/CryptoPrimitives {
-	public static final field TAG_BITS I
-	public static final field TAG_BYTES I
 	public fun <init> ()V
 	public fun aesGcmDecrypt ([B[B[B[B[B)[B
 	public fun aesGcmEncrypt ([B[B[B[B)Lio/github/smallmiro/teslable/port/AesGcmOutput;
