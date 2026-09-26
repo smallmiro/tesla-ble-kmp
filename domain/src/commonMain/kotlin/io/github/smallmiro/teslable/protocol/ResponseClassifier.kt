@@ -47,7 +47,7 @@ public object ResponseClassifier {
                 VehicleError.ProtocolFault(fault)
             }
         }
-        if (status != null && hasUnknownTag(status.unknownFields, TAG_MESSAGE_STATUS_SIGNED_MESSAGE_FAULT)) {
+        if (status != null && unknownVarint(status.unknownFields, TAG_MESSAGE_STATUS_SIGNED_MESSAGE_FAULT) != null) {
             return VehicleError.UnknownResponse
         }
         return null
@@ -62,7 +62,7 @@ public object ResponseClassifier {
             } catch (e: IOException) {
                 return VehicleError.BadResponse("session info: ${e.message ?: "undecodable"}")
             }
-        if (hasUnknownTag(info.unknownFields, TAG_SESSION_INFO_STATUS)) {
+        if (unknownVarint(info.unknownFields, TAG_SESSION_INFO_STATUS) != null) {
             return VehicleError.UnknownResponse
         }
         return when (info.status) {
@@ -73,7 +73,7 @@ public object ResponseClassifier {
 
     /** Go `GetError` 3단계: `operation_status`. `ERROR`는 Go처럼 nil(error.go 257~263). */
     private fun operationStatusError(status: MessageStatus?): VehicleError? {
-        if (status != null && hasUnknownTag(status.unknownFields, TAG_MESSAGE_STATUS_OPERATION_STATUS)) {
+        if (status != null && unknownVarint(status.unknownFields, TAG_MESSAGE_STATUS_OPERATION_STATUS) != null) {
             return VehicleError.UnknownResponse
         }
         return when (status?.operation_status ?: OperationStatus_E.OPERATIONSTATUS_OK) {
@@ -84,15 +84,15 @@ public object ResponseClassifier {
     }
 
     /**
-     * [unknownFields]에서 [tag]가 가리키는 varint 필드를 찾으면 true. Wire가 범위를 벗어난 enum 값을
-     * 만났을 때 원본 바이트를 여기로 옮기므로, 태그가 있으면 그 필드는 미인식 값이었다는 뜻이다.
-     * 값 자체는 버리고 존재 여부만 쓴다. 손상된 `unknownFields`는 "없음"으로 취급한다.
+     * [unknownFields]에서 [tag]가 가리키는 varint 필드의 원시 값(마지막 값). 없으면 null. Wire가 범위를 벗어난
+     * enum 값을 만났을 때 원본 바이트를 여기로 옮기므로, 값이 있으면 그 필드는 미인식 값이었다는 뜻이다.
+     * 손상된 `unknownFields`는 "없음"(null)으로 취급한다.
      */
-    private fun hasUnknownTag(
+    private fun unknownVarint(
         unknownFields: ByteString,
         tag: Int,
-    ): Boolean {
-        if (unknownFields.size == 0) return false
+    ): Int? {
+        if (unknownFields.size == 0) return null
         return try {
             var value: Int? = null
             val reader = ProtoReader(Buffer().write(unknownFields))
@@ -103,9 +103,9 @@ public object ResponseClassifier {
                     reader.skip()
                 }
             }
-            value != null
+            value
         } catch (ignored: IOException) {
-            false
+            null
         }
     }
 }
