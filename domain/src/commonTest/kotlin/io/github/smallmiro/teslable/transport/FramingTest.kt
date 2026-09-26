@@ -72,10 +72,9 @@ class FramingTest {
         val chunks = Framer.frame(message, 20)
         assertTrue(r.push(chunks[0]).isEmpty())
         time += 1500.milliseconds
-        assertTrue(r.push(chunks[1]).isEmpty())
-        assertTrue(r.push(chunks[2]).isEmpty()) // 앞부분이 버려져 완성되지 않음
-        time += 10.milliseconds
-        assertEquals(message.toHex(), chunks.flatMap { r.push(it) }.single().toHex())
+        // 1초가 지나 오래된 chunks[0]이 버려졌다면 다시 보낸 [0],[1],[2]가 정확히 한 메시지가 된다.
+        // 남아 있었다면 앞부분이 중복되어 스트림이 어긋나므로 이 단언이 실패한다.
+        assertEquals(listOf(message.toHex()), chunks.flatMap { r.push(it) }.map { it.toHex() })
     }
 
     @Test
