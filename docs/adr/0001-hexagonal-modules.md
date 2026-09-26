@@ -16,6 +16,7 @@ HANDOFF §6.1은 기능 단위(protocol/dispatcher/transport/vehicle/keystore)�
 - HANDOFF §6.1의 이름은 파일·패키지 수준으로 남는다(`protocol/`, `dispatcher/`, `transport/`, `vehicle/`, `keystore/`).
 - 새 의존성 추가 PR은 `architecture` 라벨과 ADR이 필요하다.
 - 모듈이 7개라 초기 Gradle 설정 비용이 있다(M0에서 흡수).
+- 경계 플러그인은 의존성 구성(configuration)을 능력(capability)으로 식별한다: `isCanBeDeclared && !isCanBeResolved && !isCanBeConsumed`이거나 이름이 `Implementation`/`Api`/`CompileOnly`/`RuntimeOnly` 접미사로 끝나는 구성. 플러그인이 합성한 구성인 `bcv-*`(BCV)와 `swiftPMDependencies*`(KGP)는 제외 목록에 넣어 스캔에서 뺀다 — 이 제외 목록은 해당 플러그인 버전에 종속적이므로 BCV·KGP를 올릴 때 다시 확인해야 한다.
 
 ## 대안
 - 단일 모듈 + 패키지 규약: 경계를 빌드가 못 지킨다. 기각.

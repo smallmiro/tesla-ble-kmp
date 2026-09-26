@@ -460,7 +460,7 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 |---|---|---|
 | Kotlin / KGP | 2.4.20 | K2. Gradle 9.6, JDK 17 |
 | kotlinx-coroutines | 1.11.0 | |
-| Android Gradle Plugin | 9.3.1 | KGP 2.4.20의 공식 지원 상한. `minSdk 31`, `compileSdk 36` |
+| Android Gradle Plugin | 9.3.1 | KGP 2.4.20의 공식 지원 상한. `minSdk 31`, `compileSdk 37` (Compose BOM 2026.09.00 요구, M0 Task 13에서 상향) |
 | Wire | 7.0.4 | `wire-runtime` iOS 아티팩트 있음. `google.protobuf.Timestamp` → `com.squareup.wire.Instant` |
 | Kable | 0.45.0 | Kotlin 2.4.10으로 빌드. `Filter.Name.Exact`, `Advertisement.isConnectable`, `WriteType.WithResponse`, Android `requestMtu`, Apple `maximumWriteValueLengthForType` |
 | SKIE | 0.10.15 | Kotlin 2.4.20 지원. `:sdk`에만 적용 |
