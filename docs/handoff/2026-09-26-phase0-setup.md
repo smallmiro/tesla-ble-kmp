@@ -26,7 +26,7 @@
    - `{{MANUAL_DIR}}10-porting-guide.md` §0.3 항목 5 와 원본 `internal/authentication/protocol_doc_test.go:34-39`, `pkg/protocol/protocol.md:664` 는 메타데이터에 `FLAGS=2` TLV(`...070400000002ff`)를 포함하고 태그 `c228e0ff64991481db3a7bbc133696c5` 를 기대함.
    - `{{POC_DIR}}PocTest.kt` 항목 5·6 은 `flags=0`(FLAGS TLV 없음, `...050400000007ff`)으로 AAD를 만들고 태그 `8e128da165f162f4d7d2c8da866cf82a` 를 기대함. 암호문 `38038e8c0f2e` 는 AAD와 무관하므로 양쪽 모두 같음.
    - 조치: M0에서 commonTest로 옮길 때 **protocol.md 벡터(FLAGS=2, 태그 c228e0ff…)를 정본 케이스**로 추가하고, PoC의 flags=0 케이스는 "FLAGS 생략 규칙" 검증용 보조 케이스로 유지. PoC 파일 자체는 부록 A 원문이므로 수정하지 않음.
-2. 원격 저장소가 없어 브랜치 보호(main 직접 푸시 금지, CI 필수, rebase merge만)는 아직 설정하지 못함. 사용자가 GitHub 원격을 만든 뒤 적용 필요.
+2. (해결됨, Phase 1 중) 2026-09-26 사용자가 `{{REPO_URL}}` 를 공개로 생성. 원격 연결·푸시 완료. 저장소 설정: rebase merge만 허용, squash·merge commit 비활성, 머지 후 브랜치 삭제. `main` 브랜치 보호: PR 필수(승인 수 0), 관리자 포함 적용, 선형 히스토리, force-push·삭제 금지, 대화 해결 필수, 상태 검사 strict(컨텍스트는 M0에서 CI 잡 이름으로 채움). 이후 모든 변경은 브랜치 → PR → rebase merge 로만 `main` 에 들어간다.
 
 ## 다음 한 걸음
 Phase 1 PRD: `brainstorming` 스킬로 `{{HANDOFF_FILE}}` §10 열린 질문 10개를 **한 번에 하나씩** 결정 → `{{PRD_FILE}}` 작성 → 🛑 승인.
