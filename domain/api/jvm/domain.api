@@ -5014,6 +5014,8 @@ public final class io/github/smallmiro/teslable/protocol/Signer : java/lang/Auto
 	public static final field Companion Lio/github/smallmiro/teslable/protocol/Signer$Companion;
 	public synthetic fun <init> (Lio/github/smallmiro/teslable/protocol/Session;Lio/github/smallmiro/teslable/model/Vin;[BIILio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;JLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun close ()V
+	public final fun decrypt (Lcom/tesla/generated/universalmessage/RoutableMessage;[B)Lio/github/smallmiro/teslable/protocol/SignerResult;
+	public final fun encrypt-HG0u8IE (Lcom/tesla/generated/universalmessage/RoutableMessage;J)Lio/github/smallmiro/teslable/protocol/SignerResult;
 	public final fun exportSessionInfo ()[B
 	public final fun getCounter-pVg5ArA ()I
 	public final fun getEpoch ()[B
@@ -5033,6 +5035,12 @@ public final class io/github/smallmiro/teslable/protocol/Signer$Companion {
 	public static synthetic fun createAuthenticated$default (Lio/github/smallmiro/teslable/protocol/Signer$Companion;Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/model/Vin;[B[B[BLio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun importSessionInfo-mGOUYlo (Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/model/Vin;[BJLio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun importSessionInfo-mGOUYlo$default (Lio/github/smallmiro/teslable/protocol/Signer$Companion;Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/model/Vin;[BJLio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class io/github/smallmiro/teslable/protocol/Signer$DecryptedResponse {
+	public synthetic fun <init> (Lcom/tesla/generated/universalmessage/RoutableMessage;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getCounter-pVg5ArA ()I
+	public final fun getMessage ()Lcom/tesla/generated/universalmessage/RoutableMessage;
 }
 
 public abstract interface class io/github/smallmiro/teslable/protocol/SignerResult {
