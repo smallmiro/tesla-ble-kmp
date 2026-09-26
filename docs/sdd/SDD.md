@@ -102,14 +102,16 @@ Go SDK의 BLE 경로(`pkg/connector/ble` → `internal/dispatcher` → `internal
 **값 객체** (`data class` / `value class`, 불변, `ByteArray`는 방어 복사)
 
 ```kotlin
-public value class Vin(val value: String)               // 17자 검증. toString()은 마스킹 "5YJ**********9ABC"
+public class Vin(val value: String)                     // 17자 검증. toString()은 마스킹 "5YJ**********9ABC"
 public enum class VehicleDomain(val wire: Int) { VCSEC(2), INFOTAINMENT(3) }
 public class PublicKeyBytes(bytes: ByteArray)           // 0x04‖X‖Y 65바이트 검증. sha1Prefix()로 KeyId
-public value class LocalName(val value: String)         // "S" + hex(SHA1(vin)[:8]) + "C"
+public class LocalName(val value: String)               // "S" + hex(SHA1(vin)[:8]) + "C"
 public class RoutingAddress(bytes: ByteArray)           // 16바이트
 public class RequestUuid(bytes: ByteArray)              // 16바이트
 public class Epoch(bytes: ByteArray)                    // 16바이트
 ```
+
+`Vin`·`LocalName`은 `value class`가 아닌 일반 `class`다(value class는 Kotlin/Native ObjC 헤더에서 기반 타입으로 지워져 `export(:domain)`으로 Swift에 타입으로 남지 않는다).
 
 **프로토콜 코어** (Go 대응은 §1.3)
 
@@ -272,7 +274,7 @@ public interface Vehicle {
 
 ### 2.8 경계 강제 (Gradle)
 
-`build-logic/` 컨벤션 플러그인이 모듈 종류별로 허용 의존성을 선언하고, 그 밖의 `project(...)` 의존이나 금지 라이브러리(`:domain`에 Kable/Android SDK)를 추가하면 `configure` 단계에서 실패시킨다. `:domain`은 Android 타깃에서도 `android.*` 임포트가 없도록 `detekt` 규칙 `ForbiddenImport`를 함께 건다. `apiCheck`(binary-compatibility-validator)는 `:sdk`, `:domain`에만 적용한다.
+`build-logic/` 컨벤션 플러그인이 모듈 종류별로 허용 의존성을 선언하고, 그 밖의 `project(...)` 의존이나 금지 라이브러리(`:domain`에 Kable/Android SDK)를 추가하면 `configure` 단계에서 실패시킨다. `:domain`은 Android 타깃에서도 `android.*` 임포트가 없도록 `detekt` 규칙 `ForbiddenImport`를 함께 건다. `apiCheck`(binary-compatibility-validator)는 모든 라이브러리 모듈(`:domain`, `:application`, `:adapter-*`, `:sdk`)에 적용하고, `samples/*`와 `:testing`만 제외한다(루트 `build.gradle.kts`의 `apiValidation.ignoredProjects`).
 
 ---
 
