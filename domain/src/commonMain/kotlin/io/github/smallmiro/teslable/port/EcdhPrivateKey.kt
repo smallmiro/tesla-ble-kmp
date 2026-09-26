@@ -1,3 +1,4 @@
+// Ported from vehicle-command@a4b43c1 internal/authentication/ecdh.go (Apache-2.0) — ECDHPrivateKey port interface
 package io.github.smallmiro.teslable.port
 
 import io.github.smallmiro.teslable.model.PublicKeyBytes

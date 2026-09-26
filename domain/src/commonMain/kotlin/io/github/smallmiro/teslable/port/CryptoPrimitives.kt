@@ -1,3 +1,5 @@
+// Ported from vehicle-command@a4b43c1 internal/authentication/native.go, internal/authentication/crypto.go
+// (Apache-2.0) — CryptoPrimitives port interface (NativeSession, Session)
 package io.github.smallmiro.teslable.port
 
 /** AES-GCM 결과. Go `NativeSession.Encrypt`처럼 암호문과 태그를 분리해 돌려준다. */

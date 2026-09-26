@@ -66,9 +66,12 @@ samples/* ──▶ :sdk 만
 | 전체 검사 (푸시 전 필수) | `./gradlew check` |
 | 공통 테스트 (JVM) | `./gradlew jvmTest` |
 | iOS 시뮬레이터 테스트 (macOS) | `./gradlew iosSimulatorArm64Test` |
-| 정적 분석 | `./gradlew detekt ktlintCheck` |
+| Android 단위 테스트 | `./gradlew testAndroidHostTest` |
+| 정적 분석 | `./gradlew lintKotlin detekt` |
+| 금지 토큰 스캔 | `./gradlew forbiddenTokens` |
 | 공개 API 호환성 | `./gradlew apiCheck` (변경을 의도했다면 `apiDump` 후 커밋) |
-| protobuf 생성 | `./gradlew generateCommonMainProtos` |
+| protobuf 생성 | `./gradlew :domain:generateCommonMainProtos` (Wire 태스크 이름은 `./gradlew :domain:tasks --all \| grep -i proto`로 확인) |
+| iOS 프레임워크 | `./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64` |
 
 ## 7. 커밋과 PR
 - 접두어: `struct:` (구조) · `feat:` (기능) · `fix:` (결함) · `test:` (테스트만) · `docs:` · `chore:` (의존성·빌드)
