@@ -1,9 +1,13 @@
 package io.github.smallmiro.teslable.protocol
 
+import com.tesla.generated.signatures.AES_GCM_Response_Signature_Data
 import com.tesla.generated.signatures.SessionInfo
+import com.tesla.generated.signatures.SignatureData
+import com.tesla.generated.signatures.SignatureType
 import com.tesla.generated.universalmessage.Destination
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
+import com.tesla.generated.universalmessage.MessageStatus
 import com.tesla.generated.universalmessage.RoutableMessage
 import io.github.smallmiro.teslable.InternalTeslableApi
 import io.github.smallmiro.teslable.model.Vin
@@ -14,7 +18,9 @@ import io.github.smallmiro.teslable.testing.fixtures.ProtocolVectors
 import io.github.smallmiro.teslable.util.hexToBytes
 import io.github.smallmiro.teslable.util.toHex
 import kotlinx.coroutines.test.runTest
+import okio.ByteString
 import okio.ByteString.Companion.decodeHex
+import okio.ByteString.Companion.encodeUtf8
 import okio.ByteString.Companion.toByteString
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -32,6 +38,16 @@ class SignerCryptoTest {
     private val vin = Vin(ProtocolVectors.VIN)
     private val challenge = byteArrayOf(0, 1, 2, 3, 4, 5, 6, 7)
     private val plaintext = "hello world".encodeToByteArray() // peer_test.go testMessagePlaintext
+
+    /** verifier.encryptResponse가 요구하는, 실제 요청과 무관한 임의의 16바이트 태그 (request hash 생성용). */
+    private val arbitraryResponseTag = ByteArray(16) { 9 }
+
+    /** [arbitraryResponseTag]로 만든, 실제 요청과 무관한 request hash. */
+    private fun arbitraryRequestHash(domain: Domain = Domain.DOMAIN_VEHICLE_SECURITY): ByteArray =
+        RequestHash.of(SignatureType.SIGNATURE_TYPE_AES_GCM_PERSONALIZED, arbitraryResponseTag, domain)
+
+    /** [index]번째 바이트를 뒤집는다 — AAD/서명 불일치를 만드는 최소 변형. */
+    private fun ByteArray.flipByte(index: Int): ByteArray = copyOf().also { it[index] = (it[index].toInt() xor 1).toByte() }
 
     private fun testMessage(domain: Domain = Domain.DOMAIN_VEHICLE_SECURITY): RoutableMessage =
         // peer_test.go getTestMessage
@@ -252,15 +268,7 @@ class SignerCryptoTest {
             // 다른 요청의 hash → AAD 불일치 → INVALID_SIGNATURE (드롭 대상)
             assertEquals(
                 MessageFault_E.MESSAGEFAULT_ERROR_INVALID_SIGNATURE,
-                assertIs<SignerResult.Fault>(
-                    signer.decrypt(
-                        encrypted,
-                        requestHash.copyOf().also {
-                            it[3] =
-                                (it[3].toInt() xor 1).toByte()
-                        },
-                    ),
-                ).fault,
+                assertIs<SignerResult.Fault>(signer.decrypt(encrypted, requestHash.flipByte(3))).fault,
             )
             // GCM 응답 데이터 없음
             assertEquals(
@@ -270,20 +278,51 @@ class SignerCryptoTest {
         }
 
     @Test
+    fun decryptReplacesWholePayloadOneofLikeGo() =
+        // Fix round 1, Important: signer.go Decrypt는 message.Payload 전체(oneof)를 교체한다.
+        // MITM은 인증된 payload가 비어 있는 응답에서 session_info로 바이트를 옮길 수 있다(태그는 여전히 맞는다) — decrypt는
+        // 예외 없이 값으로 성공을 돌려주고, 옮겨 붙은 session_info를 지워야 한다(ADR-0006).
+        runTest {
+            val (verifier, signer) = pair()
+            val requestHash = arbitraryRequestHash()
+            val emptyResponse = RoutableMessage(from_destination = Destination(domain = Domain.DOMAIN_VEHICLE_SECURITY))
+            val encrypted = verifier.encryptResponse(emptyResponse, requestHash, counter = 5u)
+            // 인증된 payload가 비어 있으므로, 어느 oneof 멤버가 그 바이트를 담는지는 태그로 검증되지 않는다.
+            val swapped = encrypted.copy(protobuf_message_as_bytes = null, session_info = "x".encodeUtf8())
+            val decrypted = assertIs<SignerResult.Ok<Signer.DecryptedResponse>>(signer.decrypt(swapped, requestHash)).value
+            assertNull(decrypted.message.session_info)
+            assertEquals(0, assertNotNull(decrypted.message.protobuf_message_as_bytes).size)
+        }
+
+    @Test
+    fun decryptRejectsMalformedGcmLengthsWithoutThrowing() =
+        // Fix round 1, minor 2: M0 Session.decrypt는 길이가 틀린 nonce/tag를 null로 처리한다 (Go gcm.Open은 panic한다).
+        runTest {
+            val (_, signer) = pair()
+            val requestHash = arbitraryRequestHash()
+            val malformed =
+                RoutableMessage(
+                    from_destination = Destination(domain = Domain.DOMAIN_VEHICLE_SECURITY),
+                    signature_data =
+                        SignatureData(
+                            AES_GCM_Response_data =
+                                AES_GCM_Response_Signature_Data(
+                                    nonce = ByteString.EMPTY,
+                                    counter = 1,
+                                    tag = ByteArray(15).toByteString(),
+                                ),
+                        ),
+                )
+            val result = signer.decrypt(malformed, requestHash)
+            assertEquals(MessageFault_E.MESSAGEFAULT_ERROR_INVALID_SIGNATURE, assertIs<SignerResult.Fault>(result).fault)
+        }
+
+    @Test
     fun decryptUsesBroadcastDomainWhenFromDestinationMissing() =
         // Review Focus 3; Go GetFromDestination().GetDomain() == 0
         runTest {
             val (verifier, signer) = pair()
-            val requestHash =
-                RequestHash.of(
-                    com.tesla.generated.signatures.SignatureType.SIGNATURE_TYPE_AES_GCM_PERSONALIZED,
-                    ByteArray(
-                        16,
-                    ) {
-                        9
-                    },
-                    Domain.DOMAIN_VEHICLE_SECURITY,
-                )
+            val requestHash = arbitraryRequestHash()
             val response = RoutableMessage(protobuf_message_as_bytes = "0a00".decodeHex())
             val encrypted = verifier.encryptResponse(response, requestHash, counter = 3u)
             assertIs<SignerResult.Ok<Signer.DecryptedResponse>>(signer.decrypt(encrypted, requestHash))
@@ -294,34 +333,20 @@ class SignerCryptoTest {
         // 03-protocol.md §9.2 TLV FAULT
         runTest {
             val (verifier, signer) = pair()
-            val requestHash =
-                RequestHash.of(
-                    com.tesla.generated.signatures.SignatureType.SIGNATURE_TYPE_AES_GCM_PERSONALIZED,
-                    ByteArray(
-                        16,
-                    ) {
-                        9
-                    },
-                    Domain.DOMAIN_VEHICLE_SECURITY,
-                )
+            val requestHash = arbitraryRequestHash()
             val response =
                 RoutableMessage(
                     from_destination = Destination(domain = Domain.DOMAIN_VEHICLE_SECURITY),
                     protobuf_message_as_bytes = "0a00".decodeHex(),
-                    signedMessageStatus =
-                        com.tesla.generated.universalmessage.MessageStatus(
-                            signed_message_fault = MessageFault_E.MESSAGEFAULT_ERROR_BUSY,
-                        ),
+                    signedMessageStatus = MessageStatus(signed_message_fault = MessageFault_E.MESSAGEFAULT_ERROR_BUSY),
                 )
             val encrypted = verifier.encryptResponse(response, requestHash, counter = 4u)
             assertIs<SignerResult.Ok<Signer.DecryptedResponse>>(signer.decrypt(encrypted, requestHash))
             val tampered =
-                encrypted.copy(
-                    signedMessageStatus =
-                        com.tesla.generated.universalmessage.MessageStatus(
-                            signed_message_fault = MessageFault_E.MESSAGEFAULT_ERROR_NONE,
-                        ),
-                )
-            assertIs<SignerResult.Fault>(signer.decrypt(tampered, requestHash))
+                encrypted.copy(signedMessageStatus = MessageStatus(signed_message_fault = MessageFault_E.MESSAGEFAULT_ERROR_NONE))
+            assertEquals(
+                MessageFault_E.MESSAGEFAULT_ERROR_INVALID_SIGNATURE,
+                assertIs<SignerResult.Fault>(signer.decrypt(tampered, requestHash)).fault,
+            )
         }
 }
