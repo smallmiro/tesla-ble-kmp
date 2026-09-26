@@ -43,7 +43,7 @@ Tesla 공식 Go SDK [`teslamotors/vehicle-command`](https://github.com/teslamoto
 
 ## 배포 (예정, M6)
 
-- Android/KMP: GitHub Pages Maven 저장소 `https://smallmiro.github.io/tesla-ble-kmp/`
+- Android/KMP: GitHub Packages Maven 레지스트리 `https://maven.pkg.github.com/smallmiro/tesla-ble-kmp` (받을 때 `read:packages` 권한의 GitHub 토큰 필요)
 - iOS: Swift Package Manager (`Package.swift` + GitHub Release XCFramework)
 
 ## 기여

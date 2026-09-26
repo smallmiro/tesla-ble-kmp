@@ -21,8 +21,8 @@
 | D10 | 개인키 보관 | **하드웨어 기본 + 소프트웨어 대체 허용.** 실제 보관 수준(`HARDWARE` / `STRONGBOX` / `SOFTWARE`)을 조회하는 API 제공 | 에뮬레이터·시뮬레이터·CI에서도 동작. ECDH 공유 비밀과 세션 키 K는 프로토콜 구조상 앱 메모리에 존재함을 문서화. `00-agent-guide §3.3-21`, `10-porting-guide §12` |
 | D11 | 키 등록 기본 역할 | **Owner.** 역할 지정 오버로드 제공 | Go `SendAddKeyRequest`와 동일 기본값. `03-protocol §3`, `05-command-catalog B` |
 | D12 | 공개 API 스타일 | **commonMain은 `suspend` + `Flow`. iOS는 SKIE로 Swift async/await, AsyncSequence, enum 변환** | SKIE(Apache-2.0) 도입은 SDD에서 ADR로 기록. `04-go-api-reference pkg/vehicle` |
-| D13 | 공개·배포 | **저장소는 처음부터 공개(오픈소스, Apache-2.0).** 배포 채널은 **GitHub Pages Maven 저장소**(`maven-publish` 산출물을 `gh-pages` 브랜치에 커밋, `{{PAGES_MAVEN_URL}}`) **+ SPM**(`Package.swift` + GitHub Release의 XCFramework). Maven Central과 GitHub Packages는 쓰지 않음. 배포 파이프라인 구축은 **M6의 마지막 과제**이며 그 전까지는 `mavenLocal` + 로컬 XCFramework | 앱 개발자는 토큰 없이 URL 한 줄로 받음. `LICENSE`·`NOTICE`는 저장소 생성 시(Phase 1) 커밋됨. 릴리스마다 파일이 누적되므로 오래된 버전 정리 규칙을 M6에서 정함 |
-| D14 | 패키지 루트 | **`io.github.smallmiro.teslable`** (`{{PATHS_FILE}}` `BASE_PACKAGE`에 기록됨) | GitHub Pages 저장소는 그룹 제약이 없지만, 나중에 Maven Central로 옮길 수 있도록 `io.github.<계정>` 규칙을 유지 |
+| D13 | 공개·배포 | **저장소는 처음부터 공개(오픈소스, Apache-2.0).** 배포 채널은 **GitHub Packages(Maven 레지스트리, `{{PACKAGES_MAVEN_URL}}`)** **+ SPM**(`Package.swift` + GitHub Release의 XCFramework). Maven Central과 GitHub Pages Maven 저장소는 쓰지 않음. 배포 파이프라인 구축은 **M6의 마지막 과제**이며 그 전까지는 `mavenLocal` + 로컬 XCFramework | 앱 개발자는 공개 패키지를 받을 때도 GitHub PAT(`read:packages`)가 필요하므로 `getting-started.md`에 설정법(gradle.properties, CI 시크릿)을 명시. `LICENSE`·`NOTICE`는 저장소 생성 시(Phase 1) 커밋됨 |
+| D14 | 패키지 루트 | **`io.github.smallmiro.teslable`** (`{{PATHS_FILE}}` `BASE_PACKAGE`에 기록됨) | GitHub Packages는 그룹 제약이 없지만, 나중에 Maven Central로 옮길 수 있도록 `io.github.<계정>` 규칙을 유지 |
 | D15 | 샘플 앱 UI | **Android Jetpack Compose + iOS SwiftUI** (각각 네이티브) | 실제 소비자 앱과 같은 구성. SKIE가 만든 Swift 표면을 검증 |
 | D16 | 동시 연결 차량 수 | **설계는 차량 단위 객체(연결마다 독립 인스턴스). v1 검증은 1대.** 다중 연결은 막지 않되 "미검증"으로 문서화 | Go와 동일 (연결 1 = Vehicle 1). `01-architecture §5`, `02-ble-transport §11` |
 | D17 | v1 기능 범위 | **P0 + P1을 v1에 포함. P2는 v1.1** (§5 표 참조) | `{{HANDOFF_FILE}}` §12 M5 완료 기준 = P0/P1 |
@@ -83,7 +83,7 @@ Tesla 공식 Go SDK `vehicle-command`는 BLE로 차량과 직접 통신하는 �
 - 2021년 이전 Model S/X
 - 백그라운드 자동 잠금 해제(Phone-as-Key). **v2 후보**
 - 다중 차량 동시 연결의 검증(D16). 설계상 허용, 테스트·실차 확인은 v1 범위 밖
-- 배포 파이프라인(GitHub Pages Maven 저장소, SPM) 구축은 M6 마지막 과제(D13). Maven Central·GitHub Packages 배포는 범위 밖. 그 전 마일스톤의 DoD에는 포함하지 않음
+- 배포 파이프라인(GitHub Packages, SPM) 구축은 M6 마지막 과제(D13). Maven Central·GitHub Pages 배포는 범위 밖. 그 전 마일스톤의 DoD에는 포함하지 않음
 - 소프트웨어 키 전용 경로(API 31 미만)(D9)
 - 에러 메시지 현지화(D19)
 
@@ -363,7 +363,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | M3 | transport(Kable) + keystore + 샘플 앱 골격 | FR-001~006, FR-020~021, FR-025, FR-028, FR-031, FR-112, NFR-004~006, NFR-009 | 샘플 앱에서 스캔, 연결, 키 목록, VehicleStatus (실차는 사용자 확인) |
 | M4 | 키 등록 + VCSEC 제어 | FR-022~024, FR-026~027, FR-040~047, FR-104, FR-110~111(VCSEC 부분) | 페어링, 잠금, 해제, 트렁크 (실차는 사용자 확인) |
 | M5 | Infotainment 제어 + GetState (P0/P1) | FR-033~034, FR-050~053, FR-060~085, FR-090~092, FR-110~111(전체) | P0/P1 항목 완료, 실차 체크리스트 전달 |
-| M6 | 문서화, 배포 준비 | `{{LIB_DOCS_DIR}}` 완성, API 문서, NOTICE, mavenLocal/XCFramework 빌드. **마지막 과제**: GitHub Pages Maven 저장소 + SPM 배포 파이프라인(D13), 버전 정리 규칙 | 문서 링크 검증, 배포 설정 |
+| M6 | 문서화, 배포 준비 | `{{LIB_DOCS_DIR}}` 완성, API 문서, NOTICE, mavenLocal/XCFramework 빌드. **마지막 과제**: GitHub Packages + SPM 배포 파이프라인(D13), 소비자용 PAT 설정 문서 | 문서 링크 검증, 배포 설정 |
 | v1.1 | P2 기능 | FR-054, FR-086~089, FR-093~094 | – |
 
 ---
@@ -375,7 +375,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | 페이지 | 내용 | 갱신 시점 |
 |---|---|---|
 | `README.md` | 목차, 지원 플랫폼(D9), 한 줄 설치 | M0 |
-| `getting-started.md` | 의존성 추가(mavenLocal/XCFramework, M6 이후 GitHub Pages Maven URL / SPM), 권한 설정(Android 12+ BLE, iOS Info.plist), 첫 페어링 코드 | M3, M4 |
+| `getting-started.md` | 의존성 추가(mavenLocal/XCFramework, M6 이후 GitHub Packages + PAT 설정 / SPM), 권한 설정(Android 12+ BLE, iOS Info.plist), 첫 페어링 코드 | M3, M4 |
 | `pairing.md` | 키 생성·보관 수준(D10), add-key-request 흐름과 NFC 안내, 역할(D11), 등록 확인, 키 목록·삭제 | M4 |
 | `reading-state.md` | `vehicleStatus`(인증 불필요) vs `getState`(깨우기 필요), 12개 카테고리 필드 표, 깨우기 정책 | M3, M5 |
 | `commands.md` | 제어 API 전체 표: 메서드 ↔ FR ↔ 도메인 ↔ 인증 ↔ 우선순위 | M4, M5 |
