@@ -724,6 +724,425 @@ abstract interface io.github.smallmiro.teslable.port/EcdhPrivateKey { // io.gith
     abstract suspend fun sharedX(io.github.smallmiro.teslable.model/PublicKeyBytes): kotlin/ByteArray // io.github.smallmiro.teslable.port/EcdhPrivateKey.sharedX|sharedX(io.github.smallmiro.teslable.model.PublicKeyBytes){}[0]
 }
 
+sealed interface <#A: out kotlin/Any?> io.github.smallmiro.teslable.model/VehicleResult { // io.github.smallmiro.teslable.model/VehicleResult|null[0]
+    final class <#A1: kotlin/Any?> Success : io.github.smallmiro.teslable.model/VehicleResult<#A1> { // io.github.smallmiro.teslable.model/VehicleResult.Success|null[0]
+        constructor <init>(#A1) // io.github.smallmiro.teslable.model/VehicleResult.Success.<init>|<init>(1:0){}[0]
+
+        final val value // io.github.smallmiro.teslable.model/VehicleResult.Success.value|{}value[0]
+            final fun <get-value>(): #A1 // io.github.smallmiro.teslable.model/VehicleResult.Success.value.<get-value>|<get-value>(){}[0]
+
+        final fun component1(): #A1 // io.github.smallmiro.teslable.model/VehicleResult.Success.component1|component1(){}[0]
+        final fun copy(#A1 = ...): io.github.smallmiro.teslable.model/VehicleResult.Success<#A1> // io.github.smallmiro.teslable.model/VehicleResult.Success.copy|copy(1:0){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleResult.Success.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleResult.Success.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleResult.Success.toString|toString(){}[0]
+    }
+
+    final class Failure : io.github.smallmiro.teslable.model/VehicleResult<kotlin/Nothing> { // io.github.smallmiro.teslable.model/VehicleResult.Failure|null[0]
+        constructor <init>(io.github.smallmiro.teslable.model/VehicleError) // io.github.smallmiro.teslable.model/VehicleResult.Failure.<init>|<init>(io.github.smallmiro.teslable.model.VehicleError){}[0]
+
+        final val error // io.github.smallmiro.teslable.model/VehicleResult.Failure.error|{}error[0]
+            final fun <get-error>(): io.github.smallmiro.teslable.model/VehicleError // io.github.smallmiro.teslable.model/VehicleResult.Failure.error.<get-error>|<get-error>(){}[0]
+
+        final fun component1(): io.github.smallmiro.teslable.model/VehicleError // io.github.smallmiro.teslable.model/VehicleResult.Failure.component1|component1(){}[0]
+        final fun copy(io.github.smallmiro.teslable.model/VehicleError = ...): io.github.smallmiro.teslable.model/VehicleResult.Failure // io.github.smallmiro.teslable.model/VehicleResult.Failure.copy|copy(io.github.smallmiro.teslable.model.VehicleError){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleResult.Failure.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleResult.Failure.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleResult.Failure.toString|toString(){}[0]
+    }
+
+    final class Uncertain : io.github.smallmiro.teslable.model/VehicleResult<kotlin/Nothing> { // io.github.smallmiro.teslable.model/VehicleResult.Uncertain|null[0]
+        constructor <init>(io.github.smallmiro.teslable.model/VehicleError) // io.github.smallmiro.teslable.model/VehicleResult.Uncertain.<init>|<init>(io.github.smallmiro.teslable.model.VehicleError){}[0]
+
+        final val error // io.github.smallmiro.teslable.model/VehicleResult.Uncertain.error|{}error[0]
+            final fun <get-error>(): io.github.smallmiro.teslable.model/VehicleError // io.github.smallmiro.teslable.model/VehicleResult.Uncertain.error.<get-error>|<get-error>(){}[0]
+
+        final fun component1(): io.github.smallmiro.teslable.model/VehicleError // io.github.smallmiro.teslable.model/VehicleResult.Uncertain.component1|component1(){}[0]
+        final fun copy(io.github.smallmiro.teslable.model/VehicleError = ...): io.github.smallmiro.teslable.model/VehicleResult.Uncertain // io.github.smallmiro.teslable.model/VehicleResult.Uncertain.copy|copy(io.github.smallmiro.teslable.model.VehicleError){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleResult.Uncertain.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleResult.Uncertain.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleResult.Uncertain.toString|toString(){}[0]
+    }
+}
+
+sealed interface io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError|null[0]
+    abstract val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.mayHaveSucceeded|{}mayHaveSucceeded[0]
+        abstract fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+    abstract val message // io.github.smallmiro.teslable.model/VehicleError.message|{}message[0]
+        abstract fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.message.<get-message>|<get-message>(){}[0]
+    abstract val temporary // io.github.smallmiro.teslable.model/VehicleError.temporary|{}temporary[0]
+        abstract fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+    sealed interface KeyStoreError : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError|null[0]
+        final class PlatformFailure : io.github.smallmiro.teslable.model/VehicleError.KeyStoreError { // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.PlatformFailure|null[0]
+            constructor <init>(kotlin/String) // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.PlatformFailure.<init>|<init>(kotlin.String){}[0]
+
+            final val cause // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.PlatformFailure.cause|{}cause[0]
+                final fun <get-cause>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.PlatformFailure.cause.<get-cause>|<get-cause>(){}[0]
+            final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.PlatformFailure.mayHaveSucceeded|{}mayHaveSucceeded[0]
+                final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.PlatformFailure.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+            final val message // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.PlatformFailure.message|{}message[0]
+                final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.PlatformFailure.message.<get-message>|<get-message>(){}[0]
+            final val temporary // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.PlatformFailure.temporary|{}temporary[0]
+                final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.PlatformFailure.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+            final fun component1(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.PlatformFailure.component1|component1(){}[0]
+            final fun copy(kotlin/String = ...): io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.PlatformFailure // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.PlatformFailure.copy|copy(kotlin.String){}[0]
+            final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.PlatformFailure.equals|equals(kotlin.Any?){}[0]
+            final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.PlatformFailure.hashCode|hashCode(){}[0]
+            final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.PlatformFailure.toString|toString(){}[0]
+        }
+
+        final object HardwareUnavailable : io.github.smallmiro.teslable.model/VehicleError.KeyStoreError { // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.HardwareUnavailable|null[0]
+            final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.HardwareUnavailable.mayHaveSucceeded|{}mayHaveSucceeded[0]
+                final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.HardwareUnavailable.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+            final val message // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.HardwareUnavailable.message|{}message[0]
+                final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.HardwareUnavailable.message.<get-message>|<get-message>(){}[0]
+            final val temporary // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.HardwareUnavailable.temporary|{}temporary[0]
+                final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.HardwareUnavailable.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+            final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.HardwareUnavailable.equals|equals(kotlin.Any?){}[0]
+            final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.HardwareUnavailable.hashCode|hashCode(){}[0]
+            final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.HardwareUnavailable.toString|toString(){}[0]
+        }
+
+        final object KeyNotFound : io.github.smallmiro.teslable.model/VehicleError.KeyStoreError { // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.KeyNotFound|null[0]
+            final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.KeyNotFound.mayHaveSucceeded|{}mayHaveSucceeded[0]
+                final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.KeyNotFound.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+            final val message // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.KeyNotFound.message|{}message[0]
+                final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.KeyNotFound.message.<get-message>|<get-message>(){}[0]
+            final val temporary // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.KeyNotFound.temporary|{}temporary[0]
+                final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.KeyNotFound.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+            final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.KeyNotFound.equals|equals(kotlin.Any?){}[0]
+            final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.KeyNotFound.hashCode|hashCode(){}[0]
+            final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.KeyStoreError.KeyNotFound.toString|toString(){}[0]
+        }
+    }
+
+    sealed interface TransportError : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.TransportError|null[0]
+        final class ConnectFailed : io.github.smallmiro.teslable.model/VehicleError.TransportError { // io.github.smallmiro.teslable.model/VehicleError.TransportError.ConnectFailed|null[0]
+            constructor <init>(kotlin/String) // io.github.smallmiro.teslable.model/VehicleError.TransportError.ConnectFailed.<init>|<init>(kotlin.String){}[0]
+
+            final val cause // io.github.smallmiro.teslable.model/VehicleError.TransportError.ConnectFailed.cause|{}cause[0]
+                final fun <get-cause>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.ConnectFailed.cause.<get-cause>|<get-cause>(){}[0]
+            final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.TransportError.ConnectFailed.mayHaveSucceeded|{}mayHaveSucceeded[0]
+                final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.ConnectFailed.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+            final val message // io.github.smallmiro.teslable.model/VehicleError.TransportError.ConnectFailed.message|{}message[0]
+                final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.ConnectFailed.message.<get-message>|<get-message>(){}[0]
+            final val temporary // io.github.smallmiro.teslable.model/VehicleError.TransportError.ConnectFailed.temporary|{}temporary[0]
+                final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.ConnectFailed.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+            final fun component1(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.ConnectFailed.component1|component1(){}[0]
+            final fun copy(kotlin/String = ...): io.github.smallmiro.teslable.model/VehicleError.TransportError.ConnectFailed // io.github.smallmiro.teslable.model/VehicleError.TransportError.ConnectFailed.copy|copy(kotlin.String){}[0]
+            final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.ConnectFailed.equals|equals(kotlin.Any?){}[0]
+            final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.TransportError.ConnectFailed.hashCode|hashCode(){}[0]
+            final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.ConnectFailed.toString|toString(){}[0]
+        }
+
+        final class WriteFailed : io.github.smallmiro.teslable.model/VehicleError.TransportError { // io.github.smallmiro.teslable.model/VehicleError.TransportError.WriteFailed|null[0]
+            constructor <init>(kotlin/String) // io.github.smallmiro.teslable.model/VehicleError.TransportError.WriteFailed.<init>|<init>(kotlin.String){}[0]
+
+            final val cause // io.github.smallmiro.teslable.model/VehicleError.TransportError.WriteFailed.cause|{}cause[0]
+                final fun <get-cause>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.WriteFailed.cause.<get-cause>|<get-cause>(){}[0]
+            final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.TransportError.WriteFailed.mayHaveSucceeded|{}mayHaveSucceeded[0]
+                final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.WriteFailed.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+            final val message // io.github.smallmiro.teslable.model/VehicleError.TransportError.WriteFailed.message|{}message[0]
+                final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.WriteFailed.message.<get-message>|<get-message>(){}[0]
+            final val temporary // io.github.smallmiro.teslable.model/VehicleError.TransportError.WriteFailed.temporary|{}temporary[0]
+                final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.WriteFailed.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+            final fun component1(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.WriteFailed.component1|component1(){}[0]
+            final fun copy(kotlin/String = ...): io.github.smallmiro.teslable.model/VehicleError.TransportError.WriteFailed // io.github.smallmiro.teslable.model/VehicleError.TransportError.WriteFailed.copy|copy(kotlin.String){}[0]
+            final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.WriteFailed.equals|equals(kotlin.Any?){}[0]
+            final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.TransportError.WriteFailed.hashCode|hashCode(){}[0]
+            final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.WriteFailed.toString|toString(){}[0]
+        }
+
+        final object BluetoothOff : io.github.smallmiro.teslable.model/VehicleError.TransportError { // io.github.smallmiro.teslable.model/VehicleError.TransportError.BluetoothOff|null[0]
+            final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.TransportError.BluetoothOff.mayHaveSucceeded|{}mayHaveSucceeded[0]
+                final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.BluetoothOff.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+            final val message // io.github.smallmiro.teslable.model/VehicleError.TransportError.BluetoothOff.message|{}message[0]
+                final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.BluetoothOff.message.<get-message>|<get-message>(){}[0]
+            final val temporary // io.github.smallmiro.teslable.model/VehicleError.TransportError.BluetoothOff.temporary|{}temporary[0]
+                final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.BluetoothOff.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+            final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.BluetoothOff.equals|equals(kotlin.Any?){}[0]
+            final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.TransportError.BluetoothOff.hashCode|hashCode(){}[0]
+            final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.BluetoothOff.toString|toString(){}[0]
+        }
+
+        final object Disconnected : io.github.smallmiro.teslable.model/VehicleError.TransportError { // io.github.smallmiro.teslable.model/VehicleError.TransportError.Disconnected|null[0]
+            final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.TransportError.Disconnected.mayHaveSucceeded|{}mayHaveSucceeded[0]
+                final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.Disconnected.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+            final val message // io.github.smallmiro.teslable.model/VehicleError.TransportError.Disconnected.message|{}message[0]
+                final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.Disconnected.message.<get-message>|<get-message>(){}[0]
+            final val temporary // io.github.smallmiro.teslable.model/VehicleError.TransportError.Disconnected.temporary|{}temporary[0]
+                final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.Disconnected.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+            final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.Disconnected.equals|equals(kotlin.Any?){}[0]
+            final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.TransportError.Disconnected.hashCode|hashCode(){}[0]
+            final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.Disconnected.toString|toString(){}[0]
+        }
+
+        final object MaxConnectionsExceeded : io.github.smallmiro.teslable.model/VehicleError.TransportError { // io.github.smallmiro.teslable.model/VehicleError.TransportError.MaxConnectionsExceeded|null[0]
+            final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.TransportError.MaxConnectionsExceeded.mayHaveSucceeded|{}mayHaveSucceeded[0]
+                final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.MaxConnectionsExceeded.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+            final val message // io.github.smallmiro.teslable.model/VehicleError.TransportError.MaxConnectionsExceeded.message|{}message[0]
+                final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.MaxConnectionsExceeded.message.<get-message>|<get-message>(){}[0]
+            final val temporary // io.github.smallmiro.teslable.model/VehicleError.TransportError.MaxConnectionsExceeded.temporary|{}temporary[0]
+                final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.MaxConnectionsExceeded.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+            final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.MaxConnectionsExceeded.equals|equals(kotlin.Any?){}[0]
+            final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.TransportError.MaxConnectionsExceeded.hashCode|hashCode(){}[0]
+            final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.MaxConnectionsExceeded.toString|toString(){}[0]
+        }
+
+        final object PermissionDenied : io.github.smallmiro.teslable.model/VehicleError.TransportError { // io.github.smallmiro.teslable.model/VehicleError.TransportError.PermissionDenied|null[0]
+            final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.TransportError.PermissionDenied.mayHaveSucceeded|{}mayHaveSucceeded[0]
+                final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.PermissionDenied.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+            final val message // io.github.smallmiro.teslable.model/VehicleError.TransportError.PermissionDenied.message|{}message[0]
+                final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.PermissionDenied.message.<get-message>|<get-message>(){}[0]
+            final val temporary // io.github.smallmiro.teslable.model/VehicleError.TransportError.PermissionDenied.temporary|{}temporary[0]
+                final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.PermissionDenied.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+            final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.PermissionDenied.equals|equals(kotlin.Any?){}[0]
+            final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.TransportError.PermissionDenied.hashCode|hashCode(){}[0]
+            final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.PermissionDenied.toString|toString(){}[0]
+        }
+
+        final object ScanTimeout : io.github.smallmiro.teslable.model/VehicleError.TransportError { // io.github.smallmiro.teslable.model/VehicleError.TransportError.ScanTimeout|null[0]
+            final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.TransportError.ScanTimeout.mayHaveSucceeded|{}mayHaveSucceeded[0]
+                final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.ScanTimeout.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+            final val message // io.github.smallmiro.teslable.model/VehicleError.TransportError.ScanTimeout.message|{}message[0]
+                final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.ScanTimeout.message.<get-message>|<get-message>(){}[0]
+            final val temporary // io.github.smallmiro.teslable.model/VehicleError.TransportError.ScanTimeout.temporary|{}temporary[0]
+                final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.ScanTimeout.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+            final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.TransportError.ScanTimeout.equals|equals(kotlin.Any?){}[0]
+            final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.TransportError.ScanTimeout.hashCode|hashCode(){}[0]
+            final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.TransportError.ScanTimeout.toString|toString(){}[0]
+        }
+    }
+
+    final class BadResponse : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.BadResponse|null[0]
+        constructor <init>(kotlin/String, kotlin/Boolean = ...) // io.github.smallmiro.teslable.model/VehicleError.BadResponse.<init>|<init>(kotlin.String;kotlin.Boolean){}[0]
+
+        final val detail // io.github.smallmiro.teslable.model/VehicleError.BadResponse.detail|{}detail[0]
+            final fun <get-detail>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.BadResponse.detail.<get-detail>|<get-detail>(){}[0]
+        final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.BadResponse.mayHaveSucceeded|{}mayHaveSucceeded[0]
+            final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.BadResponse.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+        final val message // io.github.smallmiro.teslable.model/VehicleError.BadResponse.message|{}message[0]
+            final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.BadResponse.message.<get-message>|<get-message>(){}[0]
+        final val temporary // io.github.smallmiro.teslable.model/VehicleError.BadResponse.temporary|{}temporary[0]
+            final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.BadResponse.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+        final fun component1(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.BadResponse.component1|component1(){}[0]
+        final fun component2(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.BadResponse.component2|component2(){}[0]
+        final fun copy(kotlin/String = ..., kotlin/Boolean = ...): io.github.smallmiro.teslable.model/VehicleError.BadResponse // io.github.smallmiro.teslable.model/VehicleError.BadResponse.copy|copy(kotlin.String;kotlin.Boolean){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.BadResponse.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.BadResponse.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.BadResponse.toString|toString(){}[0]
+    }
+
+    final class InfotainmentRejected : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.InfotainmentRejected|null[0]
+        constructor <init>(kotlin/String) // io.github.smallmiro.teslable.model/VehicleError.InfotainmentRejected.<init>|<init>(kotlin.String){}[0]
+
+        final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.InfotainmentRejected.mayHaveSucceeded|{}mayHaveSucceeded[0]
+            final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.InfotainmentRejected.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+        final val message // io.github.smallmiro.teslable.model/VehicleError.InfotainmentRejected.message|{}message[0]
+            final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.InfotainmentRejected.message.<get-message>|<get-message>(){}[0]
+        final val reason // io.github.smallmiro.teslable.model/VehicleError.InfotainmentRejected.reason|{}reason[0]
+            final fun <get-reason>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.InfotainmentRejected.reason.<get-reason>|<get-reason>(){}[0]
+        final val temporary // io.github.smallmiro.teslable.model/VehicleError.InfotainmentRejected.temporary|{}temporary[0]
+            final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.InfotainmentRejected.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+        final fun component1(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.InfotainmentRejected.component1|component1(){}[0]
+        final fun copy(kotlin/String = ...): io.github.smallmiro.teslable.model/VehicleError.InfotainmentRejected // io.github.smallmiro.teslable.model/VehicleError.InfotainmentRejected.copy|copy(kotlin.String){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.InfotainmentRejected.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.InfotainmentRejected.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.InfotainmentRejected.toString|toString(){}[0]
+    }
+
+    final class InvalidArgument : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.InvalidArgument|null[0]
+        constructor <init>(kotlin/String) // io.github.smallmiro.teslable.model/VehicleError.InvalidArgument.<init>|<init>(kotlin.String){}[0]
+
+        final val detail // io.github.smallmiro.teslable.model/VehicleError.InvalidArgument.detail|{}detail[0]
+            final fun <get-detail>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.InvalidArgument.detail.<get-detail>|<get-detail>(){}[0]
+        final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.InvalidArgument.mayHaveSucceeded|{}mayHaveSucceeded[0]
+            final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.InvalidArgument.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+        final val message // io.github.smallmiro.teslable.model/VehicleError.InvalidArgument.message|{}message[0]
+            final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.InvalidArgument.message.<get-message>|<get-message>(){}[0]
+        final val temporary // io.github.smallmiro.teslable.model/VehicleError.InvalidArgument.temporary|{}temporary[0]
+            final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.InvalidArgument.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+        final fun component1(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.InvalidArgument.component1|component1(){}[0]
+        final fun copy(kotlin/String = ...): io.github.smallmiro.teslable.model/VehicleError.InvalidArgument // io.github.smallmiro.teslable.model/VehicleError.InvalidArgument.copy|copy(kotlin.String){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.InvalidArgument.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.InvalidArgument.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.InvalidArgument.toString|toString(){}[0]
+    }
+
+    final class KeychainRejected : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.KeychainRejected|null[0]
+        constructor <init>(com.tesla.generated.vcsec/WhitelistOperation_information_E) // io.github.smallmiro.teslable.model/VehicleError.KeychainRejected.<init>|<init>(com.tesla.generated.vcsec.WhitelistOperation_information_E){}[0]
+
+        final val code // io.github.smallmiro.teslable.model/VehicleError.KeychainRejected.code|{}code[0]
+            final fun <get-code>(): com.tesla.generated.vcsec/WhitelistOperation_information_E // io.github.smallmiro.teslable.model/VehicleError.KeychainRejected.code.<get-code>|<get-code>(){}[0]
+        final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.KeychainRejected.mayHaveSucceeded|{}mayHaveSucceeded[0]
+            final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.KeychainRejected.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+        final val message // io.github.smallmiro.teslable.model/VehicleError.KeychainRejected.message|{}message[0]
+            final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.KeychainRejected.message.<get-message>|<get-message>(){}[0]
+        final val temporary // io.github.smallmiro.teslable.model/VehicleError.KeychainRejected.temporary|{}temporary[0]
+            final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.KeychainRejected.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+        final fun component1(): com.tesla.generated.vcsec/WhitelistOperation_information_E // io.github.smallmiro.teslable.model/VehicleError.KeychainRejected.component1|component1(){}[0]
+        final fun copy(com.tesla.generated.vcsec/WhitelistOperation_information_E = ...): io.github.smallmiro.teslable.model/VehicleError.KeychainRejected // io.github.smallmiro.teslable.model/VehicleError.KeychainRejected.copy|copy(com.tesla.generated.vcsec.WhitelistOperation_information_E){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.KeychainRejected.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.KeychainRejected.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.KeychainRejected.toString|toString(){}[0]
+    }
+
+    final class ProtocolFault : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.ProtocolFault|null[0]
+        constructor <init>(com.tesla.generated.universalmessage/MessageFault_E) // io.github.smallmiro.teslable.model/VehicleError.ProtocolFault.<init>|<init>(com.tesla.generated.universalmessage.MessageFault_E){}[0]
+
+        final val fault // io.github.smallmiro.teslable.model/VehicleError.ProtocolFault.fault|{}fault[0]
+            final fun <get-fault>(): com.tesla.generated.universalmessage/MessageFault_E // io.github.smallmiro.teslable.model/VehicleError.ProtocolFault.fault.<get-fault>|<get-fault>(){}[0]
+        final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.ProtocolFault.mayHaveSucceeded|{}mayHaveSucceeded[0]
+            final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.ProtocolFault.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+        final val message // io.github.smallmiro.teslable.model/VehicleError.ProtocolFault.message|{}message[0]
+            final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.ProtocolFault.message.<get-message>|<get-message>(){}[0]
+        final val temporary // io.github.smallmiro.teslable.model/VehicleError.ProtocolFault.temporary|{}temporary[0]
+            final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.ProtocolFault.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+        final fun component1(): com.tesla.generated.universalmessage/MessageFault_E // io.github.smallmiro.teslable.model/VehicleError.ProtocolFault.component1|component1(){}[0]
+        final fun copy(com.tesla.generated.universalmessage/MessageFault_E = ...): io.github.smallmiro.teslable.model/VehicleError.ProtocolFault // io.github.smallmiro.teslable.model/VehicleError.ProtocolFault.copy|copy(com.tesla.generated.universalmessage.MessageFault_E){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.ProtocolFault.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.ProtocolFault.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.ProtocolFault.toString|toString(){}[0]
+    }
+
+    final class Timeout : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.Timeout|null[0]
+        constructor <init>(kotlin/Boolean) // io.github.smallmiro.teslable.model/VehicleError.Timeout.<init>|<init>(kotlin.Boolean){}[0]
+
+        final val afterSend // io.github.smallmiro.teslable.model/VehicleError.Timeout.afterSend|{}afterSend[0]
+            final fun <get-afterSend>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.Timeout.afterSend.<get-afterSend>|<get-afterSend>(){}[0]
+        final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.Timeout.mayHaveSucceeded|{}mayHaveSucceeded[0]
+            final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.Timeout.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+        final val message // io.github.smallmiro.teslable.model/VehicleError.Timeout.message|{}message[0]
+            final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.Timeout.message.<get-message>|<get-message>(){}[0]
+        final val temporary // io.github.smallmiro.teslable.model/VehicleError.Timeout.temporary|{}temporary[0]
+            final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.Timeout.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+        final fun component1(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.Timeout.component1|component1(){}[0]
+        final fun copy(kotlin/Boolean = ...): io.github.smallmiro.teslable.model/VehicleError.Timeout // io.github.smallmiro.teslable.model/VehicleError.Timeout.copy|copy(kotlin.Boolean){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.Timeout.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.Timeout.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.Timeout.toString|toString(){}[0]
+    }
+
+    final class VcsecRejected : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected|null[0]
+        constructor <init>(com.tesla.generated.errors/GenericError_E) // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected.<init>|<init>(com.tesla.generated.errors.GenericError_E){}[0]
+
+        final val error // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected.error|{}error[0]
+            final fun <get-error>(): com.tesla.generated.errors/GenericError_E // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected.error.<get-error>|<get-error>(){}[0]
+        final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected.mayHaveSucceeded|{}mayHaveSucceeded[0]
+            final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+        final val message // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected.message|{}message[0]
+            final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected.message.<get-message>|<get-message>(){}[0]
+        final val temporary // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected.temporary|{}temporary[0]
+            final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+        final fun component1(): com.tesla.generated.errors/GenericError_E // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected.component1|component1(){}[0]
+        final fun copy(com.tesla.generated.errors/GenericError_E = ...): io.github.smallmiro.teslable.model/VehicleError.VcsecRejected // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected.copy|copy(com.tesla.generated.errors.GenericError_E){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected.toString|toString(){}[0]
+    }
+
+    final object Busy : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.Busy|null[0]
+        final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.Busy.mayHaveSucceeded|{}mayHaveSucceeded[0]
+            final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.Busy.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+        final val message // io.github.smallmiro.teslable.model/VehicleError.Busy.message|{}message[0]
+            final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.Busy.message.<get-message>|<get-message>(){}[0]
+        final val temporary // io.github.smallmiro.teslable.model/VehicleError.Busy.temporary|{}temporary[0]
+            final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.Busy.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.Busy.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.Busy.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.Busy.toString|toString(){}[0]
+    }
+
+    final object Companion { // io.github.smallmiro.teslable.model/VehicleError.Companion|null[0]
+        final val RETRIABLE_FAULTS // io.github.smallmiro.teslable.model/VehicleError.Companion.RETRIABLE_FAULTS|{}RETRIABLE_FAULTS[0]
+            final fun <get-RETRIABLE_FAULTS>(): kotlin.collections/Set<com.tesla.generated.universalmessage/MessageFault_E> // io.github.smallmiro.teslable.model/VehicleError.Companion.RETRIABLE_FAULTS.<get-RETRIABLE_FAULTS>|<get-RETRIABLE_FAULTS>(){}[0]
+    }
+
+    final object KeyNotPaired : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.KeyNotPaired|null[0]
+        final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.KeyNotPaired.mayHaveSucceeded|{}mayHaveSucceeded[0]
+            final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.KeyNotPaired.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+        final val message // io.github.smallmiro.teslable.model/VehicleError.KeyNotPaired.message|{}message[0]
+            final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.KeyNotPaired.message.<get-message>|<get-message>(){}[0]
+        final val temporary // io.github.smallmiro.teslable.model/VehicleError.KeyNotPaired.temporary|{}temporary[0]
+            final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.KeyNotPaired.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.KeyNotPaired.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.KeyNotPaired.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.KeyNotPaired.toString|toString(){}[0]
+    }
+
+    final object NoSession : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.NoSession|null[0]
+        final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.NoSession.mayHaveSucceeded|{}mayHaveSucceeded[0]
+            final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.NoSession.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+        final val message // io.github.smallmiro.teslable.model/VehicleError.NoSession.message|{}message[0]
+            final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.NoSession.message.<get-message>|<get-message>(){}[0]
+        final val temporary // io.github.smallmiro.teslable.model/VehicleError.NoSession.temporary|{}temporary[0]
+            final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.NoSession.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.NoSession.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.NoSession.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.NoSession.toString|toString(){}[0]
+    }
+
+    final object NotConnected : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.NotConnected|null[0]
+        final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.NotConnected.mayHaveSucceeded|{}mayHaveSucceeded[0]
+            final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.NotConnected.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+        final val message // io.github.smallmiro.teslable.model/VehicleError.NotConnected.message|{}message[0]
+            final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.NotConnected.message.<get-message>|<get-message>(){}[0]
+        final val temporary // io.github.smallmiro.teslable.model/VehicleError.NotConnected.temporary|{}temporary[0]
+            final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.NotConnected.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.NotConnected.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.NotConnected.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.NotConnected.toString|toString(){}[0]
+    }
+
+    final object RequiresKey : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.RequiresKey|null[0]
+        final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.RequiresKey.mayHaveSucceeded|{}mayHaveSucceeded[0]
+            final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.RequiresKey.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+        final val message // io.github.smallmiro.teslable.model/VehicleError.RequiresKey.message|{}message[0]
+            final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.RequiresKey.message.<get-message>|<get-message>(){}[0]
+        final val temporary // io.github.smallmiro.teslable.model/VehicleError.RequiresKey.temporary|{}temporary[0]
+            final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.RequiresKey.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.RequiresKey.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.RequiresKey.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.RequiresKey.toString|toString(){}[0]
+    }
+
+    final object UnknownResponse : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.UnknownResponse|null[0]
+        final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.UnknownResponse.mayHaveSucceeded|{}mayHaveSucceeded[0]
+            final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.UnknownResponse.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+        final val message // io.github.smallmiro.teslable.model/VehicleError.UnknownResponse.message|{}message[0]
+            final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.UnknownResponse.message.<get-message>|<get-message>(){}[0]
+        final val temporary // io.github.smallmiro.teslable.model/VehicleError.UnknownResponse.temporary|{}temporary[0]
+            final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.UnknownResponse.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.UnknownResponse.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.UnknownResponse.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.UnknownResponse.toString|toString(){}[0]
+    }
+}
+
 final class com.tesla.generated.carserver.common/ChargePortLatchState : com.squareup.wire/Message<com.tesla.generated.carserver.common/ChargePortLatchState, kotlin/Nothing> { // com.tesla.generated.carserver.common/ChargePortLatchState|null[0]
     constructor <init>(com.tesla.generated.carserver.common/Void? = ..., com.tesla.generated.carserver.common/Void? = ..., com.tesla.generated.carserver.common/Void? = ..., com.tesla.generated.carserver.common/Void? = ..., okio/ByteString = ...) // com.tesla.generated.carserver.common/ChargePortLatchState.<init>|<init>(com.tesla.generated.carserver.common.Void?;com.tesla.generated.carserver.common.Void?;com.tesla.generated.carserver.common.Void?;com.tesla.generated.carserver.common.Void?;okio.ByteString){}[0]
 
@@ -5284,5 +5703,7 @@ final object io.github.smallmiro.teslable.transport/Framer { // io.github.smallm
     final fun frame(kotlin/ByteArray, kotlin/Int): kotlin.collections/List<kotlin/ByteArray> // io.github.smallmiro.teslable.transport/Framer.frame|frame(kotlin.ByteArray;kotlin.Int){}[0]
 }
 
+final fun (io.github.smallmiro.teslable.model/VehicleError).io.github.smallmiro.teslable.model/shouldRetry(): kotlin/Boolean // io.github.smallmiro.teslable.model/shouldRetry|shouldRetry@io.github.smallmiro.teslable.model.VehicleError(){}[0]
+final fun (io.github.smallmiro.teslable.model/VehicleError).io.github.smallmiro.teslable.model/toResult(): io.github.smallmiro.teslable.model/VehicleResult<kotlin/Nothing> // io.github.smallmiro.teslable.model/toResult|toResult@io.github.smallmiro.teslable.model.VehicleError(){}[0]
 final fun (kotlin/ByteArray).io.github.smallmiro.teslable.util/toHex(): kotlin/String // io.github.smallmiro.teslable.util/toHex|toHex@kotlin.ByteArray(){}[0]
 final fun (kotlin/String).io.github.smallmiro.teslable.util/hexToBytes(): kotlin/ByteArray // io.github.smallmiro.teslable.util/hexToBytes|hexToBytes@kotlin.String(){}[0]
