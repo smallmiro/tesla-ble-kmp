@@ -25,9 +25,12 @@ val testOnlyProjects = setOf(":testing")
  */
 val declarableSuffixes = listOf("Implementation", "Api", "CompileOnly", "RuntimeOnly")
 
-/** :domain 이 non-test 구성에서 가져올 수 있는 유일한 외부 의존성 (순수 Kotlin, ADR-0001) */
+/**
+ * :domain 이 non-test 구성에서 가져올 수 있는 유일한 외부 의존성 (순수 Kotlin, ADR-0001).
+ * `org.jetbrains.kotlin` 그룹은 표준 라이브러리와 kotlin-test 계열만 허용한다(kotlin-reflect 등은 NFR-016 위반).
+ */
 fun isAllowedForDomain(dependency: ExternalModuleDependency): Boolean = when (dependency.group) {
-    "org.jetbrains.kotlin" -> true
+    "org.jetbrains.kotlin" -> dependency.name.startsWith("kotlin-stdlib") || dependency.name.startsWith("kotlin-test")
     "org.jetbrains.kotlinx" -> dependency.name.startsWith("kotlinx-coroutines")
     "com.squareup.wire" -> dependency.name == "wire-runtime"
     "com.squareup.okio" -> true
