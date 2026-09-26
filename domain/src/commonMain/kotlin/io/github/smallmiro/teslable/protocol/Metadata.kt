@@ -3,6 +3,13 @@ package io.github.smallmiro.teslable.protocol
 
 import com.tesla.generated.signatures.Tag
 
+private const val MAX_VALUE_LENGTH = 255
+private const val BYTE_3_SHIFT = 24
+private const val BYTE_2_SHIFT = 16
+private const val BYTE_1_SHIFT = 8
+private val EMPTY = ByteArray(0)
+private val END_MARKER = byteArrayOf(Tag.TAG_END.value.toByte())
+
 /**
  * 인증 필드가 255바이트를 넘음 (Go `ErrMetadataFieldTooLong`). 런타임 오류 — VIN 등 입력에서 발생 가능.
  */
@@ -52,13 +59,4 @@ public class Metadata {
      * `metadata || 0xFF || message` — Go `Checksum(message)`의 해시 입력.
      */
     public fun serialize(message: ByteArray = EMPTY): ByteArray = buffer + END_MARKER + message
-
-    private companion object {
-        const val MAX_VALUE_LENGTH = 255
-        const val BYTE_3_SHIFT = 24
-        const val BYTE_2_SHIFT = 16
-        const val BYTE_1_SHIFT = 8
-        val EMPTY = ByteArray(0)
-        val END_MARKER = byteArrayOf(Tag.TAG_END.value.toByte())
-    }
 }

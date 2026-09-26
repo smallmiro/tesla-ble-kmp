@@ -4618,10 +4618,6 @@ public abstract interface class io/github/smallmiro/teslable/port/RandomSource {
 }
 
 public final class io/github/smallmiro/teslable/protocol/Metadata {
-	public static final field BYTE_1_SHIFT I
-	public static final field BYTE_2_SHIFT I
-	public static final field BYTE_3_SHIFT I
-	public static final field MAX_VALUE_LENGTH I
 	public fun <init> ()V
 	public final fun add (Lcom/tesla/generated/signatures/Tag;[B)Lio/github/smallmiro/teslable/protocol/Metadata;
 	public final fun addUInt32-Qn1smSk (Lcom/tesla/generated/signatures/Tag;I)Lio/github/smallmiro/teslable/protocol/Metadata;
@@ -4665,9 +4661,6 @@ public final class io/github/smallmiro/teslable/transport/LocalName$Companion {
 }
 
 public final class io/github/smallmiro/teslable/transport/Reassembler {
-	public static final field BYTE_1_SHIFT I
-	public static final field BYTE_MASK I
-	public static final field HEADER_SIZE I
 	public fun <init> ()V
 	public synthetic fun <init> (Lkotlin/time/TimeSource;JIILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (Lkotlin/time/TimeSource;JILkotlin/jvm/internal/DefaultConstructorMarker;)V
