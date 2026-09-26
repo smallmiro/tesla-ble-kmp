@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3. BLE 전송 계층 · vehicle-command BLE 매뉴얼</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE 개발 매뉴얼 · v0.4.1 기준</div>
+  <ol>
+    <li><a href="index.html">홈</a></li>
+    <li class="group">시작하기</li>
+    <li><a href="01-overview.html">1. 시스템 개요</a></li>
+    <li><a href="02-getting-started.html">2. 시작하기</a></li>
+    <li class="group">프로토콜</li>
+    <li><a class="active" href="03-ble-transport.html">3. BLE 전송 계층</a></li>
+    <li><a href="04-protocol.html">4. 프로토콜 사양</a></li>
+    <li class="group">개발</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI 도구</a></li>
+    <li><a href="07-command-reference.html">7. 명령 레퍼런스</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP 프록시</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. 오류와 문제 해결</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>3. BLE 전송 계층</h1>
+<p class="lead"><code>pkg/connector/ble</code>가 차량과 GATT로 바이트를 주고받는 방법: 광고 이름, 서비스/특성 UUID, 길이 프레이밍, MTU 분할, 스캔과 연결 재시도, 플랫폼별 차이.</p>
+
+<div class="toc"><strong>이 페이지의 내용</strong><ol>
+<li><a href="#sec-ids">식별자: UUID와 광고 이름</a></li>
+<li><a href="#sec-gatt">GATT 연결 절차</a></li>
+<li><a href="#sec-framing">메시지 프레이밍과 MTU</a></li>
+<li><a href="#sec-conn">Connection 타입의 특성</a></li>
+<li><a href="#sec-scan">스캔</a></li>
+<li><a href="#sec-retry">연결 재시도 루프</a></li>
+<li><a href="#sec-adapter">어댑터 관리</a></li>
+<li><a href="#sec-platform">플랫폼별 구현 차이</a></li>
+<li><a href="#sec-vcsec">VCSEC 응답 특성과 동시성</a></li>
+<li><a href="#sec-seq">시퀀스 다이어그램</a></li>
+<li><a href="#sec-impl">다른 BLE 스택으로 구현할 때</a></li>
+</ol></div>
+
+<div class="callout">
+  <strong>전송 계층은 암호를 모른다</strong>
+  <p><code>ble.Connection</code>은 <code>connector.Connector</code> 인터페이스만 구현합니다. 즉 <code>[]byte</code>를 보내고 받을 뿐, protobuf나 세션, 서명은 모두 상위 계층(<code>internal/dispatcher</code>, <code>internal/authentication</code>)의 일입니다. 이 페이지는 그 바이트가 무선으로 어떻게 실려 가는지만 다룹니다.</p>
+</div>
+
+<h2 id="sec-ids">식별자: UUID와 광고 이름</h2>
+<table>
+  <thead><tr><th>항목</th><th>값</th><th>Go 변수</th><th>용도</th></tr></thead>
+  <tbody>
+    <tr><td>GATT 서비스</td><td><code>00000211-b2d1-43f0-9b88-960cebf8b91e</code></td><td><code>vehicleServiceUUID</code></td><td>차량 명령 서비스. 이 서비스 하나만 탐색</td></tr>
+    <tr><td>쓰기 특성 (클라이언트 → 차량)</td><td><code>00000212-b2d1-43f0-9b88-960cebf8b91e</code></td><td><code>toVehicleUUID</code> / <code>Connection.txChar</code></td><td><strong>write with response</strong>로 쓴다. SDK는 <code>WriteCharacteristic(txChar, chunk, false)</code>(noRsp=false)</td></tr>
+    <tr><td>읽기 특성 (차량 → 클라이언트)</td><td><code>00000213-b2d1-43f0-9b88-960cebf8b91e</code></td><td><code>fromVehicleUUID</code> / <code>Connection.rxChar</code></td><td><strong>indication</strong>을 구독한다. SDK는 <code>Subscribe(rxChar, true, rx)</code>(ind=true)</td></tr>
+    <tr><td>광고 Local Name</td><td><code>S</code> + hex(SHA1(VIN)[0:8]) + <code>C</code></td><td><code>VehicleLocalName(vin)</code></td><td>스캔 결과 필터링. 총 18자</td></tr>
+  </tbody>
+</table>
+<h3>광고 이름 계산</h3>
+<p>차량은 VIN을 직접 광고하지 않습니다. VIN의 SHA-1 다이제스트 앞 8바이트를 소문자 hex로 인코딩하고 앞뒤에 <code>S</code>, <code>C</code>를 붙인 이름을 Local Name으로 광고합니다.</p>
+<pre><code class="language-go">// pkg/connector/ble/ble.go
+func VehicleLocalName(vin string) string {
+	vinBytes := []byte(vin)
+	digest := sha1.Sum(vinBytes)
+	return fmt.Sprintf("S%02xC", digest[:8])
+}</code></pre>
+<pre><code class="language-bash"># 셸에서 확인: VIN 5YJS0000000000000 → S1a87a5a75f3df858C
+printf '5YJS0000000000000' | shasum | cut -c1-16 | sed 's/^/S/; s/$/C/'
+# S1a87a5a75f3df858C</code></pre>
+<p>스캔 콜백은 <code>a.LocalName() != localName</code>이면 무시합니다. 이름이 일치하지만 다른 값을 가진 광고가 전달되면 <code>tryToConnect</code>가 <code>ble: beacon with unexpected local name</code> 오류를 내고 재시도하지 않습니다.</p>
+
+<h2 id="sec-gatt">GATT 연결 절차</h2>
+<p><code>tryToConnect</code>가 수행하는 순서입니다. 각 단계의 실패는 <code>retry=true</code>(재시도 가능)로 분류됩니다(어댑터 오류와 이름 불일치, 연결 불가 광고 제외).</p>
+<ol class="steps">
+  <li><strong>어댑터 초기화</strong> <code>initAdapter(nil)</code>. 전역 <code>device</code>가 이미 있으면 재사용.</li>
+  <li><strong>스캔</strong> (target이 nil일 때) <code>scanVehicleBeacon(ctx, localName)</code>으로 광고 주소를 얻는다.</li>
+  <li><strong>연결 가능 확인</strong> <code>target.Connectable == false</code>면 <code>ErrMaxConnectionsExceeded</code> 반환, 재시도 없음.</li>
+  <li><strong>Dial</strong> <code>device.Dial(ctx, ble.NewAddr(target.Address))</code>.</li>
+  <li><strong>서비스 탐색</strong> <code>client.DiscoverServices([]ble.UUID{vehicleServiceUUID})</code>. 결과가 비어 있으면 <code>failed to discover service</code>.</li>
+  <li><strong>특성 탐색</strong> <code>client.DiscoverCharacteristics([]ble.UUID{toVehicleUUID, fromVehicleUUID}, services[0])</code>. 두 특성이 모두 없으면 <code>failed to find required characteristics</code>.</li>
+  <li><strong>디스크립터 탐색</strong> 각 특성마다 <code>client.DiscoverDescriptors(nil, characteristic)</code>. go-ble가 CCCD(0x2902)를 찾아야 구독이 가능하다.</li>
+  <li><strong>구독</strong> <code>client.Subscribe(conn.rxChar, true, conn.rx)</code>: <code>0213</code> 특성의 indication을 켜고 수신 콜백 <code>rx</code>를 등록.</li>
+  <li><strong>MTU 교환</strong> <code>client.ExchangeMTU(ble.MaxMTU)</code>. 성공하면 <code>blockLength = min(txMtu, 1024) - 3</code>, 실패하면 경고 로그 후 <code>ble.DefaultMTU - 3</code>(= 20바이트)로 폴백. 3바이트는 ATT Write Request 헤더(opcode 1 + handle 2).</li>
+</ol>
+<p>성공 시 <code>[info ] Connected to vehicle BLE</code>가 기록되고 <code>*Connection</code>이 반환됩니다. <code>Close()</code>는 <code>ClearSubscriptions()</code>와 <code>CancelConnection()</code>을 호출하며 여러 번 호출해도 안전합니다.</p>
+
+<h2 id="sec-framing">메시지 프레이밍과 MTU</h2>
+<p>BLE 특성 쓰기 한 번은 MTU에 묶여 있지만 <code>RoutableMessage</code>는 수백 바이트가 될 수 있으므로 SDK는 <strong>길이 프리픽스 스트림</strong>으로 취급합니다.</p>
+<div class="diagram"><pre>
+  송신 (Send):
+  ┌────────────┬──────────────────────────────────────────────┐
+  │ len (2B BE)│ RoutableMessage (protobuf, ≤ 1024 B)          │
+  └────────────┴──────────────────────────────────────────────┘
+        └──────── blockLength 바이트씩 잘라 0212에 write-with-response ────────┘
+        chunk#1 [len_hi len_lo msg[0..]]  chunk#2 [msg[..]]  chunk#3 [...]
+
+  수신 (rx 콜백, 0213 indication):
+  inputBuffer ← append(chunk)  →  flush(): 앞 2바이트로 길이 확인
+                                  → 충분히 모이면 inbox 채널로 1개 메시지 전달, 반복
+</pre></div>
+<table>
+  <thead><tr><th>상수/필드</th><th>값</th><th>의미</th></tr></thead>
+  <tbody>
+    <tr><td><code>maxBLEMessageSize</code></td><td>1024</td><td>길이 프리픽스가 이 값을 넘는 수신 메시지는 버퍼를 비우고 폐기. 송신 블록 길이 상한에도 사용</td></tr>
+    <tr><td><code>maxBLEMTUSize</code></td><td><code>ble.MaxMTU</code> (go-ble 정의, ATT 최대 517)</td><td><code>ExchangeMTU</code>에 요청하는 클라이언트 측 최대 MTU</td></tr>
+    <tr><td><code>Connection.blockLength</code></td><td><code>min(MTU, 1024) - 3</code>, 폴백 <code>ble.DefaultMTU - 3</code> (= 20)</td><td>한 번의 특성 쓰기에 담는 최대 바이트</td></tr>
+    <tr><td><code>rxTimeout</code></td><td>1초</td><td>마지막 수신 청크 후 이 시간이 지나면 <code>inputBuffer</code>를 버리고 새 메시지로 간주 (부분 수신 복구)</td></tr>
+    <tr><td><code>inbox</code></td><td><code>chan []byte</code>, 버퍼 5</td><td>완성된 메시지 큐. 가득 차면 <code>flush</code>가 메시지를 버리고 <code>false</code> 반환</td></tr>
+  </tbody>
+</table>
+<h3>송신 코드</h3>
+<pre><code class="language-go">func (c *Connection) Send(_ context.Context, buffer []byte) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	var out []byte
+	out = append(out, uint8(len(buffer)&gt;&gt;8), uint8(len(buffer)))  // 2바이트 big-endian 길이
+	out = append(out, buffer...)
+	blockLength := c.blockLength
+	for len(out) &gt; 0 {
+		if blockLength &gt; len(out) { blockLength = len(out) }
+		if err := c.client.WriteCharacteristic(c.txChar, out[:blockLength], false); err != nil {
+			return err
+		}
+		out = out[blockLength:]
+	}
+	return nil
+}</code></pre>
+<p><code>Send</code>는 <code>ctx</code>를 무시합니다(go-ble의 write API에 컨텍스트가 없음). 뮤텍스로 한 번에 한 메시지만 쓰므로 청크가 섞이지 않습니다.</p>
+<h3>수신 코드</h3>
+<pre><code class="language-go">func (c *Connection) rx(p []byte) {
+	if time.Since(c.lastRx) &gt; rxTimeout {
+		c.inputBuffer = []byte{}          // 오래된 부분 메시지 폐기
+	}
+	c.lastRx = time.Now()
+	c.inputBuffer = append(c.inputBuffer, p...)
+	for c.flush() {}                       // 버퍼에 완성 메시지가 여러 개면 모두 배달
+}
+
+func (c *Connection) flush() bool {
+	if len(c.inputBuffer) &gt;= 2 {
+		msgLength := 256*int(c.inputBuffer[0]) + int(c.inputBuffer[1])
+		if msgLength &gt; maxBLEMessageSize { c.inputBuffer = []byte{}; return false }
+		if len(c.inputBuffer) &gt;= 2+msgLength {
+			buffer := c.inputBuffer[2 : 2+msgLength]
+			c.inputBuffer = c.inputBuffer[2+msgLength:]
+			select {
+			case c.inbox &lt;- buffer:
+			default:
+				return false                 // inbox 가득 참: 메시지 드롭
+			}
+			return true
+		}
+	}
+	return false
+}</code></pre>
+<div class="callout warn">
+  <strong>수신 경로에 잠금이 없다</strong>
+  <p><code>rx</code>와 <code>flush</code>는 go-ble의 알림 고루틴에서 순차 호출되는 것을 전제로 하며 별도 잠금이 없습니다. 다른 BLE 스택으로 포팅할 때 콜백이 병렬로 올 수 있다면 직렬화가 필요합니다.</p>
+</div>
+
+<h2 id="sec-conn">Connection 타입의 특성</h2>
+<table>
+  <thead><tr><th>메서드</th><th>반환</th><th>상위 계층에서의 의미</th></tr></thead>
+  <tbody>
+    <tr><td><code>PreferredAuthMethod()</code></td><td><code>connector.AuthMethodGCM</code></td><td>BLE 명령은 AES-GCM으로 <strong>암호화</strong>된다 (인터넷은 HMAC)</td></tr>
+    <tr><td><code>RetryInterval()</code></td><td>1초</td><td><code>Vehicle.Send</code>, <code>StartSession</code>의 재전송 간격</td></tr>
+    <tr><td><code>AllowedLatency()</code></td><td><code>maxLatency</code> = 4초</td><td>요청 후 이 시간이 지나 도착한 <code>session_info</code>는 시계 동기화에 쓰지 않고 폐기 (<code>receiver.expired</code>)</td></tr>
+    <tr><td><code>Receive()</code></td><td><code>&lt;-chan []byte</code></td><td>완성된 <code>RoutableMessage</code> 바이트</td></tr>
+    <tr><td><code>VIN()</code></td><td>생성 시 전달한 VIN</td><td>메타데이터 <code>TAG_PERSONALIZATION</code>에 사용</td></tr>
+    <tr><td><code>Close()</code></td><td>-</td><td>구독 해제 + 연결 취소. 멱등</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sec-scan">스캔</h2>
+<pre><code class="language-go">type ScanResult struct {
+	Address     string  // 광고 주소 (macOS는 CoreBluetooth 식별자, Linux는 MAC)
+	LocalName   string  // "S…C"
+	RSSI        int16   // dBm
+	Connectable bool    // false면 차량이 이미 최대 연결 수에 도달
+}
+
+func ScanVehicleBeacon(ctx context.Context, vin string) (*ScanResult, error)</code></pre>
+<ul>
+  <li><code>ScanVehicleBeacon</code>은 어댑터를 초기화하고 <code>VehicleLocalName(vin)</code>과 일치하는 첫 광고를 반환합니다. ctx가 만료될 때까지 계속 스캔합니다.</li>
+  <li>내부 <code>scanVehicleBeacon</code>은 일치하는 광고를 찾으면 파생 컨텍스트를 취소해 <code>device.Scan</code>을 멈춥니다. macOS의 <code>device.Scan</code>은 컨텍스트가 취소될 때까지 반환하지 않고 항상 <code>context.Canceled</code>를 돌려주므로, 코드는 <code>errors.Is(err, context.Canceled)</code>가 아닌 오류만 실패로 취급합니다.</li>
+  <li><code>Connectable == false</code>: 차량(VCSEC)은 하드웨어 제약으로 <strong>동시에 최대 3개의 BLE 연결</strong>만 유지하며 키포브와 폰 키가 이를 공유합니다. 이때 연결을 시도하면 <code>ErrMaxConnectionsExceeded</code>("the vehicle is already connected to the maximum number of BLE devices")를 즉시 반환합니다. 근처의 폰 키를 끄거나 차에서 멀어지게 하세요.</li>
+  <li>RSSI로 여러 차량 중 가까운 차를 고르는 로직은 없습니다. 같은 VIN은 하나뿐이므로 필요 없습니다.</li>
+  <li>스캔만 하려면 <code>examples/ble</code>의 <code>-scan-only</code> 플래그를 참고하세요. <code>ScanVehicleBeacon</code>은 <code>NewConnectionFromScanResult</code>에 결과를 넘겨 재스캔을 생략할 수 있습니다.</li>
+</ul>
+
+<h2 id="sec-retry">연결 재시도 루프</h2>
+<pre><code class="language-go">func NewConnection(ctx context.Context, vin string) (*Connection, error) {
+	return NewConnectionFromScanResult(ctx, vin, nil)
+}
+
+func NewConnectionFromScanResult(ctx context.Context, vin string, target *ScanResult) (*Connection, error) {
+	var lastError error
+	for {
+		conn, retry, err := tryToConnect(ctx, vin, target)
+		if err == nil { return conn, nil }
+		if !retry || IsAdapterError(err) { return nil, err }   // 치명적: 즉시 포기
+		log.Warning("BLE connection attempt failed: %s", err)
+		if err := ctx.Err(); err != nil {                        // ctx 만료: 마지막 실제 오류를 반환
+			if lastError != nil { return nil, lastError }
+			return nil, err
+		}
+		lastError = err
+	}
+}</code></pre>
+<table>
+  <thead><tr><th><code>tryToConnect</code> 실패 지점</th><th>retry</th><th>비고</th></tr></thead>
+  <tbody>
+    <tr><td><code>initAdapter</code> 실패</td><td>false</td><td>권한/하드웨어 문제. Linux는 <code>IsAdapterError</code>로도 걸러짐</td></tr>
+    <tr><td>스캔 실패 (ctx 만료 포함)</td><td>true</td><td>루프가 <code>ctx.Err()</code>를 보고 종료</td></tr>
+    <tr><td>Local Name 불일치</td><td>false</td><td>잘못된 <code>ScanResult</code>를 넘긴 경우</td></tr>
+    <tr><td><code>Connectable == false</code></td><td>false</td><td><code>ErrMaxConnectionsExceeded</code></td></tr>
+    <tr><td>Dial / 서비스·특성·디스크립터 탐색 / 구독 실패</td><td>true</td><td>일시적 무선 오류로 간주, 즉시 재시도 (지연 없음)</td></tr>
+  </tbody>
+</table>
+<p>재시도 사이에 대기가 없으므로 실질적인 상한은 <code>ctx</code>의 데드라인입니다. <code>tesla-control</code>은 <code>-connect-timeout</code>(기본 20초)으로 이 ctx를 만듭니다. 연결 후 <code>Vehicle.Connect</code>와 <code>StartSession</code>도 같은 ctx를 공유하므로 스캔이 오래 걸리는 환경에서는 넉넉히 잡아야 합니다.</p>
+
+<h2 id="sec-adapter">어댑터 관리</h2>
+<p>패키지는 전역 <code>device ble.Device</code> 하나와 뮤텍스 <code>mu</code>를 가집니다. Linux에서 <code>newDevice()</code>를 여러 번 호출하면 실패하므로 한 번 만든 어댑터를 재사용합니다.</p>
+<table>
+  <thead><tr><th>함수</th><th>설명</th></tr></thead>
+  <tbody>
+    <tr><td><code>InitAdapterWithID(id string) error</code></td><td>지정한 어댑터로 전역 device를 만든다. 기본 어댑터를 쓸 때는 호출하지 않아도 되며, <code>ScanVehicleBeacon</code>/<code>NewConnection</code>이 <code>initAdapter(nil)</code>로 자동 초기화한다. 비기본 어댑터를 쓰려면 다른 BLE 호출 전에 반드시 호출. Linux는 <code>"hci0"</code>~<code>"hci15"</code>, 그 외 형식은 <code>ErrAdapterInvalidID</code>. macOS에서 빈 문자열이 아닌 ID를 주면 경고 후 <code>ErrAdapterInvalidID</code>.</td></tr>
+    <tr><td><code>CloseAdapter() error</code></td><td><code>device.Stop()</code> 후 전역 변수를 nil로. 기존 연결을 끊거나 스캔을 멈추지는 않으므로 먼저 <code>Connection.Close()</code>와 스캔 ctx 취소를 해야 한다. 이후 다음 호출에서 새 어댑터가 만들어진다.</td></tr>
+    <tr><td><code>IsAdapterError(err) bool</code></td><td>Linux: 오류 문자열에 <code>operation not permitted</code> 포함 여부. macOS/Windows: 항상 false (TODO)</td></tr>
+    <tr><td><code>AdapterErrorHelpMessage(err) string</code></td><td>Linux: <code>setcap 'cap_net_admin=eip'</code> 안내 포함 메시지. 그 외: <code>err.Error()</code></td></tr>
+  </tbody>
+</table>
+<p><code>pkg/cli.Config.ConnectLocal</code>은 <code>ble.InitAdapterWithID(c.BtAdapterID)</code> → <code>ble.NewConnection(ctx, c.VIN)</code> → <code>vehicle.NewVehicle(conn, skey, c.sessions)</code> 순서로 호출합니다. 여러 차량에 순차 연결하는 장기 실행 프로세스라면 어댑터를 한 번만 초기화하고 <code>Connection</code>만 열고 닫으면 됩니다.</p>
+
+<h2 id="sec-platform">플랫폼별 구현 차이</h2>
+<table>
+  <thead><tr><th>항목</th><th>macOS (<code>device_darwin.go</code>)</th><th>Linux (<code>device_linux.go</code>)</th><th>Windows (<code>device_windows.go</code>)</th></tr></thead>
+  <tbody>
+    <tr><td>백엔드</td><td>go-ble <code>darwin.NewDevice()</code> (CoreBluetooth, cbgo)</td><td>go-ble <code>linux.NewDeviceWithName("vehicle-command", opts...)</code> (raw HCI 소켓)</td><td><code>errors.New("not supported on Windows")</code></td></tr>
+    <tr><td>어댑터 ID</td><td>지정 불가</td><td><code>ble.OptDeviceID(N)</code>, <code>hciN</code> 0~15</td><td>-</td></tr>
+    <tr><td>타임아웃</td><td>go-ble 기본</td><td><code>OptDialerTimeout</code>, <code>OptListenerTimeout</code> = <code>bleTimeout</code> 20초</td><td>-</td></tr>
+    <tr><td>스캔 파라미터</td><td>CoreBluetooth 기본</td><td><code>LESetScanParameters{LEScanType:1(active), LEScanInterval:0x10, LEScanWindow:0x10 (10ms), OwnAddressType:0, ScanningFilterPolicy:2}</code></td><td>-</td></tr>
+    <tr><td>권한</td><td>Bluetooth 권한 프롬프트 (앱 단위)</td><td><code>CAP_NET_ADMIN</code> 또는 root. go-ble가 초기화 시 <code>HCIDEVDOWN</code>을 호출</td><td>-</td></tr>
+    <tr><td><code>device.Scan</code> 동작</td><td>ctx 취소까지 블록, 항상 오류 반환</td><td>일반적</td><td>-</td></tr>
+    <tr><td>광고 주기 (코드 주석)</td><td colspan="2">모델/상태에 따라 20ms 또는 150ms 간격으로 광고</td><td>-</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sec-vcsec">VCSEC 응답 특성과 동시성</h2>
+<p>BLE로 직접 연결하면 Fleet API가 숨겨 주던 VCSEC의 특성이 그대로 드러납니다. dispatcher가 처리하지만 동작을 이해해 두어야 합니다.</p>
+<ul>
+  <li><strong><code>request_uuid</code>가 없다.</strong> VCSEC는 메모리 제약으로 응답에 요청 UUID를 채우지 않습니다. 그래서 dispatcher는 VCSEC로 보내는 요청마다 <strong>랜덤 16바이트 <code>routing_address</code></strong>를 새로 만들고, 응답의 <code>to_destination.routing_address</code>로 대기 중인 receiver를 찾습니다(Infotainment는 연결 단위 고정 주소 + <code>request_uuid</code>).</li>
+  <li><strong>동시 요청 금지.</strong> VCSEC는 카운터가 순서대로 도착해야 하고 동시 요청을 구분하기 어려우므로 한 번에 하나씩 보냅니다. <code>tesla-control</code>과 프록시(<code>lockVIN</code>)는 명령을 직렬화합니다.</li>
+  <li><strong>한 요청에 최대 3개 응답.</strong> <code>OPERATIONSTATUS_WAIT</code>(NFC 탭 대기 또는 바쁨), 중간 상태, 최종 결과가 따로 올 수 있습니다. <code>pkg/vehicle/vcsec.go</code>의 <code>readUntil</code>이 종료 조건(<code>isTerminalTest</code>)이 참이 될 때까지 receiver 채널을 계속 읽습니다. 예를 들어 <code>Lock</code>은 <code>commandStatus</code>가 없는 빈 메시지를 성공으로, whitelist 작업은 <code>whitelistOperationStatus</code>가 채워진 메시지를 종료로 봅니다.</li>
+  <li><strong><code>OPERATIONSTATUS_ERROR</code>는 무시.</strong> 레거시 클라이언트용이며 새 클라이언트는 다음 메시지의 구체적 오류 코드를 기다립니다. dispatcher는 이 경우 <code>whitelistOperationInformation</code>이 NONE이 아니면 <code>KeychainError</code>, <code>signedMessageStatus</code>가 없으면 <code>ErrUnknown</code>으로 변환합니다.</li>
+  <li><strong>Infotainment 수면.</strong> VCSEC 세션만 맺으려면 <code>StartSession(ctx, []Domain{DomainVCSEC})</code>. 두 도메인에 모두 핸드셰이크하면 잠든 Infotainment 때문에 실패하거나 차량이 깨어날 때까지 지연됩니다.</li>
+</ul>
+
+<h2 id="sec-seq">시퀀스 다이어그램</h2>
+<div class="diagram">
+<svg viewBox="0 0 880 620" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="currentColor">
+  <defs><marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <g stroke="var(--border)" stroke-dasharray="4 4">
+    <line x1="120" y1="50" x2="120" y2="600"/><line x1="420" y1="50" x2="420" y2="600"/><line x1="760" y1="50" x2="760" y2="600"/>
+  </g>
+  <g font-weight="700" text-anchor="middle">
+    <rect x="40" y="18" width="160" height="26" rx="6" fill="var(--bg-alt)" stroke="var(--border)"/><text x="120" y="36">dispatcher / vehicle</text>
+    <rect x="340" y="18" width="160" height="26" rx="6" fill="var(--bg-alt)" stroke="var(--border)"/><text x="420" y="36">connector/ble</text>
+    <rect x="680" y="18" width="160" height="26" rx="6" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="760" y="36">차량 GATT 서버</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3" marker-end="url(#arr3)">
+    <line x1="420" y1="80" x2="755" y2="80"/>
+    <line x1="760" y1="105" x2="425" y2="105"/>
+    <line x1="420" y1="135" x2="755" y2="135"/>
+    <line x1="420" y1="160" x2="755" y2="160"/>
+    <line x1="420" y1="185" x2="755" y2="185"/>
+    <line x1="420" y1="210" x2="755" y2="210"/>
+    <line x1="420" y1="235" x2="755" y2="235"/>
+    <line x1="760" y1="260" x2="425" y2="260"/>
+    <line x1="120" y1="310" x2="415" y2="310"/>
+    <line x1="420" y1="345" x2="755" y2="345"/>
+    <line x1="420" y1="370" x2="755" y2="370"/>
+    <line x1="420" y1="395" x2="755" y2="395"/>
+    <line x1="760" y1="440" x2="425" y2="440"/>
+    <line x1="760" y1="465" x2="425" y2="465"/>
+    <line x1="420" y1="505" x2="125" y2="505"/>
+    <line x1="760" y1="545" x2="425" y2="545"/>
+    <line x1="420" y1="580" x2="125" y2="580"/>
+  </g>
+  <g>
+    <text x="430" y="74">LE Scan (active) — LocalName == "S…C"?</text>
+    <text x="440" y="99">ADV_IND {LocalName, RSSI, Connectable}</text>
+    <text x="430" y="129">Connect (Dial)</text>
+    <text x="430" y="154">Discover Primary Service 0211</text>
+    <text x="430" y="179">Discover Characteristics 0212, 0213</text>
+    <text x="430" y="204">Discover Descriptors (CCCD)</text>
+    <text x="430" y="229">Write CCCD(0213) = indication · Exchange MTU(517)</text>
+    <text x="440" y="254">MTU rsp → blockLength = min(MTU,1024)-3</text>
+    <text x="130" y="304">Send(routableMessageBytes)</text>
+    <text x="130" y="336" fill="var(--fg-muted)">frame = len(2B BE) || bytes</text>
+    <text x="430" y="339">Write Request 0212: chunk 1 (≤ blockLength)</text>
+    <text x="430" y="364">Write Request 0212: chunk 2</text>
+    <text x="430" y="389">Write Request 0212: chunk n (각각 Write Response 수신)</text>
+    <text x="440" y="434">Indication 0213: [len_hi len_lo rsp[0..k]]</text>
+    <text x="440" y="459">Indication 0213: rsp[k..]  (rxTimeout 1s 내)</text>
+    <text x="130" y="499">inbox &lt;- rsp  (Receive() 채널)</text>
+    <text x="440" y="539">Indication 0213: 두 번째 응답 (VCSEC, 같은 routing_address)</text>
+    <text x="130" y="574">inbox &lt;- rsp2 → receiver → readUntil 종료 판단</text>
+  </g>
+</svg>
+</div>
+
+<h2 id="sec-impl">다른 BLE 스택으로 구현할 때</h2>
+<p>Python(bleak), Swift(CoreBluetooth), Kotlin(Android BluetoothGatt), Rust(btleplug) 등으로 이 전송 계층을 재구현할 때 지켜야 할 조건입니다. 자세한 체크리스트는 <code>../md/10-porting-guide.md</code>.</p>
+<table>
+  <thead><tr><th>요구 사항</th><th>세부</th></tr></thead>
+  <tbody>
+    <tr><td>광고 필터</td><td>Local Name이 <code>S</code>+hex(SHA1(VIN)[:8])+<code>C</code>와 정확히 일치. 서비스 UUID 광고 여부에 의존하지 말 것</td></tr>
+    <tr><td>연결 가능성</td><td>광고의 connectable 플래그가 꺼져 있으면 연결 시도 대신 사용자에게 "다른 키 연결 해제" 안내</td></tr>
+    <tr><td>서비스/특성</td><td><code>0211</code> 서비스에서 <code>0212</code>(write), <code>0213</code>(indicate) 탐색. 128비트 UUID 비교</td></tr>
+    <tr><td>쓰기 모드</td><td><strong>Write With Response</strong>(ATT Write Request). Write Without Response를 쓰면 순서/흐름 제어가 깨질 수 있음</td></tr>
+    <tr><td>알림 모드</td><td><strong>Indication</strong> 구독(CCCD = 0x0002). 스택이 자동으로 확인 응답을 보내는지 확인</td></tr>
+    <tr><td>MTU</td><td>가능한 최대(517)를 요청하고 협상값에서 3을 뺀 크기로 청크 분할. 협상이 안 되면 20바이트</td></tr>
+    <tr><td>프레이밍</td><td>2바이트 big-endian 길이 프리픽스. 수신 시 청크를 누적하고 길이가 채워질 때마다 한 메시지로 분리. 1024 초과 길이는 폐기. 1초 이상 끊기면 부분 버퍼 폐기</td></tr>
+    <tr><td>응답 매칭</td><td>VCSEC: <code>to_destination.routing_address</code>만으로 매칭. Infotainment: routing_address + <code>request_uuid</code>. 한 요청에 여러 응답 허용</td></tr>
+    <tr><td>동시성</td><td>차량당 한 번에 하나의 요청. 쓰기 호출 직렬화</td></tr>
+    <tr><td>인증 방식</td><td>BLE에서는 AES-GCM 암호화 명령을 사용 (<a href="04-protocol.html#sec-gcm">4. 프로토콜 사양</a>). HMAC 평문도 차량이 받아들이지만 공식 구현은 GCM</td></tr>
+    <tr><td>재연결</td><td>차량은 3개 연결 제한이 있으므로 사용 후 반드시 연결 해제. 앱이 백그라운드로 가면 끊고 다시 스캔</td></tr>
+  </tbody>
+</table>
+
+<footer class="page-nav">
+  <a href="02-getting-started.html"><span>이전</span>2. 시작하기</a>
+  <a class="next" href="04-protocol.html"><span>다음</span>4. 프로토콜 사양</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

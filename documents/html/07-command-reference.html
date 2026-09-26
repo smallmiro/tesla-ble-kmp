@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>7. 명령 레퍼런스 · vehicle-command BLE 매뉴얼</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE 개발 매뉴얼 · v0.4.1 기준</div>
+  <ol>
+    <li><a href="index.html">홈</a></li>
+    <li class="group">시작하기</li>
+    <li><a href="01-overview.html">1. 시스템 개요</a></li>
+    <li><a href="02-getting-started.html">2. 시작하기</a></li>
+    <li class="group">프로토콜</li>
+    <li><a href="03-ble-transport.html">3. BLE 전송 계층</a></li>
+    <li><a href="04-protocol.html">4. 프로토콜 사양</a></li>
+    <li class="group">개발</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI 도구</a></li>
+    <li><a class="active" href="07-command-reference.html">7. 명령 레퍼런스</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP 프록시</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. 오류와 문제 해결</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>7. 명령 레퍼런스</h1>
+<p class="lead">모든 차량 명령을 <code>tesla-control</code> 명령, <code>pkg/vehicle</code> Go 메서드, HTTP 프록시 엔드포인트, 도메인, 인증 요구 사항으로 한 표에 정리합니다.</p>
+
+<div class="toc"><strong>이 페이지의 내용</strong><ol>
+<li><a href="#sec-read">표 읽는 법</a></li>
+<li><a href="#sec-args">인자 형식</a></li>
+<li><a href="#sec-lock">보안 / 잠금 / 원격 시동</a></li>
+<li><a href="#sec-keys">키 관리</a></li>
+<li><a href="#sec-climate">공조</a></li>
+<li><a href="#sec-charge">충전</a></li>
+<li><a href="#sec-schedule">충전 / 프리컨디션 스케줄</a></li>
+<li><a href="#sec-media">미디어</a></li>
+<li><a href="#sec-body">차체 / 창문 / 트렁크 / 라이트</a></li>
+<li><a href="#sec-power">전원 관리</a></li>
+<li><a href="#sec-update">소프트웨어 업데이트</a></li>
+<li><a href="#sec-modes">발렛 / 게스트 / PIN / 속도 제한 / 자녀 보호</a></li>
+<li><a href="#sec-state">상태 조회</a></li>
+<li><a href="#sec-account">계정 / Fleet API 전용</a></li>
+<li><a href="#sec-rest">프록시가 REST로 넘기는 엔드포인트</a></li>
+</ol></div>
+
+<h2 id="sec-read">표 읽는 법</h2>
+<table>
+<thead><tr><th>열</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td>CLI</td><td><code>tesla-control</code> 명령과 위치 인자. 대괄호는 선택 인자. "—"는 CLI 명령이 없음</td></tr>
+<tr><td>Go</td><td><code>(*vehicle.Vehicle)</code> 메서드. 첫 인자 <code>ctx</code>는 생략</td></tr>
+<tr><td>프록시</td><td><code>POST /api/1/vehicles/{VIN}/command/&lt;이름&gt;</code>의 <code>&lt;이름&gt;</code>과 JSON 본문 키. <code>pkg/proxy/command.go</code> 기준. "—"는 프록시 엔드포인트가 없음(REST로도 전달되지 않고 <code>invalid_command</code>)</td></tr>
+<tr><td>도메인</td><td><span class="badge vcsec">VCSEC</span> 보안 컨트롤러. Infotainment가 잠들어 있어도 BLE로 응답. <span class="badge info">INFO</span> Infotainment. 잠들어 있으면 먼저 깨워야 함</td></tr>
+<tr><td>인증</td><td><span class="badge ok">필요</span> 개인 키와 세션 필요(<code>requiresAuth</code>). <span class="badge">불필요</span> 세션 없이 전송 가능</td></tr>
+<tr><td>비고</td><td><span class="badge warn">BLE 전용</span>, <span class="badge warn">Fleet API 전용</span>, 차종 제한 등</td></tr>
+</tbody>
+</table>
+<div class="callout">
+<strong>역할 제한</strong>
+<p>같은 명령이라도 키의 역할에 따라 거부될 수 있습니다(<code>MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES</code>). 예: Driver는 키 관리와 PIN 변경 불가, Vehicle Monitor는 상태 조회만, Charging Manager는 충전 관련만, Fleet Manager는 2023.38+에서 BLE 명령과 다른 키 추가/삭제 불가. 자세한 역할 설명은 <a href="04-protocol.html">4. 프로토콜 사양</a>을 보세요.</p>
+</div>
+
+<h2 id="sec-args">인자 형식</h2>
+<table>
+<thead><tr><th>인자</th><th>형식</th></tr></thead>
+<tbody>
+<tr><td><code>STATE</code></td><td><code>on</code> 또는 <code>off</code></td></tr>
+<tr><td><code>TEMP</code></td><td>숫자 + 단위. <code>21C</code>, <code>72F</code>, <code>21c</code>. 단위 생략 불가(<code>C</code>/<code>F</code>만 허용). 화씨는 섭씨로 변환되어 운전석/조수석 동일 온도로 설정</td></tr>
+<tr><td><code>SEAT</code></td><td><code>front-left</code>, <code>front-right</code>, <code>2nd-row-left</code>, <code>2nd-row-center</code>, <code>2nd-row-right</code>, <code>3rd-row-left</code>, <code>3rd-row-right</code></td></tr>
+<tr><td><code>LEVEL</code></td><td><code>off</code>, <code>low</code>, <code>medium</code>, <code>high</code></td></tr>
+<tr><td><code>POSITIONS</code></td><td><code>L</code>, <code>R</code>, <code>LR</code> (앞좌석 좌/우)</td></tr>
+<tr><td><code>PIN</code></td><td>네 자리 숫자. Go 쪽 <code>vehicle.IsValidPIN</code>이 검사(발렛, 자녀 보호)</td></tr>
+<tr><td><code>DAYS</code></td><td>쉼표 구분: <code>Sun, Mon, Tues, Wed, Thurs, Fri, Sat</code>(전체 이름도 가능) 또는 <code>all</code>, <code>weekdays</code>. 대소문자 무관. 비트마스크 Sun=1 … Sat=64</td></tr>
+<tr><td><code>TIME</code> (충전 스케줄)</td><td><code>HH:MM-HH:MM</code> 24시간제. 한쪽 생략 가능: <code>-6:00</code>(종료만), <code>20:32-</code>(시작만). 종료가 다음 날이어도 됨</td></tr>
+<tr><td><code>TIME</code> (프리컨디션)</td><td><code>HH:MM</code></td></tr>
+<tr><td><code>LATITUDE</code>, <code>LONGITUDE</code></td><td>-180 ~ 180 실수</td></tr>
+<tr><td><code>REPEAT</code></td><td><code>once</code>면 일회성, 생략하면 매주 반복</td></tr>
+<tr><td><code>ID</code></td><td>스케줄 ID(정수). 새 스케줄은 생략하면 현재 Unix 시각을 ID로 사용하고 stdout에 출력</td></tr>
+<tr><td><code>ENABLED</code></td><td><code>true</code> / <code>false</code>. 기본 true</td></tr>
+<tr><td><code>TYPE</code> (스케줄 삭제)</td><td><code>home</code>, <code>work</code>, <code>other</code>(일괄 삭제) 또는 <code>id</code>(<code>ID</code> 필요)</td></tr>
+<tr><td><code>DELAY</code></td><td>Go duration: <code>2h</code>, <code>10m</code>, <code>90s</code>, <code>1.5h</code></td></tr>
+<tr><td><code>CATEGORY</code></td><td><code>charge</code>, <code>climate</code>, <code>drive</code>, <code>location</code>, <code>closures</code>, <code>charge-schedule</code>, <code>precondition-schedule</code>, <code>tire-pressure</code>, <code>media</code>, <code>media-detail</code>, <code>software-update</code>, <code>parental-controls</code></td></tr>
+<tr><td><code>PUBLIC_KEY</code></td><td>공개 키 파일(PEM, 또는 개인 키 파일, 65바이트 바이너리, 130자 hex). <code>protocol.LoadPublicKey</code> 지원 형식</td></tr>
+<tr><td><code>ROLE</code></td><td><code>owner</code>, <code>driver</code>, <code>fm</code>, <code>vehicle_monitor</code>, <code>charging_manager</code> (내부적으로 <code>ROLE_</code> 접두사 + 대문자로 <code>keys.Role</code> 조회. <code>guest</code>, <code>service</code>도 enum에는 있으나 일반 클라이언트는 사용하지 않음)</td></tr>
+<tr><td><code>FORM_FACTOR</code></td><td><code>nfc_card</code>, <code>ios_device</code>, <code>android_device</code>, <code>cloud_key</code></td></tr>
+<tr><td><code>DOMAIN</code></td><td><code>vcsec</code> 또는 <code>infotainment</code></td></tr>
+<tr><td><code>SETTING</code> (자녀 보호)</td><td><code>speed-limit</code>, <code>acceleration</code>, <code>safety-features</code>, <code>curfew</code>, <code>browser-blocked</code>, <code>theater-blocked</code>, <code>arcade-blocked</code></td></tr>
+<tr><td><code>ENDPOINT</code></td><td>Fleet API 경로(호스트 제외). 예: <code>api/1/products</code></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-lock">보안 / 잠금 / 원격 시동</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>프록시</th><th>도메인</th><th>인증</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><code>unlock</code></td><td><code>Unlock()</code></td><td><code>door_unlock</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">필요</span></td><td>RKE_ACTION_UNLOCK</td></tr>
+<tr><td><code>lock</code></td><td><code>Lock()</code></td><td><code>door_lock</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">필요</span></td><td>RKE_ACTION_LOCK</td></tr>
+<tr><td><code>drive</code></td><td><code>RemoteDrive()</code></td><td><code>remote_start_drive</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">필요</span></td><td>키 없이 주행 가능 상태로. RKE_ACTION_REMOTE_DRIVE</td></tr>
+<tr><td><code>autosecure-modelx</code></td><td><code>AutoSecureVehicle()</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">필요</span></td><td>팔콘윙 도어 닫고 잠금. Model X 전용</td></tr>
+<tr><td><code>wake</code></td><td><code>Wakeup()</code></td><td><code>wake_up</code></td><td><span class="badge vcsec">VCSEC</span> (BLE)</td><td>BLE: <span class="badge ok">필요</span><br>인터넷: <span class="badge">불필요</span></td><td>BLE는 RKE_ACTION_WAKE_VEHICLE(VCSEC와만 핸드셰이크). 인터넷은 Fleet API <code>wake_up</code>을 online까지 폴링</td></tr>
+<tr><td><code>sentry-mode STATE</code></td><td><code>SetSentryMode(on bool)</code></td><td><code>set_sentry_mode</code> {<code>on</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td>—</td><td><code>TriggerHomelink(lat, lon float32)</code></td><td><code>trigger_homelink</code> {<code>lat</code>, <code>lon</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-keys">키 관리</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>프록시</th><th>도메인</th><th>인증</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><code>add-key-request PUBLIC_KEY ROLE FORM_FACTOR</code></td><td><code>SendAddKeyRequest(pk, isOwner, ff)</code><br><code>SendAddKeyRequestWithRole(pk, role, ff)</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge">불필요</span></td><td><span class="badge warn">BLE 전용</span> NFC 카드 탭 + 화면 확인으로 승인. 전송 즉시 반환. 인터넷 경로는 <code>ErrRequiresBLE</code></td></tr>
+<tr><td><code>add-key PUBLIC_KEY ROLE FORM_FACTOR</code></td><td><code>AddKey(pk, isOwner, ff)</code><br><code>AddKeyWithRole(pk, role, ff)</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">필요</span></td><td>기존 Owner 키로 다른 키 추가. Fleet Manager 키는 2023.38+에서 불가</td></tr>
+<tr><td><code>remove-key PUBLIC_KEY</code></td><td><code>RemoveKey(pk)</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">필요</span></td><td>자기 자신은 삭제 불가</td></tr>
+<tr><td><code>list-keys</code></td><td><code>KeySummary()</code> + <code>KeyInfoBySlot(slot)</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge">불필요</span></td><td>공개 키 hex, 역할, 폼 팩터를 탭 구분으로 출력</td></tr>
+<tr><td><code>session-info PUBLIC_KEY DOMAIN</code></td><td><code>SessionInfo(pk, domain)</code></td><td>—</td><td>지정</td><td><span class="badge">불필요</span></td><td>키 등록 여부 확인. 미등록이면 <code>ErrKeyNotPaired</code></td></tr>
+<tr><td><code>rename-key PUBLIC_KEY NAME</code></td><td><code>(*account.Account).UpdateKey(pk, name)</code></td><td>—</td><td>서버</td><td>OAuth</td><td><span class="badge warn">Fleet API 전용</span> <code>api/1/users/keys</code>. 최초 등록 계정만 수정 가능</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-climate">공조</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>프록시</th><th>도메인</th><th>인증</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><code>climate-on</code></td><td><code>ClimateOn()</code></td><td><code>auto_conditioning_start</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>HvacAutoAction power_on=true</td></tr>
+<tr><td><code>climate-off</code></td><td><code>ClimateOff()</code></td><td><code>auto_conditioning_stop</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>climate-set-temp TEMP</code></td><td><code>ChangeClimateTemp(driverC, passengerC float32)</code></td><td><code>set_temps</code> {<code>driver_temp</code>, <code>passenger_temp</code>} (섭씨)</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>CLI는 양쪽 동일 온도</td></tr>
+<tr><td><code>seat-heater SEAT LEVEL</code></td><td><code>SetSeatHeater(map[SeatPosition]Level)</code></td><td><code>remote_seat_heater_request</code> {<code>seat_position</code> 0~8, <code>level</code> 0~3}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>프록시 seat_position 인덱스: 0 FL, 1 FR, 2 2열 L, 3 2열 L 등받이, 4 2열 C, 5 2열 R, 6 2열 R 등받이, 7 3열 L, 8 3열 R. 등받이는 일부 Model S만</td></tr>
+<tr><td>—</td><td><code>SetSeatCooler(level Level, seat SeatPosition)</code></td><td><code>remote_seat_cooler_request</code> {<code>seat_position</code> 1=FL/2=FR, <code>seat_cooler_level</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>앞좌석만. 프록시는 <code>seat_cooler_level - 1</code>을 Level로 전달</td></tr>
+<tr><td><code>steering-wheel-heater STATE</code></td><td><code>SetSteeringWheelHeater(on bool)</code></td><td><code>remote_steering_wheel_heater_request</code> {<code>on</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>auto-seat-and-climate POSITIONS [STATE]</code></td><td><code>AutoSeatAndClimate(positions []SeatPosition, enabled bool)</code></td><td><code>remote_auto_seat_climate_request</code> {<code>auto_seat_position</code> 1=FL/2=FR, <code>auto_climate_on</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>STATE 기본 on</td></tr>
+<tr><td>—</td><td><code>SetPreconditioningMax(on, manualOverride bool)</code></td><td><code>set_preconditioning_max</code> {<code>on</code>, <code>manual_override</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td>—</td><td><code>SetBioweaponDefenseMode(on, manualOverride bool)</code></td><td><code>set_bioweapon_mode</code> {<code>on</code>, <code>manual_override</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>프록시는 <code>manual_override</code> 필수</td></tr>
+<tr><td>—</td><td><code>SetCabinOverheatProtection(on, fanOnly bool)</code></td><td><code>set_cabin_overheat_protection</code> {<code>on</code>, <code>fan_only</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td>—</td><td><code>SetCabinOverheatProtectionTemperature(level Level)</code></td><td><code>set_cop_temp</code> {<code>cop_temp</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>0 미지정, 1 Low, 2 Medium, 3 High (<code>ClimateState_CopActivationTemp</code>)</td></tr>
+<tr><td>—</td><td><code>SetClimateKeeperMode(mode ClimateKeeperMode, override bool)</code></td><td><code>set_climate_keeper_mode</code> {<code>climate_keeper_mode</code>, <code>manual_override</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>0 Off, 1 On, 2 Dog, 3 Camp</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-charge">충전</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>프록시</th><th>도메인</th><th>인증</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><code>charging-start</code></td><td><code>ChargeStart()</code></td><td><code>charge_start</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>charging-stop</code></td><td><code>ChargeStop()</code></td><td><code>charge_stop</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td>—</td><td><code>ChargeMaxRange()</code></td><td><code>charge_max_range</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>ChargingStartStopAction start_max_range</td></tr>
+<tr><td>—</td><td><code>ChargeStandardRange()</code></td><td><code>charge_standard</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>ChargingStartStopAction start_standard</td></tr>
+<tr><td><code>charging-set-limit PERCENT</code></td><td><code>ChangeChargeLimit(percent int32)</code></td><td><code>set_charge_limit</code> {<code>percent</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>charging-set-amps AMPS</code></td><td><code>SetChargingAmps(amps int32)</code></td><td><code>set_charging_amps</code> {<code>charging_amps</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>charge-port-open</code></td><td><code>ChargePortOpen()</code> / <code>OpenChargePort()</code></td><td><code>charge_port_door_open</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>두 메서드는 동일 동작</td></tr>
+<tr><td><code>charge-port-close</code></td><td><code>ChargePortClose()</code> / <code>CloseChargePort()</code></td><td><code>charge_port_door_close</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>charging-schedule MINS</code></td><td><code>ScheduleCharging(enabled bool, timeAfterMidnight time.Duration)</code></td><td><code>set_scheduled_charging</code> {<code>enable</code>, <code>time</code>(분)}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>매일 자정 후 MINS분에 충전 시작</td></tr>
+<tr><td><code>charging-schedule-cancel</code></td><td><code>ScheduleCharging(false, 0)</code></td><td><code>set_scheduled_charging</code> {<code>enable</code>: false}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td>—</td><td><code>ScheduleDeparture(departAt, offPeakEnd time.Duration, precondition, offpeak ChargingPolicy)</code></td><td><code>set_scheduled_departure</code> {<code>enable</code>, <code>departure_time</code>, <code>end_off_peak_time</code>, <code>off_peak_charging_enabled</code>, <code>off_peak_charging_weekdays_only</code>, <code>preconditioning_enabled</code>, <code>preconditioning_weekdays_only</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>시각은 자정 기준 분. <code>ChargingPolicyOff/AllDays/Weekdays</code></td></tr>
+<tr><td>—</td><td><code>ClearScheduledDeparture()</code></td><td><code>set_scheduled_departure</code> {<code>enable</code>: false}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-schedule">충전 / 프리컨디션 스케줄</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>프록시</th><th>도메인</th><th>인증</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><code>charging-schedule-add DAYS TIME LATITUDE LONGITUDE [REPEAT ID ENABLED]</code></td><td><code>AddChargeSchedule(*ChargeSchedule)</code></td><td><code>add_charge_schedule</code> {<code>days_of_week</code>(문자열), <code>start_time</code>, <code>start_enabled</code>, <code>end_time</code>, <code>end_enabled</code>, <code>lat</code>, <code>lon</code>, <code>id</code>, <code>enabled</code>, <code>one_time</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>생성된 ID를 stdout에 출력. <code>ChargeSchedule</code>은 <code>carserver.ChargeSchedule</code> 별칭</td></tr>
+<tr><td><code>charging-schedule-remove TYPE [ID]</code></td><td><code>RemoveChargeSchedule(id uint64)</code><br><code>BatchRemoveChargeSchedules(home, work, other bool)</code></td><td><code>remove_charge_schedule</code> {<code>id</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>일괄 삭제(home/work/other)는 프록시 엔드포인트 없음</td></tr>
+<tr><td><code>precondition-schedule-add DAYS TIME LATITUDE LONGITUDE [REPEAT ID ENABLED]</code></td><td><code>AddPreconditionSchedule(*PreconditionSchedule)</code></td><td><code>add_precondition_schedule</code> {<code>days_of_week</code>, <code>precondition_time</code>, <code>lat</code>, <code>lon</code>, <code>id</code>, <code>enabled</code>, <code>one_time</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>precondition-schedule-remove TYPE [ID]</code></td><td><code>RemovePreconditionSchedule(id uint64)</code><br><code>BatchRemovePreconditionSchedules(home, work, other bool)</code></td><td><code>remove_precondition_schedule</code> {<code>id</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-media">미디어</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>프록시</th><th>도메인</th><th>인증</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><code>media-set-volume VOLUME</code></td><td><code>SetVolume(volume float32)</code></td><td><code>adjust_volume</code> {<code>volume</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>0.0 ~ 10.0</td></tr>
+<tr><td><code>media-volume-up</code></td><td><code>VolumeUp()</code></td><td><code>media_volume_up</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>media-volume-down</code></td><td><code>VolumeDown()</code></td><td><code>media_volume_down</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>media-next-track</code></td><td><code>MediaNextTrack()</code></td><td><code>media_next_track</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>media-previous-track</code></td><td><code>MediaPreviousTrack()</code></td><td><code>media_prev_track</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>media-next-favorite</code></td><td><code>MediaNextFavorite()</code></td><td><code>media_next_fav</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>media-previous-favorite</code></td><td><code>MediaPreviousFavorite()</code></td><td><code>media_prev_fav</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>media-toggle-playback</code></td><td><code>ToggleMediaPlayback()</code></td><td><code>media_toggle_playback</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td>—</td><td>—</td><td><code>remote_boombox</code></td><td></td><td></td><td>미구현. <code>ErrCommandNotImplemented</code> (HTTP 400)</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-body">차체 / 창문 / 트렁크 / 라이트</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>프록시</th><th>도메인</th><th>인증</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><code>honk</code></td><td><code>HonkHorn()</code></td><td><code>honk_horn</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>flash-lights</code></td><td><code>FlashLights()</code></td><td><code>flash_lights</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>trunk-open</code></td><td><code>OpenTrunk()</code></td><td><code>actuate_trunk</code> {<code>which_trunk</code>: "rear"}</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">필요</span></td><td>CLOSURE_MOVE_TYPE_MOVE. <code>which_trunk</code> 생략 시 rear</td></tr>
+<tr><td><code>trunk-move</code></td><td><code>ActuateTrunk()</code></td><td>(위와 동일)</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">필요</span></td><td>열림/닫힘 토글. 닫힘은 일부 차종만</td></tr>
+<tr><td><code>trunk-close</code></td><td><code>CloseTrunk()</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">필요</span></td><td>전동 트렁크 차종만</td></tr>
+<tr><td><code>frunk-open</code></td><td><code>OpenFrunk()</code></td><td><code>actuate_trunk</code> {<code>which_trunk</code>: "front"}</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">필요</span></td><td>원격으로 닫는 명령은 없음</td></tr>
+<tr><td><code>tonneau-open</code></td><td><code>OpenTonneau()</code></td><td><code>open_tonneau</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">필요</span></td><td>Cybertruck 전용. 다른 차종은 무효</td></tr>
+<tr><td><code>tonneau-close</code></td><td><code>CloseTonneau()</code></td><td><code>close_tonneau</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">필요</span></td><td>Cybertruck 전용</td></tr>
+<tr><td><code>tonneau-stop</code></td><td><code>StopTonneau()</code></td><td><code>stop_tonneau</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">필요</span></td><td>Cybertruck 전용</td></tr>
+<tr><td><code>windows-vent</code></td><td><code>VentWindows()</code></td><td><code>window_control</code> {<code>command</code>: "vent"}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>이 프로토콜에서는 lat/lon 불필요</td></tr>
+<tr><td><code>windows-close</code></td><td><code>CloseWindows()</code></td><td><code>window_control</code> {<code>command</code>: "close"}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td>—</td><td><code>ChangeSunroofState(level int32)</code></td><td>—</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>절대 개방 레벨</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-power">전원 관리</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>프록시</th><th>도메인</th><th>인증</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><code>low-power-mode STATE</code></td><td><code>SetLowPowerMode(enable bool)</code></td><td><code>set_low_power_mode</code> {<code>enable</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>배터리 부족으로 강제된 상태면 <code>low_power_mode_enforced</code> 오류</td></tr>
+<tr><td><code>keep-accessory-power STATE</code></td><td><code>SetKeepAccessoryPowerMode(enable bool)</code></td><td><code>keep_accessory_power_mode</code> {<code>enable</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>하차 후에도 USB/12V 유지. 추가 전력 소모</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-update">소프트웨어 업데이트</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>프록시</th><th>도메인</th><th>인증</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><code>software-update-start DELAY</code></td><td><code>ScheduleSoftwareUpdate(delay time.Duration)</code></td><td><code>schedule_software_update</code> {<code>offset_sec</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>초 단위로 변환되어 전송</td></tr>
+<tr><td><code>software-update-cancel</code></td><td><code>CancelSoftwareUpdate()</code></td><td><code>cancel_software_update</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-modes">발렛 / 게스트 / PIN / 속도 제한 / 자녀 보호</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>프록시</th><th>도메인</th><th>인증</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><code>valet-mode-on PIN</code></td><td><code>EnableValetMode(pin string)</code></td><td><code>set_valet_mode</code> {<code>on</code>: true, <code>password</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>네 자리 PIN. PIN to Drive가 꺼짐. <code>SetValetMode</code>는 deprecated</td></tr>
+<tr><td><code>valet-mode-off</code></td><td><code>DisableValetMode()</code></td><td><code>set_valet_mode</code> {<code>on</code>: false}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>이미 꺼져 있으면(<code>already off</code>) 성공으로 처리</td></tr>
+<tr><td>—</td><td><code>ResetValetPin()</code></td><td><code>reset_valet_pin</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>guest-mode-on</code> / <code>guest-mode-off</code></td><td><code>SetGuestMode(enabled bool)</code></td><td><code>guest_mode</code> {<code>enable</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>플릿 운영자용. 의미를 이해하고 사용</td></tr>
+<tr><td><code>erase-guest-data</code></td><td><code>EraseGuestData()</code></td><td><code>erase_user_data</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>게스트 모드 중에만 효과</td></tr>
+<tr><td>—</td><td><code>SetPINToDrive(enabled bool, pin string)</code></td><td><code>set_pin_to_drive</code> {<code>on</code>, <code>password</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td><span class="badge warn">Fleet API 전용</span> BLE에서는 <code>ErrRequiresEncryption</code>. 이미 PIN이 있으면 새 PIN 무시</td></tr>
+<tr><td>—</td><td><code>ClearPINToDrive()</code></td><td><code>clear_pin_to_drive_admin</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>PIN to Drive 끄고 PIN 삭제 (admin)</td></tr>
+<tr><td>—</td><td><code>ResetPIN()</code> (deprecated)</td><td><code>reset_pin_to_drive_pin</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>PIN to Drive를 먼저 꺼야 함. <code>ClearPINToDrive</code> 권장</td></tr>
+<tr><td>—</td><td><code>ActivateSpeedLimit(pin string)</code></td><td><code>speed_limit_activate</code> {<code>pin</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td>—</td><td><code>DeactivateSpeedLimit(pin string)</code></td><td><code>speed_limit_deactivate</code> {<code>pin</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td>—</td><td><code>SpeedLimitSetLimitMPH(mph float64)</code></td><td><code>speed_limit_set_limit</code> {<code>limit_mph</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td>—</td><td><code>ClearSpeedLimitPIN(pin string)</code></td><td><code>speed_limit_clear_pin</code> {<code>pin</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td>—</td><td><code>ClearSpeedLimitPINAdminAction()</code></td><td><code>speed_limit_clear_pin_admin</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>parental-controls-on PIN</code></td><td><code>ParentalControlsActivate(pin string)</code></td><td><code>parental_controls_activate</code> {<code>pin</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>이전 PIN이 있으면 같은 PIN 사용</td></tr>
+<tr><td><code>parental-controls-off PIN</code></td><td><code>ParentalControlsDeactivate(pin string)</code></td><td><code>parental_controls_deactivate</code> {<code>pin</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td><code>parental-controls-set-speed-limit MPH</code></td><td><code>ParentalControlsSetSpeedLimit(mph float64)</code></td><td><code>parental_controls_set_speed_limit</code> {<code>limit_mph</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>활성 상태면 <code>parental_controls_active</code> 실패</td></tr>
+<tr><td><code>parental-controls-enable-setting SETTING STATE</code></td><td><code>ParentalControlsEnableSetting(setting ParentalControlsSetting, enable bool)</code></td><td><code>parental_controls_enable_setting</code> {<code>setting</code>, <code>enable</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>프록시 <code>setting</code>은 enum 이름: <code>SpeedLimit</code>, <code>Acceleration</code>, <code>SafetyFeatures</code>, <code>Curfew</code>, <code>BrowserBlocked</code>, <code>TheaterBlocked</code>, <code>ArcadeBlocked</code></td></tr>
+<tr><td><code>parental-controls-clear-pin-admin</code></td><td><code>ParentalControlsClearPIN()</code></td><td><code>parental_controls_clear_pin_admin</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+<tr><td>—</td><td><code>SetVehicleName(name string)</code></td><td><code>set_vehicle_name</code> {<code>vehicle_name</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-state">상태 조회</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>프록시</th><th>도메인</th><th>인증</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><code>body-controller-state</code></td><td><code>BodyControllerState() (*vcsec.VehicleStatus, error)</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge">불필요</span></td><td>닫힘/잠금/수면/탑승자 상태. Infotainment가 잠들어 있어도 동작. VCSEC와만 핸드셰이크</td></tr>
+<tr><td><code>state CATEGORY</code></td><td><code>GetState(category StateCategory) (*carserver.VehicleData, error)</code></td><td>—</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>BLE용. 인터넷에서는 Fleet API <code>vehicle_data</code>(프록시가 그대로 전달) 권장</td></tr>
+<tr><td><code>ping</code></td><td><code>Ping()</code></td><td>—</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>인증된 no-op. 키 인식과 온라인 여부 확인</td></tr>
+<tr><td>—</td><td><code>GetNearbyCharging()</code></td><td>—</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">필요</span></td><td>응답 본문을 반환하지 않음(오류만)</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-account">계정 / Fleet API 전용</h2>
+<p>이 명령들은 차량이 아니라 Tesla 서버에서 끝나며 OAuth 토큰이 필요합니다. <code>-ble</code>과 함께 쓰면 <code>command requires a FleetAPI OAuth token</code> 오류가 납니다.</p>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>설명</th></tr></thead>
+<tbody>
+<tr><td><code>product-info</code></td><td><code>(*account.Account).Get(ctx, "api/1/products")</code></td><td>계정의 제품 목록 JSON 출력</td></tr>
+<tr><td><code>get ENDPOINT</code></td><td><code>Account.Get(ctx, endpoint)</code></td><td>임의 Fleet API GET. 예: <code>get api/1/vehicles/$TESLA_VIN/vehicle_data</code></td></tr>
+<tr><td><code>post ENDPOINT [FILE]</code></td><td><code>Account.Post(ctx, endpoint, body)</code></td><td>FILE(없으면 stdin)의 JSON을 POST. 오류여도 응답 본문이 있으면 출력</td></tr>
+<tr><td><code>rename-key PUBLIC_KEY NAME</code></td><td><code>Account.UpdateKey(ctx, pk, name)</code></td><td>키 표시 이름 등록(<code>api/1/users/keys</code>)</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-rest">프록시가 REST로 넘기는 엔드포인트</h2>
+<p>다음 <code>command/</code> 엔드포인트는 서버 측 처리가 필요해 종단 간 인증으로 구현할 수 없습니다. 프록시는 <code>ErrCommandUseRESTAPI</code>를 만나면 원래 요청을 Fleet API로 그대로 전달합니다.</p>
+<ul>
+<li><code>navigation_request</code></li>
+<li><code>set_managed_charge_current_request</code></li>
+<li><code>set_managed_charger_location</code></li>
+<li><code>set_managed_scheduled_charging_time</code></li>
+</ul>
+<p><code>command/</code>가 아닌 모든 경로(<code>vehicle_data</code>, <code>wake_up</code>이 아닌 조회 엔드포인트 등)는 항상 포워딩됩니다. 차량이 이 프로토콜을 지원하지 않아 Fleet API가 422를 돌려주면 그 VIN은 이후 항상 포워딩됩니다(<a href="08-http-proxy.html#sec-routing">8. HTTP 프록시</a>).</p>
+
+<footer class="page-nav">
+  <a href="06-cli-tools.html"><span>이전</span>6. CLI 도구</a>
+  <a class="next" href="08-http-proxy.html"><span>다음</span>8. HTTP 프록시</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>9. 오류와 문제 해결 · vehicle-command BLE 매뉴얼</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE 개발 매뉴얼 · v0.4.1 기준</div>
+  <ol>
+    <li><a href="index.html">홈</a></li>
+    <li class="group">시작하기</li>
+    <li><a href="01-overview.html">1. 시스템 개요</a></li>
+    <li><a href="02-getting-started.html">2. 시작하기</a></li>
+    <li class="group">프로토콜</li>
+    <li><a href="03-ble-transport.html">3. BLE 전송 계층</a></li>
+    <li><a href="04-protocol.html">4. 프로토콜 사양</a></li>
+    <li class="group">개발</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI 도구</a></li>
+    <li><a href="07-command-reference.html">7. 명령 레퍼런스</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP 프록시</a></li>
+    <li><a class="active" href="09-errors-troubleshooting.html">9. 오류와 문제 해결</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>9. 오류와 문제 해결</h1>
+<p class="lead">SDK의 오류 모델, 프로토콜/애플리케이션 계층 오류 코드 전체, 재시도 정책, 그리고 BLE 개발에서 자주 만나는 문제의 원인과 대처법을 정리합니다.</p>
+
+<div class="toc"><strong>이 페이지의 내용</strong><ol>
+<li><a href="#sec-model">오류 모델</a></li>
+<li><a href="#sec-retry">재시도 정책</a></li>
+<li><a href="#sec-sentinel">pkg/protocol의 sentinel 오류</a></li>
+<li><a href="#sec-fault">프로토콜 계층: MessageFault_E</a></li>
+<li><a href="#sec-generic">VCSEC 애플리케이션 계층: GenericError_E</a></li>
+<li><a href="#sec-whitelist">키체인 작업 오류: WhitelistOperation_information_E</a></li>
+<li><a href="#sec-info">Infotainment 애플리케이션 계층 오류</a></li>
+<li><a href="#sec-http">HTTP 계층: inet.HTTPError</a></li>
+<li><a href="#sec-scenarios">문제 해결 시나리오</a></li>
+<li><a href="#sec-debug">디버깅 도구</a></li>
+<li><a href="#sec-security">보안 주의</a></li>
+</ol></div>
+
+<h2 id="sec-model">오류 모델</h2>
+<p>SDK가 반환하는 오류는 가능한 한 <code>protocol.Error</code> 인터페이스를 구현합니다. 두 메서드가 호출자가 해야 할 일을 결정합니다.</p>
+<pre><code class="language-go">type Error interface {
+    error
+    MayHaveSucceeded() bool // 차량이 명령을 받아 실행했을 수 있음 (확인 불가)
+    Temporary() bool        // 사용자 개입 없이 재시도로 해결될 수 있음
+}</code></pre>
+<table>
+<thead><tr><th>타입</th><th>계층</th><th>MayHaveSucceeded</th><th>Temporary</th><th>설명</th></tr></thead>
+<tbody>
+<tr><td><code>*protocol.CommandError</code></td><td>범용</td><td>필드 <code>PossibleSuccess</code></td><td>필드 <code>PossibleTemporary</code></td><td><code>protocol.NewError(msg, mayHaveSucceeded, temporary)</code>로 생성. 컨텍스트 만료 시 <code>{ctx.Err(), true, true}</code>로 감싸짐. <code>Unwrap()</code> 지원</td></tr>
+<tr><td><code>*protocol.RoutableMessageError</code></td><td>프로토콜</td><td><code>ERROR_NONE</code>, <code>RESPONSE_MTU_EXCEEDED</code>만 true</td><td><a href="#sec-fault">표</a>의 재시도 가능 코드만 true</td><td>차량의 <code>signedMessageStatus.signed_message_fault</code>. <code>.Code</code>는 <code>universal.MessageFault_E</code>. <code>Error()</code>는 enum 이름</td></tr>
+<tr><td><code>*protocol.NominalError</code></td><td>애플리케이션</td><td><code>Details</code>에 위임</td><td><code>Details</code>에 위임</td><td>차량이 명령을 인증했지만 실행 불가. Infotainment는 <code>car could not execute command: &lt;사유&gt;</code>, VCSEC는 <code>NominalVCSECError</code>를 감쌈. 프록시는 HTTP 200 + <code>reason</code>으로 변환</td></tr>
+<tr><td><code>*protocol.NominalVCSECError</code></td><td>애플리케이션</td><td>false</td><td>false</td><td><code>FromVCSECMessage.nominalError</code>. <code>.Details.GetGenericError()</code>가 <a href="#sec-generic">GenericError_E</a></td></tr>
+<tr><td><code>*protocol.KeychainError</code></td><td>애플리케이션</td><td>false</td><td>false</td><td>키 추가/삭제 실패. <code>.Code</code>는 <a href="#sec-whitelist">WhitelistOperation_information_E</a>. 메시지 <code>keychain operation failed: &lt;코드&gt;</code></td></tr>
+<tr><td><code>*inet.HTTPError</code></td><td>전송(HTTP)</td><td>4xx와 503은 false, 그 외 true</td><td>503, 504, 408, 421</td><td>Fleet API가 200 이외를 돌려줌. <code>.Code</code>, <code>.Message</code>(본문)</td></tr>
+</tbody>
+</table>
+<p>도우미 함수 <code>protocol.MayHaveSucceeded(err)</code>, <code>protocol.Temporary(err)</code>, <code>protocol.ShouldRetry(err)</code>, <code>protocol.IsNominalError(err)</code>는 <code>errors.As</code>로 래핑을 뚫고 검사합니다. 커밋 <code>a4b43c1</code>에서 래핑된 프로토콜 오류의 분류가 수정되었으므로 <code>fmt.Errorf("%w")</code>로 감싼 오류도 올바르게 분류됩니다.</p>
+
+<h2 id="sec-retry">재시도 정책</h2>
+<pre><code class="language-go">func ShouldRetry(err error) bool {
+    // Error 인터페이스를 구현하고, MayHaveSucceeded()가 false이며, Temporary()가 true일 때만 true
+}</code></pre>
+<p>SDK는 다음 지점에서 <code>ShouldRetry</code>가 참인 동안 커넥터의 <code>RetryInterval()</code>(BLE, inet 모두 1초) 간격으로 컨텍스트가 만료될 때까지 재시도합니다.</p>
+<table>
+<thead><tr><th>지점</th><th>재시도 대상</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><code>Vehicle.StartSession</code></td><td>핸드셰이크 전체</td><td>디스패처는 응답이 <code>RetryInterval</code> 안에 오지 않으면 요청을 다시 보냄</td></tr>
+<tr><td><code>Vehicle.Send</code> (Infotainment 명령)</td><td>전송 + 응답 대기</td><td>재시도 시 카운터가 새로 증가한 새 메시지를 만듦</td></tr>
+<tr><td><code>getVCSECResult</code> (VCSEC 명령)</td><td>전송 + 종단 응답 대기</td><td><code>OPERATIONSTATUS_WAIT</code>는 <code>ErrBusy</code>로 변환되어 재시도</td></tr>
+<tr><td><code>Dispatcher.Send</code></td><td>커넥터 <code>Send</code> 자체</td><td>동일 바이트 재전송(카운터 불변). 커넥터가 <code>protocol.Error</code>를 반환할 때만</td></tr>
+<tr><td><code>inet.Connection.Wakeup</code></td><td><code>wake_up</code> 폴링</td><td>10초 간격, <code>state == "online"</code>까지. <code>Temporary</code> 오류만 계속</td></tr>
+<tr><td><code>ble.NewConnectionFromScanResult</code></td><td>스캔/다이얼/서비스 탐색</td><td>어댑터 오류(<code>IsAdapterError</code>)와 잘못된 Local Name, 연결 불가 비콘은 즉시 실패. 그 외는 컨텍스트 만료까지 반복</td></tr>
+</tbody>
+</table>
+<div class="callout warn">
+<strong>MayHaveSucceeded가 참인 오류는 자동 재시도하지 않습니다</strong>
+<p>컨텍스트 타임아웃, 응답 파싱 실패 등은 차량이 이미 명령을 실행했을 수 있으므로 SDK가 재전송하지 않습니다. 잠금 해제나 트렁크 열기처럼 두 번 실행되면 곤란한 명령은 <code>BodyControllerState</code>나 <code>GetState</code>로 상태를 확인한 뒤 결정하세요. <code>tesla-control</code>은 이 경우 <code>Couldn't verify success: …</code>를 출력합니다.</p>
+</div>
+
+<h2 id="sec-sentinel">pkg/protocol의 sentinel 오류</h2>
+<table>
+<thead><tr><th>변수</th><th>메시지</th><th>Temporary</th><th>원인과 대처</th></tr></thead>
+<tbody>
+<tr><td><code>ErrBusy</code></td><td>vehicle busy or finishing wake-up</td><td>true</td><td>VCSEC <code>OPERATIONSTATUS_WAIT</code> 또는 RoutableMessage <code>OPERATIONSTATUS_WAIT</code>. 자동 재시도됨. 부팅/기상 중에 흔함</td></tr>
+<tr><td><code>ErrUnknown</code></td><td>vehicle responded with an unrecognized status code</td><td>false</td><td>SDK가 모르는 상태 코드. 패키지 업데이트 확인</td></tr>
+<tr><td><code>ErrNotConnected</code></td><td>vehicle not connected</td><td>false</td><td><code>Connect()</code>를 안 했거나 <code>Disconnect()</code> 후 전송. inet 커넥터가 닫힘</td></tr>
+<tr><td><code>ErrNoSession</code></td><td>cannot send authenticated command before establishing a vehicle session</td><td>false</td><td><code>StartSession</code>을 안 했거나 해당 도메인을 제외했음. 개인 키가 nil이면 세션을 만들 수 없음</td></tr>
+<tr><td><code>ErrRequiresKey</code></td><td>no private key available</td><td>false</td><td>개인 키 없이 핸드셰이크 요청</td></tr>
+<tr><td><code>ErrInvalidPublicKey</code></td><td>(internal/authentication)</td><td>false</td><td>P-256이 아니거나 비압축 인코딩이 아닌 공개 키</td></tr>
+<tr><td><code>ErrKeyNotPaired</code></td><td>vehicle rejected request: your public key has not been paired with the vehicle</td><td>false</td><td><code>MESSAGEFAULT_ERROR_UNKNOWN_KEY_ID</code> 또는 <code>SESSION_INFO_STATUS_KEY_NOT_ON_WHITELIST</code>. 키 페어링 필요. 프록시는 412</td></tr>
+<tr><td><code>ErrUnpexpectedPublicKey</code></td><td>remote public key changed unexpectedly</td><td>—</td><td>세션 갱신 중 차량 공개 키가 바뀜(이름의 오타는 원본 그대로)</td></tr>
+<tr><td><code>ErrBadResponse</code></td><td>invalid response</td><td>—</td><td>응답 protobuf 파싱 실패, 세션 정보 누락</td></tr>
+<tr><td><code>ErrProtocolNotSupported</code></td><td>vehicle does not support protocol -- use REST API</td><td>—</td><td>Fleet API 422. 2021년 이전 Model S/X. 프록시는 REST로 폴백</td></tr>
+<tr><td><code>ErrRequiresBLE</code></td><td>command can only be sent over BLE</td><td>—</td><td><code>SendAddKeyRequest</code>를 인터넷 경로로 호출</td></tr>
+<tr><td><code>ErrRequiresEncryption</code></td><td>command should not be sent in plaintext or encrypted with an unauthenticated public key</td><td>—</td><td><code>SetPINToDrive</code>를 BLE로 호출. Fleet API 경로만 허용</td></tr>
+<tr><td><code>ErrNoDecryptionContext</code></td><td>could not decrypt vehicle response without a session</td><td>—</td><td>암호화된 응답이 왔는데 해당 도메인 세션이 없음</td></tr>
+<tr><td><code>ErrReplayedResponse</code></td><td>received vehicle response with duplicate counter</td><td>—</td><td>같은 응답 카운터가 두 번 도착. 디스패처가 중복을 버림(정상일 수 있음, 네트워크 재전송)</td></tr>
+<tr><td><code>inet.ErrVehicleNotAwake</code></td><td>vehicle unavailable: vehicle is offline or asleep</td><td>false</td><td>Fleet API 503 또는 "vehicle is offline" 408. <code>Wakeup</code> 먼저. 프록시는 408</td></tr>
+<tr><td><code>ble.ErrAdapterInvalidID</code></td><td>the bluetooth adapter ID is invalid</td><td>false</td><td><code>hci0</code>~<code>hci15</code> 형식이 아니거나 macOS에서 ID 지정</td></tr>
+<tr><td><code>ble.ErrMaxConnectionsExceeded</code></td><td>the vehicle is already connected to the maximum number of BLE devices</td><td>false</td><td>비콘이 <code>Connectable=false</code>. VCSEC는 최대 3개 연결(키포브, 폰키 포함)</td></tr>
+<tr><td><code>vehicle.ErrInvalidPIN</code></td><td>PIN codes must be four digits</td><td>—</td><td>발렛/자녀 보호 PIN 형식</td></tr>
+<tr><td><code>vehicle.ErrNoFleetAPIConnection</code></td><td>not connected to Fleet API</td><td>—</td><td>서버에서 끝나는 명령을 BLE 커넥터로 호출</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-fault">프로토콜 계층: MessageFault_E</h2>
+<p>차량이 <code>RoutableMessage.signedMessageStatus.signed_message_fault</code>에 설정합니다. <code>protocol.GetError</code>가 <code>RoutableMessageError</code>로 변환하며, <code>UNKNOWN_KEY_ID</code>만 <code>ErrKeyNotPaired</code>로 바꿉니다. 설명은 <code>universal_message.proto</code> 주석을 옮긴 것입니다.</p>
+<table>
+<thead><tr><th>값</th><th>이름</th><th>재시도</th><th>의미와 대처</th></tr></thead>
+<tbody>
+<tr><td>0</td><td><code>ERROR_NONE</code></td><td>—</td><td>성공</td></tr>
+<tr><td>1</td><td><code>ERROR_BUSY</code></td><td>자동</td><td>필요한 차량 서브시스템이 바쁨. 다시 시도</td></tr>
+<tr><td>2</td><td><code>ERROR_TIMEOUT</code></td><td>자동</td><td>서브시스템이 응답하지 않음. 다시 시도</td></tr>
+<tr><td>3</td><td><code>ERROR_UNKNOWN_KEY_ID</code></td><td>아니오</td><td>명령을 인증한 키를 차량이 모름. 키 페어링 확인(<code>ErrKeyNotPaired</code>로 노출)</td></tr>
+<tr><td>4</td><td><code>ERROR_INACTIVE_KEY</code></td><td>아니오</td><td>키가 비활성화됨</td></tr>
+<tr><td>5</td><td><code>ERROR_INVALID_SIGNATURE</code></td><td>자동</td><td>서명/MAC 불일치. 응답에 포함된 세션 정보로 세션을 갱신하고 재시도(SDK가 자동)</td></tr>
+<tr><td>6</td><td><code>ERROR_INVALID_TOKEN_OR_COUNTER</code></td><td>자동</td><td>안티리플레이 카운터가 이미 사용됨. 세션 갱신 후 재시도(자동)</td></tr>
+<tr><td>7</td><td><code>ERROR_INSUFFICIENT_PRIVILEGES</code></td><td>아니오</td><td>역할 또는 차량 상태 때문에 권한 없음</td></tr>
+<tr><td>8</td><td><code>ERROR_INVALID_DOMAINS</code></td><td>아니오</td><td>메시지 형식 오류 또는 알 수 없는 도메인. 클라이언트 버그이거나 구형 펌웨어</td></tr>
+<tr><td>9</td><td><code>ERROR_INVALID_COMMAND</code></td><td>아니오</td><td>알 수 없는 명령. 클라이언트 오류 또는 미지원 펌웨어</td></tr>
+<tr><td>10</td><td><code>ERROR_DECODING</code></td><td>아니오</td><td>명령 파싱 실패. 클라이언트 오류</td></tr>
+<tr><td>11</td><td><code>ERROR_INTERNAL</code></td><td>자동</td><td>차량 내부 오류. 부팅이 끝나지 않았을 때 흔함. 재시도</td></tr>
+<tr><td>12</td><td><code>ERROR_WRONG_PERSONALIZATION</code></td><td>아니오</td><td>다른 VIN으로 서명된 명령</td></tr>
+<tr><td>13</td><td><code>ERROR_BAD_PARAMETER</code></td><td>아니오</td><td>형식 오류 또는 폐기된 파라미터</td></tr>
+<tr><td>14</td><td><code>ERROR_KEYCHAIN_IS_FULL</code></td><td>아니오</td><td>키체인 가득 참. 키를 삭제해야 추가 가능</td></tr>
+<tr><td>15</td><td><code>ERROR_INCORRECT_EPOCH</code></td><td>자동</td><td>세션 ID(epoch) 불일치. 차량 재부팅 후 흔함. 세션 갱신 후 재시도(자동)</td></tr>
+<tr><td>16</td><td><code>ERROR_IV_INCORRECT_LENGTH</code></td><td>아니오</td><td>AES-GCM nonce가 12바이트가 아님. 클라이언트 프로그래밍 오류</td></tr>
+<tr><td>17</td><td><code>ERROR_TIME_EXPIRED</code></td><td>자동</td><td>명령 만료. 시계 desync 가능성. 세션 정보로 시계 재동기화 후 재시도(자동)</td></tr>
+<tr><td>18</td><td><code>ERROR_NOT_PROVISIONED_WITH_IDENTITY</code></td><td>아니오</td><td>차량에 VIN이 없음. 서비스 필요</td></tr>
+<tr><td>19</td><td><code>ERROR_COULD_NOT_HASH_METADATA</code></td><td>아니오</td><td>차량 내부 오류</td></tr>
+<tr><td>20</td><td><code>ERROR_TIME_TO_LIVE_TOO_LONG</code></td><td>자동</td><td>만료 시각이 너무 먼 미래. 컨텍스트 데드라인이 너무 길면 발생. 짧은 데드라인으로 재시도</td></tr>
+<tr><td>21</td><td><code>ERROR_REMOTE_ACCESS_DISABLED</code></td><td>아니오</td><td>차주가 모바일 접근을 껐음</td></tr>
+<tr><td>22</td><td><code>ERROR_REMOTE_SERVICE_ACCESS_DISABLED</code></td><td>아니오</td><td>Service 키로 서명했지만 원격 서비스 명령이 허용되지 않음</td></tr>
+<tr><td>23</td><td><code>ERROR_COMMAND_REQUIRES_ACCOUNT_CREDENTIALS</code></td><td>아니오</td><td>Tesla 계정 증명이 필요한 명령을 BLE로 보냄. Fleet API로 다시 보낼 것</td></tr>
+<tr><td>24</td><td><code>ERROR_REQUEST_MTU_EXCEEDED</code></td><td>아니오</td><td>요청 필드가 MTU 초과</td></tr>
+<tr><td>25</td><td><code>ERROR_RESPONSE_MTU_EXCEEDED</code></td><td>아니오 (성공 가능)</td><td>요청은 받았으나 응답이 MTU 초과. 명령은 실행됐을 수 있음</td></tr>
+<tr><td>26</td><td><code>ERROR_REPEATED_COUNTER</code></td><td>아니오</td><td>(proto에 설명 없음) 반복된 카운터</td></tr>
+<tr><td>27</td><td><code>ERROR_INVALID_KEY_HANDLE</code></td><td>아니오</td><td>(proto에 설명 없음) 잘못된 키 핸들</td></tr>
+<tr><td>28</td><td><code>ERROR_REQUIRES_RESPONSE_ENCRYPTION</code></td><td>아니오</td><td>(proto에 설명 없음) 응답 암호화가 필요. <code>FLAG_ENCRYPT_RESPONSE</code>를 설정하지 않은 클라이언트에서 발생 가능</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-generic">VCSEC 애플리케이션 계층: GenericError_E</h2>
+<p><code>FromVCSECMessage.nominalError.genericError</code>. <code>NominalVCSECError</code>로 노출되며 메시지는 <code>vcsec could not execute command: &lt;이름&gt;</code>입니다.</p>
+<table>
+<thead><tr><th>값</th><th>이름</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td>0</td><td><code>GENERICERROR_NONE</code></td><td>오류 없음</td></tr>
+<tr><td>1</td><td><code>GENERICERROR_UNKNOWN</code></td><td>알 수 없음</td></tr>
+<tr><td>2</td><td><code>GENERICERROR_CLOSURES_OPEN</code></td><td>도어/트렁크가 열려 있어 실행 불가(예: 잠금)</td></tr>
+<tr><td>3</td><td><code>GENERICERROR_ALREADY_ON</code></td><td>이미 해당 상태</td></tr>
+<tr><td>4</td><td><code>GENERICERROR_DISABLED_FOR_USER_COMMAND</code></td><td>사용자 명령으로는 비활성화됨</td></tr>
+<tr><td>5</td><td><code>GENERICERROR_VEHICLE_NOT_IN_PARK</code></td><td>주차(P) 상태가 아님</td></tr>
+<tr><td>6</td><td><code>GENERICERROR_UNAUTHORIZED</code></td><td>권한 없음</td></tr>
+<tr><td>7</td><td><code>GENERICERROR_NOT_ALLOWED_OVER_TRANSPORT</code></td><td>이 전송 경로(BLE/인터넷)로는 허용되지 않는 명령</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-whitelist">키체인 작업 오류: WhitelistOperation_information_E</h2>
+<p><code>add-key</code>, <code>add-key-request</code>, <code>remove-key</code> 실패 시 <code>KeychainError.Code</code>에 담깁니다. 주요 값:</p>
+<table>
+<thead><tr><th>값</th><th>이름</th><th>상황</th></tr></thead>
+<tbody>
+<tr><td>2</td><td><code>NO_PERMISSION_TO_REMOVE_ONESELF</code></td><td>자기 키를 삭제하려 함</td></tr>
+<tr><td>3</td><td><code>KEYFOB_SLOTS_FULL</code></td><td>키포브 슬롯 가득 참</td></tr>
+<tr><td>4</td><td><code>WHITELIST_FULL</code></td><td>키체인 가득 참. 기존 키 삭제 필요</td></tr>
+<tr><td>5</td><td><code>NO_PERMISSION_TO_ADD</code></td><td>서명 키의 역할로는 키 추가 불가(Driver 등)</td></tr>
+<tr><td>6</td><td><code>INVALID_PUBLIC_KEY</code></td><td>공개 키 형식 오류</td></tr>
+<tr><td>7</td><td><code>NO_PERMISSION_TO_REMOVE</code></td><td>삭제 권한 없음</td></tr>
+<tr><td>9</td><td><code>ATTEMPTING_TO_ELEVATE_OTHER_ABOVE_ONESELF</code></td><td>자기보다 높은 역할을 부여하려 함</td></tr>
+<tr><td>12</td><td><code>PUBLIC_KEY_NOT_ON_WHITELIST</code></td><td>삭제하려는 키가 없음</td></tr>
+<tr><td>13</td><td><code>ATTEMPTING_TO_ADD_KEY_THAT_IS_ALREADY_ON_THE_WHITELIST</code></td><td>이미 등록된 키</td></tr>
+<tr><td>14</td><td><code>NOT_ALLOWED_TO_ADD_UNLESS_ON_READER</code></td><td>NFC 리더에 카드를 대지 않으면 추가 불가</td></tr>
+<tr><td>15~17</td><td><code>FM_*</code></td><td>Fleet Manager 키의 제한(F 모드 밖 수정, 영구 키 추가/삭제)</td></tr>
+<tr><td>19~22</td><td><code>ATTEMPTING_TO_ADD_KEY_WITHOUT_ROLE</code>, <code>*_SERVICE_*</code></td><td>역할 미지정 또는 Service 역할 관련 제한</td></tr>
+<tr><td>23</td><td><code>COULD_NOT_START_LOCAL_ENTITY_AUTH</code></td><td>NFC 승인 절차 시작 실패</td></tr>
+<tr><td>24</td><td><code>LOCAL_ENTITY_AUTH_FAILED_UI_DENIED</code></td><td>차량 화면에서 사용자가 거부</td></tr>
+<tr><td>25</td><td><code>LOCAL_ENTITY_AUTH_FAILED_TIMED_OUT_WAITING_FOR_TAP</code></td><td>NFC 카드 탭을 기다리다 타임아웃</td></tr>
+<tr><td>26</td><td><code>LOCAL_ENTITY_AUTH_FAILED_TIMED_OUT_WAITING_FOR_UI_ACK</code></td><td>화면 확인을 기다리다 타임아웃</td></tr>
+<tr><td>27</td><td><code>LOCAL_ENTITY_AUTH_FAILED_VALET_MODE</code></td><td>발렛 모드에서는 키 추가 불가</td></tr>
+<tr><td>28</td><td><code>LOCAL_ENTITY_AUTH_FAILED_CANCELLED</code></td><td>취소됨</td></tr>
+</tbody>
+</table>
+<p>전체 목록(0~28)은 <code>pkg/protocol/protobuf/vcsec.proto</code>의 <code>WhitelistOperation_information_E</code>를 보세요. <code>SendAddKeyRequest</code>는 전송 즉시 반환하므로 이 오류들은 BLE 세션에서 후속 메시지를 직접 읽거나, 이후 <code>session-info</code>로 등록 여부를 확인할 때 드러납니다.</p>
+
+<h2 id="sec-info">Infotainment 애플리케이션 계층 오류</h2>
+<p>Infotainment 응답 <code>carserver.Response.actionStatus.result</code>가 <code>OPERATIONSTATUS_ERROR</code>이면 <code>result_reason.plain_text</code>가 <code>NominalError</code>의 메시지가 됩니다: <code>car could not execute command: &lt;plain_text&gt;</code>. 텍스트가 비어 있으면 <code>unspecified error</code>. 코드에 언급된 예: <code>already off</code>(발렛 해제 시 성공으로 처리), <code>low_power_mode_enforced</code>, <code>parental_controls_active</code>. 프록시는 이 문자열을 <code>reason</code>으로 돌려줍니다.</p>
+
+<h2 id="sec-http">HTTP 계층: inet.HTTPError</h2>
+<table>
+<thead><tr><th>Fleet API 응답</th><th>SDK 오류</th><th>Temporary</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>없음(본문 반환)</td><td></td></tr>
+<tr><td>422</td><td><code>protocol.ErrProtocolNotSupported</code></td><td></td></tr>
+<tr><td>503</td><td><code>inet.ErrVehicleNotAwake</code></td><td>false</td></tr>
+<tr><td>408 + 본문에 "vehicle is offline"</td><td><code>inet.ErrVehicleNotAwake</code></td><td>false</td></tr>
+<tr><td>408 (기타), 503, 504, 421</td><td><code>*inet.HTTPError</code></td><td>true</td></tr>
+<tr><td>그 외 4xx</td><td><code>*inet.HTTPError</code> (MayHaveSucceeded false)</td><td>false</td></tr>
+<tr><td>그 외 5xx</td><td><code>*inet.HTTPError</code> (MayHaveSucceeded true)</td><td>false</td></tr>
+<tr><td>응답 &gt; 100000 바이트</td><td><code>response exceeds maximum length</code> (성공 가능, 일시적)</td><td>true</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-scenarios">문제 해결 시나리오</h2>
+<table>
+<thead><tr><th>증상</th><th>가능한 원인</th><th>확인과 대처</th></tr></thead>
+<tbody>
+<tr><td>BLE 스캔이 끝나지 않음 / <code>ble: failed to scan for &lt;VIN&gt;: context deadline exceeded</code></td><td>VIN 오타, 차량이 멀리 있음, 광고 이름 불일치, 어댑터 문제</td><td>VIN 17자 확인(대문자). 광고 Local Name은 <code>S</code> + SHA1(VIN) 앞 8바이트 hex + <code>C</code>(<code>ble.VehicleLocalName</code>). 일반 BLE 스캐너 앱으로 그 이름이 보이는지 확인. <code>examples/ble -scan-only -vin …</code>으로 스캔만 테스트. 차 옆에서 시도</td></tr>
+<tr><td><code>the vehicle is already connected to the maximum number of BLE devices</code></td><td>비콘이 <code>Connectable=false</code>. VCSEC는 최대 3개 BLE 연결(키포브, 폰키 포함)</td><td>휴대폰 앱의 폰키를 잠시 끄거나 다른 클라이언트를 끊음. 자동 재시도되지 않음</td></tr>
+<tr><td>Linux: <code>operation not permitted</code>, <code>Failed to initialize BLE adapter</code></td><td>HCI 소켓 접근 권한 없음(go-ble이 HCIDEVDOWN을 호출)</td><td><code>sudo setcap 'cap_net_admin=eip' "$(which tesla-control)"</code> 또는 root로 실행. <code>-bt-adapter hci1</code>로 다른 어댑터 선택. bluetoothd가 어댑터를 점유하면 충돌할 수 있음</td></tr>
+<tr><td>macOS: 스캔 결과가 전혀 없음</td><td>터미널 앱에 Bluetooth 권한이 없음, Bluetooth 꺼짐</td><td>시스템 설정 → 개인정보 보호 및 보안 → Bluetooth에서 터미널/IDE를 허용. macOS는 <code>-bt-adapter</code>를 지원하지 않음(<code>ErrAdapterInvalidID</code>)</td></tr>
+<tr><td>Windows에서 <code>not supported on Windows</code></td><td>BLE 패키지가 Windows 미지원</td><td>macOS/Linux 사용, 또는 인터넷 경로(OAuth)로 전환</td></tr>
+<tr><td>연결은 되는데 <code>ble: failed to find required characteristics</code> / <code>failed to discover service</code></td><td>다른 장치에 연결됨(Local Name은 검사하지만 주소 재사용 가능), GATT 캐시 문제</td><td>재시도(자동). OS의 블루투스를 껐다 켜기. 다른 Tesla가 근처에 있으면 VIN 재확인</td></tr>
+<tr><td>핸드셰이크 실패: <code>your public key has not been paired with the vehicle</code></td><td>공개 키 미등록, 다른 키로 실행 중, 등록이 Infotainment에 아직 동기화되지 않음</td><td><code>tesla-control -ble list-keys</code>로 등록 목록 확인. <code>tesla-keygen create</code>로 현재 키의 공개 키를 출력해 비교. <code>session-info public_key.pem infotainment</code>가 성공할 때까지 잠시 대기. <code>TESLA_KEY_NAME</code>/<code>-key-file</code>이 의도한 키를 가리키는지 확인</td></tr>
+<tr><td>페어링 요청 후 아무 일도 안 일어남</td><td>차량이 잠들어 있음, 발렛 모드, NFC 카드 탭 타임아웃, 화면에서 거부</td><td>차 안에서 화면이 켜진 상태로 실행. <code>add-key-request</code> 직후 NFC 카드를 센터 콘솔에 대고 화면의 확인을 누름. 발렛 모드 해제. <code>-debug</code>로 <code>WhitelistOperation_information_E</code> 코드 확인</td></tr>
+<tr><td><code>MESSAGEFAULT_ERROR_INVALID_SIGNATURE</code>, <code>INCORRECT_EPOCH</code>, <code>INVALID_TOKEN_OR_COUNTER</code>가 로그에 반복</td><td>세션 캐시가 낡음(차량 재부팅, 펌웨어 업데이트), 같은 키를 여러 프로세스가 동시에 사용해 카운터 충돌</td><td>정상적으로는 응답에 담긴 세션 정보로 자동 복구되어 재시도 후 성공. 계속 실패하면 캐시 파일(<code>~/.tesla-cache.json</code>) 삭제 또는 <code>-disable-session-cache</code>. 동일 키를 쓰는 프로세스를 하나로 줄이거나 프록시처럼 VIN별로 직렬화</td></tr>
+<tr><td><code>MESSAGEFAULT_ERROR_TIME_EXPIRED</code> / <code>TIME_TO_LIVE_TOO_LONG</code></td><td>로컬 시계와 도메인 시계 추정치 차이, 응답 지연이 <code>AllowedLatency</code>(BLE 4초)를 넘어 시계 동기화가 버려짐, 컨텍스트 데드라인이 너무 김</td><td>자동 복구 대상. 지속되면 <code>Vehicle.SetMaxLatency</code>를 늘리거나 <code>-command-timeout</code>을 줄임. 캐시 삭제</td></tr>
+<tr><td><code>vehicle busy or finishing wake-up</code>가 오래 지속</td><td>VCSEC가 다른 요청 처리 중(<code>OPERATIONSTATUS_WAIT</code>), 차량 부팅 중</td><td>자동 재시도됨. <code>-command-timeout 15s</code>처럼 늘림. VCSEC에 동시 요청을 보내지 않도록 앱 구조 확인(메모리 제약으로 동시 요청 비권장)</td></tr>
+<tr><td>Infotainment 명령만 타임아웃, VCSEC 명령은 정상</td><td>인포테인먼트가 잠들어 있음</td><td>BLE: <code>tesla-control -ble wake</code> 후 잠시 대기. 인터넷: <code>wake</code>(Fleet API). <code>body-controller-state</code>의 <code>vehicleSleepStatus</code>로 확인</td></tr>
+<tr><td><code>Couldn't verify success: …</code></td><td>응답을 못 받음(타임아웃). 명령은 실행됐을 수 있음</td><td><code>body-controller-state</code>/<code>state closures</code>로 결과 확인 후 필요 시 재실행. 타임아웃 늘리기</td></tr>
+<tr><td><code>You must provide a private key with -key-name or -key-file to execute this command</code></td><td><code>ErrNoSession</code>: 키 없이 인증 명령 실행</td><td><code>TESLA_KEY_NAME</code> 또는 <code>-key-file</code> 설정. <code>-domain</code>으로 해당 도메인을 제외하지 않았는지 확인</td></tr>
+<tr><td><code>no terminal output available for password prompt</code> / 실행이 멈춤</td><td>키링 백엔드가 비밀번호를 요구하는데 터미널이 아님(cron, systemd, CI)</td><td><code>TESLA_KEYRING_PASSWORD</code> 설정, 또는 파일 기반 키(<code>-key-file</code>) 사용. <code>TESLA_KEYRING_DEBUG=1</code>로 백엔드 확인</td></tr>
+<tr><td><code>could not load key: The specified item could not be found in the keyring</code></td><td>키 이름 불일치, 다른 키링 백엔드</td><td><code>TESLA_KEY_NAME</code>이 생성 때와 같은지, <code>TESLA_KEYRING_TYPE</code>이 같은지 확인. macOS 키체인 접근 앱에서 <code>com.tesla.auth</code> 검색</td></tr>
+<tr><td>Fleet API: <code>vehicle unavailable: vehicle is offline or asleep</code> (프록시 408)</td><td>차량 오프라인/수면</td><td><code>wake_up</code> 후 재시도. 오프라인이면 셀룰러 연결 대기</td></tr>
+<tr><td>프록시 412</td><td>프록시의 공개 키가 그 차량에 등록되지 않음</td><td>사용자에게 <code>https://tesla.com/_ak/&lt;domain&gt;</code> 링크로 키 등록 요청</td></tr>
+<tr><td>프록시가 명령을 REST로 넘김(로그에 422)</td><td>2021년 이전 Model S/X 등 프로토콜 미지원 차량</td><td>정상 동작. Fleet API가 직접 처리. 프로세스가 살아 있는 동안 그 VIN은 계속 포워딩</td></tr>
+<tr><td><code>command requires a FleetAPI OAuth token</code></td><td><code>-ble</code>과 계정 명령(<code>product-info</code>, <code>get</code> 등)을 함께 사용</td><td><code>-ble</code> 제거, OAuth 토큰 설정</td></tr>
+<tr><td><code>MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES</code></td><td>키 역할 부족, 차량 상태</td><td><code>list-keys</code>로 역할 확인. Fleet Manager 키는 BLE 불가. Driver는 키 관리/PIN 불가</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-debug">디버깅 도구</h2>
+<h3>TX/RX 덤프 디코딩</h3>
+<p><code>tesla-control -debug</code>(또는 <code>TESLA_VERBOSE=1</code>)는 송수신한 RoutableMessage를 16진수로 출력합니다.</p>
+<pre><code>2023-12-13T14:41:13-08:00 [debug] TX: 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805</code></pre>
+<p><code>protoc</code>로 디코드합니다(저장소 루트에서 실행).</p>
+<pre><code class="language-bash">cd vehicle-command/pkg/protocol
+echo 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805 \
+    | xxd -r -p \
+    | protoc --decode=UniversalMessage.RoutableMessage -I protobuf protobuf/*.proto
+
+# 출력의 protobuf_message_as_bytes 를 도메인에 맞는 타입으로 다시 디코드
+printf "\n\002\010\005" | protoc --decode=VCSEC.UnsignedMessage -I protobuf protobuf/*.proto      # VCSEC 요청
+printf "..." | protoc --decode=VCSEC.FromVCSECMessage -I protobuf protobuf/*.proto              # VCSEC 응답
+printf "..." | protoc --decode=CarServer.Action -I protobuf protobuf/*.proto                    # Infotainment 요청
+printf "..." | protoc --decode=CarServer.Response -I protobuf protobuf/*.proto                  # Infotainment 응답</code></pre>
+<p>BLE에서는 AES-GCM으로 암호화되므로 <code>protobuf_message_as_bytes</code>가 암호문입니다. 평문을 보려면 <code>-debug</code> 로그의 요청 구성 시점 로그나 세션 키를 알아야 합니다. 핸드셰이크 메시지와 응답의 오류 필드(<code>signedMessageStatus</code>)는 평문입니다.</p>
+
+<h3>기타</h3>
+<table>
+<thead><tr><th>도구</th><th>용도</th></tr></thead>
+<tbody>
+<tr><td><code>tesla-control -ble session-info public_key.pem vcsec|infotainment</code></td><td>키 등록 여부, 도메인의 epoch/counter/clock_time 확인. 인증 불필요</td></tr>
+<tr><td><code>tesla-control -ble list-keys</code></td><td>등록된 키와 역할</td></tr>
+<tr><td><code>tesla-control -ble body-controller-state</code></td><td>잠금/닫힘/수면 상태. 인증 불필요, VCSEC만</td></tr>
+<tr><td><code>tesla-control -ble ping</code></td><td>Infotainment 세션과 키 인식 확인</td></tr>
+<tr><td><code>examples/ble -scan-only -vin …</code></td><td>스캔만 반복. 광고 이름/RSSI 확인</td></tr>
+<tr><td><code>TESLA_KEYRING_DEBUG=1</code> / <code>-keyring-debug</code></td><td>키링 백엔드 선택과 항목 접근 로그</td></tr>
+<tr><td><code>tesla-http-proxy -verbose</code></td><td>포워딩 URL, 421 갱신, 명령 실행 로그</td></tr>
+<tr><td><code>curl https://localhost:4443/health</code></td><td>프록시 생존 확인</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-security">보안 주의</h2>
+<ul>
+<li><strong>테스트 키를 실제 차량에 등록하지 마세요.</strong> <code>pkg/protocol/protocol.md</code>와 <code>internal/authentication/test_data/</code>, <code>pkg/protocol/test/</code>의 키는 공개되어 있습니다.</li>
+<li><strong>세션 캐시 파일 권한.</strong> <code>~/.tesla-cache.json</code>은 개인 키를 담지 않지만 세션 상태를 담습니다. 제3자가 읽거나 변조하지 못하게 하세요. 변조된 캐시는 첫 명령 실패 후 자동 복구되지만 불필요한 실패를 만듭니다.</li>
+<li><strong>개인 키 내보내기.</strong> <code>tesla-keygen export</code> 출력과 <code>-key-file</code> 파일은 등록된 모든 차량에 대한 명령 권한입니다. 0600 권한, 버전 관리 제외, 백업 암호화.</li>
+<li><strong>디버그 로그.</strong> <code>-debug</code> 출력에는 공개 키, epoch, 카운터, 암호문이 포함됩니다. 개인 키나 세션 키는 출력되지 않지만 로그를 공개 이슈에 올릴 때는 VIN을 가리세요.</li>
+<li><strong>취약점 보고.</strong> <code>SECURITY.md</code>에 따라 Tesla에 직접 보고합니다: <a href="https://www.tesla.com/legal/security">https://www.tesla.com/legal/security</a>.</li>
+</ul>
+
+<footer class="page-nav">
+  <a href="08-http-proxy.html"><span>이전</span>8. HTTP 프록시</a>
+  <a class="next" href="index.html"><span>홈으로</span>문서 홈</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

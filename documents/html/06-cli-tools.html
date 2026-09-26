@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>6. CLI 도구 · vehicle-command BLE 매뉴얼</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE 개발 매뉴얼 · v0.4.1 기준</div>
+  <ol>
+    <li><a href="index.html">홈</a></li>
+    <li class="group">시작하기</li>
+    <li><a href="01-overview.html">1. 시스템 개요</a></li>
+    <li><a href="02-getting-started.html">2. 시작하기</a></li>
+    <li class="group">프로토콜</li>
+    <li><a href="03-ble-transport.html">3. BLE 전송 계층</a></li>
+    <li><a href="04-protocol.html">4. 프로토콜 사양</a></li>
+    <li class="group">개발</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a class="active" href="06-cli-tools.html">6. CLI 도구</a></li>
+    <li><a href="07-command-reference.html">7. 명령 레퍼런스</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP 프록시</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. 오류와 문제 해결</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>6. CLI 도구</h1>
+<p class="lead"><code>cmd/</code> 아래 다섯 개 도구(tesla-keygen, tesla-control, tesla-auth-token, tesla-jws, tesla-http-proxy)의 사용법, 옵션, 환경 변수, 키링 동작을 정리합니다.</p>
+
+<div class="toc"><strong>이 페이지의 내용</strong><ol>
+<li><a href="#sec-install">설치</a></li>
+<li><a href="#sec-env">공통 환경 변수</a></li>
+<li><a href="#sec-keyring">키링 동작</a></li>
+<li><a href="#sec-keygen">tesla-keygen</a></li>
+<li><a href="#sec-control">tesla-control</a></li>
+<li><a href="#sec-auth-token">tesla-auth-token</a></li>
+<li><a href="#sec-jws">tesla-jws</a></li>
+<li><a href="#sec-proxy">tesla-http-proxy</a></li>
+</ol></div>
+
+<h2 id="sec-install">설치</h2>
+<pre><code class="language-bash">cd vehicle-command
+go get ./...
+go build ./...
+go install ./...          # $GOBIN (기본 ~/go/bin)에 다섯 도구 설치. make install 과 동일(./cmd/... 만 설치)</code></pre>
+<p>Docker 이미지 <code>tesla/vehicle-command</code>에도 다섯 도구가 모두 들어 있으며 기본 엔트리포인트는 <code>tesla-http-proxy</code>입니다. 다른 도구는 <code>--entrypoint</code>로 지정합니다. 단, 컨테이너 안에서는 호스트 BLE 어댑터에 접근할 수 없으므로 BLE 명령은 로컬 빌드로 실행하세요.</p>
+<pre><code class="language-bash">docker run --entrypoint tesla-keygen tesla/vehicle-command:latest -h</code></pre>
+
+<div class="callout warn">
+<strong>플랫폼</strong>
+<p>macOS와 Linux를 지원합니다. Windows에서는 BLE를 제외한 기능이 빌드되지만 <code>pkg/connector/ble</code>의 <code>newAdapter</code>가 <code>not supported on Windows</code>를 반환하므로 <code>tesla-control -ble</code>는 동작하지 않습니다. Linux에서는 BLE 어댑터 초기화에 <code>CAP_NET_ADMIN</code>이 필요합니다(<a href="09-errors-troubleshooting.html#sec-scenarios">문제 해결</a>).</p>
+</div>
+
+<h2 id="sec-env">공통 환경 변수</h2>
+<p><code>pkg/cli.Config.ReadFromEnvironment()</code>는 명령줄 플래그로 채워지지 않은 값만 환경 변수로 채웁니다. 즉 플래그가 항상 우선합니다.</p>
+<table>
+<thead><tr><th>환경 변수</th><th>대응 플래그</th><th>의미</th><th>사용 도구</th></tr></thead>
+<tbody>
+<tr><td><code>TESLA_KEY_NAME</code></td><td><code>-key-name</code></td><td>시스템 키링에 저장된 명령 인증 개인 키의 이름</td><td>keygen, control, jws, http-proxy</td></tr>
+<tr><td><code>TESLA_KEY_FILE</code></td><td><code>-key-file</code></td><td>개인 키 PEM 파일 경로. 이름과 파일이 둘 다 있으면 파일이 우선 로드됨</td><td>keygen, control, jws, http-proxy</td></tr>
+<tr><td><code>TESLA_TOKEN_NAME</code></td><td><code>-token-name</code></td><td>키링에 저장된 OAuth 토큰 이름</td><td>control, auth-token, keygen(등록만)</td></tr>
+<tr><td><code>TESLA_TOKEN_FILE</code></td><td><code>-token-file</code></td><td>OAuth 토큰 파일 경로. 파일이 없으면 키링으로 폴백</td><td>control</td></tr>
+<tr><td><code>TESLA_VIN</code></td><td><code>-vin</code></td><td>17자 VIN</td><td>control, jws</td></tr>
+<tr><td><code>TESLA_CACHE_FILE</code></td><td><code>-session-cache</code></td><td>세션 캐시 JSON 파일. 미지정 시 <code>$HOME/.tesla-cache.json</code>. <code>-disable-session-cache</code>로 끔</td><td>control, keygen, jws, http-proxy(로드만)</td></tr>
+<tr><td><code>TESLA_KEYRING_TYPE</code></td><td><code>-keyring-type</code></td><td>키링 백엔드 종류. 지원 목록은 <code>tesla-keygen -h</code>의 <code>-keyring-type</code> 설명에 OS별로 표시</td><td>keygen, control, jws, http-proxy, auth-token(환경 변수만)</td></tr>
+<tr><td><code>TESLA_KEYRING_PASSWORD</code></td><td>(없음)</td><td>파일/키체인 백엔드 비밀번호. 설정하면 프롬프트를 띄우지 않음</td><td>키링을 쓰는 모든 도구</td></tr>
+<tr><td><code>TESLA_KEYRING_PATH</code></td><td><code>-keyring-file-dir</code></td><td>파일 백엔드 디렉터리. 기본 <code>~/.tesla_keys</code></td><td>키링을 쓰는 모든 도구</td></tr>
+<tr><td><code>TESLA_KEYRING_DEBUG</code></td><td><code>-keyring-debug</code></td><td>존재하면 키링 디버그 로그 활성화(값 무관)</td><td>키링을 쓰는 모든 도구</td></tr>
+<tr><td><code>TESLA_VERBOSE</code></td><td><code>-debug</code> / <code>-verbose</code></td><td><code>false</code>, <code>0</code> 이외의 값이면 디버그 로그(TX/RX 16진수 포함)</td><td>control, http-proxy</td></tr>
+<tr><td><code>TESLA_HTTP_PROXY_TLS_CERT</code></td><td><code>-cert</code></td><td>프록시 TLS 인증서 체인 파일</td><td>http-proxy</td></tr>
+<tr><td><code>TESLA_HTTP_PROXY_TLS_KEY</code></td><td><code>-tls-key</code></td><td>프록시 TLS 개인 키 파일</td><td>http-proxy</td></tr>
+<tr><td><code>TESLA_HTTP_PROXY_HOST</code></td><td><code>-host</code></td><td>바인드 호스트. 기본 <code>localhost</code></td><td>http-proxy</td></tr>
+<tr><td><code>TESLA_HTTP_PROXY_PORT</code></td><td><code>-port</code></td><td>바인드 포트. 기본 443</td><td>http-proxy</td></tr>
+<tr><td><code>TESLA_HTTP_PROXY_TIMEOUT</code></td><td><code>-timeout</code></td><td>명령 타임아웃(예: <code>10s</code>). 기본 10초</td><td>http-proxy</td></tr>
+</tbody>
+</table>
+<p>일반적인 초기 설정:</p>
+<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)
+export TESLA_TOKEN_NAME=$(whoami)
+export TESLA_VIN=5YJ30123456789ABC
+export TESLA_CACHE_FILE=~/.tesla-cache.json</code></pre>
+
+<h2 id="sec-keyring">키링 동작</h2>
+<p>개인 키와 OAuth 토큰은 <a href="https://github.com/99designs/keyring">99designs/keyring</a>을 통해 OS 자격 증명 저장소에 보관됩니다.</p>
+<dl class="kv">
+<dt>서비스 이름</dt><dd><code>com.tesla.auth</code> (macOS 키체인에서는 이 이름으로 항목이 보입니다)</dd>
+<dt>개인 키 항목</dt><dd><code>vehicleCommandKey.&lt;TESLA_KEY_NAME&gt;</code>. 데이터는 32바이트 P-256 스칼라(빅엔디언)</dd>
+<dt>OAuth 토큰 항목</dt><dd><code>oauthtoken.&lt;TESLA_TOKEN_NAME&gt;</code>. 데이터는 토큰 문자열 그대로</dd>
+<dt>기본 백엔드</dt><dd>OS 기본. macOS는 로그인 키체인(<code>KeychainTrustApplication: true</code>), Linux는 secret-service/kwallet/keyctl 등 가용한 것, 파일 백엔드는 <code>~/.tesla_keys</code></dd>
+<dt>비밀번호</dt><dd>파일 백엔드나 키체인 잠금 해제에 비밀번호가 필요하면 터미널에 프롬프트를 띄웁니다. stdout/stderr가 모두 터미널이 아니면 <code>no terminal output available for password prompt</code> 오류. 무인 실행에서는 <code>TESLA_KEYRING_PASSWORD</code>를 설정하세요.</dd>
+<dt>KeyCtl 범위</dt><dd>Linux keyctl 백엔드는 <code>user</code> 범위를 씁니다.</dd>
+</dl>
+<p><code>tesla-control</code>은 연결 타임아웃이 시작되기 전에 <code>config.LoadCredentials()</code>를 호출해 비밀번호 프롬프트가 타임아웃을 소모하지 않도록 합니다. 자체 도구를 만들 때도 같은 순서를 지키세요.</p>
+
+<h2 id="sec-keygen">tesla-keygen</h2>
+<p>명령 인증용 P-256 개인 키를 생성·삭제·내보내기·이전하고 공개 키를 PEM으로 출력합니다.</p>
+<pre><code>usage: tesla-keygen [OPTION...] create|delete|export|migrate</code></pre>
+<table>
+<thead><tr><th>서브커맨드</th><th>동작</th></tr></thead>
+<tbody>
+<tr><td><code>create</code></td><td>키가 이미 있으면(키링 이름 또는 파일) 생성하지 않고 기존 키의 공개 키만 출력합니다. <code>-f</code>를 주면 새 키로 덮어씁니다. 저장 위치는 <code>-key-name</code>이 있으면 키링, 없으면 <code>-key-file</code>(SEC1 PEM, 0600). 둘 다 없으면 <code>private key location not provided</code>.</td></tr>
+<tr><td><code>delete</code></td><td>키링에서 <code>vehicleCommandKey.&lt;name&gt;</code>을 삭제합니다. 파일 키는 삭제하지 않습니다.</td></tr>
+<tr><td><code>export</code></td><td>개인 키를 <code>EC PRIVATE KEY</code> PEM으로 stdout에 출력합니다. 내보낼 수 없는 키 구현이면 오류.</td></tr>
+<tr><td><code>migrate</code></td><td><code>-key-file</code>의 PEM 개인 키를 읽어 <code>-key-name</code> 이름으로 키링에 저장합니다. 둘 다 필수. 원본 파일은 그대로 둡니다.</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>옵션</th><th>설명</th></tr></thead>
+<tbody>
+<tr><td><code>-f</code></td><td>기존 키가 있어도 덮어쓰기 (<code>create</code>)</td></tr>
+<tr><td><code>-output file</code></td><td>공개 키를 stdout 대신 파일에 저장</td></tr>
+<tr><td><code>-key-name name</code>, <code>-key-file file</code></td><td>키 위치. 기본 <code>$TESLA_KEY_NAME</code>, <code>$TESLA_KEY_FILE</code></td></tr>
+<tr><td><code>-keyring-type type</code>, <code>-keyring-file-dir directory</code>, <code>-keyring-debug</code></td><td>키링 설정</td></tr>
+<tr><td><code>-token-name</code>, <code>-token-file</code>, <code>-session-cache</code>, <code>-disable-session-cache</code>, <code>-domain</code></td><td><code>cli.FlagOAuth | cli.FlagPrivateKey</code>로 등록되어 있어 플래그는 존재하지만 keygen 동작에는 영향이 없습니다</td></tr>
+</tbody>
+</table>
+<pre><code class="language-bash"># 키링에 생성하고 공개 키 저장
+export TESLA_KEY_NAME=$(whoami)
+tesla-keygen create &gt; public_key.pem
+
+# 파일 기반 키 생성 (키링 없이)
+tesla-keygen -key-file ~/.tesla/private.pem create &gt; public_key.pem
+
+# OpenSSL로 만든 키를 키링으로 이전
+tesla-keygen -key-file private.pem -key-name $(whoami) migrate
+
+# 백업용 내보내기 (출력은 비밀. 안전하게 보관)
+tesla-keygen export &gt; private_backup.pem
+
+# 파일 백엔드 강제 + 무인 실행
+TESLA_KEYRING_TYPE=file TESLA_KEYRING_PASSWORD=... tesla-keygen create</code></pre>
+<p>출력되는 공개 키는 PKIX PEM(<code>-----BEGIN PUBLIC KEY-----</code>)입니다. Fleet API 파트너 등록(<code>/.well-known/appspecific/com.tesla.3p.public-key.pem</code>)과 <code>tesla-control add-key-request</code> 양쪽에 그대로 쓸 수 있습니다.</p>
+
+<h2 id="sec-control">tesla-control</h2>
+<p>BLE 또는 인터넷으로 차량 명령을 보내는 범용 CLI입니다. Windows에서는 동작하지 않습니다.</p>
+<pre><code>Usage: tesla-control [OPTION...] COMMAND [ARG...]
+       tesla-control help            # 전체 명령 목록
+       tesla-control help COMMAND    # 명령별 인자 설명
+       tesla-control                 # COMMAND 없이 실행하면 대화형 셸</code></pre>
+
+<h3>옵션</h3>
+<table>
+<thead><tr><th>옵션</th><th>기본값</th><th>설명</th></tr></thead>
+<tbody>
+<tr><td><code>-ble</code></td><td>false</td><td>OAuth 환경 변수가 있어도 BLE 연결을 강제. Fleet API 전용 명령과 함께 쓰면 <code>command requires a FleetAPI OAuth token</code></td></tr>
+<tr><td><code>-debug</code></td><td>false</td><td>디버그 로그. TX/RX 16진수 덤프 포함. <code>TESLA_VERBOSE</code>로도 켤 수 있음</td></tr>
+<tr><td><code>-command-timeout duration</code></td><td><code>5s</code></td><td>명령 하나의 타임아웃. 이 안에서 SDK가 재시도를 반복</td></tr>
+<tr><td><code>-connect-timeout duration</code></td><td><code>20s</code></td><td>스캔 + 연결 + 핸드셰이크 타임아웃</td></tr>
+<tr><td><code>-vin VIN</code></td><td><code>$TESLA_VIN</code></td><td>대상 차량</td></tr>
+<tr><td><code>-key-name name</code> / <code>-key-file file</code></td><td><code>$TESLA_KEY_NAME</code> / <code>$TESLA_KEY_FILE</code></td><td>명령 인증 개인 키</td></tr>
+<tr><td><code>-token-name name</code> / <code>-token-file file</code></td><td><code>$TESLA_TOKEN_NAME</code> / <code>$TESLA_TOKEN_FILE</code></td><td>OAuth 토큰(인터넷 경로)</td></tr>
+<tr><td><code>-session-cache file</code></td><td><code>$TESLA_CACHE_FILE</code> → <code>~/.tesla-cache.json</code></td><td>세션 캐시 파일. 종료 시 자동 갱신</td></tr>
+<tr><td><code>-disable-session-cache</code></td><td>false</td><td>캐시 사용 안 함</td></tr>
+<tr><td><code>-domain vcsec|infotainment</code></td><td>(모두)</td><td>핸드셰이크할 도메인. 반복 지정 가능. 예: <code>-domain vcsec</code>으로 인포테인먼트를 깨우지 않음</td></tr>
+<tr><td><code>-keyring-type</code>, <code>-keyring-file-dir</code>, <code>-keyring-debug</code></td><td>OS 기본 / <code>~/.tesla_keys</code> / false</td><td>키링 설정</td></tr>
+<tr><td><code>-bt-adapter id</code> (Linux만)</td><td><code>hci0</code></td><td>사용할 블루투스 어댑터(<code>hci0</code>~<code>hci15</code>)</td></tr>
+</tbody>
+</table>
+
+<h3>자격 증명 선택 규칙</h3>
+<p>각 명령은 <code>cmd/tesla-control/commands.go</code>에서 <code>requiresAuth</code>(개인 키 필요)와 <code>requiresFleetAPI</code>(OAuth 토큰 필요)로 분류됩니다. 실행 전 <code>configureFlags</code>와 <code>checkReadiness</code>가 다음 규칙을 적용합니다.</p>
+<table>
+<thead><tr><th>명령 유형</th><th>필요한 것</th><th>전송</th><th>예</th></tr></thead>
+<tbody>
+<tr><td>차량 명령, 인증 필요 (<code>requiresAuth</code>)</td><td>VIN + 개인 키</td><td>OAuth가 있으면 인터넷, <code>-ble</code>이거나 OAuth가 없으면 BLE</td><td><code>lock</code>, <code>climate-on</code>, <code>state charge</code></td></tr>
+<tr><td>차량 명령, 인증 불필요</td><td>VIN</td><td>위와 같음</td><td><code>list-keys</code>, <code>session-info</code>, <code>body-controller-state</code>, <code>add-key-request</code>, <code>wake</code>(인터넷)</td></tr>
+<tr><td>계정 명령 (<code>requiresFleetAPI</code>)</td><td>OAuth 토큰</td><td>인터넷만. <code>-ble</code>과 함께 쓰면 오류</td><td><code>product-info</code>, <code>rename-key</code>, <code>get</code>, <code>post</code></td></tr>
+<tr><td><code>-ble wake</code></td><td>VIN + 개인 키</td><td>BLE. VCSEC와만 핸드셰이크(인포테인먼트가 잠들어 있으므로)</td><td><code>tesla-control -ble wake</code></td></tr>
+</tbody>
+</table>
+<p><code>body-controller-state</code>는 <code>domain: protocol.DomainVCSEC</code>가 지정되어 있어 VCSEC와만 핸드셰이크합니다. 다른 명령은 <code>-domain</code> 플래그로 제한할 수 있습니다.</p>
+
+<h3>대화형 셸</h3>
+<p>COMMAND 없이 실행하면 연결을 한 번 맺고 <code>&gt; </code> 프롬프트에서 여러 명령을 연속으로 보낼 수 있습니다. 핸드셰이크를 매번 반복하지 않으므로 여러 명령을 시험할 때 유용합니다. 인자는 <code>shlex</code>로 파싱하므로 따옴표를 쓸 수 있고, <code>exit</code>로 종료합니다. 각 명령에는 <code>-command-timeout</code>이 적용됩니다.</p>
+<pre><code class="language-bash">$ tesla-control -ble
+&gt; body-controller-state
+{ "vehicleLockState": "VEHICLELOCKSTATE_LOCKED", ... }
+&gt; unlock
+&gt; climate-set-temp 21C
+&gt; exit</code></pre>
+
+<h3>출력과 종료 코드</h3>
+<ul>
+<li>성공: 종료 코드 0. 대부분의 명령은 아무것도 출력하지 않습니다. <code>state</code>, <code>body-controller-state</code>, <code>session-info</code>, <code>list-keys</code>, <code>product-info</code>, <code>get</code>/<code>post</code>, <code>charging-schedule-add</code>(생성된 ID) 등은 stdout에 결과를 출력합니다.</li>
+<li><code>Couldn't verify success: …</code>: 명령이 도착했을 수 있으나 확인을 못 받음(<code>protocol.MayHaveSucceeded</code>). 종료 코드 1.</li>
+<li><code>You must provide a private key with -key-name or -key-file to execute this command</code>: <code>protocol.ErrNoSession</code>. 종료 코드 1.</li>
+<li><code>Failed to execute command: …</code>: 그 외 오류. 종료 코드 1.</li>
+<li>Linux에서 어댑터 권한 오류면 <code>setcap</code> 안내문을 출력합니다.</li>
+</ul>
+
+<h3>예시</h3>
+<pre><code class="language-bash"># 키 페어링 (차 안에서, NFC 카드 준비)
+tesla-control -ble add-key-request public_key.pem owner cloud_key
+
+# 등록 확인
+tesla-control -ble list-keys
+tesla-control -ble session-info public_key.pem infotainment
+
+# 기본 명령
+tesla-control -ble lock
+tesla-control -ble -domain vcsec unlock           # 인포테인먼트를 깨우지 않음
+tesla-control -ble climate-set-temp 72F
+tesla-control -ble seat-heater front-left high
+tesla-control -ble charging-set-limit 80
+tesla-control -ble state climate
+tesla-control -ble -debug ping                    # TX/RX 덤프 확인
+
+# 인터넷 경로 (OAuth 토큰이 키링에 있을 때)
+tesla-control wake
+tesla-control lock
+tesla-control product-info
+tesla-control get "api/1/vehicles/$TESLA_VIN/vehicle_data"
+
+# 충전 스케줄
+tesla-control -ble charging-schedule-add weekdays 22:00-06:00 37.4 -122.1
+tesla-control -ble charging-schedule-remove home</code></pre>
+<p>전체 명령과 인자는 <a href="07-command-reference.html">7. 명령 레퍼런스</a>를 보세요.</p>
+
+<h2 id="sec-auth-token">tesla-auth-token</h2>
+<p>OAuth 토큰을 stdin 또는 파일에서 읽어 키링의 <code>oauthtoken.&lt;name&gt;</code> 항목으로 저장합니다. 토큰을 발급하지는 않습니다. 발급 절차는 <a href="https://developer.tesla.com/docs/fleet-api/authentication/third-party-tokens">Fleet API 문서</a>를 따르세요.</p>
+<pre><code>usage: tesla-auth-token [-token-name token_name] [file]</code></pre>
+<table>
+<thead><tr><th>옵션</th><th>설명</th></tr></thead>
+<tbody>
+<tr><td><code>-token-name name</code></td><td>키링 항목 이름. 기본 <code>$TESLA_TOKEN_NAME</code>. 이것이 유일한 플래그입니다. 키링 종류/경로/비밀번호는 <code>TESLA_KEYRING_TYPE</code>, <code>TESLA_KEYRING_PATH</code>, <code>TESLA_KEYRING_PASSWORD</code> 환경 변수로만 지정합니다.</td></tr>
+<tr><td><code>file</code> (위치 인자)</td><td>토큰이 든 파일. 생략하면 stdin에서 EOF까지 읽습니다. 두 개 이상 주면 오류.</td></tr>
+</tbody>
+</table>
+<pre><code class="language-bash">export TESLA_TOKEN_NAME=$(whoami)
+echo -n "$ACCESS_TOKEN" | tesla-auth-token
+tesla-auth-token token.txt
+# 저장 후 tesla-control은 OAuth가 있으므로 기본적으로 인터넷 경로를 사용한다. BLE를 쓰려면 -ble.</code></pre>
+<div class="callout">
+<strong>토큰 문자열은 그대로 저장됩니다</strong>
+<p>읽은 바이트를 가공 없이 저장하므로 끝의 개행이 포함될 수 있습니다. <code>account.New</code>가 <code>strings.TrimSpace</code>로 정리하므로 동작에는 문제가 없습니다. 만료된 토큰은 갱신 후 다시 저장해야 합니다.</p>
+</div>
+
+<h2 id="sec-jws">tesla-jws</h2>
+<p>Fleet Telemetry 설정 등에 쓰는 JWS(JSON Web Signature)를 명령 인증 개인 키로 서명하거나 검증합니다. 서명 알고리즘은 JWS 표준에 없는 <code>Tesla.SS256</code>(Schnorr/P-256 + SHA-256)으로, 기존 ECDH/P-256 키를 서명 키로 안전하게 재사용하기 위한 것입니다.</p>
+<pre><code>usage: tesla-jws [OPTION...] sign APP [JSON_FILE]
+       tesla-jws verify [JWS_FILE]</code></pre>
+<table>
+<thead><tr><th>서브커맨드 / 옵션</th><th>설명</th></tr></thead>
+<tbody>
+<tr><td><code>sign APP [JSON_FILE]</code></td><td><code>JSON_FILE</code>(없으면 stdin)의 JSON 객체를 클레임으로 서명합니다. <code>iss</code>는 base64 공개 키, <code>aud</code>는 컨텍스트 문자열로 <strong>덮어씁니다</strong>. 결과 JWS를 stdout에 출력.</td></tr>
+<tr><td><code>-fleet</code></td><td>플릿 전체용 서명. <code>aud = com.tesla.fleet.&lt;APP&gt;</code>. 없으면 <code>-vin</code>이 필수이고 <code>aud = com.tesla.vehicle.&lt;VIN&gt;.&lt;APP&gt;</code>가 되어 해당 차량만 수락.</td></tr>
+<tr><td><code>verify [JWS_FILE]</code></td><td>서명이 <code>iss</code>의 공개 키로 유효한지만 검사하고 클레임을 JSON으로 출력합니다. 발급자가 신뢰할 만한지, <code>aud</code>가 맞는지는 검사하지 않습니다.</td></tr>
+<tr><td><code>-vin</code>, <code>-key-name</code>, <code>-key-file</code>, <code>-keyring-*</code>, <code>-session-cache</code>, <code>-domain</code></td><td><code>cli.FlagPrivateKey | cli.FlagVIN</code> 공통 플래그</td></tr>
+</tbody>
+</table>
+<pre><code class="language-bash"># Fleet Telemetry 설정 서명 → Fleet API /api/1/vehicles/fleet_telemetry_config_jws 에 POST
+tesla-jws -fleet sign TelemetryClient telemetry_config.json &gt; signed-config.jws
+tesla-jws verify signed-config.jws
+
+# 특정 차량 전용 서명
+tesla-jws -vin $TESLA_VIN sign TelemetryClient telemetry_config.json</code></pre>
+<p>생성된 <code>.jws</code> 파일은 비밀이 아닙니다(JWT와 같은 문법이지만 bearer 토큰이 아닙니다). 프록시의 <code>/api/1/vehicles/fleet_telemetry_config</code> 엔드포인트는 같은 서명을 서버 쪽에서 자동으로 수행합니다(<a href="08-http-proxy.html#sec-telemetry">8. HTTP 프록시</a>).</p>
+
+<h2 id="sec-proxy">tesla-http-proxy</h2>
+<p>REST 요청을 종단 간 인증 명령으로 변환하는 HTTPS 서버입니다. 옵션, 라우팅, 응답 형식, 배포는 <a href="08-http-proxy.html">8. HTTP 프록시</a>에서 자세히 다룹니다. 요약:</p>
+<pre><code class="language-bash">tesla-http-proxy -tls-key config/tls-key.pem -cert config/tls-cert.pem -key-file config/fleet-key.pem -port 4443</code></pre>
+<table>
+<thead><tr><th>옵션</th><th>기본값</th><th>설명</th></tr></thead>
+<tbody>
+<tr><td><code>-cert file</code></td><td>(필수)</td><td>서버 + 중간 CA + 루트 CA를 이어 붙인 TLS 인증서 체인</td></tr>
+<tr><td><code>-tls-key file</code></td><td>(필수)</td><td>서버 TLS 개인 키. 명령 인증 키와 같으면 기동 거부</td></tr>
+<tr><td><code>-host hostname</code></td><td><code>localhost</code></td><td>바인드 주소. localhost가 아니면 경고 출력</td></tr>
+<tr><td><code>-port Port</code></td><td><code>443</code></td><td>포트</td></tr>
+<tr><td><code>-timeout duration</code></td><td><code>10s</code></td><td>Tesla 서버/차량 응답 타임아웃</td></tr>
+<tr><td><code>-verbose</code></td><td>false</td><td>디버그 로그</td></tr>
+<tr><td><code>-key-name</code>, <code>-key-file</code>, <code>-keyring-*</code>, <code>-session-cache</code>, <code>-domain</code></td><td></td><td><code>cli.FlagPrivateKey</code> 공통 플래그. 명령 인증 개인 키 위치</td></tr>
+</tbody>
+</table>
+
+<footer class="page-nav">
+  <a href="05-go-sdk.html"><span>이전</span>5. Go SDK</a>
+  <a class="next" href="07-command-reference.html"><span>다음</span>7. 명령 레퍼런스</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

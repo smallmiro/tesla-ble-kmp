@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tesla vehicle-command BLE 개발 매뉴얼</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE 개발 매뉴얼 · v0.4.1 기준</div>
+  <ol>
+    <li><a class="active" href="index.html">홈</a></li>
+    <li class="group">시작하기</li>
+    <li><a href="01-overview.html">1. 시스템 개요</a></li>
+    <li><a href="02-getting-started.html">2. 시작하기</a></li>
+    <li class="group">프로토콜</li>
+    <li><a href="03-ble-transport.html">3. BLE 전송 계층</a></li>
+    <li><a href="04-protocol.html">4. 프로토콜 사양</a></li>
+    <li class="group">개발</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI 도구</a></li>
+    <li><a href="07-command-reference.html">7. 명령 레퍼런스</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP 프록시</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. 오류와 문제 해결</a></li>
+  </ol>
+</nav>
+<main class="content">
+
+<h1>Tesla vehicle-command BLE 개발 매뉴얼</h1>
+<p class="lead">Tesla 차량과 Bluetooth Low Energy(BLE) 또는 인터넷으로 연결해 종단 간 인증(end-to-end authenticated) 명령을 보내는 <code>vehicle-command</code> SDK의 개발자 매뉴얼입니다.</p>
+
+<div class="callout">
+  <strong>이 문서의 기준 버전</strong>
+  <p>저장소 <code>vehicle-command/</code>의 태그 <code>v0.4.1</code> 이후 커밋 <code>a4b43c1</code>(Fix wrapped protocol error classification)을 기준으로 작성했습니다. Go 모듈 경로는 <code>github.com/teslamotors/vehicle-command</code>, 요구 Go 버전은 1.23입니다. 코드가 갱신되면 이 매뉴얼의 API 시그니처와 명령 목록도 다시 확인하세요.</p>
+</div>
+
+<h2>누가 어떤 문서를 읽어야 하나</h2>
+<p>이 매뉴얼은 두 벌로 제공됩니다. 같은 내용을 다루지만 독자가 다릅니다.</p>
+<table>
+  <thead><tr><th>위치</th><th>독자</th><th>형식</th><th>특징</th></tr></thead>
+  <tbody>
+    <tr><td><code>documents/html/</code></td><td>사람 (개발자, 리뷰어, 운영자)</td><td>HTML (지금 보고 있는 문서)</td><td>개념 설명, 다이어그램, 단계별 절차, 표 중심</td></tr>
+    <tr><td><code>documents/md/</code></td><td>AI 코딩 에이전트 (Claude Code, Codex 등)</td><td>Markdown</td><td>정확한 시그니처, 불변 조건, 파일 경로, 검증 체크리스트 중심. 에이전트가 코드를 수정하거나 새 클라이언트를 구현할 때 컨텍스트로 읽습니다.</td></tr>
+  </tbody>
+</table>
+
+<h2>문서 구성</h2>
+<div class="cards">
+  <a class="card" href="01-overview.html"><div class="num">01</div><h3>시스템 개요</h3><p>두 단계 인증 모델, VCSEC/Infotainment 도메인, 저장소 구조와 계층 아키텍처.</p></a>
+  <a class="card" href="02-getting-started.html"><div class="num">02</div><h3>시작하기</h3><p>설치, 키 생성, NFC 카드로 키 페어링, 첫 BLE 명령까지 10분 안에.</p></a>
+  <a class="card" href="03-ble-transport.html"><div class="num">03</div><h3>BLE 전송 계층</h3><p>GATT 서비스/특성 UUID, 광고 이름 계산, 2바이트 길이 프레이밍, MTU, 스캔과 연결 재시도.</p></a>
+  <a class="card" href="04-protocol.html"><div class="num">04</div><h3>프로토콜 사양</h3><p>RoutableMessage, 핸드셰이크, ECDH 키 합의, 메타데이터 TLV, HMAC/AES-GCM 인증, 응답 복호화, 세션 복구.</p></a>
+  <a class="card" href="05-go-sdk.html"><div class="num">05</div><h3>Go SDK</h3><p><code>pkg/vehicle</code>, <code>pkg/connector</code>, <code>pkg/cache</code>, <code>pkg/cli</code>, <code>pkg/account</code>로 애플리케이션을 만드는 방법.</p></a>
+  <a class="card" href="06-cli-tools.html"><div class="num">06</div><h3>CLI 도구</h3><p>tesla-keygen, tesla-control, tesla-auth-token, tesla-jws, tesla-http-proxy의 옵션과 환경 변수.</p></a>
+  <a class="card" href="07-command-reference.html"><div class="num">07</div><h3>명령 레퍼런스</h3><p>모든 차량 명령을 CLI 이름, Go 메서드, 프록시 엔드포인트, 도메인, 인증 요구 사항으로 정리한 표.</p></a>
+  <a class="card" href="08-http-proxy.html"><div class="num">08</div><h3>HTTP 프록시</h3><p>REST API를 종단 간 인증 명령으로 변환하는 프록시의 설정, TLS, Docker 배포, 응답 규약.</p></a>
+  <a class="card" href="09-errors-troubleshooting.html"><div class="num">09</div><h3>오류와 문제 해결</h3><p>MessageFault 코드 전체, 재시도 정책, BLE 연결 실패, 키 페어링 실패, 세션 desync 대처법.</p></a>
+</div>
+
+<h2>30초 요약</h2>
+<ol class="steps">
+  <li><strong>키를 만든다.</strong> <code>tesla-keygen create &gt; public_key.pem</code>. NIST P-256 개인 키가 OS 키링에 저장되고 공개 키가 출력됩니다.</li>
+  <li><strong>차량에 키를 등록한다.</strong> 차 안에서 <code>tesla-control -ble add-key-request public_key.pem owner cloud_key</code>를 실행하고 NFC 카드를 센터 콘솔에 대어 승인합니다.</li>
+  <li><strong>명령을 보낸다.</strong> <code>tesla-control -ble lock</code>. SDK가 광고 스캔 → GATT 연결 → 도메인별 핸드셰이크 → AES-GCM 암호화 명령 전송을 처리합니다.</li>
+</ol>
+
+<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)
+export TESLA_VIN=5YJ30123456789ABC
+export TESLA_CACHE_FILE=~/.tesla-cache.json
+
+tesla-keygen create &gt; public_key.pem
+tesla-control -ble add-key-request public_key.pem owner cloud_key   # 차 안에서, NFC 카드 준비
+tesla-control -ble lock
+tesla-control -ble -debug body-controller-state                     # 잠금/도어/수면 상태 (Infotainment가 자고 있어도 동작)</code></pre>
+
+<h2>핵심 개념 한눈에</h2>
+<dl class="kv">
+  <dt>도메인(Domain)</dt><dd><span class="badge vcsec">VCSEC</span> 잠금, 트렁크, 키 관리, 웨이크업을 담당하는 보안 컨트롤러. Infotainment가 잠들어 있어도 BLE로 응답합니다. <span class="badge info">INFOTAINMENT</span> 공조, 충전, 미디어, 상태 조회 등 나머지 명령을 담당합니다. 도메인마다 별도의 키 쌍과 세션이 있습니다.</dd>
+  <dt>세션(Session)</dt><dd>클라이언트 공개 키로 <code>SessionInfoRequest</code>를 보내면 도메인이 자신의 공개 키, epoch, 카운터, 시계를 담은 <code>SessionInfo</code>를 돌려줍니다. ECDH로 128비트 AES-GCM 키 <code>K</code>를 합의합니다.</dd>
+  <dt>인증 방식</dt><dd>BLE에서는 <strong>AES-GCM</strong>(암호화 + 인증), Fleet API에서는 <strong>HMAC-SHA256</strong>(평문 + 인증)을 사용합니다. 두 방식 모두 VIN, epoch, 만료 시각, 카운터가 담긴 메타데이터를 인증에 결합합니다.</dd>
+  <dt>역할(Role)</dt><dd>Owner, Driver, Fleet Manager, Vehicle Monitor, Charging Manager, Guest, Service. 역할에 따라 허용되는 명령이 달라집니다.</dd>
+  <dt>세션 캐시</dt><dd>세션 상태를 디스크에 저장하면 다음 실행 때 핸드셰이크 없이 바로 명령을 보낼 수 있습니다. 캐시가 낡았으면 차량이 새 세션 정보를 오류와 함께 돌려주므로 자동 복구됩니다.</dd>
+</dl>
+
+<h2>저장소 원본 문서</h2>
+<ul>
+  <li><code>vehicle-command/README.md</code>: 설치, 프록시 설정, 키 배포 절차</li>
+  <li><code>vehicle-command/pkg/protocol/protocol.md</code>: 프로토콜 사양 원문 (테스트 벡터 포함)</li>
+  <li><code>vehicle-command/cmd/tesla-control/README.md</code>: CLI 사용법</li>
+  <li><code>vehicle-command/pkg/protocol/protobuf/*.proto</code>: 메시지 정의</li>
+  <li><a href="https://pkg.go.dev/github.com/teslamotors/vehicle-command/pkg">pkg.go.dev 패키지 문서</a>, <a href="https://developer.tesla.com/docs/fleet-api">Tesla Fleet API 문서</a></li>
+</ul>
+
+<footer class="page-nav">
+  <span></span>
+  <a class="next" href="01-overview.html"><span>다음</span>1. 시스템 개요</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,454 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4. 프로토콜 사양 · vehicle-command BLE 매뉴얼</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE 개발 매뉴얼 · v0.4.1 기준</div>
+  <ol>
+    <li><a href="index.html">홈</a></li>
+    <li class="group">시작하기</li>
+    <li><a href="01-overview.html">1. 시스템 개요</a></li>
+    <li><a href="02-getting-started.html">2. 시작하기</a></li>
+    <li class="group">프로토콜</li>
+    <li><a href="03-ble-transport.html">3. BLE 전송 계층</a></li>
+    <li><a class="active" href="04-protocol.html">4. 프로토콜 사양</a></li>
+    <li class="group">개발</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI 도구</a></li>
+    <li><a href="07-command-reference.html">7. 명령 레퍼런스</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP 프록시</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. 오류와 문제 해결</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>4. 프로토콜 사양</h1>
+<p class="lead">모바일 앱과 이 SDK가 차량에 명령을 보낼 때 쓰는 세션 관리와 암호 프로토콜. <code>pkg/protocol/protocol.md</code>를 한국어로 재구성하고 Go 구현 위치를 덧붙였습니다.</p>
+
+<div class="toc"><strong>이 페이지의 내용</strong><ol>
+<li><a href="#sec-msg">메시지 인코딩: RoutableMessage</a></li>
+<li><a href="#sec-decode">protoc로 메시지 디코딩</a></li>
+<li><a href="#sec-concepts">프로토콜 개념: 도메인, 시간, 역할</a></li>
+<li><a href="#sec-tlv">메타데이터 직렬화 (TLV)</a></li>
+<li><a href="#sec-notation">표기법과 테스트 키</a></li>
+<li><a href="#sec-handshake">핸드셰이크</a></li>
+<li><a href="#sec-authz">명령 인가</a></li>
+<li><a href="#sec-hmac">HMAC-SHA256 인증</a></li>
+<li><a href="#sec-gcm">AES-GCM 암호화</a></li>
+<li><a href="#sec-cache">세션 캐시와 동기화 오류 복구</a></li>
+<li><a href="#sec-response">응답 처리</a></li>
+<li><a href="#sec-decrypt">응답 복호화</a></li>
+<li><a href="#sec-app">애플리케이션 계층 응답</a></li>
+<li><a href="#sec-impl">Go 구현 위치</a></li>
+</ol></div>
+
+<div class="callout warn">
+  <strong>원문이 우선합니다</strong>
+  <p>이 페이지와 <code>vehicle-command/pkg/protocol/protocol.md</code>가 다르면 원문이 맞습니다. 필드 번호와 enum 값의 최종 출처는 <code>pkg/protocol/protobuf/*.proto</code>입니다. 애플리케이션 계층 페이로드(어떤 명령이 어떤 protobuf인지)는 이 사양의 범위 밖이며 <a href="07-command-reference.html">7. 명령 레퍼런스</a>와 <code>pkg/vehicle</code> 소스를 보세요.</p>
+</div>
+
+<h2 id="sec-msg">메시지 인코딩: RoutableMessage</h2>
+<p>모든 메시지는 Protocol Buffers로 인코딩되며 최상위 타입은 <code>UniversalMessage.RoutableMessage</code>(<code>protobuf/universal_message.proto</code>)입니다. 전형적인 요청은 다음과 같습니다(바이너리 필드는 hex로 표기).</p>
+<pre><code>to_destination {
+  domain: DOMAIN_VEHICLE_SECURITY
+}
+from_destination {
+  routing_address: 0a7962c10d38b61dd2a7722780a4f096
+}
+protobuf_message_as_bytes: 0a020805
+uuid: 05514f57616bcc81a8ce0f9d7b483229</code></pre>
+<table>
+  <thead><tr><th>필드 (번호)</th><th>타입</th><th>요청에서</th><th>응답에서</th></tr></thead>
+  <tbody>
+    <tr><td><code>to_destination</code> (6)</td><td><code>Destination</code> oneof {<code>domain</code>, <code>routing_address</code>}</td><td>명령을 처리할 <a href="#sec-concepts">도메인</a></td><td>요청의 <code>from_destination</code>(routing_address)이 복사됨</td></tr>
+    <tr><td><code>from_destination</code> (7)</td><td><code>Destination</code></td><td>연결을 식별하는 <strong>랜덤 16바이트</strong> <code>routing_address</code>. 차량이 응답을 전송 계층 주소로 되돌릴 때 사용</td><td>응답한 도메인</td></tr>
+    <tr><td><code>payload</code> oneof: <code>protobuf_message_as_bytes</code> (10)</td><td><code>bytes</code></td><td>애플리케이션 페이로드. VCSEC → <code>VCSEC.UnsignedMessage</code>, Infotainment → <code>CarServer.Action</code>. AES-GCM이면 암호문</td><td>VCSEC → <code>VCSEC.FromVCSECMessage</code>, Infotainment → <code>CarServer.Response</code>. 응답 암호화 시 암호문</td></tr>
+    <tr><td><code>payload</code>: <code>session_info_request</code> (14)</td><td><code>SessionInfoRequest{public_key, challenge}</code></td><td>핸드셰이크 요청. 클라이언트 공개 키</td><td>-</td></tr>
+    <tr><td><code>payload</code>: <code>session_info</code> (15)</td><td><code>bytes</code> (인코딩된 <code>Signatures.SessionInfo</code>)</td><td>-</td><td>핸드셰이크 응답, 또는 동기화 오류 시 오류와 함께 동봉</td></tr>
+    <tr><td><code>signature_data</code> (13)</td><td><code>Signatures.SignatureData</code></td><td><code>signer_identity.public_key</code> + <code>HMAC_Personalized_data</code> 또는 <code>AES_GCM_Personalized_data</code></td><td><code>session_info_tag</code>(핸드셰이크 HMAC) 또는 <code>AES_GCM_Response_data</code>(암호화 응답)</td></tr>
+    <tr><td><code>signedMessageStatus</code> (12)</td><td><code>MessageStatus{operation_status, signed_message_fault}</code></td><td>-</td><td>프로토콜 계층 오류. <code>MessageFault_E</code> 값은 <a href="09-errors-troubleshooting.html">9장</a></td></tr>
+    <tr><td><code>uuid</code> (51)</td><td><code>bytes</code> ≤ 16</td><td>명령을 유일하게 식별하는 <strong>예측 불가능한</strong> 값. 핸드셰이크 응답 재생 방지에 쓰이므로 랜덤이어야 함</td><td>-</td></tr>
+    <tr><td><code>request_uuid</code> (50)</td><td><code>bytes</code></td><td>-</td><td>요청 <code>uuid</code> 복사본. VCSEC는 메모리 제약으로 보통 채우지 않음</td></tr>
+    <tr><td><code>flags</code> (52)</td><td><code>uint32</code> 비트마스크</td><td><code>Flags</code> enum 비트. 항상 <code>1 &lt;&lt; FLAG_ENCRYPT_RESPONSE</code>(= 2)를 설정 권장. 차량이 인증하며 모르는 비트는 무시</td><td>응답의 flags. 응답 메타데이터에 포함</td></tr>
+  </tbody>
+</table>
+<p><code>Flags</code> enum: <code>FLAG_USER_COMMAND = 0</code>, <code>FLAG_ENCRYPT_RESPONSE = 1</code>. SDK의 <code>vehicle.DefaultFlags = 1 &lt;&lt; FLAG_ENCRYPT_RESPONSE</code>이며 <code>Vehicle.Flags</code> 필드로 바꿀 수 있습니다.</p>
+
+<h2 id="sec-decode">protoc로 메시지 디코딩</h2>
+<p><code>tesla-control -ble -debug list-keys</code>의 <code>TX:</code> 로그에 찍힌 hex를 <code>pkg/protocol</code> 디렉터리에서 다음처럼 디코딩할 수 있습니다.</p>
+<pre><code class="language-bash">echo 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805 \
+    | xxd -r -p \
+    | protoc --decode=UniversalMessage.RoutableMessage -I protobuf protobuf/*.proto</code></pre>
+<pre><code>to_destination {
+  domain: DOMAIN_VEHICLE_SECURITY
+}
+from_destination {
+  routing_address: "\nyb\301\r8\266\035\322\247r\'\200\244\360\226"
+}
+protobuf_message_as_bytes: "\n\002\010\005"
+uuid: "\005QOWak\314\201\250\316\017\235{H2)"</code></pre>
+<p>VCSEC로 가는 메시지이므로 <code>protobuf_message_as_bytes</code>는 <code>VCSEC.UnsignedMessage</code>입니다.</p>
+<pre><code class="language-bash">printf "\n\002\010\005" | protoc --decode=VCSEC.UnsignedMessage -I protobuf protobuf/*.proto
+# InformationRequest {
+#   informationRequestType: INFORMATION_REQUEST_TYPE_GET_WHITELIST_INFO
+# }</code></pre>
+<p>반대로 <code>protoc --encode</code>로 페이로드를 만들 수도 있습니다(아래 AES-GCM 예시). <code>*.proto</code>로 다른 언어 바인딩도 생성할 수 있습니다.</p>
+
+<h2 id="sec-concepts">프로토콜 개념: 도메인, 시간, 역할</h2>
+<h3>도메인</h3>
+<p>차량 하위 시스템은 서로 다른 공개 키를 가지므로 <strong>도메인별로 핸드셰이크와 세션 상태를 따로</strong> 관리합니다. VCSEC(<code>DOMAIN_VEHICLE_SECURITY = 2</code>)는 잠금, 원격 시동, 트렁크, 키체인을 담당하고 Infotainment(<code>DOMAIN_INFOTAINMENT = 3</code>)가 나머지를 처리합니다. VCSEC는 Infotainment가 잠들어 있어도 BLE로 접근할 수 있습니다.</p>
+<h3>시간</h3>
+<p>각 도메인은 자기 시계를 갖고 시간을 <code>(epoch_id, timestamp)</code> 쌍으로 표현합니다. <code>epoch_id</code>는 부팅 시 생성되는 랜덤 16바이트, <code>timestamp</code>는 epoch 시작 이후 초 단위 정수입니다. 클라이언트는 도메인 시계와 로컬 시계의 차이를 추적해 명령 만료 시각(<code>expires_at</code>)을 계산합니다. SDK는 <code>SessionInfo.clock_time</code>과 수신 시각으로 <code>timeZero</code>를 잡고, 요청 후 <code>AllowedLatency</code>(BLE 4초, 인터넷 10초)를 넘겨 도착한 세션 정보는 시계 보정에 쓰지 않습니다.</p>
+<h3>역할</h3>
+<p>공개 키마다 역할(Owner, Driver, Fleet Manager, Vehicle Monitor, Charging Manager, Guest, Service)이 있으며 <a href="01-overview.html#sec-role">1장 역할 표</a>를 참고하세요. 역할별 권한은 펌웨어 갱신에 따라 달라질 수 있습니다.</p>
+
+<h2 id="sec-tlv">메타데이터 직렬화 (TLV)</h2>
+<p>인증은 메시지를 VIN 같은 메타데이터에 결합해야 하므로, 메타데이터를 해시 입력으로 쓸 수 있는 정규 직렬화가 필요합니다. 각 항목은 <strong>tag(1B) || length(1B) || value</strong>로 인코딩되며 tag 값은 <code>Signatures.Tag</code>에 정의되어 있습니다.</p>
+<table>
+  <thead><tr><th>Tag</th><th>값</th><th>내용</th></tr></thead>
+  <tbody>
+    <tr><td><code>TAG_SIGNATURE_TYPE</code></td><td>0</td><td><code>SignatureType</code> 1바이트</td></tr>
+    <tr><td><code>TAG_DOMAIN</code></td><td>1</td><td><code>Domain</code> 1바이트</td></tr>
+    <tr><td><code>TAG_PERSONALIZATION</code></td><td>2</td><td>VIN (17자 ASCII)</td></tr>
+    <tr><td><code>TAG_EPOCH</code></td><td>3</td><td>16바이트 epoch_id</td></tr>
+    <tr><td><code>TAG_EXPIRES_AT</code></td><td>4</td><td>uint32 big-endian</td></tr>
+    <tr><td><code>TAG_COUNTER</code></td><td>5</td><td>uint32 big-endian</td></tr>
+    <tr><td><code>TAG_CHALLENGE</code></td><td>6</td><td>16바이트 (핸드셰이크 요청 uuid)</td></tr>
+    <tr><td><code>TAG_FLAGS</code></td><td>7</td><td>uint32 big-endian</td></tr>
+    <tr><td><code>TAG_REQUEST_HASH</code></td><td>8</td><td>응답 복호화용 요청 해시</td></tr>
+    <tr><td><code>TAG_FAULT</code></td><td>9</td><td>uint32 big-endian <code>MessageFault_E</code></td></tr>
+    <tr><td><code>TAG_END</code></td><td>255</td><td>종료 마커 <code>0xFF</code></td></tr>
+  </tbody>
+</table>
+<pre><code>TLV(VIN: "abc")   = TAG_PERSONALIZATION || LEN("abc") || "abc"
+                  = 0x02 || 0x03 || 0x61 0x62 0x63
+                  = 0x0203616263
+
+TLV(COUNTER: 100) = TAG_COUNTER || LEN(uint32) || 0x00000064    (정수는 4바이트 big-endian)
+                  = 0x05 || 0x04 || 0x00000064
+                  = 0x050400000064
+
+SERIALIZE({COUNTER: 100, VIN: "abc"})
+                  = TLV(VIN) || TLV(COUNTER) || 0xFF               (tag 오름차순 정렬 후 연결, 끝에 0xFF)
+                  = 0x0203616263050400000064FF</code></pre>
+<p>Go 구현(<code>internal/authentication/metadata.go</code>)은 항목을 반드시 tag 오름차순으로 추가해야 하고(<code>errOutOfOrderMetadata</code>), 값 길이는 255바이트 이하여야 하며(<code>ErrMetadataFieldTooLong</code>), nil 값은 건너뜁니다. <code>Checksum(message)</code>가 <code>0xFF</code>를 붙인 뒤 메시지 바이트를 이어서 해시합니다.</p>
+
+<h2 id="sec-notation">표기법과 테스트 키</h2>
+<dl class="kv">
+  <dt><code>c</code>, <code>C = (Cx, Cy)</code></dt><dd>클라이언트 개인 키, 공개 키 (NIST P-256 위의 점)</dd>
+  <dt><code>v</code>, <code>V = (Vx, Vy)</code></dt><dd>차량(도메인) 개인 키, 공개 키</dd>
+  <dt><code>s[:n]</code></dt><dd>문자열 s의 앞 n바이트</dd>
+  <dt><code>BIG_ENDIAN(m, n)</code></dt><dd>m의 n바이트 big-endian 인코딩 (0x00 패딩)</dd>
+  <dt><code>K</code></dt><dd>클라이언트와 차량이 공유하는 128비트 AES-GCM 키</dd>
+  <dt><code>ENCODE_PUBLIC(P)</code></dt><dd><code>0x04 || BIG_ENDIAN(x, 32) || BIG_ENDIAN(y, 32)</code>. 비압축 곡선점 인코딩, 65바이트</dd>
+</dl>
+<div class="callout danger">
+  <strong>테스트 키는 테스트 벡터 검증에만 사용</strong>
+  <p>아래 개인 키는 공개되어 있습니다. 이 공개 키를 실제 차량에 등록하면 누구나 그 차량에 접근할 수 있습니다.</p>
+</div>
+<h3>차량 키</h3>
+<pre><code>vehicle.key (EC PRIVATE KEY PEM):
+MHcCAQEEIDRO5bRmp88e6xK29QMx2y5exYNO9fS+/P2MvlXCUo1woAoGCCqGSM49
+AwEHoUQDQgAEx6H0cThIaqRymXFJSHjTOxok45Vx90im4WxZVbPYd9OmqqDpVRZk
+dK9dMsQQ9DmiI0E3rRuwhf1OiBPJWPEdlw==
+
+v  = 0x344EE5B466A7CF1EEB12B6F50331DB2E5EC5834EF5F4BEFCFD8CBE55C2528D70
+Vx = 0xC7A1F47138486AA4729971494878D33B1A24E39571F748A6E16C5955B3D877D3
+Vy = 0xA6AAA0E955166474AF5D32C410F439A2234137AD1BB085FD4E8813C958F11D97
+HEX(ENCODE_PUBLIC(V)) = 04c7a1f47138486aa4729971494878d33b1a24e39571f748a6e16c5955b3d877d3a6aaa0e955166474af5d32c410f439a2234137ad1bb085fd4e8813c958f11d97</code></pre>
+<h3>클라이언트 키</h3>
+<pre><code>client.key (EC PRIVATE KEY PEM):
+MHcCAQEEICU4zcKal8GcHpmmN9bPT4yXDBGLVu3h5jI+bRYsSzDboAoGCCqGSM49
+AwEHoUQDQgAEsra8aMLaBmXOZWgVWUmWxiOU7di+qQX+eBp1T+aoRacUMwkC8iXp
+Jp1GbgWzSZgf2p2FzCPG+0RKpztikQXcbg==
+
+c  = 0x2538CDC29A97C19C1E99A637D6CF4F8C970C118B56EDE1E6323E6D162C4B30DB
+Cx = 0xB2B6BC68C2DA0665CE656815594996C62394EDD8BEA905FE781A754FE6A845A7
+Cy = 0x14330902F225E9269D466E05B349981FDA9D85CC23C6FB444AA73B629105DC6E
+HEX(ENCODE_PUBLIC(C)) = 04b2b6bc68c2da0665ce656815594996c62394edd8bea905fe781a754fe6a845a714330902f225e9269d466e05b349981fda9d85cc23c6fb444aa73b629105dc6e</code></pre>
+<p>PEM 전체(공개 키 <code>vehicle.pem</code>, <code>client.pem</code> 포함)는 <code>protocol.md</code>의 "Test keys" 절에 있습니다.</p>
+
+<h2 id="sec-handshake">핸드셰이크</h2>
+<p>클라이언트 공개 키 <code>C</code>가 이미 차량에 등록되어 있다고 가정합니다. 키 등록(부트스트랩)은 기존 키나 NFC 카드로 이루어지며 Tesla Service 키가 신뢰의 뿌리입니다(<a href="02-getting-started.html#sec-pair">2장 페어링</a>).</p>
+<h3>요청</h3>
+<p>명령을 보낼 도메인으로 <code>session_info_request.public_key = ENCODE_PUBLIC(C)</code>인 <code>RoutableMessage</code>를 보냅니다.</p>
+<pre><code>to_destination { domain: DOMAIN_INFOTAINMENT }
+from_destination { routing_address: 2c907bd76c640d360b3027dc7404efde }
+session_info_request {
+  public_key: 04b2b6bc68c2da0665ce656815594996c62394edd8bea905fe781a754fe6a845a714330902f225e9269d466e05b349981fda9d85cc23c6fb444aa73b629105dc6e
+}
+uuid: 1588d5a30eabc6f8fc9a951b11f6fd11</code></pre>
+<h3>응답</h3>
+<p>차량은 <code>session_info</code>를 채워 응답합니다. 이를 <code>Signatures.SessionInfo</code>로 파싱합니다. <code>signature_data.session_info_tag</code>는 응답의 무결성(진정성이 아님)을 검증하는 데 쓰입니다.</p>
+<pre><code>to_destination { routing_address: 2c907bd76c640d360b3027dc7404efde }
+from_destination { domain: DOMAIN_INFOTAINMENT }
+signature_data {
+  session_info_tag {
+    tag: 996c1fe38331be138f8039c194b14db2198846ed7d8251e6749284d7b32ea002
+  }
+}
+session_info: 0806124104c7a1f471...(생략)...1a104c463f9cc0d3d26906e982ed224adde6255a0a0000
+request_uuid: 1588d5a30eabc6f8fc9a951b11f6fd11</code></pre>
+<pre><code>SessionInfo {
+  counter: 6
+  publicKey: 04c7a1f47138486aa4729971494878d33b1a24e39571f748a6e16c5955b3d877d3a6aaa0e955166474af5d32c410f439a2234137ad1bb085fd4e8813c958f11d97
+  epoch: 4c463f9cc0d3d26906e982ed224adde6
+  clock_time: 2650
+  status: SESSION_INFO_STATUS_OK      // KEY_NOT_ON_WHITELIST(1)이면 protocol.ErrKeyNotPaired
+}</code></pre>
+<h3>키 합의 (ECDH)</h3>
+<pre><code>S = (Sx, Sy) = ECDH(c, V) = ECDH(v, C)
+K = SHA1(BIG_ENDIAN(Sx, 32))[:16]</code></pre>
+<pre><code class="language-bash"># client.key 와 vehicle.pem 으로 K 계산
+export K=$(openssl pkeyutl -derive -inkey client.key -peerkey vehicle.pem \
+    | openssl dgst -sha1 -binary | head -c 16 | xxd -p)
+echo $K
+# 1b2fce19967b79db696f909cff89ea9a</code></pre>
+<div class="callout warn">
+  <strong>직접 구현하지 말 것</strong>
+  <p>ECDH와 AES-GCM은 OpenSSL, Go <code>crypto</code> 같은 검증된 라이브러리를 쓰세요. 프로토콜은 항상 <code>K</code>의 바이너리 값을 사용하며 위 hex는 표시용입니다.</p>
+</div>
+<h3>응답 인증 (session_info_tag 검증)</h3>
+<p>MITM 공격자가 만료 시각이 더 긴 명령을 얻지 못하도록 클라이언트는 세션 정보 응답을 인증해야 합니다. 공격자가 공개 키를 바꾸면 차량이 명령을 거부하고, 공개 키를 그대로 두고 나머지를 바꾸면 클라이언트가 태그 검증에서 거부합니다.</p>
+<ol class="steps">
+  <li><strong>세션 정보 인증 키 유도.</strong> <code>SESSION_INFO_KEY = HMAC-SHA256(K, "session info")</code>. 문자열은 ASCII 리터럴.
+<pre><code class="language-bash">export SESSION_INFO_KEY=$(echo -n "session info" | openssl dgst -sha256 -mac hmac -macopt hexkey:"$K")
+# fceb679ee7bca756fcd441bf238bf2f338629b41d9eb9c67be1b32c9672ce300</code></pre></li>
+  <li><strong>메타데이터 직렬화.</strong> <code>TAG_SIGNATURE_TYPE = SIGNATURE_TYPE_HMAC(6)</code>, <code>TAG_PERSONALIZATION = VIN</code>, <code>TAG_CHALLENGE = 요청 uuid</code>.
+<pre><code>VIN = 5YJ30123456789ABC
+METADATA = 00 01 06
+        || 02 11 35594a3330313233343536373839414243
+        || 06 10 1588d5a30eabc6f8fc9a951b11f6fd11
+        || ff
+       = 000106021135594a333031323334353637383941424306101588d5a30eabc6f8fc9a951b11f6fd11ff</code></pre></li>
+  <li><strong>태그 계산.</strong> <code>HMAC-SHA256(SESSION_INFO_KEY, METADATA || session_info)</code>
+<pre><code class="language-bash">echo "$METADATA$SESSION_INFO" | xxd -r -p | openssl dgst -sha256 -mac hmac -macopt hexkey:"$SESSION_INFO_KEY"
+# 996c1fe38331be138f8039c194b14db2198846ed7d8251e6749284d7b32ea002</code></pre></li>
+  <li><strong>비교.</strong> 응답의 <code>signature_data.session_info_tag.tag</code>와 <strong>상수 시간 비교</strong>(Go: <code>hmac.Equal</code>). 불일치하면 응답을 폐기.</li>
+</ol>
+<p>Go에서는 <code>internal/authentication.NewAuthenticatedSigner</code>가 이 검증을 수행하고, <code>NativeSession.SessionInfoHMAC</code>이 태그를 계산합니다. SDK는 <code>uuid</code>가 최근 요청의 것이 아니거나 <code>AllowedLatency</code>를 넘겨 도착한 세션 정보는 태그 검증 전에 버립니다.</p>
+
+<h2 id="sec-authz">명령 인가</h2>
+<p>핸드셰이크 후 클라이언트는 도메인 시계(epoch, timestamp), 안티리플레이 카운터, 공유 키 <code>K</code>를 갖습니다. 명령 protobuf <code>P</code>(<code>VCSEC.UnsignedMessage</code> 또는 <code>CarServer.Action</code>)를 만든 뒤 아래 메타데이터 <code>M</code>을 직렬화합니다.</p>
+<table>
+  <thead><tr><th>값</th><th>Tag</th><th>설명</th></tr></thead>
+  <tbody>
+    <tr><td>서명 종류</td><td><code>TAG_SIGNATURE_TYPE</code></td><td><code>SIGNATURE_TYPE_HMAC_PERSONALIZED</code>(8) 또는 <code>SIGNATURE_TYPE_AES_GCM_PERSONALIZED</code>(5)</td></tr>
+    <tr><td>도메인</td><td><code>TAG_DOMAIN</code></td><td><code>DOMAIN_VEHICLE_SECURITY</code>(2) 또는 <code>DOMAIN_INFOTAINMENT</code>(3)</td></tr>
+    <tr><td>VIN</td><td><code>TAG_PERSONALIZATION</code></td><td>17자 VIN</td></tr>
+    <tr><td>Epoch</td><td><code>TAG_EPOCH</code></td><td><code>session_info.epoch</code> 복사</td></tr>
+    <tr><td>만료 시각</td><td><code>TAG_EXPIRES_AT</code></td><td>도메인 시계 기준 초. SDK는 ctx 데드라인까지(없으면 5초)로 설정</td></tr>
+    <tr><td>카운터</td><td><code>TAG_COUNTER</code></td><td>단조 증가. 초기값 <code>session_info.counter</code>, 명령마다 +1</td></tr>
+    <tr><td>플래그</td><td><code>TAG_FLAGS</code></td><td>요청 flags. <strong>0이 아닐 때만 포함</strong></td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>카운터는 같은 epoch 안에서 명령마다 증가해야 합니다. Infotainment는 순서가 뒤바뀐 도착을 허용하는 슬라이딩 윈도우를 유지하지만 <strong>VCSEC는 카운터 순서대로 도착해야</strong> 합니다.</li>
+  <li>너무 먼 만료 시각은 <code>MESSAGEFAULT_ERROR_TIME_TO_LIVE_TOO_LONG</code>으로 거부됩니다.</li>
+</ul>
+<h3>두 가지 인증 방식</h3>
+<table>
+  <thead><tr><th></th><th>HMAC-SHA256</th><th>AES-GCM</th></tr></thead>
+  <tbody>
+    <tr><td>페이로드</td><td>평문</td><td>암호문</td></tr>
+    <tr><td>사용처</td><td>Fleet API (서버가 OAuth 스코프로 명령을 거부하고, VCSEC의 폐기된 메시지를 걸러낼 수 있도록)</td><td>BLE (Fleet API는 스코프를 검사할 수 없어 GCM 명령을 차단)</td></tr>
+    <tr><td>Go</td><td><code>Signer.AuthorizeHMAC</code>, <code>connector.AuthMethodHMAC</code></td><td><code>Signer.Encrypt</code>, <code>connector.AuthMethodGCM</code></td></tr>
+    <tr><td>SignatureData 필드</td><td><code>HMAC_Personalized_data</code> (8)</td><td><code>AES_GCM_Personalized_data</code> (5)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sec-hmac">HMAC-SHA256 인증</h2>
+<ol>
+  <li>키 유도: <code>K' = HMAC-SHA256(K, "authenticated command")</code>.</li>
+  <li><code>RoutableMessage</code>를 만들고 <code>payload.protobuf_message_as_bytes = P</code>.</li>
+  <li><code>signature_data.signer_identity.public_key = ENCODE_PUBLIC(C)</code>.</li>
+  <li><code>tag = HMAC-SHA256(K', M || P)</code>.</li>
+  <li><code>signature_data.HMAC_Personalized_data</code>에 <code>epoch</code>, <code>counter</code>, <code>expires_at</code>, <code>tag</code>를 채운다.</li>
+</ol>
+<pre><code>message HMAC_Personalized_Signature_Data {
+    bytes   epoch       = 1;
+    uint32  counter     = 2;
+    fixed32 expires_at  = 3;
+    bytes   tag         = 4;
+}</code></pre>
+
+<h2 id="sec-gcm">AES-GCM 암호화</h2>
+<ol>
+  <li>128비트 키 <code>K</code>를 그대로 AES-GCM 키로 사용.</li>
+  <li>랜덤 <strong>12바이트 nonce</strong>(IV). 다른 길이는 <code>MESSAGEFAULT_ERROR_IV_INCORRECT_LENGTH</code>.</li>
+  <li>AAD(Associated Authenticated Data) = <code>SHA256(M)</code>.</li>
+  <li><code>P</code>를 암호화해 암호문 <code>x</code>와 16바이트 <code>tag</code>를 얻는다.</li>
+  <li><code>payload.protobuf_message_as_bytes = x</code>, <code>signer_identity.public_key = ENCODE_PUBLIC(C)</code>.</li>
+  <li><code>signature_data.AES_GCM_Personalized_data</code>에 <code>epoch</code>, <code>nonce</code>, <code>counter</code>, <code>expires_at</code>, <code>tag</code>를 채운다. epoch은 생략 가능하지만 넣으면 불일치 시 더 구체적인 오류를 받는다.</li>
+</ol>
+<h3>전체 예시: "HVAC 켜기"</h3>
+<p><code>VIN = 5YJ30123456789ABC</code>, <code>K = 1b2fce19967b79db696f909cff89ea9a</code>, <code>FLAG_ENCRYPT_RESPONSE</code> 설정(flags = 2).</p>
+<pre><code class="language-bash"># 1) 명령 protobuf P
+echo 'vehicleAction {
+  hvacAutoAction {
+    power_on: true
+  }
+}' | protoc --encode=CarServer.Action -I protobuf protobuf/*.proto | xxd -p
+# 120452020801</code></pre>
+<table>
+  <thead><tr><th>Tag</th><th>값</th><th>인코딩 (hex)</th></tr></thead>
+  <tbody>
+    <tr><td><code>TAG_SIGNATURE_TYPE</code></td><td><code>SIGNATURE_TYPE_AES_GCM_PERSONALIZED = 0x05</code></td><td><code>00 01 05</code></td></tr>
+    <tr><td><code>TAG_DOMAIN</code></td><td><code>DOMAIN_INFOTAINMENT = 0x03</code></td><td><code>01 01 03</code></td></tr>
+    <tr><td><code>TAG_PERSONALIZATION</code></td><td><code>5YJ30123456789ABC</code></td><td><code>02 11 35594a3330313233343536373839414243</code></td></tr>
+    <tr><td><code>TAG_EPOCH</code></td><td><code>session_info.epoch</code></td><td><code>03 10 4c463f9cc0d3d26906e982ed224adde6</code></td></tr>
+    <tr><td><code>TAG_EXPIRES_AT</code></td><td>t = 2655</td><td><code>04 04 00000a5f</code></td></tr>
+    <tr><td><code>TAG_COUNTER</code></td><td>7</td><td><code>05 04 00000007</code></td></tr>
+    <tr><td><code>TAG_FLAGS</code></td><td><code>1 &lt;&lt; FLAG_ENCRYPT_RESPONSE = 0x02</code></td><td><code>07 04 00000002</code></td></tr>
+  </tbody>
+</table>
+<pre><code># 2) M = 위 항목 연결 + ff
+000105010103021135594a333031323334353637383941424303104c463f9cc0d3d26906e982ed224adde6040400000a5f050400000007070400000002ff</code></pre>
+<pre><code class="language-python"># 3) AES-GCM (Python cryptography)
+import os
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives import hashes
+
+plaintext = bytes.fromhex("120452020801")
+metadata = bytes.fromhex("000105010103021135594a333031323334353637383941424303104c463f9cc0d3d26906e982ed224adde6040400000a5f050400000007070400000002ff")
+aad = hashes.Hash(hashes.SHA256()); aad.update(metadata)
+key = bytes.fromhex("1b2fce19967b79db696f909cff89ea9a")
+nonce = os.urandom(12)
+ct = AESGCM(key).encrypt(nonce, plaintext, aad.finalize())
+print(f"Nonce: {nonce.hex()}, Ciphertext: {ct[:-16].hex()}, Tag: {ct[-16:].hex()}")
+# Nonce: dbf79447fa156674dae1caed, Ciphertext: 38038e8c0f2e, Tag: c228e0ff64991481db3a7bbc133696c5  (nonce마다 달라짐)</code></pre>
+<pre><code># 4) 완성된 RoutableMessage
+to_destination { domain: DOMAIN_INFOTAINMENT }
+from_destination { routing_address: 2c907bd76c640d360b3027dc7404efde }
+protobuf_message_as_bytes: 38038e8c0f2e
+signature_data {
+  signer_identity {
+    public_key: 04b2b6bc68c2da0665ce656815594996c62394edd8bea905fe781a754fe6a845a714330902f225e9269d466e05b349981fda9d85cc23c6fb444aa73b629105dc6e
+  }
+  AES_GCM_Personalized_data {
+    epoch: 4c463f9cc0d3d26906e982ed224adde6
+    nonce: dbf79447fa156674dae1caed
+    counter: 7
+    expires_at: 2655
+    tag: c228e0ff64991481db3a7bbc133696c5
+  }
+}
+flags: 2
+uuid: 58406580528b6a5301391800b4fe9b99</code></pre>
+<div class="callout">
+  <strong>FLAG_ENCRYPT_RESPONSE</strong>
+  <p>이 비트를 설정하면 2024.38 이상 펌웨어는 응답 페이로드를 암호화합니다. 이전 펌웨어는 플래그를 무시하므로 펌웨어 버전을 확인할 필요 없이 항상 설정하세요. 플래그는 메타데이터에 포함되어 인증되므로 공격자가 끌 수 없습니다.</p>
+</div>
+
+<h2 id="sec-cache">세션 캐시와 동기화 오류 복구</h2>
+<h3>세션 캐시</h3>
+<p>계속 실행되지 않는 클라이언트는 세션 상태와 로컬/차량 시계 차이를 디스크에 저장해야 합니다. 캐시를 쓰면 첫 명령의 지연이 줄고 Fleet API 호출 수도 줄어듭니다. 캐시가 낡았더라도 아래 복구 절차가 핸드셰이크 한 번과 같은 비용이므로 <strong>낙관적으로 캐시를 신뢰해도 손해가 없습니다</strong>. SDK: <code>pkg/cache.SessionCache</code>, <code>Vehicle.UpdateCachedSessions</code>/<code>LoadCachedSessions</code>, CLI의 <code>TESLA_CACHE_FILE</code>.</p>
+<h3>동기화 오류 복구</h3>
+<p>차량은 인증 오류가 동기화 문제(예: Infotainment 재부팅으로 epoch 변경)일 수 있을 때 오류 메시지에 최신 세션 정보를 동봉합니다. 클라이언트는 다음 중 하나라도 참이면 <strong>세션 정보를 폐기해야(MUST) 합니다</strong>.</p>
+<ul>
+  <li>최근 몇 초 안에 그 <code>request_uuid</code>로 요청을 보낸 적이 없다.</li>
+  <li>세션 정보 HMAC 태그가 틀리다.</li>
+  <li>같은 epoch에서 이전에 인증된 세션 정보보다 <code>clock_time</code>이 이르다.</li>
+</ul>
+<p>모두 거짓이면 <strong>세션 상태를 갱신해야(MUST) 합니다</strong>. 갱신할 때 <strong>epoch이 바뀌지 않는 한 안티리플레이 카운터를 되돌리면 안 됩니다(MUST NOT)</strong>. 이는 보안 요구라기보다(재생 거부는 차량 책임) 불안정한 연결과 순서 뒤바뀜을 견디기 위한 규칙입니다. Go: <code>Dispatcher.checkForSessionUpdate</code> → <code>session.processHello</code> → <code>Signer.UpdateSignedSessionInfo</code>. dispatcher는 세션을 갱신한 뒤 오류 응답도 그대로 receiver에 전달하고, <code>Vehicle.Send</code>가 <code>ShouldRetry</code>인 오류(<code>INVALID_SIGNATURE</code>, <code>INVALID_TOKEN_OR_COUNTER</code>, <code>INCORRECT_EPOCH</code>, <code>TIME_EXPIRED</code> 등)면 갱신된 세션으로 재전송합니다.</p>
+
+<h2 id="sec-response">응답 처리</h2>
+<div class="callout warn">
+  <strong>응답이 없어도 실행되었을 수 있다</strong>
+  <p>명령을 보냈는데 응답을 받지 못했다면 차량은 이미 명령을 수신·실행했을 수 있습니다. 불안정한 네트워크에서 특히 흔합니다. SDK는 이런 경우 <code>protocol.MayHaveSucceeded(err) == true</code>인 오류를 반환하며, 자동 재시도하지 않습니다.</p>
+</div>
+<h3>프로토콜 계층 오류</h3>
+<p>응답도 <code>RoutableMessage</code>입니다. 프로토콜 계층 오류가 있으면 <code>signedMessageStatus.signed_message_fault</code>가 설정됩니다. 코드와 대처법은 <code>universal_message.proto</code>의 <code>MessageFault_E</code> 주석과 <a href="09-errors-troubleshooting.html#sec-fault">9장</a>에 있습니다. Go의 <code>protocol.GetError</code>가 이를 <code>*RoutableMessageError</code>(또는 <code>UNKNOWN_KEY_ID</code>는 <code>ErrKeyNotPaired</code>)로 변환하고, <code>session_info.status == KEY_NOT_ON_WHITELIST</code>도 <code>ErrKeyNotPaired</code>, <code>operation_status == WAIT</code>는 <code>ErrBusy</code>로 만듭니다.</p>
+
+<h2 id="sec-decrypt">응답 복호화</h2>
+<p>응답에 <code>signature_data.AES_GCM_Response_data</code>가 있으면 <code>protobuf_message_as_bytes</code>가 암호문이고, 없으면 평문입니다.</p>
+<pre><code>message AES_GCM_Response_Signature_Data {
+    bytes  nonce   = 1;
+    uint32 counter = 2;
+    bytes  tag     = 3;
+}</code></pre>
+<h3>요청 해시 (request hash)</h3>
+<p>클라이언트는 보낸 요청마다 "요청 해시"를 계산해 두어야 합니다. <strong>인증 방식 1바이트 || 요청의 인증 태그</strong>입니다.</p>
+<ul>
+  <li>AES-GCM 요청: <code>0x05 || AES_GCM_Personalized_data.tag</code> (16바이트 태그 → 총 17바이트)</li>
+  <li>HMAC 요청: <code>0x08 || HMAC_Personalized_data.tag</code> (32바이트 태그 → 총 33바이트)</li>
+  <li><strong>VCSEC로 보낸 요청은 17바이트로 절단</strong>: 방식 1바이트 + MAC 앞 16바이트. AES-GCM 태그는 원래 16바이트이므로 HMAC 요청에만 영향</li>
+</ul>
+<p>Go: <code>internal/authentication.RequestID(message)</code>. dispatcher가 <code>Send</code> 시 receiver에 <code>requestID</code>로 저장합니다.</p>
+<h3>카운터 검증</h3>
+<p>응답의 <code>counter</code>가 <strong>같은 요청에 대한 이전 응답에서 이미 사용된 값이 아닌지</strong> 검증해야 합니다. 한 요청이 여러 응답을 유발할 수 있고 순서가 뒤바뀔 수 있습니다. 이 검사를 빠뜨리면 재생 공격에 취약합니다. Go: receiver마다 <code>authentication.SlidingWindow</code>를 두고 <code>session.decrypt</code>에서 <code>antireplay.Update(counter)</code>가 false면 <code>ErrReplayedResponse</code>로 폐기(<code>internal/authentication/window.go</code>).</p>
+<h3>응답 메타데이터</h3>
+<p>AES-GCM으로 키 <code>K</code>, 응답의 nonce와 tag, 그리고 아래 메타데이터의 직렬화를 AAD로 써서 복호화합니다. 요청과 달리 <strong>flags는 0이어도 항상 포함</strong>하고, fault는 32비트 big-endian으로 인코딩합니다.</p>
+<table>
+  <thead><tr><th>값</th><th>Tag</th><th>설명</th></tr></thead>
+  <tbody>
+    <tr><td>서명 종류</td><td><code>TAG_SIGNATURE_TYPE</code></td><td><code>SIGNATURE_TYPE_AES_GCM_RESPONSE</code>(9)</td></tr>
+    <tr><td>도메인</td><td><code>TAG_DOMAIN</code></td><td>응답의 <code>from_destination.domain</code></td></tr>
+    <tr><td>VIN</td><td><code>TAG_PERSONALIZATION</code></td><td>17자 VIN</td></tr>
+    <tr><td>카운터</td><td><code>TAG_COUNTER</code></td><td><code>AES_GCM_Response_data.counter</code></td></tr>
+    <tr><td>플래그</td><td><code>TAG_FLAGS</code></td><td>응답의 flags (요청 flags 아님). 항상 포함</td></tr>
+    <tr><td>요청 해시</td><td><code>TAG_REQUEST_HASH</code></td><td>위에서 계산한 request hash</td></tr>
+    <tr><td>Fault</td><td><code>TAG_FAULT</code></td><td>응답의 <code>signed_message_fault</code>, uint32 big-endian</td></tr>
+  </tbody>
+</table>
+<p>Go: <code>Peer.responseMetadata</code> → <code>Signer.Decrypt</code>가 페이로드를 평문으로 교체하고 <code>SubSigData</code>를 nil로 만듭니다. 세션이 없으면 <code>ErrNoDecryptionContext</code>.</p>
+
+<h2 id="sec-app">애플리케이션 계층 응답</h2>
+<h3>Infotainment</h3>
+<p><code>protobuf_message_as_bytes</code>를 <code>CarServer.Response</code>로 파싱합니다. 상태 코드는 <code>Response.actionStatus.result</code>이며 <code>OPERATIONSTATUS_ERROR</code>이면 <code>result_reason.plain_text</code>에 사유가 있습니다. Go: <code>Vehicle.getCarServerResponse</code>가 <code>NominalError{"car could not execute command: &lt;사유&gt;"}</code>로 변환. 상태 조회의 결과는 <code>Response.vehicleData</code>.</p>
+<h3>VCSEC</h3>
+<p><code>VCSEC.FromVCSECMessage</code>로 파싱합니다. VCSEC는 한 요청에 <strong>최대 3개의 응답</strong>을 보냅니다. Fleet API 클라이언트는 최종 응답만 받지만 BLE 클라이언트는 어떤 응답이 최종인지 직접 판단해야 합니다.</p>
+<table>
+  <thead><tr><th>상황</th><th>규칙</th><th>Go 구현</th></tr></thead>
+  <tbody>
+    <tr><td>NFC 카드로 키 페어링 요청</td><td><code>commandStatus.operationStatus = OPERATIONSTATUS_WAIT</code>는 카드 탭 대기 중</td><td>-</td></tr>
+    <tr><td>그 외 요청의 <code>OPERATIONSTATUS_WAIT</code></td><td>VCSEC가 다른 요청 처리 중. 잠시 후 재시도</td><td><code>protocol.ErrBusy</code> (Temporary) → <code>getVCSECResult</code>가 <code>RetryInterval</code> 후 재전송</td></tr>
+    <tr><td><code>OPERATIONSTATUS_ERROR</code></td><td>레거시 클라이언트용. 무시하고 다음 메시지의 구체적 오류 코드를 기다린다</td><td><code>whitelistOperationInformation != NONE</code>이면 <code>KeychainError</code>, <code>signedMessageStatus</code>가 없으면 <code>ErrUnknown</code></td></tr>
+    <tr><td>whitelist 작업 (키 추가/삭제)</td><td><code>commandStatus.whitelistOperationStatus</code>가 채워진 메시지가 종료. 빈 메시지는 버린다</td><td><code>isWhitelistOperationComplete</code>: information이 NONE이면 성공, 아니면 <code>KeychainError{Code}</code></td></tr>
+    <tr><td>그 외 작업 (잠금, 트렁크 등)</td><td>빈 메시지(<code>commandStatus</code> 없음) = 성공, <code>nominalError</code> = 실패</td><td><code>executeRKEAction</code>/<code>executeClosureAction</code>의 done: <code>GetCommandStatus() == nil</code>; <code>nominalError</code>는 <code>NominalVCSECError</code></td></tr>
+    <tr><td>정보 요청 (상태, 키 목록)</td><td>첫 응답이 결과</td><td><code>getVCSECInfo</code>의 done은 항상 true</td></tr>
+  </tbody>
+</table>
+<pre><code>enum GenericError_E {            // Errors.NominalError.genericError
+    GENERICERROR_NONE = 0;
+    GENERICERROR_UNKNOWN = 1;
+    GENERICERROR_CLOSURES_OPEN = 2;
+    GENERICERROR_ALREADY_ON = 3;
+    GENERICERROR_DISABLED_FOR_USER_COMMAND = 4;
+    GENERICERROR_VEHICLE_NOT_IN_PARK = 5;
+    GENERICERROR_UNAUTHORIZED = 6;
+    GENERICERROR_NOT_ALLOWED_OVER_TRANSPORT = 7;
+}</code></pre>
+
+<h2 id="sec-impl">Go 구현 위치</h2>
+<table>
+  <thead><tr><th>사양 항목</th><th>파일</th><th>핵심 심볼</th></tr></thead>
+  <tbody>
+    <tr><td>ECDH, K 유도, 서브키 KDF, AES-GCM 원시 연산</td><td><code>internal/authentication/native.go</code>, <code>ecdh.go</code></td><td><code>NativeECDHKey.Exchange</code>, <code>NativeSession.subkey/NewHMAC/Encrypt/Decrypt/SessionInfoHMAC</code>, <code>ECDHPrivateKey</code> 인터페이스</td></tr>
+    <tr><td>메타데이터 TLV</td><td><code>internal/authentication/metadata.go</code></td><td><code>metadata.Add/AddUint32/Checksum</code>, <code>ErrMetadataFieldTooLong</code></td></tr>
+    <tr><td>요청 메타데이터 추출, 요청 해시, 응답 메타데이터</td><td><code>internal/authentication/peer.go</code></td><td><code>Peer.extractMetadata</code>, <code>RequestID</code>, <code>Peer.responseMetadata</code>, <code>Peer.hmacTag</code></td></tr>
+    <tr><td>명령 인가(HMAC/GCM), 세션 정보 검증·갱신·캐시, 응답 복호화</td><td><code>internal/authentication/signer.go</code></td><td><code>NewAuthenticatedSigner</code>, <code>ImportSessionInfo</code>, <code>ExportSessionInfo</code>, <code>UpdateSignedSessionInfo</code>, <code>Encrypt</code>, <code>AuthorizeHMAC</code>, <code>Decrypt</code></td></tr>
+    <tr><td>차량 측 검증 (테스트/참조용)</td><td><code>internal/authentication/verifier.go</code></td><td><code>Verifier.Verify</code>, <code>SignedSessionInfo</code>, <code>Encrypt</code>(응답 암호화)</td></tr>
+    <tr><td>응답 카운터 슬라이딩 윈도우</td><td><code>internal/authentication/window.go</code></td><td><code>SlidingWindow.Update</code></td></tr>
+    <tr><td>도메인별 세션 상태, 인가 대기, 응답 복호화 호출</td><td><code>internal/dispatcher/session.go</code></td><td><code>session.processHello/authorize/decrypt/export</code>, <code>CacheEntry</code>, <code>defaultExpiration</code>(5s)</td></tr>
+    <tr><td>RoutableMessage 조립, uuid/routing_address, 핸드셰이크, 응답 라우팅, 세션 갱신</td><td><code>internal/dispatcher/dispatcher.go</code>, <code>receiver.go</code></td><td><code>Dispatcher.Send/StartSessions/process/checkForSessionUpdate</code>, <code>SessionInfoRequest</code>, <code>receiverKey</code></td></tr>
+    <tr><td>오류 분류</td><td><code>pkg/protocol/error.go</code></td><td><code>GetError</code>, <code>RoutableMessageError</code>, <code>ShouldRetry</code>, <code>MayHaveSucceeded</code></td></tr>
+    <tr><td>메시지 정의</td><td><code>pkg/protocol/protobuf/universal_message.proto</code>, <code>signatures.proto</code>, <code>vcsec.proto</code>, <code>car_server.proto</code>, <code>keys.proto</code>, <code>errors.proto</code></td><td>-</td></tr>
+    <tr><td>사양 테스트</td><td><code>internal/authentication/protocol_doc_test.go</code>, <code>example_test.go</code></td><td>문서의 테스트 벡터 검증</td></tr>
+  </tbody>
+</table>
+
+<footer class="page-nav">
+  <a href="03-ble-transport.html"><span>이전</span>3. BLE 전송 계층</a>
+  <a class="next" href="05-go-sdk.html"><span>다음</span>5. Go SDK</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

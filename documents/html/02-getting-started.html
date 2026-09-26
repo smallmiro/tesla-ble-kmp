@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2. 시작하기 · vehicle-command BLE 매뉴얼</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE 개발 매뉴얼 · v0.4.1 기준</div>
+  <ol>
+    <li><a href="index.html">홈</a></li>
+    <li class="group">시작하기</li>
+    <li><a href="01-overview.html">1. 시스템 개요</a></li>
+    <li><a class="active" href="02-getting-started.html">2. 시작하기</a></li>
+    <li class="group">프로토콜</li>
+    <li><a href="03-ble-transport.html">3. BLE 전송 계층</a></li>
+    <li><a href="04-protocol.html">4. 프로토콜 사양</a></li>
+    <li class="group">개발</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI 도구</a></li>
+    <li><a href="07-command-reference.html">7. 명령 레퍼런스</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP 프록시</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. 오류와 문제 해결</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>2. 시작하기</h1>
+<p class="lead">설치부터 키 생성, NFC 카드로 키 페어링, 첫 BLE 명령 전송까지 순서대로 따라 합니다.</p>
+
+<div class="toc"><strong>이 페이지의 내용</strong><ol>
+<li><a href="#sec-req">준비물</a></li>
+<li><a href="#sec-install">설치</a></li>
+<li><a href="#sec-env">환경 변수 설정</a></li>
+<li><a href="#sec-keygen">개인 키 생성</a></li>
+<li><a href="#sec-pair">차량에 키 페어링</a></li>
+<li><a href="#sec-first">첫 BLE 명령</a></li>
+<li><a href="#sec-debug">디버그 출력과 세션 캐시</a></li>
+<li><a href="#sec-linux">Linux 추가 설정</a></li>
+<li><a href="#sec-inet">인터넷 경로로 보내기</a></li>
+<li><a href="#sec-next">다음 단계</a></li>
+</ol></div>
+
+<h2 id="sec-req">준비물</h2>
+<ul>
+  <li><strong>Go 1.23</strong> 이상 (<code>go.mod</code>의 <code>go 1.23</code>, CI는 1.23.0으로 테스트). Docker 이미지도 <code>golang:1.23.0</code>으로 빌드됩니다.</li>
+  <li><strong>macOS 또는 Linux</strong>. BLE는 이 두 플랫폼만 지원합니다. Windows에서는 BLE 외 기능만 빌드됩니다.</li>
+  <li><strong>Bluetooth 어댑터</strong>가 있는 컴퓨터, 그리고 차량의 <strong>VIN</strong>(차량 화면 Controls &gt; Software에서 확인. 17자, 영문+숫자).</li>
+  <li>키 페어링을 위해 차량 <strong>NFC 카드</strong>(또는 키포브)와 차량 안에서 화면을 조작할 수 있는 상황.</li>
+  <li>인터넷 경로를 쓰려면 Tesla 개발자 계정과 <a href="https://developer.tesla.com/docs/fleet-api/authentication/third-party-tokens">OAuth 액세스 토큰</a>. BLE만 쓸 때는 불필요합니다.</li>
+</ul>
+
+<h2 id="sec-install">설치</h2>
+<h3>소스에서 빌드</h3>
+<pre><code class="language-bash">cd vehicle-command
+go get ./...        # 의존성 다운로드
+go build ./...      # 전체 컴파일 (도구 + 예제)
+go install ./...    # $GOBIN (기본 ~/go/bin)에 도구 설치</code></pre>
+<p><code>go install</code> 후 다음 실행 파일이 PATH에 놓입니다.</p>
+<table>
+  <thead><tr><th>실행 파일</th><th>역할</th></tr></thead>
+  <tbody>
+    <tr><td><code>tesla-keygen</code></td><td>명령 인증용 개인 키 생성, 시스템 키링에 저장, 공개 키 출력</td></tr>
+    <tr><td><code>tesla-control</code></td><td>BLE 또는 인터넷으로 차량에 명령 전송. 인자 없이 실행하면 대화형 셸</td></tr>
+    <tr><td><code>tesla-auth-token</code></td><td>OAuth 토큰을 키링에 저장 (토큰을 발급받지는 않음)</td></tr>
+    <tr><td><code>tesla-http-proxy</code></td><td>REST API 프록시 서버</td></tr>
+    <tr><td><code>tesla-jws</code></td><td>Fleet Telemetry 설정 JWS 서명/검증</td></tr>
+    <tr><td><code>ble</code>, <code>unlock</code></td><td><code>examples/</code>의 예제 프로그램 (<code>go install ./...</code>에 포함됨)</td></tr>
+  </tbody>
+</table>
+<p>저장소의 <code>Makefile</code>도 사용할 수 있습니다: <code>make install</code>(<code>go install ./cmd/...</code>), <code>make test</code>, <code>make build</code>, <code>make linters</code>(golangci-lint), <code>make proto-gen</code>(protoc 필요). <code>./check-all.sh</code>는 build/test/vet/fmt를 한 번에 검사합니다.</p>
+
+<h3>Docker</h3>
+<p>BLE는 컨테이너에서 쓰기 어렵기 때문에 Docker 이미지는 주로 HTTP 프록시용입니다. 기본 엔트리포인트는 <code>tesla-http-proxy</code>이고 <code>--entrypoint</code>로 바꿀 수 있습니다.</p>
+<pre><code class="language-bash">docker pull tesla/vehicle-command:latest
+docker run tesla/vehicle-command:latest --help
+docker run --entrypoint tesla-keygen tesla/vehicle-command:latest --help</code></pre>
+
+<h2 id="sec-env">환경 변수 설정</h2>
+<p>모든 CLI 도구는 <code>pkg/cli</code>를 공유하며 명령줄 플래그 대신 환경 변수를 읽습니다. 플래그가 우선하고, 비어 있는 값만 환경 변수로 채워집니다.</p>
+<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)            # 키링에서 개인 키를 찾는 이름
+export TESLA_VIN=5YJ30123456789ABC          # 대상 차량 VIN
+export TESLA_CACHE_FILE=~/.tesla-cache.json # 세션 캐시 (생략 시 ~/.tesla-cache.json)
+# 인터넷 경로를 쓸 때만:
+export TESLA_TOKEN_NAME=$(whoami)           # 키링에서 OAuth 토큰을 찾는 이름</code></pre>
+<table>
+  <thead><tr><th>변수</th><th>대응 플래그</th><th>의미</th></tr></thead>
+  <tbody>
+    <tr><td><code>TESLA_KEY_NAME</code></td><td><code>-key-name</code></td><td>시스템 키링 안의 개인 키 항목 이름 (실제 항목 키는 <code>vehicleCommandKey.&lt;이름&gt;</code>)</td></tr>
+    <tr><td><code>TESLA_KEY_FILE</code></td><td><code>-key-file</code></td><td>PEM 파일에서 개인 키 로드. 키링 대신 사용</td></tr>
+    <tr><td><code>TESLA_TOKEN_NAME</code></td><td><code>-token-name</code></td><td>키링 안의 OAuth 토큰 항목 이름 (<code>oauthtoken.&lt;이름&gt;</code>)</td></tr>
+    <tr><td><code>TESLA_TOKEN_FILE</code></td><td><code>-token-file</code></td><td>파일에서 OAuth 토큰 로드</td></tr>
+    <tr><td><code>TESLA_VIN</code></td><td><code>-vin</code></td><td>VIN</td></tr>
+    <tr><td><code>TESLA_CACHE_FILE</code></td><td><code>-session-cache</code></td><td>세션 캐시 JSON 경로. <code>-disable-session-cache</code>로 끌 수 있음</td></tr>
+    <tr><td><code>TESLA_KEYRING_TYPE</code></td><td><code>-keyring-type</code></td><td>키링 백엔드 강제 지정. <code>tesla-keygen -h</code>에 OS별 지원 값 표시</td></tr>
+    <tr><td><code>TESLA_KEYRING_PATH</code></td><td><code>-keyring-file-dir</code></td><td>파일 기반 키링 디렉터리 (기본 <code>~/.tesla_keys</code>)</td></tr>
+    <tr><td><code>TESLA_KEYRING_PASSWORD</code></td><td>-</td><td>파일 키링/키체인 비밀번호. 비어 있으면 터미널에서 프롬프트</td></tr>
+    <tr><td><code>TESLA_KEYRING_DEBUG</code></td><td><code>-keyring-debug</code></td><td>키링 디버그 로그</td></tr>
+    <tr><td><code>TESLA_VERBOSE</code></td><td><code>-debug</code> / <code>-verbose</code></td><td><code>tesla-control</code>, <code>tesla-http-proxy</code>의 상세 로그. <code>false</code>/<code>0</code> 이외의 값이면 켜짐</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sec-keygen">개인 키 생성</h2>
+<h3>방법 A: tesla-keygen (권장)</h3>
+<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)
+tesla-keygen create &gt; public_key.pem
+cat public_key.pem
+# -----BEGIN PUBLIC KEY-----
+# MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...
+# -----END PUBLIC KEY-----</code></pre>
+<ul>
+  <li>NIST P-256 개인 키를 생성해 OS 키링(macOS는 로그인 키체인)에 저장하고, PKIX PEM 형식의 <strong>공개 키를 stdout</strong>에 출력합니다. <code>-output 파일</code>로 파일에 쓸 수도 있습니다.</li>
+  <li>이미 같은 이름의 키가 있으면 덮어쓰지 않고 기존 공개 키만 다시 출력합니다. 강제로 새로 만들려면 <code>-f</code>.</li>
+  <li><code>-key-file private.pem</code>을 주면 키링 대신 파일에 저장합니다(<code>EC PRIVATE KEY</code> PEM, 0600).</li>
+</ul>
+<table>
+  <thead><tr><th>하위 명령</th><th>동작</th></tr></thead>
+  <tbody>
+    <tr><td><code>create</code></td><td>키 생성 후 저장, 공개 키 출력. 기존 키가 있으면 재사용(<code>-f</code>로 덮어쓰기)</td></tr>
+    <tr><td><code>export</code></td><td>키링의 개인 키를 <code>EC PRIVATE KEY</code> PEM으로 stdout에 출력</td></tr>
+    <tr><td><code>migrate</code></td><td><code>-key-file</code>의 PEM 개인 키를 <code>-key-name</code>의 키링 항목으로 옮김</td></tr>
+    <tr><td><code>delete</code></td><td>키링에서 키 삭제</td></tr>
+  </tbody>
+</table>
+
+<h3>방법 B: OpenSSL</h3>
+<p>키링을 쓰지 않고 파일로만 관리하려면 <code>examples/ble/doc.go</code>에 있는 방법대로 만듭니다.</p>
+<pre><code class="language-bash">openssl ecparam -genkey -name prime256v1 -noout &gt; private.pem
+openssl ec -in private.pem -pubout &gt; public.pem
+export TESLA_KEY_FILE=$PWD/private.pem   # 또는 매번 -key-file private.pem</code></pre>
+<div class="callout warn">
+  <strong>개인 키 보호</strong>
+  <p>개인 키가 유출되면 차량을 잠금 해제하고 운전할 수 있습니다. 파일로 보관한다면 권한을 0600으로 유지하고 저장소에 커밋하지 마세요. <code>protocol.LoadPrivateKey</code>는 암호화되지 않은 PKCS#8/SEC1 PEM만 읽습니다. TLS 서버 키와 명령 인증 키를 같은 키로 쓰면 <code>tesla-http-proxy</code>가 시작을 거부합니다.</p>
+</div>
+
+<h2 id="sec-pair">차량에 키 페어링</h2>
+<p>공개 키를 차량 키체인(whitelist)에 등록해야 차량이 명령을 받아들입니다. BLE에서는 NFC 카드로 승인하는 <code>add-key-request</code>를 사용합니다. 이 요청 자체는 인증이 필요 없으므로 아직 페어링되지 않은 키로도 보낼 수 있습니다.</p>
+<ol class="steps">
+  <li><strong>차 안에 앉는다.</strong> 노트북의 Bluetooth를 켜고 NFC 카드(또는 키포브)를 준비합니다. 차량은 동시에 최대 3개의 BLE 연결만 유지하므로 다른 폰 키가 많이 연결되어 있으면 스캔 결과가 <code>Connectable=false</code>일 수 있습니다.</li>
+  <li><strong>요청을 보낸다.</strong>
+<pre><code class="language-bash">export TESLA_VIN=&lt;VIN&gt;
+tesla-control -ble add-key-request public_key.pem owner cloud_key
+# Sent add-key request to &lt;VIN&gt;. Confirm by tapping NFC card on center console.</code></pre>
+  프로그램은 요청을 전송하자마자 종료합니다. 종료했다고 승인이 끝난 것은 아닙니다.</li>
+  <li><strong>NFC 카드를 센터 콘솔(카드 리더 위치)에 댄다.</strong> 차량 화면에 새 키 승인 확인 창이 뜹니다.</li>
+  <li><strong>화면에서 Confirm을 누른다.</strong> Locks 화면에 새 키가 표시됩니다.</li>
+  <li><strong>확인한다.</strong> <code>tesla-control -ble list-keys</code>로 등록된 공개 키, 역할, 폼팩터를 확인하거나 <code>tesla-control -ble session-info public_key.pem infotainment</code>가 성공하는지 봅니다(Infotainment까지 동기화되면 성공).</li>
+</ol>
+<p><code>add-key-request PUBLIC_KEY ROLE FORM_FACTOR</code> 인자:</p>
+<table>
+  <thead><tr><th>인자</th><th>허용 값</th><th>설명</th></tr></thead>
+  <tbody>
+    <tr><td><code>PUBLIC_KEY</code></td><td>파일 경로</td><td>공개 키 PEM. 대응 개인 키 PEM, 65바이트 바이너리, 130자 hex 포인트도 허용(<code>protocol.LoadPublicKey</code>)</td></tr>
+    <tr><td><code>ROLE</code></td><td><code>owner</code>, <code>driver</code>, <code>fm</code>, <code>vehicle_monitor</code>, <code>charging_manager</code></td><td><code>keys.Role</code>의 <code>ROLE_</code> 접두사를 뺀 소문자. 자기 컴퓨터용이면 보통 <code>owner</code></td></tr>
+    <tr><td><code>FORM_FACTOR</code></td><td><code>nfc_card</code>, <code>ios_device</code>, <code>android_device</code>, <code>cloud_key</code></td><td>차량 UI에 표시될 종류. 서드파티 앱/서버 키는 <code>cloud_key</code></td></tr>
+  </tbody>
+</table>
+<div class="callout">
+  <strong>이미 Owner 키가 있다면</strong>
+  <p>페어링된 Owner 키로 다른 키를 NFC 없이 추가할 수 있습니다: <code>tesla-control -ble -key-file owner.pem add-key new_public.pem driver cloud_key</code>. 삭제는 <code>remove-key new_public.pem</code>. 인터넷 경로에서는 <code>rename-key</code>로 차량 화면에 보이는 이름을 바꿀 수 있습니다(OAuth 필요).</p>
+</div>
+<div class="callout warn">
+  <strong>페어링이 실패하는 흔한 이유</strong>
+  <ul>
+    <li>카드 탭 시간 초과: <code>WHITELISTOPERATION_INFORMATION_LOCAL_ENTITY_AUTH_FAILED_TIMED_OUT_WAITING_FOR_TAP</code>. 요청 후 바로 카드를 대세요.</li>
+    <li>화면에서 거부/취소: <code>…UI_DENIED</code>, <code>…CANCELLED</code>.</li>
+    <li>발렛 모드 중: <code>…LOCAL_ENTITY_AUTH_FAILED_VALET_MODE</code>.</li>
+    <li>키체인 가득 참: <code>MESSAGEFAULT_ERROR_KEYCHAIN_IS_FULL</code> 또는 <code>WHITELISTOPERATION_INFORMATION_WHITELIST_FULL</code>. 기존 키를 지워야 합니다.</li>
+    <li>이미 등록된 키: <code>…ATTEMPTING_TO_ADD_KEY_THAT_IS_ALREADY_ON_THE_WHITELIST</code>. 정상입니다.</li>
+  </ul>
+</div>
+
+<h2 id="sec-first">첫 BLE 명령</h2>
+<pre><code class="language-bash">tesla-control -ble lock
+tesla-control -ble unlock
+tesla-control -ble body-controller-state   # 잠금/도어/트렁크/수면 상태 JSON. Infotainment가 자고 있어도 동작
+tesla-control -ble list-keys               # 등록된 키 목록
+tesla-control -ble climate-on              # Infotainment 명령. 차량이 잠들어 있으면 먼저 wake
+tesla-control -ble wake                    # VCSEC에 웨이크업 요청
+tesla-control -ble state charge            # 충전 상태 JSON (Infotainment 필요)</code></pre>
+<ul>
+  <li><code>-ble</code>는 OAuth 환경 변수가 설정되어 있어도 BLE 연결을 강제합니다. OAuth 변수가 없으면 VIN만으로 자동으로 BLE를 선택하므로 생략해도 됩니다.</li>
+  <li>연결 제한 시간은 <code>-connect-timeout</code>(기본 20s), 명령 제한 시간은 <code>-command-timeout</code>(기본 5s)입니다. 스캔이 느린 환경에서는 <code>-connect-timeout 60s</code>처럼 늘리세요.</li>
+  <li>인자 없이 <code>tesla-control -ble</code>을 실행하면 <code>&gt;</code> 프롬프트의 대화형 셸이 뜹니다. 연결과 핸드셰이크를 한 번만 하고 여러 명령을 보낼 수 있습니다. <code>exit</code>로 종료.</li>
+  <li><code>tesla-control help &lt;명령&gt;</code>으로 인자 설명을 볼 수 있습니다. 전체 목록은 <a href="07-command-reference.html">7. 명령 레퍼런스</a>.</li>
+</ul>
+<div class="callout ok">
+  <strong>도메인 제한으로 지연 줄이기</strong>
+  <p>기본적으로 <code>StartSession</code>은 VCSEC와 Infotainment 두 도메인과 병렬로 핸드셰이크합니다. VCSEC 명령만 쓸 때는 <code>-domain vcsec</code>를 주면 Infotainment를 깨우지 않아 빠르고, 차량이 잠들어 있어도 실패하지 않습니다. <code>wake</code>와 <code>body-controller-state</code>는 CLI가 자동으로 VCSEC만 사용합니다.</p>
+</div>
+
+<h2 id="sec-debug">디버그 출력과 세션 캐시</h2>
+<h3>-debug로 송수신 바이트 보기</h3>
+<pre><code class="language-bash">tesla-control -ble -debug list-keys
+# 2023-12-13T14:41:13-08:00 [debug] Creating new BLE adapter
+# 2023-12-13T14:41:13-08:00 [debug] Dialing to xx:xx:xx:xx:xx:xx (S1a87a5a75f3df858C)...
+# 2023-12-13T14:41:13-08:00 [debug] MTU size: 517
+# 2023-12-13T14:41:13-08:00 [info ] Connected to vehicle BLE
+# 2023-12-13T14:41:13-08:00 [debug] TX: 320208023a1212100a7962c1...
+# 2023-12-13T14:41:13-08:00 [debug] RX: ...</code></pre>
+<p><code>TX:</code>/<code>RX:</code> 뒤의 hex는 길이 프리픽스를 뺀 <code>RoutableMessage</code>입니다. <a href="04-protocol.html#sec-decode">protoc로 디코딩</a>할 수 있습니다. 로그는 stderr로 나가며 <code>TESLA_VERBOSE=1</code>로도 켤 수 있습니다.</p>
+
+<h3>세션 캐시</h3>
+<p><code>tesla-control</code>은 매 실행마다 새 프로세스라서 캐시가 없으면 매번 핸드셰이크를 합니다. <code>TESLA_CACHE_FILE</code>(기본 <code>~/.tesla-cache.json</code>)에 도메인별 세션 정보가 저장되고 다음 실행에서 <code>Session for DOMAIN_VEHICLE_SECURITY loaded from cache</code> 로그와 함께 바로 명령을 보냅니다. 캐시가 낡았으면(차량 재부팅 등) 첫 명령이 실패하면서 차량이 새 세션 정보를 보내 주고 자동으로 재시도합니다. 캐시 파일은 개인 키에 종속되며 다른 키로 쓰면 그냥 실패 후 갱신됩니다. 파일에는 공유 비밀이 직접 들어 있지는 않지만 접근 권한을 제한하세요.</p>
+
+<h2 id="sec-linux">Linux 추가 설정</h2>
+<p>Linux 구현은 HCI 소켓을 직접 열고 초기화 과정에서 <code>HCIDEVDOWN</code>을 호출하므로 <code>CAP_NET_ADMIN</code> 권한이 필요합니다. 권한이 없으면 <code>operation not permitted</code>가 발생하고 CLI가 다음 안내를 출력합니다.</p>
+<pre><code class="language-bash">Failed to initialize BLE adapter:
+        ...operation not permitted
+Try again after granting this application CAP_NET_ADMIN or running with root:
+
+        sudo setcap 'cap_net_admin=eip' "$(which tesla-control)"</code></pre>
+<ul>
+  <li><code>setcap</code>은 실행 파일 단위로 적용되므로 <code>go install</code>로 바이너리를 다시 빌드하면 다시 설정해야 합니다.</li>
+  <li>어댑터가 여럿이면 <code>-bt-adapter hci1</code>처럼 지정합니다(<code>hci0</code>~<code>hci15</code>). 기본은 <code>hci0</code>. 잘못된 형식은 <code>ErrAdapterInvalidID</code>.</li>
+  <li><code>bluetoothd</code>가 같은 어댑터를 잡고 있어 스캔이 안 되면 <code>sudo hciconfig hci0 down</code> 후 재시도하거나 전용 어댑터를 쓰세요. 이 SDK는 BlueZ D-Bus가 아니라 raw HCI를 사용합니다.</li>
+</ul>
+
+<h2 id="sec-inet">인터넷 경로로 보내기</h2>
+<p>같은 개인 키로 인터넷 경로도 사용할 수 있습니다. 차이는 OAuth 토큰이 필요하고, 공개 키가 <a href="https://developer.tesla.com/docs/fleet-api/endpoints/partner-endpoints#register">Tesla 개발자 포털에 등록된 도메인</a>과 연결되어 있어야 하며, 인증 방식이 HMAC-SHA256이라는 점입니다.</p>
+<ol class="steps">
+  <li><strong>OAuth 토큰을 발급받는다.</strong> Fleet API 문서의 서드파티 토큰 절차를 따릅니다. 이 저장소에는 토큰을 발급하는 도구가 없습니다.</li>
+  <li><strong>토큰을 키링에 저장한다.</strong>
+<pre><code class="language-bash">export TESLA_TOKEN_NAME=$(whoami)
+tesla-auth-token &lt; token.txt          # 또는 tesla-auth-token token.txt</code></pre></li>
+  <li><strong>공개 키를 도메인에 등록하고 차량 소유자가 승인한다.</strong> 소유자는 Tesla 앱(4.27.3+)에서 <code>https://tesla.com/_ak/&lt;your_domain&gt;</code> 링크를 열어 승인합니다. 개인 차량이라면 위의 BLE 페어링으로 등록한 키를 그대로 써도 됩니다.</li>
+  <li><strong>명령을 보낸다.</strong> <code>-ble</code>를 빼면 OAuth 설정이 있을 때 자동으로 인터넷 경로를 선택합니다.
+<pre><code class="language-bash">tesla-control lock
+tesla-control product-info          # 계정 명령 (VIN 불필요)
+tesla-control get api/1/vehicles/$TESLA_VIN/vehicle_data</code></pre></li>
+</ol>
+<p>차량이 잠들어 있으면 Fleet API가 <code>408</code>/<code>503</code>을 돌려주고 SDK는 <code>ErrVehicleNotAwake</code>를 반환합니다. <code>tesla-control wake</code>가 <code>api/1/vehicles/&lt;vin&gt;/wake_up</code>을 호출해 <code>state == "online"</code>이 될 때까지 10초 간격으로 폴링합니다.</p>
+
+<h2 id="sec-next">다음 단계</h2>
+<ul>
+  <li>BLE 광고, GATT, 프레이밍이 궁금하면 <a href="03-ble-transport.html">3. BLE 전송 계층</a>.</li>
+  <li>핸드셰이크와 암호화가 어떻게 동작하는지는 <a href="04-protocol.html">4. 프로토콜 사양</a>.</li>
+  <li>Go 코드에서 SDK를 쓰려면 <a href="05-go-sdk.html">5. Go SDK</a>. 최소 예제는 <code>examples/ble/main.go</code>.</li>
+  <li>연결이 안 되거나 오류가 나면 <a href="09-errors-troubleshooting.html">9. 오류와 문제 해결</a>.</li>
+</ul>
+
+<footer class="page-nav">
+  <a href="01-overview.html"><span>이전</span>1. 시스템 개요</a>
+  <a class="next" href="03-ble-transport.html"><span>다음</span>3. BLE 전송 계층</a>
+</footer>
+</main>
+</div>
+</body>
+</html>
