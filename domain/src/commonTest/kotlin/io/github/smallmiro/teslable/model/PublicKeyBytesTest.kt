@@ -35,5 +35,11 @@ class PublicKeyBytesTest {
         raw[1] = 0
         assertEquals(clientPub, key.toByteArray().toHex())
         assertEquals(PublicKeyBytes(clientPub.hexToBytes()), key)
+
+        // Mutate returned x and assert second read is unchanged
+        val x1 = key.x
+        x1[0] = 0x00
+        val x2 = key.x
+        assertEquals("b2b6bc68c2da0665ce656815594996c62394edd8bea905fe781a754fe6a845a7", x2.toHex())
     }
 }
