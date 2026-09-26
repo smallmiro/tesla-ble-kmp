@@ -20,6 +20,7 @@ import io.github.smallmiro.teslable.protocol.Session
 import io.github.smallmiro.teslable.protocol.SlidingWindow
 import okio.ByteString
 import okio.ByteString.Companion.toByteString
+import kotlin.time.Duration
 import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
@@ -45,7 +46,7 @@ public class SignedSessionInfo(
  *
  * M2 `FakeVehicle`이 이 클래스를 감싼다. 스레드 안전하지 않다.
  */
-@Suppress("TooManyFunctions") // Go Verifier/Peer의 공개·비공개 메서드와 1:1 대응 (verifier.go, peer.go)
+@Suppress("TooManyFunctions") // Go Verifier/Peer의 공개·비공개 메서드와 1:1 대응 + 테스트 전용 조작 3개(exhaustCounter, shiftTimeZero, assignHandle)
 public class TestVerifier private constructor(
     private val session: Session,
     /** TLV PERSONALIZATION 값(운영에서는 VIN 17자; Go 테스트는 임의 바이트). */
@@ -109,13 +110,24 @@ public class TestVerifier private constructor(
         if (counterValue == UInt.MAX_VALUE || timestamp() > CommandMetadata.EPOCH_LENGTH_SECONDS) rotateEpoch()
     }
 
+    /** counter를 `0xFFFFFFFF`로 놓는다(Go `TestGCMEpochRotation`의 `signer.counter = 0xFFFFFFFE` 이후 상태). 다음 [sessionInfo]/[verify]가 epoch를 돌린다. */
+    @InternalTeslableApi
+    public fun exhaustCounter() {
+        counterValue = UInt.MAX_VALUE
+    }
+
+    /** Go `AssignHandle`: 이후 [sessionInfo]의 `handle`에 실린다. */
+    public fun assignHandle(handle: UInt) {
+        this.handle = handle
+    }
+
     /**
-     * 테스트가 counter를 직접 놓는다(롤오버 시나리오). 윈도우는 건드리지 않으므로 Go와 같은 동작은
-     * `UInt.MAX_VALUE`(counter 소진 시나리오)에서만 보장된다.
+     * Go 테스트의 `verifier.timeZero = verifier.timeZero.Add(by)`. [by]가 양수면 시계 원점이 뒤로 밀려 [timestamp]가
+     * 줄어들고(시계 역행 시나리오), 음수면 [timestamp]가 커진다(`TestGCMExpired`의 `-time.Hour`).
      */
     @InternalTeslableApi
-    public fun forceCounter(value: UInt) {
-        counterValue = value
+    public fun shiftTimeZero(by: Duration) {
+        timeZero = timeZero + by
     }
 
     /** Go `sessionInfo`: 필요하면 epoch를 돌린 뒤 현재 상태. */
@@ -136,7 +148,7 @@ public class TestVerifier private constructor(
         return SignedSessionInfo(encoded, session.sessionInfoTag(personalization, challenge, encoded))
     }
 
-    /** Go `SetSessionInfo`: 오류 응답에 세션정보와 태그를 싣는다. */
+    /** Go `SetSessionInfo`: 오류 응답에 세션정보와 태그를 싣는다. payload oneof의 다른 멤버는 Go처럼 지운다. */
     public fun setSessionInfo(
         challenge: ByteArray,
         message: RoutableMessage,
@@ -144,6 +156,7 @@ public class TestVerifier private constructor(
         val signed = signedSessionInfo(challenge)
         return message.copy(
             protobuf_message_as_bytes = null,
+            session_info_request = null,
             session_info = signed.encoded.toByteString(),
             signature_data = SignatureData(session_info_tag = HMAC_Signature_Data(tag = signed.tag.toByteString())),
         )
@@ -227,6 +240,8 @@ public class TestVerifier private constructor(
         val out = session.encrypt(message.protobuf_message_as_bytes?.toByteArray() ?: ByteArray(0), crypto.sha256(meta.serialize()), nonce)
         return message.copy(
             protobuf_message_as_bytes = out.ciphertext.toByteString(),
+            session_info = null,
+            session_info_request = null,
             signature_data =
                 SignatureData(
                     AES_GCM_Response_data =
