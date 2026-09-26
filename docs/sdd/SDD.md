@@ -84,7 +84,7 @@ Go SDK의 BLE 경로(`pkg/connector/ble` → `internal/dispatcher` → `internal
 | `internal/dispatcher/dispatcher.go`, `session.go`, `receiver.go` | 729 | `:application` `dispatcher/Dispatcher.kt`, `SessionState.kt`, `PendingRequest.kt` | goroutine → 코루틴, `chan` → `Channel(10)`, `readySignal` → `CompletableDeferred` |
 | `pkg/connector/connector.go` | 72 | `:domain` `port/Transport.kt` | `Receive()` → `Flow<ByteArray>`, `Send` → `suspend`, `AuthMethod`는 GCM만 |
 | `pkg/connector/ble/ble.go` | 360 | `:domain` `transport/Framer.kt`, `Reassembler.kt`, `LocalName.kt` + `:adapter-ble` `KableTransport.kt`, `KableScanner.kt` | 프레이밍·재조립·이름은 순수 Kotlin(PoC), GATT는 Kable |
-| `pkg/protocol/error.go` | 267 | `:domain` `VehicleError.kt`, `ResponseClassifier.kt` | `GetError`, `ShouldRetry`, `MayHaveSucceeded`, `Temporary` |
+| `pkg/protocol/error.go` | 267 | `:domain` `ResponseClassifier.kt`(`GetError` → `protocolError`), `VehicleError.kt`(`MayHaveSucceeded`/`Temporary` → `mayHaveSucceeded`/`temporary` 프로퍼티, `ShouldRetry` → `shouldRetry()` 확장) | `GetError`, `ShouldRetry`, `MayHaveSucceeded`, `Temporary` |
 | `pkg/protocol/key.go` | 173 | `:domain` `port/EcdhPrivateKey.kt`, `PublicKey.kt` | 파일 로딩은 포팅하지 않음. 65바이트 검증만 |
 | `pkg/vehicle/vehicle.go` | 275 | `:application` `vehicle/VehicleSession.kt`, `SendWithRetry.kt` | `Send`, `trySend`, `StartSession`, `SessionInfo`, `Wakeup` |
 | `pkg/vehicle/vcsec.go`, `security.go`(VCSEC 부분), `state.go`(`BodyControllerState`) | ~450 | `:application` `vcsec/VcsecCommands.kt`, `vcsec/VcsecResponses.kt`, `keys/KeyManagement.kt`, `pairing/Pairing.kt` | `unmarshalVCSECResponse`, `readUntil`, 종료 판정, `addKeyPayload`, `SendAddKeyRequestWithRole` |
