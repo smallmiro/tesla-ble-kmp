@@ -9,6 +9,7 @@ adapter-crypto/src/jvmCommonMain/kotlin/io/github/smallmiro/teslable/crypto/JcaS
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/model/VehicleError.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/CryptoPrimitives.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/EcdhPrivateKey.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/Transport.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/CommandMetadata.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/Metadata.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/RequestHash.kt

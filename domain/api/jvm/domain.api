@@ -4943,6 +4943,14 @@ public final class io/github/smallmiro/teslable/port/AesGcmOutput {
 	public final fun getTag ()[B
 }
 
+public final class io/github/smallmiro/teslable/port/AuthMethod : java/lang/Enum {
+	public static final field GCM Lio/github/smallmiro/teslable/port/AuthMethod;
+	public static final field NONE Lio/github/smallmiro/teslable/port/AuthMethod;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/port/AuthMethod;
+	public static fun values ()[Lio/github/smallmiro/teslable/port/AuthMethod;
+}
+
 public abstract interface class io/github/smallmiro/teslable/port/CryptoPrimitives {
 	public abstract fun aesGcmDecrypt ([B[B[B[B[B)[B
 	public abstract fun aesGcmEncrypt ([B[B[B[B)Lio/github/smallmiro/teslable/port/AesGcmOutput;
@@ -4959,6 +4967,37 @@ public abstract interface class io/github/smallmiro/teslable/port/EcdhPrivateKey
 
 public abstract interface class io/github/smallmiro/teslable/port/RandomSource {
 	public abstract fun nextBytes (I)[B
+}
+
+public abstract interface class io/github/smallmiro/teslable/port/Transport {
+	public abstract fun close (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun getAllowedLatency-UwyO8pc ()J
+	public abstract fun getIncoming ()Lkotlinx/coroutines/flow/Flow;
+	public abstract fun getRetryInterval-UwyO8pc ()J
+	public abstract fun getState ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getVin ()Lio/github/smallmiro/teslable/model/Vin;
+	public abstract fun send ([BLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/github/smallmiro/teslable/port/TransportState {
+}
+
+public final class io/github/smallmiro/teslable/port/TransportState$Connected : io/github/smallmiro/teslable/port/TransportState {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/port/TransportState$Connected;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/port/TransportState$Disconnected : io/github/smallmiro/teslable/port/TransportState {
+	public fun <init> (Lio/github/smallmiro/teslable/model/VehicleError$TransportError;)V
+	public final fun component1 ()Lio/github/smallmiro/teslable/model/VehicleError$TransportError;
+	public final fun copy (Lio/github/smallmiro/teslable/model/VehicleError$TransportError;)Lio/github/smallmiro/teslable/port/TransportState$Disconnected;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/port/TransportState$Disconnected;Lio/github/smallmiro/teslable/model/VehicleError$TransportError;ILjava/lang/Object;)Lio/github/smallmiro/teslable/port/TransportState$Disconnected;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getReason ()Lio/github/smallmiro/teslable/model/VehicleError$TransportError;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public final class io/github/smallmiro/teslable/protocol/CommandMetadata {
