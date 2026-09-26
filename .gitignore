@@ -30,3 +30,5 @@ Pods/
 **/build/
 # XcodeGen generates the project; only project.yml is tracked
 samples/ios/*.xcodeproj/
+# XcodeGen regenerates Info.plist from project.yml's `info:` block on every `xcodegen generate`
+samples/ios/Sources/Info.plist
