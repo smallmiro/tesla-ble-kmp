@@ -9,6 +9,7 @@ private const val MASK_CHAR = '*'
 public class Vin(
     value: String,
 ) {
+    /** 대문자로 정규화한 VIN 17자 (마스킹하지 않은 원문이므로 로그에 쓰지 않는다). */
     public val value: String = value.uppercase()
 
     init {

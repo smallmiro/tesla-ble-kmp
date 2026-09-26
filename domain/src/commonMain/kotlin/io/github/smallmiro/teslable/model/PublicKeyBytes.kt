@@ -21,9 +21,13 @@ public class PublicKeyBytes(
         }
     }
 
+    /** X 좌표 32바이트 (호출할 때마다 새 복사본). */
     public val x: ByteArray get() = bytes.copyOfRange(X_START, X_END)
+
+    /** Y 좌표 32바이트 (호출할 때마다 새 복사본). */
     public val y: ByteArray get() = bytes.copyOfRange(X_END, Y_END)
 
+    /** 65바이트 `0x04 || X || Y` 인코딩의 복사본. */
     public fun toByteArray(): ByteArray = bytes.copyOf()
 
     override fun equals(other: Any?): Boolean = other is PublicKeyBytes && bytes.contentEquals(other.bytes)
@@ -36,6 +40,7 @@ public class PublicKeyBytes(
         ).joinToString("") { (it.toInt() and BYTE_MASK).toString(HEX_RADIX).padStart(HEX_PADDING_WIDTH, '0') }}…)"
 
     public companion object {
+        /** 비압축 SEC1 공개키 길이 (bytes). */
         public const val SIZE: Int = 65
         private const val PREFIX: Byte = PREFIX_BYTE.toByte()
     }
