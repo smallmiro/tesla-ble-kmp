@@ -292,9 +292,9 @@ public class Signer
              * Go `ImportSessionInfo(generatedAt)`: 캐시된 세션정보로 핸드셰이크 없이 생성.
              * [age]는 캐시 저장 시각부터 지금까지의 경과(= Go `now - generatedAt`).
              *
-             * @throws IllegalArgumentException [age]가 음수이면 발생한다. 벽시계가 뒤로 흐르는 등의 이유로 저장
-             * 시각이 지금보다 미래로 계산되면, 호출자(M2 세션 캐시)가 [age]를 0으로 자르거나 캐시 항목을 버려야 한다 —
-             * 이 함수는 값을 보정하지 않는다.
+             * [age]가 음수이면(캐시 저장과 불러오기 사이에 벽시계가 뒤로 감) 0으로 본다. 이는 프로그래밍 오류가 아닌
+             * 런타임 조건이므로 예외를 던지지 않는다(ADR-0006). Go는 미래의 `generatedAt`을 그대로 받아 `timeZero`가
+             * 뒤로 간다.
              */
             @Suppress("LongParameterList") // Go ImportSessionInfo 인자(+crypto/random/timeSource 주입)와 1:1 대응
             public suspend fun importSessionInfo(
@@ -306,11 +306,11 @@ public class Signer
                 random: RandomSource,
                 timeSource: TimeSource = TimeSource.Monotonic,
             ): SignerResult<Signer> {
-                require(!age.isNegative()) { "age must not be negative" }
+                val effectiveAge = age.coerceAtLeast(Duration.ZERO)
                 val info =
                     decodeSessionInfo(encodedInfo)
                         ?: return SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_DECODING, "invalid session info protobuf")
-                return build(privateKey, vin, info, crypto, random, timeSource, age)
+                return build(privateKey, vin, info, crypto, random, timeSource, effectiveAge)
             }
 
             @Suppress("LongParameterList") // 위 세 팩토리가 공유하는 내부 헬퍼, Go NewSigner 인자와 1:1 대응

@@ -16,7 +16,6 @@ import okio.ByteString.Companion.toByteString
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
-import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TestTimeSource
@@ -384,22 +383,22 @@ class SignerTest {
         }
 
     @Test
-    fun importSessionInfoRejectsNegativeAge() =
-        // Fix round 1, Minor 2: the Kotlin-only `require(!age.isNegative())` guard documented on importSessionInfo's KDoc.
+    fun importSessionInfoTreatsNegativeAgeAsZero() =
+        // Final review M-3 (ADR-0006): a negative age means the wall clock moved back between cache store and load —
+        // a runtime condition, not a programming error. It is clamped to zero instead of throwing, so the imported
+        // clock equals the exported clock_time (unclamped, timestamp() would read clock_time - 10).
         runTest {
-            val (_, signer) = pair()
+            val time = TestTimeSource()
+            val (_, signer) = pair(time)
+            time += 30.seconds
             val exported = signer.exportSessionInfo()
-            assertFailsWith<IllegalArgumentException> {
-                Signer.importSessionInfo(
-                    TestCrypto.clientKey(),
-                    vin,
-                    exported,
-                    age = (-1).seconds,
-                    crypto,
-                    TestCrypto.random,
-                    TestTimeSource(),
-                )
-            }
+            val exportedClock = SessionInfo.ADAPTER.decode(exported).clock_time
+            assertEquals(30, exportedClock)
+            val imported =
+                assertIs<SignerResult.Ok<Signer>>(
+                    Signer.importSessionInfo(TestCrypto.clientKey(), vin, exported, age = (-10).seconds, crypto, TestCrypto.random, time),
+                ).value
+            assertEquals(exportedClock.toUInt(), imported.timestamp())
         }
 
     @Test

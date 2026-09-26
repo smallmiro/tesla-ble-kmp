@@ -184,8 +184,8 @@ public interface VehicleKeyStore { suspend fun getOrCreate(alias, policy: KeyPol
 public interface CryptoPrimitives { fun sha1(d); fun sha256(d); fun hmacSha256(key, d); fun aesGcmEncrypt(key, nonce, plaintext, aad): AesGcmOutput; fun aesGcmDecrypt(...): ByteArray?; fun constantTimeEquals(a, b): Boolean }
 public interface RandomSource { fun nextBytes(n: Int): ByteArray }
 // 시계: kotlin.time.TimeSource를 주입한다(Reassembler, Signer, TestVerifier). 벽시계는 세션 캐시(M2 :adapter-storage)의
-// createdAt에서만 쓰고 age: Duration으로 변환해 넘긴다. age가 음수면(벽시계가 뒤로 감) 캐시가 0으로 자르거나 버린다 —
-// Signer.importSessionInfo는 age >= 0을 요구한다(Go보다 엄격).
+// createdAt에서만 쓰고 age: Duration으로 변환해 넘긴다. age가 음수면(벽시계가 뒤로 감) Signer.importSessionInfo가
+// 0으로 본다(런타임 조건이므로 예외 없음, ADR-0006).
 public interface SessionCache { suspend fun load(vin: Vin, keyId: KeyId): List<CachedSession>; suspend fun store(vin, keyId, entries); suspend fun clear(vin) }
 public interface TeslaLogger { fun log(level: LogLevel, tag: String, message: () -> String) }   // 기본 NoOp
 ```
@@ -666,6 +666,6 @@ HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 
 - `Signer.encrypt`는 `expiresIn`으로 계산한 만료 초가 음수이거나 2^30(`CommandMetadata.EPOCH_LENGTH_SECONDS`)을 넘으면 `BAD_PARAMETER`로 거부한다. Go는 먼저 `uint32`로 잘라서 2^32 이상이면 wrap된 값으로 검사한다. 정상 수명에서는 도달 불가.
 - `Signer.decrypt`의 인증 실패는 `SignerResult.Fault(INVALID_SIGNATURE)`다. Go는 AEAD 오류를 그대로 돌려준다(둘 다 드롭 대상이라는 결과는 같다).
 - `ResponseClassifier`는 Wire가 모르는 enum 값(`unknownFields`)을 찾아 Go `GetError`와 같은 분류(temporary=false, mayHaveSucceeded=false)를 따른다. 모르는 fault는 `UnknownFault(rawCode)`로 코드를 보존한다(Go `RoutableMessageError{Code}`와 같음); 모르는 session_info status·operation_status는 `UnknownResponse`(Go `ErrUnknown`).
-- `Signer.createAuthenticated`는 태그 검증이 실패하거나 예외가 나면 세션 키를 0으로 지운다(Go는 GC에 맡긴다). `Signer.importSessionInfo`는 음수 `age`를 거부한다(Go는 미래의 `generatedAt`을 허용한다).
+- `Signer.createAuthenticated`는 태그 검증이 실패하거나 예외가 나면 세션 키를 0으로 지운다(Go는 GC에 맡긴다). `Signer.importSessionInfo`에서 음수 `age`는 0으로 본다(Go는 미래 `generatedAt`을 그대로 받아 `timeZero`가 뒤로 감).
 - `Signer.decrypt`는 nonce·태그 길이가 틀린 응답을 `Fault(INVALID_SIGNATURE)`로 돌려준다(M0 `Session.decrypt`가 null을 돌려주기 때문). Go `gcm.Open`은 nonce 길이가 틀리면 panic한다.
 - Wire는 모르는 enum 값을 기본값(fault NONE, domain null→BROADCAST)으로 디코딩하므로, 새 펌웨어가 모르는 fault 코드나 도메인을 실은 **암호화 응답**은 응답 AAD가 달라져 `INVALID_SIGNATURE`로 드롭된다. Go는 원시 uint32를 써서 복호화한다. M2에서 응답 메타데이터를 만들 때 `unknownFields`의 원시 값을 쓰도록 보완한다(인계 노트에도 기록).
