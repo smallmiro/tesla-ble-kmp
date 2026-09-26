@@ -1,0 +1,28 @@
+// Klib ABI Dump
+// Targets: [iosArm64, iosSimulatorArm64]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <tesla-ble-kmp:adapter-crypto>
+final class io.github.smallmiro.teslable.crypto/AppleCryptoPrimitives : io.github.smallmiro.teslable.port/CryptoPrimitives { // io.github.smallmiro.teslable.crypto/AppleCryptoPrimitives|null[0]
+    constructor <init>() // io.github.smallmiro.teslable.crypto/AppleCryptoPrimitives.<init>|<init>(){}[0]
+
+    final fun aesGcmDecrypt(kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray): kotlin/ByteArray? // io.github.smallmiro.teslable.crypto/AppleCryptoPrimitives.aesGcmDecrypt|aesGcmDecrypt(kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray){}[0]
+    final fun aesGcmEncrypt(kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray): io.github.smallmiro.teslable.port/AesGcmOutput // io.github.smallmiro.teslable.crypto/AppleCryptoPrimitives.aesGcmEncrypt|aesGcmEncrypt(kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray){}[0]
+    final fun constantTimeEquals(kotlin/ByteArray, kotlin/ByteArray): kotlin/Boolean // io.github.smallmiro.teslable.crypto/AppleCryptoPrimitives.constantTimeEquals|constantTimeEquals(kotlin.ByteArray;kotlin.ByteArray){}[0]
+    final fun hmacSha256(kotlin/ByteArray, kotlin/ByteArray): kotlin/ByteArray // io.github.smallmiro.teslable.crypto/AppleCryptoPrimitives.hmacSha256|hmacSha256(kotlin.ByteArray;kotlin.ByteArray){}[0]
+    final fun sha1(kotlin/ByteArray): kotlin/ByteArray // io.github.smallmiro.teslable.crypto/AppleCryptoPrimitives.sha1|sha1(kotlin.ByteArray){}[0]
+    final fun sha256(kotlin/ByteArray): kotlin/ByteArray // io.github.smallmiro.teslable.crypto/AppleCryptoPrimitives.sha256|sha256(kotlin.ByteArray){}[0]
+}
+
+final class io.github.smallmiro.teslable.crypto/AppleRandomSource : io.github.smallmiro.teslable.port/RandomSource { // io.github.smallmiro.teslable.crypto/AppleRandomSource|null[0]
+    constructor <init>() // io.github.smallmiro.teslable.crypto/AppleRandomSource.<init>|<init>(){}[0]
+
+    final fun nextBytes(kotlin/Int): kotlin/ByteArray // io.github.smallmiro.teslable.crypto/AppleRandomSource.nextBytes|nextBytes(kotlin.Int){}[0]
+}
+
+final fun io.github.smallmiro.teslable.crypto/platformCryptoPrimitives(): io.github.smallmiro.teslable.port/CryptoPrimitives // io.github.smallmiro.teslable.crypto/platformCryptoPrimitives|platformCryptoPrimitives(){}[0]
+final fun io.github.smallmiro.teslable.crypto/platformRandomSource(): io.github.smallmiro.teslable.port/RandomSource // io.github.smallmiro.teslable.crypto/platformRandomSource|platformRandomSource(){}[0]
+final fun io.github.smallmiro.teslable.crypto/softwareEcdhKey(kotlin/ByteArray, io.github.smallmiro.teslable.model/PublicKeyBytes): io.github.smallmiro.teslable.port/EcdhPrivateKey // io.github.smallmiro.teslable.crypto/softwareEcdhKey|softwareEcdhKey(kotlin.ByteArray;io.github.smallmiro.teslable.model.PublicKeyBytes){}[0]
