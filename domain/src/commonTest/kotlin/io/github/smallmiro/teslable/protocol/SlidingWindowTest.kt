@@ -2,6 +2,7 @@ package io.github.smallmiro.teslable.protocol
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 
 class SlidingWindowTest {
     private data class Case(
@@ -61,5 +62,11 @@ class SlidingWindowTest {
     fun shiftOfSixtyFourOrMoreClearsHistory() { // Go: uint64 << 64 == 0
         assertEquals(0uL, updateSlidingWindow(1u, ULong.MAX_VALUE, 200u, size = 32).window)
         assertEquals(1uL shl 63, updateSlidingWindow(1u, ULong.MAX_VALUE, 65u, size = 32).window)
+    }
+
+    @Test
+    fun rejectsCounterWhoseAgeExceedsIntRange() { // Go window.go: age는 uint32라 2^31 이상이어도 age > windowSize로 거부
+        assertFalse(updateSlidingWindow(4_000_000_000u, 0uL, 0u, size = 32).ok)
+        assertFalse(updateSlidingWindow(UInt.MAX_VALUE, 0uL, 1u, size = 32).ok)
     }
 }
