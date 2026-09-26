@@ -21,7 +21,6 @@ Pods/
 
 # Secrets / local keys used in real-vehicle testing
 *.pem
-!**/src/*Test/resources/**/*.pem
 *.key
 .env
 
