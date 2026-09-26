@@ -5194,6 +5194,29 @@ final class io.github.smallmiro.teslable.protocol/MetadataFieldTooLongException 
     constructor <init>() // io.github.smallmiro.teslable.protocol/MetadataFieldTooLongException.<init>|<init>(){}[0]
 }
 
+final class io.github.smallmiro.teslable.protocol/Session : kotlin/AutoCloseable { // io.github.smallmiro.teslable.protocol/Session|null[0]
+    final val localPublicKey // io.github.smallmiro.teslable.protocol/Session.localPublicKey|{}localPublicKey[0]
+        final fun <get-localPublicKey>(): io.github.smallmiro.teslable.model/PublicKeyBytes // io.github.smallmiro.teslable.protocol/Session.localPublicKey.<get-localPublicKey>|<get-localPublicKey>(){}[0]
+    final val vehiclePublicKey // io.github.smallmiro.teslable.protocol/Session.vehiclePublicKey|{}vehiclePublicKey[0]
+        final fun <get-vehiclePublicKey>(): io.github.smallmiro.teslable.model/PublicKeyBytes // io.github.smallmiro.teslable.protocol/Session.vehiclePublicKey.<get-vehiclePublicKey>|<get-vehiclePublicKey>(){}[0]
+
+    final fun close() // io.github.smallmiro.teslable.protocol/Session.close|close(){}[0]
+    final fun decrypt(kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray): kotlin/ByteArray? // io.github.smallmiro.teslable.protocol/Session.decrypt|decrypt(kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray){}[0]
+    final fun encrypt(kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray): io.github.smallmiro.teslable.port/AesGcmOutput // io.github.smallmiro.teslable.protocol/Session.encrypt|encrypt(kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray){}[0]
+    final fun sessionInfoTag(kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray): kotlin/ByteArray // io.github.smallmiro.teslable.protocol/Session.sessionInfoTag|sessionInfoTag(kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray){}[0]
+    final fun subkey(kotlin/String): kotlin/ByteArray // io.github.smallmiro.teslable.protocol/Session.subkey|subkey(kotlin.String){}[0]
+    final fun toString(): kotlin/String // io.github.smallmiro.teslable.protocol/Session.toString|toString(){}[0]
+    final fun verifySessionInfoTag(kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray): kotlin/Boolean // io.github.smallmiro.teslable.protocol/Session.verifySessionInfoTag|verifySessionInfoTag(kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray){}[0]
+
+    final object Companion { // io.github.smallmiro.teslable.protocol/Session.Companion|null[0]
+        final const val NONCE_SIZE // io.github.smallmiro.teslable.protocol/Session.Companion.NONCE_SIZE|{}NONCE_SIZE[0]
+            final fun <get-NONCE_SIZE>(): kotlin/Int // io.github.smallmiro.teslable.protocol/Session.Companion.NONCE_SIZE.<get-NONCE_SIZE>|<get-NONCE_SIZE>(){}[0]
+
+        final fun fromSharedKey(kotlin/ByteArray, io.github.smallmiro.teslable.model/PublicKeyBytes, io.github.smallmiro.teslable.model/PublicKeyBytes, io.github.smallmiro.teslable.port/CryptoPrimitives): io.github.smallmiro.teslable.protocol/Session // io.github.smallmiro.teslable.protocol/Session.Companion.fromSharedKey|fromSharedKey(kotlin.ByteArray;io.github.smallmiro.teslable.model.PublicKeyBytes;io.github.smallmiro.teslable.model.PublicKeyBytes;io.github.smallmiro.teslable.port.CryptoPrimitives){}[0]
+        final suspend fun establish(io.github.smallmiro.teslable.port/EcdhPrivateKey, io.github.smallmiro.teslable.model/PublicKeyBytes, io.github.smallmiro.teslable.port/CryptoPrimitives): io.github.smallmiro.teslable.protocol/Session // io.github.smallmiro.teslable.protocol/Session.Companion.establish|establish(io.github.smallmiro.teslable.port.EcdhPrivateKey;io.github.smallmiro.teslable.model.PublicKeyBytes;io.github.smallmiro.teslable.port.CryptoPrimitives){}[0]
+    }
+}
+
 final class io.github.smallmiro.teslable.protocol/SlidingWindow { // io.github.smallmiro.teslable.protocol/SlidingWindow|null[0]
     constructor <init>(kotlin/Int = ...) // io.github.smallmiro.teslable.protocol/SlidingWindow.<init>|<init>(kotlin.Int){}[0]
 
@@ -5225,6 +5248,33 @@ final class io.github.smallmiro.teslable.transport/Reassembler { // io.github.sm
 
     final fun push(kotlin/ByteArray): kotlin.collections/List<kotlin/ByteArray> // io.github.smallmiro.teslable.transport/Reassembler.push|push(kotlin.ByteArray){}[0]
     final fun reset() // io.github.smallmiro.teslable.transport/Reassembler.reset|reset(){}[0]
+}
+
+final object io.github.smallmiro.teslable.protocol/CommandMetadata { // io.github.smallmiro.teslable.protocol/CommandMetadata|null[0]
+    final const val EPOCH_LENGTH_SECONDS // io.github.smallmiro.teslable.protocol/CommandMetadata.EPOCH_LENGTH_SECONDS|{}EPOCH_LENGTH_SECONDS[0]
+        final fun <get-EPOCH_LENGTH_SECONDS>(): kotlin/UInt // io.github.smallmiro.teslable.protocol/CommandMetadata.EPOCH_LENGTH_SECONDS.<get-EPOCH_LENGTH_SECONDS>|<get-EPOCH_LENGTH_SECONDS>(){}[0]
+
+    final fun build(com.tesla.generated.universalmessage/Domain, kotlin/ByteArray, kotlin/ByteArray, kotlin/UInt, kotlin/UInt, kotlin/UInt, com.tesla.generated.signatures/SignatureType = ...): io.github.smallmiro.teslable.protocol/Metadata // io.github.smallmiro.teslable.protocol/CommandMetadata.build|build(com.tesla.generated.universalmessage.Domain;kotlin.ByteArray;kotlin.ByteArray;kotlin.UInt;kotlin.UInt;kotlin.UInt;com.tesla.generated.signatures.SignatureType){}[0]
+}
+
+final object io.github.smallmiro.teslable.protocol/RequestHash { // io.github.smallmiro.teslable.protocol/RequestHash|null[0]
+    final fun of(com.tesla.generated.signatures/SignatureType, kotlin/ByteArray, com.tesla.generated.universalmessage/Domain): kotlin/ByteArray // io.github.smallmiro.teslable.protocol/RequestHash.of|of(com.tesla.generated.signatures.SignatureType;kotlin.ByteArray;com.tesla.generated.universalmessage.Domain){}[0]
+    final fun of(com.tesla.generated.universalmessage/RoutableMessage): kotlin/ByteArray? // io.github.smallmiro.teslable.protocol/RequestHash.of|of(com.tesla.generated.universalmessage.RoutableMessage){}[0]
+}
+
+final object io.github.smallmiro.teslable.protocol/ResponseMetadata { // io.github.smallmiro.teslable.protocol/ResponseMetadata|null[0]
+    final fun build(com.tesla.generated.universalmessage/Domain, kotlin/ByteArray, kotlin/UInt, kotlin/UInt, kotlin/ByteArray, kotlin/UInt): io.github.smallmiro.teslable.protocol/Metadata // io.github.smallmiro.teslable.protocol/ResponseMetadata.build|build(com.tesla.generated.universalmessage.Domain;kotlin.ByteArray;kotlin.UInt;kotlin.UInt;kotlin.ByteArray;kotlin.UInt){}[0]
+}
+
+final object io.github.smallmiro.teslable.protocol/SessionKeys { // io.github.smallmiro.teslable.protocol/SessionKeys|null[0]
+    final const val LABEL_AUTHENTICATED_COMMAND // io.github.smallmiro.teslable.protocol/SessionKeys.LABEL_AUTHENTICATED_COMMAND|{}LABEL_AUTHENTICATED_COMMAND[0]
+        final fun <get-LABEL_AUTHENTICATED_COMMAND>(): kotlin/String // io.github.smallmiro.teslable.protocol/SessionKeys.LABEL_AUTHENTICATED_COMMAND.<get-LABEL_AUTHENTICATED_COMMAND>|<get-LABEL_AUTHENTICATED_COMMAND>(){}[0]
+    final const val LABEL_SESSION_INFO // io.github.smallmiro.teslable.protocol/SessionKeys.LABEL_SESSION_INFO|{}LABEL_SESSION_INFO[0]
+        final fun <get-LABEL_SESSION_INFO>(): kotlin/String // io.github.smallmiro.teslable.protocol/SessionKeys.LABEL_SESSION_INFO.<get-LABEL_SESSION_INFO>|<get-LABEL_SESSION_INFO>(){}[0]
+    final const val SHARED_KEY_SIZE // io.github.smallmiro.teslable.protocol/SessionKeys.SHARED_KEY_SIZE|{}SHARED_KEY_SIZE[0]
+        final fun <get-SHARED_KEY_SIZE>(): kotlin/Int // io.github.smallmiro.teslable.protocol/SessionKeys.SHARED_KEY_SIZE.<get-SHARED_KEY_SIZE>|<get-SHARED_KEY_SIZE>(){}[0]
+
+    final fun deriveK(kotlin/ByteArray, io.github.smallmiro.teslable.port/CryptoPrimitives): kotlin/ByteArray // io.github.smallmiro.teslable.protocol/SessionKeys.deriveK|deriveK(kotlin.ByteArray;io.github.smallmiro.teslable.port.CryptoPrimitives){}[0]
 }
 
 final object io.github.smallmiro.teslable.transport/Framer { // io.github.smallmiro.teslable.transport/Framer|null[0]

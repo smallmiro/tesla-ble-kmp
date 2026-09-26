@@ -4617,6 +4617,13 @@ public abstract interface class io/github/smallmiro/teslable/port/RandomSource {
 	public abstract fun nextBytes (I)[B
 }
 
+public final class io/github/smallmiro/teslable/protocol/CommandMetadata {
+	public static final field EPOCH_LENGTH_SECONDS I
+	public static final field INSTANCE Lio/github/smallmiro/teslable/protocol/CommandMetadata;
+	public final fun build-ghj1vr8 (Lcom/tesla/generated/universalmessage/Domain;[B[BIIILcom/tesla/generated/signatures/SignatureType;)Lio/github/smallmiro/teslable/protocol/Metadata;
+	public static synthetic fun build-ghj1vr8$default (Lio/github/smallmiro/teslable/protocol/CommandMetadata;Lcom/tesla/generated/universalmessage/Domain;[B[BIIILcom/tesla/generated/signatures/SignatureType;ILjava/lang/Object;)Lio/github/smallmiro/teslable/protocol/Metadata;
+}
+
 public final class io/github/smallmiro/teslable/protocol/Metadata {
 	public fun <init> ()V
 	public final fun add (Lcom/tesla/generated/signatures/Tag;[B)Lio/github/smallmiro/teslable/protocol/Metadata;
@@ -4627,6 +4634,45 @@ public final class io/github/smallmiro/teslable/protocol/Metadata {
 
 public final class io/github/smallmiro/teslable/protocol/MetadataFieldTooLongException : java/lang/IllegalArgumentException {
 	public fun <init> ()V
+}
+
+public final class io/github/smallmiro/teslable/protocol/RequestHash {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/protocol/RequestHash;
+	public final fun of (Lcom/tesla/generated/signatures/SignatureType;[BLcom/tesla/generated/universalmessage/Domain;)[B
+	public final fun of (Lcom/tesla/generated/universalmessage/RoutableMessage;)[B
+}
+
+public final class io/github/smallmiro/teslable/protocol/ResponseMetadata {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/protocol/ResponseMetadata;
+	public final fun build-oecLfNU (Lcom/tesla/generated/universalmessage/Domain;[BII[BI)Lio/github/smallmiro/teslable/protocol/Metadata;
+}
+
+public final class io/github/smallmiro/teslable/protocol/Session : java/lang/AutoCloseable {
+	public static final field Companion Lio/github/smallmiro/teslable/protocol/Session$Companion;
+	public static final field NONCE_SIZE I
+	public synthetic fun <init> ([BLio/github/smallmiro/teslable/model/PublicKeyBytes;Lio/github/smallmiro/teslable/model/PublicKeyBytes;Lio/github/smallmiro/teslable/port/CryptoPrimitives;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun close ()V
+	public final fun decrypt ([B[B[B[B)[B
+	public final fun encrypt ([B[B[B)Lio/github/smallmiro/teslable/port/AesGcmOutput;
+	public final fun getLocalPublicKey ()Lio/github/smallmiro/teslable/model/PublicKeyBytes;
+	public final fun getVehiclePublicKey ()Lio/github/smallmiro/teslable/model/PublicKeyBytes;
+	public final fun sessionInfoTag ([B[B[B)[B
+	public final fun subkey (Ljava/lang/String;)[B
+	public fun toString ()Ljava/lang/String;
+	public final fun verifySessionInfoTag ([B[B[B[B)Z
+}
+
+public final class io/github/smallmiro/teslable/protocol/Session$Companion {
+	public final fun establish (Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/model/PublicKeyBytes;Lio/github/smallmiro/teslable/port/CryptoPrimitives;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun fromSharedKey ([BLio/github/smallmiro/teslable/model/PublicKeyBytes;Lio/github/smallmiro/teslable/model/PublicKeyBytes;Lio/github/smallmiro/teslable/port/CryptoPrimitives;)Lio/github/smallmiro/teslable/protocol/Session;
+}
+
+public final class io/github/smallmiro/teslable/protocol/SessionKeys {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/protocol/SessionKeys;
+	public static final field LABEL_AUTHENTICATED_COMMAND Ljava/lang/String;
+	public static final field LABEL_SESSION_INFO Ljava/lang/String;
+	public static final field SHARED_KEY_SIZE I
+	public final fun deriveK ([BLio/github/smallmiro/teslable/port/CryptoPrimitives;)[B
 }
 
 public final class io/github/smallmiro/teslable/protocol/SlidingWindow {
