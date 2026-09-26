@@ -90,7 +90,7 @@ Go SDK의 BLE 경로(`pkg/connector/ble` → `internal/dispatcher` → `internal
 | `pkg/vehicle/vcsec.go`, `security.go`(VCSEC 부분), `state.go`(`BodyControllerState`) | ~450 | `:application` `vcsec/VcsecCommands.kt`, `vcsec/VcsecResponses.kt`, `keys/KeyManagement.kt`, `pairing/Pairing.kt` | `unmarshalVCSECResponse`, `readUntil`, 종료 판정, `addKeyPayload`, `SendAddKeyRequestWithRole` |
 | `pkg/vehicle/infotainment.go`, `climate.go`, `charge.go`, `actions.go`, `security.go`(INFO 부분), `state.go`(`GetState`) | ~1,200 | `:application` `infotainment/*.kt` (영역별 파일) | `getCarServerResponse`, 명령별 `Action` 조립 |
 | `pkg/cache/cache.go`, `session.go` `CacheEntry` | 113+ | `:domain` `port/SessionCache.kt`, `cache/CachedSession.kt` + `:adapter-storage` | 포맷은 자체(D26) |
-| `internal/authentication/verifier.go` | 328 | `:testing` `FakeVehicle.kt` | 차량 측 검증·응답 암호화 재현 |
+| `internal/authentication/verifier.go` | 328 | `:testing` `TestVerifier.kt`(M1, GCM 경로만), `FakeVehicle.kt`(M2, 도메인마다 `TestVerifier` 하나를 감싼다) | 차량 측 검증·응답 암호화 재현 |
 | `pkg/protocol/protobuf/*.proto` | 1,930 | `:domain` `src/commonMain/proto/` (복사본, 무수정) | Wire 입력. 파일 헤더에 출처 커밋 표기 |
 
 ---
@@ -119,17 +119,35 @@ public class Epoch(bytes: ByteArray)                    // 16바이트
 public class Metadata { fun add(tag: Tag, value: ByteArray?): Metadata; fun addUint32(tag, value: UInt); fun serialize(message: ByteArray = EMPTY): ByteArray }
 public object SessionKeys { fun deriveK(sharedX: ByteArray, crypto: CryptoPrimitives): ByteArray /* SHA1(x)[:16] */; fun subkey(k, label) }
 public class Session(k: ByteArray, val localPublic: PublicKeyBytes, val vehiclePublic: PublicKeyBytes) : AutoCloseable  // K 보관, close()에서 0으로 덮음
-public class Signer(session, vin, epoch, counter, timeZero, setTime, clock)  // signer.go 1:1
-    fun encrypt(message: RoutableMessage, expiresIn: Duration): RoutableMessage   // counter++, 롤오버 검사
-    fun decrypt(message: RoutableMessage, requestHash: ByteArray): Pair<RoutableMessage, UInt>
-    fun updateSignedSessionInfo(challenge, encodedInfo, tag): Result
-    fun exportSessionInfo(): ByteArray;  companion fun importSessionInfo(...)
+public class Signer private constructor(session, vin: Vin, epoch, counter, clockTime, crypto, random, timeSource, age = Duration.ZERO) : AutoCloseable {
+    // signer.go 1:1. 시계는 kotlin.time.TimeSource 주입(M0 Reassembler와 동일), 벽시계 없음
+    public val vin: Vin; public val vehiclePublicKey: PublicKeyBytes; public val localPublicKey: PublicKeyBytes
+    public val counter: UInt; public val epoch: ByteArray
+    public fun timestamp(): UInt                                                          // Go timestamp(): 차량 시계 기준 현재 초
+    public fun updateSessionInfo(info: SessionInfo): SignerResult<Unit>
+    public fun updateSignedSessionInfo(challenge: ByteArray, encodedInfo: ByteArray, tag: ByteArray): SignerResult<Unit>
+    public fun exportSessionInfo(): ByteArray
+    public fun encrypt(message: RoutableMessage, expiresIn: Duration): SignerResult<RoutableMessage>       // counter++, 롤오버 검사, nonce = random(12)
+    public fun decrypt(message: RoutableMessage, requestHash: ByteArray): SignerResult<DecryptedResponse>  // DecryptedResponse(평문 message, counter)
+    override fun close()                                                                  // 세션 키를 0으로 덮음
+    public companion object {
+        public suspend fun create(privateKey, vin, info: SessionInfo, crypto, random, timeSource = TimeSource.Monotonic): SignerResult<Signer>
+        public suspend fun createAuthenticated(privateKey, vin, challenge, encodedInfo, tag, crypto, random, timeSource = TimeSource.Monotonic): SignerResult<Signer>
+        public suspend fun importSessionInfo(privateKey, vin, encodedInfo, age: Duration, crypto, random, timeSource = TimeSource.Monotonic): SignerResult<Signer>
+    }
+}
+public sealed interface SignerResult<out T> {             // Go authentication.Error
+    public data class Ok<T>(val value: T) : SignerResult<T>
+    public data class Fault(val fault: MessageFault_E, val detail: String) : SignerResult<Nothing>
+}
 public object RequestHash { fun of(message: RoutableMessage): ByteArray? }   // peer.go RequestID
 public class SlidingWindow(size = 32) { fun update(counter: UInt): Boolean }
 public object Framer { fun frame(message: ByteArray, blockLength: Int): List<ByteArray> }
-public class Reassembler(clock: Clock, rxTimeout = 1.seconds, maxMessage = 1024) { fun push(chunk): List<ByteArray>; fun reset() }
-public object ResponseClassifier { fun protocolError(msg: RoutableMessage): VehicleError? /* GetError */ ; fun shouldRetry(e): Boolean }
+public class Reassembler(timeSource: TimeSource = TimeSource.Monotonic, rxTimeout = 1.seconds, maxMessageSize = 1024) { fun push(chunk): List<ByteArray>; fun reset() }
+public object ResponseClassifier { fun protocolError(msg: RoutableMessage): VehicleError? /* GetError */ }   // shouldRetry는 VehicleError.shouldRetry() 확장으로 옮김
 ```
+
+`Session`의 `NONCE_SIZE`는 공개(호출자가 매 호출마다 새 nonce를 만들어 넘긴다, ADR-0008), `TAG_SIZE`는 비공개다(태그 길이는 와이어 입력 검증의 내부 규칙이지 호출자가 다룰 값이 아니다).
 
 **결과와 에러** (D20)
 
@@ -165,7 +183,9 @@ public interface VehicleKey : EcdhPrivateKey { public val alias: String; public 
 public interface VehicleKeyStore { suspend fun getOrCreate(alias, policy: KeyPolicy = PreferHardware): VehicleKey; suspend fun get(alias): VehicleKey?; suspend fun delete(alias) }
 public interface CryptoPrimitives { fun sha1(d); fun sha256(d); fun hmacSha256(key, d); fun aesGcmEncrypt(key, nonce, plaintext, aad): AesGcmOutput; fun aesGcmDecrypt(...): ByteArray?; fun constantTimeEquals(a, b): Boolean }
 public interface RandomSource { fun nextBytes(n: Int): ByteArray }
-public interface Clock { fun now(): Instant /* 단조 시계 우선 */ }
+// 시계: kotlin.time.TimeSource를 주입한다(Reassembler, Signer, TestVerifier). 벽시계는 세션 캐시(M2 :adapter-storage)의
+// createdAt에서만 쓰고 age: Duration으로 변환해 넘긴다. age가 음수면(벽시계가 뒤로 감) 캐시가 0으로 자르거나 버린다 —
+// Signer.importSessionInfo는 age >= 0을 요구한다(Go보다 엄격).
 public interface SessionCache { suspend fun load(vin: Vin, keyId: KeyId): List<CachedSession>; suspend fun store(vin, keyId, entries); suspend fun clear(vin) }
 public interface TeslaLogger { fun log(level: LogLevel, tag: String, message: () -> String) }   // 기본 NoOp
 ```
@@ -546,11 +566,12 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 
 ### 9.3 FakeVehicle (`:testing`)
 
-`verifier.go`와 `dispatcher_test.go`의 `dummyConnector`를 합친 결정적 시뮬레이터.
+`verifier.go`와 `dispatcher_test.go`의 `dummyConnector`를 합친 결정적 시뮬레이터. 도메인(VCSEC/INFOTAINMENT)마다
+`:testing`의 `TestVerifier.kt`를 하나씩 감싸 verifier.go의 GCM 경로를 재사용한다(M1에서 이미 구현·검증됨).
 
 ```
 FakeVehicle(vin, clock: TestClock, random: FixedRandom, crypto)
-  domains: VCSEC, INFOTAINMENT 각각 { key: SoftwareEcdhKey, epoch, counter, timeZero, window, whitelist }
+  domains: VCSEC, INFOTAINMENT 각각 { verifier: TestVerifier, whitelist }
   transport(): FakeTransport   // Transport 구현. send(bytes) → 프레이밍 없이 RoutableMessage 파싱 → handle → incoming으로 응답
   handle(msg):
     session_info_request → SignedSessionInfo(challenge=msg.uuid) (verifier.go SetSessionInfo)
@@ -572,19 +593,20 @@ FakeVehicle(vin, clock: TestClock, random: FixedRandom, crypto)
 
 ### 9.4 Go 클라이언트 측 테스트 포팅 목록
 
-| 마일스톤 | 원본 | 포팅 대상 |
-|---|---|---|
-| M1 | `metadata_test.go` | `TestOutOfOrder`, `TestValueTooLong`, `TestCheckSum`, `TestHash512CheckSum`(HMAC 컨텍스트 = 우리는 `serialize` 후 HMAC) |
-| M1 | `window_test.go` | `TestSlidingWindow` |
-| M1 | `signer_test.go` | `TestUpdateSessionInfo`, `TestBadSessionInfoProto`, `TestBadSessionInfoTag`, `TestUpdateSessionInfoBadChallenge`, `…BadCounter`, `…BadEpoch`, `…BadPublicKey`, `TestRemotePublicKey`, `TestUpdateInvalidSessionInfo`, `TestSignerCounterRollover`, `TestNewAuthenticatedSigner`, `TestSetSessionInfo`, `TestExportImport`, `TestImportWrongTime`, `TestInvalidExpirationTime` (15개) |
-| M1 | `peer_test.go` | `TestRequestID` |
-| M1 | `protocol_doc_test.go` | `TestProtocolDocAESGCMExample` |
-| M1 | `native_test.go` | `TestSharedSecretPadding`(X 좌표 0-패딩), `TestLocalPublicBytes` |
-| M1 | `pkg/protocol/error_test.go` | `TestWrappedErrorClassification`, `TestRetriableError` |
-| M2 | `verifier_test.go` 중 클라이언트 의미가 있는 것 | `TestGCMWindow`, `TestGCMOutOfOrderMessage`, `TestGCMFlags`, `TestEpochChange`, `TestGCMExpired`, `TestGCMInvalidEpoch`, `TestGCMCorruptedCiphertext`, `TestVerifierEncryption` — FakeVehicle 동작 검증용 |
-| M2 | `dispatcher_test.go` | 20개 전부 (`TestSendWithoutSession` … `TestCache`) |
-| M2 | `pkg/vehicle/vehicle_test.go`, `vcsec_test.go`, `security_test.go` | `TestVehicle*` 8개, `TestNominalVSCECError`, `TestGibberishVCSECResponse`, `TestWhitelistOperationError`, `TestValidPIN` |
-| M2 | `pkg/cache/cache_test.go` | `TestImportExport`(자체 포맷), `TestEviction`은 해당 없음(VIN당 1파일) |
+| 마일스톤 | 원본 | 포팅 대상 (Go) | Kotlin (완료) |
+|---|---|---|---|
+| M1 | `metadata_test.go` | `TestOutOfOrder`, `TestValueTooLong`, `TestCheckSum`, `TestHash512CheckSum`(HMAC 컨텍스트 = 우리는 `serialize` 후 HMAC이라 별도 이식 없음) | **완료 — M0.** `MetadataTest.rejectsOutOfOrderTags`, `.rejectsValueLongerThan255`, `.sha256ChecksumMatchesGoTestVector` |
+| M1 | `window_test.go` | `TestSlidingWindow` | **완료 — M0.** `SlidingWindowTest.matchesGoWindowTable`(+ 경계값 테스트 4개) |
+| M1 | `signer_test.go` | `TestUpdateSessionInfo`, `TestBadSessionInfoProto`, `TestBadSessionInfoTag`, `TestUpdateSessionInfoBadChallenge`, `…BadCounter`, `…BadEpoch`, `…BadPublicKey`, `TestRemotePublicKey`, `TestUpdateInvalidSessionInfo`, `TestSignerCounterRollover`, `TestNewAuthenticatedSigner`, `TestSetSessionInfo`, `TestExportImport`, `TestImportWrongTime`, `TestInvalidExpirationTime` (15개) | **완료 — M1.** `SignerTest`: `.acceptsValidSignedSessionInfo`(`TestUpdateSessionInfo`), `.rejectsTamperedSessionInfoProto`(`…BadSessionInfoProto`), `.rejectsTamperedTagAndChallenge`(`…BadSessionInfoTag`+`…BadChallenge`), `.rejectsReencodedCounterAndEpoch`(`…BadCounter`+`…BadEpoch`), `.rejectsImposterVehicleKey`(`…BadPublicKey`), `.exposesVehiclePublicKey`(`TestRemotePublicKey`), `.authenticatedCreationChecksProtoThenTag`(`TestNewAuthenticatedSigner`), `.acceptsSessionInfoAttachedToMessage`(`TestSetSessionInfo`), `.exportRoundTripsThroughImportWithAge`(`TestExportImport` 상태 부분). `SignerCryptoTest`: `.staleSessionInfoDoesNotRollBackVerifier`(`TestUpdateInvalidSessionInfo`), `.refusesToEncryptAfterCounterRollover`(`TestSignerCounterRollover`), `.exportedSessionResumesAfterThirtyMinutes`(`TestExportImport` 암복호화 부분), `.importWithWrongAgeExpiresImmediately`(`TestImportWrongTime`), `.rejectsExpirationBeyondEpochLength`(`TestInvalidExpirationTime` — BLE는 `AuthorizeHMAC`을 쓰지 않으므로(D6) `encrypt`로 같은 경계를 검증) |
+| M1 | `peer_test.go` | `TestRequestID` | **완료 — M0.** `RequestHashTest.truncatesHmacTagTo16BytesForVcsec` |
+| M1 | `protocol_doc_test.go` | `TestProtocolDocAESGCMExample` | **완료 — M0(`Session.encrypt`) + M1(`Signer.encrypt`).** `ProtocolVectorTest.encryptsHvacOnLikeProtocolDoc`, `SignerCryptoTest.reproducesProtocolDocHvacVector` |
+| M1 | `native_test.go` | `TestSharedSecretPadding`(X 좌표 0-패딩), `TestLocalPublicBytes` | **완료 — M0에 작성, M1(PR #19)에서 서로 맞물리는 키 쌍으로 교체.** `:adapter-crypto` `SoftwareEcdhKeyTest.sharedXIsZeroPaddedTo32Bytes`; `SignerTest.exposesVehiclePublicKey` |
+| M1 | `pkg/protocol/error.go`(`GetError`), `error_test.go` | `TestWrappedErrorClassification`, `TestRetriableError` | **완료 — M1.** `VehicleErrorTest.shouldRetryIsFalseWhenCommandMayHaveSucceeded`, `.classifiesEveryMessageFaultLikeGo`, `.messagesAreEnglishAndCarryCodes`(D19). `ResponseClassifierTest`(9개)는 같은 `GetError`를 이식하며, Go에는 없는 Wire `unknownFields`(모르는 enum 값) 분류를 추가로 검증한다(`unknownFaultBecomesUnknownResponse` 등 — SDD §12) |
+| M1 | `verifier_test.go`(GCM 경로만) | `TestGCMKnown` | **완료 — M1.** `TestVerifierTest.decryptsMessageProducedByGoSigner`(`GoVectors` 상수로 재현) |
+| M2 | `verifier_test.go` 중 클라이언트 의미가 있는 것(FakeVehicle을 통해 검증) | `TestGCMWindow`, `TestGCMOutOfOrderMessage`, `TestGCMFlags`, `TestEpochChange`, `TestGCMExpired`, `TestGCMInvalidEpoch`, `TestGCMCorruptedCiphertext`, `TestVerifierEncryption` — FakeVehicle 동작 검증용 | – |
+| M2 | `dispatcher_test.go` | 20개 전부 (`TestSendWithoutSession` … `TestCache`) | – |
+| M2 | `pkg/vehicle/vehicle_test.go`, `vcsec_test.go`, `security_test.go` | `TestVehicle*` 8개, `TestNominalVSCECError`, `TestGibberishVCSECResponse`, `TestWhitelistOperationError`, `TestValidPIN` | – |
+| M2 | `pkg/cache/cache_test.go` | `TestImportExport`(자체 포맷), `TestEviction`은 해당 없음(VIN당 1파일) | – |
 
 ### 9.5 어댑터 통합 테스트 (수동·야간)
 
@@ -640,3 +662,9 @@ HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 
 ### 원본과 다른 동작 (의도)
 
 - `Framer.frame`는 1024바이트를 넘는 메시지를 `IllegalArgumentException`으로 거부한다. Go `Connection.Send`(`pkg/connector/ble/ble.go`)는 검사하지 않지만 차량이 1024바이트 초과 메시지를 버리므로(`maxBLEMessageSize`) 정상 입력의 wire 바이트는 동일하다. 근거: NFR-017, 최종 리뷰 M-5.
+- `Signer.encrypt`는 `expiresIn`으로 계산한 만료 초가 음수이거나 2^30(`CommandMetadata.EPOCH_LENGTH_SECONDS`)을 넘으면 `BAD_PARAMETER`로 거부한다. Go는 먼저 `uint32`로 잘라서 2^32 이상이면 wrap된 값으로 검사한다. 정상 수명에서는 도달 불가.
+- `Signer.decrypt`의 인증 실패는 `SignerResult.Fault(INVALID_SIGNATURE)`다. Go는 AEAD 오류를 그대로 돌려준다(둘 다 드롭 대상이라는 결과는 같다).
+- `ResponseClassifier`는 Wire가 모르는 enum 값(`unknownFields`)을 `VehicleError.UnknownResponse`로 분류해 Go `GetError`의 `default:` 분기와 같은 분류(temporary=false, mayHaveSucceeded=false)를 따르되, 모르는 fault의 원시 코드는 싣지 않는다(Go는 `RoutableMessageError{Code}`로 코드를 보존한다).
+- `Signer.createAuthenticated`는 태그 검증이 실패하거나 예외가 나면 세션 키를 0으로 지운다(Go는 GC에 맡긴다). `Signer.importSessionInfo`는 음수 `age`를 거부한다(Go는 미래의 `generatedAt`을 허용한다).
+- `Signer.decrypt`는 nonce·태그 길이가 틀린 응답을 `Fault(INVALID_SIGNATURE)`로 돌려준다(M0 `Session.decrypt`가 null을 돌려주기 때문). Go `gcm.Open`은 nonce 길이가 틀리면 panic한다.
+- Wire는 모르는 enum 값을 기본값(fault NONE, domain null→BROADCAST)으로 디코딩하므로, 새 펌웨어가 모르는 fault 코드나 도메인을 실은 **암호화 응답**은 응답 AAD가 달라져 `INVALID_SIGNATURE`로 드롭된다. Go는 원시 uint32를 써서 복호화한다. M2에서 응답 메타데이터를 만들 때 `unknownFields`의 원시 값을 쓰도록 보완한다(인계 노트에도 기록).
