@@ -1,0 +1,14 @@
+# PROTO_SOURCE
+
+Copied without modification from teslamotors/vehicle-command@a4b43c1eff0e09d77deb9f2dce97031141fe8c8a pkg/protocol/protobuf/ (Apache-2.0).
+Regenerate with tools/proto/sync-protos.sh. Do not edit these files.
+
+c4c7815da826bb7b6139b5bc19ebecf927e216b44ed3cdee1e2a5b9923ca2dcb  ./car_server.proto
+b4f2c4eef5344bd620e2e6185e71ca8dff2eba195fda97f5eda0b263029c23ca  ./common.proto
+2fb79b0867c9e3b33b55879478741561ddc9de030c68bdb075206f2ee443d932  ./errors.proto
+1628c14e1779cd6cf6a87dcceb79f4f7152ec5067d402fbc4990c45b78241b80  ./keys.proto
+87c96a0dbff365e516a00c03f2f523c03e69bec5e15d6d62add350d590e1fa05  ./managed_charging.proto
+84b16dc0ea5e4334ae4387e6aaadf443dc39005ec702a920976e2e95a914dcab  ./signatures.proto
+110ac4372e3ebdfe94191de857832302d75717fc105820b9f391dbc68e31979f  ./universal_message.proto
+3825cd6a149880ef3d833e928c5efced93e62a98a788773cfc5a51bb7feaf323  ./vcsec.proto
+dd9d05478495af3fa4810e57c80c4236dbe8e45ba3e051d8716f1a3fd3fad9a8  ./vehicle.proto
