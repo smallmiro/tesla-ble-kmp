@@ -21,7 +21,8 @@ Swift에서는 SKIE가 `enum`으로 노출한다(`switch result { case .success(
 | `ProtocolFault(fault)` | 차량이 `MessageFault` 코드를 보냄 | BUSY, TIMEOUT, INVALID_SIGNATURE, INVALID_TOKEN_OR_COUNTER, INTERNAL, INCORRECT_EPOCH, TIME_EXPIRED, TIME_TO_LIVE_TOO_LONG만 true | NONE, RESPONSE_MTU_EXCEEDED만 true |
 | `KeyNotPaired` | `UNKNOWN_KEY_ID` 또는 session_info `KEY_NOT_ON_WHITELIST` | false | false |
 | `Busy` | `operation_status WAIT` | true | false |
-| `UnknownResponse` | 인식할 수 없는 상태 코드 | false | false |
+| `UnknownFault(rawCode)` | 차량이 이 라이브러리가 모르는 `MessageFault` 코드를 보냄(더 새 펌웨어). `message`는 `"unrecognized error code <rawCode>"` — 라이브러리 업데이트를 확인한다 | false | false |
+| `UnknownResponse` | 인식할 수 없는 `session_info.status`·`operation_status` 값(코드 없음) | false | false |
 | `NotConnected`, `NoSession`, `RequiresKey` | 호출 순서 오류 | false | false |
 | `BadResponse(detail)` | 응답 파싱 실패 | false | VCSEC 응답이면 true |
 | `KeychainRejected(code)` | 키 추가·삭제 거부 | false | false |

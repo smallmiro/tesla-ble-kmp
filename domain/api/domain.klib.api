@@ -1071,6 +1071,25 @@ sealed interface io.github.smallmiro.teslable.model/VehicleError { // io.github.
         final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.Timeout.toString|toString(){}[0]
     }
 
+    final class UnknownFault : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.UnknownFault|null[0]
+        constructor <init>(kotlin/Int) // io.github.smallmiro.teslable.model/VehicleError.UnknownFault.<init>|<init>(kotlin.Int){}[0]
+
+        final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.UnknownFault.mayHaveSucceeded|{}mayHaveSucceeded[0]
+            final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.UnknownFault.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+        final val message // io.github.smallmiro.teslable.model/VehicleError.UnknownFault.message|{}message[0]
+            final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.UnknownFault.message.<get-message>|<get-message>(){}[0]
+        final val rawCode // io.github.smallmiro.teslable.model/VehicleError.UnknownFault.rawCode|{}rawCode[0]
+            final fun <get-rawCode>(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.UnknownFault.rawCode.<get-rawCode>|<get-rawCode>(){}[0]
+        final val temporary // io.github.smallmiro.teslable.model/VehicleError.UnknownFault.temporary|{}temporary[0]
+            final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.UnknownFault.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+        final fun component1(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.UnknownFault.component1|component1(){}[0]
+        final fun copy(kotlin/Int = ...): io.github.smallmiro.teslable.model/VehicleError.UnknownFault // io.github.smallmiro.teslable.model/VehicleError.UnknownFault.copy|copy(kotlin.Int){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.UnknownFault.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.UnknownFault.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.UnknownFault.toString|toString(){}[0]
+    }
+
     final class VcsecRejected : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected|null[0]
         constructor <init>(com.tesla.generated.errors/GenericError_E) // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected.<init>|<init>(com.tesla.generated.errors.GenericError_E){}[0]
 

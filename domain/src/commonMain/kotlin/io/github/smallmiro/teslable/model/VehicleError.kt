@@ -46,7 +46,17 @@ public sealed interface VehicleError {
         override val temporary: Boolean = true
     }
 
-    /** 인식할 수 없는 상태 코드. Go `ErrUnknown`. */
+    /** 이 라이브러리의 proto 스냅샷에 없는 `signed_message_fault` 코드. Go `RoutableMessageError{Code}`(등록되지 않은 코드). */
+    public data class UnknownFault(
+        /** 차량이 보낸 `MessageFault_E` 원시 varint(이 라이브러리의 proto 스냅샷보다 새 펌웨어). */
+        public val rawCode: Int,
+    ) : VehicleError {
+        override val message: String get() = "unrecognized error code $rawCode"
+        override val mayHaveSucceeded: Boolean get() = false
+        override val temporary: Boolean get() = false
+    }
+
+    /** 인식할 수 없는 `session_info.status` 또는 `operation_status`(코드 없음). Go `ErrUnknown`. */
     public data object UnknownResponse : VehicleError {
         override val message: String = "vehicle responded with an unrecognized status code"
         override val mayHaveSucceeded: Boolean = false

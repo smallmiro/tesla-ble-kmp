@@ -67,6 +67,17 @@ class VehicleErrorTest {
     }
 
     @Test
+    fun unknownFaultCarriesRawCodeLikeGo() { // error.go RoutableMessageError{Code}: proto에 없는 코드
+        val error = VehicleError.UnknownFault(99)
+        assertEquals(99, error.rawCode)
+        assertEquals("unrecognized error code 99", error.message) // error.go 229
+        assertFalse(error.temporary)
+        assertFalse(error.mayHaveSucceeded)
+        assertFalse(error.shouldRetry())
+        assertIs<VehicleResult.Failure>(error.toResult())
+    }
+
+    @Test
     fun protocolFaultAndSentinelsNeverRetryTwice() {
         assertFalse(VehicleError.ProtocolFault(MessageFault_E.MESSAGEFAULT_ERROR_RESPONSE_MTU_EXCEEDED).shouldRetry())
         assertFalse(VehicleError.KeyNotPaired.shouldRetry())

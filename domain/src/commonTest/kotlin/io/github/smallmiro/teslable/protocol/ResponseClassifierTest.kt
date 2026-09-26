@@ -7,11 +7,14 @@ import com.tesla.generated.universalmessage.MessageStatus
 import com.tesla.generated.universalmessage.OperationStatus_E
 import com.tesla.generated.universalmessage.RoutableMessage
 import io.github.smallmiro.teslable.model.VehicleError
+import io.github.smallmiro.teslable.model.shouldRetry
 import okio.ByteString.Companion.decodeHex
 import okio.ByteString.Companion.toByteString
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 
 class ResponseClassifierTest {
@@ -70,11 +73,20 @@ class ResponseClassifierTest {
     // 아래 네 테스트는 Go GetError의 `default: ErrUnknown` 분기를 원시 바이트로 재현한다.
 
     @Test
-    fun unknownFaultBecomesUnknownResponse() {
+    fun unknownFaultCarriesRawCodeAsUnknownFault() { // error.go GetError 241: &RoutableMessageError{Code: fault}
         // tag=2(signed_message_fault, varint) value=99: 0x10 0x63
         val unknownFault = MessageStatus.ADAPTER.decode("1063".decodeHex())
-        val message = RoutableMessage(signedMessageStatus = unknownFault)
-        assertEquals(VehicleError.UnknownResponse, ResponseClassifier.protocolError(message))
+        val error = assertNotNull(ResponseClassifier.protocolError(RoutableMessage(signedMessageStatus = unknownFault)))
+        assertEquals(VehicleError.UnknownFault(99), error)
+        // error.go 225~230 RoutableMessageError.Error(): 등록되지 않은 코드 → "unrecognized error code %d"
+        assertEquals("unrecognized error code 99", error.message)
+        // Temporary(): retriableErrors에 없음. MayHaveSucceeded(): NONE·RESPONSE_MTU_EXCEEDED가 아님.
+        assertFalse(error.temporary)
+        assertFalse(error.mayHaveSucceeded)
+        assertFalse(error.shouldRetry())
+        // 여러 바이트 varint: 300 = 0xAC 0x02
+        val wide = MessageStatus.ADAPTER.decode("10ac02".decodeHex())
+        assertEquals(VehicleError.UnknownFault(300), ResponseClassifier.protocolError(RoutableMessage(signedMessageStatus = wide)))
     }
 
     @Test

@@ -421,7 +421,8 @@ public data class ProtocolFault(val fault: MessageFault) : VehicleError
         // mayHaveSucceeded = fault in {NONE, RESPONSE_MTU_EXCEEDED}
 public object KeyNotPaired : VehicleError                 // UNKNOWN_KEY_ID 또는 SessionInfo.status KEY_NOT_ON_WHITELIST
 public object Busy : VehicleError                          // operation_status WAIT / VCSEC commandStatus WAIT  (temporary)
-public object UnknownResponse : VehicleError               // ErrUnknown
+public data class UnknownFault(val rawCode: Int) : VehicleError  // 모르는 signed_message_fault: RoutableMessageError{Code}, "unrecognized error code N"
+public object UnknownResponse : VehicleError               // ErrUnknown: 모르는 session_info.status·operation_status (코드 없음)
 public object NotConnected, NoSession, RequiresKey : VehicleError
 public data class BadResponse(val detail: String) : VehicleError   // 파싱 실패. VCSEC 응답 파싱 실패는 mayHaveSucceeded = true (Go vcsec.go)
 // 애플리케이션 계층
@@ -601,7 +602,7 @@ FakeVehicle(vin, clock: TestClock, random: FixedRandom, crypto)
 | M1 | `peer_test.go` | `TestRequestID` | **완료 — M0.** `RequestHashTest.truncatesHmacTagTo16BytesForVcsec` |
 | M1 | `protocol_doc_test.go` | `TestProtocolDocAESGCMExample` | **완료 — M0(`Session.encrypt`) + M1(`Signer.encrypt`).** `ProtocolVectorTest.encryptsHvacOnLikeProtocolDoc`, `SignerCryptoTest.reproducesProtocolDocHvacVector` |
 | M1 | `native_test.go` | `TestSharedSecretPadding`(X 좌표 0-패딩), `TestLocalPublicBytes` | **완료 — M0에 작성, M1(PR #19)에서 서로 맞물리는 키 쌍으로 교체.** `:adapter-crypto` `SoftwareEcdhKeyTest.sharedXIsZeroPaddedTo32Bytes`; `SignerTest.exposesVehiclePublicKey` |
-| M1 | `pkg/protocol/error.go`(`GetError`), `error_test.go` | `TestWrappedErrorClassification`, `TestRetriableError` | **완료 — M1.** `VehicleErrorTest.shouldRetryIsFalseWhenCommandMayHaveSucceeded`, `.classifiesEveryMessageFaultLikeGo`, `.messagesAreEnglishAndCarryCodes`(D19). `ResponseClassifierTest`(9개)는 같은 `GetError`를 이식하며, Go에는 없는 Wire `unknownFields`(모르는 enum 값) 분류를 추가로 검증한다(`unknownFaultBecomesUnknownResponse` 등 — SDD §12) |
+| M1 | `pkg/protocol/error.go`(`GetError`), `error_test.go` | `TestWrappedErrorClassification`, `TestRetriableError` | **완료 — M1.** `VehicleErrorTest.shouldRetryIsFalseWhenCommandMayHaveSucceeded`, `.classifiesEveryMessageFaultLikeGo`, `.messagesAreEnglishAndCarryCodes`(D19), `.unknownFaultCarriesRawCodeLikeGo`(`RoutableMessageError.Error()`의 미등록 코드). `ResponseClassifierTest`(9개)는 같은 `GetError`를 이식하며, Go에는 없는 Wire `unknownFields`(모르는 enum 값) 분류를 추가로 검증한다(`unknownFaultCarriesRawCodeAsUnknownFault` 등 — SDD §12) |
 | M1 | `verifier_test.go`(GCM 경로만) | `TestGCMKnown` | **완료 — M1.** `TestVerifierTest.decryptsMessageProducedByGoSigner`(`GoVectors` 상수로 재현) |
 | M2 | `verifier_test.go` 중 클라이언트 의미가 있는 것(FakeVehicle을 통해 검증) | `TestGCMWindow`, `TestGCMOutOfOrderMessage`, `TestGCMFlags`, `TestEpochChange`, `TestGCMExpired`, `TestGCMInvalidEpoch`, `TestGCMCorruptedCiphertext`, `TestVerifierEncryption` — FakeVehicle 동작 검증용 | – |
 | M2 | `dispatcher_test.go` | 20개 전부 (`TestSendWithoutSession` … `TestCache`) | – |
@@ -664,7 +665,7 @@ HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 
 - `Framer.frame`는 1024바이트를 넘는 메시지를 `IllegalArgumentException`으로 거부한다. Go `Connection.Send`(`pkg/connector/ble/ble.go`)는 검사하지 않지만 차량이 1024바이트 초과 메시지를 버리므로(`maxBLEMessageSize`) 정상 입력의 wire 바이트는 동일하다. 근거: NFR-017, 최종 리뷰 M-5.
 - `Signer.encrypt`는 `expiresIn`으로 계산한 만료 초가 음수이거나 2^30(`CommandMetadata.EPOCH_LENGTH_SECONDS`)을 넘으면 `BAD_PARAMETER`로 거부한다. Go는 먼저 `uint32`로 잘라서 2^32 이상이면 wrap된 값으로 검사한다. 정상 수명에서는 도달 불가.
 - `Signer.decrypt`의 인증 실패는 `SignerResult.Fault(INVALID_SIGNATURE)`다. Go는 AEAD 오류를 그대로 돌려준다(둘 다 드롭 대상이라는 결과는 같다).
-- `ResponseClassifier`는 Wire가 모르는 enum 값(`unknownFields`)을 `VehicleError.UnknownResponse`로 분류해 Go `GetError`의 `default:` 분기와 같은 분류(temporary=false, mayHaveSucceeded=false)를 따르되, 모르는 fault의 원시 코드는 싣지 않는다(Go는 `RoutableMessageError{Code}`로 코드를 보존한다).
+- `ResponseClassifier`는 Wire가 모르는 enum 값(`unknownFields`)을 찾아 Go `GetError`와 같은 분류(temporary=false, mayHaveSucceeded=false)를 따른다. 모르는 fault는 `UnknownFault(rawCode)`로 코드를 보존한다(Go `RoutableMessageError{Code}`와 같음); 모르는 session_info status·operation_status는 `UnknownResponse`(Go `ErrUnknown`).
 - `Signer.createAuthenticated`는 태그 검증이 실패하거나 예외가 나면 세션 키를 0으로 지운다(Go는 GC에 맡긴다). `Signer.importSessionInfo`는 음수 `age`를 거부한다(Go는 미래의 `generatedAt`을 허용한다).
 - `Signer.decrypt`는 nonce·태그 길이가 틀린 응답을 `Fault(INVALID_SIGNATURE)`로 돌려준다(M0 `Session.decrypt`가 null을 돌려주기 때문). Go `gcm.Open`은 nonce 길이가 틀리면 panic한다.
 - Wire는 모르는 enum 값을 기본값(fault NONE, domain null→BROADCAST)으로 디코딩하므로, 새 펌웨어가 모르는 fault 코드나 도메인을 실은 **암호화 응답**은 응답 AAD가 달라져 `INVALID_SIGNATURE`로 드롭된다. Go는 원시 uint32를 써서 복호화한다. M2에서 응답 메타데이터를 만들 때 `unknownFields`의 원시 값을 쓰도록 보완한다(인계 노트에도 기록).
