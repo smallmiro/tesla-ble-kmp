@@ -40,7 +40,7 @@ M0 골격이 `main`에 있습니다 — 라이브러리 모듈 7개 + 샘플 앱
 - `:application` Dispatcher, Vehicle 유스케이스
 - `:adapter-ble` Kable · `:adapter-crypto` Android Keystore / iOS Security.framework · `:adapter-storage` 세션 캐시
 - `:sdk` 공개 파사드 (`suspend` + `Flow`, iOS는 SKIE로 Swift async/await)
-- `:testing` 테스트 픽스처 (protocol.md 벡터, FakeVehicle 등, 테스트 소스셋 전용)
+- `:testing` 테스트 픽스처 (`protocol.md` 벡터, `FixedRandom`, `TestCrypto`, 테스트 소스셋 전용)
 - `samples/android` (Compose), `samples/ios` (SwiftUI, XcodeGen)
 
 패키지 루트: `io.github.smallmiro.teslable`. 최소 지원: Android API 31, iOS 16.
