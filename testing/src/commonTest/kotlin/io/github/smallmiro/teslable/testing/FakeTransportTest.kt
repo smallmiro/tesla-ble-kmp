@@ -67,6 +67,21 @@ class FakeTransportTest {
         }
 
     @Test
+    fun ackFailureTakesPrecedenceAndKeepsQueuedError() =
+        runTest {
+            // dummyConnector.Send: !d.AckRequests를 errorQueue보다 먼저 검사하고, 이때 errorQueue는 소비하지 않는다
+            val transport = FakeTransport()
+            transport.ackRequests = false
+            transport.enqueueSendError(VehicleError.TransportError.WriteFailed("gatt"))
+            val ackFailure = assertIs<VehicleResult.Failure>(transport.send(byteArrayOf(1)))
+            assertEquals(VehicleError.TransportError.Disconnected, ackFailure.error)
+            transport.ackRequests = true
+            val queued = assertIs<VehicleResult.Failure>(transport.send(byteArrayOf(2)))
+            assertEquals(VehicleError.TransportError.WriteFailed("gatt"), queued.error)
+            assertIs<VehicleResult.Success<Unit>>(transport.send(byteArrayOf(3)))
+        }
+
+    @Test
     fun deliverFeedsIncomingUnlessAsleep() =
         runTest {
             // dummyConnector.EnqueueReply: dropReplies면 버린다. Close 후 incoming은 완료된다.
