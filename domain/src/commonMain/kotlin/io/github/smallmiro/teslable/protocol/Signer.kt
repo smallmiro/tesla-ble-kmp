@@ -140,14 +140,15 @@ public class Signer
          * `expiresAt` 상한은 Go처럼 `uint32(...)`로 감싼 뒤 범위를 검사하지 않는다 — Go는 2^32 이상의 값을 감싸고 나서
          * 검사하지만, 여기서는 `Long`으로 계산한 뒤 음수이거나 [CommandMetadata.EPOCH_LENGTH_SECONDS]를 초과하면 바로
          * 거부한다. 더 안전하고, 정상적인 명령 수명 안에서는 두 방식이 관측 가능하게 다르지 않다.
+         *
+         * @throws IllegalStateException [close]로 세션이 닫힌 뒤 호출하면 발생한다([Session.encrypt]에서 전파됨).
+         *   이 시점에는 이미 counter가 소비된 뒤다 — 롤오버 검사와 증가가 세션 종료 여부 검사보다 먼저 일어나기 때문이다.
          */
         public fun encrypt(
             message: RoutableMessage,
             expiresIn: Duration,
         ): SignerResult<RoutableMessage> {
-            if (counterValue ==
-                UInt.MAX_VALUE
-            ) {
+            if (counterValue == UInt.MAX_VALUE) {
                 return SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INVALID_TOKEN_OR_COUNTER, "counter rollover")
             }
             counterValue++
@@ -187,6 +188,8 @@ public class Signer
         /**
          * Go `Decrypt`: AAD = SHA256(TLV{9, from_domain(없으면 0), VIN, counter, flags(항상), request_hash, fault}).
          * 인증 실패는 `INVALID_SIGNATURE`(원본은 암호 라이브러리 오류를 그대로 돌려주지만 의미는 같다), GCM 데이터가 없으면 `BAD_PARAMETER`.
+         * [close]로 세션이 닫힌 뒤에는 예외를 던지지 않고 `INVALID_SIGNATURE`를 돌려준다([Session.decrypt]가 닫힌 세션에
+         * null로 응답하기 때문이다) — [encrypt]와 달리 여기서는 프로그래밍 오류도 값으로 드러난다.
          */
         public fun decrypt(
             message: RoutableMessage,
@@ -216,7 +219,17 @@ public class Signer
                     ?: return SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INVALID_SIGNATURE, "response authentication failed")
             return SignerResult.Ok(
                 DecryptedResponse(
-                    message.copy(protobuf_message_as_bytes = plaintext.toByteString(), signature_data = null),
+                    message.copy(
+                        // Go `message.Payload = &RoutableMessage_ProtobufMessageAsBytes{...}`는 oneof 전체를 교체한다.
+                        // `session_info`/`session_info_request`를 명시적으로 지우지 않으면, 인증된 payload가 비어 있는
+                        // 응답에서 MITM이 다른 oneof 멤버로 바이트를 옮겨도 태그가 여전히 맞아 이 copy()가 Wire의
+                        // "at most one of ..." 불변조건을 어겨 IllegalArgumentException을 던진다(와이어 입력이 예외를
+                        // 던지면 안 된다 — ADR-0006).
+                        protobuf_message_as_bytes = plaintext.toByteString(),
+                        session_info_request = null,
+                        session_info = null,
+                        signature_data = null,
+                    ),
                     gcm.counter.toUInt(),
                 ),
             )
