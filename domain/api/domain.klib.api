@@ -5681,6 +5681,10 @@ final object io.github.smallmiro.teslable.protocol/RequestHash { // io.github.sm
     final fun of(com.tesla.generated.universalmessage/RoutableMessage): kotlin/ByteArray? // io.github.smallmiro.teslable.protocol/RequestHash.of|of(com.tesla.generated.universalmessage.RoutableMessage){}[0]
 }
 
+final object io.github.smallmiro.teslable.protocol/ResponseClassifier { // io.github.smallmiro.teslable.protocol/ResponseClassifier|null[0]
+    final fun protocolError(com.tesla.generated.universalmessage/RoutableMessage): io.github.smallmiro.teslable.model/VehicleError? // io.github.smallmiro.teslable.protocol/ResponseClassifier.protocolError|protocolError(com.tesla.generated.universalmessage.RoutableMessage){}[0]
+}
+
 final object io.github.smallmiro.teslable.protocol/ResponseMetadata { // io.github.smallmiro.teslable.protocol/ResponseMetadata|null[0]
     final fun build(com.tesla.generated.universalmessage/Domain, kotlin/ByteArray, kotlin/UInt, kotlin/UInt, kotlin/ByteArray, kotlin/UInt): io.github.smallmiro.teslable.protocol/Metadata // io.github.smallmiro.teslable.protocol/ResponseMetadata.build|build(com.tesla.generated.universalmessage.Domain;kotlin.ByteArray;kotlin.UInt;kotlin.UInt;kotlin.ByteArray;kotlin.UInt){}[0]
 }

@@ -6,11 +6,13 @@ adapter-crypto/src/iosMain/kotlin/io/github/smallmiro/teslable/crypto/AppleCrypt
 adapter-crypto/src/iosMain/kotlin/io/github/smallmiro/teslable/crypto/AppleSoftwareEcdhKey.kt
 adapter-crypto/src/jvmCommonMain/kotlin/io/github/smallmiro/teslable/crypto/JcaCryptoPrimitives.kt
 adapter-crypto/src/jvmCommonMain/kotlin/io/github/smallmiro/teslable/crypto/JcaSoftwareEcdhKey.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/model/VehicleError.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/CryptoPrimitives.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/EcdhPrivateKey.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/CommandMetadata.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/Metadata.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/RequestHash.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/ResponseClassifier.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/ResponseMetadata.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/Session.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/SessionKeys.kt
