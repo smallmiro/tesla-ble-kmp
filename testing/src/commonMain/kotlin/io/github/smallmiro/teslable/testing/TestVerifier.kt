@@ -40,10 +40,8 @@ public class SignedSessionInfo(
  * 차량 측 검증자(테스트 전용). Go `Verifier`의 AES-GCM 경로를 결정적으로 재현한다.
  * 시간은 [timeSource]로만 흐르고(`adjustClock` 미포팅 — 테스트 시계는 잠들지 않는다), nonce·epoch는 [random]에서 나온다.
  *
- * 원본과 다른 동작(의도): [rotateEpoch]는 [SlidingWindow]도 새로 만든다. Go `rotateEpochIfNeeded`는
- * `v.window`(counter 이력 비트맵)를 건드리지 않고 `v.counter`만 0으로 되돌리므로, 이론적으로는 새 epoch에서도
- * 이전 epoch의 counter 이력이 재사용 검사에 남는다. 여기서는 테스트 전용 컴포넌트이므로 epoch 전환 = 완전히
- * 새로운 세션이라는 더 단순하고 깨끗한 상태를 택했다(SDD §12 참조).
+ * [rotateEpoch]는 [SlidingWindow]도 새로 만든다. Go는 epoch 회전 뒤에도 `v.window`를 유지하지만 `counter = 0`에서
+ * 다시 시작하므로 남은 비트는 다시 참조되지 않는다. 윈도우를 새로 만드는 것은 관찰상 동일하다.
  *
  * M2 `FakeVehicle`이 이 클래스를 감싼다. 스레드 안전하지 않다.
  */
@@ -111,7 +109,10 @@ public class TestVerifier private constructor(
         if (counterValue == UInt.MAX_VALUE || timestamp() > CommandMetadata.EPOCH_LENGTH_SECONDS) rotateEpoch()
     }
 
-    /** 테스트가 counter를 직접 놓는다(롤오버 시나리오). */
+    /**
+     * 테스트가 counter를 직접 놓는다(롤오버 시나리오). 윈도우는 건드리지 않으므로 Go와 같은 동작은
+     * `UInt.MAX_VALUE`(counter 소진 시나리오)에서만 보장된다.
+     */
     @InternalTeslableApi
     public fun forceCounter(value: UInt) {
         counterValue = value
