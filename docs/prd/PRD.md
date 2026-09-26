@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | **초안 v1.0 — 사용자 승인 대기** (2026-09-26) |
+| 상태 | **v1.0 승인** (2026-09-26, D13 개정 포함). NFR-012 타임아웃 문구는 SDD D29에 맞춰 갱신 |
 | 저장소 | `{{REPO_URL}}` (공개, Apache-2.0) |
 | 상위 문서 | `{{HANDOFF_FILE}}` §1~§5, §8, §10~§13 |
 | 정답 기준 | `{{REF_REPO_DIR}}` @ `{{REF_REPO_COMMIT}}` + `pkg/protocol/protocol.md` |
@@ -310,7 +310,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | NFR-009 | **플랫폼**: Android `minSdk 31`, iOS 16.0+ (D9). Kotlin/Native 타깃: `iosArm64`, `iosSimulatorArm64` | 빌드 | `10-porting-guide §12` |
 | NFR-010 | **API 안정성**: `explicitApi()`, 공개 API KDoc 필수, `binary-compatibility-validator`(`apiCheck`), `ByteArray` 방어 복사, 값 객체 불변 | CI | `{{WORKFLOW_FILE}}` §4.4 |
 | NFR-011 | **지연**: 캐시된 세션으로 잠금/해제 왕복 1초 안팎(실차). 앱 재실행 후 첫 명령은 핸드셰이크 생략 | 실차 체크리스트 | `{{WORKFLOW_FILE}}` §8.4 |
-| NFR-012 | **동시성**: 구조화된 동시성, 모든 호출 취소 가능, VCSEC 직렬화(FR-049), 타임아웃은 호출자가 `withTimeout`으로 제어. `GlobalScope`, `runBlocking` 금지 | 코드 리뷰, 테스트 | `{{WORKFLOW_FILE}}` §4.4, `01-architecture §5` |
+| NFR-012 | **동시성**: 구조화된 동시성, 모든 호출 취소 가능, VCSEC 직렬화(FR-049), 타임아웃은 명령별 `timeout` 파라미터(기본 5초)로 라이브러리가 관리하고 전송 후 만료는 결과 불확실로 반환, 외부 취소는 `CancellationException`으로 전파(SDD D29). `GlobalScope`, `runBlocking` 금지 | 코드 리뷰, 테스트 | `{{WORKFLOW_FILE}}` §4.4, `01-architecture §5` |
 | NFR-013 | **i18n**: 에러 메시지·로그 영어, 코드 노출(D19). 문서 한국어 | 리뷰 | – |
 | NFR-014 | **서버 없음**: 네트워크 권한·호출 없음. 새 네트워크 호출 PR은 반려 | 코드 리뷰, Android 매니페스트에 `INTERNET` 없음 | HANDOFF D1 |
 | NFR-015 | **CI 게이트**: `{{WORKFLOW_FILE}}` §6 전부 (ktlint, detekt 0, 경고 0, apiCheck, jvmTest, Android 단위, iOS 시뮬레이터, 샘플 빌드, 라이선스, 비밀 스캔) | GitHub Actions | `{{WORKFLOW_FILE}}` §6 |
