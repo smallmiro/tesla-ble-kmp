@@ -4584,6 +4584,336 @@ public final class io/github/smallmiro/teslable/model/PublicKeyBytes {
 public final class io/github/smallmiro/teslable/model/PublicKeyBytes$Companion {
 }
 
+public abstract interface class io/github/smallmiro/teslable/model/VehicleError {
+	public static final field Companion Lio/github/smallmiro/teslable/model/VehicleError$Companion;
+	public abstract fun getMayHaveSucceeded ()Z
+	public abstract fun getMessage ()Ljava/lang/String;
+	public abstract fun getTemporary ()Z
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$BadResponse : io/github/smallmiro/teslable/model/VehicleError {
+	public fun <init> (Ljava/lang/String;Z)V
+	public synthetic fun <init> (Ljava/lang/String;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun component2 ()Z
+	public final fun copy (Ljava/lang/String;Z)Lio/github/smallmiro/teslable/model/VehicleError$BadResponse;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$BadResponse;Ljava/lang/String;ZILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$BadResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDetail ()Ljava/lang/String;
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$Busy : io/github/smallmiro/teslable/model/VehicleError {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$Busy;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$Companion {
+	public final fun getRETRIABLE_FAULTS ()Ljava/util/Set;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$InfotainmentRejected : io/github/smallmiro/teslable/model/VehicleError {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/VehicleError$InfotainmentRejected;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$InfotainmentRejected;Ljava/lang/String;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$InfotainmentRejected;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public final fun getReason ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$InvalidArgument : io/github/smallmiro/teslable/model/VehicleError {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/VehicleError$InvalidArgument;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$InvalidArgument;Ljava/lang/String;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$InvalidArgument;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDetail ()Ljava/lang/String;
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$KeyNotPaired : io/github/smallmiro/teslable/model/VehicleError {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$KeyNotPaired;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/github/smallmiro/teslable/model/VehicleError$KeyStoreError : io/github/smallmiro/teslable/model/VehicleError {
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$KeyStoreError$HardwareUnavailable : io/github/smallmiro/teslable/model/VehicleError$KeyStoreError {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$KeyStoreError$HardwareUnavailable;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$KeyStoreError$KeyNotFound : io/github/smallmiro/teslable/model/VehicleError$KeyStoreError {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$KeyStoreError$KeyNotFound;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$KeyStoreError$PlatformFailure : io/github/smallmiro/teslable/model/VehicleError$KeyStoreError {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/VehicleError$KeyStoreError$PlatformFailure;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$KeyStoreError$PlatformFailure;Ljava/lang/String;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$KeyStoreError$PlatformFailure;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCause ()Ljava/lang/String;
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$KeychainRejected : io/github/smallmiro/teslable/model/VehicleError {
+	public fun <init> (Lcom/tesla/generated/vcsec/WhitelistOperation_information_E;)V
+	public final fun component1 ()Lcom/tesla/generated/vcsec/WhitelistOperation_information_E;
+	public final fun copy (Lcom/tesla/generated/vcsec/WhitelistOperation_information_E;)Lio/github/smallmiro/teslable/model/VehicleError$KeychainRejected;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$KeychainRejected;Lcom/tesla/generated/vcsec/WhitelistOperation_information_E;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$KeychainRejected;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCode ()Lcom/tesla/generated/vcsec/WhitelistOperation_information_E;
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$NoSession : io/github/smallmiro/teslable/model/VehicleError {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$NoSession;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$NotConnected : io/github/smallmiro/teslable/model/VehicleError {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$NotConnected;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$ProtocolFault : io/github/smallmiro/teslable/model/VehicleError {
+	public fun <init> (Lcom/tesla/generated/universalmessage/MessageFault_E;)V
+	public final fun component1 ()Lcom/tesla/generated/universalmessage/MessageFault_E;
+	public final fun copy (Lcom/tesla/generated/universalmessage/MessageFault_E;)Lio/github/smallmiro/teslable/model/VehicleError$ProtocolFault;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$ProtocolFault;Lcom/tesla/generated/universalmessage/MessageFault_E;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$ProtocolFault;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFault ()Lcom/tesla/generated/universalmessage/MessageFault_E;
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$RequiresKey : io/github/smallmiro/teslable/model/VehicleError {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$RequiresKey;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$Timeout : io/github/smallmiro/teslable/model/VehicleError {
+	public fun <init> (Z)V
+	public final fun component1 ()Z
+	public final fun copy (Z)Lio/github/smallmiro/teslable/model/VehicleError$Timeout;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$Timeout;ZILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$Timeout;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getAfterSend ()Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public abstract interface class io/github/smallmiro/teslable/model/VehicleError$TransportError : io/github/smallmiro/teslable/model/VehicleError {
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$TransportError$BluetoothOff : io/github/smallmiro/teslable/model/VehicleError$TransportError {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$TransportError$BluetoothOff;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$TransportError$ConnectFailed : io/github/smallmiro/teslable/model/VehicleError$TransportError {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/VehicleError$TransportError$ConnectFailed;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$TransportError$ConnectFailed;Ljava/lang/String;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$TransportError$ConnectFailed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCause ()Ljava/lang/String;
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$TransportError$Disconnected : io/github/smallmiro/teslable/model/VehicleError$TransportError {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$TransportError$Disconnected;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$TransportError$MaxConnectionsExceeded : io/github/smallmiro/teslable/model/VehicleError$TransportError {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$TransportError$MaxConnectionsExceeded;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$TransportError$PermissionDenied : io/github/smallmiro/teslable/model/VehicleError$TransportError {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$TransportError$PermissionDenied;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$TransportError$ScanTimeout : io/github/smallmiro/teslable/model/VehicleError$TransportError {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$TransportError$ScanTimeout;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$TransportError$WriteFailed : io/github/smallmiro/teslable/model/VehicleError$TransportError {
+	public fun <init> (Ljava/lang/String;)V
+	public final fun component1 ()Ljava/lang/String;
+	public final fun copy (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/VehicleError$TransportError$WriteFailed;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$TransportError$WriteFailed;Ljava/lang/String;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$TransportError$WriteFailed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getCause ()Ljava/lang/String;
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$UnknownResponse : io/github/smallmiro/teslable/model/VehicleError {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$UnknownResponse;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleError$VcsecRejected : io/github/smallmiro/teslable/model/VehicleError {
+	public fun <init> (Lcom/tesla/generated/errors/GenericError_E;)V
+	public final fun component1 ()Lcom/tesla/generated/errors/GenericError_E;
+	public final fun copy (Lcom/tesla/generated/errors/GenericError_E;)Lio/github/smallmiro/teslable/model/VehicleError$VcsecRejected;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$VcsecRejected;Lcom/tesla/generated/errors/GenericError_E;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$VcsecRejected;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Lcom/tesla/generated/errors/GenericError_E;
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleErrorKt {
+	public static final fun shouldRetry (Lio/github/smallmiro/teslable/model/VehicleError;)Z
+	public static final fun toResult (Lio/github/smallmiro/teslable/model/VehicleError;)Lio/github/smallmiro/teslable/model/VehicleResult;
+}
+
+public abstract interface class io/github/smallmiro/teslable/model/VehicleResult {
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleResult$Failure : io/github/smallmiro/teslable/model/VehicleResult {
+	public fun <init> (Lio/github/smallmiro/teslable/model/VehicleError;)V
+	public final fun component1 ()Lio/github/smallmiro/teslable/model/VehicleError;
+	public final fun copy (Lio/github/smallmiro/teslable/model/VehicleError;)Lio/github/smallmiro/teslable/model/VehicleResult$Failure;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleResult$Failure;Lio/github/smallmiro/teslable/model/VehicleError;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleResult$Failure;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Lio/github/smallmiro/teslable/model/VehicleError;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleResult$Success : io/github/smallmiro/teslable/model/VehicleResult {
+	public fun <init> (Ljava/lang/Object;)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleResult$Success;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleResult$Success;Ljava/lang/Object;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleResult$Success;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValue ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/VehicleResult$Uncertain : io/github/smallmiro/teslable/model/VehicleResult {
+	public fun <init> (Lio/github/smallmiro/teslable/model/VehicleError;)V
+	public final fun component1 ()Lio/github/smallmiro/teslable/model/VehicleError;
+	public final fun copy (Lio/github/smallmiro/teslable/model/VehicleError;)Lio/github/smallmiro/teslable/model/VehicleResult$Uncertain;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleResult$Uncertain;Lio/github/smallmiro/teslable/model/VehicleError;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleResult$Uncertain;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Lio/github/smallmiro/teslable/model/VehicleError;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class io/github/smallmiro/teslable/model/Vin {
 	public fun <init> (Ljava/lang/String;)V
 	public fun equals (Ljava/lang/Object;)Z
