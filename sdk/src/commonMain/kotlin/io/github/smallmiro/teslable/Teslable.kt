@@ -9,6 +9,7 @@ import io.github.smallmiro.teslable.transport.LocalName
  * M3에서 `TeslaBle` 파사드로 대체된다.
  */
 public object Teslable {
+    /** 라이브러리 버전 문자열. M6 배포 시 Gradle 버전과 동기화한다. */
     public const val VERSION: String = "0.1.0-SNAPSHOT"
 
     /** VIN의 BLE 광고 이름 (`"S" + hex(SHA1(VIN)[:8]) + "C"`). */
