@@ -25,6 +25,7 @@ import platform.Security.errSecSuccess
 import platform.Security.kSecRandomDefault
 
 private const val GCM_TAG_BYTES = 16
+private const val NONCE_BYTES = 12
 
 /**
  * iOS: SHA·HMAC은 CommonCrypto, AES-GCM은 cryptography-kotlin CryptoKit 프로바이더(ADR-0004).
@@ -71,16 +72,26 @@ public class AppleCryptoPrimitives : CryptoPrimitives {
         return AesGcmOutput(sealed.copyOfRange(0, split), sealed.copyOfRange(split, sealed.size))
     }
 
-    @Suppress("TooGenericExceptionCaught") // 프로바이더가 인증 실패에 던지는 예외 타입이 문서화되어 있지 않다
-    override fun aesGcmDecrypt(key: ByteArray, nonce: ByteArray, ciphertext: ByteArray, tag: ByteArray, aad: ByteArray): ByteArray? =
-        try {
+    // 프로바이더(cryptography-provider-cryptokit) klib 확인 결과: 인증 실패 등 Swift/NSError 실패는
+    // swiftTry -> error(...)를 통해 IllegalStateException으로 던져진다. 인자 오류(태그/nonce 길이 등)는
+    // IllegalArgumentException이라 여기서 삼키지 않고, 대신 호출 전에 명시적으로 가드한다.
+    override fun aesGcmDecrypt(
+        key: ByteArray,
+        nonce: ByteArray,
+        ciphertext: ByteArray,
+        tag: ByteArray,
+        aad: ByteArray,
+    ): ByteArray? {
+        if (tag.size != GCM_TAG_BYTES || nonce.size != NONCE_BYTES) return null
+        return try {
             val gcmKey = aesGcm.keyDecoder().decodeFromByteArrayBlocking(AES.Key.Format.RAW, key)
             gcmKey
                 .cipher(tagSize = (GCM_TAG_BYTES * 8).bits)
                 .decryptWithIvBlocking(iv = nonce, ciphertext = ciphertext + tag, associatedData = aad)
-        } catch (_: Exception) {
+        } catch (_: IllegalStateException) {
             null
         }
+    }
 
     override fun constantTimeEquals(
         a: ByteArray,
@@ -109,8 +120,10 @@ public class AppleCryptoPrimitives : CryptoPrimitives {
         if (isEmpty()) block(null) else usePinned { block(it.addressOf(0)) }
 }
 
+/** `SecRandomCopyBytes` 기반 [RandomSource] 구현. iOS 전용. */
 @OptIn(ExperimentalForeignApi::class)
 public class AppleRandomSource : RandomSource {
+    /** `SecRandomCopyBytes(kSecRandomDefault, ...)`. */
     override fun nextBytes(count: Int): ByteArray {
         if (count == 0) return ByteArray(0)
         val bytes = ByteArray(count)

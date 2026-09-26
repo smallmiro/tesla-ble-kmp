@@ -12,6 +12,9 @@ import javax.crypto.Mac
 import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.SecretKeySpec
 
+private const val TAG_BITS = 128
+private const val TAG_BYTES = 16
+
 /** JCA(Java Cryptography Architecture) 기반 [CryptoPrimitives] 구현. JVM/Android 공용. */
 public class JcaCryptoPrimitives : CryptoPrimitives {
     /** `MessageDigest("SHA-1")`. */
@@ -67,11 +70,6 @@ public class JcaCryptoPrimitives : CryptoPrimitives {
         a: ByteArray,
         b: ByteArray,
     ): Boolean = MessageDigest.isEqual(a, b)
-
-    private companion object {
-        const val TAG_BITS = 128
-        const val TAG_BYTES = 16
-    }
 }
 
 /** [SecureRandom] 기반 [RandomSource] 구현. JVM/Android 공용. */
