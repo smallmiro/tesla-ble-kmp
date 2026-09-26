@@ -85,8 +85,12 @@ tasks.register("forbiddenTokens") {
     doLast {
         val forbidden = listOf("!!", "println(", "runBlocking", "GlobalScope")
         val violations = mutableListOf<String>()
+        // 줄 번호를 보존하기 위해 매치된 개행 수만큼의 개행으로 치환한다 (block comment, raw string 먼저 제거).
+        fun blank(text: String, pattern: Regex) = pattern.replace(text) { "\n".repeat(it.value.count { c -> c == '\n' }) }
         mainSources.forEach { file ->
-            file.readLines().forEachIndexed { index, rawLine ->
+            val withoutBlockComments = blank(file.readText(), Regex("/\\*[\\s\\S]*?\\*/"))
+            val withoutRawStrings = blank(withoutBlockComments, Regex("\"\"\"[\\s\\S]*?\"\"\""))
+            withoutRawStrings.lines().forEachIndexed { index, rawLine ->
                 val noStrings = rawLine.replace(Regex("\"(?:[^\"\\\\]|\\\\.)*\""), "\"\"")
                 val noComments = noStrings.replace(Regex("//.*$"), "")
                 forbidden.forEach { token ->
