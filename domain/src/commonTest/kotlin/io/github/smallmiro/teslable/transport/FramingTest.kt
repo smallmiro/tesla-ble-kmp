@@ -6,6 +6,7 @@ import io.github.smallmiro.teslable.util.hexToBytes
 import io.github.smallmiro.teslable.util.toHex
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -37,6 +38,12 @@ class FramingTest {
         val big = ByteArray(1024) { it.toByte() }
         val got = Framer.frame(big, 244).flatMap { r.push(it) }
         assertEquals(big.toHex(), got.single().toHex())
+    }
+
+    @Test
+    fun frameRejectsMessageLargerThanMaxSize() { // 수신 측 maxBLEMessageSize(1024)를 넘으면 차량이 버린다
+        assertEquals(1026, Framer.frame(ByteArray(Framer.MAX_MESSAGE_SIZE), blockLength = 2048).single().size)
+        assertFailsWith<IllegalArgumentException> { Framer.frame(ByteArray(Framer.MAX_MESSAGE_SIZE + 1), blockLength = 244) }
     }
 
     @Test
