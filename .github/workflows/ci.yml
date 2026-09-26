@@ -50,6 +50,20 @@ jobs:
         with: { packages: 'platforms;android-37.0 build-tools;36.0.0' }
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew testAndroidHostTest :samples:android:assembleDebug --console=plain
+      - name: Merged manifest must not request INTERNET (NFR-014)
+        run: |
+          set -euo pipefail
+          dir=samples/android/build/intermediates
+          merged=$(find "$dir" -name AndroidManifest.xml -path '*merged_manifest*')
+          if [ -z "$merged" ]; then
+            echo "No merged AndroidManifest.xml under $dir; the check would pass vacuously" >&2
+            exit 1
+          fi
+          if grep -rl --include=AndroidManifest.xml 'android.permission.INTERNET' "$dir"; then
+            echo "android.permission.INTERNET is in the manifest(s) listed above (NFR-014: no network)" >&2
+            exit 1
+          fi
+          echo "No INTERNET permission in the merged manifests"
 
   ios:
     runs-on: macos-15
