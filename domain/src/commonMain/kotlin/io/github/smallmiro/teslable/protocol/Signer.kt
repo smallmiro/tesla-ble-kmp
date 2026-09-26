@@ -143,9 +143,9 @@ public class Signer
          * 먼저 올린 뒤 메타데이터를 만들므로, 이후 단계가 실패해도 counter는 소비된다(원본과 동일).
          * AAD = SHA256(TLV{5, domain, VIN, epoch, expires_at, counter, [flags≠0]}), nonce는 [RandomSource]에서 12바이트(ADR-0008).
          *
-         * `expiresAt` 상한은 Go처럼 `uint32(...)`로 감싼 뒤 범위를 검사하지 않는다 — Go는 2^32 이상의 값을 감싸고 나서
-         * 검사하지만, 여기서는 `Long`으로 계산한 뒤 음수이거나 [CommandMetadata.EPOCH_LENGTH_SECONDS]를 초과하면 바로
-         * 거부한다. 더 안전하고, 정상적인 명령 수명 안에서는 두 방식이 관측 가능하게 다르지 않다.
+         * `expiresAt` 상한: Go는 먼저 `uint32`로 좁힌 뒤 범위를 검사한다. 여기서는 `Long` 값을 좁히기 전에 검사하므로
+         * 2^32 이상도 거부한다(음수이거나 [CommandMetadata.EPOCH_LENGTH_SECONDS]를 넘으면 `BAD_PARAMETER`). 정상적인
+         * 명령 수명 안에서는 두 방식이 관측 가능하게 다르지 않다.
          *
          * @throws IllegalStateException [close]로 닫힌 뒤 호출하면 발생한다(프로그래밍 오류, ADR-0006). 이 검사는 롤오버
          *   검사와 counter 증가보다 먼저 일어나므로, 닫힌 뒤의 호출은 counter를 소비하지 않는다.
