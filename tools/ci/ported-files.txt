@@ -23,4 +23,5 @@ domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/SlidingWindow
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/transport/Framer.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/transport/LocalName.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/transport/Reassembler.kt
+testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/FakeTransport.kt
 testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/TestVerifier.kt
