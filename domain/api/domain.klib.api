@@ -5182,5 +5182,57 @@ final class io.github.smallmiro.teslable.port/AesGcmOutput { // io.github.smallm
         final fun <get-tag>(): kotlin/ByteArray // io.github.smallmiro.teslable.port/AesGcmOutput.tag.<get-tag>|<get-tag>(){}[0]
 }
 
+final class io.github.smallmiro.teslable.protocol/Metadata { // io.github.smallmiro.teslable.protocol/Metadata|null[0]
+    constructor <init>() // io.github.smallmiro.teslable.protocol/Metadata.<init>|<init>(){}[0]
+
+    final fun add(com.tesla.generated.signatures/Tag, kotlin/ByteArray?): io.github.smallmiro.teslable.protocol/Metadata // io.github.smallmiro.teslable.protocol/Metadata.add|add(com.tesla.generated.signatures.Tag;kotlin.ByteArray?){}[0]
+    final fun addUInt32(com.tesla.generated.signatures/Tag, kotlin/UInt): io.github.smallmiro.teslable.protocol/Metadata // io.github.smallmiro.teslable.protocol/Metadata.addUInt32|addUInt32(com.tesla.generated.signatures.Tag;kotlin.UInt){}[0]
+    final fun serialize(kotlin/ByteArray = ...): kotlin/ByteArray // io.github.smallmiro.teslable.protocol/Metadata.serialize|serialize(kotlin.ByteArray){}[0]
+}
+
+final class io.github.smallmiro.teslable.protocol/MetadataFieldTooLongException : kotlin/IllegalArgumentException { // io.github.smallmiro.teslable.protocol/MetadataFieldTooLongException|null[0]
+    constructor <init>() // io.github.smallmiro.teslable.protocol/MetadataFieldTooLongException.<init>|<init>(){}[0]
+}
+
+final class io.github.smallmiro.teslable.protocol/SlidingWindow { // io.github.smallmiro.teslable.protocol/SlidingWindow|null[0]
+    constructor <init>(kotlin/Int = ...) // io.github.smallmiro.teslable.protocol/SlidingWindow.<init>|<init>(kotlin.Int){}[0]
+
+    final fun update(kotlin/UInt): kotlin/Boolean // io.github.smallmiro.teslable.protocol/SlidingWindow.update|update(kotlin.UInt){}[0]
+
+    final object Companion { // io.github.smallmiro.teslable.protocol/SlidingWindow.Companion|null[0]
+        final const val DEFAULT_SIZE // io.github.smallmiro.teslable.protocol/SlidingWindow.Companion.DEFAULT_SIZE|{}DEFAULT_SIZE[0]
+            final fun <get-DEFAULT_SIZE>(): kotlin/Int // io.github.smallmiro.teslable.protocol/SlidingWindow.Companion.DEFAULT_SIZE.<get-DEFAULT_SIZE>|<get-DEFAULT_SIZE>(){}[0]
+    }
+}
+
+final class io.github.smallmiro.teslable.transport/LocalName { // io.github.smallmiro.teslable.transport/LocalName|null[0]
+    constructor <init>(kotlin/String) // io.github.smallmiro.teslable.transport/LocalName.<init>|<init>(kotlin.String){}[0]
+
+    final val value // io.github.smallmiro.teslable.transport/LocalName.value|{}value[0]
+        final fun <get-value>(): kotlin/String // io.github.smallmiro.teslable.transport/LocalName.value.<get-value>|<get-value>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.transport/LocalName.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.transport/LocalName.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // io.github.smallmiro.teslable.transport/LocalName.toString|toString(){}[0]
+
+    final object Companion { // io.github.smallmiro.teslable.transport/LocalName.Companion|null[0]
+        final fun of(io.github.smallmiro.teslable.model/Vin, io.github.smallmiro.teslable.port/CryptoPrimitives): io.github.smallmiro.teslable.transport/LocalName // io.github.smallmiro.teslable.transport/LocalName.Companion.of|of(io.github.smallmiro.teslable.model.Vin;io.github.smallmiro.teslable.port.CryptoPrimitives){}[0]
+    }
+}
+
+final class io.github.smallmiro.teslable.transport/Reassembler { // io.github.smallmiro.teslable.transport/Reassembler|null[0]
+    constructor <init>(kotlin.time/TimeSource = ..., kotlin.time/Duration = ..., kotlin/Int = ...) // io.github.smallmiro.teslable.transport/Reassembler.<init>|<init>(kotlin.time.TimeSource;kotlin.time.Duration;kotlin.Int){}[0]
+
+    final fun push(kotlin/ByteArray): kotlin.collections/List<kotlin/ByteArray> // io.github.smallmiro.teslable.transport/Reassembler.push|push(kotlin.ByteArray){}[0]
+    final fun reset() // io.github.smallmiro.teslable.transport/Reassembler.reset|reset(){}[0]
+}
+
+final object io.github.smallmiro.teslable.transport/Framer { // io.github.smallmiro.teslable.transport/Framer|null[0]
+    final const val MAX_MESSAGE_SIZE // io.github.smallmiro.teslable.transport/Framer.MAX_MESSAGE_SIZE|{}MAX_MESSAGE_SIZE[0]
+        final fun <get-MAX_MESSAGE_SIZE>(): kotlin/Int // io.github.smallmiro.teslable.transport/Framer.MAX_MESSAGE_SIZE.<get-MAX_MESSAGE_SIZE>|<get-MAX_MESSAGE_SIZE>(){}[0]
+
+    final fun frame(kotlin/ByteArray, kotlin/Int): kotlin.collections/List<kotlin/ByteArray> // io.github.smallmiro.teslable.transport/Framer.frame|frame(kotlin.ByteArray;kotlin.Int){}[0]
+}
+
 final fun (kotlin/ByteArray).io.github.smallmiro.teslable.util/toHex(): kotlin/String // io.github.smallmiro.teslable.util/toHex|toHex@kotlin.ByteArray(){}[0]
 final fun (kotlin/String).io.github.smallmiro.teslable.util/hexToBytes(): kotlin/ByteArray // io.github.smallmiro.teslable.util/hexToBytes|hexToBytes@kotlin.String(){}[0]
