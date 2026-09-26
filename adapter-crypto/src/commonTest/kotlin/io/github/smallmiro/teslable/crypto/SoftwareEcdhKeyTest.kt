@@ -63,10 +63,17 @@ class SoftwareEcdhKeyTest {
                             "f688e62bec19c9b144e9415361fa4fecab5ded4336336b9751c9a78ffa270fae"
                     ).hexToBytes(),
                 )
-            // 이 스칼라의 공개키는 테스트에 필요 없으므로 peer 공개키를 자리로 넣는다(ECDH는 개인키 스칼라만 쓴다)
-            val key = softwareEcdhKey(scalar, peer)
+            val ownPublic =
+                PublicKeyBytes(
+                    (
+                        "043ddfb4487ddc736672950e8e07b8d1bdd30330115e8707a2aab6d81768447283" +
+                            "ae89c5974be8fff9ea3a8a66fef1a4175a54690092187e3a3d302144f3380cb6"
+                    ).hexToBytes(),
+                )
+            val key = softwareEcdhKey(scalar, ownPublic)
             val sharedX = key.sharedX(peer)
             assertEquals(32, sharedX.size)
             assertEquals(0x00.toByte(), sharedX[0])
+            assertEquals("00b3771a89898317d4fdc951a5e20d075f57bd314cc1c9e611225b8796938dd8", sharedX.toHex())
         }
 }
