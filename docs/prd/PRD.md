@@ -3,6 +3,7 @@
 | 항목 | 내용 |
 |---|---|
 | 상태 | **초안 v1.0 — 사용자 승인 대기** (2026-09-26) |
+| 저장소 | `{{REPO_URL}}` (공개, Apache-2.0) |
 | 상위 문서 | `{{HANDOFF_FILE}}` §1~§5, §8, §10~§13 |
 | 정답 기준 | `{{REF_REPO_DIR}}` @ `{{REF_REPO_COMMIT}}` + `pkg/protocol/protocol.md` |
 | 1차 가이드 | `{{MANUAL_DIR}}` (각 요구사항의 "근거" 열에 문서와 절을 표기) |
@@ -20,7 +21,7 @@
 | D10 | 개인키 보관 | **하드웨어 기본 + 소프트웨어 대체 허용.** 실제 보관 수준(`HARDWARE` / `STRONGBOX` / `SOFTWARE`)을 조회하는 API 제공 | 에뮬레이터·시뮬레이터·CI에서도 동작. ECDH 공유 비밀과 세션 키 K는 프로토콜 구조상 앱 메모리에 존재함을 문서화. `00-agent-guide §3.3-21`, `10-porting-guide §12` |
 | D11 | 키 등록 기본 역할 | **Owner.** 역할 지정 오버로드 제공 | Go `SendAddKeyRequest`와 동일 기본값. `03-protocol §3`, `05-command-catalog B` |
 | D12 | 공개 API 스타일 | **commonMain은 `suspend` + `Flow`. iOS는 SKIE로 Swift async/await, AsyncSequence, enum 변환** | SKIE(Apache-2.0) 도입은 SDD에서 ADR로 기록. `04-go-api-reference pkg/vehicle` |
-| D13 | 공개·배포 | **저장소는 처음부터 공개(오픈소스, Apache-2.0).** 배포 채널은 **GitHub Pages Maven 저장소**(`maven-publish` 산출물을 `gh-pages` 브랜치에 커밋, `https://smallmiro.github.io/<repo>/`) **+ SPM**(`Package.swift` + GitHub Release의 XCFramework). Maven Central과 GitHub Packages는 쓰지 않음. 배포 파이프라인 구축은 **M6의 마지막 과제**이며 그 전까지는 `mavenLocal` + 로컬 XCFramework | 앱 개발자는 토큰 없이 URL 한 줄로 받음. `LICENSE`·`NOTICE`는 M0에 포함. 릴리스마다 파일이 누적되므로 오래된 버전 정리 규칙을 M6에서 정함 |
+| D13 | 공개·배포 | **저장소는 처음부터 공개(오픈소스, Apache-2.0).** 배포 채널은 **GitHub Pages Maven 저장소**(`maven-publish` 산출물을 `gh-pages` 브랜치에 커밋, `{{PAGES_MAVEN_URL}}`) **+ SPM**(`Package.swift` + GitHub Release의 XCFramework). Maven Central과 GitHub Packages는 쓰지 않음. 배포 파이프라인 구축은 **M6의 마지막 과제**이며 그 전까지는 `mavenLocal` + 로컬 XCFramework | 앱 개발자는 토큰 없이 URL 한 줄로 받음. `LICENSE`·`NOTICE`는 저장소 생성 시(Phase 1) 커밋됨. 릴리스마다 파일이 누적되므로 오래된 버전 정리 규칙을 M6에서 정함 |
 | D14 | 패키지 루트 | **`io.github.smallmiro.teslable`** (`{{PATHS_FILE}}` `BASE_PACKAGE`에 기록됨) | GitHub Pages 저장소는 그룹 제약이 없지만, 나중에 Maven Central로 옮길 수 있도록 `io.github.<계정>` 규칙을 유지 |
 | D15 | 샘플 앱 UI | **Android Jetpack Compose + iOS SwiftUI** (각각 네이티브) | 실제 소비자 앱과 같은 구성. SKIE가 만든 Swift 표면을 검증 |
 | D16 | 동시 연결 차량 수 | **설계는 차량 단위 객체(연결마다 독립 인스턴스). v1 검증은 1대.** 다중 연결은 막지 않되 "미검증"으로 문서화 | Go와 동일 (연결 1 = Vehicle 1). `01-architecture §5`, `02-ble-transport §11` |
@@ -328,7 +329,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | Protobuf | Wire(Square). `pkg/protocol/protobuf/*.proto` 9개를 수정 없이 입력. `google.protobuf.Timestamp` 사용 | HANDOFF §6.2 |
 | iOS 노출 | SKIE(Touchlab). Kotlin 버전과 호환 범위를 SDD에서 고정 | D12 |
 | 차종 | 2021년 이후 차량. VCSEC 동시 연결 3개(키포브·폰키 공유) | `02-ble-transport §11` |
-| 라이선스 | 저장소는 처음부터 공개(D13)이므로 M0에 `LICENSE`(Apache-2.0)와 `NOTICE`(원본 고지)를 포함. `shoujiaxin/swift-tesla-ble`(MIT)는 참고 시 고지. `yoziru/tesla-ble`(AGPL)는 열람 금지 | HANDOFF §6.5, D13 |
+| 라이선스 | 저장소는 처음부터 공개(D13)이므로 `LICENSE`(Apache-2.0)와 `NOTICE`(원본 고지)를 Phase 1에 커밋함. `shoujiaxin/swift-tesla-ble`(MIT)는 참고 시 고지. `yoziru/tesla-ble`(AGPL)는 열람 금지 | HANDOFF §6.5, D13 |
 | 툴체인 | 개발 머신: Java 25, Xcode 26.6, Android SDK. `go`/`protoc` 없음(Wire는 protoc 불필요). Gradle 래퍼 사용 | Phase 0 |
 | 실차 | 실차 테스트는 사용자가 수행. 테스트 키(`protocol.md`)는 실차에 등록 금지 | `00-agent-guide §3.1-11` |
 
@@ -356,7 +357,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 
 | M | 내용 | 포함 FR/NFR | 완료 기준 |
 |---|---|---|---|
-| M0 | 프로젝트 골격(모듈 5개 + 샘플 2개), `LICENSE`·`NOTICE`, Wire 코드 생성, PoC 이관, CI | NFR-001(벡터), NFR-008, NFR-010, NFR-015, NFR-016 | 테스트 벡터 전부 PASS (JVM, iOS 시뮬레이터) |
+| M0 | 프로젝트 골격(모듈 5개 + 샘플 2개), Wire 코드 생성, PoC 이관, CI (`LICENSE`·`NOTICE`는 Phase 1에 선반영) | NFR-001(벡터), NFR-008, NFR-010, NFR-015, NFR-016 | 테스트 벡터 전부 PASS (JVM, iOS 시뮬레이터) |
 | M1 | protocol 전체: Metadata, Signer(암호화·복호화), 세션정보 검증, SlidingWindow, 에러 분류 | FR-013~016, FR-019, FR-103, NFR-017 | Go 클라이언트 측 테스트 포팅본 PASS |
 | M2 | dispatcher + FakeVehicle: 매칭, 핸드셰이크, VCSEC 직렬화·다중 응답, 재시도, 세션 캐시·복구 | FR-010~012, FR-017~018, FR-048~049, FR-100~102, NFR-003, NFR-007, NFR-012 | 시나리오 테스트 전부 PASS |
 | M3 | transport(Kable) + keystore + 샘플 앱 골격 | FR-001~006, FR-020~021, FR-025, FR-028, FR-031, FR-112, NFR-004~006, NFR-009 | 샘플 앱에서 스캔, 연결, 키 목록, VehicleStatus (실차는 사용자 확인) |

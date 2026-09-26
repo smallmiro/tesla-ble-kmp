@@ -26,7 +26,9 @@
 | `REF_REPO_URL` | `https://github.com/teslamotors/vehicle-command` | 원본 저장소 |
 | `REF_REPO_COMMIT` | `a4b43c1eff0e09d77deb9f2dce97031141fe8c8a` | 포팅 기준 커밋 (2026-09-25) |
 | `POC_DIR` | `reference/poc/` | 검증된 PoC 코드 |
-| `LIB_NAME` | `tesla-ble-kmp` (가칭) | 라이브러리 / Gradle 루트 이름 |
+| `LIB_NAME` | `tesla-ble-kmp` | 라이브러리 / Gradle 루트 이름 (= GitHub 저장소 이름, 2026-09-26 확정) |
+| `REPO_URL` | `https://github.com/smallmiro/tesla-ble-kmp` | 공개 저장소 (Apache-2.0). 브랜치 `main` 보호 |
+| `PAGES_MAVEN_URL` | `https://smallmiro.github.io/tesla-ble-kmp/` | GitHub Pages Maven 저장소 (`gh-pages` 브랜치, M6에서 활성화) |
 | `BASE_PACKAGE` | `io.github.smallmiro.teslable` | Kotlin 패키지 루트 (Phase 1 Q5-b에서 확정) |
 
 ## 규칙
