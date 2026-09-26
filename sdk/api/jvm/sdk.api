@@ -1,0 +1,6 @@
+public final class io/github/smallmiro/teslable/Teslable {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/Teslable;
+	public static final field VERSION Ljava/lang/String;
+	public final fun localNameFor (Ljava/lang/String;)Ljava/lang/String;
+}
+
