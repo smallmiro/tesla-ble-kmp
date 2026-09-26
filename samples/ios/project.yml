@@ -1,0 +1,32 @@
+name: TeslableSample
+options:
+  bundleIdPrefix: io.github.smallmiro
+  deploymentTarget:
+    iOS: "16.0"
+targets:
+  TeslableSample:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources: [Sources]
+    info:
+      path: Sources/Info.plist
+      properties:
+        CFBundleDisplayName: Teslable Sample
+        UILaunchScreen: {}
+        NSBluetoothAlwaysUsageDescription: 차량과 BLE로 통신하기 위해 블루투스가 필요합니다.
+    settings:
+      base:
+        FRAMEWORK_SEARCH_PATHS: "$(inherited) $(SRCROOT)/../../sdk/build/bin/iosSimulatorArm64/debugFramework"
+        SWIFT_VERSION: "6.0"
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: "NO"
+        # Teslable.framework은 iosSimulatorArm64 전용으로만 링크된다(Apple Silicon 시뮬레이터).
+        # 'generic/platform=iOS Simulator' 목적지는 기본적으로 arm64+x86_64 유니버설을 시도하므로
+        # x86_64 슬라이스가 없는 프레임워크와 링크가 실패한다. arm64로 제한한다.
+        ARCHS: "arm64"
+        EXCLUDED_ARCHS: "x86_64"
+        ONLY_ACTIVE_ARCH: "YES"
+    dependencies:
+      - framework: ../../sdk/build/bin/iosSimulatorArm64/debugFramework/Teslable.framework
+        embed: false
