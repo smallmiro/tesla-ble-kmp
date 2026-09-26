@@ -63,6 +63,7 @@ class SoftwareEcdhKeyTest {
                             "f688e62bec19c9b144e9415361fa4fecab5ded4336336b9751c9a78ffa270fae"
                     ).hexToBytes(),
                 )
+            // 스칼라 0x013f 의 실제 P-256 공개점 (scalar × G, 오프라인 계산). 아래 sharedX 기대값이 이 키 쌍의 일관성을 확인해준다.
             val ownPublic =
                 PublicKeyBytes(
                     (

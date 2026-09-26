@@ -5,7 +5,7 @@ comments:
   active: true
   UndocumentedPublicClass:
     active: true
-    excludes: ['**/test/**', '**/*Test/**', '**/build/**', '**/samples/**', '**/testing/**']
+    excludes: ['**/test/**', '**/*Test/**', '**/build/**', '**/samples/**']
     searchInNestedClass: true
     searchInInnerClass: true
     searchInInnerObject: true
@@ -13,11 +13,11 @@ comments:
     searchInProtectedClass: false
   UndocumentedPublicFunction:
     active: true
-    excludes: ['**/test/**', '**/*Test/**', '**/build/**', '**/samples/**', '**/testing/**']
+    excludes: ['**/test/**', '**/*Test/**', '**/build/**', '**/samples/**']
     searchProtectedFunction: false
   UndocumentedPublicProperty:
     active: true
-    excludes: ['**/test/**', '**/*Test/**', '**/build/**', '**/samples/**', '**/testing/**']
+    excludes: ['**/test/**', '**/*Test/**', '**/build/**', '**/samples/**']
     searchProtectedProperty: false
 
 style:
