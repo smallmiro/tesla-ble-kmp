@@ -1,8 +1,13 @@
 // Ported from vehicle-command@a4b43c1 internal/authentication/signer.go (Apache-2.0) — Signer, Peer (peer.go), epochStartTime (crypto.go)
 package io.github.smallmiro.teslable.protocol
 
+import com.tesla.generated.signatures.AES_GCM_Personalized_Signature_Data
+import com.tesla.generated.signatures.KeyIdentity
 import com.tesla.generated.signatures.SessionInfo
+import com.tesla.generated.signatures.SignatureData
+import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
+import com.tesla.generated.universalmessage.RoutableMessage
 import io.github.smallmiro.teslable.InternalTeslableApi
 import io.github.smallmiro.teslable.model.PublicKeyBytes
 import io.github.smallmiro.teslable.model.Vin
@@ -118,6 +123,104 @@ public class Signer
                     clock_time = timestamp().toInt(),
                 ),
             )
+
+        /** 복호화된 응답(평문 페이로드, `signature_data` 제거)과 anti-replay counter. */
+        public class DecryptedResponse(
+            /** 페이로드가 평문으로 바뀐 메시지. */
+            public val message: RoutableMessage,
+            /** 응답 counter. M2 `PendingRequest`가 `SlidingWindow`로 재사용을 검사한다. */
+            public val counter: UInt,
+        )
+
+        /**
+         * Go `Encrypt`: counter가 0xFFFFFFFF면 `INVALID_TOKEN_OR_COUNTER`(롤오버; 재핸드셰이크 필요). 그 외에는 counter를
+         * 먼저 올린 뒤 메타데이터를 만들므로, 이후 단계가 실패해도 counter는 소비된다(원본과 동일).
+         * AAD = SHA256(TLV{5, domain, VIN, epoch, expires_at, counter, [flags≠0]}), nonce는 [RandomSource]에서 12바이트(ADR-0008).
+         *
+         * `expiresAt` 상한은 Go처럼 `uint32(...)`로 감싼 뒤 범위를 검사하지 않는다 — Go는 2^32 이상의 값을 감싸고 나서
+         * 검사하지만, 여기서는 `Long`으로 계산한 뒤 음수이거나 [CommandMetadata.EPOCH_LENGTH_SECONDS]를 초과하면 바로
+         * 거부한다. 더 안전하고, 정상적인 명령 수명 안에서는 두 방식이 관측 가능하게 다르지 않다.
+         */
+        public fun encrypt(
+            message: RoutableMessage,
+            expiresIn: Duration,
+        ): SignerResult<RoutableMessage> {
+            if (counterValue ==
+                UInt.MAX_VALUE
+            ) {
+                return SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INVALID_TOKEN_OR_COUNTER, "counter rollover")
+            }
+            counterValue++
+            val domain =
+                message.to_destination?.domain
+                    ?: return SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INVALID_DOMAINS, "domain missing")
+            val expiresSeconds = (timeZero.elapsedNow() + expiresIn).inWholeSeconds
+            if (expiresSeconds < 0 || expiresSeconds > CommandMetadata.EPOCH_LENGTH_SECONDS.toLong()) {
+                return SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_BAD_PARAMETER, "out of bounds expiration time")
+            }
+            val expiresAt = expiresSeconds.toUInt()
+            val payload =
+                message.protobuf_message_as_bytes?.toByteArray()
+                    ?: return SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_BAD_PARAMETER, "Missing protobuf message")
+            val meta = CommandMetadata.build(domain, vin.toByteArray(), epochBytes, expiresAt, counterValue, message.flags.toUInt())
+            val nonce = random.nextBytes(Session.NONCE_SIZE)
+            val out = session.encrypt(payload, crypto.sha256(meta.serialize()), nonce)
+            return SignerResult.Ok(
+                message.copy(
+                    protobuf_message_as_bytes = out.ciphertext.toByteString(),
+                    signature_data =
+                        SignatureData(
+                            signer_identity = KeyIdentity(public_key = localPublicKey.toByteArray().toByteString()),
+                            AES_GCM_Personalized_data =
+                                AES_GCM_Personalized_Signature_Data(
+                                    epoch = epochBytes.toByteString(),
+                                    nonce = nonce.toByteString(),
+                                    counter = counterValue.toInt(),
+                                    expires_at = expiresAt.toInt(),
+                                    tag = out.tag.toByteString(),
+                                ),
+                        ),
+                ),
+            )
+        }
+
+        /**
+         * Go `Decrypt`: AAD = SHA256(TLV{9, from_domain(없으면 0), VIN, counter, flags(항상), request_hash, fault}).
+         * 인증 실패는 `INVALID_SIGNATURE`(원본은 암호 라이브러리 오류를 그대로 돌려주지만 의미는 같다), GCM 데이터가 없으면 `BAD_PARAMETER`.
+         */
+        public fun decrypt(
+            message: RoutableMessage,
+            requestHash: ByteArray,
+        ): SignerResult<DecryptedResponse> {
+            val gcm =
+                message.signature_data?.AES_GCM_Response_data
+                    ?: return SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_BAD_PARAMETER, "missing AES-GCM data")
+            val fromDomain = message.from_destination?.domain ?: Domain.DOMAIN_BROADCAST
+            val fault = message.signedMessageStatus?.signed_message_fault?.value ?: 0
+            val meta =
+                ResponseMetadata.build(
+                    fromDomain,
+                    vin.toByteArray(),
+                    gcm.counter.toUInt(),
+                    message.flags.toUInt(),
+                    requestHash,
+                    fault.toUInt(),
+                )
+            val plaintext =
+                session.decrypt(
+                    gcm.nonce.toByteArray(),
+                    message.protobuf_message_as_bytes?.toByteArray() ?: ByteArray(0),
+                    gcm.tag.toByteArray(),
+                    crypto.sha256(meta.serialize()),
+                )
+                    ?: return SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INVALID_SIGNATURE, "response authentication failed")
+            return SignerResult.Ok(
+                DecryptedResponse(
+                    message.copy(protobuf_message_as_bytes = plaintext.toByteString(), signature_data = null),
+                    gcm.counter.toUInt(),
+                ),
+            )
+        }
 
         /** 세션 키를 0으로 덮는다. 이후 모든 연산은 실패한다. */
         override fun close() {

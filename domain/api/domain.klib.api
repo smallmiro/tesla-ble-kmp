@@ -5680,11 +5680,22 @@ final class io.github.smallmiro.teslable.protocol/Signer : kotlin/AutoCloseable 
         final fun <get-vin>(): io.github.smallmiro.teslable.model/Vin // io.github.smallmiro.teslable.protocol/Signer.vin.<get-vin>|<get-vin>(){}[0]
 
     final fun close() // io.github.smallmiro.teslable.protocol/Signer.close|close(){}[0]
+    final fun decrypt(com.tesla.generated.universalmessage/RoutableMessage, kotlin/ByteArray): io.github.smallmiro.teslable.protocol/SignerResult<io.github.smallmiro.teslable.protocol/Signer.DecryptedResponse> // io.github.smallmiro.teslable.protocol/Signer.decrypt|decrypt(com.tesla.generated.universalmessage.RoutableMessage;kotlin.ByteArray){}[0]
+    final fun encrypt(com.tesla.generated.universalmessage/RoutableMessage, kotlin.time/Duration): io.github.smallmiro.teslable.protocol/SignerResult<com.tesla.generated.universalmessage/RoutableMessage> // io.github.smallmiro.teslable.protocol/Signer.encrypt|encrypt(com.tesla.generated.universalmessage.RoutableMessage;kotlin.time.Duration){}[0]
     final fun exportSessionInfo(): kotlin/ByteArray // io.github.smallmiro.teslable.protocol/Signer.exportSessionInfo|exportSessionInfo(){}[0]
     final fun timestamp(): kotlin/UInt // io.github.smallmiro.teslable.protocol/Signer.timestamp|timestamp(){}[0]
     final fun toString(): kotlin/String // io.github.smallmiro.teslable.protocol/Signer.toString|toString(){}[0]
     final fun updateSessionInfo(com.tesla.generated.signatures/SessionInfo): io.github.smallmiro.teslable.protocol/SignerResult<kotlin/Unit> // io.github.smallmiro.teslable.protocol/Signer.updateSessionInfo|updateSessionInfo(com.tesla.generated.signatures.SessionInfo){}[0]
     final fun updateSignedSessionInfo(kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray): io.github.smallmiro.teslable.protocol/SignerResult<kotlin/Unit> // io.github.smallmiro.teslable.protocol/Signer.updateSignedSessionInfo|updateSignedSessionInfo(kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray){}[0]
+
+    final class DecryptedResponse { // io.github.smallmiro.teslable.protocol/Signer.DecryptedResponse|null[0]
+        constructor <init>(com.tesla.generated.universalmessage/RoutableMessage, kotlin/UInt) // io.github.smallmiro.teslable.protocol/Signer.DecryptedResponse.<init>|<init>(com.tesla.generated.universalmessage.RoutableMessage;kotlin.UInt){}[0]
+
+        final val counter // io.github.smallmiro.teslable.protocol/Signer.DecryptedResponse.counter|{}counter[0]
+            final fun <get-counter>(): kotlin/UInt // io.github.smallmiro.teslable.protocol/Signer.DecryptedResponse.counter.<get-counter>|<get-counter>(){}[0]
+        final val message // io.github.smallmiro.teslable.protocol/Signer.DecryptedResponse.message|{}message[0]
+            final fun <get-message>(): com.tesla.generated.universalmessage/RoutableMessage // io.github.smallmiro.teslable.protocol/Signer.DecryptedResponse.message.<get-message>|<get-message>(){}[0]
+    }
 
     final object Companion { // io.github.smallmiro.teslable.protocol/Signer.Companion|null[0]
         final suspend fun create(io.github.smallmiro.teslable.port/EcdhPrivateKey, io.github.smallmiro.teslable.model/Vin, com.tesla.generated.signatures/SessionInfo, io.github.smallmiro.teslable.port/CryptoPrimitives, io.github.smallmiro.teslable.port/RandomSource, kotlin.time/TimeSource = ...): io.github.smallmiro.teslable.protocol/SignerResult<io.github.smallmiro.teslable.protocol/Signer> // io.github.smallmiro.teslable.protocol/Signer.Companion.create|create(io.github.smallmiro.teslable.port.EcdhPrivateKey;io.github.smallmiro.teslable.model.Vin;com.tesla.generated.signatures.SessionInfo;io.github.smallmiro.teslable.port.CryptoPrimitives;io.github.smallmiro.teslable.port.RandomSource;kotlin.time.TimeSource){}[0]
