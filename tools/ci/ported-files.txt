@@ -1,0 +1,20 @@
+# tools/ci/ported-files.txt — Go 원본을 포팅한 파일의 명시적 목록 (NFR-008).
+# 여기 적힌 각 파일은 첫 3줄 안에 "Ported from vehicle-command@<commit> <path> (Apache-2.0)" 헤더가 있어야 한다.
+# tools/ci/check-license.sh 가 이 목록을 검사한다. 새로 포팅한 파일은 여기에 추가한다.
+# 생성 방법: git ls-files '*.kt' | xargs grep -l 'Ported from vehicle-command@' | sort
+adapter-crypto/src/iosMain/kotlin/io/github/smallmiro/teslable/crypto/AppleCryptoPrimitives.kt
+adapter-crypto/src/iosMain/kotlin/io/github/smallmiro/teslable/crypto/AppleSoftwareEcdhKey.kt
+adapter-crypto/src/jvmCommonMain/kotlin/io/github/smallmiro/teslable/crypto/JcaCryptoPrimitives.kt
+adapter-crypto/src/jvmCommonMain/kotlin/io/github/smallmiro/teslable/crypto/JcaSoftwareEcdhKey.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/CryptoPrimitives.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/EcdhPrivateKey.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/CommandMetadata.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/Metadata.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/RequestHash.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/ResponseMetadata.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/Session.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/SessionKeys.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/SlidingWindow.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/transport/Framer.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/transport/LocalName.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/transport/Reassembler.kt
