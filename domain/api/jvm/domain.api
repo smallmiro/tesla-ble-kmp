@@ -4972,6 +4972,11 @@ public final class io/github/smallmiro/teslable/protocol/RequestHash {
 	public final fun of (Lcom/tesla/generated/universalmessage/RoutableMessage;)[B
 }
 
+public final class io/github/smallmiro/teslable/protocol/ResponseClassifier {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/protocol/ResponseClassifier;
+	public final fun protocolError (Lcom/tesla/generated/universalmessage/RoutableMessage;)Lio/github/smallmiro/teslable/model/VehicleError;
+}
+
 public final class io/github/smallmiro/teslable/protocol/ResponseMetadata {
 	public static final field INSTANCE Lio/github/smallmiro/teslable/protocol/ResponseMetadata;
 	public final fun build-oecLfNU (Lcom/tesla/generated/universalmessage/Domain;[BII[BI)Lio/github/smallmiro/teslable/protocol/Metadata;
