@@ -1,0 +1,14 @@
+// Klib ABI Dump
+// Targets: [iosArm64, iosSimulatorArm64]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <tesla-ble-kmp:sdk>
+final object io.github.smallmiro.teslable/Teslable { // io.github.smallmiro.teslable/Teslable|null[0]
+    final const val VERSION // io.github.smallmiro.teslable/Teslable.VERSION|{}VERSION[0]
+        final fun <get-VERSION>(): kotlin/String // io.github.smallmiro.teslable/Teslable.VERSION.<get-VERSION>|<get-VERSION>(){}[0]
+
+    final fun localNameFor(kotlin/String): kotlin/String // io.github.smallmiro.teslable/Teslable.localNameFor|localNameFor(kotlin.String){}[0]
+}
