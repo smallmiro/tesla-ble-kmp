@@ -8,8 +8,9 @@ style:
       - value: 'kotlinx.coroutines.GlobalScope'
         reason: 'Structured concurrency only (docs/workflow.md §4.4)'
       - value: 'kotlinx.coroutines.runBlocking'
-        reason: 'Not allowed in library code (tests excluded via test source ignore)'
-    forbiddenPatterns: 'android\..*|platform\..*|com\.juul\..*'
+        reason: 'Not allowed in main source; permitted in tests, which are excluded via `excludes` (docs/workflow.md §4.4)'
+    excludes: ['**/test/**', '**/commonTest/**', '**/*Test/**']
+    forbiddenPatterns: '^(android|platform|com\.juul)\..*'
   ForbiddenMethodCall:
     active: true
     methods:
