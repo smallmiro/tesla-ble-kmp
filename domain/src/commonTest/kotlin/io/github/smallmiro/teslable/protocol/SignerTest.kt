@@ -16,6 +16,7 @@ import okio.ByteString.Companion.toByteString
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TestTimeSource
@@ -166,6 +167,17 @@ class SignerTest {
                 MessageFault_E.MESSAGEFAULT_ERROR_UNKNOWN_KEY_ID,
                 signer.updateSignedSessionInfo(challenge, signed.encoded, retagged),
             )
+        }
+
+    @Test
+    fun updateSignedSessionInfoAfterCloseThrows() =
+        // Final review M-4 (ADR-0006): a closed signer used to answer Fault(INVALID_SIGNATURE) because
+        // Session.verifySessionInfoTag returns false when closed — a programming error masked as a wire error.
+        runTest {
+            val (verifier, signer) = pair()
+            val signed = verifier.signedSessionInfo(challenge)
+            signer.close()
+            assertFailsWith<IllegalStateException> { signer.updateSignedSessionInfo(challenge, signed.encoded, signed.tag) }
         }
 
     @Test

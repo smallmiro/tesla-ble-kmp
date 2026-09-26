@@ -25,6 +25,7 @@ import okio.ByteString.Companion.toByteString
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -226,6 +227,35 @@ class SignerCryptoTest {
             val result = signer.encrypt(testMessage(), expiresIn = (2L * CommandMetadata.EPOCH_LENGTH_SECONDS.toLong()).seconds)
             assertEquals(MessageFault_E.MESSAGEFAULT_ERROR_BAD_PARAMETER, assertIs<SignerResult.Fault>(result).fault)
             assertEquals(before + 1u, signer.counter) // signer.go Encrypt: counter++ 뒤에 encryptWithCounter가 실패한다
+        }
+
+    @Test
+    fun encryptAfterCloseThrowsWithoutConsumingCounter() =
+        // Final review M-4 (ADR-0006): use after close is a programming error. The closed check runs before the rollover
+        // check and counter++, so a closed signer never consumes a counter.
+        runTest {
+            val (_, signer) = pair()
+            val before = signer.counter
+            signer.close()
+            assertFailsWith<IllegalStateException> { signer.encrypt(testMessage(), 1.minutes) }
+            assertEquals(before, signer.counter)
+        }
+
+    @Test
+    fun decryptAfterCloseThrows() =
+        // Final review M-4: a closed signer used to answer Fault(INVALID_SIGNATURE) (Session.decrypt returns null when
+        // closed), which masked a programming error as a wire error. Now it throws like encrypt.
+        runTest {
+            val (verifier, signer) = pair()
+            val requestHash = arbitraryRequestHash()
+            val response =
+                RoutableMessage(
+                    from_destination = Destination(domain = Domain.DOMAIN_VEHICLE_SECURITY),
+                    protobuf_message_as_bytes = "0a00".decodeHex(),
+                )
+            val encrypted = verifier.encryptResponse(response, requestHash, counter = 1u)
+            signer.close()
+            assertFailsWith<IllegalStateException> { signer.decrypt(encrypted, requestHash) }
         }
 
     @Test

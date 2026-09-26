@@ -129,7 +129,7 @@ public class Signer private constructor(session, vin: Vin, epoch, counter, clock
     public fun exportSessionInfo(): ByteArray
     public fun encrypt(message: RoutableMessage, expiresIn: Duration): SignerResult<RoutableMessage>       // counter++, 롤오버 검사, nonce = random(12)
     public fun decrypt(message: RoutableMessage, requestHash: ByteArray): SignerResult<DecryptedResponse>  // DecryptedResponse(평문 message, counter)
-    override fun close()                                                                  // 세션 키를 0으로 덮음
+    override fun close()                                                                  // 세션 키를 0으로 덮음. 이후 encrypt/decrypt/updateSignedSessionInfo는 IllegalStateException
     public companion object {
         public suspend fun create(privateKey, vin, info: SessionInfo, crypto, random, timeSource = TimeSource.Monotonic): SignerResult<Signer>
         public suspend fun createAuthenticated(privateKey, vin, challenge, encodedInfo, tag, crypto, random, timeSource = TimeSource.Monotonic): SignerResult<Signer>
