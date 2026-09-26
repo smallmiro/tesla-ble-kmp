@@ -46,7 +46,7 @@ public class SignedSessionInfo(
  *
  * M2 `FakeVehicle`이 이 클래스를 감싼다. 스레드 안전하지 않다.
  */
-@Suppress("TooManyFunctions") // Go Verifier/Peer의 공개·비공개 메서드와 1:1 대응 + 테스트 전용 조작 3개(exhaustCounter, shiftTimeZero, assignHandle)
+@Suppress("TooManyFunctions") // Go Verifier/Peer의 공개·비공개 메서드(assignHandle 포함)와 1:1 대응 + 테스트 전용 조작 2개(exhaustCounter, shiftTimeZero)
 public class TestVerifier private constructor(
     private val session: Session,
     /** TLV PERSONALIZATION 값(운영에서는 VIN 17자; Go 테스트는 임의 바이트). */
@@ -110,7 +110,10 @@ public class TestVerifier private constructor(
         if (counterValue == UInt.MAX_VALUE || timestamp() > CommandMetadata.EPOCH_LENGTH_SECONDS) rotateEpoch()
     }
 
-    /** counter를 `0xFFFFFFFF`로 놓는다(Go `TestGCMEpochRotation`의 `signer.counter = 0xFFFFFFFE` 이후 상태). 다음 [sessionInfo]/[verify]가 epoch를 돌린다. */
+    /**
+     * counter를 `0xFFFFFFFF`로 놓는다(Go `TestGCMEpochRotation`의 `signer.counter = 0xFFFFFFFE` 이후 상태). 다음
+     * [sessionInfo]/[verify]가 epoch를 돌린다.
+     */
     @InternalTeslableApi
     public fun exhaustCounter() {
         counterValue = UInt.MAX_VALUE

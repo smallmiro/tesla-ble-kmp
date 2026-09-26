@@ -145,7 +145,10 @@ class TestVerifierTest {
             val verifier = docVerifier(TestTimeSource())
             val request =
                 RoutableMessage(
-                    session_info_request = com.tesla.generated.universalmessage.SessionInfoRequest(public_key = TestCrypto.clientPublicKey.toByteArray().toByteString()),
+                    session_info_request =
+                        com.tesla.generated.universalmessage.SessionInfoRequest(
+                            public_key = TestCrypto.clientPublicKey.toByteArray().toByteString(),
+                        ),
                 )
             val reply = verifier.setSessionInfo(ProtocolVectors.CHALLENGE.hexToBytes(), request)
             assertNull(reply.session_info_request)
@@ -157,7 +160,12 @@ class TestVerifierTest {
     fun encryptResponseClearsOtherPayloadMembers() =
         runTest {
             val verifier = docVerifier(TestTimeSource())
-            val requestHash = RequestHash.of(SignatureType.SIGNATURE_TYPE_AES_GCM_PERSONALIZED, ByteArray(16) { 9 }, Domain.DOMAIN_VEHICLE_SECURITY)
+            val requestHash =
+                RequestHash.of(
+                    SignatureType.SIGNATURE_TYPE_AES_GCM_PERSONALIZED,
+                    ByteArray(16) { 9 },
+                    Domain.DOMAIN_VEHICLE_SECURITY,
+                )
             val withSessionInfo = RoutableMessage(session_info = "x".encodeUtf8())
             val encrypted = verifier.encryptResponse(withSessionInfo, requestHash, counter = 1u)
             assertNull(encrypted.session_info)
