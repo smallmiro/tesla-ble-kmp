@@ -1,0 +1,26 @@
+# Reference: official Tesla Go SDK (https://github.com/teslamotors/vehicle-command)
+# Read-only local clone used as porting source. Never commit.
+/vehicle-command/
+
+# Gradle / Kotlin
+.gradle/
+build/
+.kotlin/
+local.properties
+*.iml
+.idea/
+
+# Xcode / iOS
+xcuserdata/
+DerivedData/
+*.xcworkspace/xcuserdata/
+Pods/
+
+# macOS
+.DS_Store
+
+# Secrets / local keys used in real-vehicle testing
+*.pem
+!**/src/*Test/resources/**/*.pem
+*.key
+.env
