@@ -1,5 +1,6 @@
 package io.github.smallmiro.teslable.testing
 
+import com.tesla.generated.signatures.SignatureType
 import com.tesla.generated.universalmessage.Destination
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
@@ -14,6 +15,8 @@ import io.github.smallmiro.teslable.util.hexToBytes
 import io.github.smallmiro.teslable.util.toHex
 import kotlinx.coroutines.test.runTest
 import okio.ByteString.Companion.decodeHex
+import okio.ByteString.Companion.encodeUtf8
+import okio.ByteString.Companion.toByteString
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -21,6 +24,7 @@ import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TestTimeSource
 
@@ -79,7 +83,7 @@ class TestVerifierTest {
         runTest {
             val verifier = docVerifier(TestTimeSource(), random = FixedRandom(ByteArray(16) { 1 }, ByteArray(16) { 2 }))
             assertEquals(ByteArray(16) { 1 }.toHex(), verifier.epoch.toHex())
-            verifier.forceCounter(UInt.MAX_VALUE)
+            verifier.exhaustCounter()
             verifier.sessionInfo() // rotateEpochIfNeeded(false): counter == 0xFFFFFFFF → 새 epoch, counter 0
             assertEquals(ByteArray(16) { 2 }.toHex(), verifier.epoch.toHex())
             assertEquals(0u, verifier.counter)
@@ -103,6 +107,7 @@ class TestVerifierTest {
             val encrypted = verifier.encryptResponse(response, requestHash, counter = 8u)
             val gcm = assertNotNull(encrypted.signature_data?.AES_GCM_Response_data)
             assertEquals(8, gcm.counter)
+            assertEquals("dbf79447fa156674dae1caed", gcm.nonce.hex()) // 주입한 FixedRandom 두 번째 값이 nonce로 쓰였다
             val clientSession = Session.establish(TestCrypto.clientKey(), TestCrypto.vehiclePublicKey, crypto)
             val meta =
                 io.github.smallmiro.teslable.protocol.ResponseMetadata.build(
@@ -122,6 +127,56 @@ class TestVerifierTest {
                     crypto.sha256(meta.serialize()),
                 ),
             )
+        }
+
+    @Test
+    fun sessionInfoCarriesAssignedHandle() =
+        // verifier_test.go TestProvideHandle
+        runTest {
+            val verifier = docVerifier(TestTimeSource())
+            verifier.assignHandle(0xDEADBEEFu)
+            assertEquals(0xDEADBEEFu.toInt(), verifier.sessionInfo().handle)
+        }
+
+    @Test
+    fun setSessionInfoClearsOtherPayloadMembers() =
+        // M1 ledger L80: Go SetSessionInfo는 message.Payload(oneof 전체)를 교체한다
+        runTest {
+            val verifier = docVerifier(TestTimeSource())
+            val request =
+                RoutableMessage(
+                    session_info_request = com.tesla.generated.universalmessage.SessionInfoRequest(public_key = TestCrypto.clientPublicKey.toByteArray().toByteString()),
+                )
+            val reply = verifier.setSessionInfo(ProtocolVectors.CHALLENGE.hexToBytes(), request)
+            assertNull(reply.session_info_request)
+            assertNull(reply.protobuf_message_as_bytes)
+            assertNotNull(reply.session_info)
+        }
+
+    @Test
+    fun encryptResponseClearsOtherPayloadMembers() =
+        runTest {
+            val verifier = docVerifier(TestTimeSource())
+            val requestHash = RequestHash.of(SignatureType.SIGNATURE_TYPE_AES_GCM_PERSONALIZED, ByteArray(16) { 9 }, Domain.DOMAIN_VEHICLE_SECURITY)
+            val withSessionInfo = RoutableMessage(session_info = "x".encodeUtf8())
+            val encrypted = verifier.encryptResponse(withSessionInfo, requestHash, counter = 1u)
+            assertNull(encrypted.session_info)
+            assertNull(encrypted.session_info_request)
+            assertEquals(0, assertNotNull(encrypted.protobuf_message_as_bytes).size) // 빈 평문의 암호문은 빈 바이트
+        }
+
+    @Test
+    fun shiftTimeZeroMovesVehicleClock() =
+        // verifier_test.go TestGCMExpired: verifier.timeZero.Add(-time.Hour) → timestamp가 1시간 커진다
+        runTest {
+            val time = TestTimeSource()
+            val verifier = docVerifier(time)
+            time += 10.seconds
+            assertEquals(10u, verifier.timestamp())
+            verifier.shiftTimeZero((-1).hours)
+            assertEquals(3610u, verifier.timestamp())
+            verifier.shiftTimeZero(1.hours + 5.seconds) // 5초 역행
+            assertEquals(5u, verifier.timestamp())
         }
 
     @Test
