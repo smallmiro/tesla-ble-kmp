@@ -1,0 +1,23 @@
+public final class io/github/smallmiro/teslable/crypto/JcaCryptoPrimitives : io/github/smallmiro/teslable/port/CryptoPrimitives {
+	public static final field TAG_BITS I
+	public static final field TAG_BYTES I
+	public fun <init> ()V
+	public fun aesGcmDecrypt ([B[B[B[B[B)[B
+	public fun aesGcmEncrypt ([B[B[B[B)Lio/github/smallmiro/teslable/port/AesGcmOutput;
+	public fun constantTimeEquals ([B[B)Z
+	public fun hmacSha256 ([B[B)[B
+	public fun sha1 ([B)[B
+	public fun sha256 ([B)[B
+}
+
+public final class io/github/smallmiro/teslable/crypto/JcaRandomSource : io/github/smallmiro/teslable/port/RandomSource {
+	public fun <init> ()V
+	public fun nextBytes (I)[B
+}
+
+public final class io/github/smallmiro/teslable/crypto/PlatformCrypto_jvmCommonKt {
+	public static final fun platformCryptoPrimitives ()Lio/github/smallmiro/teslable/port/CryptoPrimitives;
+	public static final fun platformRandomSource ()Lio/github/smallmiro/teslable/port/RandomSource;
+	public static final fun softwareEcdhKey ([BLio/github/smallmiro/teslable/model/PublicKeyBytes;)Lio/github/smallmiro/teslable/port/EcdhPrivateKey;
+}
+
