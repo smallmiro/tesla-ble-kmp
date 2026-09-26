@@ -308,7 +308,7 @@ public class Signer
              *
              * [age]가 음수이면(캐시 저장과 불러오기 사이에 벽시계가 뒤로 감) 0으로 본다. 이는 프로그래밍 오류가 아닌
              * 런타임 조건이므로 예외를 던지지 않는다(ADR-0006). Go는 미래의 `generatedAt`을 그대로 받아 `timeZero`가
-             * 뒤로 간다.
+             * 더 나중이 된다(`timestamp()`가 작아져 명령이 일찍 만료될 수 있다).
              */
             @Suppress("LongParameterList") // Go ImportSessionInfo 인자(+crypto/random/timeSource 주입)와 1:1 대응
             public suspend fun importSessionInfo(
