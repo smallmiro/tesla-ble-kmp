@@ -21,7 +21,7 @@
 | `PLANS_DIR` | `docs/superpowers/plans/` | 구현 계획 |
 | `ADR_DIR` | `docs/adr/` | 아키텍처 결정 기록 (`NNNN-<slug>.md`) |
 | `HANDOFF_DIR` | `docs/handoff/` | 세션 인계 노트 (`YYYY-MM-DD-<slug>.md`) |
-| `FIXTURES_DIR` | `testing/src/commonTest/resources/fixtures/` ← SDD에서 확정 | 테스트 벡터, 골든 TX/RX (VIN 마스킹본만) |
+| `FIXTURES_DIR` | `testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/fixtures/` | 테스트 벡터, 골든 TX/RX (VIN 마스킹본만). Kotlin 상수로 저장 (SDD D30, ADR-0011) |
 | `REF_REPO_DIR` | `vehicle-command/` | 공식 Go 저장소 로컬 클론. **git-ignored, 읽기 전용** |
 | `REF_REPO_URL` | `https://github.com/teslamotors/vehicle-command` | 원본 저장소 |
 | `REF_REPO_COMMIT` | `a4b43c1eff0e09d77deb9f2dce97031141fe8c8a` | 포팅 기준 커밋 (2026-09-25) |
