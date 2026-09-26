@@ -29,6 +29,14 @@ kotlin {
     iosArm64()
     iosSimulatorArm64()
 
+    // iOS 배포 타깃 16.0 (SDD §8.1, NFR-009). Kotlin/Native 기본값은 konan.properties의 minVersion.ios(15.0)이므로
+    // 타깃 컴파일러 옵션으로 덮어써 컴파일·링크 전부(테스트 바이너리와 :sdk 프레임워크 Info.plist의 MinimumOSVersion)에 적용한다.
+    targets.withType<org.jetbrains.kotlin.gradle.plugin.mpp.KotlinNativeTarget>().configureEach {
+        compilerOptions {
+            freeCompilerArgs.add("-Xoverride-konan-properties=osVersionMin.ios_arm64=16.0;osVersionMin.ios_simulator_arm64=16.0")
+        }
+    }
+
     applyDefaultHierarchyTemplate()
 
     sourceSets {

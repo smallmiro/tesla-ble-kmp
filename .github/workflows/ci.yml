@@ -85,6 +85,16 @@ jobs:
           sudo xcode-select -s "$XCODE_APP"
           xcodebuild -version
       - run: ./gradlew iosSimulatorArm64Test apiCheck :sdk:linkDebugFrameworkIosSimulatorArm64 --console=plain
+      - name: Teslable.framework must declare MinimumOSVersion 16.0 (NFR-009)
+        run: |
+          set -euo pipefail
+          plist=sdk/build/bin/iosSimulatorArm64/debugFramework/Teslable.framework/Info.plist
+          min="$(plutil -extract MinimumOSVersion raw -o - "$plist")"
+          echo "MinimumOSVersion=$min"
+          if [ "$min" != "16.0" ]; then
+            echo "Expected MinimumOSVersion 16.0 in $plist, got '$min'" >&2
+            exit 1
+          fi
       - run: brew install xcodegen
       - run: cd samples/ios && xcodegen generate && xcodebuild -project TeslableSample.xcodeproj -scheme TeslableSample -destination 'generic/platform=iOS Simulator' -configuration Debug CODE_SIGNING_ALLOWED=NO build
 
