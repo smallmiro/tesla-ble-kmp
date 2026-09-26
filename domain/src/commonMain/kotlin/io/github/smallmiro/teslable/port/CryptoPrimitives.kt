@@ -5,8 +5,14 @@ public class AesGcmOutput(
     ciphertext: ByteArray,
     tag: ByteArray,
 ) {
-    public val ciphertext: ByteArray = ciphertext.copyOf()
-    public val tag: ByteArray = tag.copyOf()
+    private val ciphertextBytes: ByteArray = ciphertext.copyOf()
+    private val tagBytes: ByteArray = tag.copyOf()
+
+    /** 암호문 복사본을 돌려준다. */
+    public val ciphertext: ByteArray get() = ciphertextBytes.copyOf()
+
+    /** 태그 복사본을 돌려준다. */
+    public val tag: ByteArray get() = tagBytes.copyOf()
 }
 
 /**
@@ -15,10 +21,13 @@ public class AesGcmOutput(
  * Go 원본: internal/authentication/native.go (NativeSession), crypto.go (Session 인터페이스)
  */
 public interface CryptoPrimitives {
+    /** SHA-1 digest, 20 bytes. */
     public fun sha1(data: ByteArray): ByteArray
 
+    /** SHA-256 digest, 32 bytes. */
     public fun sha256(data: ByteArray): ByteArray
 
+    /** HMAC-SHA-256 digest, 32 bytes. */
     public fun hmacSha256(
         key: ByteArray,
         data: ByteArray,

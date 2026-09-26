@@ -8,6 +8,7 @@ import io.github.smallmiro.teslable.model.PublicKeyBytes
  * 공유점 X좌표(32바이트, 0-패딩)만 돌려주고 K 유도는 도메인(`SessionKeys`)이 맡는다.
  */
 public interface EcdhPrivateKey {
+    /** 이 키의 공개키, 65바이트 비압축. */
     public val publicKey: PublicKeyBytes
 
     /** ECDH 공유점의 X좌표 32바이트 (Go `sharedX.FillBytes(32)`). */
