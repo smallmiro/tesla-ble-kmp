@@ -1,7 +1,6 @@
 // Ported from vehicle-command@a4b43c1 pkg/protocol/error.go (Apache-2.0) — GetError
 package io.github.smallmiro.teslable.protocol
 
-import com.squareup.wire.ProtoReader
 import com.tesla.generated.signatures.SessionInfo
 import com.tesla.generated.signatures.Session_Info_Status
 import com.tesla.generated.universalmessage.MessageFault_E
@@ -9,7 +8,6 @@ import com.tesla.generated.universalmessage.MessageStatus
 import com.tesla.generated.universalmessage.OperationStatus_E
 import com.tesla.generated.universalmessage.RoutableMessage
 import io.github.smallmiro.teslable.model.VehicleError
-import okio.Buffer
 import okio.ByteString
 import okio.IOException
 
@@ -49,7 +47,7 @@ public object ResponseClassifier {
             }
         }
         // Go는 등록되지 않은 fault도 &RoutableMessageError{Code: fault}로 코드를 보존한다(error.go 241).
-        val rawFault = status?.let { unknownVarint(it.unknownFields, TAG_MESSAGE_STATUS_SIGNED_MESSAGE_FAULT) }
+        val rawFault = status?.let { it.unknownFields.unknownVarint(TAG_MESSAGE_STATUS_SIGNED_MESSAGE_FAULT) }
         return rawFault?.let { VehicleError.UnknownFault(it) }
     }
 
@@ -62,7 +60,7 @@ public object ResponseClassifier {
             } catch (e: IOException) {
                 return VehicleError.BadResponse("session info: ${e.message ?: "undecodable"}")
             }
-        if (unknownVarint(info.unknownFields, TAG_SESSION_INFO_STATUS) != null) {
+        if (info.unknownFields.unknownVarint(TAG_SESSION_INFO_STATUS) != null) {
             return VehicleError.UnknownResponse
         }
         return when (info.status) {
@@ -73,39 +71,13 @@ public object ResponseClassifier {
 
     /** Go `GetError` 3단계: `operation_status`. `ERROR`는 Go처럼 nil(error.go 257~263). */
     private fun operationStatusError(status: MessageStatus?): VehicleError? {
-        if (status != null && unknownVarint(status.unknownFields, TAG_MESSAGE_STATUS_OPERATION_STATUS) != null) {
+        if (status != null && status.unknownFields.unknownVarint(TAG_MESSAGE_STATUS_OPERATION_STATUS) != null) {
             return VehicleError.UnknownResponse
         }
         return when (status?.operation_status ?: OperationStatus_E.OPERATIONSTATUS_OK) {
             OperationStatus_E.OPERATIONSTATUS_OK -> null
             OperationStatus_E.OPERATIONSTATUS_WAIT -> VehicleError.Busy
             OperationStatus_E.OPERATIONSTATUS_ERROR -> null
-        }
-    }
-
-    /**
-     * [unknownFields]에서 [tag]가 가리키는 varint 필드의 원시 값(마지막 값). 없으면 null. Wire가 범위를 벗어난
-     * enum 값을 만났을 때 원본 바이트를 여기로 옮기므로, 값이 있으면 그 필드는 미인식 값이었다는 뜻이다.
-     * 손상된 `unknownFields`는 "없음"(null)으로 취급한다.
-     */
-    private fun unknownVarint(
-        unknownFields: ByteString,
-        tag: Int,
-    ): Int? {
-        if (unknownFields.size == 0) return null
-        return try {
-            var value: Int? = null
-            val reader = ProtoReader(Buffer().write(unknownFields))
-            reader.forEachTag { foundTag ->
-                if (foundTag == tag) {
-                    value = reader.readVarint32()
-                } else {
-                    reader.skip()
-                }
-            }
-            value
-        } catch (ignored: IOException) {
-            null
         }
     }
 }
