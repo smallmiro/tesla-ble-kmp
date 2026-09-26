@@ -1,6 +1,6 @@
 # Reference: official Tesla Go SDK (https://github.com/teslamotors/vehicle-command)
 # Read-only local clone used as porting source. Never commit.
-/vehicle-command/
+/vehicle-command
 
 # Gradle / Kotlin
 .gradle/
@@ -24,3 +24,9 @@ Pods/
 !**/src/*Test/resources/**/*.pem
 *.key
 .env
+
+# Kotlin / Gradle (M0)
+.kotlin/
+**/build/
+# XcodeGen generates the project; only project.yml is tracked
+samples/ios/*.xcodeproj/

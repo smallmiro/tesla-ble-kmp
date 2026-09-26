@@ -1,0 +1,28 @@
+build:
+  maxIssues: 0
+
+style:
+  ForbiddenImport:
+    active: true
+    imports:
+      - value: 'kotlinx.coroutines.GlobalScope'
+        reason: 'Structured concurrency only (docs/workflow.md §4.4)'
+      - value: 'kotlinx.coroutines.runBlocking'
+        reason: 'Not allowed in library code (tests excluded via test source ignore)'
+    forbiddenPatterns: 'android\..*|platform\..*|com\.juul\..*'
+  ForbiddenMethodCall:
+    active: true
+    methods:
+      - value: 'kotlin.io.println'
+        reason: 'Use TeslaLogger (NFR-006)'
+  MaxLineLength:
+    maxLineLength: 140
+  ReturnCount:
+    active: false
+
+potential-bugs:
+  LateinitUsage:
+    active: true
+    excludes: ['**/test/**', '**/commonTest/**', '**/*Test/**']
+  UnsafeCallOnNullableType:
+    active: true
