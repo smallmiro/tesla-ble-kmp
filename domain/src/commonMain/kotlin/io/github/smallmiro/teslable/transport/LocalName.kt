@@ -19,6 +19,7 @@ public class LocalName(
 
     override fun toString(): String = value
 
+    /** [LocalName] 생성 팩토리. */
     public companion object {
         /**
          * VIN에서 Local Name을 생성한다 (SHA1 다이제스트 기반).

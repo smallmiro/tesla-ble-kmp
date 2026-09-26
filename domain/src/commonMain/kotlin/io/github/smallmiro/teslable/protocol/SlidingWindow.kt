@@ -62,6 +62,7 @@ public class SlidingWindow(
         return result.ok
     }
 
+    /** [SlidingWindow] 상수와 테스트용 복원 함수. */
     public companion object {
         /**
          * 기본 sliding window 크기 (32 개 counter).

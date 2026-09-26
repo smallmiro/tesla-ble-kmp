@@ -39,6 +39,7 @@ public class PublicKeyBytes(
             DISPLAY_BYTES,
         ).joinToString("") { (it.toInt() and BYTE_MASK).toString(HEX_RADIX).padStart(HEX_PADDING_WIDTH, '0') }}…)"
 
+    /** [PublicKeyBytes] 관련 상수. */
     public companion object {
         /** 비압축 SEC1 공개키 길이 (bytes). */
         public const val SIZE: Int = 65
