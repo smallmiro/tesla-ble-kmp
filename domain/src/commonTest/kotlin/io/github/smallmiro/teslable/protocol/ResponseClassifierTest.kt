@@ -7,6 +7,7 @@ import com.tesla.generated.universalmessage.MessageStatus
 import com.tesla.generated.universalmessage.OperationStatus_E
 import com.tesla.generated.universalmessage.RoutableMessage
 import io.github.smallmiro.teslable.model.VehicleError
+import okio.ByteString.Companion.decodeHex
 import okio.ByteString.Companion.toByteString
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -63,5 +64,39 @@ class ResponseClassifierTest {
         val error = RoutableMessage(signedMessageStatus = status(op = OperationStatus_E.OPERATIONSTATUS_ERROR))
         assertNull(ResponseClassifier.protocolError(error))
         assertNull(ResponseClassifier.protocolError(RoutableMessage()))
+    }
+
+    // Wire는 범위를 벗어난 enum 값을 만나면 필드를 기본값으로 두고 원본 바이트를 unknownFields로 옮긴다.
+    // 아래 네 테스트는 Go GetError의 `default: ErrUnknown` 분기를 원시 바이트로 재현한다.
+
+    @Test
+    fun unknownFaultBecomesUnknownResponse() {
+        // tag=2(signed_message_fault, varint) value=99: 0x10 0x63
+        val unknownFault = MessageStatus.ADAPTER.decode("1063".decodeHex())
+        val message = RoutableMessage(signedMessageStatus = unknownFault)
+        assertEquals(VehicleError.UnknownResponse, ResponseClassifier.protocolError(message))
+    }
+
+    @Test
+    fun unknownOperationStatusBecomesUnknownResponse() {
+        // tag=1(operation_status, varint) value=99: 0x08 0x63
+        val unknownOp = MessageStatus.ADAPTER.decode("0863".decodeHex())
+        val message = RoutableMessage(signedMessageStatus = unknownOp)
+        assertEquals(VehicleError.UnknownResponse, ResponseClassifier.protocolError(message))
+    }
+
+    @Test
+    fun unknownSessionInfoStatusBecomesUnknownResponse() {
+        // tag=5(SessionInfo.status, varint) value=99: 0x28 0x63
+        val message = RoutableMessage(session_info = "2863".decodeHex())
+        assertEquals(VehicleError.UnknownResponse, ResponseClassifier.protocolError(message))
+    }
+
+    @Test
+    fun knownFaultWinsOverUnknownOperationStatus() {
+        // operation_status=99(unknown) 뒤에 signed_message_fault=1(BUSY): 0x08 0x63 0x10 0x01
+        val status = MessageStatus.ADAPTER.decode("08631001".decodeHex())
+        val message = RoutableMessage(signedMessageStatus = status)
+        assertEquals(VehicleError.ProtocolFault(MessageFault_E.MESSAGEFAULT_ERROR_BUSY), ResponseClassifier.protocolError(message))
     }
 }
