@@ -61,7 +61,7 @@ jobs:
       - name: Select Xcode 26
         run: |
           set -euo pipefail
-          XCODE_APP="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)"
+          XCODE_APP="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)"
           if [ -z "$XCODE_APP" ]; then
             echo "No /Applications/Xcode_26*.app found on this runner image" >&2
             ls /Applications | grep -i Xcode >&2 || true
