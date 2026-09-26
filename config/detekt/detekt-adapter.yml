@@ -1,0 +1,4 @@
+# config/detekt/detekt-adapter.yml — 어댑터 모듈은 platform.* / android.* 임포트가 필요하다
+style:
+  ForbiddenImport:
+    forbiddenPatterns: ''
