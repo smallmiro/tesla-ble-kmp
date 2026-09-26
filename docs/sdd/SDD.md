@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | **초안 v1.0 — 사용자 승인 대기** (2026-09-26) |
+| 상태 | **v1.0 승인** (2026-09-26) |
 | 상위 문서 | `{{PRD_FILE}}` (FR/NFR), `{{HANDOFF_FILE}}` §4, §6, §7 |
 | 정답 기준 | `{{REF_REPO_DIR}}` @ `{{REF_REPO_COMMIT}}` + `pkg/protocol/protocol.md` |
 | 1차 가이드 | `{{MANUAL_DIR}}` (`01-architecture`, `02-ble-transport`, `03-protocol`, `08-errors`, `10-porting-guide`) |
