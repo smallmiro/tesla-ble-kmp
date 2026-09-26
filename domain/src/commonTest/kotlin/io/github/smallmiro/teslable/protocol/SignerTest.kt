@@ -16,6 +16,7 @@ import okio.ByteString.Companion.toByteString
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertIs
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TestTimeSource
@@ -143,23 +144,17 @@ class SignerTest {
             val time = TestTimeSource()
             val (_, signer) = pair(time)
             // 사기꾼: 다른 개인키(Go 테스트 스칼라)로 만든 검증자. 클라이언트 세션 K가 다르므로 태그 불일치.
+            val imposterEpoch = ByteArray(16) { 7 }
             val imposter =
-                TestVerifier
-                    .create(
-                        TestCrypto.goKnownVerifierKey(),
-                        vin.toByteArray(),
-                        Domain.DOMAIN_VEHICLE_SECURITY,
-                        TestCrypto.clientPublicKey,
-                        crypto,
-                        FixedRandom(
-                            ByteArray(
-                                16,
-                            ) {
-                                7
-                            },
-                        ),
-                        time,
-                    )
+                TestVerifier.create(
+                    TestCrypto.goKnownVerifierKey(),
+                    vin.toByteArray(),
+                    Domain.DOMAIN_VEHICLE_SECURITY,
+                    TestCrypto.clientPublicKey,
+                    crypto,
+                    FixedRandom(imposterEpoch),
+                    time,
+                )
             val signed = imposter.signedSessionInfo(challenge)
             assertFault(
                 MessageFault_E.MESSAGEFAULT_ERROR_INVALID_SIGNATURE,
@@ -269,8 +264,61 @@ class SignerTest {
         }
 
     @Test
-    fun padsShortEpochToSixteenBytes() =
-        // Review Focus 1; signer.go copy(signer.epoch[:], info.Epoch)
+    fun epochRolloverAppliesEvenWithLowerClockTime() =
+        // Fix round 1, Important 2(a); reboot: a NEW epoch unlocks a lower clock_time.
+        // signer.go UpdateSessionInfo "!bytes.Equal(s.epoch[:], info.Epoch) ||" — removing this disjunct must fail this test.
+        runTest {
+            val time = TestTimeSource()
+            val (verifier, signer) = pair(time)
+            time += 100.seconds
+            val atSetTime100 = verifier.sessionInfo() // same epoch, clock_time = 100
+            assertIs<SignerResult.Ok<Unit>>(signer.updateSessionInfo(atSetTime100.copy(counter = 20)))
+            assertEquals(100u, signer.timestamp())
+            assertEquals(20u, signer.counter)
+
+            val newEpoch = ByteArray(16) { 0x99.toByte() }
+            val rebooted = atSetTime100.copy(epoch = newEpoch.toByteString(), clock_time = 5, counter = 3)
+            assertIs<SignerResult.Ok<Unit>>(signer.updateSessionInfo(rebooted))
+            assertContentEquals(newEpoch, signer.epoch)
+            assertEquals(5u, signer.timestamp())
+            assertEquals(20u, signer.counter) // max(20, 3): counter never lowered even across a reboot
+        }
+
+    @Test
+    fun reanchorsClockOnUpdateInSameEpoch() =
+        // Fix round 1, Important 2(b); signer.go UpdateSessionInfo "s.timeZero = epochStartTime(info.ClockTime)" —
+        // removing this line must fail this test (timestamp() would read local elapsed time instead of clock_time).
+        runTest {
+            val time = TestTimeSource()
+            val (verifier, signer) = pair(time)
+            val base = verifier.sessionInfo()
+            time += 10.seconds // local clock barely moves...
+            // ...but the vehicle reports a much larger clock_time (e.g. it was already running before pairing).
+            assertIs<SignerResult.Ok<Unit>>(signer.updateSessionInfo(base.copy(clock_time = base.clock_time + 500)))
+            assertEquals((base.clock_time + 500).toUInt(), signer.timestamp())
+        }
+
+    @Test
+    fun appliesUpdateWhenClockTimeEqualsSetTimeInSameEpoch() =
+        // Fix round 1, Important 2(c); boundary: signer.go "s.setTime <= info.ClockTime" (<=, not <) — an update at
+        // the SAME clock_time as the last one is still applied. Changing <= to < must fail this test.
+        runTest {
+            val time = TestTimeSource()
+            val (verifier, signer) = pair(time)
+            time += 100.seconds
+            val atClock100 = verifier.sessionInfo() // same epoch, clock_time = 100
+            assertIs<SignerResult.Ok<Unit>>(signer.updateSessionInfo(atClock100.copy(counter = 7)))
+            assertEquals(100u, signer.timestamp())
+            assertEquals(7u, signer.counter)
+            // Second update at the SAME clock_time (100, not later) must still apply.
+            assertIs<SignerResult.Ok<Unit>>(signer.updateSessionInfo(atClock100.copy(counter = 9)))
+            assertEquals(9u, signer.counter)
+        }
+
+    @Test
+    fun updateCopiesShortEpochOverCurrentLikeGo() =
+        // Fix round 1, Important 1; signer.go UpdateSessionInfo "copy(s.epoch[:], info.Epoch)" onto the EXISTING array:
+        // a shorter epoch overwrites only the leading bytes, trailing bytes keep their prior value (no zero-fill).
         runTest {
             val (verifier, signer) = pair()
             val base = verifier.sessionInfo()
@@ -284,16 +332,42 @@ class SignerTest {
                     ),
                 ),
             )
-            assertContentEquals(shortEpoch + ByteArray(13), signer.epoch)
+            val expected = shortEpoch + ProtocolVectors.EPOCH.hexToBytes().copyOfRange(3, 16)
+            assertContentEquals(expected, signer.epoch)
+        }
+
+    @Test
+    fun createPadsShortEpochToSixteenBytes() =
+        // Fix round 1, Important 1; signer.go NewSigner "copy(signer.epoch[:], info.Epoch)" into a FRESH zero
+        // array (construction path only): a shorter epoch is zero-padded, unlike an update (see test above).
+        runTest {
+            val (verifier, _) = pair()
+            val info = verifier.sessionInfo()
+            val shortEpoch = byteArrayOf(0x11, 0x22, 0x33)
+            val created =
+                assertIs<SignerResult.Ok<Signer>>(
+                    Signer.create(
+                        TestCrypto.clientKey(),
+                        vin,
+                        info.copy(epoch = shortEpoch.toByteString()),
+                        crypto,
+                        TestCrypto.random,
+                        TestTimeSource(),
+                    ),
+                ).value
+            assertContentEquals(shortEpoch + ByteArray(13), created.epoch)
         }
 
     @Test
     fun exportRoundTripsThroughImportWithAge() =
-        // TestExportImport의 상태 부분 (암호화 왕복은 Task 6)
+        // TestExportImport의 상태 부분 (암호화 왕복은 Task 6); Fix round 1, Minor 3: raise the counter first so the
+        // round-trip comparison is meaningful, and check epoch/vehiclePublicKey survive the round trip too.
         runTest {
             val time = TestTimeSource()
-            val (_, signer) = pair(time)
+            val (verifier, signer) = pair(time)
             time += 30.seconds
+            assertIs<SignerResult.Ok<Unit>>(signer.updateSessionInfo(verifier.sessionInfo().copy(counter = 42)))
+            assertEquals(42u, signer.counter)
             val exported = signer.exportSessionInfo()
             val info = SessionInfo.ADAPTER.decode(exported)
             assertEquals(30, info.clock_time)
@@ -305,6 +379,48 @@ class SignerTest {
                 ).value
             assertEquals(1830u, imported.timestamp())
             assertEquals(signer.counter, imported.counter)
+            assertContentEquals(signer.epoch, imported.epoch)
+            assertEquals(signer.vehiclePublicKey, imported.vehiclePublicKey)
+        }
+
+    @Test
+    fun importSessionInfoRejectsNegativeAge() =
+        // Fix round 1, Minor 2: the Kotlin-only `require(!age.isNegative())` guard documented on importSessionInfo's KDoc.
+        runTest {
+            val (_, signer) = pair()
+            val exported = signer.exportSessionInfo()
+            assertFailsWith<IllegalArgumentException> {
+                Signer.importSessionInfo(
+                    TestCrypto.clientKey(),
+                    vin,
+                    exported,
+                    age = (-1).seconds,
+                    crypto,
+                    TestCrypto.random,
+                    TestTimeSource(),
+                )
+            }
+        }
+
+    @Test
+    fun importSessionInfoRejectsUndecodableProtobuf() =
+        // Fix round 1, Minor 2: importSessionInfo decodes before building, like createAuthenticated
+        // (Go ImportSessionInfo's proto.Unmarshal check).
+        runTest {
+            val (_, signer) = pair()
+            val exported = signer.exportSessionInfo()
+            assertFault(
+                MessageFault_E.MESSAGEFAULT_ERROR_DECODING,
+                Signer.importSessionInfo(
+                    TestCrypto.clientKey(),
+                    vin,
+                    corrupt(exported),
+                    age = 0.seconds,
+                    crypto,
+                    TestCrypto.random,
+                    TestTimeSource(),
+                ),
+            )
         }
 
     @Test
