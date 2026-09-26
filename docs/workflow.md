@@ -190,7 +190,7 @@ Refs: FR-012
 | 정적 분석 | `detekt` (경고 0) | ubuntu | 매 푸시 |
 | 빌드 | 경고를 에러로 처리 (`allWarningsAsErrors`) | ubuntu | 매 푸시 |
 | 아키텍처 | 모듈 의존 방향 (빌드에 내포) | – | 빌드 |
-| 공개 API | `apiCheck` | ubuntu | 매 푸시 |
+| 공개 API | `apiCheck` (klib 검증에 Apple 타깃이 필요해 macOS `ios` 잡에서 실행) | **macos** | 매 푸시 |
 | 공통 테스트 | `jvmTest` (벡터, 골든, 도메인, 유스케이스) | ubuntu | 매 푸시 |
 | Android 단위 | `testDebugUnitTest` | ubuntu | 매 푸시 |
 | iOS 테스트 | `iosSimulatorArm64Test` | **macos** | 매 PR |
