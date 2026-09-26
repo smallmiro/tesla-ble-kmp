@@ -1,0 +1,14 @@
+tesla-ble-kmp
+Copyright 2026 tesla-ble-kmp contributors
+
+This product includes software developed by Tesla, Inc.:
+  vehicle-command (https://github.com/teslamotors/vehicle-command)
+  Licensed under the Apache License, Version 2.0.
+  Ported files carry a header of the form
+  "Ported from vehicle-command@<commit> <path> (Apache-2.0)".
+
+This product includes protobuf definitions from the same repository
+(pkg/protocol/protobuf/*.proto), used without modification.
+
+This is an unofficial, community project and is not affiliated with,
+endorsed by, or sponsored by Tesla, Inc.
