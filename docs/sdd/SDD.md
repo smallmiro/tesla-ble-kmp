@@ -184,7 +184,7 @@ public interface VehicleKeyStore { suspend fun getOrCreate(alias, policy: KeyPol
 public interface CryptoPrimitives { fun sha1(d); fun sha256(d); fun hmacSha256(key, d); fun aesGcmEncrypt(key, nonce, plaintext, aad): AesGcmOutput; fun aesGcmDecrypt(...): ByteArray?; fun constantTimeEquals(a, b): Boolean }
 public interface RandomSource { fun nextBytes(n: Int): ByteArray }
 // 시계: kotlin.time.TimeSource를 주입한다(Reassembler, Signer, TestVerifier). 벽시계는 세션 캐시(M2 :adapter-storage)의
-// createdAt에서만 쓰고 age: Duration으로 변환해 넘긴다. age가 음수면(벽시계가 뒤로 감) — Go에서는 timeZero가 더 나중이 된다 Signer.importSessionInfo가
+// createdAt에서만 쓰고 age: Duration으로 변환해 넘긴다. age가 음수면(벽시계가 뒤로 감 — Go에서는 timeZero가 더 나중이 된다) Signer.importSessionInfo가
 // 0으로 본다(런타임 조건이므로 예외 없음, ADR-0006).
 public interface SessionCache { suspend fun load(vin: Vin, keyId: KeyId): List<CachedSession>; suspend fun store(vin, keyId, entries); suspend fun clear(vin) }
 public interface TeslaLogger { fun log(level: LogLevel, tag: String, message: () -> String) }   // 기본 NoOp
