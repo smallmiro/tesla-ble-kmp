@@ -32,8 +32,8 @@ kotlin {
 
     sourceSets {
         // JVM과 Android가 공유하는 JCA 코드용 중간 소스셋
-        val jvmCommonMain by creating { dependsOn(commonMain.get()) }
-        val jvmCommonTest by creating { dependsOn(commonTest.get()) }
+        val jvmCommonMain = create("jvmCommonMain") { dependsOn(commonMain.get()) }
+        val jvmCommonTest = create("jvmCommonTest") { dependsOn(commonTest.get()) }
         jvmMain.get().dependsOn(jvmCommonMain)
         androidMain.get().dependsOn(jvmCommonMain)
         jvmTest.get().dependsOn(jvmCommonTest)
@@ -73,3 +73,33 @@ kotlinter {
     ignoreFormatFailures = false
     ignoreLintFailures = false
 }
+
+// detekt's type-resolution-dependent rules (ForbiddenMethodCall, UnsafeCallOnNullableType) don't fire on the
+// plain `detekt` task wired into `check`, so enforce the same bans with a lightweight text scan (NFR-006, ADR-0001,
+// docs/workflow.md §4.4). Main source sets only; test sources are exempt.
+tasks.register("forbiddenTokens") {
+    group = "verification"
+    description = "Fails if main sources contain !!, println(, runBlocking, or GlobalScope."
+    val mainSources = fileTree(projectDir) { include("src/*Main/**/*.kt") }
+    inputs.files(mainSources)
+    doLast {
+        val forbidden = listOf("!!", "println(", "runBlocking", "GlobalScope")
+        val violations = mutableListOf<String>()
+        mainSources.forEach { file ->
+            file.readLines().forEachIndexed { index, rawLine ->
+                val noStrings = rawLine.replace(Regex("\"(?:[^\"\\\\]|\\\\.)*\""), "\"\"")
+                val noComments = noStrings.replace(Regex("//.*$"), "")
+                forbidden.forEach { token ->
+                    if (noComments.contains(token)) {
+                        violations += "${file.relativeTo(projectDir)}:${index + 1}: forbidden token '$token'"
+                    }
+                }
+            }
+        }
+        if (violations.isNotEmpty()) {
+            throw GradleException("forbiddenTokens found violations:\n" + violations.joinToString("\n"))
+        }
+    }
+}
+
+tasks.named("check") { dependsOn("forbiddenTokens") }
