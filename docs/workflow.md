@@ -186,17 +186,19 @@ Refs: FR-012
 
 | 게이트 | 내용 | 러너 | 시점 |
 |---|---|---|---|
-| 포맷 | `ktlintCheck` | ubuntu | 매 푸시 |
-| 정적 분석 | `detekt` (경고 0) | ubuntu | 매 푸시 |
-| 빌드 | 경고를 에러로 처리 (`allWarningsAsErrors`) | ubuntu | 매 푸시 |
+| 포맷 | `ktlintCheck` | ubuntu | push(main) · PR |
+| 정적 분석 | `detekt` (경고 0) | ubuntu | push(main) · PR |
+| 빌드 | 경고를 에러로 처리 (`allWarningsAsErrors`) | ubuntu | push(main) · PR |
 | 아키텍처 | 모듈 의존 방향 (빌드에 내포) | – | 빌드 |
-| 공개 API | `apiCheck` (klib 검증에 Apple 타깃이 필요해 macOS `ios` 잡에서 실행) | **macos** | 매 푸시 |
-| 공통 테스트 | `jvmTest` (벡터, 골든, 도메인, 유스케이스) | ubuntu | 매 푸시 |
-| Android 단위 | `testDebugUnitTest` | ubuntu | 매 푸시 |
-| iOS 테스트 | `iosSimulatorArm64Test` | **macos** | 매 PR |
-| 샘플 빌드 | Android assemble, iOS xcodebuild | ubuntu / macos | 매 PR |
-| 라이선스 | NOTICE 존재 확인, 포팅 파일 헤더 확인 | ubuntu | 매 PR |
-| 비밀 스캔 | VIN 패턴(`[A-HJ-NPR-Z0-9]{17}`)과 PEM 개인키 탐지 (테스트 벡터 허용 목록 제외) | ubuntu | 매 푸시 |
+| 공개 API | `apiCheck` (klib 검증에 Apple 타깃이 필요해 macOS `ios` 잡에서 실행) | **macos** | push(main) · PR |
+| 공통 테스트 | `jvmTest` (벡터, 골든, 도메인, 유스케이스) | ubuntu | push(main) · PR |
+| Android 단위 | `testAndroidHostTest` (AGP 9 내장 Kotlin) | ubuntu | push(main) · PR |
+| iOS 테스트 | `iosSimulatorArm64Test` | **macos** | push(main) · PR |
+| 샘플 빌드 | Android assemble, iOS xcodebuild | ubuntu / macos | push(main) · PR |
+| 라이선스 | NOTICE 존재 확인, 포팅 파일 헤더 확인 | ubuntu | push(main) · PR |
+| 비밀 스캔 | VIN 패턴(`[A-HJ-NPR-Z0-9]{17}`)과 PEM 개인키 탐지 (테스트 벡터 허용 목록 제외) | ubuntu | push(main) · PR |
+
+> `.github/workflows/ci.yml`의 트리거는 `push`(브랜치 `main`)와 `pull_request` 전체이며, 6개 잡(`lint`, `jvm-test`, `android`, `ios`, `license`, `secrets`) 모두 이 두 트리거에서 똑같이 실행된다(잡별 `if:` 조건 없음) — "매 푸시"/"매 PR"로 갈라 적었던 이전 버전은 실제 워크플로와 달랐다.
 
 > **"Red를 트렁크에 올리지 않는다"** 가 Trunk-based의 생명줄입니다. 푸시 전에 로컬에서 `./gradlew check` 를 돌립니다.
 > 워크플로 파일(`.github/workflows/ci.yml`)은 M0에서 SDD에 맞춰 작성합니다.
