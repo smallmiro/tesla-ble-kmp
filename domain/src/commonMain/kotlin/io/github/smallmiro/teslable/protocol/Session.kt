@@ -28,9 +28,10 @@ public class Session private constructor(
     private var closed = false
 
     /**
-     * `HMAC(K, label)` — Go `subkey`.
+     * `HMAC(K, label)` — Go `subkey`. 원시 키 재료를 돌려주므로 라이브러리 내부와 테스트에서만 쓴다.
      * @throws IllegalStateException [close]로 세션이 닫힌 뒤 호출하면 발생한다.
      */
+    @InternalTeslableApi
     public fun subkey(label: String): ByteArray {
         check(!closed) { "session closed" }
         return crypto.hmacSha256(key, label.encodeToByteArray())
@@ -40,6 +41,7 @@ public class Session private constructor(
      * Go `SessionInfoHMAC`: HMAC(SESSION_INFO_KEY, TLV{SIG_TYPE=HMAC, PERSONALIZATION, CHALLENGE} || 0xFF || encodedInfo)
      * @throws IllegalStateException [close]로 세션이 닫힌 뒤 호출하면 발생한다([subkey]를 거쳐 전파됨).
      */
+    @OptIn(InternalTeslableApi::class)
     public fun sessionInfoTag(
         personalization: ByteArray,
         challenge: ByteArray,
