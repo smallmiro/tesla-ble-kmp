@@ -5010,6 +5010,58 @@ public final class io/github/smallmiro/teslable/protocol/SessionKeys {
 	public final fun deriveK ([BLio/github/smallmiro/teslable/port/CryptoPrimitives;)[B
 }
 
+public final class io/github/smallmiro/teslable/protocol/Signer : java/lang/AutoCloseable {
+	public static final field Companion Lio/github/smallmiro/teslable/protocol/Signer$Companion;
+	public synthetic fun <init> (Lio/github/smallmiro/teslable/protocol/Session;Lio/github/smallmiro/teslable/model/Vin;[BIILio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;JLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun close ()V
+	public final fun exportSessionInfo ()[B
+	public final fun getCounter-pVg5ArA ()I
+	public final fun getEpoch ()[B
+	public final fun getLocalPublicKey ()Lio/github/smallmiro/teslable/model/PublicKeyBytes;
+	public final fun getVehiclePublicKey ()Lio/github/smallmiro/teslable/model/PublicKeyBytes;
+	public final fun getVin ()Lio/github/smallmiro/teslable/model/Vin;
+	public final fun timestamp-pVg5ArA ()I
+	public fun toString ()Ljava/lang/String;
+	public final fun updateSessionInfo (Lcom/tesla/generated/signatures/SessionInfo;)Lio/github/smallmiro/teslable/protocol/SignerResult;
+	public final fun updateSignedSessionInfo ([B[B[B)Lio/github/smallmiro/teslable/protocol/SignerResult;
+}
+
+public final class io/github/smallmiro/teslable/protocol/Signer$Companion {
+	public final fun create (Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/model/Vin;Lcom/tesla/generated/signatures/SessionInfo;Lio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun create$default (Lio/github/smallmiro/teslable/protocol/Signer$Companion;Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/model/Vin;Lcom/tesla/generated/signatures/SessionInfo;Lio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun createAuthenticated (Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/model/Vin;[B[B[BLio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun createAuthenticated$default (Lio/github/smallmiro/teslable/protocol/Signer$Companion;Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/model/Vin;[B[B[BLio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun importSessionInfo-mGOUYlo (Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/model/Vin;[BJLio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun importSessionInfo-mGOUYlo$default (Lio/github/smallmiro/teslable/protocol/Signer$Companion;Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/model/Vin;[BJLio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public abstract interface class io/github/smallmiro/teslable/protocol/SignerResult {
+}
+
+public final class io/github/smallmiro/teslable/protocol/SignerResult$Fault : io/github/smallmiro/teslable/protocol/SignerResult {
+	public fun <init> (Lcom/tesla/generated/universalmessage/MessageFault_E;Ljava/lang/String;)V
+	public final fun component1 ()Lcom/tesla/generated/universalmessage/MessageFault_E;
+	public final fun component2 ()Ljava/lang/String;
+	public final fun copy (Lcom/tesla/generated/universalmessage/MessageFault_E;Ljava/lang/String;)Lio/github/smallmiro/teslable/protocol/SignerResult$Fault;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/protocol/SignerResult$Fault;Lcom/tesla/generated/universalmessage/MessageFault_E;Ljava/lang/String;ILjava/lang/Object;)Lio/github/smallmiro/teslable/protocol/SignerResult$Fault;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDetail ()Ljava/lang/String;
+	public final fun getFault ()Lcom/tesla/generated/universalmessage/MessageFault_E;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/protocol/SignerResult$Ok : io/github/smallmiro/teslable/protocol/SignerResult {
+	public fun <init> (Ljava/lang/Object;)V
+	public final fun component1 ()Ljava/lang/Object;
+	public final fun copy (Ljava/lang/Object;)Lio/github/smallmiro/teslable/protocol/SignerResult$Ok;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/protocol/SignerResult$Ok;Ljava/lang/Object;ILjava/lang/Object;)Lio/github/smallmiro/teslable/protocol/SignerResult$Ok;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValue ()Ljava/lang/Object;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class io/github/smallmiro/teslable/protocol/SlidingWindow {
 	public static final field Companion Lio/github/smallmiro/teslable/protocol/SlidingWindow$Companion;
 	public static final field DEFAULT_SIZE I

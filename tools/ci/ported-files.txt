@@ -16,6 +16,8 @@ domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/ResponseClass
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/ResponseMetadata.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/Session.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/SessionKeys.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/Signer.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/SignerResult.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/SlidingWindow.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/transport/Framer.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/transport/LocalName.kt
