@@ -11,6 +11,7 @@ internal class WindowUpdate(
 
 /**
  * Go `updateSlidingWindow`. Go의 uint64 시프트는 64 이상이면 0이지만 Kotlin `shl`은 하위 6비트만 쓰므로 명시적으로 분기한다.
+ * age는 Go처럼 uint32로 비교한다(`Int`로 바꾸면 2^31 이상에서 음수가 되어 오래된 counter를 수용하게 된다).
  */
 internal fun updateSlidingWindow(
     counter: UInt,
@@ -20,9 +21,9 @@ internal fun updateSlidingWindow(
 ): WindowUpdate {
     if (counter == newCounter) return WindowUpdate(counter, window, ok = false)
     if (newCounter < counter) {
-        val age = (counter - newCounter).toInt()
-        if (age > size) return WindowUpdate(counter, window, ok = false)
-        val bit = 1uL shl (age - 1)
+        val age = counter - newCounter
+        if (age > size.toUInt()) return WindowUpdate(counter, window, ok = false)
+        val bit = 1uL shl (age.toInt() - 1) // 여기서 1 ≤ age ≤ size ≤ 64
         if (window and bit != 0uL) return WindowUpdate(counter, window, ok = false)
         return WindowUpdate(counter, window or bit, ok = true)
     }
