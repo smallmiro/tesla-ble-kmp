@@ -77,8 +77,9 @@ public class FakeTransport(
 
     override suspend fun send(message: ByteArray): VehicleResult<Unit> {
         sentMessages += message.copyOf()
-        sendErrors.removeFirstOrNull()?.let { return it.toResult() }
+        // Go dummyConnector.Send checks !d.AckRequests before consuming errorQueue (dispatcher_test.go:251-254).
         if (!ackRequests) return VehicleResult.Failure(VehicleError.TransportError.Disconnected)
+        sendErrors.removeFirstOrNull()?.let { return it.toResult() }
         onSend?.invoke(message.copyOf())
         return VehicleResult.Success(Unit)
     }
