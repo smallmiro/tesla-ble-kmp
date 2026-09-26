@@ -379,4 +379,36 @@ class SignerCryptoTest {
                 assertIs<SignerResult.Fault>(signer.decrypt(tampered, requestHash)).fault,
             )
         }
+
+    @Test
+    fun decryptsResponseWhoseFaultCodeIsUnknownToWire() =
+        // peer.go:115 (그대로): `_ = meta.AddUint32(signatures.Tag_TAG_FAULT,
+        // uint32(message.GetSignedMessageStatus().GetSignedMessageFault()))`. Wire는 proto에 없는 enum 값(신형 펌웨어의
+        // fault 99)을 unknownFields로 옮기고 signed_message_fault는 NONE으로 둔다.
+        runTest {
+            val (_, signer) = pair()
+            val requestHash = arbitraryRequestHash()
+            val rawStatus = MessageStatus.ADAPTER.decode(byteArrayOf(0x10, 0x63)) // 태그 2(signed_message_fault) varint 99
+            assertEquals(MessageFault_E.MESSAGEFAULT_ERROR_NONE, rawStatus.signed_message_fault)
+            val vehicleSession = Session.establish(TestCrypto.vehicleKey(), TestCrypto.clientPublicKey, crypto)
+            val meta = ResponseMetadata.build(Domain.DOMAIN_VEHICLE_SECURITY, vin.toByteArray(), 7u, 0u, requestHash, 99u)
+            val nonce = ByteArray(Session.NONCE_SIZE) { 3 }
+            val out = vehicleSession.encrypt("0a00".hexToBytes(), crypto.sha256(meta.serialize()), nonce)
+            val response =
+                RoutableMessage(
+                    from_destination = Destination(domain = Domain.DOMAIN_VEHICLE_SECURITY),
+                    protobuf_message_as_bytes = out.ciphertext.toByteString(),
+                    signedMessageStatus = rawStatus,
+                    signature_data =
+                        SignatureData(
+                            AES_GCM_Response_data =
+                                AES_GCM_Response_Signature_Data(nonce = nonce.toByteString(), counter = 7, tag = out.tag.toByteString()),
+                        ),
+                )
+            // 와이어 왕복(인코딩 → 디코딩) 뒤에도 unknownFields가 남아 있어야 실제 수신 경로와 같다
+            val fromWire = RoutableMessage.ADAPTER.decode(RoutableMessage.ADAPTER.encode(response))
+            val decrypted = assertIs<SignerResult.Ok<Signer.DecryptedResponse>>(signer.decrypt(fromWire, requestHash)).value
+            assertEquals("0a00", assertNotNull(decrypted.message.protobuf_message_as_bytes).hex())
+            assertEquals(7u, decrypted.counter)
+        }
 }

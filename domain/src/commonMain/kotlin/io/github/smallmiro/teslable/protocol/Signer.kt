@@ -7,6 +7,7 @@ import com.tesla.generated.signatures.SessionInfo
 import com.tesla.generated.signatures.SignatureData
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
+import com.tesla.generated.universalmessage.MessageStatus
 import com.tesla.generated.universalmessage.RoutableMessage
 import io.github.smallmiro.teslable.InternalTeslableApi
 import io.github.smallmiro.teslable.model.PublicKeyBytes
@@ -24,6 +25,7 @@ import kotlin.time.TimeSource
 
 private const val EPOCH_SIZE = 16
 private const val TO_STRING_EPOCH_PREVIEW_BYTES = 4
+private const val TAG_MESSAGE_STATUS_SIGNED_MESSAGE_FAULT = 2
 
 /**
  * 클라이언트 측 세션 상태 기계(Go `Signer`, FR-013~FR-016, FR-019). 도메인(VCSEC/Infotainment)마다 하나.
@@ -208,7 +210,7 @@ public class Signer
                 message.signature_data?.AES_GCM_Response_data
                     ?: return SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_BAD_PARAMETER, "missing AES-GCM data")
             val fromDomain = message.from_destination?.domain ?: Domain.DOMAIN_BROADCAST
-            val fault = message.signedMessageStatus?.signed_message_fault?.value ?: 0
+            val fault = responseFault(message.signedMessageStatus)
             val meta =
                 ResponseMetadata.build(
                     fromDomain,
@@ -216,7 +218,7 @@ public class Signer
                     gcm.counter.toUInt(),
                     message.flags.toUInt(),
                     requestHash,
-                    fault.toUInt(),
+                    fault,
                 )
             val plaintext =
                 session.decrypt(
@@ -242,6 +244,18 @@ public class Signer
                     gcm.counter.toUInt(),
                 ),
             )
+        }
+
+        /**
+         * Go `Decrypt`의 `GetSignedMessageFault()`: 원시 uint32를 AAD의 FAULT로 쓴다. Wire는 proto 스냅샷에 없는 코드를
+         * `unknownFields`로 옮기므로(`signed_message_fault`는 NONE), 알려진 코드가 NONE이면 원시 varint를 되찾는다.
+         * 그래야 신형 펌웨어가 모르는 fault를 실은 암호화 응답도 복호화된다(SDD §12, M2에서 보완).
+         */
+        private fun responseFault(status: MessageStatus?): UInt {
+            if (status == null) return 0u
+            val known = status.signed_message_fault.value
+            if (known != 0) return known.toUInt()
+            return status.unknownFields.unknownVarint(TAG_MESSAGE_STATUS_SIGNED_MESSAGE_FAULT)?.toUInt() ?: 0u
         }
 
         /** 세션 키를 0으로 덮는다. 이후 [encrypt]·[decrypt]·[updateSignedSessionInfo]는 `IllegalStateException`을 던진다. */
