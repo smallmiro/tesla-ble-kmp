@@ -6,6 +6,10 @@
 // - Show declarations: true
 
 // Library unique name: <tesla-ble-kmp:domain>
+open annotation class io.github.smallmiro.teslable/InternalTeslableApi : kotlin/Annotation { // io.github.smallmiro.teslable/InternalTeslableApi|null[0]
+    constructor <init>() // io.github.smallmiro.teslable/InternalTeslableApi.<init>|<init>(){}[0]
+}
+
 final enum class ManagedCharging/ChargeOnSolarNoChargeReason : com.squareup.wire/WireEnum, kotlin/Enum<ManagedCharging/ChargeOnSolarNoChargeReason> { // ManagedCharging/ChargeOnSolarNoChargeReason|null[0]
     enum entry CHARGE_ON_SOLAR_NO_CHARGE_REASON_ALTERNATE_VEHICLE_CHARGE_PRIORITY // ManagedCharging/ChargeOnSolarNoChargeReason.CHARGE_ON_SOLAR_NO_CHARGE_REASON_ALTERNATE_VEHICLE_CHARGE_PRIORITY|null[0]
     enum entry CHARGE_ON_SOLAR_NO_CHARGE_REASON_GRID_EXPORT_PRIORITY // ManagedCharging/ChargeOnSolarNoChargeReason.CHARGE_ON_SOLAR_NO_CHARGE_REASON_GRID_EXPORT_PRIORITY|null[0]
@@ -698,6 +702,26 @@ final enum class com.tesla.generated.vcsec/WhitelistOperation_information_E : co
 
         final fun fromValue(kotlin/Int): com.tesla.generated.vcsec/WhitelistOperation_information_E? // com.tesla.generated.vcsec/WhitelistOperation_information_E.Companion.fromValue|fromValue(kotlin.Int){}[0]
     }
+}
+
+abstract fun interface io.github.smallmiro.teslable.port/RandomSource { // io.github.smallmiro.teslable.port/RandomSource|null[0]
+    abstract fun nextBytes(kotlin/Int): kotlin/ByteArray // io.github.smallmiro.teslable.port/RandomSource.nextBytes|nextBytes(kotlin.Int){}[0]
+}
+
+abstract interface io.github.smallmiro.teslable.port/CryptoPrimitives { // io.github.smallmiro.teslable.port/CryptoPrimitives|null[0]
+    abstract fun aesGcmDecrypt(kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray): kotlin/ByteArray? // io.github.smallmiro.teslable.port/CryptoPrimitives.aesGcmDecrypt|aesGcmDecrypt(kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray){}[0]
+    abstract fun aesGcmEncrypt(kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray): io.github.smallmiro.teslable.port/AesGcmOutput // io.github.smallmiro.teslable.port/CryptoPrimitives.aesGcmEncrypt|aesGcmEncrypt(kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray){}[0]
+    abstract fun constantTimeEquals(kotlin/ByteArray, kotlin/ByteArray): kotlin/Boolean // io.github.smallmiro.teslable.port/CryptoPrimitives.constantTimeEquals|constantTimeEquals(kotlin.ByteArray;kotlin.ByteArray){}[0]
+    abstract fun hmacSha256(kotlin/ByteArray, kotlin/ByteArray): kotlin/ByteArray // io.github.smallmiro.teslable.port/CryptoPrimitives.hmacSha256|hmacSha256(kotlin.ByteArray;kotlin.ByteArray){}[0]
+    abstract fun sha1(kotlin/ByteArray): kotlin/ByteArray // io.github.smallmiro.teslable.port/CryptoPrimitives.sha1|sha1(kotlin.ByteArray){}[0]
+    abstract fun sha256(kotlin/ByteArray): kotlin/ByteArray // io.github.smallmiro.teslable.port/CryptoPrimitives.sha256|sha256(kotlin.ByteArray){}[0]
+}
+
+abstract interface io.github.smallmiro.teslable.port/EcdhPrivateKey { // io.github.smallmiro.teslable.port/EcdhPrivateKey|null[0]
+    abstract val publicKey // io.github.smallmiro.teslable.port/EcdhPrivateKey.publicKey|{}publicKey[0]
+        abstract fun <get-publicKey>(): io.github.smallmiro.teslable.model/PublicKeyBytes // io.github.smallmiro.teslable.port/EcdhPrivateKey.publicKey.<get-publicKey>|<get-publicKey>(){}[0]
+
+    abstract suspend fun sharedX(io.github.smallmiro.teslable.model/PublicKeyBytes): kotlin/ByteArray // io.github.smallmiro.teslable.port/EcdhPrivateKey.sharedX|sharedX(io.github.smallmiro.teslable.model.PublicKeyBytes){}[0]
 }
 
 final class com.tesla.generated.carserver.common/ChargePortLatchState : com.squareup.wire/Message<com.tesla.generated.carserver.common/ChargePortLatchState, kotlin/Nothing> { // com.tesla.generated.carserver.common/ChargePortLatchState|null[0]
@@ -5117,3 +5141,46 @@ final class com.tesla.generated.vcsec/WhitelistOperation_status : com.squareup.w
             final fun <get-ADAPTER>(): com.squareup.wire/ProtoAdapter<com.tesla.generated.vcsec/WhitelistOperation_status> // com.tesla.generated.vcsec/WhitelistOperation_status.Companion.ADAPTER.<get-ADAPTER>|<get-ADAPTER>(){}[0]
     }
 }
+
+final class io.github.smallmiro.teslable.model/PublicKeyBytes { // io.github.smallmiro.teslable.model/PublicKeyBytes|null[0]
+    constructor <init>(kotlin/ByteArray) // io.github.smallmiro.teslable.model/PublicKeyBytes.<init>|<init>(kotlin.ByteArray){}[0]
+
+    final val x // io.github.smallmiro.teslable.model/PublicKeyBytes.x|{}x[0]
+        final fun <get-x>(): kotlin/ByteArray // io.github.smallmiro.teslable.model/PublicKeyBytes.x.<get-x>|<get-x>(){}[0]
+    final val y // io.github.smallmiro.teslable.model/PublicKeyBytes.y|{}y[0]
+        final fun <get-y>(): kotlin/ByteArray // io.github.smallmiro.teslable.model/PublicKeyBytes.y.<get-y>|<get-y>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/PublicKeyBytes.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/PublicKeyBytes.hashCode|hashCode(){}[0]
+    final fun toByteArray(): kotlin/ByteArray // io.github.smallmiro.teslable.model/PublicKeyBytes.toByteArray|toByteArray(){}[0]
+    final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/PublicKeyBytes.toString|toString(){}[0]
+
+    final object Companion { // io.github.smallmiro.teslable.model/PublicKeyBytes.Companion|null[0]
+        final const val SIZE // io.github.smallmiro.teslable.model/PublicKeyBytes.Companion.SIZE|{}SIZE[0]
+            final fun <get-SIZE>(): kotlin/Int // io.github.smallmiro.teslable.model/PublicKeyBytes.Companion.SIZE.<get-SIZE>|<get-SIZE>(){}[0]
+    }
+}
+
+final class io.github.smallmiro.teslable.model/Vin { // io.github.smallmiro.teslable.model/Vin|null[0]
+    constructor <init>(kotlin/String) // io.github.smallmiro.teslable.model/Vin.<init>|<init>(kotlin.String){}[0]
+
+    final val value // io.github.smallmiro.teslable.model/Vin.value|{}value[0]
+        final fun <get-value>(): kotlin/String // io.github.smallmiro.teslable.model/Vin.value.<get-value>|<get-value>(){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/Vin.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/Vin.hashCode|hashCode(){}[0]
+    final fun toByteArray(): kotlin/ByteArray // io.github.smallmiro.teslable.model/Vin.toByteArray|toByteArray(){}[0]
+    final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/Vin.toString|toString(){}[0]
+}
+
+final class io.github.smallmiro.teslable.port/AesGcmOutput { // io.github.smallmiro.teslable.port/AesGcmOutput|null[0]
+    constructor <init>(kotlin/ByteArray, kotlin/ByteArray) // io.github.smallmiro.teslable.port/AesGcmOutput.<init>|<init>(kotlin.ByteArray;kotlin.ByteArray){}[0]
+
+    final val ciphertext // io.github.smallmiro.teslable.port/AesGcmOutput.ciphertext|{}ciphertext[0]
+        final fun <get-ciphertext>(): kotlin/ByteArray // io.github.smallmiro.teslable.port/AesGcmOutput.ciphertext.<get-ciphertext>|<get-ciphertext>(){}[0]
+    final val tag // io.github.smallmiro.teslable.port/AesGcmOutput.tag|{}tag[0]
+        final fun <get-tag>(): kotlin/ByteArray // io.github.smallmiro.teslable.port/AesGcmOutput.tag.<get-tag>|<get-tag>(){}[0]
+}
+
+final fun (kotlin/ByteArray).io.github.smallmiro.teslable.util/toHex(): kotlin/String // io.github.smallmiro.teslable.util/toHex|toHex@kotlin.ByteArray(){}[0]
+final fun (kotlin/String).io.github.smallmiro.teslable.util/hexToBytes(): kotlin/ByteArray // io.github.smallmiro.teslable.util/hexToBytes|hexToBytes@kotlin.String(){}[0]
