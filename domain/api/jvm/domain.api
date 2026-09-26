@@ -4566,3 +4566,59 @@ public final class com/tesla/generated/vcsec/WhitelistOperation_status : com/squ
 public final class com/tesla/generated/vcsec/WhitelistOperation_status$Companion {
 }
 
+public abstract interface annotation class io/github/smallmiro/teslable/InternalTeslableApi : java/lang/annotation/Annotation {
+}
+
+public final class io/github/smallmiro/teslable/model/PublicKeyBytes {
+	public static final field Companion Lio/github/smallmiro/teslable/model/PublicKeyBytes$Companion;
+	public static final field SIZE I
+	public fun <init> ([B)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getX ()[B
+	public final fun getY ()[B
+	public fun hashCode ()I
+	public final fun toByteArray ()[B
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/PublicKeyBytes$Companion {
+}
+
+public final class io/github/smallmiro/teslable/model/Vin {
+	public fun <init> (Ljava/lang/String;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getValue ()Ljava/lang/String;
+	public fun hashCode ()I
+	public final fun toByteArray ()[B
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/port/AesGcmOutput {
+	public fun <init> ([B[B)V
+	public final fun getCiphertext ()[B
+	public final fun getTag ()[B
+}
+
+public abstract interface class io/github/smallmiro/teslable/port/CryptoPrimitives {
+	public abstract fun aesGcmDecrypt ([B[B[B[B[B)[B
+	public abstract fun aesGcmEncrypt ([B[B[B[B)Lio/github/smallmiro/teslable/port/AesGcmOutput;
+	public abstract fun constantTimeEquals ([B[B)Z
+	public abstract fun hmacSha256 ([B[B)[B
+	public abstract fun sha1 ([B)[B
+	public abstract fun sha256 ([B)[B
+}
+
+public abstract interface class io/github/smallmiro/teslable/port/EcdhPrivateKey {
+	public abstract fun getPublicKey ()Lio/github/smallmiro/teslable/model/PublicKeyBytes;
+	public abstract fun sharedX (Lio/github/smallmiro/teslable/model/PublicKeyBytes;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public abstract interface class io/github/smallmiro/teslable/port/RandomSource {
+	public abstract fun nextBytes (I)[B
+}
+
+public final class io/github/smallmiro/teslable/util/HexKt {
+	public static final fun hexToBytes (Ljava/lang/String;)[B
+	public static final fun toHex ([B)Ljava/lang/String;
+}
+
