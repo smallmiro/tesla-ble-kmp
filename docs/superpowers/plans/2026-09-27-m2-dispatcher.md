@@ -23,13 +23,13 @@ SDD·ADR이 비워 두었거나 M1 결과와 어긋나는 점을 아래처럼 �
 5. **`SessionState.authorize`는 `Signer.encrypt` 실패를 값으로 돌려준다.** Go `session.authorize`는 `Encrypt` 오류를 `nil`로 지우고 즉시 다시 시도해 ctx 만료까지 바쁘게 돈다. 우리는 `SignerResult.Fault`를 `Failure(ProtocolFault(fault))`로 돌려주고 `SendWithRetry`가 `retryInterval` 간격으로 재시도한다(관찰 결과 같음, CPU 낭비 없음). SDD §12 기록.
 6. **`Dispatcher.loadSessions`는 손상된 캐시 항목을 건너뛴다.** Go `LoadCache`는 항목 하나가 잘못되면 전체를 오류로 돌려준다. 캐시는 최선 노력(SDD §7.1 "저장 실패는 명령 결과에 영향 없음")이므로 디코딩 실패·모르는 도메인 값은 WARN 로그 후 건너뛰고 나머지를 복원한다. SDD §12 기록.
 7. **캐시 `age`는 어댑터가 원시값(음수 가능)으로 넘기고 `Signer.importSessionInfo`가 0으로 클램프한다(인계 항목 5).** 이중 클램프를 두지 않는다; Go도 미래 `generatedAt`을 그대로 받는다. Task 8 테스트가 "미래 항목 → age 0으로 import, 예외 없음"을 고정한다.
-8. **캐시된 차량 공개키가 현재 차량과 다르면 Go처럼 세션 안에서 복구하지 않는다.** `processHello`의 `UNKNOWN_KEY_ID`는 ERROR 로그만 남기고 세션은 그대로다(공개키 고정을 약화시키지 않기 위해). Task 8 테스트가 이 동작을 고정하고, "다음 `connect()`에서 해당 도메인 캐시를 버릴지"는 M3 질문으로 남긴다(아래 "사용자 질문").
+8. **캐시된 차량 공개키가 현재 차량과 다르면 Go처럼 세션 안에서 복구하지 않는다.** `processHello`의 `UNKNOWN_KEY_ID`는 ERROR 로그만 남기고 세션은 그대로다(공개키 고정을 약화시키지 않기 위해). Task 8 테스트가 이 동작을 고정한다. 복구는 M3 `connect()`가 해당 도메인의 캐시를 지우는 것으로 한다(아래 사용자 답 a).
 9. **`TeslaLogger` 포트를 M2에 만든다.** SDD §2.1에 있으나 M3 항목이었다. 디스패처 드롭 사유(Go WARN 문구 그대로)를 테스트가 관찰하는 유일한 수단이므로 지금 만든다(`fun interface`, 기본 `NoOp`).
 10. **응답 AAD의 `from_destination.domain`은 `unknownFields`를 읽지 않는다(인계 항목 2 후반).** 모르는 도메인에서 온 응답은 어떤 `PendingRequest`와도 매칭되지 않아(요청은 enum 도메인으로만 보낸다) Go도 우리도 복호화 전에 드롭한다. `signed_message_fault`만 원시값을 읽는다(Task 3). Task 6 테스트가 "모르는 from 도메인 → 핸들러 없음으로 드롭"을 고정한다.
 11. **Wire가 모르는 enum 값의 처리(인계 항목 3)는 Go의 실제 분기를 따른다.** VCSEC `commandStatus.operationStatus`와 Infotainment `actionStatus.result`의 모르는 값은 Go에 `default` 분기가 **없어** 통과(성공)한다 — 테스트로 고정한다. `whitelistOperationInformation`의 모르는 값은 Go가 `KeychainError{Code}`로 실패시키므로 코드 보존형 `VehicleError.UnknownKeychainCode(rawCode)`를 추가한다(`UnknownFault`와 같은 모양). `nominalError.genericError`의 모르는 값은 `nominalError` 존재 자체가 실패이므로 `VcsecRejected(GENERICERROR_NONE)`로 실패는 보존되고 코드는 M4(L58, `VcsecRejected` 문구 재검토)에서 다룬다.
 12. **`InMemorySessionCache`는 `:adapter-storage`에, `RecordingSessionCache`는 `:testing`에 둔다.** `:application` 테스트는 `:adapter-storage`를 볼 수 없으므로(경계 플러그인) 테스트용 캐시가 따로 필요하다. 둘 다 `SessionCacheCodec`(`:domain`)을 거친다.
 
-**사용자 질문(계획 승인 시 답 필요):** (a) 위 8번 — 캐시된 차량 공개키 불일치(`UNKNOWN_KEY_ID`)를 만나면 M3 `connect()`가 그 도메인의 캐시를 지우도록 할까? Go는 아무것도 하지 않는다. (b) 핸드셰이크 시간 초과는 `Failure(Timeout(afterSend = false))`로 돌려준다(부작용 없음, 메시지 "timed out before sending command"가 다소 일반적임). 전용 오류 타입을 원하면 알려달라 — `VehicleError`에 sealed 하위 타입이 하나 늘어난다.
+**사용자 답(2026-09-27, 계획 승인과 함께):** (a) 위 8번 — 캐시된 차량 공개키 불일치(`UNKNOWN_KEY_ID`, 또는 캐시에서 복원한 세션의 세션정보 태그 실패)를 만나면 **M3 `connect()`가 그 도메인의 캐시를 지운다.** Go는 아무것도 하지 않으므로 의도된 차이다. M2 범위는 바뀌지 않는다(세션 안 동작은 Go 그대로, Task 8이 고정). 감지 방법은 M3 계획에서 정하고, 구현하는 M3 Task가 `{{SDD_FILE}}` §12 "원본과 다른 동작 (의도)"에 기록한다. 결정 자체는 이 계획 PR에서 `{{SDD_FILE}}` §7.1에 적었다. (b) 핸드셰이크 시간 초과는 **그대로** `Failure(Timeout(afterSend = false))`로 돌려준다. 전용 오류 타입을 추가하지 않는다.
 
 ## Global Constraints
 
@@ -3759,7 +3759,7 @@ class SessionCacheSyncTest {
     fun staleCachedVehicleKeyLeavesSessionStuckLikeGo() =
         // Review Focus 4 / 설계 구체화 8: 다른 차량 키로 만든 캐시 → 이 차량은 이 클라이언트를 처음 보므로 새 검증자(새 epoch)가
         // INCORRECT_EPOCH + 세션정보로 답한다. 동봉 세션정보는 우리 K(옛 차량 키)로 태그가 맞지 않아 거부(Session info error:
-        // INVALID_SIGNATURE) → 세션은 갇힌다. Go와 동일. 복구는 재연결/캐시 삭제(사용자 질문 a).
+        // INVALID_SIGNATURE) → 세션은 갇힌다. Go와 동일. 복구는 M3 connect()의 도메인 캐시 삭제(사용자 답 a).
         runTest {
             val otherCar = FakeVehicle(vehicleKey = TestCrypto.goKnownVerifierKey(), timeSource = testTimeSource)
             val first = dispatcherHarness(fake = otherCar)
@@ -4483,7 +4483,7 @@ class VehicleSessionTest {
 
     @Test
     fun startSessionTimesOutWhileErrorsStayTransient() =
-        // vehicle_test.go TestVehicleConnectionTimeout → Failure(Timeout(afterSend = false)) (설계 구체화 질문 b)
+        // vehicle_test.go TestVehicleConnectionTimeout → Failure(Timeout(afterSend = false)) (사용자 답 b: 전용 타입 없음)
         runTest {
             val h = dispatcherHarness(start = false)
             val session = VehicleSession(h.dispatcher)
@@ -5777,7 +5777,7 @@ public fun interface TeslaLogger { fun log(level, tag, message: () -> String); c
 - 완료: 병합 PR 목록(번호·Task), 테스트 수(`:domain`, `:application`, `:adapter-storage`, `:testing` — JVM + iOS), CI 6/6, 최종 리뷰 수정 요약.
 - 진행 중: 없음.
 - 결정: 설계 구체화 1~12의 채택 결과와 사용자 답(a, b); `TeslaLogger` 도입; `unknownVarint` 공개; `PendingRequest.close` 비suspend.
-- 막힌 점(M3 이후로): `TransportFactory`·`VehicleAdvertisement`·`ConnectOptions`(M3), 캐시된 차량 키 불일치 시 캐시 삭제 여부(질문 a), `VcsecRejected` 문구·모르는 `genericError` 코드(M4, L58), `errors.md`의 SKIE 문장(M3), `TestValidPIN`(M5), 기기 수면 중 단조 시계 정지(M3 `platform-notes.md`, M1 권고 8), 실차 골든 RX(M3, M1 권고 9).
+- 막힌 점(M3 이후로): `TransportFactory`·`VehicleAdvertisement`·`ConnectOptions`(M3), 캐시된 차량 키 불일치 시 M3 `connect()`의 도메인 캐시 삭제(사용자 답 a — 감지 방법 설계와 SDD §12 기록은 M3), `VcsecRejected` 문구·모르는 `genericError` 코드(M4, L58), `errors.md`의 SKIE 문장(M3), `TestValidPIN`(M5), 기기 수면 중 단조 시계 정지(M3 `platform-notes.md`, M1 권고 8), 실차 골든 RX(M3, M1 권고 9).
 - 다음 한 걸음: M3 상세 계획(`{{PLANS_DIR}}<날짜>-m3-transport-keystore.md`) 작성 후 🛑 승인. 첫 작업: Kable 스파이크(ADR-0003). 검증: `./gradlew check --console=plain`.
 - 읽을 파일: `{{PATHS_FILE}}`, `{{AGENTS_FILE}}`, `{{SDD_FILE}}` §2.3~§2.5, §3.1, §8, `{{MANUAL_DIR}}02-ble-transport.md`, `{{REF_REPO_DIR}}pkg/connector/ble/ble.go`, 이 노트.
 

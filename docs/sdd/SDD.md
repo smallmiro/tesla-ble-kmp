@@ -456,6 +456,7 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 
 - `Signatures.SessionInfo{counter, publicKey(차량), epoch, clock_time}`의 `clock_time`은 Go `ExportSessionInfo`와 같이 저장 시점의 도메인 시각(`timestamp()`), 복원 시 `timeZero = createdAt - clock_time`.
 - `keyId`가 현재 키와 다르면 캐시를 무시하고 삭제한다(Go는 잘못된 캐시를 로드 후 첫 명령 실패로 복구; 우리는 사전 차단).
+- 캐시된 **차량** 공개키가 현재 차량과 다르면(차량 키 교체, 같은 VIN의 다른 캐시) 세션 안에서는 복구하지 않는다(Go와 같음, 공개키 고정 유지). 대신 M3 `connect()`가 그 도메인의 캐시 항목을 지운다. Go는 아무것도 하지 않는다(2026-09-27 사용자 결정, M2 계획 설계 구체화 8). 감지 방법(`UNKNOWN_KEY_ID`, 캐시에서 복원한 세션의 세션정보 태그 실패)은 M3 계획에서 정한다.
 - 세션 키 K, 개인키, VIN 원문은 저장하지 않는다. 파일명은 `sha1(vin)`.
 - 저장 시점: 핸드셰이크 완료, 세션정보 갱신, `disconnect()`. 각 저장은 `Dispatchers.IO`(Android) / 기본 디스패처(iOS)에서 수행하고 실패해도 명령 결과에 영향을 주지 않는다(로그만).
 
