@@ -29,7 +29,7 @@ M0 골격이 `main`에 있습니다 — 라이브러리 모듈 7개 + 샘플 앱
 | [`docs/sdd/SDD.md`](docs/sdd/SDD.md) · [`docs/adr/`](docs/adr/) | 설계 문서 · 아키텍처 결정 기록 |
 | [`docs/superpowers/plans/`](docs/superpowers/plans/) | 로드맵 · 마일스톤 구현 계획 |
 | [`AGENTS.md`](AGENTS.md) · [`CLAUDE.md`](CLAUDE.md) | 코딩 에이전트 공통 지침 / Claude Code 전용 지침 |
-| [`docs/workflow.md`](docs/workflow.md) | 개발 표준: TDD, Tidy First, 헥사고날 아키텍처, 브랜치·CI·DoD |
+| [`docs/workflow.md`](docs/workflow.md) | 개발 표준: TDD, Tidy First, 헥사고날 아키텍처, 브랜치·검증 게이트·DoD |
 | [`documents/md/`](documents/md/README.md) · [`documents/html/`](documents/html/index.html) | `vehicle-command` 개발 매뉴얼 (에이전트용 MD / 사람용 HTML, 한국어, 읽기 전용) |
 | `docs/handoff/` | 세션 인계 노트 |
 | [`docs/manual/README.md`](docs/manual/README.md) | 라이브러리 사용 문서 (앱 개발자용) |
@@ -54,7 +54,7 @@ M0 골격이 `main`에 있습니다 — 라이브러리 모듈 7개 + 샘플 앱
 ## 기여
 
 - 규칙은 [`AGENTS.md`](AGENTS.md)를 따릅니다. 실패 테스트 먼저, 구조 변경과 동작 변경 분리, `main`은 항상 Green.
-- PR은 [템플릿](.github/pull_request_template.md)을 채우고, CI Green + AI 코드 리뷰 통과 후 rebase merge 합니다.
+- PR은 [템플릿](.github/pull_request_template.md)을 채우고, `tools/ci/verify.sh` 통과 + AI 코드 리뷰 통과 후 rebase merge 합니다.
 - 동작의 정답 기준은 `vehicle-command` 커밋 `a4b43c1`과 `pkg/protocol/protocol.md`입니다.
 - AGPL 라이선스 구현체(예: `yoziru/tesla-ble`)의 코드는 열람하거나 복사하지 않습니다.
 

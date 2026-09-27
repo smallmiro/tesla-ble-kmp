@@ -15,7 +15,7 @@ Tesla 공식 Go SDK `vehicle-command` 의 **BLE 경로**를 **Kotlin Multiplatfo
 | 1 | `{{PATHS_FILE}}` | 모든 경로의 정본 | 항상 |
 | 2 | `{{MANUAL_DIR}}` | **개발 매뉴얼.** 실제 `vehicle-command` 기준으로 정리된 포팅 가이드 (사용자 작성). **포팅 작업 시 반드시 먼저 참고** | 포팅·설계·구현 전 항상 |
 | 3 | `{{HANDOFF_FILE}}` | 착수 메타 프롬프트: 결정 사항, 범위, 프로토콜 사실, 마일스톤 | 착수할 때, 방향이 헷갈릴 때 |
-| 4 | `{{WORKFLOW_FILE}}` | 개발 표준 전문: TDD, Tidy First, 아키텍처, 브랜치, CI, DoD | 코드를 쓰기 전 |
+| 4 | `{{WORKFLOW_FILE}}` | 개발 표준 전문: TDD, Tidy First, 아키텍처, 브랜치, 검증 게이트, DoD | 코드를 쓰기 전 |
 | 5 | `{{PRD_FILE}}` | 요구사항 (FR-xxx / NFR-xxx) | 기능 작업 전 |
 | 6 | `{{SDD_FILE}}` + `{{ADR_DIR}}` | 설계와 결정 기록 | 구조를 바꾸기 전 |
 | 7 | `{{PLANS_DIR}}` | 현재 구현 계획 | 작업을 고를 때 |
@@ -27,7 +27,7 @@ PRD나 SDD가 아직 없으면 `{{HANDOFF_FILE}}` 의 워크플로를 따릅니�
 ## 3. 절대 규칙 (예외 없음)
 1. **TDD**: 실패하는 테스트를 먼저 작성합니다. 테스트 없이 동작을 바꾸지 않습니다.
 2. **Tidy First**: 구조 변경과 동작 변경을 **한 커밋에 섞지 않습니다.** 구조 변경을 먼저 커밋합니다.
-3. **main은 항상 Green**: 로컬에서 `./gradlew check` 가 통과한 것만 푸시합니다.
+3. **main은 항상 Green**: `tools/ci/verify.sh`(로컬 검증 게이트, ADR-0012)가 로컬에서 통과한 것만 푸시하거나 병합합니다.
 4. **아키텍처 경계는 Gradle이 강제**합니다. 금지된 모듈 의존성을 추가해 우회하지 않습니다. 의존성 변경은 ADR 대상입니다.
 5. **원본 존중**: `{{REF_REPO_DIR}}` 는 읽기 전용입니다. 수정하거나 커밋하지 않습니다. 동작이 애매하면 **원본 Go 코드가 정답 기준**입니다.
 5-1. **개발 매뉴얼 사용**: 포팅, 설계, 구현은 `{{MANUAL_DIR}}` 의 개발 매뉴얼을 **1차 가이드로 사용**합니다. 작업 계획과 커밋에 참고한 매뉴얼 문서를 표기합니다.
@@ -42,7 +42,7 @@ PRD나 SDD가 아직 없으면 `{{HANDOFF_FILE}}` 의 워크플로를 따릅니�
 
 ## 4. 작업 흐름 (도구 공통)
 ```
-PRD ─🛑승인→ SDD ─🛑승인→ 계획 ─🛑승인→ [작업 단위 반복: 브랜치 → Red → Green → Refactor → 커밋 → AI 리뷰 → PR(CI Green) → main]
+PRD ─🛑승인→ SDD ─🛑승인→ 계획 ─🛑승인→ [작업 단위 반복: 브랜치 → Red → Green → Refactor → 커밋 → AI 리뷰 → PR(로컬 게이트 Green) → main]
                                                                                         └→ 마일스톤 종료: 매뉴얼 갱신 + 인계 노트
 ```
 - 🛑는 **사용자 승인 게이트**입니다. 승인 없이 다음 단계로 넘어가지 않습니다.
@@ -72,11 +72,12 @@ samples/* ──▶ :sdk 만
 | 공개 API 호환성 | `./gradlew apiCheck` (변경을 의도했다면 `apiDump` 후 커밋) |
 | protobuf 생성 | `./gradlew :domain:generateCommonMainProtos` (Wire 태스크 이름은 `./gradlew :domain:tasks --all \| grep -i proto`로 확인) |
 | iOS 프레임워크 | `./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64` |
+| 전체 로컬 검증 게이트 (푸시·병합 전 필수) | `tools/ci/verify.sh` (ADR-0012, 예전 GitHub Actions CI 6개 잡을 로컬에서 재현) |
 
 ## 7. 커밋과 PR
 - 접두어: `struct:` (구조) · `feat:` (기능) · `fix:` (결함) · `test:` (테스트만) · `docs:` · `chore:` (의존성·빌드)
 - 본문에 추적 ID를 적습니다: `Refs: FR-012` 또는 `Refs: NFR-003`, `ADR-0004`
-- PR 머지 조건: **CI Green + AI 코드 리뷰 통과**(리뷰 요약을 PR 본문에 첨부) + PR 템플릿 체크리스트 완료
+- PR 머지 조건: **`tools/ci/verify.sh` 통과 + AI 코드 리뷰 통과**(리뷰 요약을 PR 본문에 첨부) + PR 템플릿 체크리스트 완료
 - 머지 방식: **Rebase merge.** Squash는 금지합니다. `struct` 커밋과 `feat` 커밋이 따로 보존되어야 하기 때문입니다.
 
 ## 8. 막혔을 때

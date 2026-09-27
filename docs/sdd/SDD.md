@@ -669,8 +669,8 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 - 개인키(핸들만 존재), 공유 X, K, 서브키, 복호화 전 페이로드는 어떤 레벨에서도 로그에 쓰지 않는다. `Session.toString()`은 공개키 지문만 출력.
 - `Session.close()`는 K와 서브키 배열을 0으로 덮는다. `Vehicle.disconnect()`가 모든 세션을 닫는다.
 - `protocol.md` 테스트 키는 `:testing`에만 존재하고 `:sdk`에서 참조하지 않는다(detekt `ForbiddenImport`로 `:testing` → 운영 모듈 유입 차단).
-- 비밀 스캔 CI 게이트: `[A-HJ-NPR-Z0-9]{17}` VIN 패턴은 테스트 VIN(`5YJ30123456789ABC`, `5YJS0000000000000`, `0123456789ABCDEFG`) 허용 목록만 통과.
-- 서버 없음: Android 매니페스트에 `INTERNET` 권한이 없어야 하며, CI가 확인한다.
+- 비밀 스캔 로컬 게이트(`tools/ci/verify.sh`, ADR-0012): `[A-HJ-NPR-Z0-9]{17}` VIN 패턴은 테스트 VIN(`5YJ30123456789ABC`, `5YJS0000000000000`, `0123456789ABCDEFG`) 허용 목록만 통과.
+- 서버 없음: Android 매니페스트에 `INTERNET` 권한이 없어야 하며, 로컬 게이트가 확인한다.
 
 ---
 
@@ -689,6 +689,7 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 | 0009 | add-key-request 응답 읽기 (원본과 다른 동작) | D28 |
 | 0010 | 타임아웃 파라미터와 취소 전파 | D29 |
 | 0011 | 골든 픽스처를 Kotlin 상수로 | D30 |
+| 0012 | 로컬 검증 게이트가 GitHub Actions CI를 대체 | 사용자 결정 (2026-09-27) |
 
 ---
 

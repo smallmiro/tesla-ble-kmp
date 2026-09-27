@@ -15,7 +15,7 @@ Refs: FR-___ / NFR-___ / ADR-____
 
 ## 체크리스트 (docs/workflow.md §9 DoD)
 - [ ] 실패 테스트로 시작 → 통과 (Red → Green)
-- [ ] `./gradlew check` 로컬 Green, 경고 0
+- [ ] `tools/ci/verify.sh` 통과(로컬), 경고 0
 - [ ] 원본 Go 동작과 같음 (다르면 주석과 ADR에 이유 기록)
 - [ ] 로그와 픽스처에 키, VIN 원문 없음
 - [ ] 공개 API 변경 시 `apiDump`, KDoc, 라이브러리 사용 문서(`{{LIB_DOCS_DIR}}`) 갱신
