@@ -331,7 +331,13 @@ public class Dispatcher
                 }
                 return
             }
-            val tag = message.signature_data?.session_info_tag?.tag
+            // 리뷰 라운드 1 Minor M1: Wire proto3 bytes 필드는 기본값이 null이 아니라 ByteString.EMPTY다.
+            // session_info_tag가 실려 있지만 태그가 비어 있으면 Go의 GetTag() == nil과 같은 뜻이므로 없는 것으로 본다.
+            val tag =
+                message.signature_data
+                    ?.session_info_tag
+                    ?.tag
+                    ?.takeIf { it.size > 0 }
             if (tag == null) {
                 logger.log(LogLevel.WARN, TAG) { "[$id] Discarding unauthenticated session info" }
                 return
