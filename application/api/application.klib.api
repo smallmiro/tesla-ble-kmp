@@ -83,3 +83,51 @@ final class io.github.smallmiro.teslable.application.dispatcher/SessionState { /
     final suspend fun processHello(kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray): io.github.smallmiro.teslable.protocol/SignerResult<kotlin/Unit> // io.github.smallmiro.teslable.application.dispatcher/SessionState.processHello|processHello(kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray){}[0]
     final suspend fun timestamp(): kotlin/UInt? // io.github.smallmiro.teslable.application.dispatcher/SessionState.timestamp|timestamp(){}[0]
 }
+
+final class io.github.smallmiro.teslable.application.vehicle/CommandTimeouts { // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts|null[0]
+    constructor <init>(kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ...) // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.<init>|<init>(kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
+
+    final val commandLifetime // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.commandLifetime|{}commandLifetime[0]
+        final fun <get-commandLifetime>(): kotlin.time/Duration // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.commandLifetime.<get-commandLifetime>|<get-commandLifetime>(){}[0]
+    final val commandTimeout // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.commandTimeout|{}commandTimeout[0]
+        final fun <get-commandTimeout>(): kotlin.time/Duration // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.commandTimeout.<get-commandTimeout>|<get-commandTimeout>(){}[0]
+    final val handshakeTimeout // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.handshakeTimeout|{}handshakeTimeout[0]
+        final fun <get-handshakeTimeout>(): kotlin.time/Duration // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.handshakeTimeout.<get-handshakeTimeout>|<get-handshakeTimeout>(){}[0]
+
+    final fun component1(): kotlin.time/Duration // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.component1|component1(){}[0]
+    final fun component2(): kotlin.time/Duration // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.component2|component2(){}[0]
+    final fun component3(): kotlin.time/Duration // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.component3|component3(){}[0]
+    final fun copy(kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ...): io.github.smallmiro.teslable.application.vehicle/CommandTimeouts // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.copy|copy(kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.toString|toString(){}[0]
+}
+
+final class io.github.smallmiro.teslable.application.vehicle/SendWithRetry { // io.github.smallmiro.teslable.application.vehicle/SendWithRetry|null[0]
+    constructor <init>(io.github.smallmiro.teslable.application.dispatcher/Dispatcher, io.github.smallmiro.teslable.application.vehicle/CommandTimeouts = ...) // io.github.smallmiro.teslable.application.vehicle/SendWithRetry.<init>|<init>(io.github.smallmiro.teslable.application.dispatcher.Dispatcher;io.github.smallmiro.teslable.application.vehicle.CommandTimeouts){}[0]
+
+    final val commandTimeout // io.github.smallmiro.teslable.application.vehicle/SendWithRetry.commandTimeout|{}commandTimeout[0]
+        final fun <get-commandTimeout>(): kotlin.time/Duration // io.github.smallmiro.teslable.application.vehicle/SendWithRetry.commandTimeout.<get-commandTimeout>|<get-commandTimeout>(){}[0]
+
+    final suspend fun send(com.tesla.generated.universalmessage/Domain, kotlin/ByteArray, io.github.smallmiro.teslable.port/AuthMethod, kotlin/Int = ..., kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<com.tesla.generated.universalmessage/RoutableMessage> // io.github.smallmiro.teslable.application.vehicle/SendWithRetry.send|send(com.tesla.generated.universalmessage.Domain;kotlin.ByteArray;io.github.smallmiro.teslable.port.AuthMethod;kotlin.Int;kotlin.time.Duration){}[0]
+
+    final object Companion { // io.github.smallmiro.teslable.application.vehicle/SendWithRetry.Companion|null[0]
+        final const val DEFAULT_FLAGS // io.github.smallmiro.teslable.application.vehicle/SendWithRetry.Companion.DEFAULT_FLAGS|{}DEFAULT_FLAGS[0]
+            final fun <get-DEFAULT_FLAGS>(): kotlin/Int // io.github.smallmiro.teslable.application.vehicle/SendWithRetry.Companion.DEFAULT_FLAGS.<get-DEFAULT_FLAGS>|<get-DEFAULT_FLAGS>(){}[0]
+    }
+}
+
+final class io.github.smallmiro.teslable.application.vehicle/VehicleSession { // io.github.smallmiro.teslable.application.vehicle/VehicleSession|null[0]
+    constructor <init>(io.github.smallmiro.teslable.application.dispatcher/Dispatcher, io.github.smallmiro.teslable.application.vehicle/CommandTimeouts = ..., io.github.smallmiro.teslable.application.cache/SessionCacheSync? = ...) // io.github.smallmiro.teslable.application.vehicle/VehicleSession.<init>|<init>(io.github.smallmiro.teslable.application.dispatcher.Dispatcher;io.github.smallmiro.teslable.application.vehicle.CommandTimeouts;io.github.smallmiro.teslable.application.cache.SessionCacheSync?){}[0]
+
+    final val handshake // io.github.smallmiro.teslable.application.vehicle/VehicleSession.handshake|{}handshake[0]
+        final fun <get-handshake>(): io.github.smallmiro.teslable.application.dispatcher/HandshakeFlow // io.github.smallmiro.teslable.application.vehicle/VehicleSession.handshake.<get-handshake>|<get-handshake>(){}[0]
+    final val retryInterval // io.github.smallmiro.teslable.application.vehicle/VehicleSession.retryInterval|{}retryInterval[0]
+        final fun <get-retryInterval>(): kotlin.time/Duration // io.github.smallmiro.teslable.application.vehicle/VehicleSession.retryInterval.<get-retryInterval>|<get-retryInterval>(){}[0]
+    final val send // io.github.smallmiro.teslable.application.vehicle/VehicleSession.send|{}send[0]
+        final fun <get-send>(): io.github.smallmiro.teslable.application.vehicle/SendWithRetry // io.github.smallmiro.teslable.application.vehicle/VehicleSession.send.<get-send>|<get-send>(){}[0]
+
+    final suspend fun connect(): kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> // io.github.smallmiro.teslable.application.vehicle/VehicleSession.connect|connect(){}[0]
+    final suspend fun disconnect() // io.github.smallmiro.teslable.application.vehicle/VehicleSession.disconnect|disconnect(){}[0]
+    final suspend fun startSession(kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> = ..., kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<kotlin/Unit> // io.github.smallmiro.teslable.application.vehicle/VehicleSession.startSession|startSession(kotlin.collections.Set<com.tesla.generated.universalmessage.Domain>;kotlin.time.Duration){}[0]
+}
