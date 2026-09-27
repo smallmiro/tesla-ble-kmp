@@ -66,7 +66,7 @@ Go SDK의 BLE 경로(`pkg/connector/ble` → `internal/dispatcher` → `internal
   KableScanner              ios: CommonCrypto + Security.fw     ios: Keychain
                                  + AES-GCM 공급자(ADR-0004)      common: InMemory
         ▲
- :testing (commonMain, 테스트 전용 의존): FakeVehicle, FakeTransport, TestClock, FixedRandom,
+ :testing (commonMain, 테스트 전용 의존): FakeVehicle, FakeTransport, FixedRandom,
           SoftwareEcdhKey(테스트 키), ProtocolVectors, GoldenFixtures
 ```
 
@@ -320,7 +320,7 @@ public interface Vehicle {
 
 ### 2.7 `:testing`
 
-`FakeVehicle`(§9.3), `FakeTransport`, `TestClock`(수동 진행), `FixedRandom`(시퀀스 주입), `SoftwareEcdhKey`, `ProtocolVectors`(`protocol.md` 값), `GoldenFixtures`(Kotlin 상수, D30). 이 모듈은 다른 모듈의 `commonTest`에서만 의존한다.
+`FakeVehicle`(§9.3), `FakeTransport`, `FixedRandom`(시퀀스 주입), `SoftwareEcdhKey`, `ProtocolVectors`(`protocol.md` 값), `GoldenFixtures`(Kotlin 상수, D30). 시간은 클래스가 아니라 `kotlinx-coroutines-test`의 `testTimeSource`(`TestTimeSource`)를 `FakeVehicle`/`Dispatcher`에 그대로 주입해 흐른다. 이 모듈은 다른 모듈의 `commonTest`에서만 의존한다.
 
 ### 2.8 경계 강제 (Gradle)
 
@@ -460,7 +460,7 @@ public object Busy : VehicleError                          // operation_status W
 public data class UnknownFault(val rawCode: Int) : VehicleError  // 모르는 signed_message_fault: RoutableMessageError{Code}, "unrecognized error code N"
 public object UnknownResponse : VehicleError               // ErrUnknown: 모르는 session_info.status·operation_status (코드 없음)
 public object NotConnected, NoSession, RequiresKey : VehicleError
-public data class BadResponse(val detail: String) : VehicleError   // 파싱 실패. VCSEC 응답 파싱 실패는 mayHaveSucceeded = true (Go vcsec.go)
+public data class BadResponse(val detail: String) : VehicleError   // 파싱 실패. VCSEC(Go vcsec.go)·Infotainment(Go infotainment.go) 응답 파싱 실패는 mayHaveSucceeded = true
 // 애플리케이션 계층
 public data class KeychainRejected(val code: WhitelistOperationInformation) : VehicleError
 public data class UnknownKeychainCode(val rawCode: Int) : VehicleError             // 모르는 whitelistOperationInformation 코드(더 새 펌웨어). Go KeychainError{Code}와 같은 정보
@@ -496,7 +496,7 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 - `keyId`가 현재 키와 다르면 캐시를 무시하고 삭제한다(Go는 잘못된 캐시를 로드 후 첫 명령 실패로 복구; 우리는 사전 차단).
 - 캐시된 **차량** 공개키가 현재 차량과 다르면(차량 키 교체, 같은 VIN의 다른 캐시) 세션 안에서는 복구하지 않는다(Go와 같음, 공개키 고정 유지). 대신 M3 `connect()`가 그 도메인의 캐시 항목을 지운다. Go는 아무것도 하지 않는다(2026-09-27 사용자 결정, M2 계획 설계 구체화 8). 감지 방법(`UNKNOWN_KEY_ID`, 캐시에서 복원한 세션의 세션정보 태그 실패)은 M3 계획에서 정한다.
 - 세션 키 K, 개인키, VIN 원문은 저장하지 않는다. 파일명은 `sha1(vin)`.
-- 구현: `SessionCacheCodec`(`:domain`, `encode`/`decode`/`encodeSnapshots`/`decodeSessions`), `InMemorySessionCache`(`:adapter-storage`, 벽시계 `() -> Long` 주입). `age`는 어댑터가 원시값(`nowEpochMillis - createdAtEpochMillis`, 음수 가능)으로 넘기고 클램프하지 않는다 — `Signer.importSessionInfo`가 0으로 본다(설계 구체화 7). 세션이 없으면 빈 목록을 저장한다(Go `Update(nil)`도 옛 캐시를 지운다). 손상된 항목·모르는 도메인 값의 항목은 건너뛰고 로그만 남긴다(`SessionCacheCodec.decode`가 모르는 도메인 항목을 건너뜀; `Dispatcher.loadSessions`가 세션 없는 도메인을 건너뜀).
+- 구현: `SessionCacheCodec`(`:domain`, `encode`/`decode`/`encodeSnapshots`/`decodeSessions`), `InMemorySessionCache`(`:adapter-storage`, 벽시계 `() -> Long` 주입). `age`는 어댑터가 원시값(`nowEpochMillis - createdAtEpochMillis`, 음수 가능)으로 넘기고 클램프하지 않는다 — `Signer.importSessionInfo`가 0으로 본다(설계 구체화 7). 세션이 없으면 빈 목록을 저장한다(Go `Update(nil)`도 옛 캐시를 지운다). 개별 `SessionInfo` 디코딩이 실패한 손상된 항목은 건너뛰고 `Dispatcher.loadSessions`가 WARN 로그를 남긴다. 반면 `SessionCacheCodec.decode`가 Wire가 인식하지 못하는 도메인 원시값의 항목은 로그 없이 조용히 버린다(그 항목은 결과에 실리지도 않는다) — Wire는 알지만 `Dispatcher`에 세션이 없는 도메인(예: `DOMAIN_BROADCAST`)은 여기서 걸러지지 않고 `Dispatcher.loadSessions`까지 도달해 "no session (private key missing)" WARN을 남긴다(`Dispatcher.kt:288` 부근).
 - 저장 시점(M2): 핸드셰이크 완료(`VehicleSession.startSession` 성공), `disconnect()`(1회만 — 두 번째 이상 호출은 건너뛴다, `SessionCacheSync`/`VehicleSession` KDoc). **세션정보 갱신 때마다 저장하는 것은 M2에 없다** — 수신 코루틴이 캐시 I/O로 suspend해서는 안 되기 때문이다(§5). 그 트리거는 M3 파사드가 연결한다. `disconnect()`의 저장은 반드시 `Dispatcher.close()`보다 먼저 끝나야 한다 — `close()`가 모든 세션 키를 지운 뒤 저장하면 빈 목록이 이전 저장을 지워 버린다. 각 저장은 실패해도 명령 결과에 영향을 주지 않는다(로그만).
 
 ### 7.2 키 메타데이터
@@ -628,7 +628,7 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
     shiftClock(domain, by), attachSessionInfoOnce(domain), corruptNextSessionInfoTag(domain, count=1), replayLastResponse(domain)
 ```
 
-시간은 `timeSource`(`TimeSource.Monotonic` 또는 `TestClock`)로만 흐른다. `retryInterval`은 `FakeTransport`에서 1ms로 줄여 테스트를 빠르게 한다(Go `dummyConnector.RetryInterval = 1ms`와 동일).
+시간은 `timeSource`(`TimeSource.Monotonic` 또는 테스트의 `kotlinx-coroutines-test` `testTimeSource`/`TestTimeSource`)로만 흐른다. `retryInterval`은 `FakeTransport`에서 1ms로 줄여 테스트를 빠르게 한다(Go `dummyConnector.RetryInterval = 1ms`와 동일).
 
 ### 9.4 Go 클라이언트 측 테스트 포팅 목록
 
@@ -719,5 +719,5 @@ HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 
 - `Dispatcher`가 두 도메인(VCSEC, INFOTAINMENT)의 `SessionState`를 미리 만들어 둔다(Go는 `StartSession`이 부를 때 만든다). 그 결과 태그가 맞는 세션정보 응답이 오면 `HandshakeFlow.startSession`을 부르지 않은 도메인도 준비 상태가 된다 — Go는 등록되지 않은 도메인의 세션정보를 드롭한다. 핸드셰이크와 같은 신뢰 수준(HMAC 태그 검증)이라 관찰 가능한 안전 문제는 없다.
 - `incoming`이 끝나면(BLE 연결 끊김) `Dispatcher.send`는 `NotConnected`를 돌려준다. Go의 `Send`는 `listen`이 반환할 때 `terminate`를 지우지 않으므로 오히려 성공한다(`dispatcher.go:350-351`) — 관찰 결과는 다르지만 더 안전한 방향(전송하지 않음)이다. `isListening`은 정지 중이거나(취소된 순간부터) 교대 대기 중(새 코루틴이 이전 코루틴의 종료를 기다리는 동안)에도 `false`다 — Go도 이 두 창에서 `Send`가 `ErrNotConnected`이므로 관찰 결과는 같다.
 - `VehicleSession.disconnect()`는 `SessionCacheSync.store` 후 `Dispatcher.close()`를 부른다(반드시 이 순서 — `close()`가 먼저면 빈 세션을 저장해 이전 저장을 지운다). Go에서 이 저장은 `Vehicle.Disconnect` 자체가 아니라 CLI(`cmd/tesla-control/main.go`)의 `defer UpdateCachedSessions`다 — 이 라이브러리는 그 책임을 `VehicleSession`으로 옮겼다.
-- `SendWithRetry.send`와 `VcsecCommands.execute`는 페이로드를 호출당 한 번만 `ByteString`으로 복사해 얼린다. Go `SendWithRetry`도 한 번 복사하지만 Go `getVCSECResult`는 원본 슬라이스를 그대로 넘긴다 — 이 라이브러리가 더 엄격하다(호출자가 재시도 대기 중 배열을 바꿔도 재시도에 새어 들어가지 않는다).
+- `SendWithRetry.send`와 `VcsecCommands.execute`는 페이로드를 호출당 한 번만 `ByteString`으로 복사해 얼린다. Go `Vehicle.Send`(vehicle.go:236-238)도 한 번 복사하지만 Go `getVCSECResult`는 원본 슬라이스를 그대로 넘긴다 — 이 라이브러리가 더 엄격하다(호출자가 재시도 대기 중 배열을 바꿔도 재시도에 새어 들어가지 않는다).
 - `HandshakeFlow.startSession`은 `Dispatcher.ALL_DOMAINS` 밖의 도메인에 대해 `RequiresKey`를 돌려준다(`dispatcher.session(domain) == null`이므로). Go `StartSession`은 그런 도메인의 세션을 그때 만든다 — M2는 `ALL_DOMAINS`(VCSEC, INFOTAINMENT) 두 개만 다루므로 관찰 가능한 차이는 없다.
