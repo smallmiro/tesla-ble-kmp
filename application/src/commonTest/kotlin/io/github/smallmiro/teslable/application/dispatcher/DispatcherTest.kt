@@ -329,6 +329,29 @@ class DispatcherTest {
         }
 
     @Test
+    fun discardsSessionInfoWithPresentButEmptyTagAsUnauthenticated() =
+        // Review round 1, Minor fold M1: Wire's proto3 `tag` defaults to ByteString.EMPTY (not null), so
+        // an explicitly present `session_info_tag {}` with no tag bytes must still be treated as "no tag"
+        // like Go's GetTag() returning nil (dispatcher.go:203-206), not fall through to HMAC verification.
+        runTest {
+            val h = dispatcherHarness()
+            h.fake.dropNextReplies(1)
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.requestSessionInfo(vcsec)).value
+            val request = h.lastRequest()
+            val info = h.fake.verifier(vcsec).signedSessionInfo(request.uuid.toByteArray())
+            val emptyTagged =
+                replyTo(request, ByteArray(0)).copy(
+                    protobuf_message_as_bytes = null,
+                    session_info = info.encoded.toByteString(),
+                    signature_data = SignatureData(session_info_tag = HMAC_Signature_Data()),
+                )
+            h.transport.deliver(encode(emptyTagged))
+            pending.use { assertNotNull(it.receive().session_info) }
+            assertFalse(assertNotNull(h.dispatcher.session(vcsec)).isReady)
+            assertTrue(h.logger.contains("Discarding unauthenticated session info"))
+        }
+
+    @Test
     fun discardsSessionInfoReceivedMoreThanMaxLatencyAfterRequest() =
         // FR-014, dispatcher.go checkForSessionUpdate: handler.expired(maxLatency) → 폐기 (BLE 4초)
         runTest {
