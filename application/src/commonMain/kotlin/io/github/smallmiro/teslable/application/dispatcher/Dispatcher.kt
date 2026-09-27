@@ -95,10 +95,20 @@ public class Dispatcher
         // 정지를 기다린다 — 잠긴 상태로 정지를 기다리면 그사이 start()가 tryLock에 계속 실패해 새 수신 코루틴을
         // 띄울 수 없기 때문이다. 이렇게 "먼저 비우고 나중에 정지를 기다리기" 순서를 지키면, 정지를 기다리는 도중에
         // start()가 새로 띄운 코루틴을 stop()이 뒤늦게 null로 덮어써 고아로 만드는 일이 없다.
+        //
+        // 리뷰 라운드 2 N1(회귀): 위 방식은 첫 stop() 호출자만 job을 캡처하고, 동시에 들어온 다른 stop()
+        // 호출자(예: close()가 안에서 부르는 stop())는 receiveJob이 이미 null이라 아무 job도 얻지 못한 채
+        // 곧바로 반환했다 — Go Stop은 doneLock을 쥔 채 <-d.done까지 기다리므로(dispatcher.go:369-375) 모든
+        // 호출자가 실제로 끝날 때까지 기다려야 하는데, 그러지 못해 close()가 수신 코루틴이 채 끝나기도 전에
+        // 세션을 지우고 전송을 닫을 수 있었다. stopping에 "지금 정지 중인 job"을 남겨 두어, receiveJob이 이미
+        // 비었어도 나머지 stop() 호출자가 같은 job을 join하게 한다.
         private val lifecycleMutex = Mutex()
 
         @Volatile
         private var receiveJob: Job? = null
+
+        @Volatile
+        private var stopping: Job? = null
 
         /** Go `SetMaxLatency`: 양수일 때만 바꾼다. */
         public fun setMaxLatency(latency: Duration) {
@@ -110,16 +120,26 @@ public class Dispatcher
 
         /**
          * Go `Start` + `listen`: 수신 코루틴을 띄운다. `UNDISPATCHED`로 시작해 반환 전에 [Transport.incoming] 구독이
-         * 끝난다. 멱등. [lifecycleMutex]를 [stop]과 공유하므로(리뷰 라운드 1 Important 1), 정지가 필드를 비우고
-         * 나가는 사이의 아주 짧은 창을 제외하면 항상 최신 [receiveJob]을 보고 판단한다; tryLock이 실패하면(그 창과
-         * 겹쳤다는 뜻) 아무 것도 하지 않는다 — 곧이어 [stop]이 필드를 비워 두므로 호출자가 다시 부르면 된다.
+         * 끝난다(단, 직전에 정지 중이던 job이 있으면 그 job이 끝난 뒤에 구독한다 — 아래 참고). 멱등. [lifecycleMutex]를
+         * [stop]과 공유하므로(리뷰 라운드 1 Important 1) tryLock이 실패하는 경우는 둘이다: (1) [stop]이 필드를
+         * 캡처·해제하는 아주 짧은 창과 겹쳤을 때, (2) **다른 [start] 호출이 이미 잠금을 쥐고 있을 때** — `UNDISPATCHED`
+         * 본문은 첫 suspension(아래 [stopping] join 대기, 또는 그것이 없으면 `incoming` 구독)에 이르기 전까지 잠금을
+         * 놓지 않으므로, 이 잠깐의 동기 구간 동안 [receiveJob]은 아직 이전 값(흔히 `null`)일 수 있다 — 즉 진 쪽이
+         * 이긴 쪽보다 먼저 반환할 수 있고, 그 시점의 [isListening]은 아직 이긴 쪽의 갱신을 반영하지 않을 수 있다
+         * (리뷰 라운드 2 N4). 두 경우 모두 이 호출은 그냥 반환한다 — 곧(또는 이미) 최신 상태가 반영되므로 호출자는
+         * 다시 부르거나 [isListening]으로 다시 확인하면 된다.
          */
         public fun start() {
             if (!lifecycleMutex.tryLock()) return
             try {
                 if (isListening) return
+                val awaitedStop = stopping
                 receiveJob =
                     scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                        // 리뷰 라운드 2 N1(컨트롤러 판정): 직전 stop()이 아직 끝나지 않았으면 그 job이 끝날 때까지
+                        // 기다린 뒤에야 incoming을 구독한다 — 두 수신 코루틴이 동시에 살아 있으면 안 된다(Go의
+                        // listen과 Stop은 doneLock을 공유한다).
+                        awaitedStop?.join()
                         logger.log(LogLevel.INFO, TAG) { "Starting dispatcher service..." }
                         transport.incoming.collect { process(it) }
                     }
@@ -133,10 +153,22 @@ public class Dispatcher
          * 것은 잠금 안에서, 실제로 끝나기를 기다리는 것(suspend)은 잠금 밖에서 한다(리뷰 라운드 1 Important 1) —
          * 그래야 기다리는 동안 레이스로 들어온 [start]가 새로 띄운 코루틴을 이 함수가 나중에 `null`로 덮어써
          * 고아로 만들지 않는다.
+         *
+         * 리뷰 라운드 2 N1(회귀 수정): 동시에 여러 [stop] 호출(예: [close]가 안에서 부르는 것과 별도의 직접 호출)이
+         * 들어오면, 첫 호출자 이후에는 [receiveJob]이 이미 `null`이라 캡처할 job이 없다 — 그래서 [stopping]에
+         * "지금 정지 중인 job"을 남겨 두어, 이후 호출자도 같은 job을 잡아 함께 join하게 한다. job이 끝나면 그 값을
+         * 여전히 가리키고 있는 경우에만(다음 [start]가 새 job으로 갈아 치우지 않았다면) [stopping]을 비운다.
          */
         public suspend fun stop() {
-            val job = lifecycleMutex.withLock { receiveJob.also { receiveJob = null } }
+            val job =
+                lifecycleMutex.withLock {
+                    val target = receiveJob ?: stopping
+                    receiveJob = null
+                    stopping = target
+                    target
+                }
             job?.cancelAndJoin()
+            lifecycleMutex.withLock { if (stopping === job) stopping = null }
         }
 
         /** Go `Vehicle.Disconnect`: [stop] + 세션 키 소거 + 전송 닫기. */
