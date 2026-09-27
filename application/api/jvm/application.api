@@ -1,12 +1,20 @@
+public final class io/github/smallmiro/teslable/application/cache/SessionCacheSync {
+	public fun <init> (Lio/github/smallmiro/teslable/port/SessionCache;Lio/github/smallmiro/teslable/model/Vin;Lio/github/smallmiro/teslable/model/KeyId;)V
+	public final fun load (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun store (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
 public final class io/github/smallmiro/teslable/application/dispatcher/Dispatcher {
 	public static final field Companion Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher$Companion;
 	public fun <init> (Lio/github/smallmiro/teslable/port/Transport;Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlinx/coroutines/CoroutineScope;Lkotlin/time/TimeSource;Lio/github/smallmiro/teslable/port/TeslaLogger;)V
 	public synthetic fun <init> (Lio/github/smallmiro/teslable/port/Transport;Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlinx/coroutines/CoroutineScope;Lkotlin/time/TimeSource;Lio/github/smallmiro/teslable/port/TeslaLogger;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun close (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun exportSessions (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun getMaxLatency-UwyO8pc ()J
 	public final fun getRetryInterval-UwyO8pc ()J
 	public final fun getVin ()Lio/github/smallmiro/teslable/model/Vin;
 	public final fun isListening ()Z
+	public final fun loadSessions (Ljava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun requestSessionInfo (Lcom/tesla/generated/universalmessage/Domain;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun send-exY8QGI (Lcom/tesla/generated/universalmessage/RoutableMessage;Lio/github/smallmiro/teslable/port/AuthMethod;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun send-exY8QGI$default (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lcom/tesla/generated/universalmessage/RoutableMessage;Lio/github/smallmiro/teslable/port/AuthMethod;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
