@@ -47,7 +47,7 @@ Tesla 공식 Go SDK `vehicle-command`는 BLE로 차량과 직접 통신하는 �
 | `protocol.md` 테스트 벡터 | 100% PASS (JVM + iOS 시뮬레이터) | `./gradlew jvmTest iosSimulatorArm64Test` |
 | 골든 픽스처 (TX/RX 헥사) | 100% PASS | commonTest |
 | FakeVehicle 통합 시나리오 | 핸드셰이크, 매칭, VCSEC 다중 응답, 재전송 방지, 세션 복구 전부 PASS | commonTest |
-| 샘플 앱 | Android, iOS 각 1개 빌드 성공 | CI |
+| 샘플 앱 | Android, iOS 각 1개 빌드 성공 | 로컬 게이트 |
 | 실차 체크리스트 (`{{WORKFLOW_FILE}}` §8.4) | 9개 시나리오 사용자 확인 | 사용자 수행 |
 | 라이브러리 사용 문서 | `{{LIB_DOCS_DIR}}` 9개 페이지, 링크 검증 통과 | 링크 검사 |
 
@@ -306,14 +306,14 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | NFR-005 | **암호 원시연산은 플랫폼 제공만** (JCA/Keystore, Security.framework/CommonCrypto 또는 ADR로 정한 GCM 공급자). 자체 구현 금지. HMAC 비교는 상수 시간 | 코드 리뷰 | `00-agent-guide §3.1-4` |
 | NFR-006 | **로그**: FR-112. 릴리스 빌드 기본 로거는 no-op | 테스트 | `08-errors §9.1` |
 | NFR-007 | **결과 불확실 명령은 자동 재전송 금지** (토글성 명령 이중 실행 방지) | FakeVehicle 테스트 | `08-errors §7` |
-| NFR-008 | **라이선스**: Apache-2.0, `NOTICE`에 원본 저작권 고지, 포팅 파일 헤더 `// Ported from vehicle-command@a4b43c1 <경로> (Apache-2.0)`. AGPL 코드 유입 없음. 의존성(Wire, Kable, SKIE, kotlinx)은 모두 Apache-2.0 | CI 라이선스 게이트 | `{{WORKFLOW_FILE}}` §4.4, §6 |
+| NFR-008 | **라이선스**: Apache-2.0, `NOTICE`에 원본 저작권 고지, 포팅 파일 헤더 `// Ported from vehicle-command@a4b43c1 <경로> (Apache-2.0)`. AGPL 코드 유입 없음. 의존성(Wire, Kable, SKIE, kotlinx)은 모두 Apache-2.0 | 로컬 게이트 | `{{WORKFLOW_FILE}}` §4.4, §6 |
 | NFR-009 | **플랫폼**: Android `minSdk 31`, iOS 16.0+ (D9). Kotlin/Native 타깃: `iosArm64`, `iosSimulatorArm64` | 빌드 | `10-porting-guide §12` |
-| NFR-010 | **API 안정성**: `explicitApi()`, 공개 API KDoc 필수, `binary-compatibility-validator`(`apiCheck`), `ByteArray` 방어 복사, 값 객체 불변 | CI | `{{WORKFLOW_FILE}}` §4.4 |
+| NFR-010 | **API 안정성**: `explicitApi()`, 공개 API KDoc 필수, `binary-compatibility-validator`(`apiCheck`), `ByteArray` 방어 복사, 값 객체 불변 | 로컬 게이트 | `{{WORKFLOW_FILE}}` §4.4 |
 | NFR-011 | **지연**: 캐시된 세션으로 잠금/해제 왕복 1초 안팎(실차). 앱 재실행 후 첫 명령은 핸드셰이크 생략 | 실차 체크리스트 | `{{WORKFLOW_FILE}}` §8.4 |
 | NFR-012 | **동시성**: 구조화된 동시성, 모든 호출 취소 가능, VCSEC 직렬화(FR-049), 타임아웃은 명령별 `timeout` 파라미터(기본 5초)로 라이브러리가 관리하고 전송 후 만료는 결과 불확실로 반환, 외부 취소는 `CancellationException`으로 전파(SDD D29). `GlobalScope`, `runBlocking` 금지 | 코드 리뷰, 테스트 | `{{WORKFLOW_FILE}}` §4.4, `01-architecture §5` |
 | NFR-013 | **i18n**: 에러 메시지·로그 영어, 코드 노출(D19). 문서 한국어 | 리뷰 | – |
 | NFR-014 | **서버 없음**: 네트워크 권한·호출 없음. 새 네트워크 호출 PR은 반려 | 코드 리뷰, Android 매니페스트에 `INTERNET` 없음 | HANDOFF D1 |
-| NFR-015 | **CI 게이트**: `{{WORKFLOW_FILE}}` §6 전부 (ktlint, detekt 0, 경고 0, apiCheck, jvmTest, Android 단위, iOS 시뮬레이터, 샘플 빌드, 라이선스, 비밀 스캔) | GitHub Actions | `{{WORKFLOW_FILE}}` §6 |
+| NFR-015 | **로컬 검증 게이트**: `{{WORKFLOW_FILE}}` §6 전부 (ktlint, detekt 0, 경고 0, apiCheck, jvmTest, Android 단위, iOS 시뮬레이터, 샘플 빌드, 라이선스, 비밀 스캔) | `tools/ci/verify.sh` (ADR-0012) | `{{WORKFLOW_FILE}}` §6 |
 | NFR-016 | **아키텍처 경계**: `:domain`은 Wire 런타임·coroutines만 의존. 위반은 빌드가 잡음 | Gradle | `{{WORKFLOW_FILE}}` §4.2 |
 | NFR-017 | **원본 충실**: 바이트 수준 동작(TLV 순서, FLAGS 포함 규칙, request hash 절단, counter 규칙)은 원본 코드 줄을 인용한 테스트로 고정. 의도적 차이는 주석 + ADR | 리뷰 | `{{WORKFLOW_FILE}}` §8.1 |
 

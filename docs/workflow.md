@@ -162,7 +162,7 @@ Refs: FR-012
 ### 5.3 PR
 - 작게 유지합니다. 구조와 동작을 분리해 두면 리뷰가 쉬워집니다.
 - **머지 조건**
-  1. CI Green (§6)
+  1. `tools/ci/verify.sh` 통과 (§6, 로컬 검증 게이트, ADR-0012)
   2. **AI 코드 리뷰 1회 통과**
      - Claude Code: `requesting-code-review`
      - Codex / Copilot CLI: 각 도구의 리뷰 기능
@@ -180,28 +180,34 @@ Refs: FR-012
 
 ---
 
-## 6. CI 게이트 (GitHub Actions)
+## 6. 로컬 검증 게이트 (`tools/ci/verify.sh`)
 
-모든 푸시와 PR에서 실행합니다. **하나라도 실패하면 병합을 막습니다.**
+예전에는 GitHub Actions(`.github/workflows/ci.yml`)가 모든 푸시와 PR에서 이 게이트들을 실행했다. 혼자 +
+에이전트로 작업하는 이 프로젝트는 iOS 시뮬레이터까지 포함해 전부 실행할 수 있는 Mac 한 대가 있어서, 그
+인프라를 없애고 `tools/ci/verify.sh` 하나로 대체했다(ADR-0012). **모든 푸시와 PR 병합 전에 로컬에서 돌리고,
+하나라도 실패하면 병합하지 않습니다.**
 
-| 게이트 | 내용 | 러너 | 시점 |
-|---|---|---|---|
-| 포맷 | `ktlintCheck` | ubuntu | push(main) · PR |
-| 정적 분석 | `detekt` (경고 0) | ubuntu | push(main) · PR |
-| 빌드 | 경고를 에러로 처리 (`allWarningsAsErrors`) | ubuntu | push(main) · PR |
-| 아키텍처 | 모듈 의존 방향 (빌드에 내포) | – | 빌드 |
-| 공개 API | `apiCheck` (klib 검증에 Apple 타깃이 필요해 macOS `ios` 잡에서 실행) | **macos** | push(main) · PR |
-| 공통 테스트 | `jvmTest` (벡터, 골든, 도메인, 유스케이스) | ubuntu | push(main) · PR |
-| Android 단위 | `testAndroidHostTest` (AGP 9 내장 Kotlin) | ubuntu | push(main) · PR |
-| iOS 테스트 | `iosSimulatorArm64Test` | **macos** | push(main) · PR |
-| 샘플 빌드 | Android assemble, iOS xcodebuild | ubuntu / macos | push(main) · PR |
-| 라이선스 | NOTICE 존재 확인, 포팅 파일 헤더 확인 | ubuntu | push(main) · PR |
-| 비밀 스캔 | VIN 패턴(`[A-HJ-NPR-Z0-9]{17}`)과 PEM 개인키 탐지 (테스트 벡터 허용 목록 제외) | ubuntu | push(main) · PR |
+| 게이트 | 내용 | `verify.sh` 단계 |
+|---|---|---|
+| 포맷 | `ktlintCheck`(`lintKotlin`) | 1/6 |
+| 정적 분석 | `detekt` (경고 0) | 1/6 |
+| 빌드 | 경고를 에러로 처리 (`allWarningsAsErrors`) | 1/6 |
+| 아키텍처 | 모듈 의존 방향 (빌드에 내포) | 1/6 |
+| 공개 API | `apiCheck` | 1/6 |
+| 공통 테스트 | `jvmTest` (벡터, 골든, 도메인, 유스케이스) | 1/6 |
+| Android 단위 | `testAndroidHostTest` (AGP 9 내장 Kotlin) | 1/6 |
+| iOS 테스트 | `iosSimulatorArm64Test` | 1/6 |
+| 샘플 빌드 (Android) | `:samples:android:assembleDebug` | 1/6 |
+| 서버 없음 확인 | 병합 매니페스트에 `INTERNET` 권한 없음 (NFR-014) | 2/6 |
+| iOS 최소 버전 | `Teslable.framework`의 `MinimumOSVersion` 16.0 (NFR-009) | 3/6 |
+| 샘플 빌드 (iOS) | `xcodegen generate` + `xcodebuild` (`CODE_SIGNING_ALLOWED=NO`) | 4/6 |
+| 라이선스 | NOTICE 존재 확인, 포팅 파일 헤더 확인 (`tools/ci/check-license.sh`) | 5/6 |
+| 비밀 스캔 | VIN 패턴(`[A-HJ-NPR-Z0-9]{17}`)과 PEM 개인키 탐지 (테스트 벡터 허용 목록 제외, `tools/ci/scan-secrets.sh`) | 6/6 |
 
-> `.github/workflows/ci.yml`의 트리거는 `push`(브랜치 `main`)와 `pull_request` 전체이며, 6개 잡(`lint`, `jvm-test`, `android`, `ios`, `license`, `secrets`) 모두 이 두 트리거에서 똑같이 실행된다(잡별 `if:` 조건 없음) — "매 푸시"/"매 PR"로 갈라 적었던 이전 버전은 실제 워크플로와 달랐다.
-
-> **"Red를 트렁크에 올리지 않는다"** 가 Trunk-based의 생명줄입니다. 푸시 전에 로컬에서 `./gradlew check` 를 돌립니다.
-> 워크플로 파일(`.github/workflows/ci.yml`)은 M0에서 SDD에 맞춰 작성합니다.
+> **"Red를 트렁크에 올리지 않는다"** 가 Trunk-based의 생명줄입니다. 푸시·병합 전에 로컬에서 `tools/ci/verify.sh` 를 돌립니다.
+> `tools/ci/verify.sh`는 M0에서 작성한 `.github/workflows/ci.yml`이 하던 일을 그대로 재현하며, ADR-0012(2026-09-27)로
+> GitHub Actions를 대체했다. macOS 전용이며(iOS 시뮬레이터·xcodebuild·plutil 필요), 클린 워크트리에서 병합 직전에
+> 한 번 더 돌리는 것을 권장한다(독립된 클린 환경 검증이 없어진 것을 완화).
 
 ---
 
@@ -254,7 +260,7 @@ Refs: FR-012
 **코드**
 - [ ] 실패 테스트로 시작해서 통과시켰다 (Red → Green)
 - [ ] 구조 변경을 별도 커밋으로 분리했다
-- [ ] `./gradlew check` Green, 경고 0
+- [ ] `tools/ci/verify.sh` Green, 경고 0
 - [ ] 모듈 경계 위반 없음 (빌드가 보장)
 - [ ] 공개 API 변경을 `apiDump` 로 반영하고 KDoc을 작성했다
 
