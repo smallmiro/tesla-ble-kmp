@@ -22,13 +22,16 @@ slot_running() {
   [ -n "$(docker ps -q --filter "name=^$(container_name "$1")\$")" ]
 }
 
-# GitHub에 남은 오프라인 tesla-docker runner(강제 종료된 컨테이너의 흔적)를 지운다.
-remove_offline_runners() {
-  local ids
-  ids="$(gh api --paginate "repos/${REPO}/actions/runners" \
-    --jq ".runners[] | select(.status == \"offline\" and (.name | startswith(\"${NAME_PREFIX}-\"))) | .id")" || return 1
+# GitHub에 남은 이 호스트의 tesla-docker runner를 지운다.
+# $1=offline: 오프라인만 지운다(기동 시, 강제 종료된 컨테이너의 흔적). $1=all: 상태와 관계없이 지운다(종료 시,
+# 컨테이너를 방금 멈췄어도 GitHub의 상태 반영이 늦어 아직 online으로 보이기 때문).
+remove_runners() {
+  local filter ids
+  filter="(.name | startswith(\"${NAME_PREFIX}-${HOST_TAG}-\"))"
+  [ "$1" = offline ] && filter="${filter} and .status == \"offline\""
+  ids="$(gh api --paginate "repos/${REPO}/actions/runners" --jq ".runners[] | select(${filter}) | .id")" || return 1
   for id in $ids; do
-    gh api -X DELETE "repos/${REPO}/actions/runners/${id}" >/dev/null && log "removed offline runner id=${id}"
+    gh api -X DELETE "repos/${REPO}/actions/runners/${id}" >/dev/null && log "removed runner id=${id}"
   done
 }
 
@@ -53,13 +56,13 @@ shutdown() {
   for slot in $(seq 1 "$SLOTS"); do
     docker stop -t 30 "$(container_name "$slot")" >/dev/null 2>&1 || true
   done
-  remove_offline_runners || true
+  remove_runners all || true
   exit 0
 }
 trap shutdown TERM INT
 
 log "supervisor up: repo=${REPO} image=${IMAGE} slots=${SLOTS}"
-remove_offline_runners || log "could not clean offline runners (gh or network)"
+remove_runners offline || log "could not clean offline runners (gh or network)"
 
 while true; do
   delay="$INTERVAL"
