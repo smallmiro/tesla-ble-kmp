@@ -94,7 +94,10 @@ public sealed interface VehicleError {
         override val temporary: Boolean = false
     }
 
-    /** 응답 파싱 실패. VCSEC 응답 파싱 실패는 `mayHaveSucceeded = true`(Go `vcsec.go`). Go `ErrBadResponse`. */
+    /**
+     * 응답 파싱 실패. VCSEC(Go `vcsec.go`)와 Infotainment(Go `infotainment.go`) 둘 다 응답 파싱 실패에 `mayHaveSucceeded = true`를
+     * 쓴다 — 명령은 이미 차량에 전달됐을 수 있기 때문이다. Go `ErrBadResponse`.
+     */
     public data class BadResponse(
         /** 무엇을 파싱하지 못했는지. */
         public val detail: String,

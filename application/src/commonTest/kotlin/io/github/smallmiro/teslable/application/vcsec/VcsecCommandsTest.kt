@@ -103,11 +103,10 @@ class VcsecCommandsTest {
 
     @Test
     fun whitelistCompleteFailsWhenCodeArrivesWithoutAnErrorOperationStatus() =
-        // 리뷰 라운드 1 I1: vcsec.go isWhitelistOperationComplete 141행 "이 코드는 도달할 수 없어야 한다" 방어 분기.
+        // vcsec.go isWhitelistOperationComplete 141행 "이 코드는 도달할 수 없어야 한다" 방어 분기.
         // operationStatus는 OK(기본값)인데 whitelistOperationStatus의 코드가 NONE이 아닌 경우 — unmarshalVCSECResponse의
         // commandStatusError는 ERROR가 아니므로 통과시키고, readUntil의 TerminalCheck.Fail 분기(VcsecResponses.kt)가
-        // 실제로 실패로 끝내야 한다. readUntil(Fail) -> Success로 되돌리는 뮤턴트를 이 테스트 없이는 17개 테스트 전부
-        // 통과했다(리뷰에서 확인).
+        // 실제로 실패로 끝내야 한다. readUntil(Fail) -> Success로 되돌리는 뮤턴트를 이 테스트 없이는 17개 테스트 전부 통과했다.
         runTest {
             val h = dispatcherHarness()
             val session = connected(h)
@@ -129,7 +128,7 @@ class VcsecCommandsTest {
 
     @Test
     fun cancellingExecuteReleasesTheLockAndThePendingRequest() =
-        // 리뷰 라운드 1 fold / Task 9의 교훈: job.isCancelled·getCompletionExceptionOrNull()은 공허한 어설션이다(취소를
+        // Task 9의 교훈: job.isCancelled·getCompletionExceptionOrNull()은 공허한 어설션이다(취소를
         // 삼켜 값으로 바꿔도 Job 자체는 Cancelled로 끝난다). 결과 대입이 실제로 일어나는지로 취소 전파를 확인하고,
         // 락과 PendingRequest 등록이 실제로 풀렸는지(두 번째 execute가 진행되는지, pendingCount == 0)까지 본다.
         runTest {

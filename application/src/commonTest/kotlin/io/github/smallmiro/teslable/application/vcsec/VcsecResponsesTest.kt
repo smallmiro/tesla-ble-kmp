@@ -180,7 +180,7 @@ class VcsecResponsesTest {
                 VcsecResponses.WHITELIST_OPERATION_COMPLETE.check(commandStatus(OperationStatus_E.OPERATIONSTATUS_ERROR, slotsFull)),
             )
         assertEquals(VehicleError.KeychainRejected(slotsFull), fail.error)
-        // 리뷰 라운드 1 I1(b): operationStatus 미기재(기본값 OK), whitelistOperationStatus.information = 99(모르는 코드).
+        // operationStatus 미기재(기본값 OK), whitelistOperationStatus.information = 99(모르는 코드).
         // commandStatus(4, LEN 4){ whitelistOperationStatus(3, LEN 2){ information(1) = 99 } }
         val unknownCodeRaw = byteArrayOf(0x22, 0x04, 0x1a, 0x02, 0x08, 0x63)
         val unknownCodeFail =

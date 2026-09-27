@@ -153,7 +153,7 @@ class SendWithRetryTest {
 
     @Test
     fun retriesReuseThePayloadCopiedBeforeTheFirstAttempt() =
-        // N1 / Go vehicle.go 236~238: Send copies payload into payloadCopy once, before any attempt, and every
+        // Go vehicle.go 236~238: Send copies payload into payloadCopy once, before any attempt, and every
         // trySend call reuses that same copy. If a retry instead re-copied the caller's array on each attempt, a
         // caller that mutates its buffer after the first (failed) attempt returns would leak that mutation into
         // the retry — this pins the frozen-once behaviour with a mutation between the two attempts.

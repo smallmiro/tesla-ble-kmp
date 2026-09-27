@@ -134,7 +134,10 @@ public class SessionState internal constructor(
     /** 마지막으로 쓴 counter. 세션이 없으면 null. */
     public suspend fun counter(): UInt? = mutex.withLock { signer?.counter }
 
-    /** 세션 키를 0으로 덮는다. 이후 [authorize]는 `INTERNAL` fault, [decrypt]·[export]는 null. */
+    /**
+     * 세션 키를 0으로 덮는다. 이후 [authorize]는 `INTERNAL` fault, [decrypt]·[export]는 null이지만, 영구적이지 않다 —
+     * 이후 [processHello]나 [loadFromCache]가 다시 불리면 새 `Signer`를 만들어 세션을 되살린다(단일 사용 강제는 M3 항목).
+     */
     public suspend fun close(): Unit =
         mutex.withLock {
             signer?.close()

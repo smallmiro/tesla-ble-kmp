@@ -101,7 +101,7 @@ class FakeVehicleScenarioTest {
             val oldEpoch = h.fake.epoch(vcsec)
             h.fake.rotateEpoch(vcsec)
             val before = h.authenticatedRequests().size
-            // 컨트롤러 판정 R3: 초기 핸드셰이크가 이미 이 로그를 남기므로 contains()는 항상 true다 — 회전 후
+            // 초기 핸드셰이크가 이미 이 로그를 남기므로 contains()는 항상 true다 — 회전 후
             // 실행 직전의 카운트를 잡아 두고, 정확히 1번 더 늘었는지로 갱신 로그가 이번 재시도에서 나왔는지 확인한다.
             val updatedBefore = h.logger.count("Updated session info for DOMAIN_VEHICLE_SECURITY")
             assertIs<VehicleResult.Success<*>>(session.vcsec.execute(lock, AuthMethod.GCM, VcsecResponses.COMMAND_STATUS_ABSENT))
@@ -223,7 +223,7 @@ class FakeVehicleScenarioTest {
             assertEquals(VehicleError.TransportError.MaxConnectionsExceeded, refused.error)
             assertFalse(refused.error.shouldRetry())
 
-            // (b) 컨트롤러 판정 I2-a: 무재시도 분류를 프로덕션 Dispatcher.transmit()으로 확인한다 — 전송 계층에 실제
+            // (b) 무재시도 분류를 프로덕션 Dispatcher.transmit()으로 확인한다 — 전송 계층에 실제
             // MaxConnectionsExceeded를 주입하면 재시도 없이 그대로 실패한다(단일 도메인 → 전송 1회; 두 도메인이면 병렬
             // 핸드셰이크가 2회 보낸다).
             val h = dispatcherHarness()
@@ -233,7 +233,7 @@ class FakeVehicleScenarioTest {
             assertEquals(VehicleError.TransportError.MaxConnectionsExceeded, handshake.error)
             assertEquals(1, h.transport.sent.size)
 
-            // (c) 컨트롤러 판정 I2-b: 슬롯이 열리면 fake.connect()가 돌려준 실제 전송 위에서 세션을 만들어야 한다
+            // (c) 슬롯이 열리면 fake.connect()가 돌려준 실제 전송 위에서 세션을 만들어야 한다
             // (connect()의 결과를 버리고 별도 전송을 새로 만들면 "연결로 얻은 전송이 실제로 쓰인다"를 증명하지 못한다).
             fake.setConnectable(true)
             val recovered = assertIs<VehicleResult.Success<FakeTransport>>(fake.connect()).value

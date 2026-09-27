@@ -90,7 +90,7 @@ class DispatcherLifecycleTest {
 
     @Test
     fun stopRacingWithStartDoesNotOrphanTheReplacementCollector() =
-        // Review round 1, Important 1: stop() used to suspend in cancelAndJoin() and only clear
+        // stop() used to suspend in cancelAndJoin() and only clear
         // receiveJob afterwards, so a start() that raced in during that suspension got its fresh job
         // silently wiped out by stop()'s post-suspend `receiveJob = null` — an orphaned, unstoppable
         // collector (isListening reports false while the job is still actually running). Go serializes
@@ -107,10 +107,9 @@ class DispatcherLifecycleTest {
         // runCurrent() below resolves it. That resolution is exactly where the old code's post-suspend
         // `receiveJob = null` used to silently orphan the replacement collector — it kept running (it
         // still delivers the response) while isListening wrongly reported false.
-        // Review round 4 (corrects round 3's A2): before that runCurrent() the stop is still in flight and
+        // Before that runCurrent() the stop is still in flight and
         // the replacement has not subscribed, so isListening must be false there (Go's Send returns
-        // ErrNotConnected while Stop holds doneLock); round 3 asserted true at that point, which only held
-        // because isListening was still reporting the cancelled old collector.
+        // ErrNotConnected while Stop holds doneLock).
         runTest {
             val h = dispatcherHarness()
             assertTrue(h.dispatcher.isListening)
@@ -136,7 +135,7 @@ class DispatcherLifecycleTest {
 
     @Test
     fun closeWaitsForTheCollectorEvenWhenAnotherStopRacesIn() =
-        // Review round 2, Important N1 (regression in the round 1 fix above): only the first stop()
+        // Only the first stop()
         // call captured receiveJob into a local before clearing the field; a concurrent stop() —
         // including the one close() calls internally — captured null and returned immediately without
         // waiting, so close() could zeroize sessions and close the transport while the cancelled
@@ -164,7 +163,7 @@ class DispatcherLifecycleTest {
 
     @Test
     fun startWhileAnEarlierStopIsStillJoiningDoesNotCreateASecondLiveCollector() =
-        // Review round 2, Important N1 (controller ruling), made provable in round 3: a start() racing
+        // A start() racing
         // in while an earlier stop() is still joining must not create a second live collector alongside
         // the one being stopped — Go's listen() and Stop() share doneLock, so a concurrent Start() would
         // block until Stop() releases it. `children.count { it.isActive } <= 1` cannot fail: Job.isActive
@@ -192,7 +191,7 @@ class DispatcherLifecycleTest {
 
     @Test
     fun closeDoesNotReturnBeforeTheOriginalCollectorFinishes() =
-        // Review round 3, Important N1 (remaining regression): B, started during a stop, used to wait
+        // B, started during a stop, used to wait
         // with a *cancellable* awaitedStop?.join(). A later stop() (here, the one close() calls
         // internally) then captured receiveJob == B instead of the true original collector A, and —
         // because B's join(A) was cancellable — cancelling B let it complete immediately without ever
@@ -204,8 +203,7 @@ class DispatcherLifecycleTest {
         // below does) so A is stuck upstream of process() entirely — a crypto-key gate inside
         // checkForSessionUpdate holds the target SessionState's mutex for as long as it's stuck, which
         // then independently forces close()'s session.close() call to block on that same mutex and
-        // masks this exact bug. Adapted from the reviewer's scratch repro
-        // (ReviewReproTest2.reproCloseReturnsBeforeCollectorCompletes).
+        // masks this exact bug.
         runTest {
             val gate = CompletableDeferred<Unit>()
             val logger = RecordingLogger()
@@ -244,14 +242,13 @@ class DispatcherLifecycleTest {
 
     @Test
     fun noSessionKeysSurviveCloseWhenTheOriginalCollectorProcessesAHandshakeReplyLate() =
-        // Review round 4 (minor fold): the security-relevant symptom of the round 3 join-chain bug fixed in a846ed1.
+        // Pins the security-relevant symptom of the join-chain bug fixed in a846ed1.
         // stop() -> start() -> close() while the original collector A holds a VCSEC session-info reply it has already
         // received. With the old cancellable pre-subscribe join, close() returned — zeroizing every session — while A
         // still held that reply; A then went on to process() it and re-derived VCSEC session keys *after* close() had
         // returned, leaving live keys in a closed dispatcher. Now close() waits (through B's uncancellable join) until A
         // is done, so A's late handshake lands first and close() zeroizes it. The gate uses deliverAfterCancel: the
-        // flow {} builder's emit would throw on the cancelled A and drop the reply, hiding the symptom. Adapted from the
-        // reviewer's scratch repro (ReviewReproTest2.reproSessionEstablishedAfterClose).
+        // flow {} builder's emit would throw on the cancelled A and drop the reply, hiding the symptom.
         runTest {
             val gate = CompletableDeferred<Unit>()
             val h = gatedHarness(gate, deliverAfterCancel = true)
@@ -276,15 +273,13 @@ class DispatcherLifecycleTest {
 
     @Test
     fun laterStartDoesNotSubscribeWhileTheOriginalCollectorIsStillRunning() =
-        // Review round 3, Important N1 (remaining regression), second scenario:
-        // stop() -> start() -> stop() -> start(). With a cancellable pre-subscribe join, the second
+        // Second scenario: stop() -> start() -> stop() -> start(). With a cancellable pre-subscribe join, the second
         // stop() cancels B; B's join(A) is interrupted immediately (not waiting for A), so B completes,
         // `stopping` is cleared, and the next start() (C) sees `stopping == null` and subscribes right
         // away — "Starting dispatcher service..." logs twice while A is still alive (two receive
         // coroutines on the same transport.incoming). The NonCancellable join fix makes B's own
         // cancellation unable to cut its wait for A short, so C's wait (via B) still transitively
-        // reaches A. Adapted from the reviewer's scratch repro
-        // (ReviewReproTest.reproSecondStartSubscribesWhileOldCollectorStillRunning).
+        // reaches A.
         runTest {
             val gate = CompletableDeferred<Unit>()
             val h = dispatcherHarness(privateKey = StuckEcdhKey(TestCrypto.clientKey(), gate))
@@ -312,7 +307,7 @@ class DispatcherLifecycleTest {
 
     @Test
     fun closeStillZeroizesSessionsAndClosesTransportWhenTheCallerIsCancelledMidJoin() =
-        // Review round 3, Important A1: if the close() caller is cancelled while stop() is suspended in
+        // If the close() caller is cancelled while stop() is suspended in
         // job.join(), the CancellationException used to propagate straight out of close() and skip
         // session zeroization + transport.close() entirely — session keys could be left live in memory.
         // close() now wraps that cleanup in `finally { withContext(NonCancellable) { ... } }`, so it
@@ -339,7 +334,7 @@ class DispatcherLifecycleTest {
 
     @Test
     fun isListeningIsFalseAndSendReturnsNotConnectedWhileAStopIsInFlight() =
-        // Review round 4, Important (corrects round 3's A2): isListening read `activeJob != null`, and activeJob is
+        // isListening read `activeJob != null`, and activeJob is
         // cleared only in the collector's own finally — so while stop() was still joining a cancelled collector that had
         // not finished unwinding, isListening stayed true and send() transmitted to the car. Go's Stop sets
         // `terminate = nil` under doneLock *before* it waits on <-d.done (dispatcher.go:369-375), and Send reads
@@ -365,7 +360,7 @@ class DispatcherLifecycleTest {
 
     @Test
     fun isListeningStaysFalseUntilAReplacementStartedDuringAStopHasSubscribed() =
-        // Review round 4, Important (corrects round 3's A2), second window: a start() during that stop launches the
+        // Second window: a start() during that stop launches the
         // replacement B, which waits (uncancellably) for A before it subscribes. Until then no collector can receive —
         // A is cancelled and B has not subscribed — so isListening must stay false and send() must return NotConnected,
         // as in Go, where the new listen() blocks on doneLock until Stop() has drained <-d.done and only then sets
@@ -397,7 +392,7 @@ class DispatcherLifecycleTest {
     @Test
     fun sendReturnsNotConnectedAfterIncomingCompletes() =
         // Review Focus 2: 전송이 끝나면(BLE 끊김) 수신 루프가 조용히 종료되고 이후 send는 NotConnected.
-        // Review round 1, Important 2: 전송이 끝나기 전에 보낸 요청은 Go도 리시버 채널을 닫지 않으므로(그런 훅이
+        // 전송이 끝나기 전에 보낸 요청은 Go도 리시버 채널을 닫지 않으므로(그런 훅이
         // 없다) 응답을 받지 못한 채 호출자가 스스로 시간 초과할 때까지 계속 기다린다; 그 요청을 닫으면 등록은
         // 정상적으로 풀린다.
         runTest {
@@ -436,8 +431,7 @@ private class HookedEcdhKey(
 /**
  * [Transport]를 감싸 [incoming]의 각 항목을 [gate]가 열릴 때까지 넘기지 않는다 — 테스트 전용. 크립토 키를 막는
  * [StuckEcdhKey]와 달리 `process()`에 들어가기도 전에(따라서 어떤 [SessionState] 뮤텍스도 잡지 않은 채) 수신
- * 코루틴을 멈춰 세운다 — `close()`가 세션을 지우려다 그 뮤텍스에서 우연히 막혀서(리뷰 라운드 3 N1 회귀와는
- * 무관하게) 이 시나리오를 가려 버리는 것을 피한다.
+ * 코루틴을 멈춰 세운다 — `close()`가 세션을 지우려다 그 뮤텍스에서 우연히 막혀서 이 시나리오를 가려 버리는 것을 피한다.
  *
  * 기본은 `flow {}` 빌더라, 게이트가 열렸을 때 수신 코루틴이 이미 취소됐으면 `emit`이 `CancellationException`을 던지고 그
  * 항목은 버려진다. [deliverAfterCancel]이면 [Flow]를 직접 구현해 그 검사 없이 넘긴다 — 이미 손에 쥔 메시지(예: 조각을 다

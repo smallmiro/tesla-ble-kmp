@@ -54,7 +54,8 @@ public class PendingRequest internal constructor(
 
     /**
      * 다음 응답을 기다린다(Go `<-recv.Recv()`).
-     * @throws kotlinx.coroutines.channels.ClosedReceiveChannelException [close] 뒤에 부르면 발생한다(프로그래밍 오류).
+     * @throws kotlinx.coroutines.channels.ClosedReceiveChannelException [close] 뒤 버퍼에 남아 있던 응답을 모두 받은
+     *   다음에 발생한다 — 버퍼가 남아 있는 동안은 계속 받을 수 있다.
      */
     public suspend fun receive(): RoutableMessage = channel.receive()
 

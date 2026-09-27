@@ -65,7 +65,7 @@ class HandshakeFlowTest {
     @Test
     fun retransmitsSessionInfoRequestEveryRetryIntervalWhileVehicleSleeps() =
         // dispatcher_test.go TestRetryNonresponsive + TestVehicleDropsReply: 응답이 없으면 RetryInterval마다
-        // 재전송, 취소되면 그만. 컨트롤러 판정 R1: Go sleep 의미에선 잠든 동안의 요청을 세지 않으므로 received에서
+        // 재전송, 취소되면 그만. Go sleep 의미에선 잠든 동안의 요청을 세지 않으므로 received에서
         // 직접 센다(fake.sessionInfoRequests 대신).
         runTest {
             val h = dispatcherHarness()
@@ -118,9 +118,7 @@ class HandshakeFlowTest {
 
     @Test
     fun startSessionsTimesOutWhileAsleepThenHandshakesBothDomains() =
-        // dispatcher_test.go TestConnect + TestWaitForAllSessions
-        // 컨트롤러 판정 R2: 이 테스트는 시간 초과를 확인하는 것이지 "빠른 실패"를 확인하는 게 아니므로
-        // 이름을 고쳤다.
+        // dispatcher_test.go TestConnect + TestWaitForAllSessions: 시간 초과를 확인하는 것이지 "빠른 실패"를 확인하는 게 아니다.
         runTest {
             val h = dispatcherHarness()
             val flow = HandshakeFlow(h.dispatcher)
