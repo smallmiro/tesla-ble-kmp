@@ -12,6 +12,7 @@ import io.github.smallmiro.teslable.model.VehicleResult
 import io.github.smallmiro.teslable.model.toResult
 import io.github.smallmiro.teslable.port.AuthMethod
 import io.github.smallmiro.teslable.protocol.ResponseClassifier
+import okio.ByteString
 import okio.ByteString.Companion.toByteString
 import kotlin.time.Duration
 
@@ -33,7 +34,10 @@ public class SendWithRetry(
 
     /**
      * 페이로드를 [domain]으로 보내고 응답 하나를 돌려준다. 프로토콜 계층 오류([ResponseClassifier.protocolError])는 값으로.
-     * 외부 취소는 `CancellationException`으로 전파되고 `PendingRequest`는 `use`에서 풀린다.
+     * 외부 취소는 `CancellationException`으로 전파되고 `PendingRequest`는 `use`에서 풀린다. [payload]는 첫 시도 전에
+     * 딱 한 번만 [ByteString]으로 복사해 얼린다(Go `Send` 236~238행과 동일) — `trySend`가 재시도마다 다시 복사하면
+     * 호출자가 `send`를 호출한 뒤(예: 첫 시도가 실패해 재시도를 기다리는 동안) 넘겨준 배열을 제자리에서 바꿀 경우
+     * 그 변경이 재시도에 새어 들어간다(N1; `retriesReuseThePayloadCopiedBeforeTheFirstAttempt`가 고정한다).
      */
     public suspend fun send(
         domain: Domain,
@@ -41,15 +45,17 @@ public class SendWithRetry(
         auth: AuthMethod,
         flags: Int = DEFAULT_FLAGS,
         timeout: Duration = commandTimeout,
-    ): VehicleResult<RoutableMessage> =
-        withAttemptTimeout(timeout) { setAwaiting ->
-            retryWhileRetriable(dispatcher.retryInterval) { trySend(domain, payload, auth, flags, setAwaiting) }
+    ): VehicleResult<RoutableMessage> {
+        val payloadCopy = payload.toByteString()
+        return withAttemptTimeout(timeout) { setAwaiting ->
+            retryWhileRetriable(dispatcher.retryInterval) { trySend(domain, payloadCopy, auth, flags, setAwaiting) }
         }
+    }
 
     /** Go `trySend` + `getReceiver`. [awaiting]은 응답을 기다리는 동안만 true(취소되면 true로 남아 `Uncertain`이 된다). */
     private suspend fun trySend(
         domain: Domain,
-        payload: ByteArray,
+        payload: ByteString,
         auth: AuthMethod,
         flags: Int,
         awaiting: (Boolean) -> Unit,
@@ -58,7 +64,7 @@ public class SendWithRetry(
         val message =
             RoutableMessage(
                 to_destination = Destination(domain = domain),
-                protobuf_message_as_bytes = payload.toByteString(),
+                protobuf_message_as_bytes = payload,
                 flags = flags,
             )
         val pending = dispatcher.send(message, auth, timeouts.commandLifetime).valueOr { return it.toResult() }
