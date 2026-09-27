@@ -37,6 +37,13 @@ final class io.github.smallmiro.teslable.application.dispatcher/Dispatcher { // 
     }
 }
 
+final class io.github.smallmiro.teslable.application.dispatcher/HandshakeFlow { // io.github.smallmiro.teslable.application.dispatcher/HandshakeFlow|null[0]
+    constructor <init>(io.github.smallmiro.teslable.application.dispatcher/Dispatcher) // io.github.smallmiro.teslable.application.dispatcher/HandshakeFlow.<init>|<init>(io.github.smallmiro.teslable.application.dispatcher.Dispatcher){}[0]
+
+    final suspend fun startSession(com.tesla.generated.universalmessage/Domain): io.github.smallmiro.teslable.model/VehicleResult<kotlin/Unit> // io.github.smallmiro.teslable.application.dispatcher/HandshakeFlow.startSession|startSession(com.tesla.generated.universalmessage.Domain){}[0]
+    final suspend fun startSessions(kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> = ...): io.github.smallmiro.teslable.model/VehicleResult<kotlin/Unit> // io.github.smallmiro.teslable.application.dispatcher/HandshakeFlow.startSessions|startSessions(kotlin.collections.Set<com.tesla.generated.universalmessage.Domain>){}[0]
+}
+
 final class io.github.smallmiro.teslable.application.dispatcher/PendingRequest : kotlin/AutoCloseable { // io.github.smallmiro.teslable.application.dispatcher/PendingRequest|null[0]
     final val requestHash // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.requestHash|{}requestHash[0]
         final fun <get-requestHash>(): kotlin/ByteArray? // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.requestHash.<get-requestHash>|<get-requestHash>(){}[0]
