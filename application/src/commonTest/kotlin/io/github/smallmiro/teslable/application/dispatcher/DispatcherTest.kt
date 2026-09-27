@@ -332,7 +332,13 @@ class DispatcherTest {
 
     @Test
     fun discardsSessionInfoWithBadTag() =
-        // dispatcher_test.go TestUnsolicitedSessionInfo / TestCorruptedSessionInfo
+        // dispatcher_test.go TestUnsolicitedSessionInfo / TestCorruptedSessionInfo: Go의 dispatcher는
+        // sessions[domain]을 첫 핸드셰이크 때 지연 생성하므로, 그 전에 오는 손상된 태그 응답은
+        // checkForSessionUpdate에서 "Dropping session from unregistered domain"으로 끝나고, 이어서 인증
+        // 전송을 시도하면 세션 조회 단계에서 실패한다(같은 ErrNoSession). 여기서는 Dispatcher.sessions가
+        // ALL_DOMAINS의 모든 도메인에 대해 미리(eagerly) 만들어지므로(설계 구체화), 같은 손상된 태그가
+        // "등록되지 않은 도메인"이 아니라 (아직 준비되지 않은) 기존 세션의 HMAC 검증 실패로 처리된다 — send가
+        // 돌려주는 NoSession 결과는 같지만 경로가 다르다. 의도한 차이이며 SDD §12(Task 12)에 기록한다.
         runTest {
             val h = dispatcherHarness()
             h.fake.corruptNextSessionInfoTag(vcsec)

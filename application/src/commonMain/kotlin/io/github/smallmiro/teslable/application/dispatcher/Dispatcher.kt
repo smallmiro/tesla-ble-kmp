@@ -173,8 +173,9 @@ public class Dispatcher
 
         /** Go `RequestSessionInfo`: 개인키가 없으면 [VehicleError.RequiresKey]. 인증 없이 보낸다. */
         public suspend fun requestSessionInfo(domain: Domain): VehicleResult<PendingRequest> {
-            val key = privateKey ?: return VehicleResult.Failure(VehicleError.RequiresKey)
+            // 리뷰 라운드 1 Minor M6: Go는 개인키 확인보다 먼저 로그를 남긴다(dispatcher.go:483-486).
             logger.log(LogLevel.INFO, TAG) { "Requesting session info from $domain" }
+            val key = privateKey ?: return VehicleResult.Failure(VehicleError.RequiresKey)
             return send(sessionInfoRequest(domain, key.publicKey), AuthMethod.NONE)
         }
 
