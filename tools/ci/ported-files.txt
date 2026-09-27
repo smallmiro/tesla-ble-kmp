@@ -10,6 +10,7 @@ application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/cache
 application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/Dispatcher.kt
 application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/HandshakeFlow.kt
 application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/PendingRequest.kt
+application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/Results.kt
 application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/SessionState.kt
 application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vehicle/SendWithRetry.kt
 application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vehicle/VehicleSession.kt

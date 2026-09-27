@@ -1,3 +1,5 @@
+// Ported from vehicle-command@a4b43c1 pkg/vehicle/vehicle.go (Apache-2.0)
+// Send/StartSession retry loop and trySend/StartSession ctx.Done() branches, factored out as retryWhileRetriable/withAttemptTimeout
 package io.github.smallmiro.teslable.application.dispatcher
 
 import com.tesla.generated.universalmessage.MessageFault_E
