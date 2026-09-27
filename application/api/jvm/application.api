@@ -1,0 +1,26 @@
+public final class io/github/smallmiro/teslable/application/dispatcher/PendingRequest : java/lang/AutoCloseable {
+	public static final field BUFFER_SIZE I
+	public static final field Companion Lio/github/smallmiro/teslable/application/dispatcher/PendingRequest$Companion;
+	public fun close ()V
+	public final fun getRequestHash ()[B
+	public final fun getUuid ()[B
+	public final fun receive (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun tryReceive ()Lcom/tesla/generated/universalmessage/RoutableMessage;
+}
+
+public final class io/github/smallmiro/teslable/application/dispatcher/PendingRequest$Companion {
+}
+
+public final class io/github/smallmiro/teslable/application/dispatcher/SessionState {
+	public final fun authorize-8Mi8wO0 (Lcom/tesla/generated/universalmessage/RoutableMessage;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun awaitReady (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun close (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun counter-gbq4QnA (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun decrypt (Lcom/tesla/generated/universalmessage/RoutableMessage;[BLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun export (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun isReady ()Z
+	public final fun loadFromCache-8Mi8wO0 ([BJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun processHello ([B[B[BLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun timestamp-gbq4QnA (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+

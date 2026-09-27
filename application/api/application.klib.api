@@ -1,0 +1,38 @@
+// Klib ABI Dump
+// Targets: [iosArm64, iosSimulatorArm64]
+// Rendering settings:
+// - Signature version: 2
+// - Show manifest properties: true
+// - Show declarations: true
+
+// Library unique name: <tesla-ble-kmp:application>
+final class io.github.smallmiro.teslable.application.dispatcher/PendingRequest : kotlin/AutoCloseable { // io.github.smallmiro.teslable.application.dispatcher/PendingRequest|null[0]
+    final val requestHash // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.requestHash|{}requestHash[0]
+        final fun <get-requestHash>(): kotlin/ByteArray? // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.requestHash.<get-requestHash>|<get-requestHash>(){}[0]
+    final val uuid // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.uuid|{}uuid[0]
+        final fun <get-uuid>(): kotlin/ByteArray // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.uuid.<get-uuid>|<get-uuid>(){}[0]
+
+    final fun close() // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.close|close(){}[0]
+    final fun tryReceive(): com.tesla.generated.universalmessage/RoutableMessage? // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.tryReceive|tryReceive(){}[0]
+    final suspend fun receive(): com.tesla.generated.universalmessage/RoutableMessage // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.receive|receive(){}[0]
+
+    final object Companion { // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.Companion|null[0]
+        final const val BUFFER_SIZE // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.Companion.BUFFER_SIZE|{}BUFFER_SIZE[0]
+            final fun <get-BUFFER_SIZE>(): kotlin/Int // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.Companion.BUFFER_SIZE.<get-BUFFER_SIZE>|<get-BUFFER_SIZE>(){}[0]
+    }
+}
+
+final class io.github.smallmiro.teslable.application.dispatcher/SessionState { // io.github.smallmiro.teslable.application.dispatcher/SessionState|null[0]
+    final val isReady // io.github.smallmiro.teslable.application.dispatcher/SessionState.isReady|{}isReady[0]
+        final fun <get-isReady>(): kotlin/Boolean // io.github.smallmiro.teslable.application.dispatcher/SessionState.isReady.<get-isReady>|<get-isReady>(){}[0]
+
+    final suspend fun authorize(com.tesla.generated.universalmessage/RoutableMessage, kotlin.time/Duration): io.github.smallmiro.teslable.protocol/SignerResult<com.tesla.generated.universalmessage/RoutableMessage> // io.github.smallmiro.teslable.application.dispatcher/SessionState.authorize|authorize(com.tesla.generated.universalmessage.RoutableMessage;kotlin.time.Duration){}[0]
+    final suspend fun awaitReady() // io.github.smallmiro.teslable.application.dispatcher/SessionState.awaitReady|awaitReady(){}[0]
+    final suspend fun close() // io.github.smallmiro.teslable.application.dispatcher/SessionState.close|close(){}[0]
+    final suspend fun counter(): kotlin/UInt? // io.github.smallmiro.teslable.application.dispatcher/SessionState.counter|counter(){}[0]
+    final suspend fun decrypt(com.tesla.generated.universalmessage/RoutableMessage, kotlin/ByteArray): io.github.smallmiro.teslable.protocol/SignerResult<io.github.smallmiro.teslable.protocol/Signer.DecryptedResponse>? // io.github.smallmiro.teslable.application.dispatcher/SessionState.decrypt|decrypt(com.tesla.generated.universalmessage.RoutableMessage;kotlin.ByteArray){}[0]
+    final suspend fun export(): kotlin/ByteArray? // io.github.smallmiro.teslable.application.dispatcher/SessionState.export|export(){}[0]
+    final suspend fun loadFromCache(kotlin/ByteArray, kotlin.time/Duration): io.github.smallmiro.teslable.protocol/SignerResult<kotlin/Unit> // io.github.smallmiro.teslable.application.dispatcher/SessionState.loadFromCache|loadFromCache(kotlin.ByteArray;kotlin.time.Duration){}[0]
+    final suspend fun processHello(kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray): io.github.smallmiro.teslable.protocol/SignerResult<kotlin/Unit> // io.github.smallmiro.teslable.application.dispatcher/SessionState.processHello|processHello(kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray){}[0]
+    final suspend fun timestamp(): kotlin/UInt? // io.github.smallmiro.teslable.application.dispatcher/SessionState.timestamp|timestamp(){}[0]
+}
