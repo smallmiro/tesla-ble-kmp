@@ -69,7 +69,7 @@ public class FakeVehicle(
         var responseCounter = 0u
         val script = ArrayDeque<List<ScriptedReply>>()
         val handshakeFaults = ArrayDeque<MessageFault_E>()
-        var corruptNextTag = false
+        var corruptTagsRemaining = 0
         var attachSessionInfoOnce = false
         var lastReply: Pair<FakeTransport, ByteArray>? = null
         var asleep = false
@@ -168,9 +168,12 @@ public class FakeVehicle(
         domains.getValue(domain).attachSessionInfoOnce = true
     }
 
-    /** 다음 세션정보 태그의 첫 바이트를 뒤집는다(HMAC 불일치 시나리오). */
-    public fun corruptNextSessionInfoTag(domain: Domain) {
-        domains.getValue(domain).corruptNextTag = true
+    /** 다음 [count]개의 세션정보 태그 첫 바이트를 뒤집는다(HMAC 불일치 시나리오). */
+    public fun corruptNextSessionInfoTag(
+        domain: Domain,
+        count: Int = 1,
+    ) {
+        domains.getValue(domain).corruptTagsRemaining += count
     }
 
     /** 마지막으로 보낸 응답 바이트를 같은 전송으로 다시 넣는다(재전송 응답 시나리오). */
@@ -313,8 +316,8 @@ public class FakeVehicle(
         state: DomainState,
         reply: RoutableMessage,
     ): RoutableMessage {
-        if (!state.corruptNextTag) return reply
-        state.corruptNextTag = false
+        if (state.corruptTagsRemaining == 0) return reply
+        state.corruptTagsRemaining--
         val tag = checkNotNull(reply.signature_data?.session_info_tag).tag.toByteArray()
         tag[0] = (tag[0].toInt() xor 1).toByte()
         return reply.copy(signature_data = SignatureData(session_info_tag = HMAC_Signature_Data(tag = tag.toByteString())))
