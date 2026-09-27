@@ -8,13 +8,16 @@ import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
 import com.tesla.generated.universalmessage.RoutableMessage
 import io.github.smallmiro.teslable.InternalTeslableApi
+import io.github.smallmiro.teslable.model.PublicKeyBytes
 import io.github.smallmiro.teslable.model.VehicleError
 import io.github.smallmiro.teslable.model.VehicleResult
 import io.github.smallmiro.teslable.port.AuthMethod
+import io.github.smallmiro.teslable.port.EcdhPrivateKey
 import io.github.smallmiro.teslable.protocol.RequestHash
 import io.github.smallmiro.teslable.protocol.ResponseClassifier
 import io.github.smallmiro.teslable.testing.FakeVehicle
 import io.github.smallmiro.teslable.testing.TestCrypto
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
@@ -366,6 +369,27 @@ class DispatcherTest {
         }
 
     @Test
+    fun closingTheHandlerWhileProcessIsSuspendedInsideCheckForSessionUpdateDropsAsMissingHandler() =
+        // Review round 2, Minor N3 (M2, reachable): checkForSessionUpdate's first processHello runs
+        // Signer.createAuthenticated -> Session.establish -> the injected private key's suspend
+        // sharedX (EcdhPrivateKey.kt:16) — a genuine suspension point inside process(), between
+        // lookup() and deliver(). Gate it so the collector is provably still inside process() (not
+        // merely "about to be cancelled") when the caller closes its PendingRequest; process() must
+        // then find the handler closed and log "Dropping message without registered handler", never
+        // misreporting the closed channel as "queue is full".
+        runTest {
+            val gate = CompletableDeferred<Unit>()
+            val h = dispatcherHarness(privateKey = GatedEcdhKey(TestCrypto.clientKey(), gate))
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.requestSessionInfo(vcsec)).value
+            runCurrent() // let the collector pick up the reply and suspend inside checkForSessionUpdate on the gate
+            pending.close() // caller gives up while process() is still working on this exact message
+            gate.complete(Unit)
+            runCurrent()
+            assertTrue(h.logger.contains("Dropping message without registered handler"))
+            assertFalse(h.logger.contains("queue is full"))
+        }
+
+    @Test
     fun requestSessionInfoWithoutKeyReturnsRequiresKey() =
         // dispatcher_test.go TestRequestSessionWithoutKey. Review round 2, Minor N3 (M6 regression
         // coverage): dispatcher.go RequestSessionInfo logs unconditionally before checking
@@ -658,5 +682,22 @@ class DispatcherTest {
                 .toByteArray()
                 .toByteString()
                 .hex()
+    }
+}
+
+/**
+ * [EcdhPrivateKey]를 감싸 [sharedX]가 [gate]가 끝날 때까지 진짜로 suspend하게 만든다. `checkForSessionUpdate`의
+ * 첫 `processHello`가 이 안에서 ECDH를 계산하므로, 이 키를 쓰면 수신 코루틴이 `process()` 한가운데(핸들러를
+ * `lookup()`한 뒤, `deliver()`하기 전)에서 확실히 멈추게 만들 수 있다 — 테스트 전용.
+ */
+private class GatedEcdhKey(
+    private val delegate: EcdhPrivateKey,
+    private val gate: CompletableDeferred<Unit>,
+) : EcdhPrivateKey {
+    override val publicKey: PublicKeyBytes get() = delegate.publicKey
+
+    override suspend fun sharedX(peer: PublicKeyBytes): ByteArray {
+        gate.await()
+        return delegate.sharedX(peer)
     }
 }
