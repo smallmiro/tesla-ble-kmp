@@ -85,13 +85,19 @@ public class Dispatcher
             private set
 
         /**
-         * 수신 코루틴이 실제로 [Transport.incoming]을 구독해 응답을 받을 수 있는 상태인지(Go `terminate != nil`이고
-         * `listen`이 실제로 받기 시작한 뒤). 리뷰 라운드 3 A2: `receiveJob`이 있어도 아직 이전 정지 대상 job을 기다리는
-         * 중이면(위 [start] 참고) 진짜로는 구독 전이므로 여기는 `false`여야 한다 — Go도 `listen`이 `doneLock`을 놓기
-         * 전까지는 `terminate`가 없어 `Send`가 `ErrNotConnected`를 돌려준다(dispatcher.go:333-341, 380-385). [activeJob]은
-         * 그 수신 코루틴이 실제로 구독한 뒤에만 자신을 채우고, 끝나면(정상 종료든 취소든) `finally`에서 지운다.
+         * 취소되지 않은 수신 코루틴이 실제로 [Transport.incoming]을 구독해 응답을 받을 수 있는 상태인지(Go `terminate != nil`).
+         * [send]는 이것이 `false`면 [VehicleError.NotConnected]를 돌려준다. 다음 두 창에서는 `false`다.
+         * - **정지 중:** [stop]이 수신 코루틴을 취소한 순간부터. 그 코루틴이 아직 다 풀리지 않아 [activeJob]에 남아 있어도
+         *   이미 취소됐으므로 `isActive == false`다 — Go `Stop`은 `<-d.done`을 기다리기 **전에** `doneLock` 안에서
+         *   `terminate = nil`로 바꾸고, `Send`는 같은 잠금 안에서 `terminate`를 읽는다(dispatcher.go:369-375, 380-385).
+         * - **교대 대기 중:** 정지 도중 [start]가 띄운 새 코루틴이 이전 코루틴이 끝나기를 기다리는 동안. 새 코루틴은 아직
+         *   구독 전이라 [activeJob]을 채우지 않았다 — Go도 새 `listen`이 `doneLock`을 얻어 `terminate`를 만들기 전까지는
+         *   `Send`가 `ErrNotConnected`다(dispatcher.go:331-341).
+         *
+         * 리뷰 라운드 4: 라운드 3 A2는 `activeJob != null`로 읽어서, 정지 중(교대가 없어도)에 취소된 코루틴이 `finally`에
+         * 이르기 전까지 `true`를 돌려주고 [send]가 차량으로 전송까지 했다 — Go와 다르므로 고쳤다.
          */
-        public val isListening: Boolean get() = activeJob != null
+        public val isListening: Boolean get() = activeJob?.isActive == true
 
         private val address: ByteString = random.nextBytes(ADDRESS_LENGTH).toByteString()
         private val sessions: Map<Domain, SessionState> =
@@ -124,7 +130,10 @@ public class Dispatcher
         @Volatile
         private var stopping: Job? = null
 
-        /** 리뷰 라운드 3 A2: 실제로 `incoming`을 구독한 수신 코루틴(구독 전이면 null). [isListening]이 읽는다. */
+        /**
+         * 리뷰 라운드 3 A2: 실제로 `incoming`을 구독한 수신 코루틴(구독 전이면 null). 취소된 뒤에도 `finally`에 이르기 전까지는
+         * 남아 있으므로, [isListening]은 이것의 존재가 아니라 `isActive`를 본다(리뷰 라운드 4).
+         */
         @Volatile
         private var activeJob: Job? = null
 
