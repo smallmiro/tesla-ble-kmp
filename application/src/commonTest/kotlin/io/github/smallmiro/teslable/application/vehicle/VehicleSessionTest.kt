@@ -3,6 +3,7 @@ package io.github.smallmiro.teslable.application.vehicle
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
 import io.github.smallmiro.teslable.application.cache.SessionCacheSync
+import io.github.smallmiro.teslable.application.dispatcher.HandshakeFlow
 import io.github.smallmiro.teslable.application.dispatcher.dispatcherHarness
 import io.github.smallmiro.teslable.cache.CachedSession
 import io.github.smallmiro.teslable.cache.SessionSnapshot
@@ -34,6 +35,7 @@ import kotlin.time.Duration.Companion.seconds
 @OptIn(ExperimentalCoroutinesApi::class)
 class VehicleSessionTest {
     private val vcsec = Domain.DOMAIN_VEHICLE_SECURITY
+    private val infotainment = Domain.DOMAIN_INFOTAINMENT
 
     @Test
     fun startSessionReturnsFatalHandshakeErrorWithoutRetry() =
@@ -189,5 +191,76 @@ class VehicleSessionTest {
             assertFalse(h.dispatcher.isListening)
             assertNull(h.dispatcher.session(vcsec)?.export())
             assertIs<TransportState.Disconnected>(h.transport.state.value) // fold (a)
+        }
+
+    @Test
+    fun disconnectWithoutConnectDoesNotOverwriteAnExistingCache() =
+        // cmd/tesla-control/main.go:174-177: the Go CLI only saves the cache after a successful Connect
+        // (via `defer UpdateCachedSessions`). disconnect() without ever calling connect() must not store an
+        // empty list over a cache that a previous, completed connect() already populated.
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val cache = RecordingSessionCache()
+            val keyId = KeyId.of(TestCrypto.clientPublicKey, TestCrypto.primitives)
+            val sync = SessionCacheSync(cache, fake.vin, keyId)
+            val seeder = dispatcherHarness(fake = fake)
+            assertIs<VehicleResult.Success<Unit>>(HandshakeFlow(seeder.dispatcher).startSessions())
+            sync.store(seeder.dispatcher)
+            assertEquals(1, cache.stores.size)
+
+            val h = dispatcherHarness(fake = fake, start = false)
+            VehicleSession(h.dispatcher, cacheSync = sync).disconnect() // never called connect()
+
+            assertEquals(1, cache.stores.size) // disconnect() must not have stored anything
+            val restored = dispatcherHarness(fake = fake, start = false)
+            assertEquals(setOf(vcsec, infotainment), sync.load(restored.dispatcher))
+        }
+
+    @Test
+    fun disconnectAfterACancelledConnectDoesNotOverwriteAnExistingCache() =
+        // Same Go reference as disconnectWithoutConnectDoesNotOverwriteAnExistingCache. Here connect() itself
+        // is cancelled while still suspended loading the cache, so it never reaches dispatcher.start();
+        // disconnect() must treat that exactly like "never connected" and skip storing.
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val cache = RecordingSessionCache()
+            val keyId = KeyId.of(TestCrypto.clientPublicKey, TestCrypto.primitives)
+            val sync = SessionCacheSync(cache, fake.vin, keyId)
+            val seeder = dispatcherHarness(fake = fake)
+            assertIs<VehicleResult.Success<Unit>>(HandshakeFlow(seeder.dispatcher).startSessions())
+            sync.store(seeder.dispatcher)
+            assertEquals(1, cache.stores.size)
+
+            val gate = CompletableDeferred<Unit>()
+
+            class GatedLoadSessionCache : SessionCache {
+                override suspend fun load(
+                    vin: Vin,
+                    keyId: KeyId,
+                ): List<CachedSession> {
+                    gate.await() // never opens: connect() gets cancelled while suspended here
+                    error("unreachable")
+                }
+
+                override suspend fun store(
+                    vin: Vin,
+                    keyId: KeyId,
+                    entries: List<SessionSnapshot>,
+                ) = cache.store(vin, keyId, entries)
+
+                override suspend fun clear(vin: Vin) = cache.clear(vin)
+            }
+            val gatedSync = SessionCacheSync(GatedLoadSessionCache(), fake.vin, keyId)
+            val h = dispatcherHarness(fake = fake, start = false)
+            val session = VehicleSession(h.dispatcher, cacheSync = gatedSync)
+            val job = launch { session.connect() }
+            runCurrent()
+            job.cancel()
+            runCurrent()
+            assertTrue(job.isCancelled)
+
+            session.disconnect()
+
+            assertEquals(1, cache.stores.size) // disconnect() must not have stored anything
         }
 }
