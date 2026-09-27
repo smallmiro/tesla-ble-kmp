@@ -78,7 +78,7 @@ public class VehicleSession(
      * [Dispatcher.close]로 세션을 소거한 뒤라 빈 목록을 저장해 첫 저장을 지워 버린다 — [SessionCacheSync] KDoc). [Dispatcher.close]
      * 자체는 이미 멱등이라 매번 부른다.
      *
-     * [connect]를 (성공적으로 끝까지든, 취소로든) 부른 적이 없으면 저장을 건너뛴다 — 그러지 않으면 세션이 하나도 없는 채로
+     * [connect]가 캐시 로드를 마치지 못했으면(부르지 않았거나 로드 중 취소됐으면) 저장을 건너뛴다 — 그러지 않으면 세션이 하나도 없는 채로
      * 빈 목록을 저장해 이전에 다른 [connect]가 채워 둔 캐시를 지워 버린다. Go CLI도 성공적인 Connect 뒤에만 저장한다
      * (`cmd/tesla-control/main.go:174-177`). [connect]에서 유일하게 suspend하는 지점은 [cacheSync]`.load`이므로, 그 지점에서
      * 취소되면(캐시를 다 읽기 전) 이 조건에 걸려 저장을 건너뛴다.
