@@ -1,0 +1,374 @@
+// Ported from vehicle-command@a4b43c1 internal/dispatcher/dispatcher.go (Apache-2.0)
+// New, SetMaxLatency, Send, RequestSessionInfo, SessionInfoRequest, listen, process, checkForSessionUpdate, decrypt, Stop
+package io.github.smallmiro.teslable.application.dispatcher
+
+import com.tesla.generated.universalmessage.Destination
+import com.tesla.generated.universalmessage.Domain
+import com.tesla.generated.universalmessage.RoutableMessage
+import com.tesla.generated.universalmessage.SessionInfoRequest
+import io.github.smallmiro.teslable.InternalTeslableApi
+import io.github.smallmiro.teslable.model.PublicKeyBytes
+import io.github.smallmiro.teslable.model.VehicleError
+import io.github.smallmiro.teslable.model.VehicleResult
+import io.github.smallmiro.teslable.model.Vin
+import io.github.smallmiro.teslable.model.shouldRetry
+import io.github.smallmiro.teslable.model.toResult
+import io.github.smallmiro.teslable.port.AuthMethod
+import io.github.smallmiro.teslable.port.CryptoPrimitives
+import io.github.smallmiro.teslable.port.EcdhPrivateKey
+import io.github.smallmiro.teslable.port.LogLevel
+import io.github.smallmiro.teslable.port.RandomSource
+import io.github.smallmiro.teslable.port.TeslaLogger
+import io.github.smallmiro.teslable.port.Transport
+import io.github.smallmiro.teslable.protocol.RequestHash
+import io.github.smallmiro.teslable.protocol.SignerResult
+import io.github.smallmiro.teslable.protocol.decodeOrNull
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+import okio.ByteString
+import okio.ByteString.Companion.toByteString
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeSource
+
+private const val ADDRESS_LENGTH = 16
+private const val UUID_LENGTH = 16
+private const val TAG = "Dispatcher"
+
+/**
+ * Go `Dispatcher`: 요청 조립(`uuid`, `routing_address`)·인가·전송 재시도, 그리고 수신 루프(`RoutableMessage` 파싱 → [PendingRequest] 매칭 →
+ * 세션정보 갱신 → 복호화 → 채널 전달). 수신 코루틴은 [start]가 [scope]에 하나 띄운다. 그 코루틴은 다른 코루틴의 진행을 기다리지 않는다
+ * (채널은 `trySend`, 락은 `Signer` 호출·맵 조작만 — SDD §5 구체화). [privateKey]가 null이면 세션이 없다(Go `privateKey == nil`):
+ * 인증 전송은 [VehicleError.NoSession], 핸드셰이크는 [VehicleError.RequiresKey].
+ */
+@OptIn(InternalTeslableApi::class)
+@Suppress("TooManyFunctions") // dispatcher.go의 메서드와 1:1 대응
+public class Dispatcher
+    @Suppress("LongParameterList") // Go New(conn, privateKey) + 주입 포트(crypto/random/scope/timeSource/logger)
+    constructor(
+        private val transport: Transport,
+        private val privateKey: EcdhPrivateKey?,
+        private val crypto: CryptoPrimitives,
+        private val random: RandomSource,
+        private val scope: CoroutineScope,
+        private val timeSource: TimeSource = TimeSource.Monotonic,
+        private val logger: TeslaLogger = TeslaLogger.NoOp,
+    ) {
+        /** 연결된 차량의 VIN. */
+        public val vin: Vin = transport.vin
+
+        /** Go `RetryInterval()`: 전송 계층의 재전송 간격. */
+        public val retryInterval: Duration get() = transport.retryInterval
+
+        /** Go `maxLatency`: 요청 후 이 시간이 지나 도착한 세션정보는 버린다(BLE 4초). */
+        public var maxLatency: Duration = transport.allowedLatency
+            private set
+
+        /** 수신 루프가 돌고 있는지(Go `terminate != nil`). */
+        public val isListening: Boolean get() = receiveJob?.isActive == true
+
+        private val address: ByteString = random.nextBytes(ADDRESS_LENGTH).toByteString()
+        private val sessions: Map<Domain, SessionState> =
+            if (privateKey == null) {
+                emptyMap()
+            } else {
+                ALL_DOMAINS.associateWith { SessionState(vin, privateKey, crypto, random, timeSource) }
+            }
+        private val pending = HashMap<PendingKey, PendingRequest>()
+        private val pendingMutex = Mutex()
+        private var receiveJob: Job? = null
+
+        /** Go `SetMaxLatency`: 양수일 때만 바꾼다. */
+        public fun setMaxLatency(latency: Duration) {
+            if (latency > Duration.ZERO) maxLatency = latency
+        }
+
+        /** 도메인의 세션 상태. 개인키가 없으면 null. */
+        public fun session(domain: Domain): SessionState? = sessions[domain]
+
+        /** Go `Start` + `listen`: 수신 코루틴을 띄운다. `UNDISPATCHED`로 시작해 반환 전에 [Transport.incoming] 구독이 끝난다. 멱등. */
+        public fun start() {
+            if (isListening) return
+            receiveJob =
+                scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                    logger.log(LogLevel.INFO, TAG) { "Starting dispatcher service..." }
+                    transport.incoming.collect { process(it) }
+                }
+        }
+
+        /** Go `Stop`: 수신 코루틴을 취소하고 끝날 때까지 기다린다. 세션은 유지된다(Go와 동일). */
+        public suspend fun stop() {
+            receiveJob?.cancelAndJoin()
+            receiveJob = null
+        }
+
+        /** Go `Vehicle.Disconnect`: [stop] + 세션 키 소거 + 전송 닫기. */
+        public suspend fun close() {
+            stop()
+            for (session in sessions.values) session.close()
+            transport.close()
+        }
+
+        /**
+         * Go `Send`: uuid·routing_address를 채우고([AuthMethod.GCM]이면 인가한 뒤) 전송한다. 전송 오류가 `shouldRetry()`면 [retryInterval] 뒤
+         * 다시 보내고, 아니면 그 오류를 돌려준다. 성공하면 응답을 받을 [PendingRequest] — 호출자가 반드시 닫는다.
+         * [lifetime]은 `expires_at` 수명(D29 `commandLifetime`). 취소는 `CancellationException`으로 전파되고 등록은 `finally`에서 풀린다.
+         */
+        public suspend fun send(
+            message: RoutableMessage,
+            auth: AuthMethod,
+            lifetime: Duration = DEFAULT_LIFETIME,
+        ): VehicleResult<PendingRequest> {
+            if (!isListening) return VehicleResult.Failure(VehicleError.NotConnected)
+            val domain = message.to_destination?.domain
+            if (domain == null || domain == Domain.DOMAIN_BROADCAST) {
+                return VehicleResult.Failure(VehicleError.InvalidArgument("cannot send message without a destination domain"))
+            }
+            val uuid = random.nextBytes(UUID_LENGTH).toByteString()
+            val isVcsec = domain == Domain.DOMAIN_VEHICLE_SECURITY
+            val routingAddress = if (isVcsec) random.nextBytes(ADDRESS_LENGTH).toByteString() else address
+            val key = PendingKey(routingAddress, if (isVcsec) ByteString.EMPTY else uuid, domain)
+            val addressed = message.copy(uuid = uuid, from_destination = Destination(routing_address = routingAddress))
+            val outgoing = authorize(addressed, domain, auth, lifetime).valueOr { return it.toResult() }
+            val request = register(key, RequestHash.of(outgoing))
+            return transmit(request, RoutableMessage.ADAPTER.encode(outgoing), uuid)
+        }
+
+        /** Go `RequestSessionInfo`: 개인키가 없으면 [VehicleError.RequiresKey]. 인증 없이 보낸다. */
+        public suspend fun requestSessionInfo(domain: Domain): VehicleResult<PendingRequest> {
+            val key = privateKey ?: return VehicleResult.Failure(VehicleError.RequiresKey)
+            logger.log(LogLevel.INFO, TAG) { "Requesting session info from $domain" }
+            return send(sessionInfoRequest(domain, key.publicKey), AuthMethod.NONE)
+        }
+
+        /** 열려 있는 요청 수(테스트용: 등록 누수 확인). */
+        internal suspend fun pendingCount(): Int = pendingMutex.withLock { pending.values.count { !it.isClosed } }
+
+        private suspend fun authorize(
+            message: RoutableMessage,
+            domain: Domain,
+            auth: AuthMethod,
+            lifetime: Duration,
+        ): VehicleResult<RoutableMessage> {
+            if (auth == AuthMethod.NONE) return VehicleResult.Success(message)
+            val session = sessions[domain]
+            if (session == null || !session.isReady) {
+                logger.log(LogLevel.WARN, TAG) { "No session available for $domain" }
+                return VehicleResult.Failure(VehicleError.NoSession)
+            }
+            return when (val result = session.authorize(message, lifetime)) {
+                is SignerResult.Ok -> VehicleResult.Success(result.value)
+                is SignerResult.Fault -> VehicleResult.Failure(result.toVehicleError())
+            }
+        }
+
+        /** Go `Send`의 전송 루프. 넘겨주지 못했으면(오류·취소) `finally`에서 등록을 푼다. */
+        private suspend fun transmit(
+            request: PendingRequest,
+            encoded: ByteArray,
+            uuid: ByteString,
+        ): VehicleResult<PendingRequest> {
+            var handedOver = false
+            try {
+                while (true) {
+                    val sent = transport.send(encoded)
+                    if (sent is VehicleResult.Success) {
+                        handedOver = true
+                        return VehicleResult.Success(request)
+                    }
+                    val error = checkNotNull(sent.errorOrNull())
+                    if (!error.shouldRetry()) {
+                        logger.log(LogLevel.WARN, TAG) { "[${uuid.hex()}] Terminal transmission error: ${error.message}" }
+                        return error.toResult()
+                    }
+                    logger.log(LogLevel.DEBUG, TAG) { "[${uuid.hex()}] Retrying transmission after error: ${error.message}" }
+                    delay(retryInterval)
+                }
+            } finally {
+                if (!handedOver) request.close()
+            }
+        }
+
+        /** Go `createHandler`. 닫힌 요청은 이때 정리한다(`PendingRequest.close`가 suspend하지 않으므로 지연 제거). */
+        private suspend fun register(
+            key: PendingKey,
+            requestHash: ByteArray?,
+        ): PendingRequest =
+            pendingMutex.withLock {
+                pending.values.removeAll { it.isClosed }
+                PendingRequest(key, requestHash, timeSource.markNow()).also { pending[key] = it }
+            }
+
+        private suspend fun lookup(key: PendingKey): PendingRequest? =
+            pendingMutex.withLock {
+                val found = pending[key] ?: return@withLock null
+                if (found.isClosed) {
+                    pending.remove(key)
+                    null
+                } else {
+                    found
+                }
+            }
+
+        /** Go `listen` 본문 + `process`: 수신 코루틴에서만 호출된다. */
+        private suspend fun process(bytes: ByteArray) {
+            // 컨트롤러 판정 R1: Wire는 손상된 프로토버프에 IllegalStateException을 던지므로(예: "I'm not a valid protobuf"),
+            // decodeOrNull(ADR-0006)로 값으로 받는다. Go의 protobuf 오류 문구는 재현하지 않는다(dispatcher.go:355).
+            val message =
+                RoutableMessage.ADAPTER.decodeOrNull(bytes) ?: run {
+                    logger.log(LogLevel.WARN, TAG) { "Dropping unparseable message" }
+                    return
+                }
+            val key = matchKey(message) ?: return
+            val id = message.request_uuid.hex()
+            val handler = lookup(key)
+            if (handler == null) {
+                logger.log(LogLevel.WARN, TAG) { "[$id] Dropping message without registered handler $key" }
+                return
+            }
+            // 차량은 desync가 의심되면 오류 응답에 세션정보를 동봉한다. 반영한 뒤에도 응답은 핸들러로 전달한다.
+            checkForSessionUpdate(message, handler)
+            val deliverable = decryptIfNeeded(message, handler) ?: return
+            if (!handler.deliver(deliverable)) {
+                logger.log(LogLevel.ERROR, TAG) { "[$id] Dropping response to command because response handler queue is full" }
+            }
+        }
+
+        /** Go `process`의 검증 부분: 드롭이면 사유를 남기고 null. */
+        private fun matchKey(message: RoutableMessage): PendingKey? {
+            val id = message.request_uuid.hex()
+            // 컨트롤러 판정 R2(설계 구체화 10): "누락된 소스"는 from_destination 자체가 없을 때만이다. Go
+            // `message.GetFromDestination().GetDomain()`은 non-domain oneof에도 0(DOMAIN_BROADCAST)을 돌려준다 —
+            // Wire에서 모르는 domain 원시값도 domain == null이 되므로 같은 취급으로 BROADCAST로 떨어진다. 그 결과
+            // 이런 메시지는 등록된 핸들러가 없어 "핸들러 없음"으로 드롭된다(아래에서).
+            val fromDestination = message.from_destination
+            if (fromDestination == null) {
+                logger.log(LogLevel.WARN, TAG) { "[xxx] Dropping message with missing source" }
+                return null
+            }
+            val fromDomain = fromDestination.domain ?: Domain.DOMAIN_BROADCAST
+            val requestUuid = message.request_uuid
+            if (requestUuid.size != UUID_LENGTH && requestUuid.size != 0) {
+                logger.log(LogLevel.WARN, TAG) { "[xxx] Dropping message with invalid request UUID length" }
+                return null
+            }
+            val destination = message.to_destination
+            if (destination == null) {
+                logger.log(LogLevel.WARN, TAG) { "[$id] Dropping message with missing destination" }
+                return null
+            }
+            val routingAddress = destination.routing_address
+            if (routingAddress == null) {
+                val toDomain = destination.domain
+                logger.log(LogLevel.DEBUG, TAG) {
+                    if (toDomain != null) {
+                        "[$id] Dropping message to $toDomain"
+                    } else {
+                        "[$id] Dropping message with unrecognized destination type"
+                    }
+                }
+                return null
+            }
+            if (routingAddress.size != ADDRESS_LENGTH) {
+                logger.log(LogLevel.WARN, TAG) { "[$id] Dropping message with invalid address length" }
+                return null
+            }
+            val uuid = if (fromDomain == Domain.DOMAIN_VEHICLE_SECURITY) ByteString.EMPTY else requestUuid
+            return PendingKey(routingAddress, uuid, fromDomain)
+        }
+
+        /** Go `checkForSessionUpdate`: 폐기 조건(FR-014)을 지나면 [SessionState.processHello]. challenge = `request_uuid`. */
+        private suspend fun checkForSessionUpdate(
+            message: RoutableMessage,
+            handler: PendingRequest,
+        ) {
+            val info = message.session_info ?: return
+            val id = message.request_uuid.hex()
+            if (privateKey == null) {
+                logger.log(LogLevel.WARN, TAG) { "[$id] Discarding session info because client does not have a private key" }
+                return
+            }
+            if (handler.expired(maxLatency)) {
+                logger.log(LogLevel.WARN, TAG) {
+                    "[$id] Discarding session info because it was received more than $maxLatency after request"
+                }
+                return
+            }
+            val tag = message.signature_data?.session_info_tag?.tag
+            if (tag == null) {
+                logger.log(LogLevel.WARN, TAG) { "[$id] Discarding unauthenticated session info" }
+                return
+            }
+            val domain = handler.key.domain
+            val session = sessions[domain]
+            if (session == null) {
+                logger.log(LogLevel.ERROR, TAG) { "[$id] Dropping session from unregistered domain $domain" }
+                return
+            }
+            when (val result = session.processHello(message.request_uuid.toByteArray(), info.toByteArray(), tag.toByteArray())) {
+                is SignerResult.Fault -> {
+                    logger.log(LogLevel.WARN, TAG) { "[$id] Session info error: ${result.fault.name}: ${result.detail}" }
+                }
+
+                is SignerResult.Ok -> {
+                    logger.log(LogLevel.INFO, TAG) { "[$id] Updated session info for $domain" }
+                }
+            }
+        }
+
+        /** Go `decrypt` + `session.decrypt`: 평문이면 그대로, 암호문이면 복호화 후 요청별 윈도우 검사. 드롭이면 null. */
+        private suspend fun decryptIfNeeded(
+            message: RoutableMessage,
+            handler: PendingRequest,
+        ): RoutableMessage? {
+            if (message.signature_data?.AES_GCM_Response_data == null) return message
+            val id = message.request_uuid.hex()
+            val result = sessions[handler.key.domain]?.decrypt(message, handler.requestHash ?: ByteArray(0))
+            if (result == null) {
+                logger.log(LogLevel.WARN, TAG) {
+                    "[$id] Error decrypting vehicle response: could not decrypt vehicle response without a session"
+                }
+                return null
+            }
+            return when (result) {
+                is SignerResult.Fault -> {
+                    logger.log(LogLevel.WARN, TAG) { "[$id] Error decrypting vehicle response: ${result.fault.name}: ${result.detail}" }
+                    null
+                }
+
+                is SignerResult.Ok -> {
+                    if (handler.antiReplay.update(result.value.counter)) {
+                        result.value.message
+                    } else {
+                        logger.log(LogLevel.INFO, TAG) { "[$id] Dropping duplicate vehicle response" }
+                        null
+                    }
+                }
+            }
+        }
+
+        /** 상수와 메시지 조립. */
+        public companion object {
+            /** 핸드셰이크 대상 도메인 전부(Go `StartSessions(nil)`). */
+            public val ALL_DOMAINS: Set<Domain> = setOf(Domain.DOMAIN_VEHICLE_SECURITY, Domain.DOMAIN_INFOTAINMENT)
+
+            /** Go `defaultExpiration`: 인가 명령의 기본 `expires_at` 수명. */
+            public val DEFAULT_LIFETIME: Duration = 5.seconds
+
+            /** Go `SessionInfoRequest(domain, publicBytes)`: 핸드셰이크 요청 메시지. */
+            public fun sessionInfoRequest(
+                domain: Domain,
+                publicKey: PublicKeyBytes,
+            ): RoutableMessage =
+                RoutableMessage(
+                    to_destination = Destination(domain = domain),
+                    session_info_request = SessionInfoRequest(public_key = publicKey.toByteArray().toByteString()),
+                )
+        }
+    }
