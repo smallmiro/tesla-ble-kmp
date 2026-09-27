@@ -165,6 +165,7 @@ class SessionStateTest {
             val state = state()
             assertIs<SignerResult.Ok<Unit>>(hello(state, verifier()))
             state.close()
+            assertTrue(state.isReady) // close() only zeroizes the signer; it does not reset the ready signal
             assertNull(state.export())
             assertNull(state.decrypt(RoutableMessage(), ByteArray(0)))
             val result = assertIs<SignerResult.Fault>(state.authorize(command(), 5.seconds))
