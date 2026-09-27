@@ -22,8 +22,8 @@ CI는 지금 GitHub-hosted runner(`ubuntu-latest` 5개 job, `macos-15` 1개 job)
 1. **Linux job 5개**(`lint`, `jvm-test`, `android`, `license`, `secrets`)는 Docker runner에서 돈다.
    - 이미지: `ghcr.io/actions/actions-runner`(버전 고정)에 `unzip`, `jq`, `curl` 등을 더한 이미지, `linux/amd64`
    - Colima: `--vm-type vz --vz-rosetta --cpu 6 --memory 12`. amd64 컨테이너는 Rosetta로 실행한다.
-   - **호스트 supervisor**(`{{RUNNER_DIR}}supervisor.sh`, launchd 서비스)가 슬롯 2개를 유지한다. 10초마다 슬롯을 확인하고, 비어 있으면 `gh api`로 등록 토큰을 받아 `docker run --rm`으로 새 컨테이너를 띄운다.
-   - 컨테이너는 받은 등록 토큰으로 `--ephemeral` 등록 후 job 1개를 실행하고 종료되며 삭제된다. 다음 job은 항상 새 컨테이너에서 돈다.
+   - **호스트 supervisor**(`{{RUNNER_DIR}}supervisor.sh`, launchd 서비스)가 슬롯 2개를 유지한다. 10초마다 슬롯을 확인하고, 비어 있으면 `gh api`로 등록 토큰을 받아 `docker run`으로 새 컨테이너를 띄운다. 종료된 컨테이너는 종료 코드를 확인한 뒤 지우고, 0이 아니면 백오프한다.
+   - 컨테이너는 받은 등록 토큰으로 `--ephemeral` 등록 후 job 1개를 실행하고 종료된다. 다음 job은 항상 새 컨테이너에서 돈다.
    - 컨테이너마다 CPU 3개, 메모리 5.5GB로 제한한다.
    - 라벨: `self-hosted, linux, x64, tesla-docker`
 2. **`ios` job**은 이 Mac에 직접 설치한 runner 1대에서 돈다(Docker 아님).

@@ -36,7 +36,7 @@
 ### Task 3: 호스트 supervisor (`chore:`)
 - `tools/runner/supervisor.sh`: 슬롯 `tesla-runner-1`, `tesla-runner-2`를 10초마다 확인한다. 실행 중이 아닌 슬롯은 다음처럼 띄운다.
   - `gh api -X POST repos/$REPO/actions/runners/registration-token --jq .token`으로 토큰을 받는다.
-  - `docker run --rm -d --name tesla-runner-N --platform linux/amd64 --cpus 3 --memory 5.5g -e RUNNER_TOKEN ...`로 띄운다.
+  - `docker run -d --name tesla-runner-N --platform linux/amd64 --cpus 3 --memory 5.5g -e RUNNER_TOKEN ...`로 띄운다.
   - 토큰 발급이나 Docker가 실패하면 로그를 남기고 백오프한 뒤 다시 시도한다.
   - SIGTERM을 받으면 컨테이너를 멈추고 GitHub에서 남은 `tesla-docker` runner를 삭제한다.
 - `tools/runner/launchd/io.github.smallmiro.tesla-runner.plist`와 `install.sh`/`uninstall.sh`: supervisor를 로그인 시 자동 시작하는 사용자 LaunchAgent로 등록한다.

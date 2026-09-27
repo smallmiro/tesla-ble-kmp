@@ -32,7 +32,7 @@ cat > "$PLIST" <<PLIST
   <dict><key>PATH</key><string>$(dirname "$(command -v docker)"):$(dirname "$(command -v gh)"):/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin</string></dict>
   <key>RunAtLoad</key><true/>
   <key>KeepAlive</key><true/>
-  <key>ExitTimeOut</key><integer>60</integer>
+  <key>ExitTimeOut</key><integer>90</integer>
   <key>StandardOutPath</key><string>${LOG}</string>
   <key>StandardErrorPath</key><string>${LOG}</string>
 </dict>
