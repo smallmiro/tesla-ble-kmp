@@ -44,7 +44,7 @@ step "gradle: check lintKotlin detekt forbiddenTokens jvmTest testAndroidHostTes
 # (b) ci.yml android 잡 — 병합 매니페스트에 INTERNET 권한이 없어야 한다 (NFR-014).
 step "merged manifest must not request INTERNET (NFR-014)"
 manifest_dir=samples/android/build/intermediates
-merged=$(find "$manifest_dir" -name AndroidManifest.xml -path '*merged_manifest*')
+merged=$(find "$manifest_dir" -name AndroidManifest.xml -path '*merged_manifest*') || fail "find merged AndroidManifest.xml"
 if [ -z "$merged" ]; then
   echo "No merged AndroidManifest.xml under $manifest_dir; the check would pass vacuously" >&2
   fail "merged manifest INTERNET check"
@@ -58,7 +58,7 @@ echo "No INTERNET permission in the merged manifests"
 # (c) ci.yml ios 잡 — Teslable.framework는 MinimumOSVersion 16.0을 선언해야 한다 (NFR-009).
 step "Teslable.framework must declare MinimumOSVersion 16.0 (NFR-009)"
 plist=sdk/build/bin/iosSimulatorArm64/debugFramework/Teslable.framework/Info.plist
-min="$(plutil -extract MinimumOSVersion raw -o - "$plist")"
+min="$(plutil -extract MinimumOSVersion raw -o - "$plist")" || fail "plutil extract MinimumOSVersion"
 echo "MinimumOSVersion=$min"
 if [ "$min" != "16.0" ]; then
   echo "Expected MinimumOSVersion 16.0 in $plist, got '$min'" >&2
