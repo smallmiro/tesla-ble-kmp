@@ -299,15 +299,18 @@ public class Dispatcher
             // 차량은 desync가 의심되면 오류 응답에 세션정보를 동봉한다. 반영한 뒤에도 응답은 핸들러로 전달한다.
             checkForSessionUpdate(message, handler)
             val deliverable = decryptIfNeeded(message, handler) ?: return
-            // 리뷰 라운드 1 Minor M2: checkForSessionUpdate/decryptIfNeeded가 실행되는 동안 호출자가 이 핸들러를
-            // 닫았을 수 있다(둘 다 suspend). Go는 Close()가 맵에서 핸들러를 먼저 지우므로 그 뒤 process()는 그냥
-            // 핸들러가 없는 것으로 본다 — 닫힌 채널에 trySend해서 "큐가 가득 찼다"로 잘못 보고하지 않는다.
-            if (handler.isClosed) {
-                logger.log(LogLevel.WARN, TAG) { "[$id] Dropping message without registered handler $key" }
-                return
-            }
-            if (!handler.deliver(deliverable)) {
-                logger.log(LogLevel.ERROR, TAG) { "[$id] Dropping response to command because response handler queue is full" }
+            // 리뷰 라운드 1 Minor M2 + 라운드 2 N3: checkForSessionUpdate/decryptIfNeeded가 실행되는 동안
+            // 호출자가 이 핸들러를 닫았을 수 있다(둘 다 suspend). deliver() 시도 전에 isClosed를 먼저 검사해도
+            // 그 검사와 deliver() 사이에 또 닫힐 수 있으므로, 실패 원인은 deliver()가 실패한 **뒤에** 판단한다
+            // — Go는 Close()가 맵에서 핸들러를 먼저 지우므로 그 뒤 process()는 그냥 핸들러가 없는 것으로 본다;
+            // 닫힌 채널에 trySend가 실패한 것을 "큐가 가득 찼다"로 잘못 보고하지 않는다.
+            val delivered = handler.deliver(deliverable)
+            if (!delivered) {
+                if (handler.isClosed) {
+                    logger.log(LogLevel.WARN, TAG) { "[$id] Dropping message without registered handler $key" }
+                } else {
+                    logger.log(LogLevel.ERROR, TAG) { "[$id] Dropping response to command because response handler queue is full" }
+                }
             }
         }
 
