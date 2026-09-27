@@ -6,15 +6,19 @@ package io.github.smallmiro.teslable.application.dispatcher
 import com.tesla.generated.universalmessage.Destination
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
+import io.github.smallmiro.teslable.model.PublicKeyBytes
 import io.github.smallmiro.teslable.model.VehicleResult
 import io.github.smallmiro.teslable.port.EcdhPrivateKey
 import io.github.smallmiro.teslable.testing.FakeTransport
 import io.github.smallmiro.teslable.testing.FakeVehicle
 import io.github.smallmiro.teslable.testing.RecordingLogger
 import io.github.smallmiro.teslable.testing.TestCrypto
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.testTimeSource
+import kotlinx.coroutines.withContext
 import okio.ByteString.Companion.toByteString
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -77,4 +81,23 @@ internal suspend fun DispatcherHarness.manualHandshake(domain: Domain) {
     val pending = assertIs<VehicleResult.Success<PendingRequest>>(dispatcher.requestSessionInfo(domain)).value
     pending.use { assertNotNull(it.receive().session_info) }
     assertTrue(assertNotNull(dispatcher.session(domain)).isReady, "session for $domain must be ready")
+}
+
+/**
+ * [EcdhPrivateKey]를 감싸 [sharedX]가 [gate]가 끝날 때까지 진짜로 suspend하게 만든다. `checkForSessionUpdate`의
+ * 첫 `processHello`가 이 안에서 ECDH를 계산하므로, 이 키를 쓰면 수신 코루틴이 `process()` 한가운데(핸들러를
+ * `lookup()`한 뒤, `deliver()`하기 전)에서 확실히 멈추게 만들 수 있다 — 테스트 전용. `NonCancellable`로 감싸 그
+ * 코루틴이 취소되어도(리뷰 라운드 3 N1 리프로) [gate]가 열리기 전까지는 절대 빠져나가지 않는다 — "취소해도
+ * 즉시 끝나지 않고 실제로 process() 안에서 계속 멈춰 있는" 상황을 만든다.
+ */
+internal class StuckEcdhKey(
+    private val delegate: EcdhPrivateKey,
+    private val gate: CompletableDeferred<Unit>,
+) : EcdhPrivateKey {
+    override val publicKey: PublicKeyBytes get() = delegate.publicKey
+
+    override suspend fun sharedX(peer: PublicKeyBytes): ByteArray {
+        withContext(NonCancellable) { gate.await() }
+        return delegate.sharedX(peer)
+    }
 }
