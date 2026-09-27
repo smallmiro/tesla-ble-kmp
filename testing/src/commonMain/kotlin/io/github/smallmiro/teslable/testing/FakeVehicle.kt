@@ -84,7 +84,10 @@ public class FakeVehicle(
     /** 지금까지 받은(디코딩된) 요청. Go `inbox`. */
     public val received: List<RoutableMessage> get() = receivedMessages.toList()
 
-    /** 받은 세션정보 요청 수. Go `callbackCount`. */
+    /**
+     * 실제로 처리한 세션정보 요청 수. Go `callbackCount`. [handle]이 잠든 도메인으로 들어온 요청은 [received]에는
+     * 남지만 콜백을 부르지 않으므로(Go `dummyConnector.handleAsync`, dispatcher_test.go:229-233) 여기에는 세지 않는다.
+     */
     public val sessionInfoRequests: Int get() = sessionInfoRequestCount
 
     /** 광고의 connectable 플래그. false면 [connect]가 슬롯 초과로 실패한다. */
@@ -185,6 +188,9 @@ public class FakeVehicle(
         receivedMessages += message
         val domain = message.to_destination?.domain ?: return
         val state = domains[domain] ?: return
+        // Go dummyConnector.handleAsync(dispatcher_test.go:229-233): dropReplies(=asleep)가 서 있으면 inbox에는
+        // 남지만 콜백을 부르지 않는다 — 세션정보 요청 카운트도, 대본 소비도, 검증자 상태도 바뀌지 않는다.
+        if (state.asleep) return
         val replies =
             when {
                 message.session_info_request != null -> handleSessionInfoRequest(state, domain, message)
@@ -319,6 +325,7 @@ public class FakeVehicle(
         state: DomainState,
         reply: RoutableMessage,
     ) {
+        // handle()이 이미 asleep 도메인을 걸러내므로 이 시점에는 항상 false다. 방어적으로 남겨 둔다.
         if (state.asleep) return
         if (dropRemaining > 0) {
             dropRemaining--
