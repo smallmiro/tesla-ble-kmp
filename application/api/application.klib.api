@@ -6,6 +6,37 @@
 // - Show declarations: true
 
 // Library unique name: <tesla-ble-kmp:application>
+final class io.github.smallmiro.teslable.application.dispatcher/Dispatcher { // io.github.smallmiro.teslable.application.dispatcher/Dispatcher|null[0]
+    constructor <init>(io.github.smallmiro.teslable.port/Transport, io.github.smallmiro.teslable.port/EcdhPrivateKey?, io.github.smallmiro.teslable.port/CryptoPrimitives, io.github.smallmiro.teslable.port/RandomSource, kotlinx.coroutines/CoroutineScope, kotlin.time/TimeSource = ..., io.github.smallmiro.teslable.port/TeslaLogger = ...) // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.<init>|<init>(io.github.smallmiro.teslable.port.Transport;io.github.smallmiro.teslable.port.EcdhPrivateKey?;io.github.smallmiro.teslable.port.CryptoPrimitives;io.github.smallmiro.teslable.port.RandomSource;kotlinx.coroutines.CoroutineScope;kotlin.time.TimeSource;io.github.smallmiro.teslable.port.TeslaLogger){}[0]
+
+    final val isListening // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.isListening|{}isListening[0]
+        final fun <get-isListening>(): kotlin/Boolean // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.isListening.<get-isListening>|<get-isListening>(){}[0]
+    final val retryInterval // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.retryInterval|{}retryInterval[0]
+        final fun <get-retryInterval>(): kotlin.time/Duration // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.retryInterval.<get-retryInterval>|<get-retryInterval>(){}[0]
+    final val vin // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.vin|{}vin[0]
+        final fun <get-vin>(): io.github.smallmiro.teslable.model/Vin // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.vin.<get-vin>|<get-vin>(){}[0]
+
+    final var maxLatency // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.maxLatency|{}maxLatency[0]
+        final fun <get-maxLatency>(): kotlin.time/Duration // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.maxLatency.<get-maxLatency>|<get-maxLatency>(){}[0]
+
+    final fun session(com.tesla.generated.universalmessage/Domain): io.github.smallmiro.teslable.application.dispatcher/SessionState? // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.session|session(com.tesla.generated.universalmessage.Domain){}[0]
+    final fun setMaxLatency(kotlin.time/Duration) // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.setMaxLatency|setMaxLatency(kotlin.time.Duration){}[0]
+    final fun start() // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.start|start(){}[0]
+    final suspend fun close() // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.close|close(){}[0]
+    final suspend fun requestSessionInfo(com.tesla.generated.universalmessage/Domain): io.github.smallmiro.teslable.model/VehicleResult<io.github.smallmiro.teslable.application.dispatcher/PendingRequest> // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.requestSessionInfo|requestSessionInfo(com.tesla.generated.universalmessage.Domain){}[0]
+    final suspend fun send(com.tesla.generated.universalmessage/RoutableMessage, io.github.smallmiro.teslable.port/AuthMethod, kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<io.github.smallmiro.teslable.application.dispatcher/PendingRequest> // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.send|send(com.tesla.generated.universalmessage.RoutableMessage;io.github.smallmiro.teslable.port.AuthMethod;kotlin.time.Duration){}[0]
+    final suspend fun stop() // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.stop|stop(){}[0]
+
+    final object Companion { // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.Companion|null[0]
+        final val ALL_DOMAINS // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.Companion.ALL_DOMAINS|{}ALL_DOMAINS[0]
+            final fun <get-ALL_DOMAINS>(): kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.Companion.ALL_DOMAINS.<get-ALL_DOMAINS>|<get-ALL_DOMAINS>(){}[0]
+        final val DEFAULT_LIFETIME // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.Companion.DEFAULT_LIFETIME|{}DEFAULT_LIFETIME[0]
+            final fun <get-DEFAULT_LIFETIME>(): kotlin.time/Duration // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.Companion.DEFAULT_LIFETIME.<get-DEFAULT_LIFETIME>|<get-DEFAULT_LIFETIME>(){}[0]
+
+        final fun sessionInfoRequest(com.tesla.generated.universalmessage/Domain, io.github.smallmiro.teslable.model/PublicKeyBytes): com.tesla.generated.universalmessage/RoutableMessage // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.Companion.sessionInfoRequest|sessionInfoRequest(com.tesla.generated.universalmessage.Domain;io.github.smallmiro.teslable.model.PublicKeyBytes){}[0]
+    }
+}
+
 final class io.github.smallmiro.teslable.application.dispatcher/PendingRequest : kotlin/AutoCloseable { // io.github.smallmiro.teslable.application.dispatcher/PendingRequest|null[0]
     final val requestHash // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.requestHash|{}requestHash[0]
         final fun <get-requestHash>(): kotlin/ByteArray? // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.requestHash.<get-requestHash>|<get-requestHash>(){}[0]

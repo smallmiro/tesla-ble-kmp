@@ -1,3 +1,27 @@
+public final class io/github/smallmiro/teslable/application/dispatcher/Dispatcher {
+	public static final field Companion Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher$Companion;
+	public fun <init> (Lio/github/smallmiro/teslable/port/Transport;Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlinx/coroutines/CoroutineScope;Lkotlin/time/TimeSource;Lio/github/smallmiro/teslable/port/TeslaLogger;)V
+	public synthetic fun <init> (Lio/github/smallmiro/teslable/port/Transport;Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlinx/coroutines/CoroutineScope;Lkotlin/time/TimeSource;Lio/github/smallmiro/teslable/port/TeslaLogger;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun close (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun getMaxLatency-UwyO8pc ()J
+	public final fun getRetryInterval-UwyO8pc ()J
+	public final fun getVin ()Lio/github/smallmiro/teslable/model/Vin;
+	public final fun isListening ()Z
+	public final fun requestSessionInfo (Lcom/tesla/generated/universalmessage/Domain;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun send-exY8QGI (Lcom/tesla/generated/universalmessage/RoutableMessage;Lio/github/smallmiro/teslable/port/AuthMethod;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun send-exY8QGI$default (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lcom/tesla/generated/universalmessage/RoutableMessage;Lio/github/smallmiro/teslable/port/AuthMethod;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun session (Lcom/tesla/generated/universalmessage/Domain;)Lio/github/smallmiro/teslable/application/dispatcher/SessionState;
+	public final fun setMaxLatency-LRDsOJo (J)V
+	public final fun start ()V
+	public final fun stop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class io/github/smallmiro/teslable/application/dispatcher/Dispatcher$Companion {
+	public final fun getALL_DOMAINS ()Ljava/util/Set;
+	public final fun getDEFAULT_LIFETIME-UwyO8pc ()J
+	public final fun sessionInfoRequest (Lcom/tesla/generated/universalmessage/Domain;Lio/github/smallmiro/teslable/model/PublicKeyBytes;)Lcom/tesla/generated/universalmessage/RoutableMessage;
+}
+
 public final class io/github/smallmiro/teslable/application/dispatcher/PendingRequest : java/lang/AutoCloseable {
 	public static final field BUFFER_SIZE I
 	public static final field Companion Lio/github/smallmiro/teslable/application/dispatcher/PendingRequest$Companion;
