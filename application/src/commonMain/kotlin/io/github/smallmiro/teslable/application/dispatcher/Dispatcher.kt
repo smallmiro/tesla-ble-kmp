@@ -1,5 +1,6 @@
 // Ported from vehicle-command@a4b43c1 internal/dispatcher/dispatcher.go (Apache-2.0)
-// New, SetMaxLatency, Send, RequestSessionInfo, SessionInfoRequest, listen, process, checkForSessionUpdate, decrypt, Stop
+// New, SetMaxLatency, Send, RequestSessionInfo, SessionInfoRequest, listen, process, checkForSessionUpdate, decrypt, Stop,
+// Cache, LoadCache
 package io.github.smallmiro.teslable.application.dispatcher
 
 import com.tesla.generated.universalmessage.Destination
@@ -7,6 +8,8 @@ import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
 import com.tesla.generated.universalmessage.SessionInfoRequest
 import io.github.smallmiro.teslable.InternalTeslableApi
+import io.github.smallmiro.teslable.cache.CachedSession
+import io.github.smallmiro.teslable.cache.SessionSnapshot
 import io.github.smallmiro.teslable.model.PublicKeyBytes
 import io.github.smallmiro.teslable.model.VehicleError
 import io.github.smallmiro.teslable.model.VehicleResult
@@ -266,6 +269,37 @@ public class Dispatcher
             logger.log(LogLevel.INFO, TAG) { "Requesting session info from $domain" }
             val key = privateKey ?: return VehicleResult.Failure(VehicleError.RequiresKey)
             return send(sessionInfoRequest(domain, key.publicKey), AuthMethod.NONE)
+        }
+
+        /** Go `Cache()`: 세션이 있는 도메인의 `SessionInfo`(clock_time = 지금)를 내보낸다. */
+        public suspend fun exportSessions(): List<SessionSnapshot> =
+            sessions.mapNotNull { (domain, session) -> session.export()?.let { SessionSnapshot(domain, it) } }
+
+        /**
+         * Go `LoadCache`: 항목마다 [SessionState.loadFromCache](즉시 준비 상태). 손상된 항목·개인키 없음은 WARN 로그 후 건너뛴다
+         * (Go는 전체 실패 — 설계 구체화 6). 복원한 도메인 집합을 돌려준다. Go는 세션 맵을 통째로 새로 만들어 교체하지만 이 구현은
+         * 기존 [sessions]에 도메인별로 병합한다 — 새 [Dispatcher](세션이 전부 비어 있는 상태)에서 부르면 결과는 같다.
+         */
+        public suspend fun loadSessions(entries: List<CachedSession>): Set<Domain> {
+            val loaded = mutableSetOf<Domain>()
+            for (entry in entries) {
+                val session = sessions[entry.domain]
+                if (session == null) {
+                    logger.log(LogLevel.WARN, TAG) { "invalid cache: ${entry.domain}: no session (private key missing)" }
+                    continue
+                }
+                when (val result = session.loadFromCache(entry.sessionInfo, entry.age)) {
+                    is SignerResult.Ok -> {
+                        logger.log(LogLevel.INFO, TAG) { "Session for ${entry.domain} loaded from cache" }
+                        loaded += entry.domain
+                    }
+
+                    is SignerResult.Fault -> {
+                        logger.log(LogLevel.WARN, TAG) { "invalid cache: ${entry.domain}: ${result.fault.name}: ${result.detail}" }
+                    }
+                }
+            }
+            return loaded
         }
 
         /** 열려 있는 요청 수(테스트용: 등록 누수 확인). */
