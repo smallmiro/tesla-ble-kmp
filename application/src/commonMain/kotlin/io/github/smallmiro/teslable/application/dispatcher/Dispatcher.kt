@@ -26,11 +26,14 @@ import io.github.smallmiro.teslable.protocol.decodeOrNull
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import okio.ByteString
 import okio.ByteString.Companion.toByteString
 import kotlin.concurrent.Volatile
@@ -45,8 +48,13 @@ private const val TAG = "Dispatcher"
 /**
  * Go `Dispatcher`: 요청 조립(`uuid`, `routing_address`)·인가·전송 재시도, 그리고 수신 루프(`RoutableMessage` 파싱 → [PendingRequest] 매칭 →
  * 세션정보 갱신 → 복호화 → 채널 전달). 수신 코루틴은 [start]가 [scope]에 하나 띄운다. 그 코루틴은 다른 코루틴의 진행을 기다리지 않는다
- * (채널은 `trySend`, 락은 `Signer` 호출·맵 조작만 — SDD §5 구체화). [privateKey]가 null이면 세션이 없다(Go `privateKey == nil`):
- * 인증 전송은 [VehicleError.NoSession], 핸드셰이크는 [VehicleError.RequiresKey].
+ * (채널은 `trySend`, 락은 `Signer` 호출·맵 조작만 — SDD §5 구체화 4). **예외 한 가지(리뷰 라운드 3 A3):** [start]가 새로 띄우는 수신
+ * 코루틴은 `incoming`을 구독하기 **전에**, 아직 끝나지 않은 이전 정지 대상 job이 있으면 그 job이 끝날 때까지 기다린다 — 두 수신
+ * 코루틴이 동시에 같은 `incoming`을 구독하면 안 되기 때문이다(Go의 `listen`과 `Stop`은 `doneLock`을 공유해 이 순서를 강제한다). 이
+ * 대기는 `NonCancellable`로 감싸 자기 자신이 취소되더라도 이전 job의 종료를 확실히 기다린 뒤 `ensureActive()`로 자기 취소를
+ * 확인한다 — 그래야 `CancellationException`은 여전히 `collect()`를 통해 정상적으로 전파된다(구독을 시작한 뒤에는 이 예외가 다시
+ * 적용되지 않는다). [privateKey]가 null이면 세션이 없다(Go `privateKey == nil`): 인증 전송은 [VehicleError.NoSession], 핸드셰이크는
+ * [VehicleError.RequiresKey].
  */
 @OptIn(InternalTeslableApi::class)
 @Suppress("TooManyFunctions") // dispatcher.go의 메서드와 1:1 대응
@@ -76,8 +84,14 @@ public class Dispatcher
         public var maxLatency: Duration = transport.allowedLatency
             private set
 
-        /** 수신 루프가 돌고 있는지(Go `terminate != nil`). */
-        public val isListening: Boolean get() = receiveJob?.isActive == true
+        /**
+         * 수신 코루틴이 실제로 [Transport.incoming]을 구독해 응답을 받을 수 있는 상태인지(Go `terminate != nil`이고
+         * `listen`이 실제로 받기 시작한 뒤). 리뷰 라운드 3 A2: `receiveJob`이 있어도 아직 이전 정지 대상 job을 기다리는
+         * 중이면(위 [start] 참고) 진짜로는 구독 전이므로 여기는 `false`여야 한다 — Go도 `listen`이 `doneLock`을 놓기
+         * 전까지는 `terminate`가 없어 `Send`가 `ErrNotConnected`를 돌려준다(dispatcher.go:333-341, 380-385). [activeJob]은
+         * 그 수신 코루틴이 실제로 구독한 뒤에만 자신을 채우고, 끝나면(정상 종료든 취소든) `finally`에서 지운다.
+         */
+        public val isListening: Boolean get() = activeJob != null
 
         private val address: ByteString = random.nextBytes(ADDRESS_LENGTH).toByteString()
         private val sessions: Map<Domain, SessionState> =
@@ -110,6 +124,13 @@ public class Dispatcher
         @Volatile
         private var stopping: Job? = null
 
+        /** 리뷰 라운드 3 A2: 실제로 `incoming`을 구독한 수신 코루틴(구독 전이면 null). [isListening]이 읽는다. */
+        @Volatile
+        private var activeJob: Job? = null
+
+        /** [start]의 멱등성 검사용(공개 [isListening]과 다르다): 아직 구독 전이라도 이미 배정된 job이 있으면 중복 실행하지 않는다. */
+        private val hasAssignedReceiver: Boolean get() = receiveJob?.isActive == true
+
         /** Go `SetMaxLatency`: 양수일 때만 바꾼다. */
         public fun setMaxLatency(latency: Duration) {
             if (latency > Duration.ZERO) maxLatency = latency
@@ -125,23 +146,38 @@ public class Dispatcher
          * 캡처·해제하는 아주 짧은 창과 겹쳤을 때, (2) **다른 [start] 호출이 이미 잠금을 쥐고 있을 때** — `UNDISPATCHED`
          * 본문은 첫 suspension(아래 [stopping] join 대기, 또는 그것이 없으면 `incoming` 구독)에 이르기 전까지 잠금을
          * 놓지 않으므로, 이 잠깐의 동기 구간 동안 [receiveJob]은 아직 이전 값(흔히 `null`)일 수 있다 — 즉 진 쪽이
-         * 이긴 쪽보다 먼저 반환할 수 있고, 그 시점의 [isListening]은 아직 이긴 쪽의 갱신을 반영하지 않을 수 있다
-         * (리뷰 라운드 2 N4). 두 경우 모두 이 호출은 그냥 반환한다 — 곧(또는 이미) 최신 상태가 반영되므로 호출자는
-         * 다시 부르거나 [isListening]으로 다시 확인하면 된다.
+         * 이긴 쪽보다 먼저 반환할 수 있다(리뷰 라운드 2 N4). 두 경우 모두 이 호출은 그냥 반환한다 — 곧(또는 이미)
+         * 최신 상태가 반영되므로 호출자는 다시 부르거나 [isListening]으로 다시 확인하면 된다. 멱등 여부는
+         * [hasAssignedReceiver] 기준이다(공개 [isListening]과 다르다) — 구독 전에 대기 중인 job도 이미 "배정된"
+         * 것으로 쳐서 중복 실행하지 않는다.
          */
         public fun start() {
             if (!lifecycleMutex.tryLock()) return
             try {
-                if (isListening) return
+                if (hasAssignedReceiver) return
                 val awaitedStop = stopping
                 receiveJob =
                     scope.launch(start = CoroutineStart.UNDISPATCHED) {
-                        // 리뷰 라운드 2 N1(컨트롤러 판정): 직전 stop()이 아직 끝나지 않았으면 그 job이 끝날 때까지
-                        // 기다린 뒤에야 incoming을 구독한다 — 두 수신 코루틴이 동시에 살아 있으면 안 된다(Go의
-                        // listen과 Stop은 doneLock을 공유한다).
-                        awaitedStop?.join()
+                        // 리뷰 라운드 3 N1(남은 회귀): join()이 취소 가능한 채로 있으면, 이 코루틴 자신이 취소됐을 때
+                        // awaitedStop이 아직 끝나지 않았는데도 join을 빠져나가 버린다 — 그러면 다음 stop()이
+                        // stopping을 이 코루틴으로 덮어써 더 이전 세대 job의 추적을 완전히 잃는다. NonCancellable로
+                        // 감싸 그 job이 실제로 끝날 때까지는 반드시 기다리고, 그 다음에야 ensureActive()로 (이
+                        // 코루틴 자신의) 취소를 확인한다 — CancellationException은 여전히 collect()로 정상
+                        // 전파된다. 매 세대가 앞 세대의 완료를 정직하게 기다리면, 몇 단계를 거치더라도
+                        // (stop→start→stop→start…) 결국 맨 처음 job까지 사슬로 이어져 대기한다.
+                        if (awaitedStop != null) {
+                            withContext(NonCancellable) { awaitedStop.join() }
+                            ensureActive()
+                        }
                         logger.log(LogLevel.INFO, TAG) { "Starting dispatcher service..." }
-                        transport.incoming.collect { process(it) }
+                        // 리뷰 라운드 3 A2: 실제 구독은 여기서부터다 — activeJob을 채워야 isListening이 true가 된다.
+                        val self = coroutineContext[Job]
+                        activeJob = self
+                        try {
+                            transport.incoming.collect { process(it) }
+                        } finally {
+                            if (activeJob === self) activeJob = null
+                        }
                     }
             } finally {
                 lifecycleMutex.unlock()

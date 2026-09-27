@@ -13,18 +13,26 @@ import io.github.smallmiro.teslable.model.VehicleError
 import io.github.smallmiro.teslable.model.VehicleResult
 import io.github.smallmiro.teslable.port.AuthMethod
 import io.github.smallmiro.teslable.port.EcdhPrivateKey
+import io.github.smallmiro.teslable.port.Transport
+import io.github.smallmiro.teslable.port.TransportState
 import io.github.smallmiro.teslable.protocol.RequestHash
 import io.github.smallmiro.teslable.protocol.ResponseClassifier
 import io.github.smallmiro.teslable.testing.FakeVehicle
+import io.github.smallmiro.teslable.testing.RecordingLogger
 import io.github.smallmiro.teslable.testing.TestCrypto
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.testTimeSource
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import okio.ByteString.Companion.toByteString
 import kotlin.test.Test
@@ -170,23 +178,113 @@ class DispatcherTest {
 
     @Test
     fun startWhileAnEarlierStopIsStillJoiningDoesNotCreateASecondLiveCollector() =
-        // Review round 2, Important N1 (controller ruling): a start() racing in while an earlier stop()
-        // is still joining must not create a second live collector alongside the one being stopped —
-        // Go's listen() and Stop() share doneLock, so a concurrent Start() would block until Stop()
-        // releases it. Here the new collector's body first joins the in-flight stop's job before it
-        // subscribes to transport.incoming, so at most one collector is ever actively receiving.
+        // Review round 2, Important N1 (controller ruling), made provable in round 3: a start() racing
+        // in while an earlier stop() is still joining must not create a second live collector alongside
+        // the one being stopped — Go's listen() and Stop() share doneLock, so a concurrent Start() would
+        // block until Stop() releases it. `children.count { it.isActive } <= 1` cannot fail: Job.isActive
+        // turns false the instant cancel() runs, long before the coroutine actually finishes (see
+        // closeWaitsForTheCollectorEvenWhenAnotherStopRacesIn) — so a cancelled-but-still-running old
+        // collector never shows up as "active" even when the bug is present. This version holds the
+        // original collector stuck *inside* process() with a gate its own cancellation cannot get it out
+        // of (StuckEcdhKey), and counts "Starting dispatcher service..." log lines instead of job
+        // liveness: that log line only fires once a collector actually subscribes to transport.incoming.
         runTest {
-            val h = dispatcherHarness()
-            val backgroundJob = checkNotNull(backgroundScope.coroutineContext[Job])
-            launch { h.dispatcher.stop() }
-            launch { h.dispatcher.start() }
+            val gate = CompletableDeferred<Unit>()
+            val h = dispatcherHarness(privateKey = StuckEcdhKey(TestCrypto.clientKey(), gate))
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.requestSessionInfo(vcsec)).value
+            runCurrent() // collector A now stuck inside process() -> checkForSessionUpdate -> sharedX -> gate.await()
+            launch { h.dispatcher.stop() } // cancels A; A cannot actually finish until the gate opens
             runCurrent()
-            assertTrue(backgroundJob.children.count { it.isActive } <= 1) // never two live collectors
+            h.dispatcher.start() // B: must wait for A to finish before subscribing
+            runCurrent()
+            assertEquals(1, h.logger.count("Starting dispatcher service...")) // B has not subscribed yet
+            gate.complete(Unit)
+            runCurrent()
+            assertEquals(2, h.logger.count("Starting dispatcher service...")) // A finally unwound; B subscribed after
+            pending.close()
+        }
 
-            // Eventually settles on exactly one working collector.
-            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), AuthMethod.NONE)).value
-            pending.use { assertNotNull(it.receive()) }
-            assertEquals(1, backgroundJob.children.count { it.isActive })
+    @Test
+    fun closeDoesNotReturnBeforeTheOriginalCollectorFinishes() =
+        // Review round 3, Important N1 (remaining regression): B, started during a stop, used to wait
+        // with a *cancellable* awaitedStop?.join(). A later stop() (here, the one close() calls
+        // internally) then captured receiveJob == B instead of the true original collector A, and —
+        // because B's join(A) was cancellable — cancelling B let it complete immediately without ever
+        // actually waiting for A. close() then zeroized sessions and closed the transport while A was
+        // still stuck delivering its message. Fixed by wrapping the pre-subscribe join in
+        // `withContext(NonCancellable) { awaitedStop.join() }` + `ensureActive()`: every stopper's wait
+        // now transitively chains back to A no matter how many stop()/start() generations sit in
+        // between. Gates the *transport's* incoming flow (not the crypto key, as the sibling test
+        // below does) so A is stuck upstream of process() entirely — a crypto-key gate inside
+        // checkForSessionUpdate holds the target SessionState's mutex for as long as it's stuck, which
+        // then independently forces close()'s session.close() call to block on that same mutex and
+        // masks this exact bug. Adapted from the reviewer's scratch repro
+        // (ReviewReproTest2.reproCloseReturnsBeforeCollectorCompletes).
+        runTest {
+            val gate = CompletableDeferred<Unit>()
+            val logger = RecordingLogger()
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val dispatcher =
+                Dispatcher(
+                    GatedIncomingTransport(fake.transport(), gate),
+                    TestCrypto.clientKey(),
+                    TestCrypto.primitives,
+                    TestCrypto.random,
+                    backgroundScope,
+                    testTimeSource,
+                    logger,
+                )
+            dispatcher.start()
+            val bg = checkNotNull(backgroundScope.coroutineContext[Job])
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(dispatcher.requestSessionInfo(vcsec)).value
+            runCurrent()
+            val a = bg.children.single() // collector A, now stuck waiting for the gate before it can even emit the reply
+            launch { dispatcher.stop() } // stop1: cancels A, joins A (stays suspended: A is stuck)
+            runCurrent()
+            dispatcher.start() // B: must wait for A (the fix under test)
+            var closeReturned = false
+            launch {
+                dispatcher.close()
+                closeReturned = true
+            }
+            runCurrent()
+            val closeReturnedEarly = closeReturned
+            gate.complete(Unit)
+            runCurrent()
+            pending.close()
+            assertFalse(closeReturnedEarly, "close() returned while the original collector was still trying to deliver its message")
+        }
+
+    @Test
+    fun laterStartDoesNotSubscribeWhileTheOriginalCollectorIsStillRunning() =
+        // Review round 3, Important N1 (remaining regression), second scenario:
+        // stop() -> start() -> stop() -> start(). With a cancellable pre-subscribe join, the second
+        // stop() cancels B; B's join(A) is interrupted immediately (not waiting for A), so B completes,
+        // `stopping` is cleared, and the next start() (C) sees `stopping == null` and subscribes right
+        // away — "Starting dispatcher service..." logs twice while A is still alive (two receive
+        // coroutines on the same transport.incoming). The NonCancellable join fix makes B's own
+        // cancellation unable to cut its wait for A short, so C's wait (via B) still transitively
+        // reaches A. Adapted from the reviewer's scratch repro
+        // (ReviewReproTest.reproSecondStartSubscribesWhileOldCollectorStillRunning).
+        runTest {
+            val gate = CompletableDeferred<Unit>()
+            val h = dispatcherHarness(privateKey = StuckEcdhKey(TestCrypto.clientKey(), gate))
+            val bg = checkNotNull(backgroundScope.coroutineContext[Job])
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.requestSessionInfo(vcsec)).value
+            runCurrent()
+            val a = bg.children.single()
+            launch { h.dispatcher.stop() }
+            runCurrent()
+            h.dispatcher.start() // B waits for A
+            launch { h.dispatcher.stop() } // cancels B
+            runCurrent()
+            h.dispatcher.start() // C
+            runCurrent()
+            val subscribedWhileAAlive = !a.isCompleted && h.logger.count("Starting dispatcher service...") == 2
+            gate.complete(Unit)
+            runCurrent()
+            pending.close()
+            assertFalse(subscribedWhileAAlive, "a new collector subscribed while the original was still inside process()")
         }
 
     @Test
@@ -379,7 +477,7 @@ class DispatcherTest {
         // misreporting the closed channel as "queue is full".
         runTest {
             val gate = CompletableDeferred<Unit>()
-            val h = dispatcherHarness(privateKey = GatedEcdhKey(TestCrypto.clientKey(), gate))
+            val h = dispatcherHarness(privateKey = StuckEcdhKey(TestCrypto.clientKey(), gate))
             val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.requestSessionInfo(vcsec)).value
             runCurrent() // let the collector pick up the reply and suspend inside checkForSessionUpdate on the gate
             pending.close() // caller gives up while process() is still working on this exact message
@@ -688,16 +786,37 @@ class DispatcherTest {
 /**
  * [EcdhPrivateKey]를 감싸 [sharedX]가 [gate]가 끝날 때까지 진짜로 suspend하게 만든다. `checkForSessionUpdate`의
  * 첫 `processHello`가 이 안에서 ECDH를 계산하므로, 이 키를 쓰면 수신 코루틴이 `process()` 한가운데(핸들러를
- * `lookup()`한 뒤, `deliver()`하기 전)에서 확실히 멈추게 만들 수 있다 — 테스트 전용.
+ * `lookup()`한 뒤, `deliver()`하기 전)에서 확실히 멈추게 만들 수 있다 — 테스트 전용. `NonCancellable`로 감싸 그
+ * 코루틴이 취소되어도(리뷰 라운드 3 N1 리프로) [gate]가 열리기 전까지는 절대 빠져나가지 않는다 — "취소해도
+ * 즉시 끝나지 않고 실제로 process() 안에서 계속 멈춰 있는" 상황을 만든다.
  */
-private class GatedEcdhKey(
+private class StuckEcdhKey(
     private val delegate: EcdhPrivateKey,
     private val gate: CompletableDeferred<Unit>,
 ) : EcdhPrivateKey {
     override val publicKey: PublicKeyBytes get() = delegate.publicKey
 
     override suspend fun sharedX(peer: PublicKeyBytes): ByteArray {
-        gate.await()
+        withContext(NonCancellable) { gate.await() }
         return delegate.sharedX(peer)
     }
+}
+
+/**
+ * [Transport]를 감싸 [incoming]의 각 항목을 [gate]가 열릴 때까지 넘기지 않는다 — 테스트 전용. 크립토 키를 막는
+ * [StuckEcdhKey]와 달리 `process()`에 들어가기도 전에(따라서 어떤 [SessionState] 뮤텍스도 잡지 않은 채) 수신
+ * 코루틴을 멈춰 세운다 — `close()`가 세션을 지우려다 그 뮤텍스에서 우연히 막혀서(리뷰 라운드 3 N1 회귀와는
+ * 무관하게) 이 시나리오를 가려 버리는 것을 피한다.
+ */
+private class GatedIncomingTransport(
+    private val delegate: Transport,
+    private val gate: CompletableDeferred<Unit>,
+) : Transport by delegate {
+    override val incoming: Flow<ByteArray> =
+        flow {
+            delegate.incoming.collect { bytes ->
+                withContext(NonCancellable) { gate.await() }
+                emit(bytes)
+            }
+        }
 }
