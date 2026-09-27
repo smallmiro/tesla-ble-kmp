@@ -168,11 +168,16 @@ public class FakeVehicle(
         domains.getValue(domain).attachSessionInfoOnce = true
     }
 
-    /** 다음 [count]개의 세션정보 태그 첫 바이트를 뒤집는다(HMAC 불일치 시나리오). */
+    /**
+     * 다음 [count]개의 세션정보 태그 첫 바이트를 뒤집는다(HMAC 불일치 시나리오).
+     * @throws IllegalArgumentException [count]가 0 이하면 발생한다 — 내부 카운터는 소모될 때마다 정확히 1씩만 줄고
+     *   `== 0`으로만 검사하므로, 0 이하를 더하면 그 카운터가 절대 정확히 0으로 돌아오지 못해 이후 모든 응답을 영원히 손상시킨다.
+     */
     public fun corruptNextSessionInfoTag(
         domain: Domain,
         count: Int = 1,
     ) {
+        require(count > 0) { "count must be positive: $count" }
         domains.getValue(domain).corruptTagsRemaining += count
     }
 
