@@ -3,6 +3,7 @@ package io.github.smallmiro.teslable.application.vehicle
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
 import com.tesla.generated.universalmessage.OperationStatus_E
+import com.tesla.generated.universalmessage.RoutableMessage
 import io.github.smallmiro.teslable.application.dispatcher.HandshakeFlow
 import io.github.smallmiro.teslable.application.dispatcher.dispatcherHarness
 import io.github.smallmiro.teslable.application.dispatcher.encode
@@ -13,6 +14,7 @@ import io.github.smallmiro.teslable.port.AuthMethod
 import io.github.smallmiro.teslable.testing.FakeVehicle
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
@@ -146,6 +148,31 @@ class SendWithRetryTest {
             assertFalse(first.nonce == second.nonce)
             assertTrue(second.expires_at >= first.expires_at)
             assertEquals(SendWithRetry.DEFAULT_FLAGS, authenticated[1].flags) // FR-010: FLAG_ENCRYPT_RESPONSE 항상
+        }
+
+    @Test
+    fun retriesReuseThePayloadCopiedBeforeTheFirstAttempt() =
+        // N1 / Go vehicle.go 236~238: Send copies payload into payloadCopy once, before any attempt, and every
+        // trySend call reuses that same copy. If a retry instead re-copied the caller's array on each attempt, a
+        // caller that mutates its buffer after the first (failed) attempt returns would leak that mutation into
+        // the retry — this pins the frozen-once behaviour with a mutation between the two attempts.
+        runTest {
+            val h = dispatcherHarness(retryInterval = 1.milliseconds)
+            h.fake.script(
+                vcsec,
+                listOf(FakeVehicle.ScriptedReply(fault = MessageFault_E.MESSAGEFAULT_ERROR_BUSY)),
+                listOf(FakeVehicle.vcsecEmpty()),
+            )
+            val mutablePayload = "AAAA".encodeToByteArray()
+            val job = launch { SendWithRetry(h.dispatcher).send(vcsec, mutablePayload, AuthMethod.NONE) }
+            runCurrent() // first attempt sent + BUSY reply processed; job is now suspended in delay(retryInterval)
+            mutablePayload[0] = 'Z'.code.toByte()
+            advanceUntilIdle() // let the retry fire and the job finish
+            job.join()
+            assertEquals(2, h.transport.sent.size)
+            val decoded = h.transport.sent.map { RoutableMessage.ADAPTER.decode(it) }
+            val sentPayloads = decoded.map { it.protobuf_message_as_bytes?.utf8() }
+            assertEquals(listOf("AAAA", "AAAA"), sentPayloads)
         }
 
     @Test
