@@ -492,12 +492,20 @@ class DispatcherTest {
 
     @Test
     fun sendReturnsNotConnectedAfterIncomingCompletes() =
-        // Review Focus 2: 전송이 끝나면(BLE 끊김) 수신 루프가 조용히 종료되고 이후 send는 NotConnected
+        // Review Focus 2: 전송이 끝나면(BLE 끊김) 수신 루프가 조용히 종료되고 이후 send는 NotConnected.
+        // Review round 1, Important 2: 전송이 끝나기 전에 보낸 요청은 Go도 리시버 채널을 닫지 않으므로(그런 훅이
+        // 없다) 응답을 받지 못한 채 호출자가 스스로 시간 초과할 때까지 계속 기다린다; 그 요청을 닫으면 등록은
+        // 정상적으로 풀린다.
         runTest {
             val h = dispatcherHarness()
+            h.fake.script(infotainment, emptyList()) // 응답 없음: 전송이 끊길 때까지 아무것도 오지 않는다
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), AuthMethod.NONE)).value
             h.transport.close()
             runCurrent()
             assertFalse(h.dispatcher.isListening)
+            assertNull(withTimeoutOrNull(1.seconds) { pending.receive() }) // 채널이 닫히지 않아 시간 초과로 끝난다
+            pending.close()
+            assertEquals(0, h.dispatcher.pendingCount()) // 닫으면 등록이 풀린다
             assertEquals(
                 VehicleError.NotConnected,
                 assertIs<VehicleResult.Failure>(h.dispatcher.send(testCommand(), AuthMethod.NONE)).error,
