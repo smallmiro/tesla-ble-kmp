@@ -23,6 +23,7 @@ import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -177,16 +178,24 @@ class SendWithRetryTest {
 
     @Test
     fun cancelledCommandReleasesPendingRequest() =
-        // Review Focus 3 / ADR-0010: 취소는 CancellationException으로 전파되고 PendingRequest는 finally에서 풀린다
+        // Review Focus 3 / ADR-0010: 취소는 CancellationException으로 전파되고 PendingRequest는 finally에서 풀린다.
+        // M1(2차 리뷰): job.cancel() 뒤에는 job.getCompletionExceptionOrNull()이 항상 CancellationException이다 —
+        // send()가 취소를 삼켜 값으로 바꿔 정상 반환해도 Job 자체는 여전히 Cancelled로 끝나므로 그 어설션은 아무 것도
+        // 증명하지 못한다(withAttemptTimeout이 취소를 삼켜 값으로 바꾸는 뮤턴트로 확인했다 — trySend 안에서 삼켜도
+        // withTimeoutOrNull이 자신의 타임아웃이 아니라 바깥 Job의 취소로 판단해 다시 던지므로 가려진다; 이 테스트가
+        // 실제로 잡는 것은 withAttemptTimeout 단계의 스왈로우다). 대신 결과 대입이 실제로 일어나는지를 본다: 취소가
+        // 제대로 전파되면 대입 줄에 도달하지 못해 result는 계속 null이다.
         runTest {
             val h = dispatcherHarness()
             h.fake.script(vcsec, emptyList())
-            val job = launch { SendWithRetry(h.dispatcher).send(vcsec, payload, AuthMethod.NONE, timeout = 10.seconds) }
+            var result: VehicleResult<*>? = null
+            val job = launch { result = SendWithRetry(h.dispatcher).send(vcsec, payload, AuthMethod.NONE, timeout = 10.seconds) }
             runCurrent()
             assertEquals(1, h.dispatcher.pendingCount())
             job.cancel()
             runCurrent()
             assertTrue(job.isCancelled)
+            assertNull(result)
             assertEquals(0, h.dispatcher.pendingCount())
             val late = replyTo(h.fake.received.last(), "late".encodeToByteArray())
             h.transport.deliver(encode(late))

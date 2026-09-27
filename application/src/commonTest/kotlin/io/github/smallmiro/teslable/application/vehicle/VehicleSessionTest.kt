@@ -49,15 +49,38 @@ class VehicleSessionTest {
 
     @Test
     fun startSessionRetriesTransientHandshakeError() =
-        // vehicle_test.go TestVehicleConnectionRetry: BUSY(일시) 뒤 성공
+        // vehicle_test.go TestVehicleConnectionRetry: BUSY(일시) 뒤 성공.
+        // M7/N4: 3은 이 테스트에서 나오는 값이다 — runTest의 스케줄러가, VCSEC의 실패가 INFOTAINMENT 핸드셰이크를
+        // 취소하기 전에 수신 코루틴이 두 도메인의 버퍼링된 응답을 모두 처리하게 해 주기 때문이다(다른 실행 순서라면
+        // 4가 될 수 있다 — "인터리빙과 무관하게 결정적"이라던 이전 서술은 틀렸다).
         runTest {
             val h = dispatcherHarness(start = false)
             val session = VehicleSession(h.dispatcher)
             h.fake.scriptHandshake(vcsec, MessageFault_E.MESSAGEFAULT_ERROR_BUSY)
             session.connect()
             assertIs<VehicleResult.Success<Unit>>(session.startSession(timeout = 1.seconds))
-            assertTrue(h.fake.sessionInfoRequests in 3..4, "got ${h.fake.sessionInfoRequests}")
+            assertEquals(3, h.fake.sessionInfoRequests)
             assertIs<VehicleResult.Success<*>>(session.send.send(vcsec, "x".encodeToByteArray(), AuthMethod.GCM))
+        }
+
+    @Test
+    fun startSessionPropagatesCallerCancellationInsteadOfReturningATimeoutValue() =
+        // vehicle_test.go TestVehicleConnectionTimeout: 실제로는 데드라인을 기다리지 않고 cancel()을 먼저 부른 뒤
+        // StartSession을 호출해 context.Canceled를 기대한다(명시적 취소, 데드라인 초과가 아니다). M1(2차 리뷰):
+        // job.getCompletionExceptionOrNull()은 취소 요청 뒤 항상 CancellationException이므로 아무 것도 증명하지
+        // 못한다 — 대신 반환값이 실제로 대입되는지를 본다.
+        runTest {
+            val h = dispatcherHarness(start = false)
+            val session = VehicleSession(h.dispatcher)
+            h.fake.scriptHandshake(vcsec, *Array(10) { MessageFault_E.MESSAGEFAULT_ERROR_BUSY })
+            session.connect()
+            var result: VehicleResult<Unit>? = null
+            val job = launch { result = session.startSession(timeout = 5.seconds) }
+            runCurrent()
+            job.cancel()
+            runCurrent()
+            assertTrue(job.isCancelled)
+            assertNull(result)
         }
 
     @Test
