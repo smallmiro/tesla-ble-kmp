@@ -238,6 +238,38 @@ class DispatcherTest {
         }
 
     @Test
+    fun dropsMessageWithInvalidAddressLength() =
+        // Review round 1, Minor fold M5: dispatcher.go process (~278-281), untested by
+        // dropsInvalidMessagesAndDeliversTheValidOne (that test's "bad destination address" mutates a
+        // still-16-byte address). A routing_address of any other length is its own drop reason.
+        runTest {
+            val h = dispatcherHarness()
+            h.fake.script(infotainment, emptyList())
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), AuthMethod.NONE)).value
+            val request = h.lastRequest()
+            val shortAddress = Destination(routing_address = ByteArray(5).toByteString())
+            h.transport.deliver(encode(replyTo(request, ByteArray(0)).copy(to_destination = shortAddress)))
+            runCurrent()
+            pending.use { assertNull(it.tryReceive()) }
+            assertTrue(h.logger.contains("Dropping message with invalid address length"))
+        }
+
+    @Test
+    fun dropsMessageWithUnrecognizedDestinationType() =
+        // Review round 1, Minor fold M5: dispatcher.go process's default case for a Destination with
+        // neither a domain nor a routing_address set.
+        runTest {
+            val h = dispatcherHarness()
+            h.fake.script(infotainment, emptyList())
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), AuthMethod.NONE)).value
+            val request = h.lastRequest()
+            h.transport.deliver(encode(replyTo(request, ByteArray(0)).copy(to_destination = Destination())))
+            runCurrent()
+            pending.use { assertNull(it.tryReceive()) }
+            assertTrue(h.logger.contains("Dropping message with unrecognized destination type"))
+        }
+
+    @Test
     fun dropsResponseFromDomainUnknownToWire() =
         // 설계 구체화 10 + 컨트롤러 판정 R2: 모르는 from 도메인(raw varint 4)은 Wire에서 domain == null이지만
         // from_destination 자체는 있으므로 "누락된 소스"가 아니다. Go GetDomain()이 0(DOMAIN_BROADCAST)을 돌려주는 것처럼
