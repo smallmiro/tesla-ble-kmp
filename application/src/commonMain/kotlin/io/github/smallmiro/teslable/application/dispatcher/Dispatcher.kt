@@ -207,11 +207,23 @@ public class Dispatcher
             lifecycleMutex.withLock { if (stopping === job) stopping = null }
         }
 
-        /** Go `Vehicle.Disconnect`: [stop] + 세션 키 소거 + 전송 닫기. */
+        /**
+         * Go `Vehicle.Disconnect`: [stop] + 세션 키 소거 + 전송 닫기.
+         *
+         * 리뷰 라운드 3 A1: [stop]이 [Job.join]으로 정지를 기다리는 동안 **이 함수의 호출자**가 취소되면, 예전에는
+         * 그 `CancellationException`이 그대로 빠져나가 세션 키 소거와 전송 닫기를 건너뛰었다 — 키가 메모리에 남을 수
+         * 있었다. `finally`에서 `NonCancellable`로 감싸 호출자의 취소와 무관하게 항상 실행한다(순서는 그대로: 정지
+         * 시도 → 세션 소거 → 전송 닫기).
+         */
         public suspend fun close() {
-            stop()
-            for (session in sessions.values) session.close()
-            transport.close()
+            try {
+                stop()
+            } finally {
+                withContext(NonCancellable) {
+                    for (session in sessions.values) session.close()
+                    transport.close()
+                }
+            }
         }
 
         /**

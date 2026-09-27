@@ -288,6 +288,33 @@ class DispatcherTest {
         }
 
     @Test
+    fun closeStillZeroizesSessionsAndClosesTransportWhenTheCallerIsCancelledMidJoin() =
+        // Review round 3, Important A1: if the close() caller is cancelled while stop() is suspended in
+        // job.join(), the CancellationException used to propagate straight out of close() and skip
+        // session zeroization + transport.close() entirely — session keys could be left live in memory.
+        // close() now wraps that cleanup in `finally { withContext(NonCancellable) { ... } }`, so it
+        // always runs regardless of the caller's own cancellation.
+        runTest {
+            var blocking = false
+            val gate = CompletableDeferred<Unit>()
+            val key = HookedEcdhKey(TestCrypto.clientKey()) { if (blocking) withContext(NonCancellable) { gate.await() } }
+            val h = dispatcherHarness(privateKey = key)
+            h.manualHandshake(infotainment) // establish a real, ready session so we can later prove it got zeroized
+            blocking = true
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.requestSessionInfo(vcsec)).value
+            runCurrent() // collector stuck inside VCSEC's handshake -> sharedX -> gate.await()
+            val closeJob = launch { h.dispatcher.close() }
+            runCurrent() // close() -> stop() -> cancelAndJoin(the stuck collector): genuinely suspended
+            closeJob.cancel() // cancel the close() CALLER, not the collector
+            runCurrent()
+            gate.complete(Unit) // let the stuck collector finish unwinding (test hygiene)
+            runCurrent()
+            pending.close()
+            assertNull(assertNotNull(h.dispatcher.session(infotainment)).export()) // signer zeroized despite the cancellation
+            assertIs<TransportState.Disconnected>(h.transport.state.value)
+        }
+
+    @Test
     fun rejectsMessageWithoutDestinationDomain() =
         // dispatcher.go Send: "cannot send message without a destination domain"
         runTest {
@@ -798,6 +825,22 @@ private class StuckEcdhKey(
 
     override suspend fun sharedX(peer: PublicKeyBytes): ByteArray {
         withContext(NonCancellable) { gate.await() }
+        return delegate.sharedX(peer)
+    }
+}
+
+/**
+ * [EcdhPrivateKey]를 감싸 [sharedX]가 호출될 때마다 [onSharedX]를 먼저 부른다 — 테스트 전용. [StuckEcdhKey]와 달리
+ * 매번 다르게 동작하도록(예: 첫 호출은 그냥 지나가고 이후 호출만 막도록) 호출자가 훅을 직접 제어할 수 있다.
+ */
+private class HookedEcdhKey(
+    private val delegate: EcdhPrivateKey,
+    private val onSharedX: suspend () -> Unit,
+) : EcdhPrivateKey {
+    override val publicKey: PublicKeyBytes get() = delegate.publicKey
+
+    override suspend fun sharedX(peer: PublicKeyBytes): ByteArray {
+        onSharedX()
         return delegate.sharedX(peer)
     }
 }
