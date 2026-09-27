@@ -1145,6 +1145,25 @@ sealed interface io.github.smallmiro.teslable.model/VehicleError { // io.github.
         final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.UnknownFault.toString|toString(){}[0]
     }
 
+    final class UnknownKeychainCode : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.UnknownKeychainCode|null[0]
+        constructor <init>(kotlin/Int) // io.github.smallmiro.teslable.model/VehicleError.UnknownKeychainCode.<init>|<init>(kotlin.Int){}[0]
+
+        final val mayHaveSucceeded // io.github.smallmiro.teslable.model/VehicleError.UnknownKeychainCode.mayHaveSucceeded|{}mayHaveSucceeded[0]
+            final fun <get-mayHaveSucceeded>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.UnknownKeychainCode.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+        final val message // io.github.smallmiro.teslable.model/VehicleError.UnknownKeychainCode.message|{}message[0]
+            final fun <get-message>(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.UnknownKeychainCode.message.<get-message>|<get-message>(){}[0]
+        final val rawCode // io.github.smallmiro.teslable.model/VehicleError.UnknownKeychainCode.rawCode|{}rawCode[0]
+            final fun <get-rawCode>(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.UnknownKeychainCode.rawCode.<get-rawCode>|<get-rawCode>(){}[0]
+        final val temporary // io.github.smallmiro.teslable.model/VehicleError.UnknownKeychainCode.temporary|{}temporary[0]
+            final fun <get-temporary>(): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.UnknownKeychainCode.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+        final fun component1(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.UnknownKeychainCode.component1|component1(){}[0]
+        final fun copy(kotlin/Int = ...): io.github.smallmiro.teslable.model/VehicleError.UnknownKeychainCode // io.github.smallmiro.teslable.model/VehicleError.UnknownKeychainCode.copy|copy(kotlin.Int){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.UnknownKeychainCode.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.UnknownKeychainCode.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.UnknownKeychainCode.toString|toString(){}[0]
+    }
+
     final class VcsecRejected : io.github.smallmiro.teslable.model/VehicleError { // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected|null[0]
         constructor <init>(com.tesla.generated.errors/GenericError_E) // io.github.smallmiro.teslable.model/VehicleError.VcsecRejected.<init>|<init>(com.tesla.generated.errors.GenericError_E){}[0]
 

@@ -56,6 +56,16 @@ public sealed interface VehicleError {
         override val temporary: Boolean get() = false
     }
 
+    /** 이 라이브러리의 proto 스냅샷에 없는 `whitelistOperationInformation` 코드. Go `KeychainError{Code}`(등록되지 않은 코드). */
+    public data class UnknownKeychainCode(
+        /** 차량이 보낸 원시 varint. */
+        public val rawCode: Int,
+    ) : VehicleError {
+        override val message: String get() = "keychain operation failed: unrecognized code $rawCode"
+        override val mayHaveSucceeded: Boolean get() = false
+        override val temporary: Boolean get() = false
+    }
+
     /** 인식할 수 없는 `session_info.status` 또는 `operation_status`(코드 없음). Go `ErrUnknown`. */
     public data object UnknownResponse : VehicleError {
         override val message: String = "vehicle responded with an unrecognized status code"
