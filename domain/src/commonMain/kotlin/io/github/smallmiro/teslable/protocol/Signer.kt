@@ -17,7 +17,6 @@ import io.github.smallmiro.teslable.port.EcdhPrivateKey
 import io.github.smallmiro.teslable.port.RandomSource
 import io.github.smallmiro.teslable.util.toHex
 import okio.ByteString.Companion.toByteString
-import okio.IOException
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeMark
@@ -378,12 +377,8 @@ public class Signer
                 )
             }
 
-            private fun decodeSessionInfo(encoded: ByteArray): SessionInfo? =
-                try {
-                    SessionInfo.ADAPTER.decode(encoded)
-                } catch (ignored: IOException) {
-                    null
-                }
+            @OptIn(InternalTeslableApi::class)
+            private fun decodeSessionInfo(encoded: ByteArray): SessionInfo? = SessionInfo.ADAPTER.decodeOrNull(encoded)
 
             /**
              * Go `NewSigner`: `copy(signer.epoch[:], info.Epoch)`를 새로 만든 (0으로 채워진) 배열에 적용한다 —
