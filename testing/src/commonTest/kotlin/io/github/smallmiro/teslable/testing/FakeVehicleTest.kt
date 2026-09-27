@@ -26,6 +26,7 @@ import okio.ByteString.Companion.toByteString
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
@@ -340,6 +341,8 @@ class FakeVehicleTest {
                     session_info_request = SessionInfoRequest(public_key = TestCrypto.clientPublicKey.toByteArray().toByteString()),
                 )
             assertFault(c.exchange(request), MessageFault_E.MESSAGEFAULT_ERROR_UNKNOWN_KEY_ID, expectSessionInfo = false)
+            assertFailsWith<IllegalArgumentException> { c.fake.corruptNextSessionInfoTag(domain, count = 0) }
+            assertFailsWith<IllegalArgumentException> { c.fake.corruptNextSessionInfoTag(domain, count = -1) }
             c.fake.corruptNextSessionInfoTag(domain)
             val corrupted = assertNotNull(c.exchange(request))
             val session = Session.establish(TestCrypto.clientKey(), TestCrypto.vehiclePublicKey, crypto)
