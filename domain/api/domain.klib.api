@@ -757,6 +757,12 @@ abstract interface io.github.smallmiro.teslable.port/EcdhPrivateKey { // io.gith
     abstract suspend fun sharedX(io.github.smallmiro.teslable.model/PublicKeyBytes): kotlin/ByteArray // io.github.smallmiro.teslable.port/EcdhPrivateKey.sharedX|sharedX(io.github.smallmiro.teslable.model.PublicKeyBytes){}[0]
 }
 
+abstract interface io.github.smallmiro.teslable.port/SessionCache { // io.github.smallmiro.teslable.port/SessionCache|null[0]
+    abstract suspend fun clear(io.github.smallmiro.teslable.model/Vin) // io.github.smallmiro.teslable.port/SessionCache.clear|clear(io.github.smallmiro.teslable.model.Vin){}[0]
+    abstract suspend fun load(io.github.smallmiro.teslable.model/Vin, io.github.smallmiro.teslable.model/KeyId): kotlin.collections/List<io.github.smallmiro.teslable.cache/CachedSession> // io.github.smallmiro.teslable.port/SessionCache.load|load(io.github.smallmiro.teslable.model.Vin;io.github.smallmiro.teslable.model.KeyId){}[0]
+    abstract suspend fun store(io.github.smallmiro.teslable.model/Vin, io.github.smallmiro.teslable.model/KeyId, kotlin.collections/List<io.github.smallmiro.teslable.cache/SessionSnapshot>) // io.github.smallmiro.teslable.port/SessionCache.store|store(io.github.smallmiro.teslable.model.Vin;io.github.smallmiro.teslable.model.KeyId;kotlin.collections.List<io.github.smallmiro.teslable.cache.SessionSnapshot>){}[0]
+}
+
 abstract interface io.github.smallmiro.teslable.port/Transport { // io.github.smallmiro.teslable.port/Transport|null[0]
     abstract val allowedLatency // io.github.smallmiro.teslable.port/Transport.allowedLatency|{}allowedLatency[0]
         abstract fun <get-allowedLatency>(): kotlin.time/Duration // io.github.smallmiro.teslable.port/Transport.allowedLatency.<get-allowedLatency>|<get-allowedLatency>(){}[0]
@@ -5681,6 +5687,42 @@ final class com.tesla.generated.vcsec/WhitelistOperation_status : com.squareup.w
     }
 }
 
+final class io.github.smallmiro.teslable.cache/CachedSession { // io.github.smallmiro.teslable.cache/CachedSession|null[0]
+    constructor <init>(com.tesla.generated.universalmessage/Domain, kotlin/ByteArray, kotlin.time/Duration) // io.github.smallmiro.teslable.cache/CachedSession.<init>|<init>(com.tesla.generated.universalmessage.Domain;kotlin.ByteArray;kotlin.time.Duration){}[0]
+
+    final val age // io.github.smallmiro.teslable.cache/CachedSession.age|{}age[0]
+        final fun <get-age>(): kotlin.time/Duration // io.github.smallmiro.teslable.cache/CachedSession.age.<get-age>|<get-age>(){}[0]
+    final val domain // io.github.smallmiro.teslable.cache/CachedSession.domain|{}domain[0]
+        final fun <get-domain>(): com.tesla.generated.universalmessage/Domain // io.github.smallmiro.teslable.cache/CachedSession.domain.<get-domain>|<get-domain>(){}[0]
+    final val sessionInfo // io.github.smallmiro.teslable.cache/CachedSession.sessionInfo|{}sessionInfo[0]
+        final fun <get-sessionInfo>(): kotlin/ByteArray // io.github.smallmiro.teslable.cache/CachedSession.sessionInfo.<get-sessionInfo>|<get-sessionInfo>(){}[0]
+}
+
+final class io.github.smallmiro.teslable.cache/SessionSnapshot { // io.github.smallmiro.teslable.cache/SessionSnapshot|null[0]
+    constructor <init>(com.tesla.generated.universalmessage/Domain, kotlin/ByteArray) // io.github.smallmiro.teslable.cache/SessionSnapshot.<init>|<init>(com.tesla.generated.universalmessage.Domain;kotlin.ByteArray){}[0]
+
+    final val domain // io.github.smallmiro.teslable.cache/SessionSnapshot.domain|{}domain[0]
+        final fun <get-domain>(): com.tesla.generated.universalmessage/Domain // io.github.smallmiro.teslable.cache/SessionSnapshot.domain.<get-domain>|<get-domain>(){}[0]
+    final val sessionInfo // io.github.smallmiro.teslable.cache/SessionSnapshot.sessionInfo|{}sessionInfo[0]
+        final fun <get-sessionInfo>(): kotlin/ByteArray // io.github.smallmiro.teslable.cache/SessionSnapshot.sessionInfo.<get-sessionInfo>|<get-sessionInfo>(){}[0]
+}
+
+final class io.github.smallmiro.teslable.model/KeyId { // io.github.smallmiro.teslable.model/KeyId|null[0]
+    constructor <init>(kotlin/ByteArray) // io.github.smallmiro.teslable.model/KeyId.<init>|<init>(kotlin.ByteArray){}[0]
+
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/KeyId.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/KeyId.hashCode|hashCode(){}[0]
+    final fun toByteArray(): kotlin/ByteArray // io.github.smallmiro.teslable.model/KeyId.toByteArray|toByteArray(){}[0]
+    final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/KeyId.toString|toString(){}[0]
+
+    final object Companion { // io.github.smallmiro.teslable.model/KeyId.Companion|null[0]
+        final const val SIZE // io.github.smallmiro.teslable.model/KeyId.Companion.SIZE|{}SIZE[0]
+            final fun <get-SIZE>(): kotlin/Int // io.github.smallmiro.teslable.model/KeyId.Companion.SIZE.<get-SIZE>|<get-SIZE>(){}[0]
+
+        final fun of(io.github.smallmiro.teslable.model/PublicKeyBytes, io.github.smallmiro.teslable.port/CryptoPrimitives): io.github.smallmiro.teslable.model/KeyId // io.github.smallmiro.teslable.model/KeyId.Companion.of|of(io.github.smallmiro.teslable.model.PublicKeyBytes;io.github.smallmiro.teslable.port.CryptoPrimitives){}[0]
+    }
+}
+
 final class io.github.smallmiro.teslable.model/PublicKeyBytes { // io.github.smallmiro.teslable.model/PublicKeyBytes|null[0]
     constructor <init>(kotlin/ByteArray) // io.github.smallmiro.teslable.model/PublicKeyBytes.<init>|<init>(kotlin.ByteArray){}[0]
 
@@ -5824,6 +5866,27 @@ final class io.github.smallmiro.teslable.transport/Reassembler { // io.github.sm
 
     final fun push(kotlin/ByteArray): kotlin.collections/List<kotlin/ByteArray> // io.github.smallmiro.teslable.transport/Reassembler.push|push(kotlin.ByteArray){}[0]
     final fun reset() // io.github.smallmiro.teslable.transport/Reassembler.reset|reset(){}[0]
+}
+
+final object io.github.smallmiro.teslable.cache/SessionCacheCodec { // io.github.smallmiro.teslable.cache/SessionCacheCodec|null[0]
+    final const val VERSION // io.github.smallmiro.teslable.cache/SessionCacheCodec.VERSION|{}VERSION[0]
+        final fun <get-VERSION>(): kotlin/Int // io.github.smallmiro.teslable.cache/SessionCacheCodec.VERSION.<get-VERSION>|<get-VERSION>(){}[0]
+
+    final fun decode(kotlin/ByteArray, io.github.smallmiro.teslable.model/KeyId): kotlin.collections/List<io.github.smallmiro.teslable.cache/SessionCacheCodec.Entry>? // io.github.smallmiro.teslable.cache/SessionCacheCodec.decode|decode(kotlin.ByteArray;io.github.smallmiro.teslable.model.KeyId){}[0]
+    final fun decodeSessions(kotlin/ByteArray, io.github.smallmiro.teslable.model/KeyId, kotlin/Long): kotlin.collections/List<io.github.smallmiro.teslable.cache/CachedSession>? // io.github.smallmiro.teslable.cache/SessionCacheCodec.decodeSessions|decodeSessions(kotlin.ByteArray;io.github.smallmiro.teslable.model.KeyId;kotlin.Long){}[0]
+    final fun encode(io.github.smallmiro.teslable.model/KeyId, kotlin.collections/List<io.github.smallmiro.teslable.cache/SessionCacheCodec.Entry>): kotlin/ByteArray // io.github.smallmiro.teslable.cache/SessionCacheCodec.encode|encode(io.github.smallmiro.teslable.model.KeyId;kotlin.collections.List<io.github.smallmiro.teslable.cache.SessionCacheCodec.Entry>){}[0]
+    final fun encodeSnapshots(io.github.smallmiro.teslable.model/KeyId, kotlin.collections/List<io.github.smallmiro.teslable.cache/SessionSnapshot>, kotlin/Long): kotlin/ByteArray // io.github.smallmiro.teslable.cache/SessionCacheCodec.encodeSnapshots|encodeSnapshots(io.github.smallmiro.teslable.model.KeyId;kotlin.collections.List<io.github.smallmiro.teslable.cache.SessionSnapshot>;kotlin.Long){}[0]
+
+    final class Entry { // io.github.smallmiro.teslable.cache/SessionCacheCodec.Entry|null[0]
+        constructor <init>(com.tesla.generated.universalmessage/Domain, kotlin/Long, kotlin/ByteArray) // io.github.smallmiro.teslable.cache/SessionCacheCodec.Entry.<init>|<init>(com.tesla.generated.universalmessage.Domain;kotlin.Long;kotlin.ByteArray){}[0]
+
+        final val createdAtEpochMillis // io.github.smallmiro.teslable.cache/SessionCacheCodec.Entry.createdAtEpochMillis|{}createdAtEpochMillis[0]
+            final fun <get-createdAtEpochMillis>(): kotlin/Long // io.github.smallmiro.teslable.cache/SessionCacheCodec.Entry.createdAtEpochMillis.<get-createdAtEpochMillis>|<get-createdAtEpochMillis>(){}[0]
+        final val domain // io.github.smallmiro.teslable.cache/SessionCacheCodec.Entry.domain|{}domain[0]
+            final fun <get-domain>(): com.tesla.generated.universalmessage/Domain // io.github.smallmiro.teslable.cache/SessionCacheCodec.Entry.domain.<get-domain>|<get-domain>(){}[0]
+        final val sessionInfo // io.github.smallmiro.teslable.cache/SessionCacheCodec.Entry.sessionInfo|{}sessionInfo[0]
+            final fun <get-sessionInfo>(): kotlin/ByteArray // io.github.smallmiro.teslable.cache/SessionCacheCodec.Entry.sessionInfo.<get-sessionInfo>|<get-sessionInfo>(){}[0]
+    }
 }
 
 final object io.github.smallmiro.teslable.protocol/CommandMetadata { // io.github.smallmiro.teslable.protocol/CommandMetadata|null[0]
