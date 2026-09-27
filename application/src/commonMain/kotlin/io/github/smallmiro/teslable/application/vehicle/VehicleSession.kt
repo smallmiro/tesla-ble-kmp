@@ -6,9 +6,8 @@ import io.github.smallmiro.teslable.application.cache.SessionCacheSync
 import io.github.smallmiro.teslable.application.dispatcher.Dispatcher
 import io.github.smallmiro.teslable.application.dispatcher.HandshakeFlow
 import io.github.smallmiro.teslable.application.dispatcher.retryWhileRetriable
-import io.github.smallmiro.teslable.model.VehicleError
+import io.github.smallmiro.teslable.application.dispatcher.withAttemptTimeout
 import io.github.smallmiro.teslable.model.VehicleResult
-import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration
 
 /**
@@ -38,18 +37,19 @@ public class VehicleSession(
 
     /**
      * Go `Vehicle.StartSession`: `shouldRetry()` 오류면 [retryInterval] 뒤 다시 핸드셰이크
-     * ([io.github.smallmiro.teslable.application.dispatcher.retryWhileRetriable]). 시간 초과는
-     * `Failure(Timeout(afterSend = false))`(세션이 만들어지지 않았고 부작용이 없다; 사용자 승인 답 b — 전용 타입 없음).
-     * 성공하면 세션 캐시에 저장한다(SDD §7.1).
+     * ([io.github.smallmiro.teslable.application.dispatcher.retryWhileRetriable]). [handshake]는 절대 `setAwaiting`을
+     * 부르지 않으므로 시간 초과는 항상 `Failure(Timeout(afterSend = false))`다
+     * ([io.github.smallmiro.teslable.application.dispatcher.withAttemptTimeout] — 세션이 만들어지지 않았고 부작용이
+     * 없다; 사용자 승인 답 b — 전용 타입 없음). 성공하면 세션 캐시에 저장한다(SDD §7.1).
      */
     public suspend fun startSession(
         domains: Set<Domain> = Dispatcher.ALL_DOMAINS,
         timeout: Duration = timeouts.handshakeTimeout,
     ): VehicleResult<Unit> {
         val result =
-            withTimeoutOrNull(timeout) {
+            withAttemptTimeout(timeout) {
                 retryWhileRetriable(dispatcher.retryInterval) { handshake.startSessions(domains) }
-            } ?: return VehicleResult.Failure(VehicleError.Timeout(afterSend = false))
+            }
         if (result is VehicleResult.Success) cacheSync?.store(dispatcher)
         return result
     }
