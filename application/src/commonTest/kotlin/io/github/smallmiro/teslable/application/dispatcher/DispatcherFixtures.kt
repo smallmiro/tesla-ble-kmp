@@ -34,15 +34,20 @@ internal class DispatcherHarness(
     val logger: RecordingLogger,
 )
 
-/** Go `getTestSetup` 앞부분(생성 + Start). 핸드셰이크는 `manualHandshake` 또는 Task 7 `HandshakeFlow`로. */
+/**
+ * Go `getTestSetup` 앞부분(생성 + Start). 핸드셰이크는 `manualHandshake` 또는 Task 7 `HandshakeFlow`로.
+ * [transport]는 기본으로 [fake]에 새 전송을 하나 붙이지만, 회복 시나리오(Task 11 시나리오 7)처럼 `fake.connect()`가
+ * 돌려준 전송을 그대로 재사용해야 할 때는 호출자가 넘긴다 — 그래야 "connect로 얻은 전송 위에서 세션이 동작한다"를
+ * 실제로 검증한다(연결과 핸드셰이크 사이에 별개의 전송을 몰래 새로 만들지 않는다).
+ */
 @OptIn(ExperimentalCoroutinesApi::class)
 internal fun TestScope.dispatcherHarness(
     privateKey: EcdhPrivateKey? = TestCrypto.clientKey(),
     fake: FakeVehicle = FakeVehicle(timeSource = testTimeSource),
     start: Boolean = true,
     retryInterval: Duration = 1.milliseconds,
+    transport: FakeTransport = fake.transport(retryInterval),
 ): DispatcherHarness {
-    val transport = fake.transport(retryInterval)
     val logger = RecordingLogger()
     val dispatcher = Dispatcher(transport, privateKey, TestCrypto.primitives, TestCrypto.random, backgroundScope, testTimeSource, logger)
     if (start) dispatcher.start()
