@@ -14,9 +14,12 @@ permissions:
 env:
   GRADLE_OPTS: -Dorg.gradle.daemon=false
 
+# runner 선택 (ADR-0012): 기본은 self-hosted(Docker 'tesla-docker', macOS 'tesla-macos').
+# 저장소 변수 CI_RUNNER=hosted 로 GitHub-hosted runner로 되돌린다.
+
 jobs:
   lint:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","tesla-docker"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -27,7 +30,7 @@ jobs:
       - run: ./gradlew lintKotlin detekt forbiddenTokens --console=plain
 
   jvm-test:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","tesla-docker"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -41,7 +44,7 @@ jobs:
         with: { name: jvm-test-reports, path: '**/build/reports/tests/**' }
 
   android:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","tesla-docker"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -66,24 +69,30 @@ jobs:
           echo "No INTERNET permission in the merged manifests"
 
   ios:
-    runs-on: macos-15
+    runs-on: ${{ vars.CI_RUNNER == 'hosted' && 'macos-15' || fromJSON('["self-hosted","macOS","tesla-macos"]') }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
         with: { distribution: temurin, java-version: '17' }
       - uses: gradle/actions/setup-gradle@v4
       - name: Select Xcode 26
+        # sudo xcode-select 대신 DEVELOPER_DIR 을 쓴다. self-hosted runner에서는 sudo 암호를 입력할 수 없다.
         run: |
           set -euo pipefail
-          XCODE_APP="$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1 || true)"
+          XCODE_APP=""
+          for app in $(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V -r) /Applications/Xcode.app; do
+            [ -d "$app" ] || continue
+            ver="$(DEVELOPER_DIR="$app/Contents/Developer" xcodebuild -version | awk 'NR==1 {print $2}')"
+            case "$ver" in 26|26.*) XCODE_APP="$app"; break ;; esac
+          done
           if [ -z "$XCODE_APP" ]; then
-            echo "No /Applications/Xcode_26*.app found on this runner image" >&2
+            echo "No Xcode 26 found under /Applications on this runner" >&2
             ls /Applications | grep -i Xcode >&2 || true
             exit 1
           fi
           echo "Selecting $XCODE_APP"
-          sudo xcode-select -s "$XCODE_APP"
-          xcodebuild -version
+          echo "DEVELOPER_DIR=$XCODE_APP/Contents/Developer" >> "$GITHUB_ENV"
+          DEVELOPER_DIR="$XCODE_APP/Contents/Developer" xcodebuild -version
       - run: ./gradlew iosSimulatorArm64Test apiCheck :sdk:linkDebugFrameworkIosSimulatorArm64 --console=plain
       - name: Teslable.framework must declare MinimumOSVersion 16.0 (NFR-009)
         run: |
@@ -95,17 +104,26 @@ jobs:
             echo "Expected MinimumOSVersion 16.0 in $plist, got '$min'" >&2
             exit 1
           fi
-      - run: brew install xcodegen
+      - name: Ensure xcodegen
+        # self-hosted(호스트 Mac)에는 미리 설치해 둔다. CI가 호스트에 brew install 하지 않는다.
+        run: |
+          if command -v xcodegen >/dev/null; then exit 0; fi
+          if [ "$RUNNER_ENVIRONMENT" = github-hosted ]; then brew install xcodegen; exit 0; fi
+          echo "xcodegen is not installed on this self-hosted runner (brew install xcodegen)" >&2
+          exit 1
       - run: cd samples/ios && xcodegen generate && xcodebuild -project TeslableSample.xcodeproj -scheme TeslableSample -destination 'generic/platform=iOS Simulator' -configuration Debug CODE_SIGNING_ALLOWED=NO build
+      - name: Clean workspace on self-hosted runner
+        if: always() && runner.environment == 'self-hosted'
+        run: git clean -ffdxq
 
   license:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","tesla-docker"]') }}
     steps:
       - uses: actions/checkout@v4
       - run: tools/ci/check-license.sh
 
   secrets:
-    runs-on: ubuntu-latest
+    runs-on: ${{ vars.CI_RUNNER == 'hosted' && 'ubuntu-latest' || fromJSON('["self-hosted","linux","tesla-docker"]') }}
     steps:
       - uses: actions/checkout@v4
       - run: tools/ci/scan-secrets.sh
