@@ -18,6 +18,7 @@ import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.FlowCollector
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
@@ -49,15 +50,18 @@ class DispatcherLifecycleTest {
     /**
      * 수신을 시작한 하네스지만 디스패처는 [GatedIncomingTransport]로 감싼 전송을 받는다: 수신 코루틴이 메시지를 하나 받으면
      * [gate]가 열릴 때까지 `process()` 앞에서(어떤 뮤텍스도 잡지 않은 채) 멈춘다. [DispatcherHarness.transport]는 감싸기 전의
-     * [FakeTransport]다.
+     * [FakeTransport]다. [deliverAfterCancel]은 [GatedIncomingTransport] 참고.
      */
-    private fun TestScope.gatedHarness(gate: CompletableDeferred<Unit>): DispatcherHarness {
+    private fun TestScope.gatedHarness(
+        gate: CompletableDeferred<Unit>,
+        deliverAfterCancel: Boolean = false,
+    ): DispatcherHarness {
         val fake = FakeVehicle(timeSource = testTimeSource)
         val transport = fake.transport()
         val logger = RecordingLogger()
         val dispatcher =
             Dispatcher(
-                GatedIncomingTransport(transport, gate),
+                GatedIncomingTransport(transport, gate, deliverAfterCancel),
                 TestCrypto.clientKey(),
                 TestCrypto.primitives,
                 TestCrypto.random,
@@ -230,11 +234,44 @@ class DispatcherLifecycleTest {
                 closeReturned = true
             }
             runCurrent()
-            val closeReturnedEarly = closeReturned
+            assertFalse(a.isCompleted) // the gate still holds A, so the check below is not vacuous
+            assertFalse(closeReturned, "close() returned while the original collector was still trying to deliver its message")
             gate.complete(Unit)
             runCurrent()
             pending.close()
-            assertFalse(closeReturnedEarly, "close() returned while the original collector was still trying to deliver its message")
+            assertTrue(closeReturned) // once A has finished, close() does return
+        }
+
+    @Test
+    fun noSessionKeysSurviveCloseWhenTheOriginalCollectorProcessesAHandshakeReplyLate() =
+        // Review round 4 (minor fold): the security-relevant symptom of the round 3 join-chain bug fixed in a846ed1.
+        // stop() -> start() -> close() while the original collector A holds a VCSEC session-info reply it has already
+        // received. With the old cancellable pre-subscribe join, close() returned — zeroizing every session — while A
+        // still held that reply; A then went on to process() it and re-derived VCSEC session keys *after* close() had
+        // returned, leaving live keys in a closed dispatcher. Now close() waits (through B's uncancellable join) until A
+        // is done, so A's late handshake lands first and close() zeroizes it. The gate uses deliverAfterCancel: the
+        // flow {} builder's emit would throw on the cancelled A and drop the reply, hiding the symptom. Adapted from the
+        // reviewer's scratch repro (ReviewReproTest2.reproSessionEstablishedAfterClose).
+        runTest {
+            val gate = CompletableDeferred<Unit>()
+            val h = gatedHarness(gate, deliverAfterCancel = true)
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.requestSessionInfo(vcsec)).value
+            runCurrent() // A holds the VCSEC session-info reply at the gate
+            launch { h.dispatcher.stop() } // cancels A, joins it
+            runCurrent()
+            h.dispatcher.start() // B: waits for A
+            var closeReturned = false
+            launch {
+                h.dispatcher.close()
+                closeReturned = true
+            }
+            runCurrent()
+            gate.complete(Unit) // the cancelled A now processes the reply it was holding
+            runCurrent()
+            pending.close()
+            assertTrue(h.logger.contains("Updated session info for DOMAIN_VEHICLE_SECURITY")) // A did derive keys, late
+            assertTrue(closeReturned)
+            assertNull(assertNotNull(h.dispatcher.session(vcsec)).export()) // ...and none survive close()
         }
 
     @Test
@@ -262,11 +299,15 @@ class DispatcherLifecycleTest {
             runCurrent()
             h.dispatcher.start() // C
             runCurrent()
-            val subscribedWhileAAlive = !a.isCompleted && h.logger.count("Starting dispatcher service...") == 2
+            // Two separate checks: combined into one boolean, the assertion would pass vacuously if the gate ever
+            // stopped holding A.
+            assertFalse(a.isCompleted) // the gate still holds A inside process()
+            assertEquals(1, h.logger.count("Starting dispatcher service...")) // no new collector subscribed while A is alive
             gate.complete(Unit)
             runCurrent()
             pending.close()
-            assertFalse(subscribedWhileAAlive, "a new collector subscribed while the original was still inside process()")
+            assertEquals(2, h.logger.count("Starting dispatcher service...")) // A finished; only then did C subscribe
+            assertTrue(h.dispatcher.isListening)
         }
 
     @Test
@@ -397,16 +438,32 @@ private class HookedEcdhKey(
  * [StuckEcdhKey]와 달리 `process()`에 들어가기도 전에(따라서 어떤 [SessionState] 뮤텍스도 잡지 않은 채) 수신
  * 코루틴을 멈춰 세운다 — `close()`가 세션을 지우려다 그 뮤텍스에서 우연히 막혀서(리뷰 라운드 3 N1 회귀와는
  * 무관하게) 이 시나리오를 가려 버리는 것을 피한다.
+ *
+ * 기본은 `flow {}` 빌더라, 게이트가 열렸을 때 수신 코루틴이 이미 취소됐으면 `emit`이 `CancellationException`을 던지고 그
+ * 항목은 버려진다. [deliverAfterCancel]이면 [Flow]를 직접 구현해 그 검사 없이 넘긴다 — 이미 손에 쥔 메시지(예: 조각을 다
+ * 모은 뒤)를 취소와 무관하게 넘기는 전송을 흉내 내어, 취소된 수신 코루틴이 그 메시지를 `process()`까지 가져가게 한다.
  */
 private class GatedIncomingTransport(
     private val delegate: Transport,
     private val gate: CompletableDeferred<Unit>,
+    deliverAfterCancel: Boolean = false,
 ) : Transport by delegate {
     override val incoming: Flow<ByteArray> =
-        flow {
-            delegate.incoming.collect { bytes ->
-                withContext(NonCancellable) { gate.await() }
-                emit(bytes)
+        if (deliverAfterCancel) {
+            object : Flow<ByteArray> {
+                override suspend fun collect(collector: FlowCollector<ByteArray>) {
+                    delegate.incoming.collect { bytes ->
+                        withContext(NonCancellable) { gate.await() }
+                        collector.emit(bytes)
+                    }
+                }
+            }
+        } else {
+            flow {
+                delegate.incoming.collect { bytes ->
+                    withContext(NonCancellable) { gate.await() }
+                    emit(bytes)
+                }
             }
         }
 }
