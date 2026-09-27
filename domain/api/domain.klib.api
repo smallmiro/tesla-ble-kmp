@@ -5846,3 +5846,4 @@ final fun (io.github.smallmiro.teslable.model/VehicleError).io.github.smallmiro.
 final fun (io.github.smallmiro.teslable.model/VehicleError).io.github.smallmiro.teslable.model/toResult(): io.github.smallmiro.teslable.model/VehicleResult<kotlin/Nothing> // io.github.smallmiro.teslable.model/toResult|toResult@io.github.smallmiro.teslable.model.VehicleError(){}[0]
 final fun (kotlin/ByteArray).io.github.smallmiro.teslable.util/toHex(): kotlin/String // io.github.smallmiro.teslable.util/toHex|toHex@kotlin.ByteArray(){}[0]
 final fun (kotlin/String).io.github.smallmiro.teslable.util/hexToBytes(): kotlin/ByteArray // io.github.smallmiro.teslable.util/hexToBytes|hexToBytes@kotlin.String(){}[0]
+final fun <#A: kotlin/Any> (com.squareup.wire/ProtoAdapter<#A>).io.github.smallmiro.teslable.protocol/decodeOrNull(kotlin/ByteArray): #A? // io.github.smallmiro.teslable.protocol/decodeOrNull|decodeOrNull@com.squareup.wire.ProtoAdapter<0:0>(kotlin.ByteArray){0§<kotlin.Any>}[0]

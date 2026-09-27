@@ -5135,6 +5135,10 @@ public final class io/github/smallmiro/teslable/protocol/SlidingWindow {
 public final class io/github/smallmiro/teslable/protocol/SlidingWindow$Companion {
 }
 
+public final class io/github/smallmiro/teslable/protocol/WireDecodingKt {
+	public static final fun decodeOrNull (Lcom/squareup/wire/ProtoAdapter;[B)Ljava/lang/Object;
+}
+
 public final class io/github/smallmiro/teslable/transport/Framer {
 	public static final field INSTANCE Lio/github/smallmiro/teslable/transport/Framer;
 	public static final field MAX_MESSAGE_SIZE I
