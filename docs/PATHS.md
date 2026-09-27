@@ -30,6 +30,7 @@
 | `REPO_URL` | `https://github.com/smallmiro/tesla-ble-kmp` | 공개 저장소 (Apache-2.0). 브랜치 `main` 보호 |
 | `PACKAGES_MAVEN_URL` | `https://maven.pkg.github.com/smallmiro/tesla-ble-kmp` | GitHub Packages Maven 레지스트리 (M6에서 첫 배포). 소비자는 `read:packages` 토큰 필요 |
 | `BASE_PACKAGE` | `io.github.smallmiro.teslable` | Kotlin 패키지 루트 (Phase 1 Q5-b에서 확정) |
+| `RUNNER_DIR` | `tools/runner/` | CI self-hosted runner 구성: Docker 이미지, 호스트 supervisor, macOS runner 설치 스크립트 (ADR-0012) |
 
 ## 규칙
 1. 문서와 지침에서는 `{{MANUAL_DIR}}` 처럼 **키로 참조**합니다. 링크가 꼭 필요하면 이 파일로 링크합니다.
