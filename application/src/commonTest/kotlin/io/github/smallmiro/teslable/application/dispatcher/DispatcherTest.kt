@@ -367,11 +367,15 @@ class DispatcherTest {
 
     @Test
     fun requestSessionInfoWithoutKeyReturnsRequiresKey() =
-        // dispatcher_test.go TestRequestSessionWithoutKey
+        // dispatcher_test.go TestRequestSessionWithoutKey. Review round 2, Minor N3 (M6 regression
+        // coverage): dispatcher.go RequestSessionInfo logs unconditionally before checking
+        // d.privateKey == nil (dispatcher.go:483-486); assert the log happens even when the key check
+        // then fails the call.
         runTest {
             val h = dispatcherHarness(privateKey = null)
             assertEquals(VehicleError.RequiresKey, assertIs<VehicleResult.Failure>(h.dispatcher.requestSessionInfo(infotainment)).error)
             assertNull(h.dispatcher.session(infotainment))
+            assertTrue(h.logger.contains("Requesting session info from DOMAIN_INFOTAINMENT"))
         }
 
     @Test
