@@ -6,6 +6,8 @@ adapter-crypto/src/iosMain/kotlin/io/github/smallmiro/teslable/crypto/AppleCrypt
 adapter-crypto/src/iosMain/kotlin/io/github/smallmiro/teslable/crypto/AppleSoftwareEcdhKey.kt
 adapter-crypto/src/jvmCommonMain/kotlin/io/github/smallmiro/teslable/crypto/JcaCryptoPrimitives.kt
 adapter-crypto/src/jvmCommonMain/kotlin/io/github/smallmiro/teslable/crypto/JcaSoftwareEcdhKey.kt
+application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/PendingRequest.kt
+application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/SessionState.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/model/VehicleError.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/CryptoPrimitives.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/EcdhPrivateKey.kt
