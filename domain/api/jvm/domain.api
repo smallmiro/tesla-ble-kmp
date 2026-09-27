@@ -5203,6 +5203,10 @@ public final class io/github/smallmiro/teslable/protocol/SlidingWindow {
 public final class io/github/smallmiro/teslable/protocol/SlidingWindow$Companion {
 }
 
+public final class io/github/smallmiro/teslable/protocol/UnknownFieldsKt {
+	public static final fun unknownVarint (Lokio/ByteString;I)Ljava/lang/Integer;
+}
+
 public final class io/github/smallmiro/teslable/protocol/WireDecodingKt {
 	public static final fun decodeOrNull (Lcom/squareup/wire/ProtoAdapter;[B)Ljava/lang/Object;
 }
