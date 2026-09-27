@@ -154,7 +154,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | FR-016 | 응답 복호화: AAD = SHA256(TLV{SIG_TYPE=9, DOMAIN, VIN, COUNTER, FLAGS(항상), REQUEST_HASH, FAULT}). `REQUEST_HASH = sigType(1B) ‖ 요청 tag`. 응답 counter는 요청별 슬라이딩 윈도우(32)로 재사용 검사, 실패 시 드롭 | P0 | 둘 다 | `Signer.Decrypt`, `responseMetadata`, `RequestID`, `SlidingWindow` | `03-protocol §9.2`, `10-porting-guide §7`, `00-agent-guide §3.1-3,10` |
 | FR-017 | 세션 캐시: 도메인별 `SessionInfo{counter, vehiclePublicKey, epoch, clock_time}`와 저장 시각을 `SessionCache` 포트에 저장·복원. 복원 세션은 즉시 사용하고 첫 실패 시 FR-018로 복구. 세션 키 K는 저장하지 않음 | P0 | 둘 다 | `pkg/cache`, `CacheEntry`, `Export/ImportSessionInfo` | `10-porting-guide §9`, `01-architecture §6` |
 | FR-018 | 세션 복구: 오류 응답에 동봉된 session_info로 FR-014 규칙에 따라 갱신하고 재시도. counter는 내리지 않음(Go 동작) | P0 | 둘 다 | `checkForSessionUpdate`, `processHello` | `08-errors §5`, `03-protocol §9.4` |
-| FR-019 | 시계: `timeZero = now - clock_time`, `expiresAt = (now + lifetime) - timeZero`. `Clock` 포트로 주입 가능 | P0 | 둘 다 | `session.go` | `10-porting-guide §5~§6`, `{{WORKFLOW_FILE}}` §2.4 |
+| FR-019 | 시계: `timeZero = now - clock_time`, `expiresAt = (now + lifetime) - timeZero`. `kotlin.time.TimeSource` 주입 가능 | P0 | 둘 다 | `session.go` | `10-porting-guide §5~§6`, `{{WORKFLOW_FILE}}` §2.4 |
 
 ### 5.3 키 관리
 
@@ -301,7 +301,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 |---|---|---|---|
 | NFR-001 | **TDD**: 모든 동작은 실패 테스트로 시작. `protocol.md` 테스트 벡터 전부(키 유도, 세션정보 키, TLV, HMAC 태그, GCM, 광고 이름)를 commonTest로 옮김. Go 클라이언트 측 `*_test.go` 케이스 포팅. **GCM 벡터는 protocol.md 원문(FLAGS=2 포함, 태그 `c228e0ff…`)을 정본으로 하고, PoC의 flags=0 케이스는 FLAGS 생략 규칙 검증용으로 유지** | `jvmTest`, `iosSimulatorArm64Test` | `10-porting-guide §0.3`, `03-protocol §6`, `{{HANDOFF_DIR}}2026-09-26-phase0-setup.md` |
 | NFR-002 | **골든 테스트**: `tesla-control -ble -debug`로 수집한 TX/RX 헥사(VIN 마스킹)를 픽스처로 인코딩·디코딩 검증. 랜덤 필드(uuid, routing_address, nonce)는 주입해 고정 | commonTest | `10-porting-guide §11`, `08-errors §9.2` |
-| NFR-003 | **FakeVehicle**: `verifier.go`, `dispatcher_test.go`를 참고해 차량 측 핸드셰이크·응답을 결정적으로 재현. 시나리오: VCSEC 다중 응답(WAIT→최종), 응답 유실, epoch 변경, clock 역행, 잘못된 HMAC, 재전송 응답, 슬롯 초과. 시간은 `Clock` 포트로 주입, 실제 sleep 없음 | commonTest | `09-recipes R15`, `{{WORKFLOW_FILE}}` §2.4 |
+| NFR-003 | **FakeVehicle**: `verifier.go`, `dispatcher_test.go`를 참고해 차량 측 핸드셰이크·응답을 결정적으로 재현. 시나리오: VCSEC 다중 응답(WAIT→최종), 응답 유실, epoch 변경, clock 역행, 잘못된 HMAC, 재전송 응답, 슬롯 초과. 시간은 `kotlin.time.TimeSource` 주입, 실제 sleep 없음 | commonTest | `09-recipes R15`, `{{WORKFLOW_FILE}}` §2.4 |
 | NFR-004 | **키 보안**: 개인키는 하드웨어 우선 생성, 내보내기 API 없음(D10). 세션 키는 메모리에만. 캐시에는 세션정보만 | 코드 리뷰, 테스트 | `10-porting-guide §12`, `00-agent-guide §3.3-21` |
 | NFR-005 | **암호 원시연산은 플랫폼 제공만** (JCA/Keystore, Security.framework/CommonCrypto 또는 ADR로 정한 GCM 공급자). 자체 구현 금지. HMAC 비교는 상수 시간 | 코드 리뷰 | `00-agent-guide §3.1-4` |
 | NFR-006 | **로그**: FR-112. 릴리스 빌드 기본 로거는 no-op | 테스트 | `08-errors §9.1` |

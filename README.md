@@ -14,9 +14,9 @@ Tesla 공식 Go SDK [`teslamotors/vehicle-command`](https://github.com/teslamoto
 | Phase 0 준비 | 완료 (2026-09-26) |
 | Phase 1 PRD | 승인 (2026-09-26) |
 | Phase 2 SDD / Phase 3 계획 | 완료 (2026-09-26) |
-| 구현 (M0~M6) | M0 · M1 완료 (2026-09-27) · M2 진행 예정 |
+| 구현 (M0~M6) | M0 · M1 · M2 완료 (2026-09-27) · M3 진행 예정 |
 
-M0 골격이 `main`에 있습니다 — 라이브러리 모듈 7개 + 샘플 앱 2개, 프로토콜 코어(TLV, 세션 키, AES-GCM, 프레이밍)가 `protocol.md` 테스트 벡터를 JVM과 iOS 시뮬레이터에서 통과합니다. 원본 PoC는 참고용으로 [`reference/poc/`](reference/poc/)에 남아 있습니다. BLE 연결과 명령 API는 M2~M5에서 추가됩니다.
+M0 골격이 `main`에 있습니다 — 라이브러리 모듈 7개 + 샘플 앱 2개, 프로토콜 코어(TLV, 세션 키, AES-GCM, 프레이밍)가 `protocol.md` 테스트 벡터를 JVM과 iOS 시뮬레이터에서 통과합니다. 원본 PoC는 참고용으로 [`reference/poc/`](reference/poc/)에 남아 있습니다. M2로 디스패처·세션 계층(`:application`)과 `FakeVehicle`이 들어왔고, Go `dispatcher_test`/`vehicle_test`/`vcsec_test` 포팅본과 시나리오 7종이 JVM·iOS 시뮬레이터에서 통과합니다. BLE 연결(M3)과 명령 API(M4~M5)는 아직입니다.
 
 ## 문서
 

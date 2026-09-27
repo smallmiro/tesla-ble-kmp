@@ -8,10 +8,10 @@
 | [pairing.md](pairing.md) | 키 생성·보관, add-key-request, 역할, 키 삭제 | M4 |
 | [reading-state.md](reading-state.md) | 조회 API, 깨우기 정책 | M3, M5 |
 | [commands.md](commands.md) | 제어 API 전체 표 | M4, M5 |
-| [errors.md](errors.md) | 성공/실패/불확실, 에러 코드, 재시도 | M1 초안 · M2, M5 |
+| [errors.md](errors.md) | 성공/실패/불확실, 에러 코드, 재시도 | M1 초안 · M2 재시도 절 · M5 |
 | [platform-notes.md](platform-notes.md) | iOS/Android 제약, 백그라운드, 세션 캐시 위치 | M3 |
 | [troubleshooting.md](troubleshooting.md) | 슬롯 초과, 세션 오류, 디버그 로그 | M5 |
-| [architecture.md](architecture.md) | 기여자용 설계 요약 | M2, M6 |
+| [architecture.md](architecture.md) | 기여자용 설계 요약 | M2 초안 · M6 |
 
 ## 지원 플랫폼
 

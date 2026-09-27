@@ -81,16 +81,17 @@ Go SDK의 BLE 경로(`pkg/connector/ble` → `internal/dispatcher` → `internal
 | `internal/authentication/signer.go`, `peer.go` | 359 | `:domain` `protocol/Signer.kt`, `protocol/RequestHash.kt` | `Encrypt`, `Decrypt`, `UpdateSessionInfo`, `ExportSessionInfo`, `extractMetadata`, `responseMetadata`, `RequestID`. HMAC 인가(`AuthorizeHMAC`)는 포팅하지 않음(D6) |
 | `internal/authentication/window.go` | 68 | `:domain` `protocol/SlidingWindow.kt` | PoC 이관 |
 | `internal/authentication/crypto.go`, `error.go` | 134 | `:domain` `protocol/Constants.kt`, `VehicleError.kt` | 라벨, 길이, `epochLength`, `MessageFault` 오류 |
-| `internal/dispatcher/dispatcher.go`, `session.go`, `receiver.go` | 729 | `:application` `dispatcher/Dispatcher.kt`, `SessionState.kt`, `PendingRequest.kt` | goroutine → 코루틴, `chan` → `Channel(10)`, `readySignal` → `CompletableDeferred` |
-| `pkg/connector/connector.go` | 72 | `:domain` `port/Transport.kt` | `Receive()` → `Flow<ByteArray>`, `Send` → `suspend`, `AuthMethod`는 GCM만 |
+| `internal/dispatcher/dispatcher.go`, `session.go`, `receiver.go` | 729 | `:application` `dispatcher/Dispatcher.kt`, `SessionState.kt`, `PendingRequest.kt`, `HandshakeFlow.kt` | goroutine → 코루틴, `chan` → `Channel(10)`, `readySignal` → `CompletableDeferred` |
+| `pkg/connector/connector.go` | 72 | `:domain` `port/Transport.kt` | `send`는 `VehicleResult<Unit>`(값), `AuthMethod`는 NONE/GCM |
 | `pkg/connector/ble/ble.go` | 360 | `:domain` `transport/Framer.kt`, `Reassembler.kt`, `LocalName.kt` + `:adapter-ble` `KableTransport.kt`, `KableScanner.kt` | 프레이밍·재조립·이름은 순수 Kotlin(PoC), GATT는 Kable |
 | `pkg/protocol/error.go` | 267 | `:domain` `ResponseClassifier.kt`(`GetError` → `protocolError`), `VehicleError.kt`(`MayHaveSucceeded`/`Temporary` → `mayHaveSucceeded`/`temporary` 프로퍼티, `ShouldRetry` → `shouldRetry()` 확장) | `GetError`, `ShouldRetry`, `MayHaveSucceeded`, `Temporary` |
 | `pkg/protocol/key.go` | 173 | `:domain` `port/EcdhPrivateKey.kt`, `PublicKey.kt` | 파일 로딩은 포팅하지 않음. 65바이트 검증만 |
-| `pkg/vehicle/vehicle.go` | 275 | `:application` `vehicle/VehicleSession.kt`, `SendWithRetry.kt` | `Send`, `trySend`, `StartSession`, `SessionInfo`, `Wakeup` |
-| `pkg/vehicle/vcsec.go`, `security.go`(VCSEC 부분), `state.go`(`BodyControllerState`) | ~450 | `:application` `vcsec/VcsecCommands.kt`, `vcsec/VcsecResponses.kt`, `keys/KeyManagement.kt`, `pairing/Pairing.kt` | `unmarshalVCSECResponse`, `readUntil`, 종료 판정, `addKeyPayload`, `SendAddKeyRequestWithRole` |
-| `pkg/vehicle/infotainment.go`, `climate.go`, `charge.go`, `actions.go`, `security.go`(INFO 부분), `state.go`(`GetState`) | ~1,200 | `:application` `infotainment/*.kt` (영역별 파일) | `getCarServerResponse`, 명령별 `Action` 조립 |
-| `pkg/cache/cache.go`, `session.go` `CacheEntry` | 113+ | `:domain` `port/SessionCache.kt`, `cache/CachedSession.kt` + `:adapter-storage` | 포맷은 자체(D26) |
+| `pkg/vehicle/vehicle.go` | 275 | `:application` `vehicle/VehicleSession.kt`, `SendWithRetry.kt`, `CommandTimeouts.kt` | `Send`, `trySend`, `StartSession`, `SessionInfo`, `Wakeup` |
+| `pkg/vehicle/vcsec.go`, `security.go`(VCSEC 부분), `state.go`(`BodyControllerState`) | ~450 | `:application` `vcsec/VcsecResponses.kt`, `VcsecCommands.kt`(M2: `unmarshalVCSECResponse`, `readUntil`, `getVCSECResult`; 명령 빌더는 M4), `keys/KeyManagement.kt`, `pairing/Pairing.kt` | `unmarshalVCSECResponse`, `readUntil`, 종료 판정, `addKeyPayload`, `SendAddKeyRequestWithRole` |
+| `pkg/vehicle/infotainment.go`, `climate.go`, `charge.go`, `actions.go`, `security.go`(INFO 부분), `state.go`(`GetState`) | ~1,200 | `:application` `infotainment/InfotainmentResponses.kt`, `InfotainmentCommands.kt`(M2: `getCarServerResponse`) (그 밖의 영역별 파일은 M4~M5) | `getCarServerResponse`, 명령별 `Action` 조립 |
+| `pkg/cache/cache.go`, `session.go` `CacheEntry` | 113+ | `:domain` `port/SessionCache.kt`, `cache/CachedSession.kt`, `cache/SessionCacheCodec.kt` + `:adapter-storage` `storage/InMemorySessionCache.kt` + `:application` `cache/SessionCacheSync.kt` | 포맷은 자체(D26) |
 | `internal/authentication/verifier.go` | 328 | `:testing` `TestVerifier.kt`(M1, GCM 경로만), `FakeVehicle.kt`(M2, 도메인마다 `TestVerifier` 하나를 감싼다) | 차량 측 검증·응답 암호화 재현 |
+| `internal/log` | – | `:domain` `port/TeslaLogger.kt` | Go `internal/log`(Error/Warning/Info/Debug) → `LogLevel`, `TeslaLogger` 함수형 인터페이스, 기본 `NoOp` |
 | `pkg/protocol/protobuf/*.proto` | 1,930 | `:domain` `src/commonMain/proto/` (복사본, 무수정) | Wire 입력. 파일 헤더에 출처 커밋 표기 |
 
 ---
@@ -165,13 +166,18 @@ public sealed interface VehicleError {                   // §6 전체 계층
 **포트**
 
 ```kotlin
+public enum class AuthMethod { NONE, GCM }                // connector.AuthMethod (HMAC 인가는 없음, D6)
+public sealed interface TransportState {                  // Connected / Disconnected(reason)
+    public data object Connected : TransportState
+    public data class Disconnected(val reason: VehicleError.TransportError?) : TransportState
+}
 public interface Transport {                              // connector.Connector
     public val vin: Vin
     public val incoming: Flow<ByteArray>                  // 재조립된 메시지 단위
     public val state: StateFlow<TransportState>           // Connected / Disconnected(reason)
     public val retryInterval: Duration                    // BLE 1s
     public val allowedLatency: Duration                   // BLE 4s
-    public suspend fun send(message: ByteArray)           // 프레이밍·분할 포함. 실패는 TransportException(temporary?)
+    public suspend fun send(message: ByteArray): VehicleResult<Unit>  // 값으로(ADR-0006). Uncertain = 차량이 받았을 수 있음
     public suspend fun close()                            // 멱등
 }
 public interface TransportFactory {
@@ -183,29 +189,53 @@ public interface VehicleKey : EcdhPrivateKey { public val alias: String; public 
 public interface VehicleKeyStore { suspend fun getOrCreate(alias, policy: KeyPolicy = PreferHardware): VehicleKey; suspend fun get(alias): VehicleKey?; suspend fun delete(alias) }
 public interface CryptoPrimitives { fun sha1(d); fun sha256(d); fun hmacSha256(key, d); fun aesGcmEncrypt(key, nonce, plaintext, aad): AesGcmOutput; fun aesGcmDecrypt(...): ByteArray?; fun constantTimeEquals(a, b): Boolean }
 public interface RandomSource { fun nextBytes(n: Int): ByteArray }
-// 시계: kotlin.time.TimeSource를 주입한다(Reassembler, Signer, TestVerifier). 벽시계는 세션 캐시(M2 :adapter-storage)의
+// 시계: kotlin.time.TimeSource를 주입한다(Reassembler, Signer, TestVerifier). 벽시계는 세션 캐시(:adapter-storage)의
 // createdAt에서만 쓰고 age: Duration으로 변환해 넘긴다. age가 음수면(벽시계가 뒤로 감 — Go에서는 timeZero가 더 나중이 된다) Signer.importSessionInfo가
 // 0으로 본다(런타임 조건이므로 예외 없음, ADR-0006).
-public interface SessionCache { suspend fun load(vin: Vin, keyId: KeyId): List<CachedSession>; suspend fun store(vin, keyId, entries); suspend fun clear(vin) }
-public interface TeslaLogger { fun log(level: LogLevel, tag: String, message: () -> String) }   // 기본 NoOp
+public class KeyId(bytes: ByteArray /* 20 */) {           // SHA1(공개키 65B) = 세션 캐시 소유자(D26)
+    public companion object { public fun of(publicKey: PublicKeyBytes, crypto: CryptoPrimitives): KeyId }
+}
+public class SessionSnapshot(public val domain: Domain, sessionInfo: ByteArray)                   // 내보내기(저장 시각 없음). Go session.export()
+public class CachedSession(public val domain: Domain, sessionInfo: ByteArray, public val age: Duration)  // 불러오기(age = now − createdAt, 음수 가능)
+public object SessionCacheCodec {                          // 세션 캐시 바이너리 형식 v1(§7.1). :domain 순수 Kotlin, Go JSON과 호환 없음(D26)
+    public const val VERSION: Int = 1
+    public fun encode(keyId: KeyId, entries: List<Entry>): ByteArray
+    public fun decode(bytes: ByteArray, expectedKeyId: KeyId): List<Entry>?   // 매직·버전·keyId 불일치·잘림·꼬리 바이트면 null
+}
+public interface SessionCache {                             // pkg/cache (자체 형식 v1, D26)
+    public suspend fun load(vin: Vin, keyId: KeyId): List<CachedSession>
+    public suspend fun store(vin: Vin, keyId: KeyId, entries: List<SessionSnapshot>)
+    public suspend fun clear(vin: Vin)
+}
+public enum class LogLevel { DEBUG, INFO, WARN, ERROR }     // Go internal/log의 Error/Warning/Info/Debug
+public fun interface TeslaLogger {                           // 기본 NoOp
+    public fun log(level: LogLevel, tag: String, message: () -> String)
+    public companion object { public val NoOp: TeslaLogger }
+}
 ```
 
 `CryptoPrimitives`의 `aesGcmEncrypt`는 nonce를 **인자로 받는다**(테스트 벡터 고정용). 운영 코드는 항상 `RandomSource`에서 12바이트를 새로 뽑아 넘긴다. 이 설계는 Go `NativeSession.Encrypt`(내부에서 nonce 생성)와 다르지만 결과 바이트는 같다(ADR-0008에 기록).
+
+`domain/protocol/UnknownFields.kt`의 `ByteString.unknownVarint(tag)`는 `@InternalTeslableApi`로 공개되어 `:application`(`VcsecResponses`)이 Wire `unknownFields`에서 등록되지 않은 varint 값(예: `whitelistOperationInformation`의 새 코드)을 되찾는 데 쓴다. 같은 `@InternalTeslableApi`로 공개된 `ProtoAdapter<M>.decodeOrNull(bytes)`(`WireDecoding.kt`)는 `IOException`뿐 아니라 Wire가 손상된 입력에 던지는 `IllegalStateException`·`IllegalArgumentException`도 잡아 `null`(값)로 돌려주며, `Dispatcher.process`·`VcsecResponses.interpret`·`InfotainmentResponses.interpret`가 모두 이 함수로 응답 바이트를 디코딩한다.
 
 ### 2.2 `:application` — 유스케이스
 
 | 구성 요소 | 책임 | Go 대응 |
 |---|---|---|
-| `Dispatcher` | `Transport.incoming`을 단일 코루틴에서 소비해 `RoutableMessage`로 파싱 → `PendingRequest` 매칭 → 세션정보 갱신 → 복호화 → 핸들러 채널 전달. 요청 조립(`uuid`, `routing_address`, `flags`), 인가, 전송 재시도 | `dispatcher.go` `listen`, `process`, `Send`, `checkForSessionUpdate`, `decrypt` |
-| `SessionState` (도메인별) | `Signer` 보유, `ready: CompletableDeferred<Unit>`, `Mutex`. `processHello`, `authorize`, `export` | `session.go` |
-| `PendingRequest` | `(address, uuid?, domain)` 키, `Channel<RoutableMessage>(10)`, `requestSentAt`, `SlidingWindow`, `requestHash` | `receiver.go` |
-| `HandshakeFlow` | `startSession(domains)`: 도메인마다 병렬 코루틴, 1초 간격 재전송, `ready` 대기. 캐시 복원 세션은 즉시 ready | `StartSession`, `tryStartSession`, `StartSessions` |
-| `SendWithRetry` | `ShouldRetry`면 `retryInterval` 후 재인가·재전송. 응답 대기 중 타임아웃 → `Uncertain`(D29) | `vehicle.go` `Send`, `trySend` |
-| `VcsecCommands` | `UnsignedMessage` 조립, **VCSEC `Mutex`로 직렬화**, `readUntil(done)` 종료 판정 3종, `WAIT` 재시도 | `vcsec.go` |
-| `InfotainmentCommands` | `CarServer.Action` 조립, 단일 응답, `actionStatus` 해석. 영역별 파일: `ClimateCommands`, `ChargingCommands`, `BodyCommands`, `MediaCommands`, `SecurityCommands`, `StateQueries` | `infotainment.go`, `climate.go`, `charge.go`, `actions.go`, `security.go`, `state.go` |
-| `KeyManagement` | `keySummary`, `keyInfoBySlot`, `listKeys`(슬롯 순회), `addKey`, `removeKey`, `sessionInfo(publicKey, domain)` | `security.go`, `vehicle.go` `SessionInfo` |
-| `Pairing` | `ToVCSECMessage{PRESENT_KEY}` 직접 전송(RoutableMessage 아님) + 원시 프레임 구독으로 `FromVCSECMessage.commandStatus` 진행 상태 방출(D28) | `SendAddKeyRequestWithRole` + 확장 |
-| `SessionCacheSync` | 세션 준비·갱신 시 `SessionCache.store`, `Vehicle` 생성 시 `load` | `Cache`, `LoadCache`, `UpdateCachedSessions` |
+| `Dispatcher` | `Transport.incoming`을 단일 수신 코루틴에서 소비해 `RoutableMessage`로 파싱 → `PendingRequest` 매칭 → 세션정보 갱신 → 복호화 → 핸들러 채널 전달. `start`/`stop`/`close`로 수신 코루틴 생애주기 관리, `send`(인가+전송+재시도)·`requestSessionInfo`·`exportSessions`·`loadSessions`, `maxLatency` | `dispatcher.go` `New`, `Start`, `Stop`, `Send`, `RequestSessionInfo`, `Cache`, `LoadCache`, `listen`, `process`, `checkForSessionUpdate`, `decrypt` |
+| `SessionState` (도메인별) | `Signer` 보유. `Mutex`(임계 구역은 `Signer` 호출뿐) + `CompletableDeferred<Unit>`(`ready`). `processHello`(첫 호출은 `Signer.createAuthenticated`)·`authorize`·`decrypt`·`export`·`loadFromCache` | `session.go` |
+| `PendingRequest` | `(address, uuid?, domain)` 키, `Channel<RoutableMessage>(10)`, `SlidingWindow`(`antiReplay`), `requestHash`. `close()`는 suspend하지 않고 플래그 + 채널 닫기만(취소 중에도 안전); 맵에서 지우는 것은 `Dispatcher`가 `register`/`lookup` 때 지연 수행 | `receiver.go` |
+| `HandshakeFlow` | `startSession(domain)`: 세션 준비(`ready`)·응답·재전송 간격(`select`) 중 먼저 오는 것을 처리, 캐시 복원 세션은 즉시 성공. `startSessions(domains)`: 도메인마다 병렬, 첫 실패에 나머지 취소 | `StartSession`, `tryStartSession`, `StartSessions` |
+| `SendWithRetry` | 응답 하나를 기다리는 명령(Infotainment, 세션정보 등). `shouldRetry()` 오류면 `retryInterval` 후 새 counter·nonce로 재인가해 재전송. 시간 초과는 응답 대기 중이면 `Uncertain(Timeout(afterSend=true))`, 그 전이면 `Failure(Timeout(afterSend=false))`(D29) | `vehicle.go` `Send`, `trySend` |
+| `VcsecCommands` | 페이로드를 VCSEC로 보내고 `VcsecResponses.readUntil`로 종료까지 읽는다. 한 연결의 VCSEC 명령은 인스턴스 안 `Mutex`로 직렬화(FR-049) — 생성자가 `internal`이라 `VehicleSession`이 연결마다 정확히 하나만 만든다 | `vcsec.go` `getVCSECResult` |
+| `VcsecResponses` | `interpret`(Go `unmarshalVCSECResponse`): 프로토콜 오류 → payload 종류 → 파싱 → `nominalError` → `commandStatus` 순 해석. `readUntil`(Go `readUntil`). `TerminalTest` 3종: `FIRST_MESSAGE`, `COMMAND_STATUS_ABSENT`, `WHITELIST_OPERATION_COMPLETE` | `vcsec.go` `unmarshalVCSECResponse`, `readUntil`, `isWhitelistOperationComplete` |
+| `InfotainmentCommands` | `Action`을 Infotainment에 GCM으로 보내고 단일 응답을 `InfotainmentResponses.interpret`로 해석. M5가 명령별 빌더를 더한다 | `infotainment.go` `executeCarServerAction` |
+| `InfotainmentResponses` | `interpret`(Go `getCarServerResponse`): 파싱 실패 → `BadResponse(mayHaveSucceeded=true)`; `actionStatus.result == ERROR` → `InfotainmentRejected`; 그 외(모르는 값 포함)는 성공 | `infotainment.go` `getCarServerResponse` |
+| `SessionCacheSync` | `load(dispatcher)`: `SessionCache.load` → `Dispatcher.loadSessions`. `store(dispatcher)`: `Dispatcher.exportSessions` → `SessionCache.store`(세션이 없으면 빈 목록도 저장). 저장 시점은 핸드셰이크 완료·`disconnect()`뿐이다(§3.4/§7.1) — 세션정보 갱신 시 저장은 M3 파사드가 연결한다 | `NewVehicle`(캐시 로드), `UpdateCachedSessions` |
+| `VehicleSession` | `connect()`(캐시 복원 + 수신 시작), `startSession(domains, timeout)`(재시도 + 성공 시 캐시 저장), `disconnect()`(캐시 저장 1회 + `Dispatcher.close`). `handshake`/`send`/`vcsec`/`infotainment`를 조립해 들고 있다 | `vehicle.go` `NewVehicle`, `Connect`, `StartSession`, `Disconnect` |
+| `CommandTimeouts` | `commandTimeout`(5s)·`commandLifetime`(5s, `expires_at`)·`handshakeTimeout`(20s). M3 `TeslaBleConfig`가 채운다 | `tesla-control` 플래그 기본값 |
+| `KeyManagement`(M4) | `keySummary`, `keyInfoBySlot`, `listKeys`(슬롯 순회), `addKey`, `removeKey`, `sessionInfo(publicKey, domain)` | `security.go`, `vehicle.go` `SessionInfo` |
+| `Pairing`(M4) | `ToVCSECMessage{PRESENT_KEY}` 직접 전송(RoutableMessage 아님) + 원시 프레임 구독으로 `FromVCSECMessage.commandStatus` 진행 상태 방출(D28) | `SendAddKeyRequestWithRole` + 확장 |
 
 ### 2.3 `:sdk` — 공개 파사드
 
@@ -318,58 +348,64 @@ App ─ connect(vin, key) ──▶ TransportFactory.connect
 ### 3.2 핸드셰이크 (FR-012~014)
 
 ```
-Vehicle.startSession({VCSEC, INFOTAINMENT})
-  for each domain (병렬 coroutineScope):
-    SessionState 없으면 생성; 캐시로 ready면 즉시 반환
-    loop:
-      req = RoutableMessage(to=domain, session_info_request{public_key}, uuid=rand16, from=address)   // VCSEC는 address도 rand16
-      pending = dispatcher.register(key(address, uuid|0, domain), requestHash=null)
-      transport.send(req)
-      select {  ready.await()                         → return
-                pending.channel.receive()             → ResponseClassifier.protocolError → Failure 또는 계속 대기(ready 기다림)
-                delay(retryInterval)                  → 재전송 }
+Vehicle.startSession({VCSEC, INFOTAINMENT})              // VehicleSession.startSession → HandshakeFlow.startSessions
+  for each domain (병렬 async, HandshakeFlow.startSessions):
+    HandshakeFlow.startSession(domain):
+      dispatcher.session(domain) 없으면 RequiresKey; 캐시로 ready면 즉시 성공
+      loop (tryStartSession):
+        pending = dispatcher.requestSessionInfo(domain)   // AuthMethod.NONE. 내부에서 dispatcher.send가 register + transport.send
+        withTimeoutOrNull(retryInterval) {
+          select { session.ready.onAwait()                → Ready
+                   pending.onReceive()                     → Reply(msg) }
+        } ?: Retry                                          // 시간이 다 되면 재시도(다음 while 반복이 새 pending으로 재전송)
+        Reply(msg) → ResponseClassifier.protocolError(msg)?.let { return Failure }
+                       ?: withTimeoutOrNull(retryInterval) { session.awaitReady() } ?: 다시 루프
   수신 측 (Dispatcher.process):
-    session_info 있음 → checkForSessionUpdate:
-      key 없음 → 폐기 / pending.expired(allowedLatency=4s) → 폐기 / tag 없음 → 폐기
+    session_info 있음 → checkForSessionUpdate(순서대로 검사, Dispatcher.kt:452-483):
+      privateKey == null → 폐기(WARN "does not have a private key")
+      handler.expired(maxLatency=4s) → 폐기(WARN "received more than … after request")
+      tag 없거나 비었음(`ByteString.EMPTY`) → 폐기(WARN "unauthenticated session info")
+      key.domain에 등록된 세션 없음 → 드롭(ERROR "unregistered domain")
       SessionState.processHello(challenge=request_uuid, info, tag):
-        최초: Signer.importSessionInfo + sessionInfoHmac 검증(상수 시간) → ready.complete()
+        최초(signer == null): Signer.createAuthenticated(challenge, encodedInfo, tag) — 태그 검증 포함 → ready.complete()
         기존: updateSignedSessionInfo (공개키 일치, epoch 변경 또는 setTime<=clock_time 일 때만 갱신, counter 비롤백)
-    SessionCacheSync.store(...)
+        결과 로그: Fault면 WARN, Ok면 INFO
+  VehicleSession.startSession 성공 → SessionCacheSync.store(dispatcher)   // 핸드셰이크 완료 시 저장(§3.4/§7.1). 세션정보 갱신 시 저장은 M2에 없음
 ```
 
 ### 3.3 명령과 응답 (FR-010, FR-011, FR-015, FR-016, FR-048, FR-049, FR-100~101)
 
 ```
-Vehicle.lock(timeout)
-  VcsecCommands.rke(LOCK): payload = UnsignedMessage{RKEAction=LOCK}
-  vcsecMutex.withLock {                                        // FR-049
-    SendWithRetry(domain=VCSEC, payload, done = { it.commandStatus == null }) {
-      loop:
-        msg = RoutableMessage(to=VCSEC, payload, flags=2, uuid=rand16, from=rand16)
-        SessionState.authorize: ready.await(); Signer.encrypt(msg, commandLifetime)   // counter++, AAD=SHA256(TLV), nonce=rand12
-        pending = register(key, RequestHash.of(msg))
-        transport.send(bytes)   // 전송 오류가 temporary면 retryInterval 후 재전송, 아니면 Failure
-        readUntil(done):
-          withTimeoutOrNull(remaining) { pending.channel.receive() } ?: return Uncertain(Timeout)   // D29
-          protocolError? → temporary && !mayHaveSucceeded → 재시도 / else → Failure|Uncertain
-          FromVCSECMessage 파싱: nominalError → Failure(VcsecNominal); WAIT → Busy(재시도); ERROR+whitelist → Failure(Keychain)
-          done(msg) → Success
+Vehicle.lock(timeout)                                          // VcsecCommands.execute(payload, GCM, COMMAND_STATUS_ABSENT)
+  withAttemptTimeout(timeout) {                                 // D29: 전송 전이면 Failure(Timeout(false)), 응답 대기 중이면 Uncertain(Timeout(true))
+    serial.withLock {                                           // FR-049: 연결당 VcsecCommands 인스턴스 하나(생성자 internal)
+      retryWhileRetriable(retryInterval) {                      // shouldRetry() 오류마다 새 시도(아래 attempt 전체를 다시)
+        msg = RoutableMessage(to=VCSEC, payload, flags=2)        // uuid·from_destination은 dispatcher.send가 채운다
+        pending = dispatcher.send(msg, AuthMethod.GCM, commandLifetime).valueOr { return it }
+          // dispatcher.send 내부: SessionState.authorize(ready.await(); Signer.encrypt(msg, lifetime) — counter++, AAD=SHA256(TLV), nonce=rand12) → register → transport.send
+        readUntil(pending, done):
+          from = interpret(pending.receive())                    // 프로토콜 오류 → 값으로 반환(재시도는 retryWhileRetriable이 함)
+            interpret: FromVCSECMessage 파싱; nominalError → Failure(VcsecRejected); commandStatus.operationStatus WAIT → Failure(Busy)
+          done.check(from): Continue(다음 메시지) / Done(Success) / Fail(error)
+      }
     }
   }
+  // WAIT(Busy)는 shouldRetry() == true이므로 readUntil이 즉시 Failure(Busy)를 반환하고, retryWhileRetriable이 retryInterval 뒤
+  // attempt를 처음부터 다시 부른다 — 같은 pending에서 계속 읽지 않고 새 routing_address·counter로 새 요청을 보낸다(Go와 동일).
   수신 측 (Dispatcher.process, 단일 코루틴):
     from_destination 없음 / request_uuid 길이 ≠ 0,16 / to_destination이 domain / address 길이 ≠ 16 → 드롭
-    key = (address, uuid if domain != VCSEC else 0, domain); pending 없음 → 드롭
+    key = (address, uuid if domain != VCSEC else EMPTY, domain); pending 없음 → 드롭("without registered handler", WARN)
     checkForSessionUpdate (위와 동일)
-    AES_GCM_Response_data 있음 → Signer.decrypt(msg, pending.requestHash): AAD = SHA256(TLV{9, domain, VIN, counter, flags(항상), request_hash, fault})
-       → pending.window.update(counter) 실패 → 드롭(ErrReplayedResponse) / 복호화 실패 → 드롭
-    pending.channel.trySend(msg) 실패(가득) → 드롭 로그
+    AES_GCM_Response_data 있음 → SessionState.decrypt(msg, pending.requestHash): AAD = SHA256(TLV{9, domain, VIN, counter, flags(항상), request_hash, fault})
+       → pending.antiReplay.update(counter) 실패 → 드롭(중복 응답) / 복호화 실패 → 드롭
+    pending.deliver(msg)(= channel.trySend) 실패(가득) → 드롭 로그(ERROR)
 ```
 
-Infotainment(`climateOn`)는 뮤텍스 없이 같은 경로를 타며, `key.uuid = msg.uuid`, 단일 응답, `CarServer.Response.actionStatus` 해석(`ERROR` → `Failure(InfotainmentRejected(reason))`).
+Infotainment(`climateOn`)는 `serial` 락 없이 같은 경로를 타며(`InfotainmentCommands.execute` → `SendWithRetry.send`), `key.uuid = msg.uuid`, 단일 응답, `CarServer.Response.actionStatus` 해석(`ERROR` → `Failure(InfotainmentRejected(reason))`).
 
 ### 3.4 세션 복구 (FR-018)
 
-오류 응답에 동봉된 `session_info`는 위 §3.2 수신 규칙으로 갱신된 뒤 응답이 그대로 핸들러에 전달된다. `SendWithRetry`가 `temporary` 오류(INVALID_SIGNATURE, INCORRECT_EPOCH, TIME_EXPIRED, INVALID_TOKEN_OR_COUNTER, BUSY, TIMEOUT, INTERNAL, TIME_TO_LIVE_TOO_LONG, WAIT)를 보면 `retryInterval` 후 **새 counter·nonce·expires_at으로 재인가**해 재전송한다. 갱신된 세션은 `SessionCache`에 즉시 저장한다.
+오류 응답에 동봉된 `session_info`는 위 §3.2 수신 규칙으로 갱신된 뒤 응답이 그대로 핸들러에 전달된다. `SendWithRetry`/`VcsecCommands`가 `shouldRetry()` 오류(INVALID_SIGNATURE, INCORRECT_EPOCH, TIME_EXPIRED, INVALID_TOKEN_OR_COUNTER, BUSY, TIMEOUT, INTERNAL, TIME_TO_LIVE_TOO_LONG, `Busy`)를 보면 `retryInterval` 후 **새 counter·nonce·expires_at으로 재인가**해 재전송한다. M2에서 세션 캐시 저장은 핸드셰이크 완료와 `disconnect()` 두 시점뿐이다(§7.1) — 수신 코루틴은 캐시 I/O로 suspend해서는 안 되므로(§5), 세션정보 갱신 때마다 저장하는 것은 M3 파사드가 연결한다.
 
 ---
 
@@ -399,14 +435,14 @@ Go는 1단계에서 `conn.Send` 후 즉시 반환하고 3단계를 하지 않는
 | 항목 | 설계 | Go 대응 |
 |---|---|---|
 | 스코프 | `Vehicle`마다 `CoroutineScope(SupervisorJob() + Dispatchers.Default + CoroutineName("teslable-$vinMasked"))`. `disconnect()`가 취소 | `Dispatcher.Start/Stop` |
-| 수신 루프 | 스코프 안의 코루틴 1개가 `transport.incoming.collect { dispatcher.process(it) }`. 세션 갱신·복호화·채널 전달이 이 코루틴에서 순차 실행. **여기서 suspend 대기 금지**(`trySend`만) | `listen` goroutine |
-| 핸들러 등록 | `Mutex`로 보호되는 `Map<PendingKey, PendingRequest>` | `handlerLock` |
-| 세션 | `Mutex`로 보호되는 `Map<VehicleDomain, SessionState>`; `SessionState` 내부 `Mutex`(Signer 상태) + `CompletableDeferred<Unit> ready`. 잠금 순서: sessions → state | `sessionLock` → `session.lock` |
-| VCSEC 직렬화 | `Vehicle` 수준 `Mutex vcsec`. `readUntil`이 끝날 때까지 다음 VCSEC 요청 대기. Infotainment는 병렬 허용 | 프록시 `lockVIN`, 매뉴얼 `00-agent-guide §3.1-2` |
-| 핸드셰이크 병렬 | `coroutineScope { domains.map { async { startDomain(it) } }.awaitAll() }`; 하나가 실패하면 나머지 취소, 첫 non-cancel 오류 반환 | `StartSessions` |
-| 타임아웃 | 명령별 `withTimeoutOrNull(timeout)`. 전송 전 타임아웃 → `Failure(Timeout(beforeSend))`, 전송 후 → `Uncertain(Timeout)`. 핸드셰이크·연결도 각각 기본값 | `ctx` deadline |
-| 취소 | 호출 코루틴 취소 → `CancellationException` 전파. 전송 후 취소된 명령의 `PendingRequest`는 `finally`에서 해제 | `ctx.Done()` |
-| 백프레셔 | `PendingRequest.channel = Channel(10)`, 가득 차면 드롭 + 로그. 전송 `Mutex`로 write 순서 보장 | `receiverBufferSize`, `Connection.lock` |
+| 수신 루프 | `Dispatcher.start()`가 띄우는 코루틴 1개가 `transport.incoming.collect { process(it) }`. 세션 갱신·복호화·채널 전달이 이 코루틴에서 순차 실행. **여기서 suspend 대기 금지** — 다른 코루틴의 진행을 기다리는 suspend(채널 receive, `Deferred.await`, `delay`)를 금지한다는 뜻이고, 채널 전달은 `trySend`(비suspend)만 쓴다. **예외 한 가지:** `start()`가 새 수신 코루틴을 띄울 때, 아직 끝나지 않은 이전 정지 대상 job이 있으면 `incoming` 구독 **전**에 그 job의 종료를 `NonCancellable`로 감싸 기다린다(같은 `incoming`을 두 수신 코루틴이 동시에 구독하지 않도록) — 구독 이후에는 이 대기가 없다 | `listen` goroutine |
+| 핸들러 등록 | `Mutex`로 보호되는 `Map<PendingKey, PendingRequest>`(`pendingMutex`). `PendingRequest.close()`는 suspend하지 않고 플래그 + 채널 닫기만 한다(취소 중 `finally`에서도 안전) — 맵에서 지우는 것은 `Dispatcher`가 다음 `register`/`lookup` 때 지연 수행한다(Go `closeHandler`는 즉시 맵에서 지운다; 관찰 결과는 같다 — 닫힌 요청에 온 응답은 "without registered handler"로 드롭) | `handlerLock`, `closeHandler` |
+| 세션 | `Dispatcher`가 만들 때 `Map<Domain, SessionState>`(도메인마다 하나, 불변 — 잠금으로 보호할 필요 없음). `SessionState` 내부 `Mutex`(Signer 상태) + `CompletableDeferred<Unit> ready`. `Signer` 변경 멤버: `encrypt`, `updateSessionInfo`, `updateSignedSessionInfo`, `close`; 읽기 전용: `decrypt`, `exportSessionInfo`, `timestamp`, `counter`/`epoch`/공개키 getter — 임계 구역이 이 호출들뿐이라 락 대기가 µs 단위로 유계다(설계 구체화 4) | `session.lock` |
+| VCSEC 직렬화 | `VcsecCommands` 인스턴스 안의 `Mutex serial`(연결당 하나 — 생성자가 `internal`이라 `VehicleSession`이 정확히 하나만 만든다). `readUntil`이 끝날 때까지(재시도 포함) 다음 VCSEC 요청이 대기. Infotainment는 병렬 허용 | 프록시 `lockVIN`, 매뉴얼 `00-agent-guide §3.1-2` |
+| 핸드셰이크 병렬 | `HandshakeFlow.startSessions`: 도메인마다 `async { startSession(it) }`, `select`로 먼저 끝나는 것을 처리; 하나가 실패하면 나머지 `job.cancel()`, 첫 실패 반환 | `StartSessions` |
+| 타임아웃 | 명령별 `withAttemptTimeout(timeout)`(D29). `afterSend`는 **현재 시도**의 단계다: 응답을 기다리는 동안 초과했으면 `true`(`Uncertain`), 전송 전이거나 재시도 대기 중(`delay(retryInterval)`)이면 `false`(`Failure`) — 이전 시도에서 응답을 기다렸었는지는 영향을 주지 않는다. 핸드셰이크(`VehicleSession.startSession`)도 같은 헬퍼를 쓰지만 `HandshakeFlow`는 `setAwaiting`을 절대 부르지 않으므로 항상 `afterSend = false`(사용자 승인 답 b) | `ctx` deadline |
+| 취소 | 호출 코루틴 취소 → `CancellationException` 전파. 전송 후 취소된 명령의 `PendingRequest`는 `finally`에서 해제(`close()`) | `ctx.Done()` |
+| 백프레셔 | `PendingRequest.channel = Channel(10)`, 가득 차면 `deliver()`가 `false`를 돌려주고 디스패처가 **ERROR** 레벨로 드롭 로그를 남긴다(Go `dispatcher.go:313`도 error 레벨 — 동일). 전송은 `Transport` 구현이 자체 순서를 보장 | `receiverBufferSize` |
 | 스레드 안전 공개 API | `Vehicle` 메서드는 어느 스레드에서든 호출 가능. 콜백은 없고 `Flow`/`StateFlow`만 노출 | – |
 
 ---
@@ -427,6 +463,7 @@ public object NotConnected, NoSession, RequiresKey : VehicleError
 public data class BadResponse(val detail: String) : VehicleError   // 파싱 실패. VCSEC 응답 파싱 실패는 mayHaveSucceeded = true (Go vcsec.go)
 // 애플리케이션 계층
 public data class KeychainRejected(val code: WhitelistOperationInformation) : VehicleError
+public data class UnknownKeychainCode(val rawCode: Int) : VehicleError             // 모르는 whitelistOperationInformation 코드(더 새 펌웨어). Go KeychainError{Code}와 같은 정보
 public data class VcsecRejected(val error: GenericError) : VehicleError            // nominalError
 public data class InfotainmentRejected(val reason: String) : VehicleError          // actionStatus ERROR + plain_text ("unspecified error" 기본)
 // 전송·플랫폼 계층 (어댑터가 변환)
@@ -434,7 +471,8 @@ public sealed interface TransportError : VehicleError { ScanTimeout, MaxConnecti
 public sealed interface KeyStoreError : VehicleError { HardwareUnavailable, KeyNotFound, PlatformFailure(cause) }
 public data class Timeout(val afterSend: Boolean) : VehicleError                   // mayHaveSucceeded = afterSend, temporary = true
 public data class InvalidArgument(val detail: String) : VehicleError               // PIN 형식, 볼륨 범위, 좌석 조합 등
-public data class ReplayedResponse : 내부 전용 (드롭, 공개 안 함)
+// 중복 응답(재전송 응답)은 공개 VehicleError가 아니다: PendingRequest.antiReplay(SlidingWindow)가 실패하면 Dispatcher.process가
+// 그냥 드롭하고 로그만 남긴다(핸들러에는 전달되지 않음) — Go도 오류를 만들지 않고 receiver에 전달하지 않는다.
 ```
 
 - `shouldRetry(e) = !e.mayHaveSucceeded && e.temporary` (Go `ShouldRetry`).
@@ -458,7 +496,8 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 - `keyId`가 현재 키와 다르면 캐시를 무시하고 삭제한다(Go는 잘못된 캐시를 로드 후 첫 명령 실패로 복구; 우리는 사전 차단).
 - 캐시된 **차량** 공개키가 현재 차량과 다르면(차량 키 교체, 같은 VIN의 다른 캐시) 세션 안에서는 복구하지 않는다(Go와 같음, 공개키 고정 유지). 대신 M3 `connect()`가 그 도메인의 캐시 항목을 지운다. Go는 아무것도 하지 않는다(2026-09-27 사용자 결정, M2 계획 설계 구체화 8). 감지 방법(`UNKNOWN_KEY_ID`, 캐시에서 복원한 세션의 세션정보 태그 실패)은 M3 계획에서 정한다.
 - 세션 키 K, 개인키, VIN 원문은 저장하지 않는다. 파일명은 `sha1(vin)`.
-- 저장 시점: 핸드셰이크 완료, 세션정보 갱신, `disconnect()`. 각 저장은 `Dispatchers.IO`(Android) / 기본 디스패처(iOS)에서 수행하고 실패해도 명령 결과에 영향을 주지 않는다(로그만).
+- 구현: `SessionCacheCodec`(`:domain`, `encode`/`decode`/`encodeSnapshots`/`decodeSessions`), `InMemorySessionCache`(`:adapter-storage`, 벽시계 `() -> Long` 주입). `age`는 어댑터가 원시값(`nowEpochMillis - createdAtEpochMillis`, 음수 가능)으로 넘기고 클램프하지 않는다 — `Signer.importSessionInfo`가 0으로 본다(설계 구체화 7). 세션이 없으면 빈 목록을 저장한다(Go `Update(nil)`도 옛 캐시를 지운다). 손상된 항목·모르는 도메인 값의 항목은 건너뛰고 로그만 남긴다(`SessionCacheCodec.decode`가 모르는 도메인 항목을 건너뜀; `Dispatcher.loadSessions`가 세션 없는 도메인을 건너뜀).
+- 저장 시점(M2): 핸드셰이크 완료(`VehicleSession.startSession` 성공), `disconnect()`(1회만 — 두 번째 이상 호출은 건너뛴다, `SessionCacheSync`/`VehicleSession` KDoc). **세션정보 갱신 때마다 저장하는 것은 M2에 없다** — 수신 코루틴이 캐시 I/O로 suspend해서는 안 되기 때문이다(§5). 그 트리거는 M3 파사드가 연결한다. `disconnect()`의 저장은 반드시 `Dispatcher.close()`보다 먼저 끝나야 한다 — `close()`가 모든 세션 키를 지운 뒤 저장하면 빈 목록이 이전 저장을 지워 버린다. 각 저장은 실패해도 명령 결과에 영향을 주지 않는다(로그만).
 
 ### 7.2 키 메타데이터
 
@@ -569,29 +608,27 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 ### 9.3 FakeVehicle (`:testing`)
 
 `verifier.go`와 `dispatcher_test.go`의 `dummyConnector`를 합친 결정적 시뮬레이터. 도메인(VCSEC/INFOTAINMENT)마다
-`:testing`의 `TestVerifier.kt`를 하나씩 감싸 verifier.go의 GCM 경로를 재사용한다(M1에서 이미 구현·검증됨).
+`:testing`의 `TestVerifier.kt`를 하나씩 감싸 verifier.go의 GCM 경로를 재사용한다(M1에서 이미 구현·검증됨). Go `dummyConnector`는
+세션정보 요청만 처리하지만 이 픽스처는 인증 명령도 검증한다(NFR-003 시나리오 — Go와 다름, 픽스처 선택). 검증자는 도메인마다
+**하나를 유지한다**(클라이언트 공개키가 바뀌면 새로 만든다) — Go `dummyConnector`는 요청마다 새로 만든다; 실차와 같은 epoch
+지속성을 재현하기 위한 픽스처 선택이다.
 
 ```
-FakeVehicle(vin, clock: TestClock, random: FixedRandom, crypto)
-  domains: VCSEC, INFOTAINMENT 각각 { verifier: TestVerifier, whitelist }
-  transport(): FakeTransport   // Transport 구현. send(bytes) → 프레이밍 없이 RoutableMessage 파싱 → handle → incoming으로 응답
+FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
+  domains: VCSEC, INFOTAINMENT 각각 { verifier: TestVerifier?, script, handshakeFaults, asleep, corruptTagsRemaining, lastReply }
+  transport(retryInterval = 1ms): FakeTransport   // Transport 구현. send(bytes) → 프레이밍 없이 RoutableMessage 파싱 → handle → incoming으로 응답
+  connect(): VehicleResult<FakeTransport>   // M3 TransportFactory.connect의 M2 모델: connectable이 아니면 Failure(MaxConnectionsExceeded), 재시도 없음
   handle(msg):
-    session_info_request → SignedSessionInfo(challenge=msg.uuid) (verifier.go SetSessionInfo)
-    인증 명령 → Verify(verifySessionInfo: epoch/expires/counter+window → INCORRECT_EPOCH/TIME_EXPIRED/INVALID_TOKEN_OR_COUNTER/TIME_TO_LIVE_TOO_LONG; verifyGCM → INVALID_SIGNATURE) 실패 시 fault + 동봉 session_info
-    성공 → 스크립트된 응답(들). flags&2 이면 Verifier.Encrypt(response, requestHash, counter++)로 AES_GCM_Response 암호화
-  스크립트 API (테스트가 조작):
-    sleepInfotainment()/wake()      – Infotainment 응답 드롭 (수면)
-    dropNextReplies(n)              – 응답 유실 → Uncertain
-    respondVcsec(sequence)          – WAIT, WAIT, 최종 / ERROR 단독 / nominalError / whitelistOperationStatus
-    rotateEpoch()                   – 재부팅
-    regressClock(seconds)           – clock 역행 세션정보
-    corruptNextSessionInfoTag()     – HMAC 불일치
-    replayLastResponse()            – 같은 counter 재전송
-    setConnectable(false)           – 슬롯 초과 광고
-    pairingResponses(...)           – ToVCSECMessage에 대한 원시 FromVCSECMessage 응답
+    asleep인 도메인은 inbox에 메시지가 도착한 기록(received)만 남고 콜백을 부르지 않는다(세션정보 요청 카운트·대본 소비·검증자 상태 불변) — Go dummyConnector.handleAsync와 동일
+    session_info_request → verifier.setSessionInfo(challenge=msg.uuid, initReply(msg))
+    인증 명령(AES_GCM_Personalized_data) → verifier.verify(msg): 실패 시 fault + 동봉 session_info, 성공 시 대본 응답
+    대본 응답: flags&2 이면 verifier.encrypt(response, requestHash, counter++)로 AES_GCM_Response 암호화
+  API (테스트가 조작): verifier(domain), epoch(domain), setConnectable(value), sleep(domains=ALL)/wake(),
+    dropNextReplies(count), script(domain, *perRequest), scriptHandshake(domain, *faults), rotateEpoch(domain),
+    shiftClock(domain, by), attachSessionInfoOnce(domain), corruptNextSessionInfoTag(domain, count=1), replayLastResponse(domain)
 ```
 
-시간은 `TestClock.advance()`로만 흐른다. `retryInterval`은 FakeTransport에서 1ms로 줄여 테스트를 빠르게 한다(Go `dummyConnector.RetryInterval = 1ms`와 동일).
+시간은 `timeSource`(`TimeSource.Monotonic` 또는 `TestClock`)로만 흐른다. `retryInterval`은 `FakeTransport`에서 1ms로 줄여 테스트를 빠르게 한다(Go `dummyConnector.RetryInterval = 1ms`와 동일).
 
 ### 9.4 Go 클라이언트 측 테스트 포팅 목록
 
@@ -605,10 +642,12 @@ FakeVehicle(vin, clock: TestClock, random: FixedRandom, crypto)
 | M1 | `native_test.go` | `TestSharedSecretPadding`(X 좌표 0-패딩), `TestLocalPublicBytes` | **완료 — M0에 작성, M1(PR #19)에서 서로 맞물리는 키 쌍으로 교체.** `:adapter-crypto` `SoftwareEcdhKeyTest.sharedXIsZeroPaddedTo32Bytes`; `SignerTest.exposesVehiclePublicKey` |
 | M1 | `pkg/protocol/error.go`(`GetError`), `error_test.go` | `TestWrappedErrorClassification`, `TestRetriableError` | **완료 — M1.** `VehicleErrorTest.shouldRetryIsFalseWhenCommandMayHaveSucceeded`, `.classifiesEveryMessageFaultLikeGo`, `.messagesAreEnglishAndCarryCodes`(D19), `.unknownFaultCarriesRawCodeLikeGo`(`RoutableMessageError.Error()`의 미등록 코드). `ResponseClassifierTest`(9개)는 같은 `GetError`를 이식하며, Go에는 없는 Wire `unknownFields`(모르는 enum 값) 분류를 추가로 검증한다(`unknownFaultCarriesRawCodeAsUnknownFault` 등 — SDD §12) |
 | M1 | `verifier_test.go`(GCM 경로만) | `TestGCMKnown` | **완료 — M1.** `TestVerifierTest.decryptsMessageProducedByGoSigner`(`GoVectors` 상수로 재현) |
-| M2 | `verifier_test.go` 중 클라이언트 의미가 있는 것(FakeVehicle을 통해 검증) | `TestGCMWindow`, `TestGCMOutOfOrderMessage`, `TestGCMFlags`, `TestEpochChange`, `TestGCMExpired`, `TestGCMInvalidEpoch`, `TestGCMCorruptedCiphertext`, `TestVerifierEncryption` — FakeVehicle 동작 검증용 | – |
-| M2 | `dispatcher_test.go` | 20개 전부 (`TestSendWithoutSession` … `TestCache`) | – |
-| M2 | `pkg/vehicle/vehicle_test.go`, `vcsec_test.go`, `security_test.go` | `TestVehicle*` 8개, `TestNominalVSCECError`, `TestGibberishVCSECResponse`, `TestWhitelistOperationError`, `TestValidPIN` | – |
-| M2 | `pkg/cache/cache_test.go` | `TestImportExport`(자체 포맷), `TestEviction`은 해당 없음(VIN당 1파일) | – |
+| M2 | `verifier_test.go` 중 클라이언트 의미가 있는 것(FakeVehicle을 통해 검증) | `TestValidGCMEncryption`, `TestGCMFlags`, `TestGCMMissingDestination`, `TestGCMOutOfOrderMessage`, `TestEpochChange`, `TestGCMExpired`, `TestGCMInvalidEpoch`, `TestGCMInvalidTime`, `TestGCMCorruptedCiphertext`, `TestVerifierEncryption`, `TestGCMWindow`, `TestProvideHandle` | **완료 — M2.** `FakeVehicleTest.acceptsThenRejectsReplayedCommand`, `.rejectsTamperedFlags`, `.rejectsMissingDestinationAsInvalidDomains`, `.rejectsOutOfOrderMessageWithTtlTooLong`, `.rejectsAfterRebootThenResyncsWithAttachedSessionInfo`, `.rejectsExpiredCommand`, `.rejectsWrongEpoch`, `.rejectsExpirationBeyondEpochLength`, `.rejectsCorruptedCiphertext`, `.encryptsResponseThatSignerDecrypts`, `.enforcesSlidingWindowLikeGo`; `TestVerifierTest.sessionInfoCarriesAssignedHandle` |
+| M2 | `dispatcher_test.go` | `TestSendWithoutSession`, `TestStartSession`, `TestTimeout`, `TestInvalidMessages`, `TestVehicleDropsReply`, `TestUnsolicitedSessionInfo`, `TestCorruptedSessionInfo`, `TestDiscardUnauthenticatedSessionInfo`, `TestVehicleUnreachable`, `TestConnect`, `TestWaitForAllSessions`, `TestRetrySend`, `TestSendTimeout`, `TestStopDispatcher`, `TestDoNotBlockOnResponder`, `TestRequestSessionWithoutKey`, `TestHandshakeWithoutKey`, `TestNoValidHandshakeResponse`, `TestRetryNonresponsive`, `TestCache` (20) | **완료 — M2.** `DispatcherTest.sendWithoutSessionReturnsNoSessionButUnauthenticatedSendWorks`, `HandshakeFlowTest.startSessionCompletesHandshakeAndAllowsAuthenticatedSend`, `.commandWithoutReplyTimesOut`, `DispatcherTest.dropsInvalidMessagesAndDeliversTheValidOne`, `HandshakeFlowTest.retransmitsSessionInfoRequestEveryRetryIntervalWhileVehicleSleeps`, `DispatcherTest.discardsSessionInfoWithBadTag`(×2), `.discardsUnauthenticatedSessionInfo`, `.unreachableVehicleFailsSendWithoutRetry`, `HandshakeFlowTest.startSessionsTimesOutWhileAsleepThenHandshakesBothDomains`(×2), `DispatcherTest.retriesTemporarySendErrorsAndStopsOnMayHaveSucceeded`, `.sendGivesUpWhenCallerTimesOutDuringRetries`, `.sendBeforeStartOrAfterStopReturnsNotConnected`, `.doesNotBlockOtherHandlersWhenOneQueueIsFull`, `.requestSessionInfoWithoutKeyReturnsRequiresKey`, `HandshakeFlowTest.startSessionWithoutKeyReturnsRequiresKey`, `.startSessionFailsWithKeyNotPairedAfterBogusRepliesThenUnknownKeyId`, `.retransmitsSessionInfoRequestEveryRetryIntervalWhileVehicleSleeps`, `SessionCacheSyncTest.resumesSessionFromCacheWithoutHandshake` |
+| M2 | `pkg/vehicle/vehicle_test.go`, `vcsec_test.go`, `security_test.go` | `TestVehicle*` 8개, `TestNominalVSCECError`, `TestGibberishVCSECResponse`, `TestWhitelistOperationError`, `TestValidPIN` | **완료 — M2(`TestValidPIN` 제외).** `VehicleSessionTest.startSessionReturnsFatalHandshakeErrorWithoutRetry`, `.startSessionRetriesTransientHandshakeError`, `.startSessionTimesOutWhileErrorsStayTransient`, `SendWithRetryTest.returnsTerminalFailureAfterTransientSendError`, `.timesOutBeforeSendWhenTransportKeepsFailingTransiently`, `.retriesWhileVehicleAnswersBusyThenTimesOutBetweenAttempts`, `.noResponseTimesOutAsUncertainAndIsNeverResent`, `.retriesEveryRetriableFaultThenReturnsTheTerminalOne`; `VcsecCommandsTest.nominalErrorFailsWhitelistAndRkeCommands`, `.gibberishResponseIsUncertainBadResponse`, `.whitelistOperationRetriesBusyReadsIntermediateThenReportsKeychainError`. `TestValidPIN`(`SetPINToDrive` 인자 검증)은 M5로 이동 — M2 범위 아님 |
+| M2 | `pkg/cache/cache_test.go` | `TestImportExport`(자체 포맷), `TestEviction`은 해당 없음(VIN당 1파일) | **완료 — M2.** `SessionCacheCodecTest.roundTripsTwoDomainsInOrder`(+ `encodesVersion1LayoutFromSdd` 벡터). `TestEviction` 해당 없음 |
+| M2 | FakeVehicle 시나리오 7종(NFR-003) | – | **완료 — M2.** `FakeVehicleScenarioTest.scenario1VcsecWaitThenFinalSucceedsWithReauthorizedRetry` … `.scenario7NotConnectableVehicleRefusesConnectionWithoutRetry`(7개) |
+| M2 | FR-014 디스패처 규칙(원본 테스트 없음, PRD 요구사항 검증) | – | **완료 — M2.** `DispatcherTest.discardsSessionInfoReceivedMoreThanMaxLatencyAfterRequest`, `.discardsSessionInfoWhoseChallengeMatchesNoOutstandingRequest`, `.appliesReplayedSessionInfoWithSameClockTimeLikeGo` |
 
 ### 9.5 어댑터 통합 테스트 (수동·야간)
 
@@ -669,4 +708,16 @@ HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 
 - `ResponseClassifier`는 Wire가 모르는 enum 값(`unknownFields`)을 찾아 Go `GetError`와 같은 분류(temporary=false, mayHaveSucceeded=false)를 따른다. 모르는 fault는 `UnknownFault(rawCode)`로 코드를 보존한다(Go `RoutableMessageError{Code}`와 같음); 모르는 session_info status·operation_status는 `UnknownResponse`(Go `ErrUnknown`).
 - `Signer.createAuthenticated`는 태그 검증이 실패하거나 예외가 나면 세션 키를 0으로 지운다(Go는 GC에 맡긴다). `Signer.importSessionInfo`에서 음수 `age`는 0으로 본다(Go는 미래 `generatedAt`을 그대로 받아 `timeZero`가 더 나중이 된다).
 - `Signer.decrypt`는 nonce·태그 길이가 틀린 응답을 `Fault(INVALID_SIGNATURE)`로 돌려준다(M0 `Session.decrypt`가 null을 돌려주기 때문). Go `gcm.Open`은 nonce 길이가 틀리면 panic한다.
-- Wire는 모르는 enum 값을 기본값(fault NONE, domain null→BROADCAST)으로 디코딩하므로, 새 펌웨어가 모르는 fault 코드나 도메인을 실은 **암호화 응답**은 응답 AAD가 달라져 `INVALID_SIGNATURE`로 드롭된다. Go는 원시 uint32를 써서 복호화한다. M2에서 응답 메타데이터를 만들 때 `unknownFields`의 원시 값을 쓰도록 보완한다(인계 노트에도 기록).
+- Wire는 모르는 enum 값을 기본값(fault NONE, domain null→BROADCAST)으로 디코딩한다. **M2에서 보완:** `Signer.decrypt`가 응답 AAD를 만들 때 `unknownFields`에서 원시 fault 값을 되찾아 쓴다(`SignerCryptoTest.decryptsResponseWhoseFaultCodeIsUnknownToWire`) — 그래서 새 펌웨어가 모르는 fault 코드를 실은 암호화 응답도 태그가 맞아 `INVALID_SIGNATURE`로 잘못 드롭되지 않는다(M1 인계 노트의 우려 사항 해소). `from_destination.domain`이 모르는 값(`null`)이면 `Domain.DOMAIN_BROADCAST`로 떨어져 등록된 핸들러가 없으므로 Go와 같이 드롭된다(관찰 결과 동일 — 편차 아님).
+- `Dispatcher.process`·`VcsecResponses.interpret`·`InfotainmentResponses.interpret`는 모두 `decodeOrNull`(`IOException`뿐 아니라 Wire가 손상된 입력에 던지는 `IllegalStateException`·`IllegalArgumentException`도 값으로 받는다, ADR-0006)로 응답을 디코딩한다. Go의 protobuf 파서 오류 문구는 재현하지 않는다 — "Dropping unparseable message"·"vcsec: undecodable response"·"unable to parse vehicle response: undecodable" 로그·오류 메시지에 원본 파서 상세가 없다(Wire는 Go처럼 oneof가 두 번 나오면 마지막에 이긴 멤버만 남긴다 — 이 부분은 Go와 동일).
+- `SessionState.authorize`는 `Signer.encrypt` 실패를 `Failure(ProtocolFault)`로 돌려준다. Go `session.authorize`는 오류를 지우고 즉시 재시도한다(ctx 만료까지 바쁜 루프). 재시도는 `SendWithRetry`/`VcsecCommands`가 `retryInterval` 간격을 두고 한다 — 관찰 결과는 같다.
+- `Dispatcher.loadSessions`는 손상된 항목·모르는 도메인 값의 항목을 건너뛰고 나머지를 복원한다(기존 세션 맵에 병합). Go `LoadCache`는 손상된 항목 하나만 있어도 전체 실패한다. 새 `Dispatcher`(세션이 모두 빈 상태)에서 부르면 병합과 교체의 결과는 같다.
+- 핸드셰이크 시간 초과(`VehicleSession.startSession`)는 항상 `Failure(Timeout(afterSend = false))`다 — `HandshakeFlow`는 `withAttemptTimeout`의 `setAwaiting`을 절대 부르지 않기 때문이다(사용자 승인 답 b — 전용 타입 없음). Go는 `context.DeadlineExceeded`를 그대로 돌려준다.
+- Wire가 모르는 `whitelistOperationInformation`은 `UnknownKeychainCode(rawCode)`(Go `KeychainError{Code}`와 같은 정보 — 원시 코드를 `unknownFields`에서 되찾는다). 모르는 VCSEC `operationStatus`·Infotainment `actionStatus.result`는 Go처럼 그냥 통과(default 분기가 없다). 모르는 VCSEC `nominalError.genericError`는 `VcsecRejected(GENERICERROR_NONE)`으로 뭉개진다(Go `vcsec.go:44-45`는 `GenericError_E`가 등록된 enum이라 항상 실제 코드를 담는다) — M4(L58)에서 재검토.
+- `PendingRequest.close()`는 suspend하지 않고 플래그 + 채널 닫기만 한다(Go `closeHandler`는 즉시 맵에서 제거한다). 맵에서 지우는 것은 `Dispatcher`가 다음 `register`/`lookup` 때 지연 수행한다. 관찰 결과는 같다: 닫힌 요청에 온 응답은 "without registered handler"로 드롭된다.
+- `Dispatcher.send`는 `Domain.DOMAIN_BROADCAST`도 `InvalidArgument`로 거부한다(Go도 `Domain_DOMAIN_BROADCAST`를 거부한다 — 동일 동작, 기록만).
+- `Dispatcher`가 두 도메인(VCSEC, INFOTAINMENT)의 `SessionState`를 미리 만들어 둔다(Go는 `StartSession`이 부를 때 만든다). 그 결과 태그가 맞는 세션정보 응답이 오면 `HandshakeFlow.startSession`을 부르지 않은 도메인도 준비 상태가 된다 — Go는 등록되지 않은 도메인의 세션정보를 드롭한다. 핸드셰이크와 같은 신뢰 수준(HMAC 태그 검증)이라 관찰 가능한 안전 문제는 없다.
+- `incoming`이 끝나면(BLE 연결 끊김) `Dispatcher.send`는 `NotConnected`를 돌려준다. Go의 `Send`는 `listen`이 반환할 때 `terminate`를 지우지 않으므로 오히려 성공한다(`dispatcher.go:350-351`) — 관찰 결과는 다르지만 더 안전한 방향(전송하지 않음)이다. `isListening`은 정지 중이거나(취소된 순간부터) 교대 대기 중(새 코루틴이 이전 코루틴의 종료를 기다리는 동안)에도 `false`다 — Go도 이 두 창에서 `Send`가 `ErrNotConnected`이므로 관찰 결과는 같다.
+- `VehicleSession.disconnect()`는 `SessionCacheSync.store` 후 `Dispatcher.close()`를 부른다(반드시 이 순서 — `close()`가 먼저면 빈 세션을 저장해 이전 저장을 지운다). Go에서 이 저장은 `Vehicle.Disconnect` 자체가 아니라 CLI(`cmd/tesla-control/main.go`)의 `defer UpdateCachedSessions`다 — 이 라이브러리는 그 책임을 `VehicleSession`으로 옮겼다.
+- `SendWithRetry.send`와 `VcsecCommands.execute`는 페이로드를 호출당 한 번만 `ByteString`으로 복사해 얼린다. Go `SendWithRetry`도 한 번 복사하지만 Go `getVCSECResult`는 원본 슬라이스를 그대로 넘긴다 — 이 라이브러리가 더 엄격하다(호출자가 재시도 대기 중 배열을 바꿔도 재시도에 새어 들어가지 않는다).
+- `HandshakeFlow.startSession`은 `Dispatcher.ALL_DOMAINS` 밖의 도메인에 대해 `RequiresKey`를 돌려준다(`dispatcher.session(domain) == null`이므로). Go `StartSession`은 그런 도메인의 세션을 그때 만든다 — M2는 `ALL_DOMAINS`(VCSEC, INFOTAINMENT) 두 개만 다루므로 관찰 가능한 차이는 없다.
