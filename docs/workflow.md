@@ -200,6 +200,8 @@ Refs: FR-012
 
 > `.github/workflows/ci.yml`의 트리거는 `push`(브랜치 `main`)와 `pull_request` 전체이며, 6개 잡(`lint`, `jvm-test`, `android`, `ios`, `license`, `secrets`) 모두 이 두 트리거에서 똑같이 실행된다(잡별 `if:` 조건 없음) — "매 푸시"/"매 PR"로 갈라 적었던 이전 버전은 실제 워크플로와 달랐다.
 
+> **러너 (ADR-0012)**: 표의 ubuntu 잡은 개발자 Mac의 Docker self-hosted runner(라벨 `tesla-docker`, 최대 2대, job마다 새 컨테이너)에서, macos 잡은 같은 Mac에 설치한 runner(라벨 `tesla-macos`)에서 돈다. 저장소 변수 `CI_RUNNER=hosted`로 두면 GitHub-hosted(`ubuntu-latest`/`macos-15`)로 돌아간다. 설치·운영은 `{{RUNNER_DIR}}README.md`.
+
 > **"Red를 트렁크에 올리지 않는다"** 가 Trunk-based의 생명줄입니다. 푸시 전에 로컬에서 `./gradlew check` 를 돌립니다.
 > 워크플로 파일(`.github/workflows/ci.yml`)은 M0에서 SDD에 맞춰 작성합니다.
 

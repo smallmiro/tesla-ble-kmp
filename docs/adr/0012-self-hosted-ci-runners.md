@@ -38,6 +38,7 @@ CI는 지금 GitHub-hosted runner(`ubuntu-latest` 5개 job, `macos-15` 1개 job)
 ## 결과
 - GitHub-hosted 대기열과 무관하게 이 Mac에서 CI가 돈다. Gradle 캐시가 컨테이너 수명 동안 남는다.
 - **위험**: 승인을 실수로 누르면 외부 코드가 이 Mac의 Docker와 **호스트의 macOS runner**에서 실행된다. 특히 macOS runner는 격리되지 않았으므로 사용자 계정 권한으로 실행된다.
+- fork PR은 PR 쪽 `ci.yml`로 실행되므로 `CI_RUNNER` 변수로는 fork PR을 막을 수 없다. 승인 전 diff 검토가 유일한 방어선이다.
 - Mac이 꺼져 있거나 Colima가 멈추면 CI가 돌지 않는다(최대 24시간 대기 후 실패). 되돌리기 스위치로 대응한다.
 - Rosetta로 실행하므로 Linux job이 arm64 네이티브보다 느리다.
 - Colima VM이 호스트 자원을 6코어/12GB까지 쓴다. 재시작하면 기존 컨테이너가 멈춘다.
