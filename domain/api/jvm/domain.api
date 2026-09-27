@@ -4569,6 +4569,49 @@ public final class com/tesla/generated/vcsec/WhitelistOperation_status$Companion
 public abstract interface annotation class io/github/smallmiro/teslable/InternalTeslableApi : java/lang/annotation/Annotation {
 }
 
+public final class io/github/smallmiro/teslable/cache/CachedSession {
+	public synthetic fun <init> (Lcom/tesla/generated/universalmessage/Domain;[BJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun getAge-UwyO8pc ()J
+	public final fun getDomain ()Lcom/tesla/generated/universalmessage/Domain;
+	public final fun getSessionInfo ()[B
+}
+
+public final class io/github/smallmiro/teslable/cache/SessionCacheCodec {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/cache/SessionCacheCodec;
+	public static final field VERSION I
+	public final fun decode ([BLio/github/smallmiro/teslable/model/KeyId;)Ljava/util/List;
+	public final fun decodeSessions ([BLio/github/smallmiro/teslable/model/KeyId;J)Ljava/util/List;
+	public final fun encode (Lio/github/smallmiro/teslable/model/KeyId;Ljava/util/List;)[B
+	public final fun encodeSnapshots (Lio/github/smallmiro/teslable/model/KeyId;Ljava/util/List;J)[B
+}
+
+public final class io/github/smallmiro/teslable/cache/SessionCacheCodec$Entry {
+	public fun <init> (Lcom/tesla/generated/universalmessage/Domain;J[B)V
+	public final fun getCreatedAtEpochMillis ()J
+	public final fun getDomain ()Lcom/tesla/generated/universalmessage/Domain;
+	public final fun getSessionInfo ()[B
+}
+
+public final class io/github/smallmiro/teslable/cache/SessionSnapshot {
+	public fun <init> (Lcom/tesla/generated/universalmessage/Domain;[B)V
+	public final fun getDomain ()Lcom/tesla/generated/universalmessage/Domain;
+	public final fun getSessionInfo ()[B
+}
+
+public final class io/github/smallmiro/teslable/model/KeyId {
+	public static final field Companion Lio/github/smallmiro/teslable/model/KeyId$Companion;
+	public static final field SIZE I
+	public fun <init> ([B)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public final fun toByteArray ()[B
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/KeyId$Companion {
+	public final fun of (Lio/github/smallmiro/teslable/model/PublicKeyBytes;Lio/github/smallmiro/teslable/port/CryptoPrimitives;)Lio/github/smallmiro/teslable/model/KeyId;
+}
+
 public final class io/github/smallmiro/teslable/model/PublicKeyBytes {
 	public static final field Companion Lio/github/smallmiro/teslable/model/PublicKeyBytes$Companion;
 	public static final field SIZE I
@@ -4977,6 +5020,12 @@ public final class io/github/smallmiro/teslable/port/LogLevel : java/lang/Enum {
 
 public abstract interface class io/github/smallmiro/teslable/port/RandomSource {
 	public abstract fun nextBytes (I)[B
+}
+
+public abstract interface class io/github/smallmiro/teslable/port/SessionCache {
+	public abstract fun clear (Lio/github/smallmiro/teslable/model/Vin;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun load (Lio/github/smallmiro/teslable/model/Vin;Lio/github/smallmiro/teslable/model/KeyId;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun store (Lio/github/smallmiro/teslable/model/Vin;Lio/github/smallmiro/teslable/model/KeyId;Ljava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public abstract interface class io/github/smallmiro/teslable/port/TeslaLogger {

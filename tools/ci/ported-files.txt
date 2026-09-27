@@ -10,9 +10,11 @@ application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispa
 application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/HandshakeFlow.kt
 application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/PendingRequest.kt
 application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/SessionState.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/cache/CachedSession.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/model/VehicleError.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/CryptoPrimitives.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/EcdhPrivateKey.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/SessionCache.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/Transport.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/CommandMetadata.kt
 domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/Metadata.kt
