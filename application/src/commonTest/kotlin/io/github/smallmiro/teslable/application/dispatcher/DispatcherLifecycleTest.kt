@@ -9,6 +9,7 @@ import io.github.smallmiro.teslable.port.AuthMethod
 import io.github.smallmiro.teslable.port.EcdhPrivateKey
 import io.github.smallmiro.teslable.port.Transport
 import io.github.smallmiro.teslable.port.TransportState
+import io.github.smallmiro.teslable.testing.FakeTransport
 import io.github.smallmiro.teslable.testing.FakeVehicle
 import io.github.smallmiro.teslable.testing.RecordingLogger
 import io.github.smallmiro.teslable.testing.TestCrypto
@@ -19,6 +20,7 @@ import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -39,6 +41,33 @@ import kotlin.time.Duration.Companion.seconds
 class DispatcherLifecycleTest {
     private val vcsec = Domain.DOMAIN_VEHICLE_SECURITY
     private val infotainment = Domain.DOMAIN_INFOTAINMENT
+
+    /** 인증 없는 [testCommand] 전송이 실패해야 할 때 그 오류. */
+    private suspend fun DispatcherHarness.unauthenticatedSendError(): VehicleError =
+        assertIs<VehicleResult.Failure>(dispatcher.send(testCommand(), AuthMethod.NONE)).error
+
+    /**
+     * 수신을 시작한 하네스지만 디스패처는 [GatedIncomingTransport]로 감싼 전송을 받는다: 수신 코루틴이 메시지를 하나 받으면
+     * [gate]가 열릴 때까지 `process()` 앞에서(어떤 뮤텍스도 잡지 않은 채) 멈춘다. [DispatcherHarness.transport]는 감싸기 전의
+     * [FakeTransport]다.
+     */
+    private fun TestScope.gatedHarness(gate: CompletableDeferred<Unit>): DispatcherHarness {
+        val fake = FakeVehicle(timeSource = testTimeSource)
+        val transport = fake.transport()
+        val logger = RecordingLogger()
+        val dispatcher =
+            Dispatcher(
+                GatedIncomingTransport(transport, gate),
+                TestCrypto.clientKey(),
+                TestCrypto.primitives,
+                TestCrypto.random,
+                backgroundScope,
+                testTimeSource,
+                logger,
+            )
+        dispatcher.start()
+        return DispatcherHarness(fake, transport, dispatcher, logger)
+    }
 
     @Test
     fun sendBeforeStartOrAfterStopReturnsNotConnected() =
@@ -66,19 +95,26 @@ class DispatcherLifecycleTest {
         // window left by the (already-released) lock launches a replacement that survives stop()'s
         // cleanup of the OLD job. Both racers are launched before a single advanceUntilIdle() so the
         // test dispatcher interleaves them deterministically (stop()'s cancel() + suspend in join(),
-        // then start() observing isListening == false and relaunching). advanceUntilIdle() stops once
-        // only backgroundScope-only work remains scheduled (documented, deterministic — see
-        // TestScope.backgroundScope), and the collector lives in backgroundScope, so the first stop()'s
-        // join() resolves lazily, only once a later real suspension point (the `it.receive()` below)
-        // gives the scheduler a reason to run it. That lazy resolution is exactly where the old code's
-        // post-suspend `receiveJob = null` used to silently orphan the replacement collector — it kept
-        // running (it still delivers the response) while isListening wrongly reported false.
+        // then start() finding no assigned receiver and launching the replacement, which waits for the
+        // old collector before subscribing). advanceUntilIdle() stops once only backgroundScope work
+        // remains scheduled (documented, deterministic — see TestScope.backgroundScope), and the
+        // collectors live in backgroundScope, so the old collector's unwinding — and with it the first
+        // stop()'s join() and the replacement's subscription — is still pending when it returns; the
+        // runCurrent() below resolves it. That resolution is exactly where the old code's post-suspend
+        // `receiveJob = null` used to silently orphan the replacement collector — it kept running (it
+        // still delivers the response) while isListening wrongly reported false.
+        // Review round 4 (corrects round 3's A2): before that runCurrent() the stop is still in flight and
+        // the replacement has not subscribed, so isListening must be false there (Go's Send returns
+        // ErrNotConnected while Stop holds doneLock); round 3 asserted true at that point, which only held
+        // because isListening was still reporting the cancelled old collector.
         runTest {
             val h = dispatcherHarness()
             assertTrue(h.dispatcher.isListening)
             launch { h.dispatcher.stop() } // will cancel+join the original collector
             launch { h.dispatcher.start() } // races in while the first stop() is suspended in cancelAndJoin()
             advanceUntilIdle()
+            assertFalse(h.dispatcher.isListening) // stop in flight, replacement not subscribed yet: nobody can receive
+            runCurrent() // the old collector finishes unwinding; stop() returns; the replacement subscribes
             assertTrue(h.dispatcher.isListening) // the replacement collector must survive stop()'s cleanup
 
             // The replacement collector must actually be the one processing messages (not a stale flag).
@@ -258,6 +294,63 @@ class DispatcherLifecycleTest {
             pending.close()
             assertNull(assertNotNull(h.dispatcher.session(infotainment)).export()) // signer zeroized despite the cancellation
             assertIs<TransportState.Disconnected>(h.transport.state.value)
+        }
+
+    @Test
+    fun isListeningIsFalseAndSendReturnsNotConnectedWhileAStopIsInFlight() =
+        // Review round 4, Important (corrects round 3's A2): isListening read `activeJob != null`, and activeJob is
+        // cleared only in the collector's own finally — so while stop() was still joining a cancelled collector that had
+        // not finished unwinding, isListening stayed true and send() transmitted to the car. Go's Stop sets
+        // `terminate = nil` under doneLock *before* it waits on <-d.done (dispatcher.go:369-375), and Send reads
+        // `terminate` under that same lock (dispatcher.go:380-385), so Send returns ErrNotConnected for the whole stop.
+        runTest {
+            val gate = CompletableDeferred<Unit>()
+            val h = gatedHarness(gate)
+            val bg = checkNotNull(backgroundScope.coroutineContext[Job])
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.requestSessionInfo(vcsec)).value
+            runCurrent() // collector A received the reply and is held at the gate, upstream of process()
+            val a = bg.children.single()
+            launch { h.dispatcher.stop() } // cancels A, then joins it: A cannot finish until the gate opens
+            runCurrent()
+            assertFalse(a.isCompleted) // the stop is genuinely still in flight
+            assertFalse(h.dispatcher.isListening)
+            assertEquals(VehicleError.NotConnected, h.unauthenticatedSendError())
+            gate.complete(Unit)
+            runCurrent()
+            pending.close()
+            assertTrue(a.isCompleted)
+            assertFalse(h.dispatcher.isListening)
+        }
+
+    @Test
+    fun isListeningStaysFalseUntilAReplacementStartedDuringAStopHasSubscribed() =
+        // Review round 4, Important (corrects round 3's A2), second window: a start() during that stop launches the
+        // replacement B, which waits (uncancellably) for A before it subscribes. Until then no collector can receive —
+        // A is cancelled and B has not subscribed — so isListening must stay false and send() must return NotConnected,
+        // as in Go, where the new listen() blocks on doneLock until Stop() has drained <-d.done and only then sets
+        // `terminate` (dispatcher.go:331-341). Once the gate opens, A unwinds, B subscribes, and sending works through B.
+        runTest {
+            val gate = CompletableDeferred<Unit>()
+            val h = gatedHarness(gate)
+            val bg = checkNotNull(backgroundScope.coroutineContext[Job])
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.requestSessionInfo(vcsec)).value
+            runCurrent()
+            val a = bg.children.single()
+            launch { h.dispatcher.stop() }
+            runCurrent()
+            h.dispatcher.start() // B: waits for A before subscribing
+            runCurrent()
+            assertFalse(a.isCompleted)
+            assertEquals(1, h.logger.count("Starting dispatcher service...")) // B has not subscribed yet
+            assertFalse(h.dispatcher.isListening)
+            assertEquals(VehicleError.NotConnected, h.unauthenticatedSendError())
+            gate.complete(Unit)
+            runCurrent()
+            pending.close()
+            assertEquals(2, h.logger.count("Starting dispatcher service...")) // A finished; B subscribed after it
+            assertTrue(h.dispatcher.isListening)
+            val sent = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), AuthMethod.NONE)).value
+            sent.use { assertNotNull(it.receive()) } // B is the collector actually receiving
         }
 
     @Test
