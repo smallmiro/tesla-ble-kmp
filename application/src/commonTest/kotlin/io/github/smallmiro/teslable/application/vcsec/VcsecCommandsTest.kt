@@ -5,9 +5,11 @@ import com.tesla.generated.carserver.server.Ping
 import com.tesla.generated.carserver.server.VehicleAction
 import com.tesla.generated.errors.GenericError_E
 import com.tesla.generated.universalmessage.Domain
+import com.tesla.generated.vcsec.FromVCSECMessage
 import com.tesla.generated.vcsec.RKEAction_E
 import com.tesla.generated.vcsec.UnsignedMessage
 import com.tesla.generated.vcsec.WhitelistOperation_information_E
+import io.github.smallmiro.teslable.application.dispatcher.DispatcherHarness
 import io.github.smallmiro.teslable.application.dispatcher.dispatcherHarness
 import io.github.smallmiro.teslable.application.vehicle.VehicleSession
 import io.github.smallmiro.teslable.model.VehicleError
@@ -33,7 +35,7 @@ class VcsecCommandsTest {
     private val lock = UnsignedMessage(RKEAction = RKEAction_E.RKE_ACTION_LOCK).encode() // vcsec.go executeRKEAction payload (M4가 빌더로 만든다)
     private val addKey = "whitelist operation".encodeToByteArray() // FakeVehicle은 payload를 해석하지 않으므로 임의 바이트로 충분하다
 
-    private suspend fun connected(h: io.github.smallmiro.teslable.application.dispatcher.DispatcherHarness): VehicleSession {
+    private suspend fun connected(h: DispatcherHarness): VehicleSession {
         val session = VehicleSession(h.dispatcher)
         assertIs<VehicleResult.Success<Unit>>(session.startSession(timeout = 1.seconds))
         return session
@@ -103,7 +105,7 @@ class VcsecCommandsTest {
             val session = connected(h)
             h.fake.script(vcsec, listOf(FakeVehicle.vcsecAuthSuccess(), FakeVehicle.vcsecEmpty()))
             val result =
-                assertIs<VehicleResult.Success<com.tesla.generated.vcsec.FromVCSECMessage>>(
+                assertIs<VehicleResult.Success<FromVCSECMessage>>(
                     session.vcsec.execute(lock, AuthMethod.GCM, VcsecResponses.COMMAND_STATUS_ABSENT),
                 )
             assertEquals(null, result.value.commandStatus)

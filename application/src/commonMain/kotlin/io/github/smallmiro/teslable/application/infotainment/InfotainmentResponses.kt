@@ -17,7 +17,7 @@ public object InfotainmentResponses {
     /**
      * Go `getCarServerResponse`: 파싱 실패 → `BadResponse(mayHaveSucceeded = true)`; `actionStatus.result == ERROR` →
      * [VehicleError.InfotainmentRejected]`(plain_text 또는 "unspecified error")`; 그 외(모르는 값 포함, 설계 구체화 11)는 성공. null payload는 빈 응답.
-     * 컨트롤러 판정 R2: Wire는 손상된 메시지 타입 필드에 `IllegalStateException`도 던지므로 `decodeOrNull`로 값으로 받는다(ADR-0006).
+     * Wire는 메시지 타입 필드가 손상되면 `okio.IOException`뿐 아니라 `IllegalStateException`도 던지므로 `decodeOrNull`로 값으로 받는다(ADR-0006).
      */
     public fun interpret(payload: ByteArray?): VehicleResult<Response> {
         val response =

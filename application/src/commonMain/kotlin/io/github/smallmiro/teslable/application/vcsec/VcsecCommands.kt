@@ -25,9 +25,14 @@ import kotlin.time.Duration
  * 뒤 새 요청(새 routing_address·counter)으로 다시 보낸다([io.github.smallmiro.teslable.application.dispatcher.retryWhileRetriable]).
  * 한 연결의 VCSEC 명령은 [serial]로 직렬화한다(FR-049, SDD §5) — 시간 제한([io.github.smallmiro.teslable.application.dispatcher.withAttemptTimeout])은
  * 락 대기를 포함하며, 락 대기 중 만료는 `Failure(Timeout(afterSend = false))`, 응답 대기 중 만료는 `Uncertain(Timeout(afterSend = true))`다.
- * [payload]는 첫 시도 전에 딱 한 번만 [ByteString]으로 복사해 얼린다(N1, `SendWithRetry.send`와 같은 이유).
+ * [payload]는 첫 시도 전에 딱 한 번만 [ByteString]으로 복사해 얼린다 — 그러지 않으면 호출자가 첫 시도 뒤(예: 재시도를 기다리는 동안)
+ * 넘겨준 배열을 제자리에서 바꿀 경우 그 변경이 재시도로 새어 들어간다(`SendWithRetry.send`와 같은 이유).
+ *
+ * SDD §5는 이 직렬화를 `Vehicle` 수준의 락으로 규정한다. [serial]은 이 클래스 인스턴스 하나에 묶여 있으므로, 같은
+ * [Dispatcher](한 연결)를 감싼 [VcsecCommands]가 두 개 이상 존재하면 이 보장이 깨진다 — 그래서 생성자를 `internal`로 두어
+ * [io.github.smallmiro.teslable.application.vehicle.VehicleSession]이 연결마다 정확히 하나만 만들도록 강제한다.
  */
-public class VcsecCommands(
+public class VcsecCommands internal constructor(
     private val dispatcher: Dispatcher,
     private val timeouts: CommandTimeouts = CommandTimeouts(),
 ) {

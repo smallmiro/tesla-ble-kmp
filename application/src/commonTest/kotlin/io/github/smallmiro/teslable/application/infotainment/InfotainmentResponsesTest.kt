@@ -63,9 +63,11 @@ class InfotainmentResponsesTest {
 
     @Test
     fun malformedPayloadThrowingIllegalStateExceptionIsUncertainBadResponse() {
-        // 컨트롤러 판정 R2(ADR-0006): tag=1(actionStatus, 메시지 타입)를 varint(wire type 0)로 실은 2바이트가 실측으로
-        // Wire의 IllegalStateException을 던진다(Response.ADAPTER.decode 실측, 태스크 리포트 참고) — okio.IOException이
-        // 아니므로 decodeOrNull(ADR-0006)이 이것도 값으로 바꿔야 한다.
+        // Wire는 메시지 타입 필드가 잘못된 wire type을 실으면 IllegalStateException을 던진다(okio.IOException이 아니다).
+        // 여기 2바이트: 0x08 = (필드 1=actionStatus << 3) | 0(wire type VARINT), 0x01 = 그 varint 값. actionStatus는
+        // 메시지 타입 필드라 decode()가 항상 decodeMessageOrMerge → beginMessage()를 부르는데, 실제 wire type이
+        // LENGTH_DELIMITED가 아니므로(VARINT다) beginMessage()가 IllegalStateException("Unexpected call to
+        // beginMessage()")을 던진다(Response.ADAPTER.decode 실측). decodeOrNull(ADR-0006)이 이것도 값으로 바꿔야 한다.
         val result = assertIs<VehicleResult.Uncertain>(InfotainmentResponses.interpret(byteArrayOf(0x08, 0x01)))
         assertIs<VehicleError.BadResponse>(result.error)
         assertTrue(result.error.mayHaveSucceeded)

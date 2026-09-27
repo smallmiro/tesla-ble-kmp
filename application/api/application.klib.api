@@ -91,8 +91,6 @@ final class io.github.smallmiro.teslable.application.infotainment/InfotainmentCo
 }
 
 final class io.github.smallmiro.teslable.application.vcsec/VcsecCommands { // io.github.smallmiro.teslable.application.vcsec/VcsecCommands|null[0]
-    constructor <init>(io.github.smallmiro.teslable.application.dispatcher/Dispatcher, io.github.smallmiro.teslable.application.vehicle/CommandTimeouts = ...) // io.github.smallmiro.teslable.application.vcsec/VcsecCommands.<init>|<init>(io.github.smallmiro.teslable.application.dispatcher.Dispatcher;io.github.smallmiro.teslable.application.vehicle.CommandTimeouts){}[0]
-
     final suspend fun execute(kotlin/ByteArray, io.github.smallmiro.teslable.port/AuthMethod, io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalTest, kotlin/Int = ..., kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<com.tesla.generated.vcsec/FromVCSECMessage> // io.github.smallmiro.teslable.application.vcsec/VcsecCommands.execute|execute(kotlin.ByteArray;io.github.smallmiro.teslable.port.AuthMethod;io.github.smallmiro.teslable.application.vcsec.VcsecResponses.TerminalTest;kotlin.Int;kotlin.time.Duration){}[0]
 }
 

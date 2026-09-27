@@ -75,8 +75,6 @@ public final class io/github/smallmiro/teslable/application/infotainment/Infotai
 }
 
 public final class io/github/smallmiro/teslable/application/vcsec/VcsecCommands {
-	public fun <init> (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lio/github/smallmiro/teslable/application/vehicle/CommandTimeouts;)V
-	public synthetic fun <init> (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lio/github/smallmiro/teslable/application/vehicle/CommandTimeouts;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun execute-myKFqkg ([BLio/github/smallmiro/teslable/port/AuthMethod;Lio/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalTest;IJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun execute-myKFqkg$default (Lio/github/smallmiro/teslable/application/vcsec/VcsecCommands;[BLio/github/smallmiro/teslable/port/AuthMethod;Lio/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalTest;IJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
