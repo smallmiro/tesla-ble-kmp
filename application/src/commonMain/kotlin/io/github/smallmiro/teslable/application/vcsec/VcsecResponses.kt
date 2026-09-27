@@ -61,7 +61,12 @@ public object VcsecResponses {
     /**
      * Go `unmarshalVCSECResponse`: 프로토콜 오류 → payload 종류 → 파싱 → `nominalError` → `commandStatus` 순.
      * payload가 없으면 빈 메시지(성공), 다른 oneof(세션정보)면 `BadResponse(mayHaveSucceeded = true)`, 파싱 실패도 `mayHaveSucceeded = true`
-     * (컨트롤러 판정 R2: Wire는 손상된 메시지 타입 필드에 `IllegalStateException`도 던지므로 `decodeOrNull`로 값으로 받는다, ADR-0006).
+     * (Wire는 메시지 타입 필드가 손상되면 `okio.IOException`뿐 아니라 `IllegalStateException`도 던지므로 `decodeOrNull`로 값으로 받는다, ADR-0006).
+     *
+     * 의도적 차이(설계 구체화 11): 등록되지 않은 `nominalError.genericError`도 실패로 유지하지만, 원시 코드는 보존하지 못하고
+     * [VehicleError.VcsecRejected]`(GENERICERROR_NONE)`으로 뭉개진다 — Wire가 모르는 enum 값을 이 필드의 기본값(`NONE`)으로
+     * 디코딩하기 때문이다. Go(vcsec.go 44~45행)는 `GenericError_E`가 등록된 enum이라 항상 실제 코드를 담는다. 코드 보존 여부는
+     * M4(L58)에서 재검토한다.
      */
     public fun interpret(message: RoutableMessage): VehicleResult<FromVCSECMessage> {
         ResponseClassifier.protocolError(message)?.let { return it.toResult() }
