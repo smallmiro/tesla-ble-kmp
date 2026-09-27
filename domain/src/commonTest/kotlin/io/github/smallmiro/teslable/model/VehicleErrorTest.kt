@@ -78,6 +78,16 @@ class VehicleErrorTest {
     }
 
     @Test
+    fun unknownKeychainCodeCarriesRawCodeLikeGoKeychainError() {
+        // error.go KeychainError.Error(): 등록되지 않은 코드도 Code를 보존한다. 설계 구체화 11.
+        val error = VehicleError.UnknownKeychainCode(99)
+        assertEquals("keychain operation failed: unrecognized code 99", error.message)
+        assertFalse(error.temporary)
+        assertFalse(error.mayHaveSucceeded)
+        assertIs<VehicleResult.Failure>(error.toResult())
+    }
+
+    @Test
     fun protocolFaultAndSentinelsNeverRetryTwice() {
         assertFalse(VehicleError.ProtocolFault(MessageFault_E.MESSAGEFAULT_ERROR_RESPONSE_MTU_EXCEEDED).shouldRetry())
         assertFalse(VehicleError.KeyNotPaired.shouldRetry())
