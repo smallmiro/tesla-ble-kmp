@@ -84,6 +84,18 @@ final class io.github.smallmiro.teslable.application.dispatcher/SessionState { /
     final suspend fun timestamp(): kotlin/UInt? // io.github.smallmiro.teslable.application.dispatcher/SessionState.timestamp|timestamp(){}[0]
 }
 
+final class io.github.smallmiro.teslable.application.infotainment/InfotainmentCommands { // io.github.smallmiro.teslable.application.infotainment/InfotainmentCommands|null[0]
+    constructor <init>(io.github.smallmiro.teslable.application.vehicle/SendWithRetry) // io.github.smallmiro.teslable.application.infotainment/InfotainmentCommands.<init>|<init>(io.github.smallmiro.teslable.application.vehicle.SendWithRetry){}[0]
+
+    final suspend fun execute(com.tesla.generated.carserver.server/Action, kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<com.tesla.generated.carserver.server/Response> // io.github.smallmiro.teslable.application.infotainment/InfotainmentCommands.execute|execute(com.tesla.generated.carserver.server.Action;kotlin.time.Duration){}[0]
+}
+
+final class io.github.smallmiro.teslable.application.vcsec/VcsecCommands { // io.github.smallmiro.teslable.application.vcsec/VcsecCommands|null[0]
+    constructor <init>(io.github.smallmiro.teslable.application.dispatcher/Dispatcher, io.github.smallmiro.teslable.application.vehicle/CommandTimeouts = ...) // io.github.smallmiro.teslable.application.vcsec/VcsecCommands.<init>|<init>(io.github.smallmiro.teslable.application.dispatcher.Dispatcher;io.github.smallmiro.teslable.application.vehicle.CommandTimeouts){}[0]
+
+    final suspend fun execute(kotlin/ByteArray, io.github.smallmiro.teslable.port/AuthMethod, io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalTest, kotlin/Int = ..., kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<com.tesla.generated.vcsec/FromVCSECMessage> // io.github.smallmiro.teslable.application.vcsec/VcsecCommands.execute|execute(kotlin.ByteArray;io.github.smallmiro.teslable.port.AuthMethod;io.github.smallmiro.teslable.application.vcsec.VcsecResponses.TerminalTest;kotlin.Int;kotlin.time.Duration){}[0]
+}
+
 final class io.github.smallmiro.teslable.application.vehicle/CommandTimeouts { // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts|null[0]
     constructor <init>(kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ...) // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.<init>|<init>(kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
 
@@ -122,12 +134,63 @@ final class io.github.smallmiro.teslable.application.vehicle/VehicleSession { //
 
     final val handshake // io.github.smallmiro.teslable.application.vehicle/VehicleSession.handshake|{}handshake[0]
         final fun <get-handshake>(): io.github.smallmiro.teslable.application.dispatcher/HandshakeFlow // io.github.smallmiro.teslable.application.vehicle/VehicleSession.handshake.<get-handshake>|<get-handshake>(){}[0]
+    final val infotainment // io.github.smallmiro.teslable.application.vehicle/VehicleSession.infotainment|{}infotainment[0]
+        final fun <get-infotainment>(): io.github.smallmiro.teslable.application.infotainment/InfotainmentCommands // io.github.smallmiro.teslable.application.vehicle/VehicleSession.infotainment.<get-infotainment>|<get-infotainment>(){}[0]
     final val retryInterval // io.github.smallmiro.teslable.application.vehicle/VehicleSession.retryInterval|{}retryInterval[0]
         final fun <get-retryInterval>(): kotlin.time/Duration // io.github.smallmiro.teslable.application.vehicle/VehicleSession.retryInterval.<get-retryInterval>|<get-retryInterval>(){}[0]
     final val send // io.github.smallmiro.teslable.application.vehicle/VehicleSession.send|{}send[0]
         final fun <get-send>(): io.github.smallmiro.teslable.application.vehicle/SendWithRetry // io.github.smallmiro.teslable.application.vehicle/VehicleSession.send.<get-send>|<get-send>(){}[0]
+    final val vcsec // io.github.smallmiro.teslable.application.vehicle/VehicleSession.vcsec|{}vcsec[0]
+        final fun <get-vcsec>(): io.github.smallmiro.teslable.application.vcsec/VcsecCommands // io.github.smallmiro.teslable.application.vehicle/VehicleSession.vcsec.<get-vcsec>|<get-vcsec>(){}[0]
 
     final suspend fun connect(): kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> // io.github.smallmiro.teslable.application.vehicle/VehicleSession.connect|connect(){}[0]
     final suspend fun disconnect() // io.github.smallmiro.teslable.application.vehicle/VehicleSession.disconnect|disconnect(){}[0]
     final suspend fun startSession(kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> = ..., kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<kotlin/Unit> // io.github.smallmiro.teslable.application.vehicle/VehicleSession.startSession|startSession(kotlin.collections.Set<com.tesla.generated.universalmessage.Domain>;kotlin.time.Duration){}[0]
+}
+
+final object io.github.smallmiro.teslable.application.infotainment/InfotainmentResponses { // io.github.smallmiro.teslable.application.infotainment/InfotainmentResponses|null[0]
+    final fun interpret(kotlin/ByteArray?): io.github.smallmiro.teslable.model/VehicleResult<com.tesla.generated.carserver.server/Response> // io.github.smallmiro.teslable.application.infotainment/InfotainmentResponses.interpret|interpret(kotlin.ByteArray?){}[0]
+}
+
+final object io.github.smallmiro.teslable.application.vcsec/VcsecResponses { // io.github.smallmiro.teslable.application.vcsec/VcsecResponses|null[0]
+    final val COMMAND_STATUS_ABSENT // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.COMMAND_STATUS_ABSENT|{}COMMAND_STATUS_ABSENT[0]
+        final fun <get-COMMAND_STATUS_ABSENT>(): io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalTest // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.COMMAND_STATUS_ABSENT.<get-COMMAND_STATUS_ABSENT>|<get-COMMAND_STATUS_ABSENT>(){}[0]
+    final val FIRST_MESSAGE // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.FIRST_MESSAGE|{}FIRST_MESSAGE[0]
+        final fun <get-FIRST_MESSAGE>(): io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalTest // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.FIRST_MESSAGE.<get-FIRST_MESSAGE>|<get-FIRST_MESSAGE>(){}[0]
+    final val WHITELIST_OPERATION_COMPLETE // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.WHITELIST_OPERATION_COMPLETE|{}WHITELIST_OPERATION_COMPLETE[0]
+        final fun <get-WHITELIST_OPERATION_COMPLETE>(): io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalTest // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.WHITELIST_OPERATION_COMPLETE.<get-WHITELIST_OPERATION_COMPLETE>|<get-WHITELIST_OPERATION_COMPLETE>(){}[0]
+
+    final fun interpret(com.tesla.generated.universalmessage/RoutableMessage): io.github.smallmiro.teslable.model/VehicleResult<com.tesla.generated.vcsec/FromVCSECMessage> // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.interpret|interpret(com.tesla.generated.universalmessage.RoutableMessage){}[0]
+    final suspend fun readUntil(io.github.smallmiro.teslable.application.dispatcher/PendingRequest, io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalTest): io.github.smallmiro.teslable.model/VehicleResult<com.tesla.generated.vcsec/FromVCSECMessage> // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.readUntil|readUntil(io.github.smallmiro.teslable.application.dispatcher.PendingRequest;io.github.smallmiro.teslable.application.vcsec.VcsecResponses.TerminalTest){}[0]
+
+    abstract fun interface TerminalTest { // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalTest|null[0]
+        abstract fun check(com.tesla.generated.vcsec/FromVCSECMessage): io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalTest.check|check(com.tesla.generated.vcsec.FromVCSECMessage){}[0]
+    }
+
+    sealed interface TerminalCheck { // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck|null[0]
+        final class Fail : io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck { // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail|null[0]
+            constructor <init>(io.github.smallmiro.teslable.model/VehicleError) // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.<init>|<init>(io.github.smallmiro.teslable.model.VehicleError){}[0]
+
+            final val error // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.error|{}error[0]
+                final fun <get-error>(): io.github.smallmiro.teslable.model/VehicleError // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.error.<get-error>|<get-error>(){}[0]
+
+            final fun component1(): io.github.smallmiro.teslable.model/VehicleError // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.component1|component1(){}[0]
+            final fun copy(io.github.smallmiro.teslable.model/VehicleError = ...): io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.copy|copy(io.github.smallmiro.teslable.model.VehicleError){}[0]
+            final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.equals|equals(kotlin.Any?){}[0]
+            final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.hashCode|hashCode(){}[0]
+            final fun toString(): kotlin/String // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.toString|toString(){}[0]
+        }
+
+        final object Continue : io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck { // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Continue|null[0]
+            final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Continue.equals|equals(kotlin.Any?){}[0]
+            final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Continue.hashCode|hashCode(){}[0]
+            final fun toString(): kotlin/String // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Continue.toString|toString(){}[0]
+        }
+
+        final object Done : io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck { // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Done|null[0]
+            final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Done.equals|equals(kotlin.Any?){}[0]
+            final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Done.hashCode|hashCode(){}[0]
+            final fun toString(): kotlin/String // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Done.toString|toString(){}[0]
+        }
+    }
 }

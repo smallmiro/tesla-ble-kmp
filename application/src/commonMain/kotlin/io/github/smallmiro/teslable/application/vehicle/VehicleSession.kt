@@ -7,6 +7,8 @@ import io.github.smallmiro.teslable.application.dispatcher.Dispatcher
 import io.github.smallmiro.teslable.application.dispatcher.HandshakeFlow
 import io.github.smallmiro.teslable.application.dispatcher.retryWhileRetriable
 import io.github.smallmiro.teslable.application.dispatcher.withAttemptTimeout
+import io.github.smallmiro.teslable.application.infotainment.InfotainmentCommands
+import io.github.smallmiro.teslable.application.vcsec.VcsecCommands
 import io.github.smallmiro.teslable.model.VehicleResult
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
@@ -31,6 +33,12 @@ public class VehicleSession(
 
     /** Go `Vehicle.Send`. */
     public val send: SendWithRetry = SendWithRetry(dispatcher, timeouts)
+
+    /** Go `getVCSECResult` 계층(직렬화 포함). */
+    public val vcsec: VcsecCommands = VcsecCommands(dispatcher, timeouts)
+
+    /** Go `executeCarServerAction` 계층. */
+    public val infotainment: InfotainmentCommands = InfotainmentCommands(send)
 
     /** 전송 계층의 재전송 간격. */
     public val retryInterval: Duration get() = dispatcher.retryInterval
