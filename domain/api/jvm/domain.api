@@ -4965,8 +4965,27 @@ public abstract interface class io/github/smallmiro/teslable/port/EcdhPrivateKey
 	public abstract fun sharedX (Lio/github/smallmiro/teslable/model/PublicKeyBytes;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
+public final class io/github/smallmiro/teslable/port/LogLevel : java/lang/Enum {
+	public static final field DEBUG Lio/github/smallmiro/teslable/port/LogLevel;
+	public static final field ERROR Lio/github/smallmiro/teslable/port/LogLevel;
+	public static final field INFO Lio/github/smallmiro/teslable/port/LogLevel;
+	public static final field WARN Lio/github/smallmiro/teslable/port/LogLevel;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/port/LogLevel;
+	public static fun values ()[Lio/github/smallmiro/teslable/port/LogLevel;
+}
+
 public abstract interface class io/github/smallmiro/teslable/port/RandomSource {
 	public abstract fun nextBytes (I)[B
+}
+
+public abstract interface class io/github/smallmiro/teslable/port/TeslaLogger {
+	public static final field Companion Lio/github/smallmiro/teslable/port/TeslaLogger$Companion;
+	public abstract fun log (Lio/github/smallmiro/teslable/port/LogLevel;Ljava/lang/String;Lkotlin/jvm/functions/Function0;)V
+}
+
+public final class io/github/smallmiro/teslable/port/TeslaLogger$Companion {
+	public final fun getNoOp ()Lio/github/smallmiro/teslable/port/TeslaLogger;
 }
 
 public abstract interface class io/github/smallmiro/teslable/port/Transport {
