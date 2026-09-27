@@ -715,8 +715,30 @@ final enum class io.github.smallmiro.teslable.port/AuthMethod : kotlin/Enum<io.g
     final fun values(): kotlin/Array<io.github.smallmiro.teslable.port/AuthMethod> // io.github.smallmiro.teslable.port/AuthMethod.values|values#static(){}[0]
 }
 
+final enum class io.github.smallmiro.teslable.port/LogLevel : kotlin/Enum<io.github.smallmiro.teslable.port/LogLevel> { // io.github.smallmiro.teslable.port/LogLevel|null[0]
+    enum entry DEBUG // io.github.smallmiro.teslable.port/LogLevel.DEBUG|null[0]
+    enum entry ERROR // io.github.smallmiro.teslable.port/LogLevel.ERROR|null[0]
+    enum entry INFO // io.github.smallmiro.teslable.port/LogLevel.INFO|null[0]
+    enum entry WARN // io.github.smallmiro.teslable.port/LogLevel.WARN|null[0]
+
+    final val entries // io.github.smallmiro.teslable.port/LogLevel.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<io.github.smallmiro.teslable.port/LogLevel> // io.github.smallmiro.teslable.port/LogLevel.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): io.github.smallmiro.teslable.port/LogLevel // io.github.smallmiro.teslable.port/LogLevel.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<io.github.smallmiro.teslable.port/LogLevel> // io.github.smallmiro.teslable.port/LogLevel.values|values#static(){}[0]
+}
+
 abstract fun interface io.github.smallmiro.teslable.port/RandomSource { // io.github.smallmiro.teslable.port/RandomSource|null[0]
     abstract fun nextBytes(kotlin/Int): kotlin/ByteArray // io.github.smallmiro.teslable.port/RandomSource.nextBytes|nextBytes(kotlin.Int){}[0]
+}
+
+abstract fun interface io.github.smallmiro.teslable.port/TeslaLogger { // io.github.smallmiro.teslable.port/TeslaLogger|null[0]
+    abstract fun log(io.github.smallmiro.teslable.port/LogLevel, kotlin/String, kotlin/Function0<kotlin/String>) // io.github.smallmiro.teslable.port/TeslaLogger.log|log(io.github.smallmiro.teslable.port.LogLevel;kotlin.String;kotlin.Function0<kotlin.String>){}[0]
+
+    final object Companion { // io.github.smallmiro.teslable.port/TeslaLogger.Companion|null[0]
+        final val NoOp // io.github.smallmiro.teslable.port/TeslaLogger.Companion.NoOp|{}NoOp[0]
+            final fun <get-NoOp>(): io.github.smallmiro.teslable.port/TeslaLogger // io.github.smallmiro.teslable.port/TeslaLogger.Companion.NoOp.<get-NoOp>|<get-NoOp>(){}[0]
+    }
 }
 
 abstract interface io.github.smallmiro.teslable.port/CryptoPrimitives { // io.github.smallmiro.teslable.port/CryptoPrimitives|null[0]
