@@ -1,11 +1,13 @@
 package io.github.smallmiro.teslable.testing
 
+import com.tesla.generated.carserver.server.Response
 import com.tesla.generated.signatures.SignatureData
 import com.tesla.generated.universalmessage.Destination
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
 import com.tesla.generated.universalmessage.RoutableMessage
 import com.tesla.generated.universalmessage.SessionInfoRequest
+import com.tesla.generated.vcsec.FromVCSECMessage
 import io.github.smallmiro.teslable.InternalTeslableApi
 import io.github.smallmiro.teslable.model.VehicleError
 import io.github.smallmiro.teslable.model.VehicleResult
@@ -33,6 +35,8 @@ import kotlin.time.Duration
 import kotlin.time.Duration.Companion.hours
 import kotlin.time.Duration.Companion.minutes
 import kotlin.time.Duration.Companion.seconds
+import com.tesla.generated.carserver.server.OperationStatus_E as CarServerOperationStatus
+import com.tesla.generated.vcsec.OperationStatus_E as VcsecOperationStatus
 
 @OptIn(InternalTeslableApi::class, ExperimentalCoroutinesApi::class)
 class FakeVehicleTest {
@@ -349,11 +353,53 @@ class FakeVehicleTest {
             )
             c.fake.dropNextReplies(1)
             assertNull(c.exchange(request))
+            val requestsBeforeSleep = c.fake.sessionInfoRequests
+            val receivedBeforeSleep = c.fake.received.size
             c.fake.sleep()
             assertNull(c.exchange(request))
+            // Go dummyConnector.handleAsync (dispatcher_test.go:229-233): dropReplies가 서 있으면 inbox에는
+            // 남지만(received) 콜백은 부르지 않는다 — sessionInfoRequests(콜백 카운트)는 늘지 않는다.
+            assertEquals(receivedBeforeSleep + 1, c.fake.received.size)
+            assertEquals(requestsBeforeSleep, c.fake.sessionInfoRequests)
             c.fake.wake()
             assertNotNull(c.exchange(request))
-            assertEquals(5, c.fake.sessionInfoRequests)
+            assertEquals(requestsBeforeSleep + 1, c.fake.sessionInfoRequests)
+        }
+
+    @Test
+    fun sleepDoesNotConsumeQueuedScriptBeforeWake() =
+        // Important-1 회귀 테스트: 잠든 동안 받은 요청은 검증자 상태·대본을 건드리지 않는다(Go dummyConnector.handleAsync).
+        runTest {
+            val c = client()
+            val signer = c.handshake(domain)
+            c.fake.script(domain, listOf(FakeVehicle.vcsecAuthSuccess()))
+            c.fake.sleep(setOf(domain))
+            val message = c.encrypt(signer, c.command(domain, plaintext))
+            assertNull(c.exchange(message)) // 잠든 동안: 응답 없음, verify()도 대본 소비도 없다
+            c.fake.wake()
+            val reply = assertNotNull(c.exchange(message))
+            assertFault(reply, MessageFault_E.MESSAGEFAULT_ERROR_NONE, expectSessionInfo = false)
+            val vcsec = FromVCSECMessage.ADAPTER.decode(assertNotNull(reply.protobuf_message_as_bytes).toByteArray())
+            assertEquals(1337, vcsec.commandStatus?.signedMessageStatus?.counter)
+        }
+
+    @Test
+    fun sleepDoesNotConsumeQueuedHandshakeFaultBeforeWake() =
+        // Important-1 회귀 테스트: 잠든 동안 받은 세션정보 요청은 scriptHandshake 큐를 소비하지 않는다.
+        runTest {
+            val c = client()
+            c.fake.scriptHandshake(domain, MessageFault_E.MESSAGEFAULT_ERROR_UNKNOWN_KEY_ID)
+            c.fake.sleep(setOf(domain))
+            val request =
+                RoutableMessage(
+                    to_destination = Destination(domain = domain),
+                    from_destination = Destination(routing_address = TestCrypto.random.nextBytes(16).toByteString()),
+                    uuid = TestCrypto.random.nextBytes(16).toByteString(),
+                    session_info_request = SessionInfoRequest(public_key = TestCrypto.clientPublicKey.toByteArray().toByteString()),
+                )
+            assertNull(c.exchange(request)) // 잠든 동안: handshakeFaults 큐는 그대로 남아 있어야 한다
+            c.fake.wake()
+            assertFault(c.exchange(request), MessageFault_E.MESSAGEFAULT_ERROR_UNKNOWN_KEY_ID, expectSessionInfo = false)
         }
 
     @Test
@@ -383,5 +429,79 @@ class FakeVehicleTest {
             val refused = assertIs<VehicleResult.Failure>(fake.connect())
             assertEquals(VehicleError.TransportError.MaxConnectionsExceeded, refused.error)
             assertFalse(refused.error.shouldRetry())
+        }
+
+    @Test
+    fun deliversMultipleScriptedRepliesForOneRequest() =
+        // Go EnqueueVCSECBusy + 최종 응답: 요청 하나에 WAIT 뒤 최종 응답 두 개가 순서대로 배달된다
+        runTest {
+            val c = client()
+            val signer = c.handshake(domain)
+            c.fake.script(domain, listOf(FakeVehicle.vcsecBusy(), FakeVehicle.vcsecEmpty()))
+            val message = c.encrypt(signer, c.command(domain, plaintext))
+            assertIs<VehicleResult.Success<Unit>>(c.transport.send(RoutableMessage.ADAPTER.encode(message)))
+            val busyReply = RoutableMessage.ADAPTER.decode(c.transport.incoming.first())
+            val busyVcsec = FromVCSECMessage.ADAPTER.decode(assertNotNull(busyReply.protobuf_message_as_bytes).toByteArray())
+            assertEquals(VcsecOperationStatus.OPERATIONSTATUS_WAIT, busyVcsec.commandStatus?.operationStatus)
+            val finalReply = RoutableMessage.ADAPTER.decode(c.transport.incoming.first())
+            assertFault(finalReply, MessageFault_E.MESSAGEFAULT_ERROR_NONE, expectSessionInfo = false)
+            assertNull(finalReply.protobuf_message_as_bytes)
+        }
+
+    @Test
+    fun emptyScriptMeansNoReply() =
+        runTest {
+            val c = client()
+            val signer = c.handshake(domain)
+            c.fake.script(domain, emptyList())
+            val message = c.encrypt(signer, c.command(domain, plaintext))
+            assertNull(c.exchange(message))
+        }
+
+    @Test
+    fun infotainmentDomainUsesItsOwnStateAndDefaultReply() =
+        runTest {
+            val c = client()
+            val infoDomain = Domain.DOMAIN_INFOTAINMENT
+            val signer = c.handshake(infoDomain)
+            val message = c.encrypt(signer, c.command(infoDomain, plaintext))
+            val reply = assertNotNull(c.exchange(message))
+            assertFault(reply, MessageFault_E.MESSAGEFAULT_ERROR_NONE, expectSessionInfo = false)
+            val response = Response.ADAPTER.decode(assertNotNull(reply.protobuf_message_as_bytes).toByteArray())
+            assertEquals(CarServerOperationStatus.OPERATIONSTATUS_OK, response.actionStatus?.result)
+        }
+
+    @Test
+    fun respondsToPlaintextCommandWithoutSession() =
+        // handle()의 세 번째 분기: signature_data도 session_info_request도 없는 평문 명령(AuthMethod.NONE)
+        runTest {
+            val c = client()
+            c.fake.script(domain, listOf(FakeVehicle.ScriptedReply(payload = "pong".encodeToByteArray())))
+            val message = c.command(domain, "ping".encodeToByteArray())
+            val reply = assertNotNull(c.exchange(message))
+            assertFault(reply, MessageFault_E.MESSAGEFAULT_ERROR_NONE, expectSessionInfo = false)
+            assertContentEquals("pong".encodeToByteArray(), assertNotNull(reply.protobuf_message_as_bytes).toByteArray())
+        }
+
+    @Test
+    fun sleepingOneDomainLeavesTheOtherAnswering() =
+        runTest {
+            val c = client()
+            val signer = c.handshake(domain)
+            c.fake.sleep(setOf(Domain.DOMAIN_INFOTAINMENT))
+            val message = c.encrypt(signer, c.command(domain, plaintext))
+            assertFault(c.exchange(message), MessageFault_E.MESSAGEFAULT_ERROR_NONE, expectSessionInfo = false)
+        }
+
+    @Test
+    fun acceptsCommandAfterClockRegresses() =
+        // verifier.go verifySessionInfo: 시계가 뒤로 가면 timestamp()가 0으로 클램프되어 expiresAt < now가 성립하지
+        // 않는다 — rejectsExpiredCommand(양수 shift)의 반대: fault 없이 그대로 받아들여진다.
+        runTest {
+            val c = client()
+            val signer = c.handshake(domain)
+            val message = c.encrypt(signer, c.command(domain, plaintext))
+            c.fake.shiftClock(domain, -1.hours)
+            assertFault(c.exchange(message), MessageFault_E.MESSAGEFAULT_ERROR_NONE, expectSessionInfo = false)
         }
 }
