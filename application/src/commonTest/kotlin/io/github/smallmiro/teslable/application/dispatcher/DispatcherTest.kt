@@ -16,6 +16,7 @@ import io.github.smallmiro.teslable.protocol.ResponseClassifier
 import io.github.smallmiro.teslable.testing.FakeVehicle
 import io.github.smallmiro.teslable.testing.TestCrypto
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -108,11 +109,13 @@ class DispatcherTest {
         // window left by the (already-released) lock launches a replacement that survives stop()'s
         // cleanup of the OLD job. Both racers are launched before a single advanceUntilIdle() so the
         // test dispatcher interleaves them deterministically (stop()'s cancel() + suspend in join(),
-        // then start() observing isListening == false and relaunching). The first stop()'s join()
-        // resolves lazily on the next real suspension point (the `it.receive()` below), which is
-        // exactly where the old code's post-suspend `receiveJob = null` used to silently orphan the
-        // replacement collector — it kept running (it still delivers the response) while isListening
-        // wrongly reported false.
+        // then start() observing isListening == false and relaunching). advanceUntilIdle() stops once
+        // only backgroundScope-only work remains scheduled (documented, deterministic — see
+        // TestScope.backgroundScope), and the collector lives in backgroundScope, so the first stop()'s
+        // join() resolves lazily, only once a later real suspension point (the `it.receive()` below)
+        // gives the scheduler a reason to run it. That lazy resolution is exactly where the old code's
+        // post-suspend `receiveJob = null` used to silently orphan the replacement collector — it kept
+        // running (it still delivers the response) while isListening wrongly reported false.
         runTest {
             val h = dispatcherHarness()
             assertTrue(h.dispatcher.isListening)
@@ -127,7 +130,60 @@ class DispatcherTest {
             assertTrue(h.dispatcher.isListening) // must still be tracked, not orphaned by the racing stop()'s cleanup
 
             h.dispatcher.stop()
-            assertFalse(h.dispatcher.isListening) // now stoppable and fully stopped, no leaked collector
+            // Not just isListening (which is trivially false whenever receiveJob is null, orphaned or
+            // not) — check backgroundScope directly for a leaked, still-running collector.
+            val backgroundJob = checkNotNull(backgroundScope.coroutineContext[Job])
+            assertFalse(h.dispatcher.isListening)
+            assertTrue(backgroundJob.children.all { it.isCompleted }) // no leaked collector, not just a cleared flag
+        }
+
+    @Test
+    fun closeWaitsForTheCollectorEvenWhenAnotherStopRacesIn() =
+        // Review round 2, Important N1 (regression in the round 1 fix above): only the first stop()
+        // call captured receiveJob into a local before clearing the field; a concurrent stop() —
+        // including the one close() calls internally — captured null and returned immediately without
+        // waiting, so close() could zeroize sessions and close the transport while the cancelled
+        // collector was still finishing inside process() (a real hazard on a multi-threaded scope). Go's
+        // Stop holds doneLock across <-d.done (dispatcher.go:369-375): every stopper must join the same
+        // job. `stopping` remembers the job currently being stopped so a second stop() (here, close()'s)
+        // falls back to it instead of capturing null.
+        runTest {
+            val h = dispatcherHarness()
+            val backgroundJob = checkNotNull(backgroundScope.coroutineContext[Job])
+            // Job.isActive turns false as soon as cancel() runs, well before the coroutine actually
+            // finishes unwinding — so the only reliable "truly done" signal is isCompleted, checked at
+            // the exact moment close() returns (not after a later drain, by when everything has long
+            // since settled either way).
+            var collectorWasDoneWhenCloseReturned = false
+            launch { h.dispatcher.stop() }
+            launch {
+                h.dispatcher.close()
+                collectorWasDoneWhenCloseReturned = backgroundJob.children.all { it.isCompleted }
+            }
+            runCurrent()
+            assertFalse(h.dispatcher.isListening)
+            assertTrue(collectorWasDoneWhenCloseReturned) // close() must not return before the collector fully finished
+        }
+
+    @Test
+    fun startWhileAnEarlierStopIsStillJoiningDoesNotCreateASecondLiveCollector() =
+        // Review round 2, Important N1 (controller ruling): a start() racing in while an earlier stop()
+        // is still joining must not create a second live collector alongside the one being stopped —
+        // Go's listen() and Stop() share doneLock, so a concurrent Start() would block until Stop()
+        // releases it. Here the new collector's body first joins the in-flight stop's job before it
+        // subscribes to transport.incoming, so at most one collector is ever actively receiving.
+        runTest {
+            val h = dispatcherHarness()
+            val backgroundJob = checkNotNull(backgroundScope.coroutineContext[Job])
+            launch { h.dispatcher.stop() }
+            launch { h.dispatcher.start() }
+            runCurrent()
+            assertTrue(backgroundJob.children.count { it.isActive } <= 1) // never two live collectors
+
+            // Eventually settles on exactly one working collector.
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), AuthMethod.NONE)).value
+            pending.use { assertNotNull(it.receive()) }
+            assertEquals(1, backgroundJob.children.count { it.isActive })
         }
 
     @Test
