@@ -6,3 +6,10 @@
 // - Show declarations: true
 
 // Library unique name: <tesla-ble-kmp:adapter-storage>
+final class io.github.smallmiro.teslable.storage/InMemorySessionCache : io.github.smallmiro.teslable.port/SessionCache { // io.github.smallmiro.teslable.storage/InMemorySessionCache|null[0]
+    constructor <init>(kotlin/Function0<kotlin/Long> = ...) // io.github.smallmiro.teslable.storage/InMemorySessionCache.<init>|<init>(kotlin.Function0<kotlin.Long>){}[0]
+
+    final suspend fun clear(io.github.smallmiro.teslable.model/Vin) // io.github.smallmiro.teslable.storage/InMemorySessionCache.clear|clear(io.github.smallmiro.teslable.model.Vin){}[0]
+    final suspend fun load(io.github.smallmiro.teslable.model/Vin, io.github.smallmiro.teslable.model/KeyId): kotlin.collections/List<io.github.smallmiro.teslable.cache/CachedSession> // io.github.smallmiro.teslable.storage/InMemorySessionCache.load|load(io.github.smallmiro.teslable.model.Vin;io.github.smallmiro.teslable.model.KeyId){}[0]
+    final suspend fun store(io.github.smallmiro.teslable.model/Vin, io.github.smallmiro.teslable.model/KeyId, kotlin.collections/List<io.github.smallmiro.teslable.cache/SessionSnapshot>) // io.github.smallmiro.teslable.storage/InMemorySessionCache.store|store(io.github.smallmiro.teslable.model.Vin;io.github.smallmiro.teslable.model.KeyId;kotlin.collections.List<io.github.smallmiro.teslable.cache.SessionSnapshot>){}[0]
+}
