@@ -33,6 +33,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import okio.ByteString
 import okio.ByteString.Companion.toByteString
+import kotlin.concurrent.Volatile
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
@@ -66,7 +67,12 @@ public class Dispatcher
         /** Go `RetryInterval()`: 전송 계층의 재전송 간격. */
         public val retryInterval: Duration get() = transport.retryInterval
 
-        /** Go `maxLatency`: 요청 후 이 시간이 지나 도착한 세션정보는 버린다(BLE 4초). */
+        /**
+         * Go `maxLatency`(`latencyLock`으로 보호): 요청 후 이 시간이 지나 도착한 세션정보는 버린다(BLE 4초).
+         * [setMaxLatency]는 수신 코루틴이 아닌 임의의 호출자가 부르고 [checkForSessionUpdate]는 수신 코루틴에서 읽으므로
+         * `@Volatile`로 스레드 간 가시성을 보장한다(리뷰 라운드 1 Important 1).
+         */
+        @Volatile
         public var maxLatency: Duration = transport.allowedLatency
             private set
 
@@ -82,6 +88,16 @@ public class Dispatcher
             }
         private val pending = HashMap<PendingKey, PendingRequest>()
         private val pendingMutex = Mutex()
+
+        // 리뷰 라운드 1 Important 1: Go는 Start/Stop을 doneLock으로 직렬화한다(dispatcher.go:333-341, 369-375,
+        // 380-382). start()는 suspend가 아니므로(공개 API 유지) lock()이 아닌 tryLock/unlock으로 receiveJob 필드를
+        // 지킨다. stop()은 withLock으로 필드를 캡처·해제한 뒤 잠금을 놓고 나서(락 밖에서) cancelAndJoin()으로
+        // 정지를 기다린다 — 잠긴 상태로 정지를 기다리면 그사이 start()가 tryLock에 계속 실패해 새 수신 코루틴을
+        // 띄울 수 없기 때문이다. 이렇게 "먼저 비우고 나중에 정지를 기다리기" 순서를 지키면, 정지를 기다리는 도중에
+        // start()가 새로 띄운 코루틴을 stop()이 뒤늦게 null로 덮어써 고아로 만드는 일이 없다.
+        private val lifecycleMutex = Mutex()
+
+        @Volatile
         private var receiveJob: Job? = null
 
         /** Go `SetMaxLatency`: 양수일 때만 바꾼다. */
@@ -92,20 +108,35 @@ public class Dispatcher
         /** 도메인의 세션 상태. 개인키가 없으면 null. */
         public fun session(domain: Domain): SessionState? = sessions[domain]
 
-        /** Go `Start` + `listen`: 수신 코루틴을 띄운다. `UNDISPATCHED`로 시작해 반환 전에 [Transport.incoming] 구독이 끝난다. 멱등. */
+        /**
+         * Go `Start` + `listen`: 수신 코루틴을 띄운다. `UNDISPATCHED`로 시작해 반환 전에 [Transport.incoming] 구독이
+         * 끝난다. 멱등. [lifecycleMutex]를 [stop]과 공유하므로(리뷰 라운드 1 Important 1), 정지가 필드를 비우고
+         * 나가는 사이의 아주 짧은 창을 제외하면 항상 최신 [receiveJob]을 보고 판단한다; tryLock이 실패하면(그 창과
+         * 겹쳤다는 뜻) 아무 것도 하지 않는다 — 곧이어 [stop]이 필드를 비워 두므로 호출자가 다시 부르면 된다.
+         */
         public fun start() {
-            if (isListening) return
-            receiveJob =
-                scope.launch(start = CoroutineStart.UNDISPATCHED) {
-                    logger.log(LogLevel.INFO, TAG) { "Starting dispatcher service..." }
-                    transport.incoming.collect { process(it) }
-                }
+            if (!lifecycleMutex.tryLock()) return
+            try {
+                if (isListening) return
+                receiveJob =
+                    scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                        logger.log(LogLevel.INFO, TAG) { "Starting dispatcher service..." }
+                        transport.incoming.collect { process(it) }
+                    }
+            } finally {
+                lifecycleMutex.unlock()
+            }
         }
 
-        /** Go `Stop`: 수신 코루틴을 취소하고 끝날 때까지 기다린다. 세션은 유지된다(Go와 동일). */
+        /**
+         * Go `Stop`: 수신 코루틴을 취소하고 끝날 때까지 기다린다. 세션은 유지된다(Go와 동일). 필드를 캡처하고 비우는
+         * 것은 잠금 안에서, 실제로 끝나기를 기다리는 것(suspend)은 잠금 밖에서 한다(리뷰 라운드 1 Important 1) —
+         * 그래야 기다리는 동안 레이스로 들어온 [start]가 새로 띄운 코루틴을 이 함수가 나중에 `null`로 덮어써
+         * 고아로 만들지 않는다.
+         */
         public suspend fun stop() {
-            receiveJob?.cancelAndJoin()
-            receiveJob = null
+            val job = lifecycleMutex.withLock { receiveJob.also { receiveJob = null } }
+            job?.cancelAndJoin()
         }
 
         /** Go `Vehicle.Disconnect`: [stop] + 세션 키 소거 + 전송 닫기. */

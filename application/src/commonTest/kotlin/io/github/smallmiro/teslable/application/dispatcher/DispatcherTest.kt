@@ -16,7 +16,9 @@ import io.github.smallmiro.teslable.protocol.ResponseClassifier
 import io.github.smallmiro.teslable.testing.FakeVehicle
 import io.github.smallmiro.teslable.testing.TestCrypto
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeoutOrNull
@@ -93,6 +95,39 @@ class DispatcherTest {
             h.dispatcher.stop()
             assertFalse(h.dispatcher.isListening)
             assertEquals(VehicleError.NotConnected, assertIs<VehicleResult.Failure>(h.dispatcher.send(testCommand(), none)).error)
+        }
+
+    @Test
+    fun stopRacingWithStartDoesNotOrphanTheReplacementCollector() =
+        // Review round 1, Important 1: stop() used to suspend in cancelAndJoin() and only clear
+        // receiveJob afterwards, so a start() that raced in during that suspension got its fresh job
+        // silently wiped out by stop()'s post-suspend `receiveJob = null` — an orphaned, unstoppable
+        // collector (isListening reports false while the job is still actually running). Go serializes
+        // Start/Stop under doneLock (dispatcher.go:333-341, 369-375, 380-382); here a lifecycle Mutex
+        // captures-and-clears the job before suspending in cancelAndJoin(), so a start() racing into the
+        // window left by the (already-released) lock launches a replacement that survives stop()'s
+        // cleanup of the OLD job. Both racers are launched before a single advanceUntilIdle() so the
+        // test dispatcher interleaves them deterministically (stop()'s cancel() + suspend in join(),
+        // then start() observing isListening == false and relaunching). The first stop()'s join()
+        // resolves lazily on the next real suspension point (the `it.receive()` below), which is
+        // exactly where the old code's post-suspend `receiveJob = null` used to silently orphan the
+        // replacement collector — it kept running (it still delivers the response) while isListening
+        // wrongly reported false.
+        runTest {
+            val h = dispatcherHarness()
+            assertTrue(h.dispatcher.isListening)
+            launch { h.dispatcher.stop() } // will cancel+join the original collector
+            launch { h.dispatcher.start() } // races in while the first stop() is suspended in cancelAndJoin()
+            advanceUntilIdle()
+            assertTrue(h.dispatcher.isListening) // the replacement collector must survive stop()'s cleanup
+
+            // The replacement collector must actually be the one processing messages (not a stale flag).
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), AuthMethod.NONE)).value
+            pending.use { assertNotNull(it.receive()) }
+            assertTrue(h.dispatcher.isListening) // must still be tracked, not orphaned by the racing stop()'s cleanup
+
+            h.dispatcher.stop()
+            assertFalse(h.dispatcher.isListening) // now stoppable and fully stopped, no leaked collector
         }
 
     @Test
