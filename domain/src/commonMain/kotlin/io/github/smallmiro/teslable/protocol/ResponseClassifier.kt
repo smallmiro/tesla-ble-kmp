@@ -7,11 +7,13 @@ import com.tesla.generated.universalmessage.MessageFault_E
 import com.tesla.generated.universalmessage.MessageStatus
 import com.tesla.generated.universalmessage.OperationStatus_E
 import com.tesla.generated.universalmessage.RoutableMessage
+import io.github.smallmiro.teslable.InternalTeslableApi
 import io.github.smallmiro.teslable.model.VehicleError
 import okio.ByteString
 import okio.IOException
 
 /** RoutableMessage 계층의 오류 해석 (`08-errors.md` §1.4). 페이로드 안의 애플리케이션 오류는 M2 이후 별도 해석. */
+@OptIn(InternalTeslableApi::class)
 public object ResponseClassifier {
     // MessageStatus, SessionInfo의 proto 필드 번호 (domain/src/commonMain/proto).
     private const val TAG_MESSAGE_STATUS_OPERATION_STATUS = 1
