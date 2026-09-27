@@ -27,6 +27,7 @@ public class VehicleSession(
 ) {
     private val disconnectMutex = Mutex()
     private var storedOnDisconnect = false
+    private var hasLoadedCache = false
 
     /** Go `StartSessions` 계층. */
     public val handshake: HandshakeFlow = HandshakeFlow(dispatcher)
@@ -46,6 +47,7 @@ public class VehicleSession(
     /** Go `NewVehicle`(캐시 복원) + `Connect`(수신 시작). 캐시로 준비된 도메인을 돌려준다. */
     public suspend fun connect(): Set<Domain> {
         val restored = cacheSync?.load(dispatcher) ?: emptySet()
+        hasLoadedCache = true
         dispatcher.start()
         return restored
     }
@@ -76,6 +78,11 @@ public class VehicleSession(
      * [Dispatcher.close]로 세션을 소거한 뒤라 빈 목록을 저장해 첫 저장을 지워 버린다 — [SessionCacheSync] KDoc). [Dispatcher.close]
      * 자체는 이미 멱등이라 매번 부른다.
      *
+     * [connect]를 (성공적으로 끝까지든, 취소로든) 부른 적이 없으면 저장을 건너뛴다 — 그러지 않으면 세션이 하나도 없는 채로
+     * 빈 목록을 저장해 이전에 다른 [connect]가 채워 둔 캐시를 지워 버린다. Go CLI도 성공적인 Connect 뒤에만 저장한다
+     * (`cmd/tesla-control/main.go:174-177`). [connect]에서 유일하게 suspend하는 지점은 [cacheSync]`.load`이므로, 그 지점에서
+     * 취소되면(캐시를 다 읽기 전) 이 조건에 걸려 저장을 건너뛴다.
+     *
      * 저장이 호출자의 취소로 중단돼도(느린 캐시 I/O 등) [Dispatcher.close]는 `finally`의 `NonCancellable` 안에서 반드시
      * 실행된다 — 세션 키가 메모리에 남거나 전송이 열린 채로 남지 않는다. 호출자의 취소는 값이 되지 않고 `CancellationException`으로
      * 그대로 전파된다(ADR-0010).
@@ -97,7 +104,7 @@ public class VehicleSession(
 
     private suspend fun storeOnceForDisconnect() {
         disconnectMutex.withLock {
-            if (storedOnDisconnect) return@withLock
+            if (storedOnDisconnect || !hasLoadedCache) return@withLock
             storedOnDisconnect = true
             cacheSync?.store(dispatcher)
         }
