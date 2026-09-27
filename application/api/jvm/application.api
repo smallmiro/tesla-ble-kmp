@@ -22,6 +22,13 @@ public final class io/github/smallmiro/teslable/application/dispatcher/Dispatche
 	public final fun sessionInfoRequest (Lcom/tesla/generated/universalmessage/Domain;Lio/github/smallmiro/teslable/model/PublicKeyBytes;)Lcom/tesla/generated/universalmessage/RoutableMessage;
 }
 
+public final class io/github/smallmiro/teslable/application/dispatcher/HandshakeFlow {
+	public fun <init> (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;)V
+	public final fun startSession (Lcom/tesla/generated/universalmessage/Domain;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun startSessions (Ljava/util/Set;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun startSessions$default (Lio/github/smallmiro/teslable/application/dispatcher/HandshakeFlow;Ljava/util/Set;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
 public final class io/github/smallmiro/teslable/application/dispatcher/PendingRequest : java/lang/AutoCloseable {
 	public static final field BUFFER_SIZE I
 	public static final field Companion Lio/github/smallmiro/teslable/application/dispatcher/PendingRequest$Companion;
