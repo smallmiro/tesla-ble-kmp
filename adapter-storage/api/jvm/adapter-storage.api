@@ -1,0 +1,9 @@
+public final class io/github/smallmiro/teslable/storage/InMemorySessionCache : io/github/smallmiro/teslable/port/SessionCache {
+	public fun <init> ()V
+	public fun <init> (Lkotlin/jvm/functions/Function0;)V
+	public synthetic fun <init> (Lkotlin/jvm/functions/Function0;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun clear (Lio/github/smallmiro/teslable/model/Vin;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun load (Lio/github/smallmiro/teslable/model/Vin;Lio/github/smallmiro/teslable/model/KeyId;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun store (Lio/github/smallmiro/teslable/model/Vin;Lio/github/smallmiro/teslable/model/KeyId;Ljava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
