@@ -21,7 +21,7 @@ import kotlin.time.Duration
  * INCORRECT_EPOCH, TIME_EXPIRED, `Busy`, 일시 전송 오류 …)면 [Dispatcher.retryInterval] 뒤 **새 counter·nonce·expires_at으로 재인가**해
  * 다시 보낸다(FR-101; `Dispatcher.send`가 매번 `Signer.encrypt`). `mayHaveSucceeded` 오류는 재시도하지 않는다(NFR-007).
  *
- * 시간 초과(D29, [io.github.smallmiro.teslable.application.dispatcher.withAttemptTimeout]): 전송 전·재시도 대기 중이면
+ * 시간 초과(D29, `withAttemptTimeout`): 전송 전·재시도 대기 중이면
  * `Failure(Timeout(afterSend = false))`(Go `Dispatcher.Send`·`Vehicle.Send`의 ctx 분기), 응답 대기 중이면
  * `Uncertain(Timeout(afterSend = true))`(Go `trySend`의 `PossibleSuccess: true`).
  */
@@ -37,7 +37,7 @@ public class SendWithRetry(
      * 외부 취소는 `CancellationException`으로 전파되고 `PendingRequest`는 `use`에서 풀린다. [payload]는 첫 시도 전에
      * 딱 한 번만 [ByteString]으로 복사해 얼린다(Go `Send` 236~238행과 동일) — `trySend`가 재시도마다 다시 복사하면
      * 호출자가 `send`를 호출한 뒤(예: 첫 시도가 실패해 재시도를 기다리는 동안) 넘겨준 배열을 제자리에서 바꿀 경우
-     * 그 변경이 재시도에 새어 들어간다(N1; `retriesReuseThePayloadCopiedBeforeTheFirstAttempt`가 고정한다).
+     * 그 변경이 재시도에 새어 들어간다(`retriesReuseThePayloadCopiedBeforeTheFirstAttempt`가 고정한다).
      */
     public suspend fun send(
         domain: Domain,

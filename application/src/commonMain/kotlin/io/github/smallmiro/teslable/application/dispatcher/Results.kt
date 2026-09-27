@@ -33,7 +33,7 @@ internal inline fun <T> VehicleResult<T>.valueOr(onError: (VehicleError) -> Noth
     }
 
 /**
- * Go `Vehicle.Send`/`Vehicle.StartSession`의 재시도 루프(컨트롤러 판정 R1): [attempt]가 성공하거나 오류가
+ * Go `Vehicle.Send`/`Vehicle.StartSession`의 재시도 루프: [attempt]가 성공하거나 오류가
  * `shouldRetry()`가 아니면 그 결과를 바로 돌려주고, 그렇지 않으면 [interval] 만큼 기다린 뒤 다시 [attempt]한다.
  * `SendWithRetry.send`, `VehicleSession.startSession`, Task 10 `VcsecCommands`가 공유한다.
  */
@@ -50,7 +50,7 @@ internal suspend fun <T> retryWhileRetriable(
 }
 
 /**
- * Go `Send`/`trySend`의 `ctx.Done()` 분기(D29, ADR-0010, 컨트롤러 판정 R1): [timeout] 안에 [block]이 끝나지 못하면
+ * Go `Send`/`trySend`의 `ctx.Done()` 분기(D29, ADR-0010): [timeout] 안에 [block]이 끝나지 못하면
  * [VehicleError.Timeout]을 값으로 돌려준다. `afterSend`는 [block]이 `setAwaiting`으로 마지막에 넘긴 값이다 — 응답을
  * 기다리는 동안 초과하면 true([VehicleResult.Uncertain]), 그 전이면 false([VehicleResult.Failure]).
  */

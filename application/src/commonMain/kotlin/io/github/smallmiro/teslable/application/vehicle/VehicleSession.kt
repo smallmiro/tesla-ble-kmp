@@ -51,11 +51,9 @@ public class VehicleSession(
     }
 
     /**
-     * Go `Vehicle.StartSession`: `shouldRetry()` 오류면 [retryInterval] 뒤 다시 핸드셰이크
-     * ([io.github.smallmiro.teslable.application.dispatcher.retryWhileRetriable]). [handshake]는 절대 `setAwaiting`을
-     * 부르지 않으므로 시간 초과는 항상 `Failure(Timeout(afterSend = false))`다
-     * ([io.github.smallmiro.teslable.application.dispatcher.withAttemptTimeout] — 세션이 만들어지지 않았고 부작용이
-     * 없다; 사용자 승인 답 b — 전용 타입 없음). 성공하면 세션 캐시에 저장한다(SDD §7.1).
+     * Go `Vehicle.StartSession`: `shouldRetry()` 오류면 [retryInterval] 뒤 다시 핸드셰이크(`retryWhileRetriable`).
+     * [handshake]는 절대 `setAwaiting`을 부르지 않으므로 시간 초과는 항상 `Failure(Timeout(afterSend = false))`다
+     * (`withAttemptTimeout` — 세션이 만들어지지 않았고 부작용이 없다; 사용자 승인 답 b — 전용 타입 없음). 성공하면 세션 캐시에 저장한다(SDD §7.1).
      */
     public suspend fun startSession(
         domains: Set<Domain> = Dispatcher.ALL_DOMAINS,
@@ -82,7 +80,7 @@ public class VehicleSession(
      * 실행된다 — 세션 키가 메모리에 남거나 전송이 열린 채로 남지 않는다. 호출자의 취소는 값이 되지 않고 `CancellationException`으로
      * 그대로 전파된다(ADR-0010).
      *
-     * **동시 호출 주의(N3):** 두 번째 호출이 [disconnectMutex] 획득을 기다리는 동안 취소되면, 그 호출은 저장을 건너뛰고
+     * **동시 호출 주의:** 두 번째 호출이 [disconnectMutex] 획득을 기다리는 동안 취소되면, 그 호출은 저장을 건너뛰고
      * (락을 얻지 못했으므로 저장 여부 확인도 못 한다) 곧바로 `finally`로 가 [Dispatcher.close]를 실행한다. 실제 멀티스레드
      * 디스패처(테스트의 단일 스레드 스케줄러가 아니라)에서는 이 `close()`가 첫 호출이 아직 락 안에서 진행 중인
      * [cacheSync]`.store`와 겹쳐 실행될 수 있다(마이크로초 단위 창) — `SessionState`마다 자체 뮤텍스가 `export`/`close`를

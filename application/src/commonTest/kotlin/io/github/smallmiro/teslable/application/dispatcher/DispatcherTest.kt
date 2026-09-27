@@ -190,7 +190,7 @@ class DispatcherTest {
 
     @Test
     fun dropsMessageWithInvalidAddressLength() =
-        // Review round 1, Minor fold M5: dispatcher.go process (~278-281), untested by
+        // dispatcher.go process (~278-281), untested by
         // dropsInvalidMessagesAndDeliversTheValidOne (that test's "bad destination address" mutates a
         // still-16-byte address). A routing_address of any other length is its own drop reason.
         runTest {
@@ -207,7 +207,7 @@ class DispatcherTest {
 
     @Test
     fun dropsMessageWithUnrecognizedDestinationType() =
-        // Review round 1, Minor fold M5: dispatcher.go process's default case for a Destination with
+        // dispatcher.go process's default case for a Destination with
         // neither a domain nor a routing_address set.
         runTest {
             val h = dispatcherHarness()
@@ -222,7 +222,7 @@ class DispatcherTest {
 
     @Test
     fun dropsResponseFromDomainUnknownToWire() =
-        // 설계 구체화 10 + 컨트롤러 판정 R2: 모르는 from 도메인(raw varint 4)은 Wire에서 domain == null이지만
+        // 설계 구체화 10: 모르는 from 도메인(raw varint 4)은 Wire에서 domain == null이지만
         // from_destination 자체는 있으므로 "누락된 소스"가 아니다. Go GetDomain()이 0(DOMAIN_BROADCAST)을 돌려주는 것처럼
         // domain을 DOMAIN_BROADCAST로 취급하고, 그 도메인으로 등록된 핸들러가 없어 "핸들러 없음"으로 드롭한다.
         runTest {
@@ -262,7 +262,7 @@ class DispatcherTest {
 
     @Test
     fun closingTheHandlerWhileProcessIsSuspendedInsideCheckForSessionUpdateDropsAsMissingHandler() =
-        // Review round 2, Minor N3 (M2, reachable): checkForSessionUpdate's first processHello runs
+        // checkForSessionUpdate's first processHello runs
         // Signer.createAuthenticated -> Session.establish -> the injected private key's suspend
         // sharedX (EcdhPrivateKey.kt:16) — a genuine suspension point inside process(), between
         // lookup() and deliver(). Gate it so the collector is provably still inside process() (not
@@ -283,8 +283,7 @@ class DispatcherTest {
 
     @Test
     fun requestSessionInfoWithoutKeyReturnsRequiresKey() =
-        // dispatcher_test.go TestRequestSessionWithoutKey. Review round 2, Minor N3 (M6 regression
-        // coverage): dispatcher.go RequestSessionInfo logs unconditionally before checking
+        // dispatcher_test.go TestRequestSessionWithoutKey. dispatcher.go RequestSessionInfo logs unconditionally before checking
         // d.privateKey == nil (dispatcher.go:483-486); assert the log happens even when the key check
         // then fails the call.
         runTest {
@@ -344,7 +343,7 @@ class DispatcherTest {
 
     @Test
     fun discardsSessionInfoWithPresentButEmptyTagAsUnauthenticated() =
-        // Review round 1, Minor fold M1: Wire's proto3 `tag` defaults to ByteString.EMPTY (not null), so
+        // Wire's proto3 `tag` defaults to ByteString.EMPTY (not null), so
         // an explicitly present `session_info_tag {}` with no tag bytes must still be treated as "no tag"
         // like Go's GetTag() returning nil (dispatcher.go:203-206), not fall through to HMAC verification.
         runTest {
@@ -433,7 +432,7 @@ class DispatcherTest {
     @Test
     fun appliesReplayedSessionInfoWithSameClockTimeLikeGo() =
         // FR-014 세 번째 규칙의 경계: signer.go "s.setTime <= info.ClockTime" — 같은 clock_time은 다시 반영된다(Go 동작).
-        // 컨트롤러 판정 R3: 반영(적용)과 무시를 구별하도록, 클라이언트 시계만 2초 흘리고 차량 시계는 같은 만큼 되돌려
+        // 반영(적용)과 무시를 구별하도록, 클라이언트 시계만 2초 흘리고 차량 시계는 같은 만큼 되돌려
         // 두 번째 세션정보가 첫 번째와 같은 clock_time을 지니게 한다. 반영되면 timestamp()가 그대로(before)이고,
         // 무시됐다면 흘러간 2초만큼 커진다(before + 2s) — signer.go:103-110은 setTime <= ClockTime이면 timeZero를 다시 계산한다.
         runTest {

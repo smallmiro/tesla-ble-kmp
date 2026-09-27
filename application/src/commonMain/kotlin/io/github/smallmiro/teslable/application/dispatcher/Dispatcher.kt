@@ -51,7 +51,7 @@ private const val TAG = "Dispatcher"
 /**
  * Go `Dispatcher`: 요청 조립(`uuid`, `routing_address`)·인가·전송 재시도, 그리고 수신 루프(`RoutableMessage` 파싱 → [PendingRequest] 매칭 →
  * 세션정보 갱신 → 복호화 → 채널 전달). 수신 코루틴은 [start]가 [scope]에 하나 띄운다. 그 코루틴은 다른 코루틴의 진행을 기다리지 않는다
- * (채널은 `trySend`, 락은 `Signer` 호출·맵 조작만 — SDD §5 구체화 4). **예외 한 가지(리뷰 라운드 3 A3):** [start]가 새로 띄우는 수신
+ * (채널은 `trySend`, 락은 `Signer` 호출·맵 조작만 — SDD §5 구체화 4). **예외 한 가지:** [start]가 새로 띄우는 수신
  * 코루틴은 `incoming`을 구독하기 **전에**, 아직 끝나지 않은 이전 정지 대상 job이 있으면 그 job이 끝날 때까지 기다린다 — 두 수신
  * 코루틴이 동시에 같은 `incoming`을 구독하면 안 되기 때문이다(Go의 `listen`과 `Stop`은 `doneLock`을 공유해 이 순서를 강제한다). 이
  * 대기는 `NonCancellable`로 감싸 자기 자신이 취소되더라도 이전 job의 종료를 확실히 기다린 뒤 `ensureActive()`로 자기 취소를
@@ -81,7 +81,7 @@ public class Dispatcher
         /**
          * Go `maxLatency`(`latencyLock`으로 보호): 요청 후 이 시간이 지나 도착한 세션정보는 버린다(BLE 4초).
          * [setMaxLatency]는 수신 코루틴이 아닌 임의의 호출자가 부르고 [checkForSessionUpdate]는 수신 코루틴에서 읽으므로
-         * `@Volatile`로 스레드 간 가시성을 보장한다(리뷰 라운드 1 Important 1).
+         * `@Volatile`로 스레드 간 가시성을 보장한다.
          */
         @Volatile
         public var maxLatency: Duration = transport.allowedLatency
@@ -97,8 +97,8 @@ public class Dispatcher
          *   구독 전이라 [activeJob]을 채우지 않았다 — Go도 새 `listen`이 `doneLock`을 얻어 `terminate`를 만들기 전까지는
          *   `Send`가 `ErrNotConnected`다(dispatcher.go:331-341).
          *
-         * 리뷰 라운드 4: 라운드 3 A2는 `activeJob != null`로 읽어서, 정지 중(교대가 없어도)에 취소된 코루틴이 `finally`에
-         * 이르기 전까지 `true`를 돌려주고 [send]가 차량으로 전송까지 했다 — Go와 다르므로 고쳤다.
+         * `activeJob != null`만으로는 부족하다 — 취소된 코루틴은 `finally`에 이르기 전까지 [activeJob]에 남아 있으므로,
+         * 그 존재만 보면 정지 중(교대가 없어도)에도 `true`가 되어 [send]가 차량으로 전송까지 해 버린다 — Go와 다르다.
          */
         public val isListening: Boolean get() = activeJob?.isActive == true
 
@@ -112,14 +112,14 @@ public class Dispatcher
         private val pending = HashMap<PendingKey, PendingRequest>()
         private val pendingMutex = Mutex()
 
-        // 리뷰 라운드 1 Important 1: Go는 Start/Stop을 doneLock으로 직렬화한다(dispatcher.go:333-341, 369-375,
+        // Go는 Start/Stop을 doneLock으로 직렬화한다(dispatcher.go:333-341, 369-375,
         // 380-382). start()는 suspend가 아니므로(공개 API 유지) lock()이 아닌 tryLock/unlock으로 receiveJob 필드를
         // 지킨다. stop()은 withLock으로 필드를 캡처·해제한 뒤 잠금을 놓고 나서(락 밖에서) cancelAndJoin()으로
         // 정지를 기다린다 — 잠긴 상태로 정지를 기다리면 그사이 start()가 tryLock에 계속 실패해 새 수신 코루틴을
         // 띄울 수 없기 때문이다. 이렇게 "먼저 비우고 나중에 정지를 기다리기" 순서를 지키면, 정지를 기다리는 도중에
         // start()가 새로 띄운 코루틴을 stop()이 뒤늦게 null로 덮어써 고아로 만드는 일이 없다.
         //
-        // 리뷰 라운드 2 N1(회귀): 위 방식은 첫 stop() 호출자만 job을 캡처하고, 동시에 들어온 다른 stop()
+        // 위 방식은 첫 stop() 호출자만 job을 캡처하고, 동시에 들어온 다른 stop()
         // 호출자(예: close()가 안에서 부르는 stop())는 receiveJob이 이미 null이라 아무 job도 얻지 못한 채
         // 곧바로 반환했다 — Go Stop은 doneLock을 쥔 채 <-d.done까지 기다리므로(dispatcher.go:369-375) 모든
         // 호출자가 실제로 끝날 때까지 기다려야 하는데, 그러지 못해 close()가 수신 코루틴이 채 끝나기도 전에
@@ -134,8 +134,8 @@ public class Dispatcher
         private var stopping: Job? = null
 
         /**
-         * 리뷰 라운드 3 A2: 실제로 `incoming`을 구독한 수신 코루틴(구독 전이면 null). 취소된 뒤에도 `finally`에 이르기 전까지는
-         * 남아 있으므로, [isListening]은 이것의 존재가 아니라 `isActive`를 본다(리뷰 라운드 4).
+         * 실제로 `incoming`을 구독한 수신 코루틴(구독 전이면 null). 취소된 뒤에도 `finally`에 이르기 전까지는
+         * 남아 있으므로, [isListening]은 이것의 존재가 아니라 `isActive`를 본다.
          */
         @Volatile
         private var activeJob: Job? = null
@@ -154,11 +154,11 @@ public class Dispatcher
         /**
          * Go `Start` + `listen`: 수신 코루틴을 띄운다. `UNDISPATCHED`로 시작해 반환 전에 [Transport.incoming] 구독이
          * 끝난다(단, 직전에 정지 중이던 job이 있으면 그 job이 끝난 뒤에 구독한다 — 아래 참고). 멱등. [lifecycleMutex]를
-         * [stop]과 공유하므로(리뷰 라운드 1 Important 1) tryLock이 실패하는 경우는 둘이다: (1) [stop]이 필드를
+         * [stop]과 공유하므로 tryLock이 실패하는 경우는 둘이다: (1) [stop]이 필드를
          * 캡처·해제하는 아주 짧은 창과 겹쳤을 때, (2) **다른 [start] 호출이 이미 잠금을 쥐고 있을 때** — `UNDISPATCHED`
          * 본문은 첫 suspension(아래 [stopping] join 대기, 또는 그것이 없으면 `incoming` 구독)에 이르기 전까지 잠금을
          * 놓지 않으므로, 이 잠깐의 동기 구간 동안 [receiveJob]은 아직 이전 값(흔히 `null`)일 수 있다 — 즉 진 쪽이
-         * 이긴 쪽보다 먼저 반환할 수 있다(리뷰 라운드 2 N4). 두 경우 모두 이 호출은 그냥 반환한다 — 곧(또는 이미)
+         * 이긴 쪽보다 먼저 반환할 수 있다. 두 경우 모두 이 호출은 그냥 반환한다 — 곧(또는 이미)
          * 최신 상태가 반영되므로 호출자는 다시 부르거나 [isListening]으로 다시 확인하면 된다. 멱등 여부는
          * [hasAssignedReceiver] 기준이다(공개 [isListening]과 다르다) — 구독 전에 대기 중인 job도 이미 "배정된"
          * 것으로 쳐서 중복 실행하지 않는다.
@@ -170,7 +170,7 @@ public class Dispatcher
                 val awaitedStop = stopping
                 receiveJob =
                     scope.launch(start = CoroutineStart.UNDISPATCHED) {
-                        // 리뷰 라운드 3 N1(남은 회귀): join()이 취소 가능한 채로 있으면, 이 코루틴 자신이 취소됐을 때
+                        // join()이 취소 가능한 채로 있으면, 이 코루틴 자신이 취소됐을 때
                         // awaitedStop이 아직 끝나지 않았는데도 join을 빠져나가 버린다 — 그러면 다음 stop()이
                         // stopping을 이 코루틴으로 덮어써 더 이전 세대 job의 추적을 완전히 잃는다. NonCancellable로
                         // 감싸 그 job이 실제로 끝날 때까지는 반드시 기다리고, 그 다음에야 ensureActive()로 (이
@@ -182,7 +182,7 @@ public class Dispatcher
                             ensureActive()
                         }
                         logger.log(LogLevel.INFO, TAG) { "Starting dispatcher service..." }
-                        // 리뷰 라운드 3 A2: 실제 구독은 여기서부터다 — activeJob을 채워야 isListening이 true가 된다.
+                        // 실제 구독은 여기서부터다 — activeJob을 채워야 isListening이 true가 된다.
                         val self = coroutineContext[Job]
                         activeJob = self
                         try {
@@ -198,11 +198,11 @@ public class Dispatcher
 
         /**
          * Go `Stop`: 수신 코루틴을 취소하고 끝날 때까지 기다린다. 세션은 유지된다(Go와 동일). 필드를 캡처하고 비우는
-         * 것은 잠금 안에서, 실제로 끝나기를 기다리는 것(suspend)은 잠금 밖에서 한다(리뷰 라운드 1 Important 1) —
+         * 것은 잠금 안에서, 실제로 끝나기를 기다리는 것(suspend)은 잠금 밖에서 한다 —
          * 그래야 기다리는 동안 레이스로 들어온 [start]가 새로 띄운 코루틴을 이 함수가 나중에 `null`로 덮어써
          * 고아로 만들지 않는다.
          *
-         * 리뷰 라운드 2 N1(회귀 수정): 동시에 여러 [stop] 호출(예: [close]가 안에서 부르는 것과 별도의 직접 호출)이
+         * 동시에 여러 [stop] 호출(예: [close]가 안에서 부르는 것과 별도의 직접 호출)이
          * 들어오면, 첫 호출자 이후에는 [receiveJob]이 이미 `null`이라 캡처할 job이 없다 — 그래서 [stopping]에
          * "지금 정지 중인 job"을 남겨 두어, 이후 호출자도 같은 job을 잡아 함께 join하게 한다. job이 끝나면 그 값을
          * 여전히 가리키고 있는 경우에만(다음 [start]가 새 job으로 갈아 치우지 않았다면) [stopping]을 비운다.
@@ -222,7 +222,7 @@ public class Dispatcher
         /**
          * Go `Vehicle.Disconnect`: [stop] + 세션 키 소거 + 전송 닫기.
          *
-         * 리뷰 라운드 3 A1: [stop]이 [Job.join]으로 정지를 기다리는 동안 **이 함수의 호출자**가 취소되면, 예전에는
+         * [stop]이 [Job.join]으로 정지를 기다리는 동안 **이 함수의 호출자**가 취소되면, 예전에는
          * 그 `CancellationException`이 그대로 빠져나가 세션 키 소거와 전송 닫기를 건너뛰었다 — 키가 메모리에 남을 수
          * 있었다. `finally`에서 `NonCancellable`로 감싸 호출자의 취소와 무관하게 항상 실행한다(순서는 그대로: 정지
          * 시도 → 세션 소거 → 전송 닫기).
@@ -265,7 +265,7 @@ public class Dispatcher
 
         /** Go `RequestSessionInfo`: 개인키가 없으면 [VehicleError.RequiresKey]. 인증 없이 보낸다. */
         public suspend fun requestSessionInfo(domain: Domain): VehicleResult<PendingRequest> {
-            // 리뷰 라운드 1 Minor M6: Go는 개인키 확인보다 먼저 로그를 남긴다(dispatcher.go:483-486).
+            // Go는 개인키 확인보다 먼저 로그를 남긴다(dispatcher.go:483-486).
             logger.log(LogLevel.INFO, TAG) { "Requesting session info from $domain" }
             val key = privateKey ?: return VehicleResult.Failure(VehicleError.RequiresKey)
             return send(sessionInfoRequest(domain, key.publicKey), AuthMethod.NONE)
@@ -373,7 +373,7 @@ public class Dispatcher
 
         /** Go `listen` 본문 + `process`: 수신 코루틴에서만 호출된다. */
         private suspend fun process(bytes: ByteArray) {
-            // 컨트롤러 판정 R1: Wire는 손상된 프로토버프에 IllegalStateException을 던지므로(예: "I'm not a valid protobuf"),
+            // Wire는 손상된 프로토버프에 IllegalStateException을 던지므로(예: "I'm not a valid protobuf"),
             // decodeOrNull(ADR-0006)로 값으로 받는다. Go의 protobuf 오류 문구는 재현하지 않는다(dispatcher.go:355).
             val message =
                 RoutableMessage.ADAPTER.decodeOrNull(bytes) ?: run {
@@ -390,7 +390,7 @@ public class Dispatcher
             // 차량은 desync가 의심되면 오류 응답에 세션정보를 동봉한다. 반영한 뒤에도 응답은 핸들러로 전달한다.
             checkForSessionUpdate(message, handler)
             val deliverable = decryptIfNeeded(message, handler) ?: return
-            // 리뷰 라운드 1 Minor M2 + 라운드 2 N3: checkForSessionUpdate/decryptIfNeeded가 실행되는 동안
+            // checkForSessionUpdate/decryptIfNeeded가 실행되는 동안
             // 호출자가 이 핸들러를 닫았을 수 있다(둘 다 suspend). deliver() 시도 전에 isClosed를 먼저 검사해도
             // 그 검사와 deliver() 사이에 또 닫힐 수 있으므로, 실패 원인은 deliver()가 실패한 **뒤에** 판단한다
             // — Go는 Close()가 맵에서 핸들러를 먼저 지우므로 그 뒤 process()는 그냥 핸들러가 없는 것으로 본다;
@@ -408,7 +408,7 @@ public class Dispatcher
         /** Go `process`의 검증 부분: 드롭이면 사유를 남기고 null. */
         private fun matchKey(message: RoutableMessage): PendingKey? {
             val id = message.request_uuid.hex()
-            // 컨트롤러 판정 R2(설계 구체화 10): "누락된 소스"는 from_destination 자체가 없을 때만이다. Go
+            // 설계 구체화 10: "누락된 소스"는 from_destination 자체가 없을 때만이다. Go
             // `message.GetFromDestination().GetDomain()`은 non-domain oneof에도 0(DOMAIN_BROADCAST)을 돌려준다 —
             // Wire에서 모르는 domain 원시값도 domain == null이 되므로 같은 취급으로 BROADCAST로 떨어진다. 그 결과
             // 이런 메시지는 등록된 핸들러가 없어 "핸들러 없음"으로 드롭된다(아래에서).
@@ -465,7 +465,7 @@ public class Dispatcher
                 }
                 return
             }
-            // 리뷰 라운드 1 Minor M1: Wire proto3 bytes 필드는 기본값이 null이 아니라 ByteString.EMPTY다.
+            // Wire proto3 bytes 필드는 기본값이 null이 아니라 ByteString.EMPTY다.
             // session_info_tag가 실려 있지만 태그가 비어 있으면 Go의 GetTag() == nil과 같은 뜻이므로 없는 것으로 본다.
             val tag =
                 message.signature_data

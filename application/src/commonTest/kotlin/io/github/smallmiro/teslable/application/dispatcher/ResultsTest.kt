@@ -18,7 +18,7 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * [retryWhileRetriable]와 [withAttemptTimeout] 직접 테스트(컨트롤러 판정 R1). `SendWithRetry.send`와
+ * [retryWhileRetriable]와 [withAttemptTimeout] 직접 테스트. `SendWithRetry.send`와
  * `VehicleSession.startSession`이 공유하는 재시도·시간초과 로직이라 여기서 한 번에 고정한다.
  */
 @OptIn(ExperimentalCoroutinesApi::class)

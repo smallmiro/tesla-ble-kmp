@@ -66,6 +66,8 @@ class PendingRequestTest {
             assertEquals(7, pending.requestHash?.get(0))
             pending.requestHash?.set(1, 0)
             assertEquals(7, pending.requestHash?.get(1))
-            assertEquals("<01010101010101010101010101010101-: DOMAIN_VEHICLE_SECURITY>", key.toString()) // receiver.go receiverKey.String()
+            // Intentional difference from receiver.go receiverKey.String(): Go's zero-value 16-byte uuid prints as 32
+            // hex zeros; this uses ByteString.EMPTY for VCSEC's uuid, so it prints as an empty string instead.
+            assertEquals("<01010101010101010101010101010101-: DOMAIN_VEHICLE_SECURITY>", key.toString())
         }
 }
