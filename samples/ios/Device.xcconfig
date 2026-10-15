@@ -1,0 +1,4 @@
+// samples/ios/Device.xcconfig — 실기기(iosArm64) 빌드 구성. Local.xcconfig가 없으면 무시된다.
+#include? "Local.xcconfig"
+CODE_SIGN_STYLE = Automatic
+FRAMEWORK_SEARCH_PATHS = $(inherited) $(SRCROOT)/../../sdk/build/bin/iosArm64/debugFramework

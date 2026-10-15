@@ -1,0 +1,2 @@
+// samples/ios/Local.xcconfig.example — Local.xcconfig로 복사해 자신의 팀 ID를 넣는다(커밋 금지)
+DEVELOPMENT_TEAM = XXXXXXXXXX

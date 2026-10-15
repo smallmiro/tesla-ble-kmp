@@ -15,6 +15,7 @@ xcuserdata/
 DerivedData/
 *.xcworkspace/xcuserdata/
 Pods/
+samples/ios/Local.xcconfig
 
 # macOS
 .DS_Store

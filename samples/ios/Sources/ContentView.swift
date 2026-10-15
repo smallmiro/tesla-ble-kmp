@@ -23,11 +23,14 @@ struct ContentView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
-            Text("Teslable \(Teslable_.shared.VERSION)").font(.title2)
-            TextField("VIN", text: $vin).textFieldStyle(.roundedBorder)
-            Text("BLE local name: \(localName)")
+        NavigationStack {
+            VStack(alignment: .leading, spacing: 16) {
+                Text("Teslable \(Teslable_.shared.VERSION)").font(.title2)
+                TextField("VIN", text: $vin).textFieldStyle(.roundedBorder)
+                Text("BLE local name: \(localName)")
+                NavigationLink("BLE 진단 (스파이크)") { DiagnosticsView() }
+            }
+            .padding(24)
         }
-        .padding(24)
     }
 }

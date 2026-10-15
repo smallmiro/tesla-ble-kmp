@@ -1,6 +1,7 @@
 plugins { id("teslable.kmp-library") }
 kotlin {
     sourceSets {
+        commonTest.dependencies { implementation(project(":testing")) }
         commonMain.dependencies {
             implementation(project(":domain"))
             implementation(libs.kable) // M3에서 사용. 지금은 해석만 확인

@@ -12,3 +12,7 @@ final object io.github.smallmiro.teslable/Teslable { // io.github.smallmiro.tesl
 
     final fun localNameFor(kotlin/String): kotlin/String // io.github.smallmiro.teslable/Teslable.localNameFor|localNameFor(kotlin.String){}[0]
 }
+
+final object io.github.smallmiro.teslable/TeslableDiagnostics { // io.github.smallmiro.teslable/TeslableDiagnostics|null[0]
+    final suspend fun probe(kotlin/String, kotlin/Boolean, kotlin/Function1<kotlin/String, kotlin/Unit>) // io.github.smallmiro.teslable/TeslableDiagnostics.probe|probe(kotlin.String;kotlin.Boolean;kotlin.Function1<kotlin.String,kotlin.Unit>){}[0]
+}
