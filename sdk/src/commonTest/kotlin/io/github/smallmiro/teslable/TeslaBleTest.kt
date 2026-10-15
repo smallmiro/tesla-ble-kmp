@@ -233,7 +233,7 @@ class TeslaBleTest {
             assertIs<VehicleResult.Success<Unit>>(vehicle.startSession(timeout = 1.seconds))
         }
 
-    /** 링크를 잃은 전송(이유 있는 Disconnected)을 흉내 내고 close() 호출 수를 센다. */
+    /** 링크를 잃은 전송(이유 있는 Disconnected)을 흉내 내고 close() 호출 수를 센다. close()는 BleTransport처럼 Connected일 때만 reason = null. */
     private class DroppableTransport(
         private val inner: Transport,
     ) : Transport by inner {
@@ -249,6 +249,7 @@ class TeslaBleTest {
 
         override suspend fun close() {
             closeCalls++
+            mutableState.compareAndSet(TransportState.Connected, TransportState.Disconnected(reason = null))
             inner.close()
         }
     }
@@ -296,7 +297,8 @@ class TeslaBleTest {
             transport.dropLink()
             runCurrent()
             assertEquals(1, transport.closeCalls)
-            assertIs<TransportState.Disconnected>(vehicle.connection.value)
+            // 최종 리뷰 I1: 감시자의 close()가 차량이 끊은 이유를 지우지 않는다(의도한 disconnect와 구별)
+            assertEquals(TransportState.Disconnected(VehicleError.TransportError.Disconnected), vehicle.connection.value)
             assertEquals(VehicleDomain.ALL.associateWith { SessionStatus.None }, vehicle.sessions.value) // connection과 일치
             runCurrent()
             assertEquals(1, transport.closeCalls) // 한 번만
