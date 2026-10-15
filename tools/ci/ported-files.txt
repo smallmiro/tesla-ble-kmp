@@ -48,3 +48,5 @@ adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/GattConnector
 adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BleTransportFactory.kt
 adapter-crypto/src/commonMain/kotlin/io/github/smallmiro/teslable/crypto/SoftwareKeyGenerator.kt
 application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries.kt
+adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BlockLength.kt
+adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/KableGattConnector.kt
