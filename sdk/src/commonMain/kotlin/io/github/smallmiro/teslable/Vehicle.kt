@@ -21,7 +21,7 @@ public interface Vehicle {
     /** 개인키로 연결했는지(인증 명령·핸드셰이크 가능 여부). */
     public val hasKey: Boolean
 
-    /** BLE 연결 상태. */
+    /** BLE 연결 상태. 링크가 끊겨도(`Disconnected`) 세션 키와 스코프를 풀려면 [disconnect]를 불러야 한다. */
     public val connection: StateFlow<TransportState>
 
     /** 도메인별 세션 상태. */
