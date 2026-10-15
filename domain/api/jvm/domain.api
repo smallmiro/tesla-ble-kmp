@@ -4598,6 +4598,55 @@ public final class io/github/smallmiro/teslable/cache/SessionSnapshot {
 	public final fun getSessionInfo ()[B
 }
 
+public final class io/github/smallmiro/teslable/model/ClosureState : java/lang/Enum {
+	public static final field AJAR Lio/github/smallmiro/teslable/model/ClosureState;
+	public static final field CLOSED Lio/github/smallmiro/teslable/model/ClosureState;
+	public static final field CLOSING Lio/github/smallmiro/teslable/model/ClosureState;
+	public static final field FAILED_UNLATCH Lio/github/smallmiro/teslable/model/ClosureState;
+	public static final field OPEN Lio/github/smallmiro/teslable/model/ClosureState;
+	public static final field OPENING Lio/github/smallmiro/teslable/model/ClosureState;
+	public static final field UNKNOWN Lio/github/smallmiro/teslable/model/ClosureState;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/ClosureState;
+	public static fun values ()[Lio/github/smallmiro/teslable/model/ClosureState;
+}
+
+public final class io/github/smallmiro/teslable/model/Closures {
+	public fun <init> (Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;)V
+	public final fun component1 ()Lio/github/smallmiro/teslable/model/ClosureState;
+	public final fun component2 ()Lio/github/smallmiro/teslable/model/ClosureState;
+	public final fun component3 ()Lio/github/smallmiro/teslable/model/ClosureState;
+	public final fun component4 ()Lio/github/smallmiro/teslable/model/ClosureState;
+	public final fun component5 ()Lio/github/smallmiro/teslable/model/ClosureState;
+	public final fun component6 ()Lio/github/smallmiro/teslable/model/ClosureState;
+	public final fun component7 ()Lio/github/smallmiro/teslable/model/ClosureState;
+	public final fun component8 ()Lio/github/smallmiro/teslable/model/ClosureState;
+	public final fun copy (Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;)Lio/github/smallmiro/teslable/model/Closures;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/Closures;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/Closures;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getChargePort ()Lio/github/smallmiro/teslable/model/ClosureState;
+	public final fun getFrontDriverDoor ()Lio/github/smallmiro/teslable/model/ClosureState;
+	public final fun getFrontPassengerDoor ()Lio/github/smallmiro/teslable/model/ClosureState;
+	public final fun getFrontTrunk ()Lio/github/smallmiro/teslable/model/ClosureState;
+	public final fun getRearDriverDoor ()Lio/github/smallmiro/teslable/model/ClosureState;
+	public final fun getRearPassengerDoor ()Lio/github/smallmiro/teslable/model/ClosureState;
+	public final fun getRearTrunk ()Lio/github/smallmiro/teslable/model/ClosureState;
+	public final fun getTonneau ()Lio/github/smallmiro/teslable/model/ClosureState;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/KeyFormFactor : java/lang/Enum {
+	public static final field ANDROID_DEVICE Lio/github/smallmiro/teslable/model/KeyFormFactor;
+	public static final field CLOUD_KEY Lio/github/smallmiro/teslable/model/KeyFormFactor;
+	public static final field IOS_DEVICE Lio/github/smallmiro/teslable/model/KeyFormFactor;
+	public static final field NFC_CARD Lio/github/smallmiro/teslable/model/KeyFormFactor;
+	public static final field UNKNOWN Lio/github/smallmiro/teslable/model/KeyFormFactor;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/KeyFormFactor;
+	public static fun values ()[Lio/github/smallmiro/teslable/model/KeyFormFactor;
+}
+
 public final class io/github/smallmiro/teslable/model/KeyId {
 	public static final field Companion Lio/github/smallmiro/teslable/model/KeyId$Companion;
 	public static final field SIZE I
@@ -4610,6 +4659,32 @@ public final class io/github/smallmiro/teslable/model/KeyId {
 
 public final class io/github/smallmiro/teslable/model/KeyId$Companion {
 	public final fun of (Lio/github/smallmiro/teslable/model/PublicKeyBytes;Lio/github/smallmiro/teslable/port/CryptoPrimitives;)Lio/github/smallmiro/teslable/model/KeyId;
+}
+
+public final class io/github/smallmiro/teslable/model/KeyRole : java/lang/Enum {
+	public static final field CHARGING_MANAGER Lio/github/smallmiro/teslable/model/KeyRole;
+	public static final field DRIVER Lio/github/smallmiro/teslable/model/KeyRole;
+	public static final field FLEET_MANAGER Lio/github/smallmiro/teslable/model/KeyRole;
+	public static final field GUEST Lio/github/smallmiro/teslable/model/KeyRole;
+	public static final field NONE Lio/github/smallmiro/teslable/model/KeyRole;
+	public static final field OWNER Lio/github/smallmiro/teslable/model/KeyRole;
+	public static final field SERVICE Lio/github/smallmiro/teslable/model/KeyRole;
+	public static final field UNKNOWN Lio/github/smallmiro/teslable/model/KeyRole;
+	public static final field VEHICLE_MONITOR Lio/github/smallmiro/teslable/model/KeyRole;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/KeyRole;
+	public static fun values ()[Lio/github/smallmiro/teslable/model/KeyRole;
+}
+
+public final class io/github/smallmiro/teslable/model/LockState : java/lang/Enum {
+	public static final field INTERNAL_LOCKED Lio/github/smallmiro/teslable/model/LockState;
+	public static final field LOCKED Lio/github/smallmiro/teslable/model/LockState;
+	public static final field SELECTIVE_UNLOCKED Lio/github/smallmiro/teslable/model/LockState;
+	public static final field UNKNOWN Lio/github/smallmiro/teslable/model/LockState;
+	public static final field UNLOCKED Lio/github/smallmiro/teslable/model/LockState;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/LockState;
+	public static fun values ()[Lio/github/smallmiro/teslable/model/LockState;
 }
 
 public final class io/github/smallmiro/teslable/model/PublicKeyBytes {
@@ -4625,6 +4700,24 @@ public final class io/github/smallmiro/teslable/model/PublicKeyBytes {
 }
 
 public final class io/github/smallmiro/teslable/model/PublicKeyBytes$Companion {
+}
+
+public final class io/github/smallmiro/teslable/model/SleepStatus : java/lang/Enum {
+	public static final field ASLEEP Lio/github/smallmiro/teslable/model/SleepStatus;
+	public static final field AWAKE Lio/github/smallmiro/teslable/model/SleepStatus;
+	public static final field UNKNOWN Lio/github/smallmiro/teslable/model/SleepStatus;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/SleepStatus;
+	public static fun values ()[Lio/github/smallmiro/teslable/model/SleepStatus;
+}
+
+public final class io/github/smallmiro/teslable/model/UserPresence : java/lang/Enum {
+	public static final field NOT_PRESENT Lio/github/smallmiro/teslable/model/UserPresence;
+	public static final field PRESENT Lio/github/smallmiro/teslable/model/UserPresence;
+	public static final field UNKNOWN Lio/github/smallmiro/teslable/model/UserPresence;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/UserPresence;
+	public static fun values ()[Lio/github/smallmiro/teslable/model/UserPresence;
 }
 
 public final class io/github/smallmiro/teslable/model/VehicleDomain : java/lang/Enum {
@@ -5000,12 +5093,64 @@ public final class io/github/smallmiro/teslable/model/VehicleResult$Uncertain : 
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class io/github/smallmiro/teslable/model/VehicleStatus {
+	public fun <init> (Lio/github/smallmiro/teslable/model/LockState;Lio/github/smallmiro/teslable/model/Closures;Lio/github/smallmiro/teslable/model/SleepStatus;Lio/github/smallmiro/teslable/model/UserPresence;Ljava/lang/Integer;)V
+	public final fun component1 ()Lio/github/smallmiro/teslable/model/LockState;
+	public final fun component2 ()Lio/github/smallmiro/teslable/model/Closures;
+	public final fun component3 ()Lio/github/smallmiro/teslable/model/SleepStatus;
+	public final fun component4 ()Lio/github/smallmiro/teslable/model/UserPresence;
+	public final fun component5 ()Ljava/lang/Integer;
+	public final fun copy (Lio/github/smallmiro/teslable/model/LockState;Lio/github/smallmiro/teslable/model/Closures;Lio/github/smallmiro/teslable/model/SleepStatus;Lio/github/smallmiro/teslable/model/UserPresence;Ljava/lang/Integer;)Lio/github/smallmiro/teslable/model/VehicleStatus;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleStatus;Lio/github/smallmiro/teslable/model/LockState;Lio/github/smallmiro/teslable/model/Closures;Lio/github/smallmiro/teslable/model/SleepStatus;Lio/github/smallmiro/teslable/model/UserPresence;Ljava/lang/Integer;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleStatus;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getClosures ()Lio/github/smallmiro/teslable/model/Closures;
+	public final fun getLockState ()Lio/github/smallmiro/teslable/model/LockState;
+	public final fun getSleepStatus ()Lio/github/smallmiro/teslable/model/SleepStatus;
+	public final fun getTonneauPercentOpen ()Ljava/lang/Integer;
+	public final fun getUserPresence ()Lio/github/smallmiro/teslable/model/UserPresence;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class io/github/smallmiro/teslable/model/Vin {
 	public fun <init> (Ljava/lang/String;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getValue ()Ljava/lang/String;
 	public fun hashCode ()I
 	public final fun toByteArray ()[B
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/WhitelistEntry {
+	public fun <init> (ILio/github/smallmiro/teslable/model/PublicKeyBytes;Ljava/lang/String;Lio/github/smallmiro/teslable/model/KeyRole;Lio/github/smallmiro/teslable/model/KeyFormFactor;)V
+	public final fun component1 ()I
+	public final fun component2 ()Lio/github/smallmiro/teslable/model/PublicKeyBytes;
+	public final fun component3 ()Ljava/lang/String;
+	public final fun component4 ()Lio/github/smallmiro/teslable/model/KeyRole;
+	public final fun component5 ()Lio/github/smallmiro/teslable/model/KeyFormFactor;
+	public final fun copy (ILio/github/smallmiro/teslable/model/PublicKeyBytes;Ljava/lang/String;Lio/github/smallmiro/teslable/model/KeyRole;Lio/github/smallmiro/teslable/model/KeyFormFactor;)Lio/github/smallmiro/teslable/model/WhitelistEntry;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/WhitelistEntry;ILio/github/smallmiro/teslable/model/PublicKeyBytes;Ljava/lang/String;Lio/github/smallmiro/teslable/model/KeyRole;Lio/github/smallmiro/teslable/model/KeyFormFactor;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/WhitelistEntry;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getFormFactor ()Lio/github/smallmiro/teslable/model/KeyFormFactor;
+	public final fun getKeyIdSha1Hex ()Ljava/lang/String;
+	public final fun getPublicKey ()Lio/github/smallmiro/teslable/model/PublicKeyBytes;
+	public final fun getRole ()Lio/github/smallmiro/teslable/model/KeyRole;
+	public final fun getSlot ()I
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/model/WhitelistSummary {
+	public synthetic fun <init> (IILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1 ()I
+	public final fun component2-pVg5ArA ()I
+	public final fun copy-Qn1smSk (II)Lio/github/smallmiro/teslable/model/WhitelistSummary;
+	public static synthetic fun copy-Qn1smSk$default (Lio/github/smallmiro/teslable/model/WhitelistSummary;IIILjava/lang/Object;)Lio/github/smallmiro/teslable/model/WhitelistSummary;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getNumberOfEntries ()I
+	public final fun getOccupiedSlots ()Ljava/util/List;
+	public final fun getSlotMask-pVg5ArA ()I
+	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 

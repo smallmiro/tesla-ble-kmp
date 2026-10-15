@@ -120,6 +120,23 @@ public abstract interface class io/github/smallmiro/teslable/application/vcsec/V
 	public abstract fun check (Lcom/tesla/generated/vcsec/FromVCSECMessage;)Lio/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalCheck;
 }
 
+public final class io/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries {
+	public static final field Companion Lio/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries$Companion;
+	public final fun keyInfoBySlot-8Mi8wO0 (IJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun keyInfoBySlot-8Mi8wO0$default (Lio/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries;IJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun keySummary-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun keySummary-VtjQ1oo$default (Lio/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun listKeys-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun listKeys-VtjQ1oo$default (Lio/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun vehicleStatus-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun vehicleStatus-VtjQ1oo$default (Lio/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
+public final class io/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries$Companion {
+	public final fun informationRequest (Lcom/tesla/generated/vcsec/InformationRequestType;Ljava/lang/Integer;)[B
+	public static synthetic fun informationRequest$default (Lio/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries$Companion;Lcom/tesla/generated/vcsec/InformationRequestType;Ljava/lang/Integer;ILjava/lang/Object;)[B
+}
+
 public final class io/github/smallmiro/teslable/application/vehicle/CommandTimeouts {
 	public fun <init> ()V
 	public synthetic fun <init> (JJJILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -156,6 +173,7 @@ public final class io/github/smallmiro/teslable/application/vehicle/VehicleSessi
 	public final fun connect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun disconnect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun getHandshake ()Lio/github/smallmiro/teslable/application/dispatcher/HandshakeFlow;
+	public final fun getInfo ()Lio/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries;
 	public final fun getInfotainment ()Lio/github/smallmiro/teslable/application/infotainment/InfotainmentCommands;
 	public final fun getRetryInterval-UwyO8pc ()J
 	public final fun getSend ()Lio/github/smallmiro/teslable/application/vehicle/SendWithRetry;
