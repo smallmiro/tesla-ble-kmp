@@ -43,6 +43,20 @@ private fun softwareKeyOf(
         pair.privateScalar.fill(0)
     }
 
+/** 버릴 소프트웨어 키의 공개키와 ECDH를 해 본다. [AndroidKeystoreKey.sharedX]는 Keystore 실패를 `IllegalArgumentException`으로 낸다. */
+private suspend fun passesEcdhSelfTest(key: AndroidKeystoreKey): Boolean {
+    val peer = generateSoftwareKeyPair()
+    peer.privateScalar.fill(0) // 공개키만 쓴다
+    return try {
+        key.sharedX(peer.publicKey).fill(0)
+        true
+    } catch (
+        @Suppress("SwallowedException") e: IllegalArgumentException, // 이유는 호출자의 WARN 로그로 충분하다(공유 X는 로그 금지)
+    ) {
+        false
+    }
+}
+
 @Suppress("TooGenericExceptionCaught") // Keystore 예외는 KeyStoreError 값이 된다(ADR-0006)
 internal class AndroidVehicleKeyStore(
     directory: File,
@@ -143,8 +157,13 @@ internal class AndroidVehicleKeyStore(
         return softwareKeyOf(alias, pair)
     }
 
-    /** null = 이 수준 불가. 생성은 됐지만 실제 보관 수준이 SOFTWARE(에뮬레이터 등)면 지우고 null — 소프트웨어 대체 경로가 맡는다. */
-    private fun generateKeystoreKey(
+    /**
+     * null = 이 수준 불가. 생성은 됐지만 실제 보관 수준이 SOFTWARE(에뮬레이터 등)면 지우고 null — 소프트웨어 대체 경로가 맡는다.
+     * 하드웨어 키는 버릴 소프트웨어 P-256 공개키와 ECDH 자체 시험을 한다(최종 리뷰 I3): 만들어지지만 실제로는 합의할 수 없는
+     * StrongBox/TEE 키(기기별 결함)가 첫 핸드셰이크에서야 실패하지 않게, 실패하면 별칭을 지우고 null로 다음 수준에 넘긴다.
+     * 호스트 단위 테스트로는 재현할 수 없어(AndroidKeyStore 공급자 없음) 실기기 확인 항목이다.
+     */
+    private suspend fun generateKeystoreKey(
         alias: String,
         strongBox: Boolean,
     ): VehicleKey? {
@@ -169,7 +188,12 @@ internal class AndroidVehicleKeyStore(
         return try {
             val protection = protectionOf(pair.private)
             if (protection.isHardware) {
-                AndroidKeystoreKey(alias, pair.private, encode(pair.public as ECPublicKey), protection)
+                AndroidKeystoreKey(alias, pair.private, encode(pair.public as ECPublicKey), protection).takeIf { passesEcdhSelfTest(it) }
+                    ?: run {
+                        logger.log(LogLevel.WARN, TAG) { "$protection key failed the ECDH self-test; trying the next key level" }
+                        keyStore().deleteEntry(keyAlias)
+                        null
+                    }
             } else {
                 keyStore().deleteEntry(keyAlias)
                 null

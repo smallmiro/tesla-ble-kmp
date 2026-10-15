@@ -26,6 +26,7 @@ import io.github.smallmiro.teslable.port.Transport
 import io.github.smallmiro.teslable.protocol.RequestHash
 import io.github.smallmiro.teslable.protocol.SignerResult
 import io.github.smallmiro.teslable.protocol.decodeOrNull
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -300,7 +301,7 @@ public class Dispatcher
             }
 
         /**
-         * Go `LoadCache`: 항목마다 [SessionState.loadFromCache](즉시 준비 상태). 손상된 항목·개인키 없음은 WARN 로그 후 건너뛴다
+         * Go `LoadCache`: 항목마다 [SessionState.loadFromCache](즉시 준비 상태). 손상된 항목·개인키 없음·키의 ECDH 예외는 WARN 로그 후 건너뛴다
          * (Go는 전체 실패 — 설계 구체화 6). 복원한 도메인 집합을 돌려준다. Go는 세션 맵을 통째로 새로 만들어 교체하지만 이 구현은
          * 기존 [sessions]에 도메인별로 병합한다 — 새 [Dispatcher](세션이 전부 비어 있는 상태)에서 부르면 결과는 같다.
          */
@@ -314,7 +315,19 @@ public class Dispatcher
                 logger.log(LogLevel.WARN, TAG) { "invalid cache: ${entry.domain}: no session (private key missing)" }
                 return false
             }
-            return when (val result = session.loadFromCache(entry.sessionInfo, entry.age)) {
+            val result =
+                try {
+                    session.loadFromCache(entry.sessionInfo, entry.age)
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (
+                    @Suppress("TooGenericExceptionCaught") e: Exception,
+                ) {
+                    // 플랫폼 키의 ECDH 예외(최종 리뷰 I3) — 이 항목만 건너뛴다
+                    logger.log(LogLevel.WARN, TAG) { "invalid cache: ${entry.domain}: processing failed: ${e::class.simpleName}" }
+                    return false
+                }
+            return when (result) {
                 is SignerResult.Ok -> {
                     logger.log(LogLevel.INFO, TAG) { "Session for ${entry.domain} loaded from cache" }
                     true
@@ -508,7 +521,19 @@ public class Dispatcher
                 return
             }
             val wasUnconfirmed = session.isUnconfirmedCacheRestore
-            when (val result = session.processHello(message.request_uuid.toByteArray(), info.toByteArray(), tag.toByteArray())) {
+            // 플랫폼 키의 ECDH 예외(최종 리뷰 I3)가 수신 코루틴을 죽이지 않게 한다 — Fault처럼(이벤트 없이) 넘어가고 응답은 그대로 전달
+            val result =
+                try {
+                    session.processHello(message.request_uuid.toByteArray(), info.toByteArray(), tag.toByteArray())
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (
+                    @Suppress("TooGenericExceptionCaught") e: Exception,
+                ) {
+                    logger.log(LogLevel.ERROR, TAG) { "[$id] Session info processing failed: ${e::class.simpleName}" }
+                    return
+                }
+            when (result) {
                 is SignerResult.Fault -> {
                     logger.log(LogLevel.WARN, TAG) { "[$id] Session info error: ${result.fault.name}: ${result.detail}" }
                     if (wasUnconfirmed) {
