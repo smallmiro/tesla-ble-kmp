@@ -1,23 +1,35 @@
 import SwiftUI
-import Teslable
 
 struct ContentView: View {
-    @State private var vin = "5YJS0000000000000"
-
-    // Kotlin `Vin` 생성자의 `require` 실패는 Swift로 전파되지 않고 프로세스를 종료시키므로 `parseOrNull`을 쓴다.
-    private var parsed: String {
-        Vin.companion.parseOrNull(value: vin)?.description() ?? "VIN은 I·O·Q를 제외한 영문자와 숫자 17자여야 합니다"
-    }
+    @StateObject private var model = SampleModel()
 
     var body: some View {
         NavigationStack {
-            VStack(alignment: .leading, spacing: 16) {
-                Text("Teslable").font(.title2)
-                TextField("VIN", text: $vin).textFieldStyle(.roundedBorder)
-                Text("VIN: \(parsed)")
-                NavigationLink("BLE 진단 (스파이크)") { DiagnosticsView() }
+            Form {
+                Section("차량") {
+                    TextField("VIN", text: $model.vinText).textInputAutocapitalization(.characters)
+                    Text(model.connection)
+                }
+                Section("키") {
+                    Button("키 만들기/불러오기") { Task { await model.createKey() } }
+                    Text(model.keyInfo).font(.footnote.monospaced())
+                }
+                Section("BLE") {
+                    Button("스캔") { Task { await model.scan() } }
+                    ForEach(model.advertisements, id: \.self) { Text($0).font(.footnote) }
+                    Button("연결") { Task { await model.connect() } }
+                    Button("VehicleStatus") { Task { await model.vehicleStatus() } }
+                    Button("키 목록") { Task { await model.listKeys() } }
+                    Button("연결 끊기", role: .destructive) { Task { await model.disconnect() } }
+                }
+                Section("결과") {
+                    ForEach(Array(model.output.enumerated()), id: \.offset) { Text($0.element).font(.footnote.monospaced()) }
+                }
+                Section("진단") {
+                    NavigationLink("BLE 진단 (스파이크)") { DiagnosticsView() }
+                }
             }
-            .padding(24)
+            .navigationTitle("Teslable Sample")
         }
     }
 }
