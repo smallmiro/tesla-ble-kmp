@@ -28,6 +28,7 @@ import kotlin.time.TimeSource
  * `Signer` 멤버 분류 — 상태 변경: `encrypt`(counter++), `updateSessionInfo`, `updateSignedSessionInfo`, `close`.
  * 읽기 전용: `decrypt`, `exportSessionInfo`, `timestamp`, `counter`/`epoch`/공개키 getter. `decrypt`는 `close`와 경쟁하므로 Go처럼 락 안에서 부른다.
  */
+@Suppress("TooManyFunctions") // session.go의 메서드와 1:1 대응
 public class SessionState internal constructor(
     private val vin: Vin,
     private val privateKey: EcdhPrivateKey,
@@ -41,6 +42,17 @@ public class SessionState internal constructor(
 
     @Volatile
     private var closed = false
+
+    @Volatile
+    private var unconfirmedRestore = false
+
+    /** 캐시에서 복원된 뒤 아직 차량 응답으로 확인되지 않았는지(복호화·세션정보 갱신 성공 전). */
+    public val isUnconfirmedCacheRestore: Boolean get() = unconfirmedRestore
+
+    /** 오래된 캐시로 보고했으므로 다시 보고하지 않게 한다. */
+    internal fun markReportedStale() {
+        unconfirmedRestore = false
+    }
 
     /** [close]가 불렸는지. 닫힌 세션은 되살리지 않는다(설계 구체화 13). */
     public val isClosed: Boolean get() = closed
@@ -67,7 +79,10 @@ public class SessionState internal constructor(
         mutex.withLock {
             if (closed) return@withLock SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INTERNAL, "session closed")
             val result = signer?.updateSignedSessionInfo(challenge, encodedInfo, tag) ?: createSigner(challenge, encodedInfo, tag)
-            if (result is SignerResult.Ok) readySignal.complete(Unit)
+            if (result is SignerResult.Ok) {
+                unconfirmedRestore = false
+                readySignal.complete(Unit)
+            }
             result
         }
 
@@ -108,7 +123,10 @@ public class SessionState internal constructor(
     public suspend fun decrypt(
         message: RoutableMessage,
         requestHash: ByteArray,
-    ): SignerResult<Signer.DecryptedResponse>? = mutex.withLock { signer?.decrypt(message, requestHash) }
+    ): SignerResult<Signer.DecryptedResponse>? =
+        mutex.withLock {
+            signer?.decrypt(message, requestHash)?.also { if (it is SignerResult.Ok) unconfirmedRestore = false }
+        }
 
     /** Go `export`: 캐시용 `SessionInfo` 바이트. 세션이 없으면 null. */
     public suspend fun export(): ByteArray? = mutex.withLock { signer?.exportSessionInfo() }
@@ -127,6 +145,7 @@ public class SessionState internal constructor(
                 is SignerResult.Ok -> {
                     signer?.close()
                     signer = imported.value
+                    unconfirmedRestore = true
                     readySignal.complete(Unit)
                     SignerResult.Ok(Unit)
                 }

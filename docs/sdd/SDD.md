@@ -235,7 +235,7 @@ public fun interface TeslaLogger {                           // 기본 NoOp
 | `VcsecResponses` | `interpret`(Go `unmarshalVCSECResponse`): 프로토콜 오류 → payload 종류 → 파싱 → `nominalError` → `commandStatus` 순 해석. `readUntil`(Go `readUntil`). `TerminalTest` 3종: `FIRST_MESSAGE`, `COMMAND_STATUS_ABSENT`, `WHITELIST_OPERATION_COMPLETE` | `vcsec.go` `unmarshalVCSECResponse`, `readUntil`, `isWhitelistOperationComplete` |
 | `InfotainmentCommands` | `Action`을 Infotainment에 GCM으로 보내고 단일 응답을 `InfotainmentResponses.interpret`로 해석. M5가 명령별 빌더를 더한다 | `infotainment.go` `executeCarServerAction` |
 | `InfotainmentResponses` | `interpret`(Go `getCarServerResponse`): 파싱 실패 → `BadResponse(mayHaveSucceeded=true)`; `actionStatus.result == ERROR` → `InfotainmentRejected`; 그 외(모르는 값 포함)는 성공 | `infotainment.go` `getCarServerResponse` |
-| `SessionCacheSync` | `load(dispatcher)`: `SessionCache.load` → `Dispatcher.loadSessions`. `store(dispatcher)`: `Dispatcher.exportSessions` → `SessionCache.store`(세션이 없으면 빈 목록도 저장). 저장 시점은 핸드셰이크 완료·`disconnect()`뿐이다(§3.4/§7.1) — 세션정보 갱신 시 저장은 M3 파사드가 연결한다 | `NewVehicle`(캐시 로드), `UpdateCachedSessions` |
+| `SessionCacheSync` | `load(dispatcher)`: `SessionCache.load` → `Dispatcher.loadSessions`. `store(dispatcher)`: `Dispatcher.exportSessions` → `SessionCache.store`(세션이 없으면 빈 목록도 저장). 저장 시점은 핸드셰이크 완료·`disconnect()`·세션정보 갱신(`SessionEvent.Updated`, M3)이다(§3.4/§7.1). `markStale(domain)` 뒤의 모든 `store`는 그 도메인을 뺀다 | `NewVehicle`(캐시 로드), `UpdateCachedSessions` |
 | `VehicleSession` | `connect()`(캐시 복원 + 수신 시작), `startSession(domains, timeout)`(재시도 + 성공 시 캐시 저장), `disconnect()`(캐시 저장 1회 + `Dispatcher.close`). `handshake`/`send`/`vcsec`/`infotainment`를 조립해 들고 있다 | `vehicle.go` `NewVehicle`, `Connect`, `StartSession`, `Disconnect` |
 | `CommandTimeouts` | `commandTimeout`(5s)·`commandLifetime`(5s, `expires_at`)·`handshakeTimeout`(20s). M3 `TeslaBleConfig`가 채운다 | `tesla-control` 플래그 기본값 |
 | `KeyManagement`(M4) | `keySummary`, `keyInfoBySlot`, `listKeys`(슬롯 순회), `addKey`, `removeKey`, `sessionInfo(publicKey, domain)` | `security.go`, `vehicle.go` `SessionInfo` |
@@ -498,10 +498,10 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 
 - `Signatures.SessionInfo{counter, publicKey(차량), epoch, clock_time}`의 `clock_time`은 Go `ExportSessionInfo`와 같이 저장 시점의 도메인 시각(`timestamp()`), 복원 시 `timeZero = createdAt - clock_time`.
 - `keyId`가 현재 키와 다르면 캐시를 무시하고 삭제한다(Go는 잘못된 캐시를 로드 후 첫 명령 실패로 복구; 우리는 사전 차단).
-- 캐시된 **차량** 공개키가 현재 차량과 다르면(차량 키 교체, 같은 VIN의 다른 캐시) 세션 안에서는 복구하지 않는다(Go와 같음, 공개키 고정 유지). 대신 M3 `connect()`가 그 도메인의 캐시 항목을 지운다. Go는 아무것도 하지 않는다(2026-09-27 사용자 결정, M2 계획 설계 구체화 8). 감지 방법(`UNKNOWN_KEY_ID`, 캐시에서 복원한 세션의 세션정보 태그 실패)은 M3 계획에서 정한다.
+- 캐시된 **차량** 공개키가 현재 차량과 다르면(차량 키 교체, 같은 VIN의 다른 캐시) 세션 안에서는 복구하지 않는다(Go와 같음, 공개키 고정 유지). 대신 그 도메인의 캐시 항목을 지운다. Go는 아무것도 하지 않는다(2026-09-27 사용자 결정, M2 계획 설계 구체화 8). 감지: 캐시 복원 후 미확인 세션의 세션정보 갱신 실패 → `SessionEvent.StaleCache` → `SessionCacheSync.markStale` + 나머지 재저장.
 - 세션 키 K, 개인키, VIN 원문은 저장하지 않는다. 파일명은 `sha1(vin)`.
 - 구현: `SessionCacheCodec`(`:domain`, `encode`/`decode`/`encodeSnapshots`/`decodeSessions`), `InMemorySessionCache`(`:adapter-storage`, 벽시계 `() -> Long` 주입). `age`는 어댑터가 원시값(`nowEpochMillis - createdAtEpochMillis`, 음수 가능)으로 넘기고 클램프하지 않는다 — `Signer.importSessionInfo`가 0으로 본다(설계 구체화 7). 세션이 없으면 빈 목록을 저장한다(Go `Update(nil)`도 옛 캐시를 지운다). 개별 `SessionInfo` 디코딩이 실패한 손상된 항목은 건너뛰고 `Dispatcher.loadSessions`가 WARN 로그를 남긴다. 반면 `SessionCacheCodec.decode`가 Wire가 인식하지 못하는 도메인 원시값의 항목은 로그 없이 조용히 버린다(그 항목은 결과에 실리지도 않는다) — Wire는 알지만 `Dispatcher`에 세션이 없는 도메인(예: `DOMAIN_BROADCAST`)은 여기서 걸러지지 않고 `Dispatcher.loadSessions`까지 도달해 "no session (private key missing)" WARN을 남긴다(`Dispatcher.kt:288` 부근).
-- 저장 시점(M2): 핸드셰이크 완료(`VehicleSession.startSession` 성공), `disconnect()`(1회만 — 두 번째 이상 호출은 건너뛴다, `SessionCacheSync`/`VehicleSession` KDoc). **세션정보 갱신 때마다 저장하는 것은 M2에 없다** — 수신 코루틴이 캐시 I/O로 suspend해서는 안 되기 때문이다(§5). 그 트리거는 M3 파사드가 연결한다. `disconnect()`의 저장은 반드시 `Dispatcher.close()`보다 먼저 끝나야 한다 — `close()`가 모든 세션 키를 지운 뒤 저장하면 빈 목록이 이전 저장을 지워 버린다. 각 저장은 실패해도 명령 결과에 영향을 주지 않는다(로그만).
+- 저장 시점: 핸드셰이크 완료(`VehicleSession.startSession` 성공), 세션정보 갱신(`SessionEvent.Updated`, M3 — `eventScope`에서 수집), `disconnect()`(1회만 — 두 번째 이상 호출은 건너뛴다, `SessionCacheSync`/`VehicleSession` KDoc). 갱신 저장은 수신 코루틴이 아니라 `VehicleSession`의 이벤트 수집 코루틴이 한다(수신 코루틴은 `tryEmit`만, §5). `disconnect()`는 이벤트 수집을 취소·합류한 뒤 마지막 저장을 한다. `disconnect()`의 저장은 반드시 `Dispatcher.close()`보다 먼저 끝나야 한다 — `close()`가 모든 세션 키를 지운 뒤 저장하면 빈 목록이 이전 저장을 지워 버린다. 각 저장은 실패해도 명령 결과에 영향을 주지 않는다(로그만).
 
 ### 7.2 키 메타데이터
 
@@ -731,4 +731,5 @@ HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 
 - `BleTransport.close()`는 멱등이고 `incoming`을 완료한다. Go `Close`(`ble.go:89-92`)는 멱등 장치가 없고 `inbox`를 닫지 않는다(인터페이스 계약 `connector.go:48-52`는 멱등을 요구한다). 매뉴얼 `02-ble-transport.md` §13.7의 "멱등"은 계약 기준이다.
 - 수신 버퍼는 64(Go 5), SDD §2.4 권고 그대로.
 - 연결 재시도는 시도 사이에 1초를 둔다(FR-004). Go `NewConnectionFromScanResult`는 sleep 없이 반복한다(`ble.go:259-278`). 실패한 시도의 연결은 닫는다(Go는 닫지 않는다, `ble.go:280-360`). 다른 VIN의 광고를 `target`으로 주면 `InvalidArgument`(Go는 일반 오류, 재시도 없음 — 같은 결과).
+- 오래된 캐시 감지·삭제는 Go에 없다(사용자 결정 2026-09-27). 세션 자체는 Go처럼 복구하지 않는다 — 다음 `connect()`가 새로 핸드셰이크한다.
 - 인증 없는 VCSEC 조회에서 응답에 기대한 필드가 없으면 `BadResponse("missing …")`다(Go `BodyControllerState`/`KeySummary`/`KeyInfoBySlot`은 nil, nil). `listKeys`는 첫 슬롯 실패를 돌려준다(Go `list-keys`는 실패 슬롯을 출력하고 계속한다). Wire가 모르는 잠금·개폐·역할·형태 값은 `UNKNOWN`이다(Wire 기본값으로 보이지 않게 `unknownFields`로 판별).

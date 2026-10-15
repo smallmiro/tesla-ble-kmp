@@ -1,6 +1,7 @@
 public final class io/github/smallmiro/teslable/application/cache/SessionCacheSync {
 	public fun <init> (Lio/github/smallmiro/teslable/port/SessionCache;Lio/github/smallmiro/teslable/model/Vin;Lio/github/smallmiro/teslable/model/KeyId;)V
 	public final fun load (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun markStale (Lcom/tesla/generated/universalmessage/Domain;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun store (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
@@ -12,6 +13,7 @@ public final class io/github/smallmiro/teslable/application/dispatcher/Dispatche
 	public final fun exportSessions (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun getMaxLatency-UwyO8pc ()J
 	public final fun getRetryInterval-UwyO8pc ()J
+	public final fun getSessionEvents ()Lkotlinx/coroutines/flow/SharedFlow;
 	public final fun getVin ()Lio/github/smallmiro/teslable/model/Vin;
 	public final fun isListening ()Z
 	public final fun loadSessions (Ljava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -50,6 +52,31 @@ public final class io/github/smallmiro/teslable/application/dispatcher/PendingRe
 public final class io/github/smallmiro/teslable/application/dispatcher/PendingRequest$Companion {
 }
 
+public abstract interface class io/github/smallmiro/teslable/application/dispatcher/SessionEvent {
+}
+
+public final class io/github/smallmiro/teslable/application/dispatcher/SessionEvent$StaleCache : io/github/smallmiro/teslable/application/dispatcher/SessionEvent {
+	public fun <init> (Lcom/tesla/generated/universalmessage/Domain;)V
+	public final fun component1 ()Lcom/tesla/generated/universalmessage/Domain;
+	public final fun copy (Lcom/tesla/generated/universalmessage/Domain;)Lio/github/smallmiro/teslable/application/dispatcher/SessionEvent$StaleCache;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/application/dispatcher/SessionEvent$StaleCache;Lcom/tesla/generated/universalmessage/Domain;ILjava/lang/Object;)Lio/github/smallmiro/teslable/application/dispatcher/SessionEvent$StaleCache;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDomain ()Lcom/tesla/generated/universalmessage/Domain;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class io/github/smallmiro/teslable/application/dispatcher/SessionEvent$Updated : io/github/smallmiro/teslable/application/dispatcher/SessionEvent {
+	public fun <init> (Lcom/tesla/generated/universalmessage/Domain;)V
+	public final fun component1 ()Lcom/tesla/generated/universalmessage/Domain;
+	public final fun copy (Lcom/tesla/generated/universalmessage/Domain;)Lio/github/smallmiro/teslable/application/dispatcher/SessionEvent$Updated;
+	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/application/dispatcher/SessionEvent$Updated;Lcom/tesla/generated/universalmessage/Domain;ILjava/lang/Object;)Lio/github/smallmiro/teslable/application/dispatcher/SessionEvent$Updated;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getDomain ()Lcom/tesla/generated/universalmessage/Domain;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class io/github/smallmiro/teslable/application/dispatcher/SessionState {
 	public final fun authorize-8Mi8wO0 (Lcom/tesla/generated/universalmessage/RoutableMessage;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun awaitReady (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -59,6 +86,7 @@ public final class io/github/smallmiro/teslable/application/dispatcher/SessionSt
 	public final fun export (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun isClosed ()Z
 	public final fun isReady ()Z
+	public final fun isUnconfirmedCacheRestore ()Z
 	public final fun loadFromCache-8Mi8wO0 ([BJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun processHello ([B[B[BLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun timestamp-gbq4QnA (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -174,8 +202,8 @@ public final class io/github/smallmiro/teslable/application/vehicle/SendWithRetr
 }
 
 public final class io/github/smallmiro/teslable/application/vehicle/VehicleSession {
-	public fun <init> (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lio/github/smallmiro/teslable/application/vehicle/CommandTimeouts;Lio/github/smallmiro/teslable/application/cache/SessionCacheSync;)V
-	public synthetic fun <init> (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lio/github/smallmiro/teslable/application/vehicle/CommandTimeouts;Lio/github/smallmiro/teslable/application/cache/SessionCacheSync;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lio/github/smallmiro/teslable/application/vehicle/CommandTimeouts;Lio/github/smallmiro/teslable/application/cache/SessionCacheSync;Lkotlinx/coroutines/CoroutineScope;)V
+	public synthetic fun <init> (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lio/github/smallmiro/teslable/application/vehicle/CommandTimeouts;Lio/github/smallmiro/teslable/application/cache/SessionCacheSync;Lkotlinx/coroutines/CoroutineScope;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun connect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun disconnect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun getHandshake ()Lio/github/smallmiro/teslable/application/dispatcher/HandshakeFlow;

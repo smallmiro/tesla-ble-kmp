@@ -31,8 +31,12 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -112,6 +116,15 @@ public class Dispatcher
             } else {
                 ALL_DOMAINS.associateWith { SessionState(vin, privateKey, crypto, random, timeSource) }
             }
+        private val events =
+            MutableSharedFlow<SessionEvent>(
+                extraBufferCapacity = EVENT_BUFFER,
+                onBufferOverflow = BufferOverflow.DROP_OLDEST,
+            )
+
+        /** 세션 사건(설계 구체화 14). 구독자가 없으면 버려진다 — `VehicleSession`이 `connect()`에서 구독을 먼저 시작한다. */
+        public val sessionEvents: SharedFlow<SessionEvent> = events.asSharedFlow()
+
         private val pending = HashMap<PendingKey, PendingRequest>()
         private val pendingMutex = Mutex()
 
@@ -485,13 +498,22 @@ public class Dispatcher
                 logger.log(LogLevel.ERROR, TAG) { "[$id] Dropping session from unregistered domain $domain" }
                 return
             }
+            val wasUnconfirmed = session.isUnconfirmedCacheRestore
             when (val result = session.processHello(message.request_uuid.toByteArray(), info.toByteArray(), tag.toByteArray())) {
                 is SignerResult.Fault -> {
                     logger.log(LogLevel.WARN, TAG) { "[$id] Session info error: ${result.fault.name}: ${result.detail}" }
+                    if (wasUnconfirmed) {
+                        session.markReportedStale()
+                        logger.log(LogLevel.WARN, TAG) {
+                            "[$id] Cached session for $domain looks stale (vehicle key changed?); dropping it from the cache"
+                        }
+                        events.tryEmit(SessionEvent.StaleCache(domain))
+                    }
                 }
 
                 is SignerResult.Ok -> {
                     logger.log(LogLevel.INFO, TAG) { "[$id] Updated session info for $domain" }
+                    events.tryEmit(SessionEvent.Updated(domain))
                 }
             }
         }
@@ -529,6 +551,8 @@ public class Dispatcher
 
         /** 상수와 메시지 조립. */
         public companion object {
+            private const val EVENT_BUFFER = 16
+
             /** 핸드셰이크 대상 도메인 전부(Go `StartSessions(nil)`). */
             public val ALL_DOMAINS: Set<Domain> = setOf(Domain.DOMAIN_VEHICLE_SECURITY, Domain.DOMAIN_INFOTAINMENT)
 
