@@ -298,8 +298,9 @@ public interface Vehicle {
 
 ### 2.4 `:adapter-ble`
 
-- `KableScanner.scan(localName)`: `Scanner { filters { match { name = Filter.Name.Exact(localName.value) } } }.advertisements` → `VehicleAdvertisement(identifier, rssi, isConnectable)`. iOS의 `isConnectable`은 `CBAdvertisementDataIsConnectable`, Android는 `ScanResult.isConnectable`(API 26+).
-- `KableTransport.connect`: `Peripheral(advertisement)` → `connect()` → 서비스 `…0211` 특성 `…0212`/`…0213` 탐색 → `…0213` **indication** 구독(ADR-0003: Kable이 notify를 우선 선택하면 CCCD를 직접 써서 indication 강제) → Android `requestMtu(517)` 결과, iOS `maximumWriteValueLength(for: .withResponse)`로 `blockLength = min(mtu, 1024) - 3` → `Transport` 반환.
+- 구조: `KableGattConnector`(스캔·열기; 0213 구독은 **연결 전에** 시작해 연결 중 구독 실패를 `connect()` 예외로 받는다) / `KableGattLink`(`state`가 `Disconnected`가 되면 수신을 닫아 끊김을 알린다; `disconnect()`는 `NonCancellable`이되 플랫폼 끊김 대기는 5초로 제한) / `BleTransportFactory`·`BleTransport`(Kable 없는 코어). 팩토리에 넘기는 스코프는 `SupervisorJob`을 가져야 한다.
+- 스캔: `Scanner { filters { match { name = Filter.Name.Exact(localName.value) } } }.advertisements` → `VehicleAdvertisement(localName, identifier, rssi, isConnectable)`. iOS의 `isConnectable`은 `CBAdvertisementDataIsConnectable`, Android는 `ScanResult.isConnectable`(API 26+).
+- 열기: `Peripheral(advertisement)` → `connect()` → 서비스 `…0211` 특성 `…0212`/`…0213` 확인 → 블록 길이 결정. 구독 방식은 ADR-0003 스파이크 결과(`DEFAULT_SUBSCRIPTION`; `ANDROID_FORCE_INDICATION`이면 구독 직후 CCCD에 `0x0200`). 블록 길이: Android `requestMtu(517)` → `min(mtu, 1024) - 3`(실패 시 20), iOS `maximumWriteValueLength(.withResponse)` → `min(len, 1021)`, JVM 20. `open`은 취소 외에는 던지지 않고 모든 실패를 `OpenResult.Failed`로 돌려준다.
 - 재시도 규칙은 Go `tryToConnect`/`NewConnectionFromScanResult`와 같다: 스캔·연결·탐색·구독 실패는 재시도, 이름 불일치·connectable=false·권한 없음은 즉시 실패.
 - `send`: `Framer.frame` → `write(txChar, chunk, WriteType.WithResponse)` 순차. 전송 중 `Mutex`.
 - `incoming`: `observe(rxChar)` → `Reassembler.push` → 메시지 단위 `Flow`. 버퍼는 `Channel(BUFFERED=64)`; Go의 5보다 크게 잡아 드롭 가능성을 줄인다(매뉴얼 `10-porting-guide §3` 권고).

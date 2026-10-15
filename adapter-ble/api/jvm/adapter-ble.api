@@ -7,6 +7,11 @@ public final class io/github/smallmiro/teslable/ble/BleAvailability$Companion {
 	public final fun getALWAYS ()Lio/github/smallmiro/teslable/ble/BleAvailability;
 }
 
+public final class io/github/smallmiro/teslable/ble/BleTransportsKt {
+	public static final fun kableTransportFactory-9VgGkz4 (Lkotlinx/coroutines/CoroutineScope;Lio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/ble/BleAvailability;Lio/github/smallmiro/teslable/port/TeslaLogger;J)Lio/github/smallmiro/teslable/port/TransportFactory;
+	public static synthetic fun kableTransportFactory-9VgGkz4$default (Lkotlinx/coroutines/CoroutineScope;Lio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/ble/BleAvailability;Lio/github/smallmiro/teslable/port/TeslaLogger;JILjava/lang/Object;)Lio/github/smallmiro/teslable/port/TransportFactory;
+}
+
 public final class io/github/smallmiro/teslable/ble/GattProbe {
 	public static final field INSTANCE Lio/github/smallmiro/teslable/ble/GattProbe;
 	public final fun run-Lkj3upI (Ljava/lang/String;[BZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;JJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
