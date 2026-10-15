@@ -10,12 +10,15 @@ import io.github.smallmiro.teslable.port.LogLevel
 import io.github.smallmiro.teslable.port.SessionCache
 import io.github.smallmiro.teslable.port.TeslaLogger
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import platform.Security.kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly
 import kotlin.time.Clock
 
-/** iOS 기본 세션 캐시(SDD §2.6): Keychain generic password, account = `hex(SHA1(vin))`. */
+/** iOS 기본 세션 캐시(SDD §2.6): Keychain generic password, account = `hex(SHA1(vin))`. Keychain I/O는 `Dispatchers.IO`에서 한다. */
 @OptIn(ExperimentalForeignApi::class)
 public fun appleSessionCache(
     crypto: CryptoPrimitives,
@@ -39,7 +42,7 @@ internal class KeychainSessionCache(
         vin: Vin,
         keyId: KeyId,
     ): List<CachedSession> =
-        mutex.withLock {
+        locked {
             val account = cacheFileName(vin, crypto)
             when (val read = keychain.read(account)) {
                 KeychainRead.Missing -> {
@@ -64,15 +67,18 @@ internal class KeychainSessionCache(
         keyId: KeyId,
         entries: List<SessionSnapshot>,
     ) {
-        mutex.withLock {
+        locked {
             val status = keychain.write(cacheFileName(vin, crypto), SessionCacheCodec.encodeSnapshots(keyId, entries, wallClockMillis()))
             if (status != 0) logger.log(LogLevel.WARN, TAG) { "Failed to store session cache: keychain status $status" }
         }
     }
 
     override suspend fun clear(vin: Vin) {
-        mutex.withLock { keychain.delete(cacheFileName(vin, crypto)) }
+        locked { keychain.delete(cacheFileName(vin, crypto)) }
     }
+
+    // Keychain I/O는 호출자(Swift에서는 흔히 메인) 스레드를 막지 않게 IO에서 한다(최종 리뷰 M7).
+    private suspend fun <T> locked(block: () -> T): T = mutex.withLock { withContext(Dispatchers.IO) { block() } }
 
     private companion object {
         const val TAG = "cache"

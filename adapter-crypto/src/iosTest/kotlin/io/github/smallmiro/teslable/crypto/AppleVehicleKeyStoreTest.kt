@@ -6,9 +6,11 @@ import io.github.smallmiro.teslable.port.KeyPolicy
 import io.github.smallmiro.teslable.port.KeyProtection
 import io.github.smallmiro.teslable.port.VehicleKey
 import kotlinx.coroutines.test.runTest
+import platform.Foundation.NSThread
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
@@ -19,8 +21,14 @@ class AppleVehicleKeyStoreTest {
         var writeStatus: Int = 0
         var deleteStatus: Int = 0
 
-        override fun read(account: String): KeychainRead =
-            failStatus?.let { KeychainRead.Failed(it) } ?: items[account]?.let { KeychainRead.Found(it.copyOf()) } ?: KeychainRead.Missing
+        /** Security.framework 호출이 실행된 스레드(최종 리뷰 M7). */
+        val threads = mutableListOf<NSThread>()
+
+        override fun read(account: String): KeychainRead {
+            threads += NSThread.currentThread
+            return failStatus?.let { KeychainRead.Failed(it) } ?: items[account]?.let { KeychainRead.Found(it.copyOf()) }
+                ?: KeychainRead.Missing
+        }
 
         override fun write(
             account: String,
@@ -46,10 +54,15 @@ class AppleVehicleKeyStoreTest {
         var deleteStatus: Int = 0
         var createCalls = 0
 
-        override fun find(alias: String): EnclaveFind =
-            findStatus?.let { EnclaveFind.Failed(it) } ?: keys[alias]?.let { EnclaveFind.Found(it) } ?: EnclaveFind.Missing
+        val threads = mutableListOf<NSThread>()
+
+        override fun find(alias: String): EnclaveFind {
+            threads += NSThread.currentThread
+            return findStatus?.let { EnclaveFind.Failed(it) } ?: keys[alias]?.let { EnclaveFind.Found(it) } ?: EnclaveFind.Missing
+        }
 
         override fun create(alias: String): VehicleKey? {
+            threads += NSThread.currentThread
             createCalls++
             if (!available) return null
             return Enclave(SoftwareVehicleKey(alias, generateSoftwareKeyPair())).also { keys[alias] = it }
@@ -172,4 +185,19 @@ class AppleVehicleKeyStoreTest {
         }
 
     private fun <T : Any> assertIsNotNull(value: T?): T = kotlin.test.assertNotNull(value)
+
+    @Test
+    fun securityFrameworkWorkRunsOffTheCallersThread() =
+        // 최종 리뷰 M7: Swift에서는 흔히 메인 스레드가 호출한다 — Secure Enclave 생성(~100 ms)·Keychain I/O가 그 스레드를 막지 않는다
+        runTest {
+            val keychain = FakeKeychain()
+            val enclave = FakeEnclave(available = true)
+            val caller = NSThread.currentThread
+            val store = AppleVehicleKeyStore(keychain, enclave)
+            assertIs<VehicleResult.Success<VehicleKey>>(store.getOrCreate())
+            assertIs<VehicleResult.Success<VehicleKey?>>(AppleVehicleKeyStore(keychain, FakeEnclave(false)).get())
+            assertTrue(enclave.threads.isNotEmpty())
+            assertTrue(keychain.threads.isNotEmpty())
+            assertFalse((enclave.threads + keychain.threads).any { it == caller })
+        }
 }
