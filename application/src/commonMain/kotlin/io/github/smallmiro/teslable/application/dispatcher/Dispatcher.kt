@@ -82,6 +82,9 @@ public class Dispatcher
         /** 이 디스패처의 시계(`listKeys` 시간 예산 등, 같은 연결의 다른 계층이 공유한다). */
         internal val clock: TimeSource get() = timeSource
 
+        /** 형제 계층(`VehicleSession`)이 같은 로거로 남기도록 노출한다. */
+        internal val log: TeslaLogger get() = logger
+
         /** Go `RetryInterval()`: 전송 계층의 재전송 간격. */
         public val retryInterval: Duration get() = transport.retryInterval
 
@@ -287,9 +290,14 @@ public class Dispatcher
             return send(sessionInfoRequest(domain, key.publicKey), AuthMethod.NONE)
         }
 
-        /** Go `Cache()`: 세션이 있는 도메인의 `SessionInfo`(clock_time = 지금)를 내보낸다. */
+        /**
+         * Go `Cache()`: 세션이 있는 도메인의 `SessionInfo`(clock_time = 지금)를 내보낸다. 오래된 캐시로 판정된 세션
+         * ([SessionState.isReportedStale])은 다시 내보내지 않는다(Go에 없는 의도한 차이, 설계 구체화 14).
+         */
         public suspend fun exportSessions(): List<SessionSnapshot> =
-            sessions.mapNotNull { (domain, session) -> session.export()?.let { SessionSnapshot(domain, it) } }
+            sessions.mapNotNull { (domain, session) ->
+                if (session.isReportedStale) null else session.export()?.let { SessionSnapshot(domain, it) }
+            }
 
         /**
          * Go `LoadCache`: 항목마다 [SessionState.loadFromCache](즉시 준비 상태). 손상된 항목·개인키 없음은 WARN 로그 후 건너뛴다

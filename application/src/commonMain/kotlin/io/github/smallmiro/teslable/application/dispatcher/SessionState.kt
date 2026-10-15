@@ -49,8 +49,15 @@ public class SessionState internal constructor(
     /** 캐시에서 복원된 뒤 아직 차량 응답으로 확인되지 않았는지(복호화·세션정보 갱신 성공 전). */
     public val isUnconfirmedCacheRestore: Boolean get() = unconfirmedRestore
 
-    /** 오래된 캐시로 보고했으므로 다시 보고하지 않게 한다. */
+    @Volatile
+    private var reportedStale = false
+
+    /** 오래된 캐시로 판정됐는지. 판정은 동기 상태다 — 이벤트가 유실돼도 [Dispatcher.exportSessions]는 이 세션을 다시 내보내지 않는다. */
+    public val isReportedStale: Boolean get() = reportedStale
+
+    /** 오래된 캐시로 판정해 기록하고(이벤트보다 먼저) 다시 보고하지 않게 한다. */
     internal fun markReportedStale() {
+        reportedStale = true
         unconfirmedRestore = false
     }
 
@@ -166,6 +173,7 @@ public class SessionState internal constructor(
     public suspend fun close(): Unit =
         mutex.withLock {
             closed = true
+            unconfirmedRestore = false
             signer?.close()
             signer = null
         }

@@ -6,7 +6,9 @@ import io.github.smallmiro.teslable.application.dispatcher.PendingRequest
 import io.github.smallmiro.teslable.application.dispatcher.SessionEvent
 import io.github.smallmiro.teslable.application.dispatcher.dispatcherHarness
 import io.github.smallmiro.teslable.application.dispatcher.testCommand
+import io.github.smallmiro.teslable.application.vcsec.VcsecResponses
 import io.github.smallmiro.teslable.application.vehicle.VehicleSession
+import io.github.smallmiro.teslable.cache.CachedSession
 import io.github.smallmiro.teslable.cache.SessionSnapshot
 import io.github.smallmiro.teslable.model.KeyId
 import io.github.smallmiro.teslable.model.VehicleResult
@@ -16,10 +18,14 @@ import io.github.smallmiro.teslable.port.SessionCache
 import io.github.smallmiro.teslable.testing.FakeVehicle
 import io.github.smallmiro.teslable.testing.RecordingSessionCache
 import io.github.smallmiro.teslable.testing.TestCrypto
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -209,5 +215,98 @@ class SessionEventsTest {
                     .last()
                     .entries.size,
             )
+        }
+
+    @Test
+    fun staleVerdictSurvivesDisconnectEvenIfTheEventWasNeverCollected() =
+        // 수집기가 없어(이벤트 유실) 마지막 저장이 판정만으로 stale 도메인을 빼야 한다
+        runTest {
+            val cache = RecordingSessionCache()
+            val sync = restoreStaleCache(cache)
+            val h = dispatcherHarness(fake = FakeVehicle(timeSource = testTimeSource), start = false)
+            val session = VehicleSession(h.dispatcher, cacheSync = sync) // eventScope 없음 → 수집기 없음
+            session.connect()
+            session.vcsec.execute(byteArrayOf(1), AuthMethod.GCM, VcsecResponses.COMMAND_STATUS_ABSENT, timeout = 1.seconds)
+            session.disconnect()
+            val last = cache.stores.last()
+            assertTrue(last.entries.none { it.domain == vcsec })
+            assertTrue(last.entries.any { it.domain == infotainment })
+        }
+
+    /** [load]가 [gate]가 열릴 때까지 `connectMutex`를 쥔 채 멈추는 캐시. */
+    private class GatedLoadCache(
+        private val inner: RecordingSessionCache,
+        private val gate: CompletableDeferred<Unit>,
+    ) : SessionCache by inner {
+        override suspend fun load(
+            vin: Vin,
+            keyId: KeyId,
+        ): List<CachedSession> {
+            gate.await()
+            return inner.load(vin, keyId)
+        }
+    }
+
+    @Test
+    fun disconnectDuringAnInFlightConnectLeavesNoCollectorBehind() =
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val gate = CompletableDeferred<Unit>()
+            val sync = SessionCacheSync(GatedLoadCache(RecordingSessionCache(), gate), fake.vin, keyId)
+            val h = dispatcherHarness(fake = fake, start = false)
+            val scopeJob = Job()
+            val scope = CoroutineScope(scopeJob + StandardTestDispatcher(testScheduler))
+            val session = VehicleSession(h.dispatcher, cacheSync = sync, eventScope = scope)
+            val connecting = launch { session.connect() }
+            runCurrent() // connect()가 load에서 connectMutex를 쥔 채 멈춘다
+            val disconnecting = launch { session.disconnect() }
+            runCurrent()
+            gate.complete(Unit)
+            runCurrent()
+            connecting.join()
+            disconnecting.join()
+            runCurrent()
+            assertTrue(scopeJob.children.none { it.isActive }, "collector must not outlive disconnect()")
+            assertFalse(h.dispatcher.isListening)
+            scopeJob.cancel()
+        }
+
+    /** 첫 store만 예외를 던지는 캐시. */
+    private class ThrowFirstStoreCache(
+        private val inner: RecordingSessionCache,
+    ) : SessionCache by inner {
+        private var first = true
+
+        override suspend fun store(
+            vin: Vin,
+            keyId: KeyId,
+            entries: List<SessionSnapshot>,
+        ) {
+            if (first) {
+                first = false
+                error("disk full")
+            }
+            inner.store(vin, keyId, entries)
+        }
+    }
+
+    @Test
+    fun aThrowingEventStoreIsLoggedAndTheCollectorKeepsGoing() =
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val inner = RecordingSessionCache()
+            val sync = SessionCacheSync(ThrowFirstStoreCache(inner), fake.vin, keyId)
+            val h = dispatcherHarness(fake = fake, start = false)
+            val scopeJob = Job()
+            val scope = CoroutineScope(scopeJob + StandardTestDispatcher(testScheduler))
+            val session = VehicleSession(h.dispatcher, cacheSync = sync, eventScope = scope)
+            session.connect()
+            assertIs<VehicleResult.Success<Unit>>(HandshakeFlow(h.dispatcher).startSessions(setOf(vcsec, infotainment)))
+            runCurrent()
+            assertTrue(scopeJob.isActive)
+            assertTrue(inner.stores.isNotEmpty())
+            assertTrue(h.logger.contains("Failed to store session cache after session update: IllegalStateException"))
+            session.disconnect()
+            scopeJob.cancel()
         }
 }
