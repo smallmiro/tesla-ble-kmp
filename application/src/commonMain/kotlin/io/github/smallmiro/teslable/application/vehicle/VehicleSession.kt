@@ -12,6 +12,8 @@ import io.github.smallmiro.teslable.application.infotainment.InfotainmentCommand
 import io.github.smallmiro.teslable.application.vcsec.VcsecCommands
 import io.github.smallmiro.teslable.application.vcsec.VehicleInfoQueries
 import io.github.smallmiro.teslable.model.VehicleResult
+import io.github.smallmiro.teslable.port.LogLevel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -26,6 +28,9 @@ import kotlin.time.Duration
 /**
  * Go `Vehicle`의 세션 부분: 연결(캐시 복원 + 수신 시작), 핸드셰이크 재시도, 해제(캐시 저장 + 세션 소거). M3 `Vehicle` 구현이 감싼다.
  * 명령은 [send](단일 응답), Task 10의 `vcsec`/`infotainment`로 보낸다.
+ *
+ * @param eventScope [cacheSync]도 함께 줘야 동작한다. 세션정보 갱신·오래된 캐시 사건을 이 스코프에서 수집해 캐시를 저장하며,
+ *   저장 실패는 로그만 남기고 스코프로 전파하지 않는다. [disconnect]가 수집을 멈춘다.
  */
 public class VehicleSession(
     private val dispatcher: Dispatcher,
@@ -33,7 +38,7 @@ public class VehicleSession(
     private val cacheSync: SessionCacheSync? = null,
     private val eventScope: CoroutineScope? = null,
 ) {
-    private var eventJob: Job? = null
+    private var eventJob: Job? = null // connectMutex 안에서만 읽고 쓴다
     private val disconnectMutex = Mutex()
     private var storedOnDisconnect = false
     private val connectMutex = Mutex()
@@ -118,12 +123,17 @@ public class VehicleSession(
      */
     public suspend fun disconnect() {
         try {
-            eventJob?.cancelAndJoin()
+            connectMutex.withLock { eventJob }?.cancelAndJoin()
             storeOnceForDisconnect()
         } finally {
             withContext(NonCancellable) {
-                eventJob?.cancel()
-                connectMutex.withLock { disconnected = true }
+                // 진행 중인 connect()가 있으면 그 락을 기다린 뒤 수집기를 잡는다 — 닫힌 뒤에 저장하는 수집기가 남지 않는다.
+                val job =
+                    connectMutex.withLock {
+                        disconnected = true
+                        eventJob.also { eventJob = null }
+                    }
+                job?.cancelAndJoin()
                 dispatcher.close()
             }
         }
@@ -137,19 +147,27 @@ public class VehicleSession(
         if (scope == null || sync == null) return
         eventJob =
             scope.launch(start = CoroutineStart.UNDISPATCHED) {
-                dispatcher.sessionEvents.collect { event ->
-                    when (event) {
-                        is SessionEvent.Updated -> {
-                            sync.store(dispatcher)
-                        }
-
-                        is SessionEvent.StaleCache -> {
-                            sync.markStale(event.domain)
-                            sync.store(dispatcher)
-                        }
-                    }
-                }
+                dispatcher.sessionEvents.collect { event -> handleEvent(sync, event) }
             }
+    }
+
+    private suspend fun handleEvent(
+        sync: SessionCacheSync,
+        event: SessionEvent,
+    ) {
+        try {
+            if (event is SessionEvent.StaleCache) sync.markStale(event.domain)
+            sync.store(dispatcher)
+        } catch (e: CancellationException) {
+            throw e
+        } catch (
+            @Suppress("TooGenericExceptionCaught") e: Exception,
+        ) {
+            dispatcher.log.log(
+                LogLevel.WARN,
+                "VehicleSession",
+            ) { "Failed to store session cache after session update: ${e::class.simpleName}" }
+        }
     }
 
     private suspend fun storeOnceForDisconnect() {
