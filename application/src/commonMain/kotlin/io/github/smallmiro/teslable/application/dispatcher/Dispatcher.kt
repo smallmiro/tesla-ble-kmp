@@ -75,6 +75,9 @@ public class Dispatcher
         /** 연결된 차량의 VIN. */
         public val vin: Vin = transport.vin
 
+        /** 이 디스패처의 시계(`listKeys` 시간 예산 등, 같은 연결의 다른 계층이 공유한다). */
+        internal val clock: TimeSource get() = timeSource
+
         /** Go `RetryInterval()`: 전송 계층의 재전송 간격. */
         public val retryInterval: Duration get() = transport.retryInterval
 
