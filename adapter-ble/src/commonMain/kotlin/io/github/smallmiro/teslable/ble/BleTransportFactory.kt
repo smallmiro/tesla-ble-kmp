@@ -14,14 +14,21 @@ import io.github.smallmiro.teslable.port.Transport
 import io.github.smallmiro.teslable.port.TransportFactory
 import io.github.smallmiro.teslable.port.VehicleAdvertisement
 import io.github.smallmiro.teslable.transport.LocalName
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.DelicateCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.async
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
-import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
 import kotlinx.coroutines.flow.transformWhile
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -100,14 +107,24 @@ internal class BleTransportFactory(
         while (true) {
             val hit =
                 when (val found = findHit(localName, target)) {
-                    is ConnectorScan.Failed -> return VehicleResult.Failure(found.error)
-                    is ConnectorScan.Hit -> found.hit
+                    null -> {
+                        delay(retryInterval) // 광고 없이 끝난 스캔은 재시도 가능한 놓침
+                        continue
+                    }
+
+                    is ConnectorScan.Failed -> {
+                        return VehicleResult.Failure(found.error)
+                    }
+
+                    is ConnectorScan.Hit -> {
+                        found.hit
+                    }
                 }
             if (hit.advertisement.isConnectable == false) {
                 return VehicleResult.Failure(VehicleError.TransportError.MaxConnectionsExceeded)
             }
             attempts.count++
-            when (val opened = connector.open(hit)) {
+            when (val opened = openOwned(hit)) {
                 is OpenResult.Opened -> {
                     return VehicleResult.Success(BleTransport(vin, opened.link, scope, timeSource, logger))
                 }
@@ -125,9 +142,33 @@ internal class BleTransportFactory(
     private suspend fun findHit(
         localName: LocalName,
         target: VehicleAdvertisement?,
-    ): ConnectorScan {
-        if (target != null) hitsMutex.withLock { recentHits[target.identifier] }?.let { return ConnectorScan.Hit(it) }
-        return connector.scan(localName).first().also { if (it is ConnectorScan.Hit) remember(it.hit) }
+    ): ConnectorScan? {
+        if (target != null) {
+            val cached = hitsMutex.withLock { recentHits[target.identifier] }
+            if (cached != null && cached.advertisement.localName == localName) return ConnectorScan.Hit(cached)
+        }
+        return connector.scan(localName).firstOrNull()?.also { if (it is ConnectorScan.Hit) remember(it.hit) }
+    }
+
+    /**
+     * [GattConnector.open]을 팩토리 스코프에서 돌린다. 호출자가 사라진 뒤(타임아웃·취소) 열린 링크는 받을 사람이 없으므로
+     * 여기서 정확히 한 번 끊고, 아직 도는 열기는 취소해 커넥터가 실패한 시도를 정리하게 한다.
+     */
+    @OptIn(DelicateCoroutinesApi::class) // ATOMIC: 스코프가 이미 취소돼도 끊기는 실행된다
+    private suspend fun openOwned(hit: ScanHit): OpenResult {
+        var result: OpenResult? = null
+        val deferred = scope.async(start = CoroutineStart.UNDISPATCHED) { connector.open(hit).also { result = it } }
+        try {
+            return deferred.await()
+        } catch (e: CancellationException) {
+            deferred.cancel()
+            deferred.invokeOnCompletion {
+                (result as? OpenResult.Opened)?.let { opened ->
+                    scope.launch(start = CoroutineStart.ATOMIC) { withContext(NonCancellable) { opened.link.disconnect() } }
+                }
+            }
+            throw e
+        }
     }
 
     private suspend fun remember(hit: ScanHit) {
