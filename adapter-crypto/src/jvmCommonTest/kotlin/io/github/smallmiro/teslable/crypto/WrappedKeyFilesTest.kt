@@ -1,4 +1,3 @@
-// adapter-crypto/src/jvmCommonTest/kotlin/io/github/smallmiro/teslable/crypto/WrappedKeyFilesTest.kt
 package io.github.smallmiro.teslable.crypto
 
 import java.io.File
@@ -12,6 +11,7 @@ import kotlin.test.AfterTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
@@ -103,5 +103,17 @@ class WrappedKeyFilesTest {
         files.write("a", generateSoftwareKeyPair())
         files.write("a", generateSoftwareKeyPair())
         assertEquals(listOf("a.enc"), dir.list()?.sorted())
+    }
+
+    @Test
+    fun failedFileDeleteKeepsWrapperKey() {
+        files.write("a", generateSoftwareKeyPair())
+        wrappers.getValue("a").destroyed = false
+        val file = File(dir, "a.enc")
+        file.delete()
+        file.mkdir() // 비어 있지 않은 디렉터리는 어느 OS에서도 delete()가 실패한다
+        File(file, "x").writeBytes(ByteArray(1))
+        assertFailsWith<IllegalStateException> { files.delete("a") }
+        assertFalse(wrappers.getValue("a").destroyed)
     }
 }

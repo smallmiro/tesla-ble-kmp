@@ -17,7 +17,7 @@ private const val AES_BITS = 256
 internal class AndroidKeystoreWrapper(
     alias: String,
 ) : KeyWrapper {
-    private val wrapAlias = "$alias.wrap"
+    private val wrapAlias = KeystoreAliases.wrap(alias)
     private val keyStore: KeyStore = KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
 
     private fun key(): SecretKey =
