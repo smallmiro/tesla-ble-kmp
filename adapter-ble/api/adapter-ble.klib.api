@@ -6,6 +6,15 @@
 // - Show declarations: true
 
 // Library unique name: <tesla-ble-kmp:adapter-ble>
+abstract fun interface io.github.smallmiro.teslable.ble/BleAvailability { // io.github.smallmiro.teslable.ble/BleAvailability|null[0]
+    abstract fun check(): io.github.smallmiro.teslable.model/VehicleError.TransportError? // io.github.smallmiro.teslable.ble/BleAvailability.check|check(){}[0]
+
+    final object Companion { // io.github.smallmiro.teslable.ble/BleAvailability.Companion|null[0]
+        final val ALWAYS // io.github.smallmiro.teslable.ble/BleAvailability.Companion.ALWAYS|{}ALWAYS[0]
+            final fun <get-ALWAYS>(): io.github.smallmiro.teslable.ble/BleAvailability // io.github.smallmiro.teslable.ble/BleAvailability.Companion.ALWAYS.<get-ALWAYS>|<get-ALWAYS>(){}[0]
+    }
+}
+
 final object io.github.smallmiro.teslable.ble/GattProbe { // io.github.smallmiro.teslable.ble/GattProbe|null[0]
     final suspend fun run(kotlin/String, kotlin/ByteArray, kotlin/Boolean, kotlin/Function1<kotlin/String, kotlin/Unit>, kotlin/Function1<kotlin/ByteArray, kotlin/Unit>, kotlin.time/Duration = ..., kotlin.time/Duration = ...) // io.github.smallmiro.teslable.ble/GattProbe.run|run(kotlin.String;kotlin.ByteArray;kotlin.Boolean;kotlin.Function1<kotlin.String,kotlin.Unit>;kotlin.Function1<kotlin.ByteArray,kotlin.Unit>;kotlin.time.Duration;kotlin.time.Duration){}[0]
 }
