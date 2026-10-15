@@ -41,3 +41,4 @@ testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/FakeTransport
 testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/FakeVehicle.kt
 testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/TestVerifier.kt
 adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BleUuids.kt
+domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/TransportFactory.kt

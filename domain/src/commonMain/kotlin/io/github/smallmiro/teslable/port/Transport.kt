@@ -33,12 +33,17 @@ public sealed interface TransportState {
  * 차량과 데이터그램(직렬화된 `RoutableMessage`)을 주고받는 포트. Go `connector.Connector`.
  * [incoming]은 재조립된 메시지 단위이며 수집자는 `Dispatcher`의 수신 코루틴 하나뿐이다.
  * 오류는 예외가 아니라 값이다(ADR-0006): [send]가 `Uncertain`이면 차량이 받았을 수 있다는 뜻이다(Go `MayHaveSucceeded`).
+ * 구현은 연결 직후부터 수신 메시지를 모아 두어야 한다([incoming] 참고).
  */
 public interface Transport {
     /** 연결된 차량의 VIN(TLV PERSONALIZATION). Go `VIN()`. */
     public val vin: Vin
 
-    /** 차량이 보낸 메시지. 연결이 끝나면 완료된다. Go `Receive()`. */
+    /**
+     * 차량이 보낸 메시지(재조립된 단위). 연결이 끝나면 완료된다. Go `Receive()`.
+     * **버퍼링 계약:** 구현은 연결 직후부터 메시지를 모아 두어야 한다 — 수집자(디스패처의 수신 코루틴)가 구독하기 전에 도착한
+     * 메시지도 버리지 않고 넘긴다(M3 `BleTransport`는 `Channel(64)`). 버퍼가 가득 차면 버리고 로그를 남긴다(Go `flush`).
+     */
     public val incoming: Flow<ByteArray>
 
     /** 연결 상태. */

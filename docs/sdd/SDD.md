@@ -173,7 +173,7 @@ public sealed interface TransportState {                  // Connected / Disconn
 }
 public interface Transport {                              // connector.Connector
     public val vin: Vin
-    public val incoming: Flow<ByteArray>                  // 재조립된 메시지 단위
+    public val incoming: Flow<ByteArray>                  // 재조립된 메시지 단위. 연결 직후부터 버퍼링(Channel(64)) — 구독 전 도착분도 넘긴다
     public val state: StateFlow<TransportState>           // Connected / Disconnected(reason)
     public val retryInterval: Duration                    // BLE 1s
     public val allowedLatency: Duration                   // BLE 4s
@@ -181,12 +181,16 @@ public interface Transport {                              // connector.Connector
     public suspend fun close()                            // 멱등
 }
 public interface TransportFactory {
-    public fun scan(localName: LocalName): Flow<VehicleAdvertisement>   // Advertisement(rssi, isConnectable, identifier)
-    public suspend fun connect(vin: Vin, target: VehicleAdvertisement?, options: ConnectOptions): Transport
+    public fun scan(localName: LocalName): Flow<ScanEvent>   // Found(VehicleAdvertisement(localName, identifier, rssi, isConnectable?)) | Failed(TransportError) — 오류도 값(설계 구체화 1)
+    public suspend fun connect(vin: Vin, target: VehicleAdvertisement?, options: ConnectOptions): VehicleResult<Transport>
 }
 public interface EcdhPrivateKey { public val publicKey: PublicKeyBytes; public suspend fun sharedX(peer: PublicKeyBytes): ByteArray /* 32B */ }
 public interface VehicleKey : EcdhPrivateKey { public val alias: String; public val protection: KeyProtection /* SECURE_ENCLAVE, STRONGBOX, TEE, SOFTWARE */ }
-public interface VehicleKeyStore { suspend fun getOrCreate(alias, policy: KeyPolicy = PreferHardware): VehicleKey; suspend fun get(alias): VehicleKey?; suspend fun delete(alias) }
+public interface VehicleKeyStore {                        // 실패는 값(설계 구체화 8)
+    suspend fun getOrCreate(alias: String = DEFAULT_ALIAS, policy: KeyPolicy = PREFER_HARDWARE): VehicleResult<VehicleKey>
+    suspend fun get(alias: String = DEFAULT_ALIAS): VehicleResult<VehicleKey?>
+    suspend fun delete(alias: String = DEFAULT_ALIAS): VehicleResult<Unit>
+}
 public interface CryptoPrimitives { fun sha1(d); fun sha256(d); fun hmacSha256(key, d); fun aesGcmEncrypt(key, nonce, plaintext, aad): AesGcmOutput; fun aesGcmDecrypt(...): ByteArray?; fun constantTimeEquals(a, b): Boolean }
 public interface RandomSource { fun nextBytes(n: Int): ByteArray }
 // 시계: kotlin.time.TimeSource를 주입한다(Reassembler, Signer, TestVerifier). 벽시계는 세션 캐시(:adapter-storage)의

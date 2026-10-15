@@ -704,6 +704,26 @@ final enum class com.tesla.generated.vcsec/WhitelistOperation_information_E : co
     }
 }
 
+final enum class io.github.smallmiro.teslable.model/VehicleDomain : kotlin/Enum<io.github.smallmiro.teslable.model/VehicleDomain> { // io.github.smallmiro.teslable.model/VehicleDomain|null[0]
+    enum entry INFOTAINMENT // io.github.smallmiro.teslable.model/VehicleDomain.INFOTAINMENT|null[0]
+    enum entry VCSEC // io.github.smallmiro.teslable.model/VehicleDomain.VCSEC|null[0]
+
+    final val entries // io.github.smallmiro.teslable.model/VehicleDomain.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<io.github.smallmiro.teslable.model/VehicleDomain> // io.github.smallmiro.teslable.model/VehicleDomain.entries.<get-entries>|<get-entries>#static(){}[0]
+    final val wire // io.github.smallmiro.teslable.model/VehicleDomain.wire|{}wire[0]
+        final fun <get-wire>(): com.tesla.generated.universalmessage/Domain // io.github.smallmiro.teslable.model/VehicleDomain.wire.<get-wire>|<get-wire>(){}[0]
+
+    final fun valueOf(kotlin/String): io.github.smallmiro.teslable.model/VehicleDomain // io.github.smallmiro.teslable.model/VehicleDomain.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<io.github.smallmiro.teslable.model/VehicleDomain> // io.github.smallmiro.teslable.model/VehicleDomain.values|values#static(){}[0]
+
+    final object Companion { // io.github.smallmiro.teslable.model/VehicleDomain.Companion|null[0]
+        final val ALL // io.github.smallmiro.teslable.model/VehicleDomain.Companion.ALL|{}ALL[0]
+            final fun <get-ALL>(): kotlin.collections/Set<io.github.smallmiro.teslable.model/VehicleDomain> // io.github.smallmiro.teslable.model/VehicleDomain.Companion.ALL.<get-ALL>|<get-ALL>(){}[0]
+
+        final fun of(com.tesla.generated.universalmessage/Domain): io.github.smallmiro.teslable.model/VehicleDomain? // io.github.smallmiro.teslable.model/VehicleDomain.Companion.of|of(com.tesla.generated.universalmessage.Domain){}[0]
+    }
+}
+
 final enum class io.github.smallmiro.teslable.port/AuthMethod : kotlin/Enum<io.github.smallmiro.teslable.port/AuthMethod> { // io.github.smallmiro.teslable.port/AuthMethod|null[0]
     enum entry GCM // io.github.smallmiro.teslable.port/AuthMethod.GCM|null[0]
     enum entry NONE // io.github.smallmiro.teslable.port/AuthMethod.NONE|null[0]
@@ -713,6 +733,33 @@ final enum class io.github.smallmiro.teslable.port/AuthMethod : kotlin/Enum<io.g
 
     final fun valueOf(kotlin/String): io.github.smallmiro.teslable.port/AuthMethod // io.github.smallmiro.teslable.port/AuthMethod.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<io.github.smallmiro.teslable.port/AuthMethod> // io.github.smallmiro.teslable.port/AuthMethod.values|values#static(){}[0]
+}
+
+final enum class io.github.smallmiro.teslable.port/KeyPolicy : kotlin/Enum<io.github.smallmiro.teslable.port/KeyPolicy> { // io.github.smallmiro.teslable.port/KeyPolicy|null[0]
+    enum entry PREFER_HARDWARE // io.github.smallmiro.teslable.port/KeyPolicy.PREFER_HARDWARE|null[0]
+    enum entry REQUIRE_HARDWARE // io.github.smallmiro.teslable.port/KeyPolicy.REQUIRE_HARDWARE|null[0]
+    enum entry SOFTWARE_ONLY // io.github.smallmiro.teslable.port/KeyPolicy.SOFTWARE_ONLY|null[0]
+
+    final val entries // io.github.smallmiro.teslable.port/KeyPolicy.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<io.github.smallmiro.teslable.port/KeyPolicy> // io.github.smallmiro.teslable.port/KeyPolicy.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): io.github.smallmiro.teslable.port/KeyPolicy // io.github.smallmiro.teslable.port/KeyPolicy.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<io.github.smallmiro.teslable.port/KeyPolicy> // io.github.smallmiro.teslable.port/KeyPolicy.values|values#static(){}[0]
+}
+
+final enum class io.github.smallmiro.teslable.port/KeyProtection : kotlin/Enum<io.github.smallmiro.teslable.port/KeyProtection> { // io.github.smallmiro.teslable.port/KeyProtection|null[0]
+    enum entry SECURE_ENCLAVE // io.github.smallmiro.teslable.port/KeyProtection.SECURE_ENCLAVE|null[0]
+    enum entry SOFTWARE // io.github.smallmiro.teslable.port/KeyProtection.SOFTWARE|null[0]
+    enum entry STRONGBOX // io.github.smallmiro.teslable.port/KeyProtection.STRONGBOX|null[0]
+    enum entry TEE // io.github.smallmiro.teslable.port/KeyProtection.TEE|null[0]
+
+    final val entries // io.github.smallmiro.teslable.port/KeyProtection.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<io.github.smallmiro.teslable.port/KeyProtection> // io.github.smallmiro.teslable.port/KeyProtection.entries.<get-entries>|<get-entries>#static(){}[0]
+    final val isHardware // io.github.smallmiro.teslable.port/KeyProtection.isHardware|{}isHardware[0]
+        final fun <get-isHardware>(): kotlin/Boolean // io.github.smallmiro.teslable.port/KeyProtection.isHardware.<get-isHardware>|<get-isHardware>(){}[0]
+
+    final fun valueOf(kotlin/String): io.github.smallmiro.teslable.port/KeyProtection // io.github.smallmiro.teslable.port/KeyProtection.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<io.github.smallmiro.teslable.port/KeyProtection> // io.github.smallmiro.teslable.port/KeyProtection.values|values#static(){}[0]
 }
 
 final enum class io.github.smallmiro.teslable.port/LogLevel : kotlin/Enum<io.github.smallmiro.teslable.port/LogLevel> { // io.github.smallmiro.teslable.port/LogLevel|null[0]
@@ -777,6 +824,31 @@ abstract interface io.github.smallmiro.teslable.port/Transport { // io.github.sm
 
     abstract suspend fun close() // io.github.smallmiro.teslable.port/Transport.close|close(){}[0]
     abstract suspend fun send(kotlin/ByteArray): io.github.smallmiro.teslable.model/VehicleResult<kotlin/Unit> // io.github.smallmiro.teslable.port/Transport.send|send(kotlin.ByteArray){}[0]
+}
+
+abstract interface io.github.smallmiro.teslable.port/TransportFactory { // io.github.smallmiro.teslable.port/TransportFactory|null[0]
+    abstract fun scan(io.github.smallmiro.teslable.transport/LocalName): kotlinx.coroutines.flow/Flow<io.github.smallmiro.teslable.port/ScanEvent> // io.github.smallmiro.teslable.port/TransportFactory.scan|scan(io.github.smallmiro.teslable.transport.LocalName){}[0]
+    abstract suspend fun connect(io.github.smallmiro.teslable.model/Vin, io.github.smallmiro.teslable.port/VehicleAdvertisement?, io.github.smallmiro.teslable.port/ConnectOptions): io.github.smallmiro.teslable.model/VehicleResult<io.github.smallmiro.teslable.port/Transport> // io.github.smallmiro.teslable.port/TransportFactory.connect|connect(io.github.smallmiro.teslable.model.Vin;io.github.smallmiro.teslable.port.VehicleAdvertisement?;io.github.smallmiro.teslable.port.ConnectOptions){}[0]
+}
+
+abstract interface io.github.smallmiro.teslable.port/VehicleKey : io.github.smallmiro.teslable.port/EcdhPrivateKey { // io.github.smallmiro.teslable.port/VehicleKey|null[0]
+    abstract val alias // io.github.smallmiro.teslable.port/VehicleKey.alias|{}alias[0]
+        abstract fun <get-alias>(): kotlin/String // io.github.smallmiro.teslable.port/VehicleKey.alias.<get-alias>|<get-alias>(){}[0]
+    abstract val protection // io.github.smallmiro.teslable.port/VehicleKey.protection|{}protection[0]
+        abstract fun <get-protection>(): io.github.smallmiro.teslable.port/KeyProtection // io.github.smallmiro.teslable.port/VehicleKey.protection.<get-protection>|<get-protection>(){}[0]
+}
+
+abstract interface io.github.smallmiro.teslable.port/VehicleKeyStore { // io.github.smallmiro.teslable.port/VehicleKeyStore|null[0]
+    abstract suspend fun delete(kotlin/String = ...): io.github.smallmiro.teslable.model/VehicleResult<kotlin/Unit> // io.github.smallmiro.teslable.port/VehicleKeyStore.delete|delete(kotlin.String){}[0]
+    abstract suspend fun get(kotlin/String = ...): io.github.smallmiro.teslable.model/VehicleResult<io.github.smallmiro.teslable.port/VehicleKey?> // io.github.smallmiro.teslable.port/VehicleKeyStore.get|get(kotlin.String){}[0]
+    abstract suspend fun getOrCreate(kotlin/String = ..., io.github.smallmiro.teslable.port/KeyPolicy = ...): io.github.smallmiro.teslable.model/VehicleResult<io.github.smallmiro.teslable.port/VehicleKey> // io.github.smallmiro.teslable.port/VehicleKeyStore.getOrCreate|getOrCreate(kotlin.String;io.github.smallmiro.teslable.port.KeyPolicy){}[0]
+
+    final object Companion { // io.github.smallmiro.teslable.port/VehicleKeyStore.Companion|null[0]
+        final const val DEFAULT_ALIAS // io.github.smallmiro.teslable.port/VehicleKeyStore.Companion.DEFAULT_ALIAS|{}DEFAULT_ALIAS[0]
+            final fun <get-DEFAULT_ALIAS>(): kotlin/String // io.github.smallmiro.teslable.port/VehicleKeyStore.Companion.DEFAULT_ALIAS.<get-DEFAULT_ALIAS>|<get-DEFAULT_ALIAS>(){}[0]
+
+        final fun requireValidAlias(kotlin/String) // io.github.smallmiro.teslable.port/VehicleKeyStore.Companion.requireValidAlias|requireValidAlias(kotlin.String){}[0]
+    }
 }
 
 sealed interface <#A: out kotlin/Any?> io.github.smallmiro.teslable.model/VehicleResult { // io.github.smallmiro.teslable.model/VehicleResult|null[0]
@@ -1264,6 +1336,34 @@ sealed interface io.github.smallmiro.teslable.model/VehicleError { // io.github.
         final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleError.UnknownResponse.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleError.UnknownResponse.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleError.UnknownResponse.toString|toString(){}[0]
+    }
+}
+
+sealed interface io.github.smallmiro.teslable.port/ScanEvent { // io.github.smallmiro.teslable.port/ScanEvent|null[0]
+    final class Failed : io.github.smallmiro.teslable.port/ScanEvent { // io.github.smallmiro.teslable.port/ScanEvent.Failed|null[0]
+        constructor <init>(io.github.smallmiro.teslable.model/VehicleError.TransportError) // io.github.smallmiro.teslable.port/ScanEvent.Failed.<init>|<init>(io.github.smallmiro.teslable.model.VehicleError.TransportError){}[0]
+
+        final val error // io.github.smallmiro.teslable.port/ScanEvent.Failed.error|{}error[0]
+            final fun <get-error>(): io.github.smallmiro.teslable.model/VehicleError.TransportError // io.github.smallmiro.teslable.port/ScanEvent.Failed.error.<get-error>|<get-error>(){}[0]
+
+        final fun component1(): io.github.smallmiro.teslable.model/VehicleError.TransportError // io.github.smallmiro.teslable.port/ScanEvent.Failed.component1|component1(){}[0]
+        final fun copy(io.github.smallmiro.teslable.model/VehicleError.TransportError = ...): io.github.smallmiro.teslable.port/ScanEvent.Failed // io.github.smallmiro.teslable.port/ScanEvent.Failed.copy|copy(io.github.smallmiro.teslable.model.VehicleError.TransportError){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.port/ScanEvent.Failed.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.port/ScanEvent.Failed.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.port/ScanEvent.Failed.toString|toString(){}[0]
+    }
+
+    final class Found : io.github.smallmiro.teslable.port/ScanEvent { // io.github.smallmiro.teslable.port/ScanEvent.Found|null[0]
+        constructor <init>(io.github.smallmiro.teslable.port/VehicleAdvertisement) // io.github.smallmiro.teslable.port/ScanEvent.Found.<init>|<init>(io.github.smallmiro.teslable.port.VehicleAdvertisement){}[0]
+
+        final val advertisement // io.github.smallmiro.teslable.port/ScanEvent.Found.advertisement|{}advertisement[0]
+            final fun <get-advertisement>(): io.github.smallmiro.teslable.port/VehicleAdvertisement // io.github.smallmiro.teslable.port/ScanEvent.Found.advertisement.<get-advertisement>|<get-advertisement>(){}[0]
+
+        final fun component1(): io.github.smallmiro.teslable.port/VehicleAdvertisement // io.github.smallmiro.teslable.port/ScanEvent.Found.component1|component1(){}[0]
+        final fun copy(io.github.smallmiro.teslable.port/VehicleAdvertisement = ...): io.github.smallmiro.teslable.port/ScanEvent.Found // io.github.smallmiro.teslable.port/ScanEvent.Found.copy|copy(io.github.smallmiro.teslable.port.VehicleAdvertisement){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.port/ScanEvent.Found.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.port/ScanEvent.Found.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // io.github.smallmiro.teslable.port/ScanEvent.Found.toString|toString(){}[0]
     }
 }
 
@@ -5780,6 +5880,41 @@ final class io.github.smallmiro.teslable.port/AesGcmOutput { // io.github.smallm
         final fun <get-ciphertext>(): kotlin/ByteArray // io.github.smallmiro.teslable.port/AesGcmOutput.ciphertext.<get-ciphertext>|<get-ciphertext>(){}[0]
     final val tag // io.github.smallmiro.teslable.port/AesGcmOutput.tag|{}tag[0]
         final fun <get-tag>(): kotlin/ByteArray // io.github.smallmiro.teslable.port/AesGcmOutput.tag.<get-tag>|<get-tag>(){}[0]
+}
+
+final class io.github.smallmiro.teslable.port/ConnectOptions { // io.github.smallmiro.teslable.port/ConnectOptions|null[0]
+    constructor <init>(kotlin.time/Duration? = ...) // io.github.smallmiro.teslable.port/ConnectOptions.<init>|<init>(kotlin.time.Duration?){}[0]
+
+    final val timeout // io.github.smallmiro.teslable.port/ConnectOptions.timeout|{}timeout[0]
+        final fun <get-timeout>(): kotlin.time/Duration? // io.github.smallmiro.teslable.port/ConnectOptions.timeout.<get-timeout>|<get-timeout>(){}[0]
+
+    final fun component1(): kotlin.time/Duration? // io.github.smallmiro.teslable.port/ConnectOptions.component1|component1(){}[0]
+    final fun copy(kotlin.time/Duration? = ...): io.github.smallmiro.teslable.port/ConnectOptions // io.github.smallmiro.teslable.port/ConnectOptions.copy|copy(kotlin.time.Duration?){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.port/ConnectOptions.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.port/ConnectOptions.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // io.github.smallmiro.teslable.port/ConnectOptions.toString|toString(){}[0]
+}
+
+final class io.github.smallmiro.teslable.port/VehicleAdvertisement { // io.github.smallmiro.teslable.port/VehicleAdvertisement|null[0]
+    constructor <init>(io.github.smallmiro.teslable.transport/LocalName, kotlin/String, kotlin/Int, kotlin/Boolean?) // io.github.smallmiro.teslable.port/VehicleAdvertisement.<init>|<init>(io.github.smallmiro.teslable.transport.LocalName;kotlin.String;kotlin.Int;kotlin.Boolean?){}[0]
+
+    final val identifier // io.github.smallmiro.teslable.port/VehicleAdvertisement.identifier|{}identifier[0]
+        final fun <get-identifier>(): kotlin/String // io.github.smallmiro.teslable.port/VehicleAdvertisement.identifier.<get-identifier>|<get-identifier>(){}[0]
+    final val isConnectable // io.github.smallmiro.teslable.port/VehicleAdvertisement.isConnectable|{}isConnectable[0]
+        final fun <get-isConnectable>(): kotlin/Boolean? // io.github.smallmiro.teslable.port/VehicleAdvertisement.isConnectable.<get-isConnectable>|<get-isConnectable>(){}[0]
+    final val localName // io.github.smallmiro.teslable.port/VehicleAdvertisement.localName|{}localName[0]
+        final fun <get-localName>(): io.github.smallmiro.teslable.transport/LocalName // io.github.smallmiro.teslable.port/VehicleAdvertisement.localName.<get-localName>|<get-localName>(){}[0]
+    final val rssi // io.github.smallmiro.teslable.port/VehicleAdvertisement.rssi|{}rssi[0]
+        final fun <get-rssi>(): kotlin/Int // io.github.smallmiro.teslable.port/VehicleAdvertisement.rssi.<get-rssi>|<get-rssi>(){}[0]
+
+    final fun component1(): io.github.smallmiro.teslable.transport/LocalName // io.github.smallmiro.teslable.port/VehicleAdvertisement.component1|component1(){}[0]
+    final fun component2(): kotlin/String // io.github.smallmiro.teslable.port/VehicleAdvertisement.component2|component2(){}[0]
+    final fun component3(): kotlin/Int // io.github.smallmiro.teslable.port/VehicleAdvertisement.component3|component3(){}[0]
+    final fun component4(): kotlin/Boolean? // io.github.smallmiro.teslable.port/VehicleAdvertisement.component4|component4(){}[0]
+    final fun copy(io.github.smallmiro.teslable.transport/LocalName = ..., kotlin/String = ..., kotlin/Int = ..., kotlin/Boolean? = ...): io.github.smallmiro.teslable.port/VehicleAdvertisement // io.github.smallmiro.teslable.port/VehicleAdvertisement.copy|copy(io.github.smallmiro.teslable.transport.LocalName;kotlin.String;kotlin.Int;kotlin.Boolean?){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.port/VehicleAdvertisement.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.port/VehicleAdvertisement.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // io.github.smallmiro.teslable.port/VehicleAdvertisement.toString|toString(){}[0]
 }
 
 final class io.github.smallmiro.teslable.protocol/Metadata { // io.github.smallmiro.teslable.protocol/Metadata|null[0]
