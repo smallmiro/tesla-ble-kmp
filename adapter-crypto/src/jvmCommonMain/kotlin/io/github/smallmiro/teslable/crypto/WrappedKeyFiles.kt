@@ -1,6 +1,7 @@
 package io.github.smallmiro.teslable.crypto
 
 import java.io.File
+import java.io.FileOutputStream
 
 /** `<directory>/<alias>.enc` = `"TBK1" ‖ wrap(04‖X‖Y‖d)`(설계 구체화 10). 쓰기는 임시 파일 + rename으로 원자적. */
 internal class WrappedKeyFiles(
@@ -44,12 +45,16 @@ internal class WrappedKeyFiles(
             }
         val target = fileFor(alias)
         val temp = File(directory, "${target.name}.tmp")
-        temp.writeBytes(MAGIC + wrapped)
+        FileOutputStream(temp).use { out ->
+            out.write(MAGIC + wrapped)
+            out.fd.sync() // rename 전에 디스크에 내린다
+        }
         check(temp.renameTo(target)) { "could not move key file into place" }
     }
 
     fun delete(alias: String) {
-        fileFor(alias).delete()
+        val file = fileFor(alias)
+        check(!file.exists() || file.delete()) { "could not delete key file" }
         wrapperFor(alias).destroy()
     }
 

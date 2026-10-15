@@ -99,7 +99,8 @@ internal class AndroidVehicleKeyStore(
         VehicleKeyStore.requireValidAlias(alias)
         return guarded {
             val store = keyStore()
-            if (store.containsAlias(alias)) store.deleteEntry(alias)
+            val keyAlias = KeystoreAliases.key(alias)
+            if (store.containsAlias(keyAlias)) store.deleteEntry(keyAlias)
             files.delete(alias)
             VehicleResult.Success(Unit)
         }
@@ -117,8 +118,8 @@ internal class AndroidVehicleKeyStore(
 
     private fun load(alias: String): Loaded {
         val store = keyStore()
-        val privateKey = store.getKey(alias, null) as? PrivateKey
-        val certificate = store.getCertificate(alias)
+        val privateKey = store.getKey(KeystoreAliases.key(alias), null) as? PrivateKey
+        val certificate = store.getCertificate(KeystoreAliases.key(alias))
         if (privateKey != null && certificate != null) {
             val publicKey = certificate.publicKey as ECPublicKey
             return Loaded.Key(AndroidKeystoreKey(alias, privateKey, encode(publicKey), protectionOf(privateKey)))
@@ -133,7 +134,12 @@ internal class AndroidVehicleKeyStore(
     /** 새 소프트웨어 키를 만들어 감싸 저장한다. */
     private fun createSoftwareKey(alias: String): VehicleKey {
         val pair = generateSoftwareKeyPair()
-        files.write(alias, pair)
+        try {
+            files.write(alias, pair)
+        } catch (e: Exception) {
+            pair.privateScalar.fill(0)
+            throw e
+        }
         return softwareKeyOf(alias, pair)
     }
 
@@ -142,9 +148,10 @@ internal class AndroidVehicleKeyStore(
         alias: String,
         strongBox: Boolean,
     ): VehicleKey? {
+        val keyAlias = KeystoreAliases.key(alias)
         val spec =
             KeyGenParameterSpec
-                .Builder(alias, KeyProperties.PURPOSE_AGREE_KEY)
+                .Builder(keyAlias, KeyProperties.PURPOSE_AGREE_KEY)
                 .setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))
                 .setIsStrongBoxBacked(strongBox)
                 .build()
@@ -159,12 +166,18 @@ internal class AndroidVehicleKeyStore(
             ) {
                 return null
             }
-        val protection = protectionOf(pair.private)
-        if (!protection.isHardware) {
-            keyStore().deleteEntry(alias)
-            return null
+        return try {
+            val protection = protectionOf(pair.private)
+            if (protection.isHardware) {
+                AndroidKeystoreKey(alias, pair.private, encode(pair.public as ECPublicKey), protection)
+            } else {
+                keyStore().deleteEntry(keyAlias)
+                null
+            }
+        } catch (e: Exception) {
+            runCatching { keyStore().deleteEntry(keyAlias) } // 만들다 만 항목을 남기지 않는다
+            throw e
         }
-        return AndroidKeystoreKey(alias, pair.private, encode(pair.public as ECPublicKey), protection)
     }
 
     private fun protectionOf(privateKey: PrivateKey): KeyProtection {
