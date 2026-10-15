@@ -50,6 +50,8 @@ public class FakeVehicle(
     private val crypto: CryptoPrimitives = TestCrypto.primitives,
     private val random: RandomSource = TestCrypto.random,
     private val timeSource: TimeSource = TimeSource.Monotonic,
+    /** Infotainment 도메인의 차량 키. Go 테스트처럼 도메인마다 다르게 둘 수 있다. */
+    private val infotainmentKey: EcdhPrivateKey = vehicleKey,
 ) {
     /** 대본 응답 하나. [payload]가 null이면 payload 없는 메시지(VCSEC "빈 메시지 = 성공"). */
     public class ScriptedReply(
@@ -258,7 +260,22 @@ public class FakeVehicle(
     ): TestVerifier {
         val existing = state.verifier
         if (existing != null && state.clientPublic == clientPublic) return existing
-        val created = TestVerifier.create(vehicleKey, vin.toByteArray(), domain, clientPublic, crypto, random, timeSource)
+        val created =
+            TestVerifier.create(
+                if (domain ==
+                    Domain.DOMAIN_INFOTAINMENT
+                ) {
+                    infotainmentKey
+                } else {
+                    vehicleKey
+                },
+                vin.toByteArray(),
+                domain,
+                clientPublic,
+                crypto,
+                random,
+                timeSource,
+            )
         state.verifier = created
         state.clientPublic = clientPublic
         state.responseCounter = 0u
