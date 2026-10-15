@@ -1,13 +1,20 @@
 package io.github.smallmiro.teslable.crypto
 
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.Pinned
+import kotlinx.cinterop.UByteVar
+import kotlinx.cinterop.addressOf
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
+import kotlinx.cinterop.reinterpret
+import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.value
+import platform.CoreFoundation.CFDataCreateWithBytesNoCopy
 import platform.CoreFoundation.CFDataRef
 import platform.CoreFoundation.CFStringRef
 import platform.CoreFoundation.CFTypeRefVar
+import platform.CoreFoundation.kCFAllocatorNull
 import platform.CoreFoundation.kCFBooleanTrue
 import platform.Security.SecItemAdd
 import platform.Security.SecItemCopyMatching
@@ -57,6 +64,7 @@ internal class AppleKeychainItems(
     private val service: String,
     private val accessible: CFStringRef? = kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
 ) : KeychainItems {
+    /** 읽기 결과의 `CFData`는 Security.framework가 만든 사본이라 우리가 지울 수 없다. 우리 쪽 바이트 배열 사본만 호출자가 지운다. */
     override fun read(account: String): KeychainRead =
         memScoped {
             val serviceRef = service.toCFString()
@@ -98,18 +106,31 @@ internal class AppleKeychainItems(
         delete(account)
         val serviceRef = service.toCFString()
         val accountRef = account.toCFString()
-        val dataRef = data.toCFData()
-        return releasing(serviceRef, accountRef, dataRef) {
-            val attributes =
-                cfDictionary(
-                    kSecClass to kSecClassGenericPassword,
-                    kSecAttrService to serviceRef,
-                    kSecAttrAccount to accountRef,
-                    kSecAttrAccessible to accessible,
-                    kSecValueData to dataRef,
-                )
-            releasing(attributes) { SecItemAdd(attributes, null) }
+        return releasing(serviceRef, accountRef) {
+            // 값 CFData는 복사 없이 고정된 배열을 가리킨다(지워지지 않는 사본을 만들지 않는다). 고정된 동안만 쓰이고, 배열은 호출자가 지운다.
+            data.usePinned { pinned ->
+                val dataRef = noCopyCFData(pinned, data.size)
+                releasing(dataRef) {
+                    val attributes =
+                        cfDictionary(
+                            kSecClass to kSecClassGenericPassword,
+                            kSecAttrService to serviceRef,
+                            kSecAttrAccount to accountRef,
+                            kSecAttrAccessible to accessible,
+                            kSecValueData to dataRef,
+                        )
+                    releasing(attributes) { SecItemAdd(attributes, null) }
+                }
+            }
         }
+    }
+
+    private fun noCopyCFData(
+        pinned: Pinned<ByteArray>,
+        size: Int,
+    ): CFDataRef {
+        val address = if (size == 0) null else pinned.addressOf(0).reinterpret<UByteVar>()
+        return checkNotNull(CFDataCreateWithBytesNoCopy(null, address, size.toLong(), kCFAllocatorNull)) { "CFDataCreate failed" }
     }
 
     override fun delete(account: String): Int {

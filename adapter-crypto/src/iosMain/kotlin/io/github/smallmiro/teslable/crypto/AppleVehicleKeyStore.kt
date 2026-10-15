@@ -11,6 +11,8 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import platform.Security.errSecItemNotFound
+import platform.Security.errSecSuccess
 
 /** iOS 키스토어(SDD §8.2): Secure Enclave -> Keychain 소프트웨어 키. 시뮬레이터에는 Secure Enclave가 없어 소프트웨어 키가 쓰인다. */
 @OptIn(ExperimentalForeignApi::class)
@@ -29,6 +31,8 @@ private fun softwareKeyOf(
     } finally {
         pair.privateScalar.fill(0)
     }
+
+private fun keychainFailure(status: Int): VehicleError = VehicleError.KeyStoreError.PlatformFailure("keychain status $status")
 
 @Suppress("TooGenericExceptionCaught") // Security.framework 예외는 KeyStoreError 값이 된다(ADR-0006)
 internal class AppleVehicleKeyStore(
@@ -51,14 +55,18 @@ internal class AppleVehicleKeyStore(
     }
 
     private fun load(alias: String): Loaded {
-        enclave.find(alias)?.let { return Loaded.Key(it) }
+        when (val found = enclave.find(alias)) {
+            is EnclaveFind.Found -> return Loaded.Key(found.key)
+            is EnclaveFind.Failed -> return Loaded.Error(keychainFailure(found.status))
+            EnclaveFind.Missing -> Unit
+        }
         return when (val read = keychain.read(alias)) {
             KeychainRead.Missing -> {
                 Loaded.Missing
             }
 
             is KeychainRead.Failed -> {
-                Loaded.Error(VehicleError.KeyStoreError.PlatformFailure("keychain status ${read.status}"))
+                Loaded.Error(keychainFailure(read.status))
             }
 
             is KeychainRead.Found -> {
@@ -131,9 +139,9 @@ internal class AppleVehicleKeyStore(
     override suspend fun delete(alias: String): VehicleResult<Unit> {
         VehicleKeyStore.requireValidAlias(alias)
         return guarded {
-            enclave.delete(alias)
-            keychain.delete(alias)
-            VehicleResult.Success(Unit)
+            val statuses = listOf(enclave.delete(alias), keychain.delete(alias))
+            val failed = statuses.firstOrNull { it != errSecSuccess && it != errSecItemNotFound }
+            if (failed == null) VehicleResult.Success(Unit) else VehicleResult.Failure(keychainFailure(failed))
         }
     }
 

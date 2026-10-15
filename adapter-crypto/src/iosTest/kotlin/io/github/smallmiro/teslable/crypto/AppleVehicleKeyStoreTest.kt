@@ -16,6 +16,8 @@ class AppleVehicleKeyStoreTest {
     private class FakeKeychain : KeychainItems {
         val items = HashMap<String, ByteArray>()
         var failStatus: Int? = null
+        var writeStatus: Int = 0
+        var deleteStatus: Int = 0
 
         override fun read(account: String): KeychainRead =
             failStatus?.let { KeychainRead.Failed(it) } ?: items[account]?.let { KeychainRead.Found(it.copyOf()) } ?: KeychainRead.Missing
@@ -24,11 +26,13 @@ class AppleVehicleKeyStoreTest {
             account: String,
             data: ByteArray,
         ): Int {
+            if (writeStatus != 0) return writeStatus
             items[account] = data.copyOf()
             return 0
         }
 
         override fun delete(account: String): Int {
+            if (deleteStatus != 0) return deleteStatus
             items.remove(account)
             return 0
         }
@@ -38,14 +42,23 @@ class AppleVehicleKeyStoreTest {
         var available: Boolean,
     ) : SecureEnclaveKeys {
         val keys = HashMap<String, VehicleKey>()
+        var findStatus: Int? = null
+        var deleteStatus: Int = 0
+        var createCalls = 0
 
-        override fun find(alias: String): VehicleKey? = keys[alias]
+        override fun find(alias: String): EnclaveFind =
+            findStatus?.let { EnclaveFind.Failed(it) } ?: keys[alias]?.let { EnclaveFind.Found(it) } ?: EnclaveFind.Missing
 
-        override fun create(alias: String): VehicleKey? =
-            if (!available) null else SoftwareVehicleKey(alias, generateSoftwareKeyPair()).let { Enclave(it) }.also { keys[alias] = it }
+        override fun create(alias: String): VehicleKey? {
+            createCalls++
+            if (!available) return null
+            return Enclave(SoftwareVehicleKey(alias, generateSoftwareKeyPair())).also { keys[alias] = it }
+        }
 
-        override fun delete(alias: String) {
+        override fun delete(alias: String): Int {
+            if (deleteStatus != 0) return deleteStatus
             keys.remove(alias)
+            return 0
         }
 
         private class Enclave(
@@ -113,6 +126,49 @@ class AppleVehicleKeyStoreTest {
             assertEquals(VehicleResult.Success(Unit), AppleVehicleKeyStore(keychain, enclave).delete())
             assertTrue(keychain.items.isEmpty())
             assertTrue(enclave.keys.isEmpty())
+        }
+
+    @Test
+    fun enclaveFindFailureIsReportedAndCreatesNothing() =
+        runTest {
+            val keychain = FakeKeychain()
+            val enclave = FakeEnclave(true).apply { findStatus = -25308 }
+            val store = AppleVehicleKeyStore(keychain, enclave)
+            val expected = VehicleError.KeyStoreError.PlatformFailure("keychain status -25308")
+            assertEquals(expected, assertIs<VehicleResult.Failure>(store.getOrCreate()).error)
+            assertEquals(expected, assertIs<VehicleResult.Failure>(store.get()).error)
+            assertTrue(keychain.items.isEmpty())
+            assertEquals(0, enclave.createCalls)
+            assertTrue(enclave.keys.isEmpty())
+        }
+
+    @Test
+    fun failedDeleteIsReportedAndNotFoundIsSuccess() =
+        runTest {
+            val enclave = FakeEnclave(false).apply { deleteStatus = -25308 }
+            assertEquals(
+                VehicleResult.Failure(VehicleError.KeyStoreError.PlatformFailure("keychain status -25308")),
+                AppleVehicleKeyStore(FakeKeychain(), enclave).delete(),
+            )
+            val keychain = FakeKeychain().apply { deleteStatus = -25300 } // errSecItemNotFound
+            assertEquals(VehicleResult.Success(Unit), AppleVehicleKeyStore(keychain, FakeEnclave(false)).delete())
+            keychain.deleteStatus = -25308
+            assertEquals(
+                VehicleResult.Failure(VehicleError.KeyStoreError.PlatformFailure("keychain status -25308")),
+                AppleVehicleKeyStore(keychain, FakeEnclave(false)).delete(),
+            )
+        }
+
+    @Test
+    fun keychainWriteFailureYieldsPlatformFailureAndNoKey() =
+        runTest {
+            val keychain = FakeKeychain().apply { writeStatus = -25308 }
+            val result = AppleVehicleKeyStore(keychain, FakeEnclave(false)).getOrCreate()
+            assertEquals(
+                VehicleError.KeyStoreError.PlatformFailure("software key generation failed: IllegalStateException"),
+                assertIs<VehicleResult.Failure>(result).error,
+            )
+            assertTrue(keychain.items.isEmpty())
         }
 
     private fun <T : Any> assertIsNotNull(value: T?): T = kotlin.test.assertNotNull(value)
