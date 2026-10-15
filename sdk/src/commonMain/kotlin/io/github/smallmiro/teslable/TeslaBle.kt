@@ -9,6 +9,7 @@ import io.github.smallmiro.teslable.crypto.platformCryptoPrimitives
 import io.github.smallmiro.teslable.crypto.platformRandomSource
 import io.github.smallmiro.teslable.model.KeyId
 import io.github.smallmiro.teslable.model.VehicleDomain
+import io.github.smallmiro.teslable.model.VehicleError
 import io.github.smallmiro.teslable.model.VehicleResult
 import io.github.smallmiro.teslable.model.Vin
 import io.github.smallmiro.teslable.port.ConnectOptions
@@ -27,9 +28,12 @@ import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.withContext
 import kotlin.time.TimeSource
 
 /**
@@ -50,6 +54,7 @@ public class TeslaBle internal constructor(
     private val ownScope: CoroutineScope? = null,
 ) {
     private val logger = SafeLogger(config.logger)
+    private val closed = MutableStateFlow(false)
 
     /** [vin] 차량의 광고를 찾는다(FR-001, FR-030). 권한·블루투스 문제는 `ScanEvent.Failed`. */
     public fun scan(vin: Vin): Flow<ScanEvent> = transports.scan(LocalName.of(vin, crypto))
@@ -64,6 +69,7 @@ public class TeslaBle internal constructor(
         target: VehicleAdvertisement? = null,
         options: ConnectOptions = ConnectOptions(),
     ): VehicleResult<Vehicle> {
+        if (closed.value) return VehicleResult.Failure(VehicleError.NotConnected)
         val transport =
             when (val result = transports.connect(vin, target, options.copy(timeout = options.timeout ?: config.connectTimeout))) {
                 is VehicleResult.Success -> result.value
@@ -71,17 +77,26 @@ public class TeslaBle internal constructor(
                 is VehicleResult.Uncertain -> return result
             }
         val scope = vehicleScope(vin)
-        val dispatcher = Dispatcher(transport, key, crypto, random, scope, timeSource, logger)
-        val sync = key?.let { SessionCacheSync(sessionCache, vin, KeyId.of(it.publicKey, crypto)) }
-        val timeouts = CommandTimeouts(config.commandTimeout, config.commandLifetime, config.handshakeTimeout)
-        val session = VehicleSession(dispatcher, timeouts, sync, scope)
-        val restored = session.connect().mapNotNull { VehicleDomain.of(it) }.toSet()
-        logger.log(LogLevel.INFO, TAG) { "Connected to $vin (restored ${restored.size} session(s) from cache)" }
-        return VehicleResult.Success(DefaultVehicle(vin, key != null, transport, session, restored, scope, config))
+        var session: VehicleSession? = null
+        @Suppress("TooGenericExceptionCaught") // 취소 포함 모든 늦은 실패에서 전송과 스코프를 반드시 풀고 다시 던진다
+        try {
+            val dispatcher = Dispatcher(transport, key, crypto, random, scope, timeSource, logger)
+            val sync = key?.let { SessionCacheSync(sessionCache, vin, KeyId.of(it.publicKey, crypto)) }
+            val timeouts = CommandTimeouts(config.commandTimeout, config.commandLifetime, config.handshakeTimeout)
+            val created = VehicleSession(dispatcher, timeouts, sync, scope).also { session = it }
+            val restored = created.connect().mapNotNull { VehicleDomain.of(it) }.toSet()
+            logger.log(LogLevel.INFO, TAG) { "Connected to $vin (restored ${restored.size} session(s) from cache)" }
+            return VehicleResult.Success(DefaultVehicle(vin, key != null, transport, created, restored, scope, config))
+        } catch (t: Throwable) {
+            withContext(NonCancellable) { session?.disconnect() ?: transport.close() }
+            scope.cancel()
+            throw t
+        }
     }
 
     /** 이 인스턴스가 만든 백그라운드 작업을 멈춘다. 연결된 차량은 먼저 `disconnect()`한다. */
     public fun close() {
+        closed.value = true
         ownScope?.cancel()
     }
 

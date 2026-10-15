@@ -38,12 +38,19 @@ internal class DefaultVehicle(
     override val connection: StateFlow<TransportState> = transport.state
     override val sessions: StateFlow<Map<VehicleDomain, SessionStatus>> = states.asStateFlow()
 
+    private val closed = MutableStateFlow(false)
+
+    private fun resetSessions() {
+        states.value = VehicleDomain.ALL.associateWith { SessionStatus.None }
+    }
+
     init {
         // 차량이 링크를 끊었는데(이유 있는 Disconnected) 아무도 close()하지 않으면 플랫폼 링크가 샌다 — 전송만 닫는다(멱등).
         // 의도한 종료는 reason == null이라 여기 걸리지 않으며, 세션 정리·캐시 저장은 disconnect()의 몫이다.
         scope.launch {
             connection.first { it is TransportState.Disconnected && it.reason != null }
             transport.close()
+            resetSessions() // connection과 sessions가 어긋나지 않게
         }
     }
 
@@ -54,24 +61,32 @@ internal class DefaultVehicle(
         states.update { current ->
             current.mapValues { (d, s) -> if (d in domains && s !is SessionStatus.Ready) SessionStatus.Handshaking else s }
         }
-        val result = session.startSession(domains.map { it.wire }.toSet(), timeout ?: config.handshakeTimeout)
-        states.update { current ->
-            current.mapValues { (d, s) ->
-                when {
-                    d !in domains || s is SessionStatus.Ready -> s
-                    result is VehicleResult.Success -> SessionStatus.Ready(fromCache = false)
-                    else -> SessionStatus.None
+        var success = false
+        try {
+            val result = session.startSession(domains.map { it.wire }.toSet(), timeout ?: config.handshakeTimeout)
+            success = result is VehicleResult.Success
+            return result
+        } finally {
+            // 취소·예외·실패는 None으로 되돌린다(Ready는 유지). disconnect와 겹쳤으면(closed) 전부 None — 같은 update 안에서 읽는다.
+            states.update { current ->
+                current.mapValues { (d, s) ->
+                    when {
+                        closed.value -> SessionStatus.None
+                        d !in domains || s is SessionStatus.Ready -> s
+                        success -> SessionStatus.Ready(fromCache = false)
+                        else -> SessionStatus.None
+                    }
                 }
             }
         }
-        return result
     }
 
     override suspend fun disconnect() {
+        closed.value = true // 상태를 지우기 전에 — 진행 중인 startSession이 Ready를 되쓰지 못하게
         try {
             session.disconnect()
         } finally {
-            states.value = VehicleDomain.ALL.associateWith { SessionStatus.None }
+            resetSessions()
             scope.cancel()
         }
     }

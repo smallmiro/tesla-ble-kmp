@@ -4,6 +4,8 @@ import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.vcsec.FromVCSECMessage
 import com.tesla.generated.vcsec.VehicleLockState_E
 import com.tesla.generated.vcsec.WhitelistInfo
+import io.github.smallmiro.teslable.cache.CachedSession
+import io.github.smallmiro.teslable.cache.SessionSnapshot
 import io.github.smallmiro.teslable.model.KeyId
 import io.github.smallmiro.teslable.model.LockState
 import io.github.smallmiro.teslable.model.VehicleDomain
@@ -12,6 +14,7 @@ import io.github.smallmiro.teslable.model.VehicleResult
 import io.github.smallmiro.teslable.model.Vin
 import io.github.smallmiro.teslable.port.ConnectOptions
 import io.github.smallmiro.teslable.port.ScanEvent
+import io.github.smallmiro.teslable.port.SessionCache
 import io.github.smallmiro.teslable.port.TeslaLogger
 import io.github.smallmiro.teslable.port.Transport
 import io.github.smallmiro.teslable.port.TransportFactory
@@ -24,14 +27,17 @@ import io.github.smallmiro.teslable.testing.FakeVehicleKeyStore
 import io.github.smallmiro.teslable.testing.RecordingSessionCache
 import io.github.smallmiro.teslable.testing.TestCrypto
 import io.github.smallmiro.teslable.transport.LocalName
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.async
+import kotlinx.coroutines.cancelAndJoin
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -282,15 +288,108 @@ class TeslaBleTest {
                         )
                     },
                 )
-            val vehicle = assertIs<VehicleResult.Success<Vehicle>>(ble.connect(fake.vin, null)).value
+            val key = assertIs<VehicleResult.Success<VehicleKey>>(FakeVehicleKeyStore().getOrCreate()).value
+            val vehicle = assertIs<VehicleResult.Success<Vehicle>>(ble.connect(fake.vin, key)).value
+            assertIs<VehicleResult.Success<Unit>>(vehicle.startSession(timeout = 1.seconds))
             val transport = checkNotNull(wrapped)
             assertEquals(0, transport.closeCalls)
             transport.dropLink()
             runCurrent()
             assertEquals(1, transport.closeCalls)
             assertIs<TransportState.Disconnected>(vehicle.connection.value)
+            assertEquals(VehicleDomain.ALL.associateWith { SessionStatus.None }, vehicle.sessions.value) // connection과 일치
             runCurrent()
             assertEquals(1, transport.closeCalls) // 한 번만
             assertEquals(VehicleResult.Failure(VehicleError.NotConnected), vehicle.vehicleStatus(timeout = 1.seconds))
+        }
+
+    private class GatedCache(
+        val gate: CompletableDeferred<Unit> = CompletableDeferred(),
+    ) : SessionCache {
+        override suspend fun load(
+            vin: Vin,
+            keyId: KeyId,
+        ): List<CachedSession> {
+            gate.await()
+            return emptyList()
+        }
+
+        override suspend fun store(
+            vin: Vin,
+            keyId: KeyId,
+            entries: List<SessionSnapshot>,
+        ) = Unit
+
+        override suspend fun clear(vin: Vin) = Unit
+    }
+
+    @Test
+    fun cancelledConnectReleasesTheTransport() =
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val gated = GatedCache()
+            val r = rig(fake = fake)
+            val factory = FakeTransportFactory(fake)
+            val ble =
+                TeslaBle(
+                    transports = factory,
+                    keys = r.keys,
+                    sessionCache = gated,
+                    crypto = TestCrypto.primitives,
+                    random = TestCrypto.random,
+                    config = TeslaBleConfig(),
+                    timeSource = testTimeSource,
+                    vehicleScope = {
+                        CoroutineScope(
+                            backgroundScope.coroutineContext + SupervisorJob(backgroundScope.coroutineContext[Job]),
+                        )
+                    },
+                )
+            val key = r.key()
+            val job = launch { ble.connect(fake.vin, key) }
+            runCurrent()
+            val transport = checkNotNull(factory.lastTransport)
+            assertEquals(TransportState.Connected, transport.state.value)
+            job.cancelAndJoin()
+            assertIs<TransportState.Disconnected>(transport.state.value)
+            assertTrue(job.isCancelled)
+        }
+
+    @Test
+    fun cancelledHandshakeResetsHandshakingToNone() =
+        runTest {
+            val r = rig()
+            val vehicle = r.connected()
+            r.fake.sleep(setOf(vcsec, Domain.DOMAIN_INFOTAINMENT))
+            val job = launch { vehicle.startSession(timeout = 10.seconds) }
+            runCurrent()
+            assertEquals(SessionStatus.Handshaking, vehicle.sessions.value.getValue(VehicleDomain.VCSEC))
+            job.cancelAndJoin()
+            assertEquals(VehicleDomain.ALL.associateWith { SessionStatus.None }, vehicle.sessions.value)
+        }
+
+    @Test
+    fun handshakeRacingDisconnectNeverLeavesReady() =
+        runTest {
+            val r = rig()
+            val vehicle = r.connected()
+            r.fake.sleep(setOf(vcsec, Domain.DOMAIN_INFOTAINMENT))
+            val pending = async { vehicle.startSession(timeout = 10.seconds) }
+            runCurrent()
+            vehicle.disconnect()
+            r.fake.wake()
+            advanceTimeBy(11.seconds)
+            pending.await()
+            assertEquals(VehicleDomain.ALL.associateWith { SessionStatus.None }, vehicle.sessions.value)
+        }
+
+    @Test
+    fun connectAfterCloseFailsWithoutTouchingTheFactory() =
+        runTest {
+            val r = rig()
+            val key = r.key()
+            r.ble.close()
+            assertEquals(VehicleResult.Failure(VehicleError.NotConnected), r.ble.connect(r.fake.vin, key))
+            assertEquals(0, r.factory.connectAttempts)
         }
 }
