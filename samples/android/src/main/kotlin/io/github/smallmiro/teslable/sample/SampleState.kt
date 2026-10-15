@@ -8,7 +8,11 @@ import io.github.smallmiro.teslable.model.VehicleResult
 import io.github.smallmiro.teslable.model.Vin
 import io.github.smallmiro.teslable.port.ScanEvent
 import io.github.smallmiro.teslable.port.VehicleKey
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.seconds
 
@@ -37,8 +41,13 @@ class SampleState(
         }
     }
 
-    /** 앱이 끝날 때 라이브러리를 닫는다. */
-    fun close() = ble.close()
+    /**
+     * 앱이 끝날 때 라이브러리를 닫는다(연결된 차량도 끊는다). `close()`는 suspend이고 ViewModel 스코프는 이미 취소됐으므로
+     * ViewModel보다 오래 사는 스코프에서 실행한다(`GlobalScope` 금지). `close()` 안의 끊기는 취소되지 않는다.
+     */
+    fun close() {
+        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch { ble.close() }
+    }
 
     private fun vin(): Vin? = Vin.parseOrNull(vinText.value)
 

@@ -89,13 +89,22 @@ internal class BleTransportFactory(
             return VehicleResult.Failure(VehicleError.InvalidArgument("advertisement ${target.localName} is not for this VIN"))
         }
         val attempts = Attempts()
-        return withTimeoutOrNull(options.timeout ?: defaultTimeout) { connectLoop(vin, localName, target, attempts) }
-            ?: VehicleResult.Failure(attempts.lastError ?: VehicleError.TransportError.ScanTimeout)
+        // withTimeoutOrNull은 블록이 값을 돌려준 직후에도 시간 초과로 null을 낼 수 있다(다른 스레드의 타이머) — 만든 전송을 밖에서 쥐고 잃으면 닫는다
+        val result =
+            try {
+                withTimeoutOrNull(options.timeout ?: defaultTimeout) { connectLoop(vin, localName, target, attempts) }
+            } catch (e: CancellationException) {
+                attempts.created?.let { withContext(NonCancellable) { it.close() } }
+                throw e
+            }
+        if (result == null) attempts.created?.let { withContext(NonCancellable) { it.close() } }
+        return result ?: VehicleResult.Failure(attempts.lastError ?: VehicleError.TransportError.ScanTimeout)
     }
 
     private class Attempts {
         var count = 0
         var lastError: VehicleError.TransportError? = null
+        var created: Transport? = null
     }
 
     private suspend fun connectLoop(
@@ -126,7 +135,7 @@ internal class BleTransportFactory(
             attempts.count++
             when (val opened = openOwned(hit)) {
                 is OpenResult.Opened -> {
-                    return VehicleResult.Success(BleTransport(vin, opened.link, scope, timeSource, logger))
+                    return VehicleResult.Success(BleTransport(vin, opened.link, scope, timeSource, logger).also { attempts.created = it })
                 }
 
                 is OpenResult.Failed -> {

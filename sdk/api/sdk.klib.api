@@ -64,8 +64,8 @@ final class io.github.smallmiro.teslable/TeslaBle { // io.github.smallmiro.tesla
     final val keys // io.github.smallmiro.teslable/TeslaBle.keys|{}keys[0]
         final fun <get-keys>(): io.github.smallmiro.teslable.port/VehicleKeyStore // io.github.smallmiro.teslable/TeslaBle.keys.<get-keys>|<get-keys>(){}[0]
 
-    final fun close() // io.github.smallmiro.teslable/TeslaBle.close|close(){}[0]
     final fun scan(io.github.smallmiro.teslable.model/Vin): kotlinx.coroutines.flow/Flow<io.github.smallmiro.teslable.port/ScanEvent> // io.github.smallmiro.teslable/TeslaBle.scan|scan(io.github.smallmiro.teslable.model.Vin){}[0]
+    final suspend fun close() // io.github.smallmiro.teslable/TeslaBle.close|close(){}[0]
     final suspend fun connect(io.github.smallmiro.teslable.model/Vin, io.github.smallmiro.teslable.port/VehicleKey?, io.github.smallmiro.teslable.port/VehicleAdvertisement? = ..., io.github.smallmiro.teslable.port/ConnectOptions = ...): io.github.smallmiro.teslable.model/VehicleResult<io.github.smallmiro.teslable/Vehicle> // io.github.smallmiro.teslable/TeslaBle.connect|connect(io.github.smallmiro.teslable.model.Vin;io.github.smallmiro.teslable.port.VehicleKey?;io.github.smallmiro.teslable.port.VehicleAdvertisement?;io.github.smallmiro.teslable.port.ConnectOptions){}[0]
 
     final object Companion { // io.github.smallmiro.teslable/TeslaBle.Companion|null[0]

@@ -252,7 +252,7 @@ public class TeslaBle internal constructor(...) {
     public val keys: VehicleKeyStore
     public fun scan(vin: Vin): Flow<ScanEvent>                                       // FR-001, FR-030. ScanEvent.Found(advertisement) / Failed(error: TransportError)
     public suspend fun connect(vin: Vin, key: VehicleKey?, target: VehicleAdvertisement? = null, options: ConnectOptions = ConnectOptions()): VehicleResult<Vehicle>   // FR-002~004. target가 없으면 스캔
-    public fun close()                                                               // 이 인스턴스의 백그라운드 작업 정지(연결된 차량은 먼저 disconnect)
+    public suspend fun close()                                                       // 멱등. 연결된 모든 차량을 disconnect()(취소 불가, 실패는 로그)한 뒤 백그라운드 작업 정지. 진행 중 connect는 Failure(NotConnected), 이후 scan은 Failed(Disconnected) 하나
 }
 
 public data class TeslaBleConfig(

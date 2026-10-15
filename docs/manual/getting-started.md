@@ -47,7 +47,7 @@ suspend fun demo(context: android.content.Context, vinText: String) {
             vehicle.disconnect()                                // 슬롯 반환. 링크가 끊긴 뒤에도 불러야 한다
         }
     } finally {
-        ble.close()
+        ble.close()                                             // suspend. 아직 연결된 차량이 있으면 함께 끊는다
     }
 }
 ```

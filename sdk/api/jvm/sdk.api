@@ -37,7 +37,7 @@ public final class io/github/smallmiro/teslable/SessionStatus$Ready : io/github/
 
 public final class io/github/smallmiro/teslable/TeslaBle {
 	public static final field Companion Lio/github/smallmiro/teslable/TeslaBle$Companion;
-	public final fun close ()V
+	public final fun close (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun connect (Lio/github/smallmiro/teslable/model/Vin;Lio/github/smallmiro/teslable/port/VehicleKey;Lio/github/smallmiro/teslable/port/VehicleAdvertisement;Lio/github/smallmiro/teslable/port/ConnectOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun connect$default (Lio/github/smallmiro/teslable/TeslaBle;Lio/github/smallmiro/teslable/model/Vin;Lio/github/smallmiro/teslable/port/VehicleKey;Lio/github/smallmiro/teslable/port/VehicleAdvertisement;Lio/github/smallmiro/teslable/port/ConnectOptions;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun getKeys ()Lio/github/smallmiro/teslable/port/VehicleKeyStore;
