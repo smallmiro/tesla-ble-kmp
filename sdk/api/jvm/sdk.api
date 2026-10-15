@@ -4,3 +4,8 @@ public final class io/github/smallmiro/teslable/Teslable {
 	public final fun localNameFor (Ljava/lang/String;)Ljava/lang/String;
 }
 
+public final class io/github/smallmiro/teslable/TeslableDiagnostics {
+	public static final field INSTANCE Lio/github/smallmiro/teslable/TeslableDiagnostics;
+	public final fun probe (Ljava/lang/String;ZLkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+

@@ -5,6 +5,7 @@ plugins {
 
 kotlin {
     sourceSets {
+        commonTest.dependencies { implementation(project(":testing")) }
         commonMain.dependencies {
             api(project(":domain"))
             implementation(project(":application"))

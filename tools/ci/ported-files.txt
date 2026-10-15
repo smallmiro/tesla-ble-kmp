@@ -40,3 +40,4 @@ domain/src/commonMain/kotlin/io/github/smallmiro/teslable/transport/Reassembler.
 testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/FakeTransport.kt
 testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/FakeVehicle.kt
 testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/TestVerifier.kt
+adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BleUuids.kt
