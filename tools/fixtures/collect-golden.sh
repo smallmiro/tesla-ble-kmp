@@ -11,8 +11,18 @@ mkdir -p "$OUT"
 run() {
   local name="$1"; shift
   echo "==> $name"
-  tesla-control -ble -vin "$VIN" -debug "$@" 2>&1 | grep -E '\[debug\] (TX|RX): ' | "$ROOT/tools/fixtures/mask-vin.sh" "$VIN" > "$OUT/$name.txt" || true
-  wc -l < "$OUT/$name.txt" | xargs echo "    lines:"
+  set +e
+  tesla-control -ble -vin "$VIN" -debug "$@" 2>&1 | grep -E '\[debug\] (TX|RX): ' | "$ROOT/tools/fixtures/mask-vin.sh" "$VIN" > "$OUT/$name.txt"
+  local st=("${PIPESTATUS[@]}")
+  set -e
+  # grep 종료 코드 1(일치 없음)만 허용한다. 그 외 실패는 경고(마스킹 실패 시 캡처 파일을 지운다).
+  [ "${st[0]}" -eq 0 ] || echo "    WARNING: tesla-control exited ${st[0]} for $name" >&2
+  { [ "${st[1]}" -eq 0 ] || [ "${st[1]}" -eq 1 ]; } || echo "    WARNING: grep failed (${st[1]}) for $name" >&2
+  if [ "${st[2]}" -ne 0 ]; then
+    echo "    WARNING: mask-vin.sh failed (${st[2]}) for $name; removing capture" >&2
+    rm -f "$OUT/$name.txt"; return 0
+  fi
+  [ -f "$OUT/$name.txt" ] && wc -l < "$OUT/$name.txt" | xargs echo "    lines:"
 }
 run list-keys list-keys
 run body-controller-state body-controller-state
@@ -24,4 +34,4 @@ if [ "${1:-}" = "--with-key" ]; then
   run climate-on -key-file "$KEY_FILE" climate-on
   run state-charge -key-file "$KEY_FILE" state charge
 fi
-echo "captures in $OUT — 실제 공개키가 담긴 RX(list-keys)는 커밋하지 않는다. 필요한 줄만 골라 FIXTURES_DIR의 Kotlin 상수로 옮긴다(ADR-0011)."
+echo "captures in $OUT — WARNING: list-keys와 session-info RX에는 실제 공개키가 들어 있다. 원본 캡처는 절대 커밋하지 않는다. 필요한 줄만 골라 FIXTURES_DIR의 Kotlin 상수로 옮긴다(ADR-0011)."
