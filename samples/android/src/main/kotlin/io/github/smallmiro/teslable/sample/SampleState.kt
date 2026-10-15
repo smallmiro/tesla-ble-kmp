@@ -7,10 +7,13 @@ import io.github.smallmiro.teslable.Vehicle
 import io.github.smallmiro.teslable.model.VehicleResult
 import io.github.smallmiro.teslable.model.Vin
 import io.github.smallmiro.teslable.port.ScanEvent
+import io.github.smallmiro.teslable.port.TransportState
 import io.github.smallmiro.teslable.port.VehicleKey
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
@@ -30,6 +33,10 @@ class SampleState(
     private var key: VehicleKey? = null
     private var vehicle: Vehicle? = null
 
+    /** 연결 표시를 `vehicle.connection`에 맞추는 수집기(링크 끊김도 보인다). */
+    private val uiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
+    private var connectionWatch: Job? = null
+
     /** [body]를 한 번에 하나만 실행한다. */
     suspend fun exclusive(body: suspend SampleState.() -> Unit) {
         if (busy.value) return
@@ -46,6 +53,7 @@ class SampleState(
      * ViewModel보다 오래 사는 스코프에서 실행한다(`GlobalScope` 금지). `close()` 안의 끊기는 취소되지 않는다.
      */
     fun close() {
+        uiScope.cancel()
         CoroutineScope(SupervisorJob() + Dispatchers.Default).launch { ble.close() }
     }
 
@@ -86,11 +94,26 @@ class SampleState(
             }
         disconnect() // 이미 연결돼 있으면 먼저 끊는다
         connection.value = "연결 중…"
-        connection.value =
-            when (val r = ble.connect(vin, key)) {
-                is VehicleResult.Success -> "연결됨 (키: ${if (key == null) "없음" else "있음"})".also { vehicle = r.value }
-                is VehicleResult.Uncertain -> "불확실: ${r.error.message}"
-                is VehicleResult.Failure -> "실패: ${r.error.message}"
+        when (val r = ble.connect(vin, key)) {
+            is VehicleResult.Success -> watch(r.value.also { vehicle = it })
+            is VehicleResult.Uncertain -> connection.value = "불확실: ${r.error.message}"
+            is VehicleResult.Failure -> connection.value = "실패: ${r.error.message}"
+        }
+    }
+
+    /** 연결 상태 표시가 [Vehicle.connection]을 따른다 — 차량이 링크를 끊으면 이유와 함께 보인다. */
+    private fun watch(v: Vehicle) {
+        val keyLabel = if (v.hasKey) "있음" else "없음"
+        connectionWatch?.cancel()
+        connectionWatch =
+            uiScope.launch {
+                v.connection.collect { state ->
+                    connection.value =
+                        when (state) {
+                            TransportState.Connected -> "연결됨 (키: $keyLabel)"
+                            is TransportState.Disconnected -> state.reason?.let { "링크 끊김: ${it.message} — 연결 끊기를 누르세요" } ?: "연결 안 됨"
+                        }
+                }
             }
     }
 
@@ -99,6 +122,8 @@ class SampleState(
     suspend fun listKeys() = report("키 목록") { it.listKeys() }
 
     suspend fun disconnect() {
+        connectionWatch?.cancel()
+        connectionWatch = null
         vehicle?.disconnect()
         vehicle = null
         connection.value = "연결 안 됨"

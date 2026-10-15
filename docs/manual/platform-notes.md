@@ -12,7 +12,7 @@
 - 권한: `BLUETOOTH_SCAN`(`neverForLocation`)과 `BLUETOOTH_CONNECT`를 매니페스트에 선언하고 **런타임에 요청**한다. 허용되지 않은 채 스캔·연결하면 `TransportError.PermissionDenied`가 돌아온다. `INTERNET` 권한은 필요 없다(서버 호출 없음).
 - 연결 시 `requestMtu(517)`을 요청하고, 실패하면 블록 길이 20으로 계속한다.
 - 키 보관소 별칭: Android Keystore 항목은 `teslable.key:<alias>`(키), `teslable.wrap:<alias>`(소프트웨어 대체 키를 감싸는 AES 키)로 **네임스페이스가 붙는다**. 앱의 다른 Keystore 별칭과 충돌하지 않는다.
-- 자동 백업 주의: 소프트웨어 대체 키는 `filesDir/teslable/keys/<alias>.enc` 파일에 저장된다. Android 자동 백업(Auto Backup)이 이 파일만 복원하고 Keystore 래핑 키(`teslable.wrap:…`)는 복원하지 못하면, 복원된 키는 **손상된 키**로 읽힌다(4절). 앱은 `dataExtractionRules`(Android 12+) 또는 `fullBackupContent`에서 `files/teslable/keys/` 를 백업에서 **제외**해야 한다.
+- 자동 백업 주의: 소프트웨어 대체 키는 `filesDir/teslable/keys/<alias>.enc` 파일에 저장된다. Android 자동 백업(Auto Backup)이 이 파일만 복원하고 Keystore 래핑 키(`teslable.wrap:…`)는 복원하지 못하면, 복원된 키는 **손상된 키**로 읽힌다(4절). 앱은 `dataExtractionRules`(Android 12+) 또는 `fullBackupContent`에서 `files/teslable/keys/` 를 백업에서 **제외**해야 한다. 샘플 앱은 가장 단순한 방법으로 `android:allowBackup="false"`를 쓴다(앱 데이터 전체를 백업하지 않는다).
 - 세션 캐시도 `filesDir/teslable/sessions` 아래에 있다. 캐시는 잃어도 다음 연결에서 핸드셰이크로 복구되지만, 같은 방식으로 제외하는 편이 깔끔하다.
 
 ## 3. iOS
