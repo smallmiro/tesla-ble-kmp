@@ -9,7 +9,24 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 class KableErrorsTest {
-    // UnmetRequirementException(BluetoothDisabled)는 Kable 생성자가 internal이라 만들 수 없다. 그 분기는 실기기에서 확인한다(Task 14).
+    // UnmetRequirementException(BluetoothDisabled, "Bluetooth was Unauthorized, ...")는 생성자가 internal이라 만들 수 없다.
+    // 대신 분기 순서(권한 판정이 BluetoothDisabled보다 먼저)와 같은 문구 판정을 아래 테스트가 덮는다. 실기기는 Task 14.
+    @Test
+    fun iosAuthorizationFailuresArePermissionDenied() {
+        // CentralManagerCoreBluetoothScanner.kt:89
+        val scan = IllegalStateException("Application isn't authorized to use the Bluetooth low energy role")
+        assertEquals(VehicleError.TransportError.PermissionDenied, KableErrors.map(scan))
+        val connect = IllegalStateException("Bluetooth was Unauthorized, but PoweredOn was required")
+        assertEquals(VehicleError.TransportError.PermissionDenied, KableErrors.map(connect))
+    }
+
+    @Test
+    fun unsupportedAdaptersAreDetected() {
+        assertTrue(KableErrors.isUnsupported(IllegalStateException("Bluetooth not supported")))
+        assertTrue(KableErrors.isUnsupported(IllegalStateException("Device doesn't support the Bluetooth low energy central role")))
+        assertFalse(KableErrors.isUnsupported(IllegalStateException("gatt 133")))
+    }
+
     @Test
     fun mapsKableExceptionsToTransportErrors() {
         // Kable Android ScanPermissions: error("Missing required android.permission.BLUETOOTH_SCAN for scanning")
