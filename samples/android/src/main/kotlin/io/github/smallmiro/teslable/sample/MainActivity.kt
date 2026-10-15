@@ -14,7 +14,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import io.github.smallmiro.teslable.Teslable
+import io.github.smallmiro.teslable.TeslableDemo
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -22,9 +22,9 @@ class MainActivity : ComponentActivity() {
         setContent {
             MaterialTheme {
                 var vin by rememberSaveable { mutableStateOf("5YJS0000000000000") }
-                val localName = runCatching { Teslable.localNameFor(vin) }.getOrElse { "VIN 형식 오류" }
+                val localName = runCatching { TeslableDemo.localNameFor(vin) }.getOrElse { "VIN 형식 오류" }
                 Column(modifier = Modifier.padding(24.dp)) {
-                    Text("Teslable ${Teslable.VERSION}", style = MaterialTheme.typography.titleLarge)
+                    Text("Teslable ${TeslableDemo.VERSION}", style = MaterialTheme.typography.titleLarge)
                     OutlinedTextField(value = vin, onValueChange = { vin = it }, label = { Text("VIN") })
                     Text("BLE local name: $localName")
                 }
