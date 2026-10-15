@@ -14,6 +14,7 @@ import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlin.concurrent.Volatile
 import kotlin.time.Duration
 import kotlin.time.TimeSource
 
@@ -37,6 +38,8 @@ public class SessionState internal constructor(
     private val mutex = Mutex()
     private var signer: Signer? = null
     private val readySignal = CompletableDeferred<Unit>()
+
+    @Volatile
     private var closed = false
 
     /** [close]가 불렸는지. 닫힌 세션은 되살리지 않는다(설계 구체화 13). */

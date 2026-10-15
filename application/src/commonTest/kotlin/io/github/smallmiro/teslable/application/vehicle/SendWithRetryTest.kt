@@ -30,6 +30,7 @@ import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SendWithRetryTest {
+    // vehicle_test.go는 VCSEC로 보내지만 Kotlin은 SendWithRetry에서 VCSEC를 금지한다(설계 구체화 13) — 같은 흐름을 Infotainment로 검증
     private val infotainment = Domain.DOMAIN_INFOTAINMENT
     private val payload = "payload".encodeToByteArray()
 

@@ -260,15 +260,10 @@ public class FakeVehicle(
     ): TestVerifier {
         val existing = state.verifier
         if (existing != null && state.clientPublic == clientPublic) return existing
+        val key = if (domain == Domain.DOMAIN_INFOTAINMENT) infotainmentKey else vehicleKey
         val created =
             TestVerifier.create(
-                if (domain ==
-                    Domain.DOMAIN_INFOTAINMENT
-                ) {
-                    infotainmentKey
-                } else {
-                    vehicleKey
-                },
+                key,
                 vin.toByteArray(),
                 domain,
                 clientPublic,

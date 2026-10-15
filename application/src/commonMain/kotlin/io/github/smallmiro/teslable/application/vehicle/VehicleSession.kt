@@ -94,6 +94,8 @@ public class VehicleSession(
      * (`cmd/tesla-control/main.go:174-177`). [connect]에서 유일하게 suspend하는 지점은 [cacheSync]`.load`이므로, 그 지점에서
      * 취소되면(캐시를 다 읽기 전) 이 조건에 걸려 저장을 건너뛴다.
      *
+     * 진행 중인 [connect]의 캐시 로드가 끝나기를 (취소 불가로) 기다린 뒤 닫는다.
+     *
      * 저장이 호출자의 취소로 중단돼도(느린 캐시 I/O 등) [Dispatcher.close]는 `finally`의 `NonCancellable` 안에서 반드시
      * 실행된다 — 세션 키가 메모리에 남거나 전송이 열린 채로 남지 않는다. 호출자의 취소는 값이 되지 않고 `CancellationException`으로
      * 그대로 전파된다(ADR-0010).
