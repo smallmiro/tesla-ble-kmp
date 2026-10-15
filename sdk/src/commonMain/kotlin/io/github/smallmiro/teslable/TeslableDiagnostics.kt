@@ -14,12 +14,14 @@ import io.github.smallmiro.teslable.model.Vin
 import io.github.smallmiro.teslable.port.RandomSource
 import io.github.smallmiro.teslable.protocol.decodeOrNull
 import io.github.smallmiro.teslable.transport.LocalName
+import kotlinx.coroutines.CancellationException
 import okio.ByteString.Companion.toByteString
 
 /** M3 Task 1 실차 스파이크 진입점(ADR-0003). Task 14에서 지운다 — 앱 코드에서 쓰지 않는다. */
 @OptIn(InternalTeslableApi::class)
 public object TeslableDiagnostics {
     /** [vin] 차량에 인증 없는 `GET_WHITELIST_INFO`를 보내고 과정을 [onLine]으로 알린다. */
+    @Suppress("TooGenericExceptionCaught") // 스파이크: Swift로 예외가 새면 앱이 죽으므로 전부 로그로 바꾼다
     public suspend fun probe(
         vin: String,
         forceIndication: Boolean,
@@ -30,14 +32,20 @@ public object TeslableDiagnostics {
             onLine("invalid VIN")
             return
         }
-        val localName = LocalName.of(parsed, platformCryptoPrimitives())
-        GattProbe.run(
-            localName = localName.value,
-            request = ProbeRequest.build(platformRandomSource()),
-            forceIndication = forceIndication,
-            log = onLine,
-            onMessage = { onLine(ProbeRequest.describe(it)) },
-        )
+        try {
+            val localName = LocalName.of(parsed, platformCryptoPrimitives())
+            GattProbe.run(
+                localName = localName.value,
+                request = ProbeRequest.build(platformRandomSource()),
+                forceIndication = forceIndication,
+                log = onLine,
+                onMessage = { onLine(ProbeRequest.describe(it)) },
+            )
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            onLine("error: ${e::class.simpleName}: ${e.message}")
+        }
     }
 }
 

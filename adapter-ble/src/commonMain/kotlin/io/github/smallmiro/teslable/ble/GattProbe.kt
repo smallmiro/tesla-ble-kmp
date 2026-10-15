@@ -33,7 +33,7 @@ private const val MAX_BLOCK_LENGTH = 1021 // min(MTU, 1024) - 3 의 상한(ble.g
 @InternalTeslableApi
 public object GattProbe {
     /** 프로브를 한 번 실행한다. 예외는 로그로 바꾸고 취소만 전파한다. */
-    @Suppress("LongParameterList", "LongMethod", "TooGenericExceptionCaught") // 스파이크 진단: 실패 원인을 전부 로그로 남긴다
+    @Suppress("LongParameterList", "LongMethod", "TooGenericExceptionCaught", "ThrowsCount") // 스파이크 진단: 실패 원인을 전부 로그로 남긴다
     public suspend fun run(
         localName: String,
         request: ByteArray,
@@ -45,8 +45,15 @@ public object GattProbe {
     ) {
         log("scan: looking for $localName")
         val advertisement =
-            withTimeoutOrNull(scanTimeout) {
-                Scanner { filters { match { name = Filter.Name.Exact(localName) } } }.advertisements.first()
+            try {
+                withTimeoutOrNull(scanTimeout) {
+                    Scanner { filters { match { name = Filter.Name.Exact(localName) } } }.advertisements.first()
+                }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                log("error: ${e::class.simpleName}: ${e.message}")
+                return
             }
         if (advertisement == null) {
             log("scan: timeout after $scanTimeout")
@@ -102,7 +109,10 @@ public object GattProbe {
         } catch (e: Exception) {
             log("error: ${e::class.simpleName}: ${e.message}")
         } finally {
-            withContext(NonCancellable) { peripheral.disconnect() }
+            withContext(NonCancellable) {
+                peripheral.disconnect()
+                peripheral.close()
+            }
             log("disconnected")
         }
     }
