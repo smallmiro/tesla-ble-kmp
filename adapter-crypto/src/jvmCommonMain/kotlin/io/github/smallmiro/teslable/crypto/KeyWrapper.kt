@@ -1,6 +1,6 @@
 package io.github.smallmiro.teslable.crypto
 
-/** 소프트웨어 개인키를 감싸는 대칭 키(Android: Keystore AES-256-GCM `<alias>.wrap`). 결과는 `iv(12)‖ciphertext+tag`. */
+/** 소프트웨어 개인키를 감싸는 대칭 키(Android: Keystore AES-256-GCM `teslable.wrap:<alias>`). 결과는 `iv(12)‖ciphertext+tag`. */
 internal interface KeyWrapper {
     fun wrap(plain: ByteArray): ByteArray
 

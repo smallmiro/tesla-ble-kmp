@@ -17,7 +17,7 @@ import io.github.smallmiro.teslable.transport.LocalName
 import kotlinx.coroutines.CancellationException
 import okio.ByteString.Companion.toByteString
 
-/** M3 Task 1 실차 스파이크 진입점(ADR-0003). Task 14에서 지운다 — 앱 코드에서 쓰지 않는다. */
+/** M3 Task 1 실차 스파이크 진입점(ADR-0003). M3 Task 15 마무리에서 지운다 — 앱 코드에서 쓰지 않는다. */
 @OptIn(InternalTeslableApi::class)
 public object TeslableDiagnostics {
     /** [vin] 차량에 인증 없는 `GET_WHITELIST_INFO`를 보내고 과정을 [onLine]으로 알린다. */

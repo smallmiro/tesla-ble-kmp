@@ -13,7 +13,7 @@ private const val IV_SIZE = 12
 private const val TAG_BITS = 128
 private const val AES_BITS = 256
 
-/** Keystore AES-256-GCM 키(`<alias>.wrap`)로 감싼다. 키는 Keystore 밖으로 나가지 않는다. */
+/** Keystore AES-256-GCM 키(`teslable.wrap:<alias>`)로 감싼다. 키는 Keystore 밖으로 나가지 않는다. */
 internal class AndroidKeystoreWrapper(
     alias: String,
 ) : KeyWrapper {
