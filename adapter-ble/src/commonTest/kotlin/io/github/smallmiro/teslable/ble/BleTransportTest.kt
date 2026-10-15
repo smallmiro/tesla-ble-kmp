@@ -198,6 +198,19 @@ class BleTransportTest {
         }
 
     @Test
+    fun closeAfterLinkDropKeepsTheDropReason() =
+        // 최종 리뷰 I1: 링크 감시자가 끊긴 전송을 close()해도 차량이 끊은 이유가 Disconnected(null)로 덮이지 않는다
+        runTest {
+            val link = FakeGattLink()
+            val t = transport(link)
+            link.drop()
+            runCurrent()
+            t.close()
+            assertEquals(TransportState.Disconnected(VehicleError.TransportError.Disconnected), t.state.value)
+            assertEquals(1, link.disconnects)
+        }
+
+    @Test
     fun concurrentSendsDoNotInterleaveChunks() =
         // ble.go:109 c.lock: 한 프레임의 청크가 다른 프레임과 섞이지 않는다
         runTest {

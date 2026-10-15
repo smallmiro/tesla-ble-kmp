@@ -120,7 +120,8 @@ internal class BleTransport(
             if (closed) return
             closed = true
         }
-        stateFlow.value = TransportState.Disconnected(reason = null)
+        // 이미 끊긴 링크는 그 이유(Disconnected(TransportError))를 유지한다 — 의도한 종료만 reason = null
+        stateFlow.compareAndSet(TransportState.Connected, TransportState.Disconnected(reason = null))
         receiver.cancel()
         inbox.close()
         link.disconnect()
