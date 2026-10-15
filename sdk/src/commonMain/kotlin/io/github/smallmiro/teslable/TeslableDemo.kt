@@ -5,10 +5,11 @@ import io.github.smallmiro.teslable.model.Vin
 import io.github.smallmiro.teslable.transport.LocalName
 
 /**
- * M0 임시 파사드: 샘플 앱이 라이브러리 링크와 SKIE 변환을 확인하는 데 쓴다.
+ * M0 임시 파사드: 샘플 앱이 라이브러리 링크와 SKIE 변환을 확인하는 데 쓴다. 대소문자를 무시하는 파일시스템에서
+ * `TeslaBle` 클래스 파일과 충돌해 `Teslable`에서 개명했다(Task 14에서 제거).
  * M3에서 `TeslaBle` 파사드로 대체된다.
  */
-public object Teslable {
+public object TeslableDemo {
     /** 라이브러리 버전 문자열. M6 배포 시 Gradle 버전과 동기화한다. */
     public const val VERSION: String = "0.1.0-SNAPSHOT"
 
