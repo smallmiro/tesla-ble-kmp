@@ -726,3 +726,6 @@ HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 
 - `VehicleSession.disconnect()`는 `SessionCacheSync.store` 후 `Dispatcher.close()`를 부른다(반드시 이 순서 — `close()`가 먼저면 빈 세션을 저장해 이전 저장을 지운다). Go에서 이 저장은 `Vehicle.Disconnect` 자체가 아니라 CLI(`cmd/tesla-control/main.go`)의 `defer UpdateCachedSessions`다 — 이 라이브러리는 그 책임을 `VehicleSession`으로 옮겼다.
 - `SendWithRetry.send`와 `VcsecCommands.execute`는 페이로드를 호출당 한 번만 `ByteString`으로 복사해 얼린다. Go `Vehicle.Send`(vehicle.go:236-238)도 한 번 복사하지만 Go `getVCSECResult`는 원본 슬라이스를 그대로 넘긴다 — 이 라이브러리가 더 엄격하다(호출자가 재시도 대기 중 배열을 바꿔도 재시도에 새어 들어가지 않는다).
 - `HandshakeFlow.startSession`은 `Dispatcher.ALL_DOMAINS` 밖의 도메인에 대해 `RequiresKey`를 돌려준다(`dispatcher.session(domain) == null`이므로). Go `StartSession`은 그런 도메인의 세션을 그때 만든다 — M2는 `ALL_DOMAINS`(VCSEC, INFOTAINMENT) 두 개만 다루므로 관찰 가능한 차이는 없다.
+- `BleTransport.send`가 프레임 중간(첫 청크 이후)에 취소되면 전송을 닫는다. Go `Connection.Send`는 `ctx`를 무시하고 끝까지 쓴다(`ble.go:108-127`).
+- `BleTransport.close()`는 멱등이고 `incoming`을 완료한다. Go `Close`(`ble.go:89-92`)는 멱등 장치가 없고 `inbox`를 닫지 않는다(인터페이스 계약 `connector.go:48-52`는 멱등을 요구한다). 매뉴얼 `02-ble-transport.md` §13.7의 "멱등"은 계약 기준이다.
+- 수신 버퍼는 64(Go 5), SDD §2.4 권고 그대로.
