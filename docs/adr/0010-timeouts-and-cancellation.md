@@ -18,3 +18,7 @@ Go는 `ctx`의 deadline을 `expires_at` 수명과 응답 대기 시한에 모두
 
 ## 대안
 - 호출자 `withTimeout`만: 전송 후 타임아웃을 `Uncertain`으로 표현할 수 없다. 기각.
+
+## M3 재검토 (2026-10-16)
+
+`expires_at`을 남은 timeout으로 줄이지 않고 `commandLifetime`으로 유지한다 — 설계 구체화 16. 재시도 대기 중 수명이 0에 가까워지면 `TIME_EXPIRED`로 재시도만 늘어난다. Go도 `defaultExpiration`을 고정으로 쓴다. 결정(위 "결정")은 그대로다.

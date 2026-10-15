@@ -10,7 +10,7 @@
 | `Uncertain(error)` | 차량이 실행했을 수 있으나 확인하지 못했다(`error.mayHaveSucceeded == true`) | 재전송하지 말고 상태를 재조회한다(VCSEC → `vehicleStatus()`, Infotainment → `getState()`, M3/M5) |
 | `Failure(error)` | 실행되지 않았다 | `error`로 분기 |
 
-Swift에서는 SKIE가 `enum`으로 노출한다(`switch result { case .success(let v): … }`).
+Swift에서는 SKIE `onEnum(of:)`로 `switch`에서 다룬다(`switch onEnum(of: result) { case .success(let s): … }`). 전체 예는 [getting-started.md](getting-started.md).
 
 ## `VehicleError` 계층
 
@@ -35,6 +35,25 @@ Swift에서는 SKIE가 `enum`으로 노출한다(`switch result { case .success(
 | `InvalidArgument(detail)` | 호출 인자 오류 | false | false |
 
 `MessageFault` 코드별 의미와 대처는 개발 매뉴얼 `documents/md/08-errors.md` §3.1을 따른다.
+
+## 전송·키스토어 오류 (M3)
+
+`TransportError`(스캔·연결·쓰기)와 `KeyStoreError`(키 보관)다. 앱이 직접 재시도할 필요가 있는지는 마지막 열에 적었다. 라이브러리 내부 연결 재시도(1초 간격)는 `connect`의 `timeout` 안에서 이미 수행된다.
+
+| 오류 | 뜻 | temporary | 앱 대응 |
+|---|---|---|---|
+| `TransportError.ScanTimeout` | 시간 안에 차량 광고를 찾지 못함 | true | 차량이 범위 안인지 확인하고 다시 시도 |
+| `TransportError.MaxConnectionsExceeded` | 차량이 이미 BLE 연결 3개를 쓰는 중 | false | 다른 기기의 연결을 끊은 뒤 다시 시도 |
+| `TransportError.ConnectFailed(cause)` | 연결·서비스 탐색·구독 실패 | true | 잠시 뒤 재시도 |
+| `TransportError.Disconnected` | BLE 링크가 끊김 | false | `Vehicle.disconnect()` 후 새로 `connect` |
+| `TransportError.BluetoothOff` | 블루투스가 꺼져 있음 | false | 사용자에게 켜도록 안내 |
+| `TransportError.PermissionDenied` | 블루투스 권한 없음 | false | 권한을 요청하거나 설정 화면으로 안내 |
+| `TransportError.WriteFailed(cause)` | 쓰기 실패 | true | 라이브러리가 재시도. 계속되면 재연결 |
+| `KeyStoreError.HardwareUnavailable` | `REQUIRE_HARDWARE`인데 하드웨어 키를 쓸 수 없음 | false | 정책을 `PREFER_HARDWARE`로 바꾸거나 기기를 확인 |
+| `KeyStoreError.KeyNotFound` | 그 별칭의 키가 없음 | false | `getOrCreate`로 만든다 |
+| `KeyStoreError.PlatformFailure(cause)` | 플랫폼 키 저장소 오류. `"stored key is corrupted"`이면 저장된 키가 손상됨 | false | 손상이면 자동 교체하지 않는다 — 앱이 `delete` 후 `getOrCreate`로 재생성하고 **차량에 다시 등록**한다 ([platform-notes.md](platform-notes.md) 4절) |
+
+링크가 끊긴 뒤에도 `Vehicle.disconnect()`를 불러야 세션 키와 스코프가 정리된다.
 
 ## 재시도와 시간 초과 (M2)
 

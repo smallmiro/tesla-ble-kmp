@@ -1,8 +1,7 @@
 # 아키텍처 (기여자용 요약)
 
 이 문서는 `docs/manual/README.md` 기준 상대경로를 쓴다. 이 라이브러리에 기여하는 사람을 위한 설계 요약이며, 에이전트용 정본은
-이 저장소의 `docs/sdd/SDD.md`다(이 문서는 그 내용을 옮겨 적은 요약이라 SDD의 절로 링크하지 않는다). M2 초안이며 BLE 어댑터(M3)와
-공개 파사드(M3~M6)가 들어오면 다시 채운다.
+이 저장소의 `docs/sdd/SDD.md`다(이 문서는 그 내용을 옮겨 적은 요약이라 SDD의 절로 링크하지 않는다). M2 초안에 M3의 `:adapter-ble`·`:sdk` 절을 더했다. 제어·조회 API(M4~M5)가 들어오면 다시 채운다.
 
 ## 모듈 구조
 
@@ -10,7 +9,7 @@
 앱 (Android Compose / iOS SwiftUI)
         │
         ▼
-     :sdk            공개 파사드(TeslaBle, Vehicle). M3~M6에서 채운다
+     :sdk            공개 파사드(TeslaBle, Vehicle). M3에서 스캔·연결·조회, M4~M6에서 확장
         │
         ▼
  :application         Dispatcher · SessionState · VcsecCommands · InfotainmentCommands · SessionCacheSync · VehicleSession
@@ -34,7 +33,7 @@ VehicleSession.vcsec.execute(payload, auth, done)
     → retryWhileRetriable(retryInterval) { ... }   // shouldRetry() 오류마다 새 시도
       → Dispatcher.send(message, auth, lifetime)
           → SessionState.authorize        // Signer.encrypt: counter++, AAD 계산, nonce
-          → transport.send(bytes)         // Transport 포트(:adapter-ble가 M3에서 구현)
+          → transport.send(bytes)         // Transport 포트(:adapter-ble가 구현)
       → PendingRequest 대기(readUntil)     // 종료 판정까지 응답을 기다림
 ```
 
@@ -64,9 +63,17 @@ Transport.incoming (Flow<ByteArray>)
 - 핸드셰이크(두 도메인 세션 맺기)는 도메인마다 병렬로 진행되고, 하나가 실패하면 나머지는 취소된다.
 - 명령·핸드셰이크·연결에는 각각 시간 제한이 있다. 시간 제한과 재시도 규칙은 [errors.md](errors.md)를 본다.
 
+## BLE 어댑터 (`:adapter-ble`)
+
+Kable 바인딩과 테스트 가능한 코어로 나뉜다. `KableGattConnector`(스캔·열기)와 `KableGattLink`(쓰기·구독·끊김 감지)만 Kable을 알고, `BleTransportFactory`·`BleTransport`는 Kable 없이 프레이밍·재조립·재시도·오류 변환을 맡아 JVM 단위 테스트로 검증된다. 링크가 끊기면 수신 흐름을 닫고 전송 상태를 `Disconnected`로 바꾼다. 스캔 필터는 로컬 이름(`S<VIN 해시>C`) 정확 일치다.
+
+## 파사드 조립 (`:sdk`)
+
+`TeslaBle.create(platform, config)`가 플랫폼별 어댑터(BLE 전송, 키 보관소, 세션 캐시, 암호 원시연산)를 조립한다. `connect`는 전송을 연 뒤 연결 전용 코루틴 스코프를 만들고 `Dispatcher`·`VehicleSession`을 붙여 캐시를 복원하며, 중간에 실패하거나 취소되면 전송과 스코프를 반드시 풀어 준다. `Vehicle`은 연결 하나에 객체 하나이고, `disconnect()` 뒤에는 명령이 `NotConnected`로 실패한다.
+
 ## 세션 캐시
 
 세션(핸드셰이크로 맺은 암호화 키 상태)은 자체 바이너리 형식(v1)으로 캐시에 저장돼, 다음 연결에서 핸드셰이크를 다시 하지 않고
 바로 명령을 보낼 수 있게 한다. 캐시는 클라이언트 키(공개키의 SHA-1)에 종속되며, 다른 키의 캐시는 무시하고 지운다. 저장 시점은
-핸드셰이크가 끝났을 때와 연결을 끊을 때뿐이다 — 세션정보가 갱신될 때마다 저장하는 것은 공개 파사드(M3)가 연결한다. 개인키·세션
+핸드셰이크가 끝났을 때, 세션정보가 갱신될 때, 연결을 끊을 때다(M3에서 파사드가 연결했다). 개인키·세션
 암호화 키·VIN 원문은 저장하지 않는다. 손상된 캐시 항목이나 알아보지 못하는 값이 든 항목은 건너뛰고 나머지만 복원한다.
