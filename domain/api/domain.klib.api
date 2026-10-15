@@ -704,6 +704,92 @@ final enum class com.tesla.generated.vcsec/WhitelistOperation_information_E : co
     }
 }
 
+final enum class io.github.smallmiro.teslable.model/ClosureState : kotlin/Enum<io.github.smallmiro.teslable.model/ClosureState> { // io.github.smallmiro.teslable.model/ClosureState|null[0]
+    enum entry AJAR // io.github.smallmiro.teslable.model/ClosureState.AJAR|null[0]
+    enum entry CLOSED // io.github.smallmiro.teslable.model/ClosureState.CLOSED|null[0]
+    enum entry CLOSING // io.github.smallmiro.teslable.model/ClosureState.CLOSING|null[0]
+    enum entry FAILED_UNLATCH // io.github.smallmiro.teslable.model/ClosureState.FAILED_UNLATCH|null[0]
+    enum entry OPEN // io.github.smallmiro.teslable.model/ClosureState.OPEN|null[0]
+    enum entry OPENING // io.github.smallmiro.teslable.model/ClosureState.OPENING|null[0]
+    enum entry UNKNOWN // io.github.smallmiro.teslable.model/ClosureState.UNKNOWN|null[0]
+
+    final val entries // io.github.smallmiro.teslable.model/ClosureState.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<io.github.smallmiro.teslable.model/ClosureState> // io.github.smallmiro.teslable.model/ClosureState.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): io.github.smallmiro.teslable.model/ClosureState // io.github.smallmiro.teslable.model/ClosureState.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<io.github.smallmiro.teslable.model/ClosureState> // io.github.smallmiro.teslable.model/ClosureState.values|values#static(){}[0]
+}
+
+final enum class io.github.smallmiro.teslable.model/KeyFormFactor : kotlin/Enum<io.github.smallmiro.teslable.model/KeyFormFactor> { // io.github.smallmiro.teslable.model/KeyFormFactor|null[0]
+    enum entry ANDROID_DEVICE // io.github.smallmiro.teslable.model/KeyFormFactor.ANDROID_DEVICE|null[0]
+    enum entry CLOUD_KEY // io.github.smallmiro.teslable.model/KeyFormFactor.CLOUD_KEY|null[0]
+    enum entry IOS_DEVICE // io.github.smallmiro.teslable.model/KeyFormFactor.IOS_DEVICE|null[0]
+    enum entry NFC_CARD // io.github.smallmiro.teslable.model/KeyFormFactor.NFC_CARD|null[0]
+    enum entry UNKNOWN // io.github.smallmiro.teslable.model/KeyFormFactor.UNKNOWN|null[0]
+
+    final val entries // io.github.smallmiro.teslable.model/KeyFormFactor.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<io.github.smallmiro.teslable.model/KeyFormFactor> // io.github.smallmiro.teslable.model/KeyFormFactor.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): io.github.smallmiro.teslable.model/KeyFormFactor // io.github.smallmiro.teslable.model/KeyFormFactor.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<io.github.smallmiro.teslable.model/KeyFormFactor> // io.github.smallmiro.teslable.model/KeyFormFactor.values|values#static(){}[0]
+}
+
+final enum class io.github.smallmiro.teslable.model/KeyRole : kotlin/Enum<io.github.smallmiro.teslable.model/KeyRole> { // io.github.smallmiro.teslable.model/KeyRole|null[0]
+    enum entry CHARGING_MANAGER // io.github.smallmiro.teslable.model/KeyRole.CHARGING_MANAGER|null[0]
+    enum entry DRIVER // io.github.smallmiro.teslable.model/KeyRole.DRIVER|null[0]
+    enum entry FLEET_MANAGER // io.github.smallmiro.teslable.model/KeyRole.FLEET_MANAGER|null[0]
+    enum entry GUEST // io.github.smallmiro.teslable.model/KeyRole.GUEST|null[0]
+    enum entry NONE // io.github.smallmiro.teslable.model/KeyRole.NONE|null[0]
+    enum entry OWNER // io.github.smallmiro.teslable.model/KeyRole.OWNER|null[0]
+    enum entry SERVICE // io.github.smallmiro.teslable.model/KeyRole.SERVICE|null[0]
+    enum entry UNKNOWN // io.github.smallmiro.teslable.model/KeyRole.UNKNOWN|null[0]
+    enum entry VEHICLE_MONITOR // io.github.smallmiro.teslable.model/KeyRole.VEHICLE_MONITOR|null[0]
+
+    final val entries // io.github.smallmiro.teslable.model/KeyRole.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<io.github.smallmiro.teslable.model/KeyRole> // io.github.smallmiro.teslable.model/KeyRole.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): io.github.smallmiro.teslable.model/KeyRole // io.github.smallmiro.teslable.model/KeyRole.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<io.github.smallmiro.teslable.model/KeyRole> // io.github.smallmiro.teslable.model/KeyRole.values|values#static(){}[0]
+}
+
+final enum class io.github.smallmiro.teslable.model/LockState : kotlin/Enum<io.github.smallmiro.teslable.model/LockState> { // io.github.smallmiro.teslable.model/LockState|null[0]
+    enum entry INTERNAL_LOCKED // io.github.smallmiro.teslable.model/LockState.INTERNAL_LOCKED|null[0]
+    enum entry LOCKED // io.github.smallmiro.teslable.model/LockState.LOCKED|null[0]
+    enum entry SELECTIVE_UNLOCKED // io.github.smallmiro.teslable.model/LockState.SELECTIVE_UNLOCKED|null[0]
+    enum entry UNKNOWN // io.github.smallmiro.teslable.model/LockState.UNKNOWN|null[0]
+    enum entry UNLOCKED // io.github.smallmiro.teslable.model/LockState.UNLOCKED|null[0]
+
+    final val entries // io.github.smallmiro.teslable.model/LockState.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<io.github.smallmiro.teslable.model/LockState> // io.github.smallmiro.teslable.model/LockState.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): io.github.smallmiro.teslable.model/LockState // io.github.smallmiro.teslable.model/LockState.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<io.github.smallmiro.teslable.model/LockState> // io.github.smallmiro.teslable.model/LockState.values|values#static(){}[0]
+}
+
+final enum class io.github.smallmiro.teslable.model/SleepStatus : kotlin/Enum<io.github.smallmiro.teslable.model/SleepStatus> { // io.github.smallmiro.teslable.model/SleepStatus|null[0]
+    enum entry ASLEEP // io.github.smallmiro.teslable.model/SleepStatus.ASLEEP|null[0]
+    enum entry AWAKE // io.github.smallmiro.teslable.model/SleepStatus.AWAKE|null[0]
+    enum entry UNKNOWN // io.github.smallmiro.teslable.model/SleepStatus.UNKNOWN|null[0]
+
+    final val entries // io.github.smallmiro.teslable.model/SleepStatus.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<io.github.smallmiro.teslable.model/SleepStatus> // io.github.smallmiro.teslable.model/SleepStatus.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): io.github.smallmiro.teslable.model/SleepStatus // io.github.smallmiro.teslable.model/SleepStatus.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<io.github.smallmiro.teslable.model/SleepStatus> // io.github.smallmiro.teslable.model/SleepStatus.values|values#static(){}[0]
+}
+
+final enum class io.github.smallmiro.teslable.model/UserPresence : kotlin/Enum<io.github.smallmiro.teslable.model/UserPresence> { // io.github.smallmiro.teslable.model/UserPresence|null[0]
+    enum entry NOT_PRESENT // io.github.smallmiro.teslable.model/UserPresence.NOT_PRESENT|null[0]
+    enum entry PRESENT // io.github.smallmiro.teslable.model/UserPresence.PRESENT|null[0]
+    enum entry UNKNOWN // io.github.smallmiro.teslable.model/UserPresence.UNKNOWN|null[0]
+
+    final val entries // io.github.smallmiro.teslable.model/UserPresence.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<io.github.smallmiro.teslable.model/UserPresence> // io.github.smallmiro.teslable.model/UserPresence.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): io.github.smallmiro.teslable.model/UserPresence // io.github.smallmiro.teslable.model/UserPresence.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<io.github.smallmiro.teslable.model/UserPresence> // io.github.smallmiro.teslable.model/UserPresence.values|values#static(){}[0]
+}
+
 final enum class io.github.smallmiro.teslable.model/VehicleDomain : kotlin/Enum<io.github.smallmiro.teslable.model/VehicleDomain> { // io.github.smallmiro.teslable.model/VehicleDomain|null[0]
     enum entry INFOTAINMENT // io.github.smallmiro.teslable.model/VehicleDomain.INFOTAINMENT|null[0]
     enum entry VCSEC // io.github.smallmiro.teslable.model/VehicleDomain.VCSEC|null[0]
@@ -5826,6 +5912,40 @@ final class io.github.smallmiro.teslable.cache/SessionSnapshot { // io.github.sm
         final fun <get-sessionInfo>(): kotlin/ByteArray // io.github.smallmiro.teslable.cache/SessionSnapshot.sessionInfo.<get-sessionInfo>|<get-sessionInfo>(){}[0]
 }
 
+final class io.github.smallmiro.teslable.model/Closures { // io.github.smallmiro.teslable.model/Closures|null[0]
+    constructor <init>(io.github.smallmiro.teslable.model/ClosureState, io.github.smallmiro.teslable.model/ClosureState, io.github.smallmiro.teslable.model/ClosureState, io.github.smallmiro.teslable.model/ClosureState, io.github.smallmiro.teslable.model/ClosureState, io.github.smallmiro.teslable.model/ClosureState, io.github.smallmiro.teslable.model/ClosureState, io.github.smallmiro.teslable.model/ClosureState) // io.github.smallmiro.teslable.model/Closures.<init>|<init>(io.github.smallmiro.teslable.model.ClosureState;io.github.smallmiro.teslable.model.ClosureState;io.github.smallmiro.teslable.model.ClosureState;io.github.smallmiro.teslable.model.ClosureState;io.github.smallmiro.teslable.model.ClosureState;io.github.smallmiro.teslable.model.ClosureState;io.github.smallmiro.teslable.model.ClosureState;io.github.smallmiro.teslable.model.ClosureState){}[0]
+
+    final val chargePort // io.github.smallmiro.teslable.model/Closures.chargePort|{}chargePort[0]
+        final fun <get-chargePort>(): io.github.smallmiro.teslable.model/ClosureState // io.github.smallmiro.teslable.model/Closures.chargePort.<get-chargePort>|<get-chargePort>(){}[0]
+    final val frontDriverDoor // io.github.smallmiro.teslable.model/Closures.frontDriverDoor|{}frontDriverDoor[0]
+        final fun <get-frontDriverDoor>(): io.github.smallmiro.teslable.model/ClosureState // io.github.smallmiro.teslable.model/Closures.frontDriverDoor.<get-frontDriverDoor>|<get-frontDriverDoor>(){}[0]
+    final val frontPassengerDoor // io.github.smallmiro.teslable.model/Closures.frontPassengerDoor|{}frontPassengerDoor[0]
+        final fun <get-frontPassengerDoor>(): io.github.smallmiro.teslable.model/ClosureState // io.github.smallmiro.teslable.model/Closures.frontPassengerDoor.<get-frontPassengerDoor>|<get-frontPassengerDoor>(){}[0]
+    final val frontTrunk // io.github.smallmiro.teslable.model/Closures.frontTrunk|{}frontTrunk[0]
+        final fun <get-frontTrunk>(): io.github.smallmiro.teslable.model/ClosureState // io.github.smallmiro.teslable.model/Closures.frontTrunk.<get-frontTrunk>|<get-frontTrunk>(){}[0]
+    final val rearDriverDoor // io.github.smallmiro.teslable.model/Closures.rearDriverDoor|{}rearDriverDoor[0]
+        final fun <get-rearDriverDoor>(): io.github.smallmiro.teslable.model/ClosureState // io.github.smallmiro.teslable.model/Closures.rearDriverDoor.<get-rearDriverDoor>|<get-rearDriverDoor>(){}[0]
+    final val rearPassengerDoor // io.github.smallmiro.teslable.model/Closures.rearPassengerDoor|{}rearPassengerDoor[0]
+        final fun <get-rearPassengerDoor>(): io.github.smallmiro.teslable.model/ClosureState // io.github.smallmiro.teslable.model/Closures.rearPassengerDoor.<get-rearPassengerDoor>|<get-rearPassengerDoor>(){}[0]
+    final val rearTrunk // io.github.smallmiro.teslable.model/Closures.rearTrunk|{}rearTrunk[0]
+        final fun <get-rearTrunk>(): io.github.smallmiro.teslable.model/ClosureState // io.github.smallmiro.teslable.model/Closures.rearTrunk.<get-rearTrunk>|<get-rearTrunk>(){}[0]
+    final val tonneau // io.github.smallmiro.teslable.model/Closures.tonneau|{}tonneau[0]
+        final fun <get-tonneau>(): io.github.smallmiro.teslable.model/ClosureState // io.github.smallmiro.teslable.model/Closures.tonneau.<get-tonneau>|<get-tonneau>(){}[0]
+
+    final fun component1(): io.github.smallmiro.teslable.model/ClosureState // io.github.smallmiro.teslable.model/Closures.component1|component1(){}[0]
+    final fun component2(): io.github.smallmiro.teslable.model/ClosureState // io.github.smallmiro.teslable.model/Closures.component2|component2(){}[0]
+    final fun component3(): io.github.smallmiro.teslable.model/ClosureState // io.github.smallmiro.teslable.model/Closures.component3|component3(){}[0]
+    final fun component4(): io.github.smallmiro.teslable.model/ClosureState // io.github.smallmiro.teslable.model/Closures.component4|component4(){}[0]
+    final fun component5(): io.github.smallmiro.teslable.model/ClosureState // io.github.smallmiro.teslable.model/Closures.component5|component5(){}[0]
+    final fun component6(): io.github.smallmiro.teslable.model/ClosureState // io.github.smallmiro.teslable.model/Closures.component6|component6(){}[0]
+    final fun component7(): io.github.smallmiro.teslable.model/ClosureState // io.github.smallmiro.teslable.model/Closures.component7|component7(){}[0]
+    final fun component8(): io.github.smallmiro.teslable.model/ClosureState // io.github.smallmiro.teslable.model/Closures.component8|component8(){}[0]
+    final fun copy(io.github.smallmiro.teslable.model/ClosureState = ..., io.github.smallmiro.teslable.model/ClosureState = ..., io.github.smallmiro.teslable.model/ClosureState = ..., io.github.smallmiro.teslable.model/ClosureState = ..., io.github.smallmiro.teslable.model/ClosureState = ..., io.github.smallmiro.teslable.model/ClosureState = ..., io.github.smallmiro.teslable.model/ClosureState = ..., io.github.smallmiro.teslable.model/ClosureState = ...): io.github.smallmiro.teslable.model/Closures // io.github.smallmiro.teslable.model/Closures.copy|copy(io.github.smallmiro.teslable.model.ClosureState;io.github.smallmiro.teslable.model.ClosureState;io.github.smallmiro.teslable.model.ClosureState;io.github.smallmiro.teslable.model.ClosureState;io.github.smallmiro.teslable.model.ClosureState;io.github.smallmiro.teslable.model.ClosureState;io.github.smallmiro.teslable.model.ClosureState;io.github.smallmiro.teslable.model.ClosureState){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/Closures.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/Closures.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/Closures.toString|toString(){}[0]
+}
+
 final class io.github.smallmiro.teslable.model/KeyId { // io.github.smallmiro.teslable.model/KeyId|null[0]
     constructor <init>(kotlin/ByteArray) // io.github.smallmiro.teslable.model/KeyId.<init>|<init>(kotlin.ByteArray){}[0]
 
@@ -5861,6 +5981,31 @@ final class io.github.smallmiro.teslable.model/PublicKeyBytes { // io.github.sma
     }
 }
 
+final class io.github.smallmiro.teslable.model/VehicleStatus { // io.github.smallmiro.teslable.model/VehicleStatus|null[0]
+    constructor <init>(io.github.smallmiro.teslable.model/LockState, io.github.smallmiro.teslable.model/Closures?, io.github.smallmiro.teslable.model/SleepStatus, io.github.smallmiro.teslable.model/UserPresence, kotlin/Int?) // io.github.smallmiro.teslable.model/VehicleStatus.<init>|<init>(io.github.smallmiro.teslable.model.LockState;io.github.smallmiro.teslable.model.Closures?;io.github.smallmiro.teslable.model.SleepStatus;io.github.smallmiro.teslable.model.UserPresence;kotlin.Int?){}[0]
+
+    final val closures // io.github.smallmiro.teslable.model/VehicleStatus.closures|{}closures[0]
+        final fun <get-closures>(): io.github.smallmiro.teslable.model/Closures? // io.github.smallmiro.teslable.model/VehicleStatus.closures.<get-closures>|<get-closures>(){}[0]
+    final val lockState // io.github.smallmiro.teslable.model/VehicleStatus.lockState|{}lockState[0]
+        final fun <get-lockState>(): io.github.smallmiro.teslable.model/LockState // io.github.smallmiro.teslable.model/VehicleStatus.lockState.<get-lockState>|<get-lockState>(){}[0]
+    final val sleepStatus // io.github.smallmiro.teslable.model/VehicleStatus.sleepStatus|{}sleepStatus[0]
+        final fun <get-sleepStatus>(): io.github.smallmiro.teslable.model/SleepStatus // io.github.smallmiro.teslable.model/VehicleStatus.sleepStatus.<get-sleepStatus>|<get-sleepStatus>(){}[0]
+    final val tonneauPercentOpen // io.github.smallmiro.teslable.model/VehicleStatus.tonneauPercentOpen|{}tonneauPercentOpen[0]
+        final fun <get-tonneauPercentOpen>(): kotlin/Int? // io.github.smallmiro.teslable.model/VehicleStatus.tonneauPercentOpen.<get-tonneauPercentOpen>|<get-tonneauPercentOpen>(){}[0]
+    final val userPresence // io.github.smallmiro.teslable.model/VehicleStatus.userPresence|{}userPresence[0]
+        final fun <get-userPresence>(): io.github.smallmiro.teslable.model/UserPresence // io.github.smallmiro.teslable.model/VehicleStatus.userPresence.<get-userPresence>|<get-userPresence>(){}[0]
+
+    final fun component1(): io.github.smallmiro.teslable.model/LockState // io.github.smallmiro.teslable.model/VehicleStatus.component1|component1(){}[0]
+    final fun component2(): io.github.smallmiro.teslable.model/Closures? // io.github.smallmiro.teslable.model/VehicleStatus.component2|component2(){}[0]
+    final fun component3(): io.github.smallmiro.teslable.model/SleepStatus // io.github.smallmiro.teslable.model/VehicleStatus.component3|component3(){}[0]
+    final fun component4(): io.github.smallmiro.teslable.model/UserPresence // io.github.smallmiro.teslable.model/VehicleStatus.component4|component4(){}[0]
+    final fun component5(): kotlin/Int? // io.github.smallmiro.teslable.model/VehicleStatus.component5|component5(){}[0]
+    final fun copy(io.github.smallmiro.teslable.model/LockState = ..., io.github.smallmiro.teslable.model/Closures? = ..., io.github.smallmiro.teslable.model/SleepStatus = ..., io.github.smallmiro.teslable.model/UserPresence = ..., kotlin/Int? = ...): io.github.smallmiro.teslable.model/VehicleStatus // io.github.smallmiro.teslable.model/VehicleStatus.copy|copy(io.github.smallmiro.teslable.model.LockState;io.github.smallmiro.teslable.model.Closures?;io.github.smallmiro.teslable.model.SleepStatus;io.github.smallmiro.teslable.model.UserPresence;kotlin.Int?){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/VehicleStatus.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/VehicleStatus.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/VehicleStatus.toString|toString(){}[0]
+}
+
 final class io.github.smallmiro.teslable.model/Vin { // io.github.smallmiro.teslable.model/Vin|null[0]
     constructor <init>(kotlin/String) // io.github.smallmiro.teslable.model/Vin.<init>|<init>(kotlin.String){}[0]
 
@@ -5871,6 +6016,49 @@ final class io.github.smallmiro.teslable.model/Vin { // io.github.smallmiro.tesl
     final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/Vin.hashCode|hashCode(){}[0]
     final fun toByteArray(): kotlin/ByteArray // io.github.smallmiro.teslable.model/Vin.toByteArray|toByteArray(){}[0]
     final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/Vin.toString|toString(){}[0]
+}
+
+final class io.github.smallmiro.teslable.model/WhitelistEntry { // io.github.smallmiro.teslable.model/WhitelistEntry|null[0]
+    constructor <init>(kotlin/Int, io.github.smallmiro.teslable.model/PublicKeyBytes?, kotlin/String?, io.github.smallmiro.teslable.model/KeyRole, io.github.smallmiro.teslable.model/KeyFormFactor) // io.github.smallmiro.teslable.model/WhitelistEntry.<init>|<init>(kotlin.Int;io.github.smallmiro.teslable.model.PublicKeyBytes?;kotlin.String?;io.github.smallmiro.teslable.model.KeyRole;io.github.smallmiro.teslable.model.KeyFormFactor){}[0]
+
+    final val formFactor // io.github.smallmiro.teslable.model/WhitelistEntry.formFactor|{}formFactor[0]
+        final fun <get-formFactor>(): io.github.smallmiro.teslable.model/KeyFormFactor // io.github.smallmiro.teslable.model/WhitelistEntry.formFactor.<get-formFactor>|<get-formFactor>(){}[0]
+    final val keyIdSha1Hex // io.github.smallmiro.teslable.model/WhitelistEntry.keyIdSha1Hex|{}keyIdSha1Hex[0]
+        final fun <get-keyIdSha1Hex>(): kotlin/String? // io.github.smallmiro.teslable.model/WhitelistEntry.keyIdSha1Hex.<get-keyIdSha1Hex>|<get-keyIdSha1Hex>(){}[0]
+    final val publicKey // io.github.smallmiro.teslable.model/WhitelistEntry.publicKey|{}publicKey[0]
+        final fun <get-publicKey>(): io.github.smallmiro.teslable.model/PublicKeyBytes? // io.github.smallmiro.teslable.model/WhitelistEntry.publicKey.<get-publicKey>|<get-publicKey>(){}[0]
+    final val role // io.github.smallmiro.teslable.model/WhitelistEntry.role|{}role[0]
+        final fun <get-role>(): io.github.smallmiro.teslable.model/KeyRole // io.github.smallmiro.teslable.model/WhitelistEntry.role.<get-role>|<get-role>(){}[0]
+    final val slot // io.github.smallmiro.teslable.model/WhitelistEntry.slot|{}slot[0]
+        final fun <get-slot>(): kotlin/Int // io.github.smallmiro.teslable.model/WhitelistEntry.slot.<get-slot>|<get-slot>(){}[0]
+
+    final fun component1(): kotlin/Int // io.github.smallmiro.teslable.model/WhitelistEntry.component1|component1(){}[0]
+    final fun component2(): io.github.smallmiro.teslable.model/PublicKeyBytes? // io.github.smallmiro.teslable.model/WhitelistEntry.component2|component2(){}[0]
+    final fun component3(): kotlin/String? // io.github.smallmiro.teslable.model/WhitelistEntry.component3|component3(){}[0]
+    final fun component4(): io.github.smallmiro.teslable.model/KeyRole // io.github.smallmiro.teslable.model/WhitelistEntry.component4|component4(){}[0]
+    final fun component5(): io.github.smallmiro.teslable.model/KeyFormFactor // io.github.smallmiro.teslable.model/WhitelistEntry.component5|component5(){}[0]
+    final fun copy(kotlin/Int = ..., io.github.smallmiro.teslable.model/PublicKeyBytes? = ..., kotlin/String? = ..., io.github.smallmiro.teslable.model/KeyRole = ..., io.github.smallmiro.teslable.model/KeyFormFactor = ...): io.github.smallmiro.teslable.model/WhitelistEntry // io.github.smallmiro.teslable.model/WhitelistEntry.copy|copy(kotlin.Int;io.github.smallmiro.teslable.model.PublicKeyBytes?;kotlin.String?;io.github.smallmiro.teslable.model.KeyRole;io.github.smallmiro.teslable.model.KeyFormFactor){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/WhitelistEntry.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/WhitelistEntry.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/WhitelistEntry.toString|toString(){}[0]
+}
+
+final class io.github.smallmiro.teslable.model/WhitelistSummary { // io.github.smallmiro.teslable.model/WhitelistSummary|null[0]
+    constructor <init>(kotlin/Int, kotlin/UInt) // io.github.smallmiro.teslable.model/WhitelistSummary.<init>|<init>(kotlin.Int;kotlin.UInt){}[0]
+
+    final val numberOfEntries // io.github.smallmiro.teslable.model/WhitelistSummary.numberOfEntries|{}numberOfEntries[0]
+        final fun <get-numberOfEntries>(): kotlin/Int // io.github.smallmiro.teslable.model/WhitelistSummary.numberOfEntries.<get-numberOfEntries>|<get-numberOfEntries>(){}[0]
+    final val occupiedSlots // io.github.smallmiro.teslable.model/WhitelistSummary.occupiedSlots|{}occupiedSlots[0]
+        final fun <get-occupiedSlots>(): kotlin.collections/List<kotlin/Int> // io.github.smallmiro.teslable.model/WhitelistSummary.occupiedSlots.<get-occupiedSlots>|<get-occupiedSlots>(){}[0]
+    final val slotMask // io.github.smallmiro.teslable.model/WhitelistSummary.slotMask|{}slotMask[0]
+        final fun <get-slotMask>(): kotlin/UInt // io.github.smallmiro.teslable.model/WhitelistSummary.slotMask.<get-slotMask>|<get-slotMask>(){}[0]
+
+    final fun component1(): kotlin/Int // io.github.smallmiro.teslable.model/WhitelistSummary.component1|component1(){}[0]
+    final fun component2(): kotlin/UInt // io.github.smallmiro.teslable.model/WhitelistSummary.component2|component2(){}[0]
+    final fun copy(kotlin/Int = ..., kotlin/UInt = ...): io.github.smallmiro.teslable.model/WhitelistSummary // io.github.smallmiro.teslable.model/WhitelistSummary.copy|copy(kotlin.Int;kotlin.UInt){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.model/WhitelistSummary.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/WhitelistSummary.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/WhitelistSummary.toString|toString(){}[0]
 }
 
 final class io.github.smallmiro.teslable.port/AesGcmOutput { // io.github.smallmiro.teslable.port/AesGcmOutput|null[0]

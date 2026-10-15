@@ -731,3 +731,4 @@ HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 
 - `BleTransport.close()`는 멱등이고 `incoming`을 완료한다. Go `Close`(`ble.go:89-92`)는 멱등 장치가 없고 `inbox`를 닫지 않는다(인터페이스 계약 `connector.go:48-52`는 멱등을 요구한다). 매뉴얼 `02-ble-transport.md` §13.7의 "멱등"은 계약 기준이다.
 - 수신 버퍼는 64(Go 5), SDD §2.4 권고 그대로.
 - 연결 재시도는 시도 사이에 1초를 둔다(FR-004). Go `NewConnectionFromScanResult`는 sleep 없이 반복한다(`ble.go:259-278`). 실패한 시도의 연결은 닫는다(Go는 닫지 않는다, `ble.go:280-360`). 다른 VIN의 광고를 `target`으로 주면 `InvalidArgument`(Go는 일반 오류, 재시도 없음 — 같은 결과).
+- 인증 없는 VCSEC 조회에서 응답에 기대한 필드가 없으면 `BadResponse("missing …")`다(Go `BodyControllerState`/`KeySummary`/`KeyInfoBySlot`은 nil, nil). `listKeys`는 첫 슬롯 실패를 돌려준다(Go `list-keys`는 실패 슬롯을 출력하고 계속한다). Wire가 모르는 잠금·개폐·역할·형태 값은 `UNKNOWN`이다(Wire 기본값으로 보이지 않게 `unknownFields`로 판별).

@@ -94,6 +94,17 @@ final class io.github.smallmiro.teslable.application.vcsec/VcsecCommands { // io
     final suspend fun execute(kotlin/ByteArray, io.github.smallmiro.teslable.port/AuthMethod, io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalTest, kotlin/Int = ..., kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<com.tesla.generated.vcsec/FromVCSECMessage> // io.github.smallmiro.teslable.application.vcsec/VcsecCommands.execute|execute(kotlin.ByteArray;io.github.smallmiro.teslable.port.AuthMethod;io.github.smallmiro.teslable.application.vcsec.VcsecResponses.TerminalTest;kotlin.Int;kotlin.time.Duration){}[0]
 }
 
+final class io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries { // io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries|null[0]
+    final suspend fun keyInfoBySlot(kotlin/Int, kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<io.github.smallmiro.teslable.model/WhitelistEntry> // io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries.keyInfoBySlot|keyInfoBySlot(kotlin.Int;kotlin.time.Duration){}[0]
+    final suspend fun keySummary(kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<io.github.smallmiro.teslable.model/WhitelistSummary> // io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries.keySummary|keySummary(kotlin.time.Duration){}[0]
+    final suspend fun listKeys(kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<kotlin.collections/List<io.github.smallmiro.teslable.model/WhitelistEntry>> // io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries.listKeys|listKeys(kotlin.time.Duration){}[0]
+    final suspend fun vehicleStatus(kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<io.github.smallmiro.teslable.model/VehicleStatus> // io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries.vehicleStatus|vehicleStatus(kotlin.time.Duration){}[0]
+
+    final object Companion { // io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries.Companion|null[0]
+        final fun informationRequest(com.tesla.generated.vcsec/InformationRequestType, kotlin/Int? = ...): kotlin/ByteArray // io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries.Companion.informationRequest|informationRequest(com.tesla.generated.vcsec.InformationRequestType;kotlin.Int?){}[0]
+    }
+}
+
 final class io.github.smallmiro.teslable.application.vehicle/CommandTimeouts { // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts|null[0]
     constructor <init>(kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ...) // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.<init>|<init>(kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
 
@@ -132,6 +143,8 @@ final class io.github.smallmiro.teslable.application.vehicle/VehicleSession { //
 
     final val handshake // io.github.smallmiro.teslable.application.vehicle/VehicleSession.handshake|{}handshake[0]
         final fun <get-handshake>(): io.github.smallmiro.teslable.application.dispatcher/HandshakeFlow // io.github.smallmiro.teslable.application.vehicle/VehicleSession.handshake.<get-handshake>|<get-handshake>(){}[0]
+    final val info // io.github.smallmiro.teslable.application.vehicle/VehicleSession.info|{}info[0]
+        final fun <get-info>(): io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries // io.github.smallmiro.teslable.application.vehicle/VehicleSession.info.<get-info>|<get-info>(){}[0]
     final val infotainment // io.github.smallmiro.teslable.application.vehicle/VehicleSession.infotainment|{}infotainment[0]
         final fun <get-infotainment>(): io.github.smallmiro.teslable.application.infotainment/InfotainmentCommands // io.github.smallmiro.teslable.application.vehicle/VehicleSession.infotainment.<get-infotainment>|<get-infotainment>(){}[0]
     final val retryInterval // io.github.smallmiro.teslable.application.vehicle/VehicleSession.retryInterval|{}retryInterval[0]

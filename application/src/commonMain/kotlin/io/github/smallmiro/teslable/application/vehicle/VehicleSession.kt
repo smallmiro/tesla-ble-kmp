@@ -9,6 +9,7 @@ import io.github.smallmiro.teslable.application.dispatcher.retryWhileRetriable
 import io.github.smallmiro.teslable.application.dispatcher.withAttemptTimeout
 import io.github.smallmiro.teslable.application.infotainment.InfotainmentCommands
 import io.github.smallmiro.teslable.application.vcsec.VcsecCommands
+import io.github.smallmiro.teslable.application.vcsec.VehicleInfoQueries
 import io.github.smallmiro.teslable.model.VehicleResult
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.sync.Mutex
@@ -37,6 +38,9 @@ public class VehicleSession(
 
     /** Go `getVCSECResult` 계층(직렬화 포함). */
     public val vcsec: VcsecCommands = VcsecCommands(dispatcher, timeouts)
+
+    /** 인증 없는 VCSEC 조회(FR-025, FR-031, FR-032). [vcsec]의 직렬화를 공유한다. */
+    public val info: VehicleInfoQueries = VehicleInfoQueries(vcsec, timeouts, dispatcher.clock)
 
     /** Go `executeCarServerAction` 계층. */
     public val infotainment: InfotainmentCommands = InfotainmentCommands(send)
