@@ -27,7 +27,11 @@ public class Vin(
         value.take(VIN_PREFIX_LENGTH) + MASK_CHAR.toString().repeat(VIN_MASKED_LENGTH) +
             value.takeLast(VIN_SUFFIX_LENGTH)
 
-    private companion object {
-        val VIN_REGEX = Regex("^[A-HJ-NPR-Z0-9]{17}$")
+    /** 생성 도우미. */
+    public companion object {
+        private val VIN_REGEX = Regex("^[A-HJ-NPR-Z0-9]{17}$")
+
+        /** 형식이 틀리면 null(Swift·UI 입력용 — 생성자는 `IllegalArgumentException`). */
+        public fun parseOrNull(value: String): Vin? = if (VIN_REGEX.matches(value.uppercase())) Vin(value) else null
     }
 }

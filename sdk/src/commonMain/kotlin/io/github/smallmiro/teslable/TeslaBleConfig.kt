@@ -19,4 +19,10 @@ public data class TeslaBleConfig(
     val handshakeTimeout: Duration = 20.seconds,
     /** 스캔·연결 기본 시간 제한. */
     val connectTimeout: Duration = 30.seconds,
-)
+) {
+    /** Swift용 생성 도우미(기본 인자·`Duration`을 쓰지 않고 만든다). */
+    public companion object {
+        /** 모든 값을 기본값으로, 로거만 바꾼다. */
+        public fun default(logger: TeslaLogger = TeslaLogger.NoOp): TeslaBleConfig = TeslaBleConfig(logger = logger)
+    }
+}

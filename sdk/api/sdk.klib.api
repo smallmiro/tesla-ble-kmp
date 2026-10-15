@@ -50,6 +50,12 @@ sealed interface io.github.smallmiro.teslable/SessionStatus { // io.github.small
     }
 }
 
+final class io.github.smallmiro.teslable/DebugLogger : io.github.smallmiro.teslable.port/TeslaLogger { // io.github.smallmiro.teslable/DebugLogger|null[0]
+    constructor <init>() // io.github.smallmiro.teslable/DebugLogger.<init>|<init>(){}[0]
+
+    final fun log(io.github.smallmiro.teslable.port/LogLevel, kotlin/String, kotlin/Function0<kotlin/String>) // io.github.smallmiro.teslable/DebugLogger.log|log(io.github.smallmiro.teslable.port.LogLevel;kotlin.String;kotlin.Function0<kotlin.String>){}[0]
+}
+
 final class io.github.smallmiro.teslable/PlatformContext { // io.github.smallmiro.teslable/PlatformContext|null[0]
     constructor <init>() // io.github.smallmiro.teslable/PlatformContext.<init>|<init>(){}[0]
 }
@@ -93,13 +99,10 @@ final class io.github.smallmiro.teslable/TeslaBleConfig { // io.github.smallmiro
     final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable/TeslaBleConfig.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable/TeslaBleConfig.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // io.github.smallmiro.teslable/TeslaBleConfig.toString|toString(){}[0]
-}
 
-final object io.github.smallmiro.teslable/TeslableDemo { // io.github.smallmiro.teslable/TeslableDemo|null[0]
-    final const val VERSION // io.github.smallmiro.teslable/TeslableDemo.VERSION|{}VERSION[0]
-        final fun <get-VERSION>(): kotlin/String // io.github.smallmiro.teslable/TeslableDemo.VERSION.<get-VERSION>|<get-VERSION>(){}[0]
-
-    final fun localNameFor(kotlin/String): kotlin/String // io.github.smallmiro.teslable/TeslableDemo.localNameFor|localNameFor(kotlin.String){}[0]
+    final object Companion { // io.github.smallmiro.teslable/TeslaBleConfig.Companion|null[0]
+        final fun default(io.github.smallmiro.teslable.port/TeslaLogger = ...): io.github.smallmiro.teslable/TeslaBleConfig // io.github.smallmiro.teslable/TeslaBleConfig.Companion.default|default(io.github.smallmiro.teslable.port.TeslaLogger){}[0]
+    }
 }
 
 final object io.github.smallmiro.teslable/TeslableDiagnostics { // io.github.smallmiro.teslable/TeslableDiagnostics|null[0]
