@@ -9,12 +9,18 @@ import io.github.smallmiro.teslable.port.VehicleKey
 import io.github.smallmiro.teslable.port.VehicleKeyStore
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.IO
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import kotlinx.coroutines.withContext
 import platform.Security.errSecItemNotFound
 import platform.Security.errSecSuccess
 
-/** iOS 키스토어(SDD §8.2): Secure Enclave -> Keychain 소프트웨어 키. 시뮬레이터에는 Secure Enclave가 없어 소프트웨어 키가 쓰인다. */
+/**
+ * iOS 키스토어(SDD §8.2): Secure Enclave -> Keychain 소프트웨어 키. 시뮬레이터에는 Secure Enclave가 없어 소프트웨어 키가 쓰인다.
+ * Security.framework 작업은 `Dispatchers.IO`에서 해 호출 스레드(메인)를 막지 않는다.
+ */
 @OptIn(ExperimentalForeignApi::class)
 public fun appleVehicleKeyStore(logger: TeslaLogger = TeslaLogger.NoOp): VehicleKeyStore =
     AppleVehicleKeyStore(AppleKeychainItems(KEY_SERVICE), AppleSecureEnclaveKeys(), logger)
@@ -145,14 +151,17 @@ internal class AppleVehicleKeyStore(
         }
     }
 
+    // Security.framework 호출(Secure Enclave 생성 ~100 ms, Keychain I/O)은 호출자(Swift에서는 흔히 메인) 스레드를 막지 않게 IO에서 한다.
     private suspend fun <T> guarded(block: suspend () -> VehicleResult<T>): VehicleResult<T> =
         mutex.withLock {
-            try {
-                block()
-            } catch (e: CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                VehicleResult.Failure(VehicleError.KeyStoreError.PlatformFailure(e::class.simpleName ?: "keystore error"))
+            withContext(Dispatchers.IO) {
+                try {
+                    block()
+                } catch (e: CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    VehicleResult.Failure(VehicleError.KeyStoreError.PlatformFailure(e::class.simpleName ?: "keystore error"))
+                }
             }
         }
 

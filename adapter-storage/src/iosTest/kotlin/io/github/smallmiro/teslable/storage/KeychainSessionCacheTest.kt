@@ -7,8 +7,10 @@ import io.github.smallmiro.teslable.model.Vin
 import io.github.smallmiro.teslable.testing.RecordingLogger
 import io.github.smallmiro.teslable.testing.TestCrypto
 import kotlinx.coroutines.test.runTest
+import platform.Foundation.NSThread
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.seconds
 
@@ -17,17 +19,25 @@ class KeychainSessionCacheTest {
         val items = HashMap<String, ByteArray>()
         var writeStatus = 0
 
-        override fun read(account: String): KeychainRead = items[account]?.let { KeychainRead.Found(it.copyOf()) } ?: KeychainRead.Missing
+        /** Keychain 호출이 실행된 스레드(최종 리뷰 M7). */
+        val threads = mutableListOf<NSThread>()
+
+        override fun read(account: String): KeychainRead {
+            threads += NSThread.currentThread
+            return items[account]?.let { KeychainRead.Found(it.copyOf()) } ?: KeychainRead.Missing
+        }
 
         override fun write(
             account: String,
             data: ByteArray,
         ): Int {
+            threads += NSThread.currentThread
             if (writeStatus == 0) items[account] = data.copyOf()
             return writeStatus
         }
 
         override fun delete(account: String): Int {
+            threads += NSThread.currentThread
             items.remove(account)
             return 0
         }
@@ -65,5 +75,19 @@ class KeychainSessionCacheTest {
             val keychain = FakeKeychain().apply { writeStatus = -25308 }
             KeychainSessionCache(keychain, TestCrypto.primitives, logger) { now }.store(vin, keyId, emptyList())
             assertTrue(logger.contains("Failed to store session cache: keychain status -25308"))
+        }
+
+    @Test
+    fun keychainWorkRunsOffTheCallersThread() =
+        // 최종 리뷰 M7: Swift 메인 스레드에서 불려도 Keychain I/O가 그 스레드를 막지 않는다
+        runTest {
+            val keychain = FakeKeychain()
+            val caller = NSThread.currentThread
+            val cache = KeychainSessionCache(keychain, TestCrypto.primitives, RecordingLogger()) { now }
+            cache.store(vin, keyId, listOf(SessionSnapshot(Domain.DOMAIN_INFOTAINMENT, byteArrayOf(8, 2))))
+            cache.load(vin, keyId)
+            cache.clear(vin)
+            assertEquals(3, keychain.threads.size)
+            assertFalse(keychain.threads.any { it == caller })
         }
 }
