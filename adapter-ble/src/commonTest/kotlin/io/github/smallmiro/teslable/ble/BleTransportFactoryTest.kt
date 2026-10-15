@@ -9,6 +9,7 @@ import io.github.smallmiro.teslable.port.VehicleAdvertisement
 import io.github.smallmiro.teslable.testing.RecordingLogger
 import io.github.smallmiro.teslable.testing.TestCrypto
 import io.github.smallmiro.teslable.transport.LocalName
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.take
@@ -190,5 +191,46 @@ class BleTransportFactoryTest {
             pending.cancel()
             runCurrent()
             assertTrue(pending.isCancelled)
+        }
+
+    @Test
+    fun linkOpenedAfterTimeoutIsDisconnectedOnce() =
+        // 타임아웃이 먼저 터진 뒤 open이 Opened로 끝나도 슬롯이 새지 않는다
+        runTest {
+            val connector = FakeGattConnector(ad).apply { openGate = CompletableDeferred() }
+            val pending = async { factory(connector).connect(vin, null, ConnectOptions(timeout = 2.seconds)) }
+            advanceTimeBy(3.seconds)
+            assertEquals(VehicleResult.Failure(VehicleError.TransportError.ScanTimeout), pending.await())
+            connector.openGate?.complete(Unit)
+            runCurrent()
+            assertEquals(1, connector.links.size)
+            assertEquals(1, connector.links.single().disconnects)
+        }
+
+    @Test
+    fun linkOpenedAfterCallerCancellationIsDisconnectedOnce() =
+        runTest {
+            val connector = FakeGattConnector(ad).apply { openGate = CompletableDeferred() }
+            val pending = async { factory(connector).connect(vin, null, ConnectOptions(timeout = 60.seconds)) }
+            runCurrent()
+            pending.cancel()
+            runCurrent()
+            connector.openGate?.complete(Unit)
+            runCurrent()
+            assertTrue(pending.isCancelled)
+            assertEquals(1, connector.links.single().disconnects)
+        }
+
+    @Test
+    fun scanEndingWithoutAdvertisementIsRetriedAfterTheInterval() =
+        runTest {
+            val connector = FakeGattConnector(ad).apply { emptyScans = 1 }
+            val pending = async { factory(connector).connect(vin, null, ConnectOptions()) }
+            runCurrent()
+            assertEquals(0, connector.opens)
+            advanceTimeBy(1.seconds)
+            runCurrent()
+            assertIs<VehicleResult.Success<*>>(pending.await())
+            assertEquals(2, connector.scans)
         }
 }

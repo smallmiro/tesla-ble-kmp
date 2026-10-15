@@ -36,7 +36,8 @@ internal sealed interface OpenResult {
     ) : OpenResult
 }
 
-/** 플랫폼 BLE 스택(Kable)에 대한 내부 포트. 실패한 열기 시도에서 연 연결은 구현이 닫는다(설계 구체화 3). */
+/** 플랫폼 BLE 스택(Kable)에 대한 내부 포트. 실패한 열기 시도에서 연 연결은 구현이 닫는다(설계 구체화 3).
+ * 호출자(타임아웃·취소)가 사라진 뒤 `Opened`로 끝난 링크는 [BleTransportFactory]가 끊는다. */
 internal interface GattConnector {
     /** [localName]과 정확히 같은 광고를 흘려보낸다. 수집을 멈추면 스캔이 멈춘다. */
     fun scan(localName: LocalName): Flow<ConnectorScan>
