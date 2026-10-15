@@ -518,7 +518,7 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 
 ### 7.2 키 메타데이터
 
-`VehicleKeyStore`는 별칭(`alias`, 기본 `"teslable-default"`)으로 키를 찾는다. 키마다 `KeyProtection`(SECURE_ENCLAVE / STRONGBOX / TEE / SOFTWARE), 생성 시각, 공개키 65바이트를 노출한다. 소프트웨어 대체 키의 개인키 직렬화는 플랫폼 공통으로 `04‖X‖Y‖d`(97바이트)다(설계 구체화 10). Android는 `filesDir/teslable/keys/<alias>.enc` = `"TBK1" ‖ wrap(04‖X‖Y‖d)`(Keystore AES-GCM 키 `teslable.wrap:<alias>`로 감쌈, 임시 파일 + rename으로 원자적 쓰기)에 둔다. iOS는 Keychain generic password(`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`)에 둔다. **손상된 저장 키(매직·길이·태그 불일치, 복호화 실패)는 자동으로 교체하지 않고** `KeyStoreError.PlatformFailure("stored key is corrupted")`로 돌려준다 — 앱이 `delete` 후 재생성하고 차량에 다시 등록한다. Android 자동 백업이 `.enc` 파일만 복원하면 이 상태가 되므로 앱은 `files/teslable/keys/`를 백업에서 제외한다(`{{LIB_DOCS_DIR}}platform-notes.md`).
+`VehicleKeyStore`는 별칭(`alias`, 기본 `"teslable-default"`)으로 키를 찾는다. 키마다 `KeyProtection`(SECURE_ENCLAVE / STRONGBOX / TEE / SOFTWARE)과 공개키 65바이트를 노출한다(생성 시각은 노출하지 않는다 — `VehicleKey`에 없다). 소프트웨어 대체 키의 개인키 직렬화는 플랫폼 공통으로 `04‖X‖Y‖d`(97바이트)다(설계 구체화 10). Android는 `filesDir/teslable/keys/<alias>.enc` = `"TBK1" ‖ wrap(04‖X‖Y‖d)`(Keystore AES-GCM 키 `teslable.wrap:<alias>`로 감쌈, 임시 파일 + rename으로 원자적 쓰기)에 둔다. iOS는 Keychain generic password(`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`)에 둔다. **손상된 저장 키(매직·길이·태그 불일치, 복호화 실패)는 자동으로 교체하지 않고** `KeyStoreError.PlatformFailure("stored key is corrupted")`로 돌려준다 — 앱이 `delete` 후 재생성하고 차량에 다시 등록한다. Android 자동 백업이 `.enc` 파일만 복원하면 이 상태가 되므로 앱은 `files/teslable/keys/`를 백업에서 제외한다(`{{LIB_DOCS_DIR}}platform-notes.md`).
 
 ### 7.3 공개 값 객체 ↔ protobuf
 
