@@ -6016,6 +6016,10 @@ final class io.github.smallmiro.teslable.model/Vin { // io.github.smallmiro.tesl
     final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.model/Vin.hashCode|hashCode(){}[0]
     final fun toByteArray(): kotlin/ByteArray // io.github.smallmiro.teslable.model/Vin.toByteArray|toByteArray(){}[0]
     final fun toString(): kotlin/String // io.github.smallmiro.teslable.model/Vin.toString|toString(){}[0]
+
+    final object Companion { // io.github.smallmiro.teslable.model/Vin.Companion|null[0]
+        final fun parseOrNull(kotlin/String): io.github.smallmiro.teslable.model/Vin? // io.github.smallmiro.teslable.model/Vin.Companion.parseOrNull|parseOrNull(kotlin.String){}[0]
+    }
 }
 
 final class io.github.smallmiro.teslable.model/WhitelistEntry { // io.github.smallmiro.teslable.model/WhitelistEntry|null[0]
