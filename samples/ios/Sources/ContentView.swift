@@ -14,6 +14,7 @@ struct ContentView: View {
                     Button("키 만들기/불러오기") { Task { await model.createKey() } }
                     Text(model.keyInfo).font(.footnote.monospaced())
                 }
+                .disabled(model.busy)
                 Section("BLE") {
                     Button("스캔") { Task { await model.scan() } }
                     ForEach(model.advertisements, id: \.self) { Text($0).font(.footnote) }
@@ -22,6 +23,7 @@ struct ContentView: View {
                     Button("키 목록") { Task { await model.listKeys() } }
                     Button("연결 끊기", role: .destructive) { Task { await model.disconnect() } }
                 }
+                .disabled(model.busy)
                 Section("결과") {
                     ForEach(Array(model.output.enumerated()), id: \.offset) { Text($0.element).font(.footnote.monospaced()) }
                 }

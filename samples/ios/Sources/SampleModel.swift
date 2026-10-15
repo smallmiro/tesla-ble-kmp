@@ -1,16 +1,18 @@
 import Foundation
 import Teslable
 
-/// 라이브러리 호출만 담당한다. Kotlin 객체는 Swift 6 `Sendable`이 아니므로 어떤 액터에도 묶지 않고
-/// (비격리 async 안에서만 다루고) 화면에는 `String`만 돌려준다. 호출은 화면에서 한 번에 하나씩만 일어난다.
+/// 라이브러리 호출만 담당한다. Kotlin 객체는 이 액터 안에만 두고 화면에는 `String`만 돌려준다.
+/// 액터는 suspend 중 재진입할 수 있으므로 화면(`SampleModel.busy`)이 동작을 한 번에 하나만 허용한다.
 /// SKIE: suspend → async, Flow → AsyncSequence, sealed → onEnum.
-final class BleClient: @unchecked Sendable {
-    private let ble = TeslaBle.companion.create(
+actor BleClient {
+    // Kotlin 객체는 Sendable이 아니라 SKIE async 호출로 보낼 수 없다. 액터가 접근을 직렬화하고 화면이 겹침을 막으므로
+    // `nonisolated(unsafe)`로 표시한다(문자열만 액터 밖으로 나간다).
+    nonisolated(unsafe) private let ble = TeslaBle.companion.create(
         platform: PlatformContext(),
         config: TeslaBleConfig.companion.default(logger: DebugLogger())
     )
-    private var key: VehicleKey?
-    private var vehicle: Vehicle?
+    nonisolated(unsafe) private var key: VehicleKey?
+    nonisolated(unsafe) private var vehicle: Vehicle?
 
     func createKey() async -> String {
         do {
@@ -28,6 +30,17 @@ final class BleClient: @unchecked Sendable {
 
     func scan(vinText: String) async -> String {
         guard let vin = Vin.companion.parseOrNull(value: vinText) else { return "VIN 형식 오류" }
+        let scanning = Task { await self.firstAdvertisement(vin) }
+        let timer = Task {
+            try? await Task.sleep(for: .seconds(30))
+            scanning.cancel()
+        }
+        let line = await scanning.value
+        timer.cancel()
+        return line
+    }
+
+    private func firstAdvertisement(_ vin: Vin) async -> String {
         for await event in ble.scan(vin: vin) {
             switch onEnum(of: event) {
             case .found(let f):
@@ -38,11 +51,12 @@ final class BleClient: @unchecked Sendable {
                 return "스캔 실패: \(e.error.message)"
             }
         }
-        return "스캔 종료(광고 없음)"
+        return Task.isCancelled ? "스캔 시간 초과 (30초)" : "스캔 종료(광고 없음)"
     }
 
     func connect(vinText: String) async -> String {
         guard let vin = Vin.companion.parseOrNull(value: vinText) else { return "VIN 형식 오류" }
+        await disconnect() // 이미 연결돼 있으면 먼저 끊는다
         do {
             let result = try await ble.connect(vin: vin, key: key, target: nil, options: ConnectOptions(timeout: nil))
             switch onEnum(of: result) {
@@ -86,25 +100,58 @@ final class SampleModel: ObservableObject {
     @Published var connection = "연결 안 됨"
     @Published var output: [String] = []
 
+    /// 라이브러리 호출이 진행 중이면 true — 모든 버튼을 막아 호출이 겹치지 않게 한다.
+    @Published var busy = false
+
     private let client = BleClient()
 
-    func createKey() async { keyInfo = await client.createKey() }
+    private func exclusive(_ body: @MainActor () async -> ()) async {
+        guard !busy else { return }
+        busy = true
+        await body()
+        busy = false
+    }
+
+    func createKey() async {
+        await exclusive { [self] in
+            let info = await client.createKey()
+            keyInfo = info
+        }
+    }
 
     func scan() async {
-        advertisements = []
-        advertisements.append(await client.scan(vinText: vinText))
+        await exclusive { [self] in
+            let line = await client.scan(vinText: vinText)
+            advertisements = [line]
+        }
     }
 
     func connect() async {
-        connection = "연결 중…"
-        connection = await client.connect(vinText: vinText)
+        await exclusive { [self] in
+            connection = "연결 중…"
+            let result = await client.connect(vinText: vinText)
+            connection = result
+        }
     }
 
-    func vehicleStatus() async { output.append(await client.vehicleStatus()) }
-    func listKeys() async { output.append(await client.listKeys()) }
+    func vehicleStatus() async {
+        await exclusive { [self] in
+            let line = await client.vehicleStatus()
+            output.append(line)
+        }
+    }
+
+    func listKeys() async {
+        await exclusive { [self] in
+            let line = await client.listKeys()
+            output.append(line)
+        }
+    }
 
     func disconnect() async {
-        await client.disconnect()
-        connection = "연결 안 됨"
+        await exclusive { [self] in
+            await client.disconnect()
+            connection = "연결 안 됨"
+        }
     }
 }
