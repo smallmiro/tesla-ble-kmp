@@ -12,6 +12,7 @@ import io.github.smallmiro.teslable.model.VehicleResult
 import io.github.smallmiro.teslable.model.VehicleStatus
 import io.github.smallmiro.teslable.model.WhitelistEntry
 import io.github.smallmiro.teslable.model.WhitelistSummary
+import io.github.smallmiro.teslable.model.toResult
 import io.github.smallmiro.teslable.port.AuthMethod
 import kotlin.time.Duration
 import kotlin.time.TimeSource
@@ -41,10 +42,18 @@ public class VehicleInfoQueries internal constructor(
     public suspend fun keyInfoBySlot(
         slot: Int,
         timeout: Duration = timeouts.commandTimeout,
-    ): VehicleResult<WhitelistEntry> =
-        query(InformationRequestType.INFORMATION_REQUEST_TYPE_GET_WHITELIST_ENTRY_INFO, slot, timeout, "whitelistEntryInfo") { message ->
-            message.whitelistEntryInfo?.let(VcsecInfoMapping::entry)
+    ): VehicleResult<WhitelistEntry> {
+        require(slot >= 0) { "slot must be non-negative" } // 음수는 큰 uint32로 인코딩된다(0xFFFFFFFF는 Go의 "슬롯 없음" 표식)
+        // 응답의 slot 필드가 아니라 요청한 슬롯을 쓴다(Go list-keys는 자체 슬롯 카운터를 쓴다, commands.go:497-512).
+        return query(
+            InformationRequestType.INFORMATION_REQUEST_TYPE_GET_WHITELIST_ENTRY_INFO,
+            slot,
+            timeout,
+            "whitelistEntryInfo",
+        ) { message ->
+            message.whitelistEntryInfo?.let { VcsecInfoMapping.entry(it).copy(slot = slot) }
         }
+    }
 
     /** Go `list-keys`: [keySummary] 후 사용 중인 슬롯마다 [keyInfoBySlot]. 첫 실패를 돌려준다(설계 구체화 12). [timeout]은 전체 예산. */
     public suspend fun listKeys(timeout: Duration = timeouts.commandTimeout): VehicleResult<List<WhitelistEntry>> {
@@ -60,7 +69,7 @@ public class VehicleInfoQueries internal constructor(
         val entries = ArrayList<WhitelistEntry>(summary.occupiedSlots.size)
         for (slot in summary.occupiedSlots) {
             val left = remaining()
-            if (left <= Duration.ZERO) return VehicleResult.Failure(VehicleError.Timeout(afterSend = false))
+            if (left <= Duration.ZERO) return VehicleError.Timeout(afterSend = false).toResult()
             when (val result = keyInfoBySlot(slot, left)) {
                 is VehicleResult.Success -> entries += result.value
                 is VehicleResult.Failure -> return result

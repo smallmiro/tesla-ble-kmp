@@ -38,6 +38,7 @@ import kotlinx.coroutines.test.testTimeSource
 import okio.ByteString.Companion.toByteString
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
@@ -218,12 +219,13 @@ class VehicleInfoQueriesTest {
     @Test
     fun listKeysSharesOneTimeoutAcrossAllRequests() =
         // Go list-keys: ctx 하나가 KeySummary + 모든 KeyInfoBySlot을 덮는다.
-        // dropNextReplies는 대본 응답(요약)까지 버리고, sleep은 요약 응답 전에 걸 수 없다. 그래서 요약만 응답하고
-        // 이후 슬롯 요청은 "응답 없음"(빈 리스트) 대본으로 소비시킨다(재전송이 대본을 더 소비하므로 넉넉히).
+        // 요약이 t=0이 아니라 t=1s(Busy → retryInterval 1s 뒤 재전송)에 도착하게 해서, 예산을 나누지 않고 호출마다 전체
+        // timeout을 주면 4s에 끝나도록(= 이 테스트가 실패하도록) 만든다. 이후 슬롯 요청은 "응답 없음" 대본으로 소비시킨다.
         runTest {
-            val h = dispatcherHarness(privateKey = null)
+            val h = dispatcherHarness(privateKey = null, retryInterval = 1.seconds)
             h.fake.script(
                 vcsec,
+                listOf(FakeVehicle.vcsecBusy()),
                 reply(FromVCSECMessage(whitelistInfo = WhitelistInfo(numberOfEntries = 3, slotMask = 0b111))),
                 *Array(100) { emptyList<FakeVehicle.ScriptedReply>() },
             )
@@ -231,6 +233,26 @@ class VehicleInfoQueriesTest {
             val result = VehicleSession(h.dispatcher).info.listKeys(timeout = 3.seconds)
             assertIs<VehicleError.Timeout>(assertIs<VehicleResult.Uncertain>(result).error)
             assertEquals(3.seconds, start.elapsedNow())
+        }
+
+    @Test
+    fun keyInfoBySlotReportsTheRequestedSlotNotTheReplyField() =
+        // Go list-keys는 응답의 slot을 읽지 않고 자체 카운터를 쓴다(commands.go:497-512)
+        runTest {
+            val h = dispatcherHarness(privateKey = null)
+            h.fake.script(vcsec, reply(FromVCSECMessage(whitelistEntryInfo = WhitelistEntryInfo(keyRole = Role.ROLE_DRIVER)))) // slot 생략
+            h.fake.script(vcsec, reply(FromVCSECMessage(whitelistEntryInfo = WhitelistEntryInfo(slot = 9, keyRole = Role.ROLE_DRIVER))))
+            val info = VehicleSession(h.dispatcher).info
+            assertEquals(3, assertIs<VehicleResult.Success<WhitelistEntry>>(info.keyInfoBySlot(3)).value.slot)
+            assertEquals(4, assertIs<VehicleResult.Success<WhitelistEntry>>(info.keyInfoBySlot(4)).value.slot)
+        }
+
+    @Test
+    fun keyInfoBySlotRejectsNegativeSlot() =
+        runTest {
+            val h = dispatcherHarness(privateKey = null)
+            val info = VehicleSession(h.dispatcher).info
+            assertFailsWith<IllegalArgumentException> { info.keyInfoBySlot(-1) }
         }
 
     @Test
