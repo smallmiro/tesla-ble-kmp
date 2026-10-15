@@ -146,6 +146,28 @@ class VehicleSessionTest {
         }
 
     @Test
+    fun startSessionFinishingAfterDisconnectDoesNotWipeTheCache() =
+        // 최종 리뷰 M5: disconnect()가 Dispatcher.close()까지 끝낸 뒤 startSession이 성공으로 끝나면(캐시로 이미 준비된 세션은
+        // 요청 없이 성공한다) 그 저장이 빈 exportSessions()로 disconnect 시점의 저장을 지워 버렸다
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val cache = RecordingSessionCache()
+            val keyId = KeyId.of(TestCrypto.clientPublicKey, TestCrypto.primitives)
+            val sync = SessionCacheSync(cache, fake.vin, keyId)
+            val first = VehicleSession(dispatcherHarness(fake = fake, start = false).dispatcher, cacheSync = sync)
+            first.connect()
+            assertIs<VehicleResult.Success<Unit>>(first.startSession())
+            first.disconnect()
+            val second = VehicleSession(dispatcherHarness(fake = fake, start = false).dispatcher, cacheSync = sync)
+            assertEquals(setOf(vcsec, infotainment), second.connect())
+            second.disconnect()
+            val storesAfterDisconnect = cache.stores.size
+            second.startSession() // 늦게 끝난 핸드셰이크
+            assertEquals(storesAfterDisconnect, cache.stores.size)
+            assertEquals(setOf(vcsec, infotainment), cache.load(fake.vin, keyId).map { it.domain }.toSet())
+        }
+
+    @Test
     fun disconnectClosesDispatcherEvenWhenCacheStoreIsCancelled() =
         // I1: cacheSync?.store()가 suspend 중일 때(느린 캐시 I/O) 호출자가 취소되면 예전에는 그
         // CancellationException이 dispatcher.close() 호출까지 건너뛰게 만들어 세션 키가 메모리에 남고 전송이 열린

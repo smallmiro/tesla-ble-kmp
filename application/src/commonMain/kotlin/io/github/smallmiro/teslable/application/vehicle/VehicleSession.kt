@@ -41,6 +41,7 @@ public class VehicleSession(
     private var eventJob: Job? = null // connectMutex 안에서만 읽고 쓴다
     private val disconnectMutex = Mutex()
     private var storedOnDisconnect = false
+    private var closing = false // disconnectMutex 안에서만 읽고 쓴다 — true면 Dispatcher.close()가 시작됐다
     private val connectMutex = Mutex()
     private var hasLoadedCache = false
     private var disconnected = false
@@ -81,6 +82,7 @@ public class VehicleSession(
      * Go `Vehicle.StartSession`: `shouldRetry()` 오류면 [retryInterval] 뒤 다시 핸드셰이크(`retryWhileRetriable`).
      * [handshake]는 절대 `setAwaiting`을 부르지 않으므로 시간 초과는 항상 `Failure(Timeout(afterSend = false))`다
      * (`withAttemptTimeout` — 세션이 만들어지지 않았고 부작용이 없다; 사용자 승인 답 b — 전용 타입 없음). 성공하면 세션 캐시에 저장한다(SDD §7.1).
+     * 단 [disconnect]가 이미 닫기에 들어갔으면 저장하지 않는다.
      */
     public suspend fun startSession(
         domains: Set<Domain> = Dispatcher.ALL_DOMAINS,
@@ -90,8 +92,21 @@ public class VehicleSession(
             withAttemptTimeout(timeout) {
                 retryWhileRetriable(dispatcher.retryInterval) { handshake.startSessions(domains) }
             }
-        if (result is VehicleResult.Success) cacheSync?.store(dispatcher)
+        if (result is VehicleResult.Success) storeAfterHandshake()
         return result
+    }
+
+    /**
+     * 핸드셰이크 성공 저장. [disconnect]가 [Dispatcher.close]에 들어갔으면 건너뛴다(최종 리뷰 M5) — 닫힌 뒤의
+     * `exportSessions()`는 비어 있어 disconnect 시점의 저장을 지워 버린다. [disconnectMutex] 안에서 확인·저장하므로
+     * [disconnect]의 `closing` 표시와 겹치지 않는다(저장이 먼저 끝나거나, 표시를 보고 건너뛴다).
+     */
+    private suspend fun storeAfterHandshake() {
+        val sync = cacheSync ?: return
+        disconnectMutex.withLock {
+            if (closing) return@withLock
+            sync.store(dispatcher)
+        }
     }
 
     /**
@@ -127,6 +142,7 @@ public class VehicleSession(
             storeOnceForDisconnect()
         } finally {
             withContext(NonCancellable) {
+                disconnectMutex.withLock { closing = true } // 이후 startSession의 저장은 건너뛴다(빈 목록으로 캐시를 지우지 않게)
                 // 진행 중인 connect()가 있으면 그 락을 기다린 뒤 수집기를 잡는다 — 닫힌 뒤에 저장하는 수집기가 남지 않는다.
                 val job =
                     connectMutex.withLock {
