@@ -657,6 +657,7 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 
 - Android instrumented: Keystore 키와 소프트웨어 키가 같은 상대 공개키에 대해 같은 K를 만드는지(Keystore ECDH 정합성), StrongBox/TEE/소프트웨어 대체 경로.
 - iOS XCTest(샘플 앱 타깃): Secure Enclave 키 ECDH vs 소프트웨어 키 ECDH 정합성, cryptokit GCM 벡터.
+- iOS Keychain: 시뮬레이터 테스트 실행 파일에서는 Keychain을 쓸 수 없다(`SecItemAdd`가 -25291 errSecNotAvailable로 실패). `AppleKeychainItems` 왕복은 단위 테스트 대신 Task 14 iPhone 샘플로 확인하고, 키스토어 로직은 가짜 Keychain·Secure Enclave로 검증한다.
 - Kable 스파이크(M3 첫 작업): 실차에서 0213 구독 방식(notify/indicate)과 MTU 협상 결과를 로그로 확인. 실패 시 ADR-0003 대체 경로.
 
 ### 9.6 실차 체크리스트
