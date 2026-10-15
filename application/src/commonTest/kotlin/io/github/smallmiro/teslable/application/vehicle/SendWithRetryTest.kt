@@ -30,7 +30,7 @@ import kotlin.time.Duration.Companion.seconds
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class SendWithRetryTest {
-    private val vcsec = Domain.DOMAIN_VEHICLE_SECURITY
+    private val infotainment = Domain.DOMAIN_INFOTAINMENT
     private val payload = "payload".encodeToByteArray()
 
     private val retriableFaults =
@@ -53,7 +53,7 @@ class SendWithRetryTest {
             val send = SendWithRetry(h.dispatcher)
             h.transport.enqueueSendError(VehicleError.TransportError.WriteFailed("synergize"))
             h.transport.enqueueSendError(VehicleError.TransportError.Disconnected)
-            val result = assertIs<VehicleResult.Failure>(send.send(vcsec, payload, AuthMethod.NONE))
+            val result = assertIs<VehicleResult.Failure>(send.send(infotainment, payload, AuthMethod.NONE))
             assertEquals(VehicleError.TransportError.Disconnected, result.error)
             assertEquals(2, h.transport.sent.size)
         }
@@ -66,7 +66,7 @@ class SendWithRetryTest {
             repeat(100) { h.transport.enqueueSendError(VehicleError.TransportError.WriteFailed("libations")) }
             val result =
                 assertIs<VehicleResult.Failure>(
-                    SendWithRetry(h.dispatcher).send(vcsec, payload, AuthMethod.NONE, timeout = 1.milliseconds),
+                    SendWithRetry(h.dispatcher).send(infotainment, payload, AuthMethod.NONE, timeout = 1.milliseconds),
                 )
             assertEquals(VehicleError.Timeout(afterSend = false), result.error)
             assertTrue(result.error.temporary)
@@ -85,10 +85,10 @@ class SendWithRetryTest {
                     fault = MessageFault_E.MESSAGEFAULT_ERROR_BUSY,
                     operationStatus = OperationStatus_E.OPERATIONSTATUS_WAIT,
                 )
-            h.fake.script(vcsec, *Array(100) { listOf(busy) })
+            h.fake.script(infotainment, *Array(100) { listOf(busy) })
             val result =
                 assertIs<VehicleResult.Failure>(
-                    SendWithRetry(h.dispatcher).send(vcsec, payload, AuthMethod.NONE, timeout = 10.milliseconds),
+                    SendWithRetry(h.dispatcher).send(infotainment, payload, AuthMethod.NONE, timeout = 10.milliseconds),
                 )
             assertEquals(VehicleError.Timeout(afterSend = false), result.error)
             assertEquals(4, h.transport.sent.size)
@@ -100,10 +100,10 @@ class SendWithRetryTest {
         // vehicle_test.go TestVehicleNoResponseTimeout + NFR-007: 응답 없음 → Uncertain(Timeout(afterSend = true)), 자동 재전송 금지
         runTest {
             val h = dispatcherHarness()
-            h.fake.script(vcsec, emptyList())
+            h.fake.script(infotainment, emptyList())
             val result =
                 assertIs<VehicleResult.Uncertain>(
-                    SendWithRetry(h.dispatcher).send(vcsec, payload, AuthMethod.NONE, timeout = 1.milliseconds),
+                    SendWithRetry(h.dispatcher).send(infotainment, payload, AuthMethod.NONE, timeout = 1.milliseconds),
                 )
             assertEquals(VehicleError.Timeout(afterSend = true), result.error)
             assertTrue(result.error.mayHaveSucceeded)
@@ -119,10 +119,12 @@ class SendWithRetryTest {
             val scripts =
                 retriableFaults.map { listOf(FakeVehicle.ScriptedReply(fault = it)) } +
                     listOf(listOf(FakeVehicle.ScriptedReply(fault = MessageFault_E.MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES)))
-            h.fake.script(vcsec, *scripts.toTypedArray())
+            h.fake.script(infotainment, *scripts.toTypedArray())
             val start = testTimeSource.markNow()
             val result =
-                assertIs<VehicleResult.Failure>(SendWithRetry(h.dispatcher).send(vcsec, payload, AuthMethod.NONE, timeout = 5.seconds))
+                assertIs<VehicleResult.Failure>(
+                    SendWithRetry(h.dispatcher).send(infotainment, payload, AuthMethod.NONE, timeout = 5.seconds),
+                )
             assertEquals(VehicleError.ProtocolFault(MessageFault_E.MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES), result.error)
             assertEquals(9, h.transport.sent.size)
             assertEquals(h.dispatcher.retryInterval * 8, start.elapsedNow())
@@ -133,13 +135,13 @@ class SendWithRetryTest {
         // FR-101: 재시도는 새 counter·nonce·expires_at으로 재인가한다(Go Vehicle.Send는 trySend마다 getReceiver → Dispatcher.Send → Encrypt)
         runTest {
             val h = dispatcherHarness()
-            assertIs<VehicleResult.Success<Unit>>(HandshakeFlow(h.dispatcher).startSession(vcsec))
+            assertIs<VehicleResult.Success<Unit>>(HandshakeFlow(h.dispatcher).startSession(infotainment))
             h.fake.script(
-                vcsec,
+                infotainment,
                 listOf(FakeVehicle.ScriptedReply(fault = MessageFault_E.MESSAGEFAULT_ERROR_INTERNAL)),
                 listOf(FakeVehicle.vcsecEmpty()),
             )
-            val result = SendWithRetry(h.dispatcher).send(vcsec, payload, AuthMethod.GCM)
+            val result = SendWithRetry(h.dispatcher).send(infotainment, payload, AuthMethod.GCM)
             assertIs<VehicleResult.Success<*>>(result)
             val authenticated = h.fake.received.filter { it.signature_data?.AES_GCM_Personalized_data != null }
             assertEquals(2, authenticated.size)
@@ -160,12 +162,12 @@ class SendWithRetryTest {
         runTest {
             val h = dispatcherHarness(retryInterval = 1.milliseconds)
             h.fake.script(
-                vcsec,
+                infotainment,
                 listOf(FakeVehicle.ScriptedReply(fault = MessageFault_E.MESSAGEFAULT_ERROR_BUSY)),
                 listOf(FakeVehicle.vcsecEmpty()),
             )
             val mutablePayload = "AAAA".encodeToByteArray()
-            val job = launch { SendWithRetry(h.dispatcher).send(vcsec, mutablePayload, AuthMethod.NONE) }
+            val job = launch { SendWithRetry(h.dispatcher).send(infotainment, mutablePayload, AuthMethod.NONE) }
             runCurrent() // first attempt sent + BUSY reply processed; job is now suspended in delay(retryInterval)
             mutablePayload[0] = 'Z'.code.toByte()
             advanceUntilIdle() // let the retry fire and the job finish
@@ -187,9 +189,9 @@ class SendWithRetryTest {
         // 제대로 전파되면 대입 줄에 도달하지 못해 result는 계속 null이다.
         runTest {
             val h = dispatcherHarness()
-            h.fake.script(vcsec, emptyList())
+            h.fake.script(infotainment, emptyList())
             var result: VehicleResult<*>? = null
-            val job = launch { result = SendWithRetry(h.dispatcher).send(vcsec, payload, AuthMethod.NONE, timeout = 10.seconds) }
+            val job = launch { result = SendWithRetry(h.dispatcher).send(infotainment, payload, AuthMethod.NONE, timeout = 10.seconds) }
             runCurrent()
             assertEquals(1, h.dispatcher.pendingCount())
             job.cancel()
@@ -201,5 +203,15 @@ class SendWithRetryTest {
             h.transport.deliver(encode(late))
             runCurrent()
             assertTrue(h.logger.contains("Dropping message without registered handler"))
+        }
+
+    @Test
+    fun rejectsVcsecSoSerializationCannotBeBypassed() =
+        // M2 최종 리뷰 Minor 9: VCSEC 직렬화(FR-049)는 VcsecCommands로만 보장된다
+        runTest {
+            val h = dispatcherHarness()
+            val result = SendWithRetry(h.dispatcher).send(Domain.DOMAIN_VEHICLE_SECURITY, byteArrayOf(1), AuthMethod.NONE)
+            assertIs<VehicleError.InvalidArgument>(assertIs<VehicleResult.Failure>(result).error)
+            assertTrue(h.transport.sent.isEmpty())
         }
 }

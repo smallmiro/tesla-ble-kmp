@@ -26,6 +26,7 @@ import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
+import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
 @OptIn(InternalTeslableApi::class, ExperimentalCoroutinesApi::class)
@@ -170,5 +171,20 @@ class SessionStateTest {
             assertNull(state.decrypt(RoutableMessage(), ByteArray(0)))
             val result = assertIs<SignerResult.Fault>(state.authorize(command(), 5.seconds))
             assertEquals(MessageFault_E.MESSAGEFAULT_ERROR_INTERNAL, result.fault)
+        }
+
+    @Test
+    fun closeIsFinalAndRejectsLaterHelloAndCacheLoad() =
+        // M2 인계: close() 뒤 수신 코루틴이 좁은 창에서 키를 다시 만들지 않는다(설계 구체화 13)
+        runTest {
+            val state = state()
+            val signed = verifier().signedSessionInfo(challenge)
+            state.close()
+            assertTrue(state.isClosed)
+            val fault = assertIs<SignerResult.Fault>(state.processHello(challenge, signed.encoded, signed.tag))
+            assertEquals(MessageFault_E.MESSAGEFAULT_ERROR_INTERNAL, fault.fault)
+            assertIs<SignerResult.Fault>(state.loadFromCache(signed.encoded, Duration.ZERO))
+            assertFalse(state.isReady)
+            assertNull(state.export())
         }
 }

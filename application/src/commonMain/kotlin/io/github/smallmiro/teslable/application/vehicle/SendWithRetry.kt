@@ -8,6 +8,7 @@ import io.github.smallmiro.teslable.application.dispatcher.Dispatcher
 import io.github.smallmiro.teslable.application.dispatcher.retryWhileRetriable
 import io.github.smallmiro.teslable.application.dispatcher.valueOr
 import io.github.smallmiro.teslable.application.dispatcher.withAttemptTimeout
+import io.github.smallmiro.teslable.model.VehicleError
 import io.github.smallmiro.teslable.model.VehicleResult
 import io.github.smallmiro.teslable.model.toResult
 import io.github.smallmiro.teslable.port.AuthMethod
@@ -24,6 +25,8 @@ import kotlin.time.Duration
  * 시간 초과(D29, `withAttemptTimeout`): 전송 전·재시도 대기 중이면
  * `Failure(Timeout(afterSend = false))`(Go `Dispatcher.Send`·`Vehicle.Send`의 ctx 분기), 응답 대기 중이면
  * `Uncertain(Timeout(afterSend = true))`(Go `trySend`의 `PossibleSuccess: true`).
+ *
+ * VCSEC는 거부한다(FR-049 직렬화 우회 차단, 설계 구체화 13): VCSEC 명령은 `VcsecCommands`로만 보낸다.
  */
 public class SendWithRetry(
     private val dispatcher: Dispatcher,
@@ -46,6 +49,9 @@ public class SendWithRetry(
         flags: Int = DEFAULT_FLAGS,
         timeout: Duration = commandTimeout,
     ): VehicleResult<RoutableMessage> {
+        if (domain == Domain.DOMAIN_VEHICLE_SECURITY) {
+            return VehicleResult.Failure(VehicleError.InvalidArgument("VCSEC commands must go through VcsecCommands"))
+        }
         val payloadCopy = payload.toByteString()
         return withAttemptTimeout(timeout) { setAwaiting ->
             retryWhileRetriable(dispatcher.retryInterval) { trySend(domain, payloadCopy, auth, flags, setAwaiting) }
