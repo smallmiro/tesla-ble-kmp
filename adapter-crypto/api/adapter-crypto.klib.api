@@ -23,6 +23,7 @@ final class io.github.smallmiro.teslable.crypto/AppleRandomSource : io.github.sm
     final fun nextBytes(kotlin/Int): kotlin/ByteArray // io.github.smallmiro.teslable.crypto/AppleRandomSource.nextBytes|nextBytes(kotlin.Int){}[0]
 }
 
+final fun io.github.smallmiro.teslable.crypto/inMemoryVehicleKeyStore(): io.github.smallmiro.teslable.port/VehicleKeyStore // io.github.smallmiro.teslable.crypto/inMemoryVehicleKeyStore|inMemoryVehicleKeyStore(){}[0]
 final fun io.github.smallmiro.teslable.crypto/platformCryptoPrimitives(): io.github.smallmiro.teslable.port/CryptoPrimitives // io.github.smallmiro.teslable.crypto/platformCryptoPrimitives|platformCryptoPrimitives(){}[0]
 final fun io.github.smallmiro.teslable.crypto/platformRandomSource(): io.github.smallmiro.teslable.port/RandomSource // io.github.smallmiro.teslable.crypto/platformRandomSource|platformRandomSource(){}[0]
 final fun io.github.smallmiro.teslable.crypto/softwareEcdhKey(kotlin/ByteArray, io.github.smallmiro.teslable.model/PublicKeyBytes): io.github.smallmiro.teslable.port/EcdhPrivateKey // io.github.smallmiro.teslable.crypto/softwareEcdhKey|softwareEcdhKey(kotlin.ByteArray;io.github.smallmiro.teslable.model.PublicKeyBytes){}[0]

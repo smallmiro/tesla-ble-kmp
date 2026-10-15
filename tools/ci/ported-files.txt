@@ -46,3 +46,4 @@ adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/GattLink.kt
 adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BleTransport.kt
 adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/GattConnector.kt
 adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BleTransportFactory.kt
+adapter-crypto/src/commonMain/kotlin/io/github/smallmiro/teslable/crypto/SoftwareKeyGenerator.kt
