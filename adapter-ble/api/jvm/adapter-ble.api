@@ -1,3 +1,12 @@
+public abstract interface class io/github/smallmiro/teslable/ble/BleAvailability {
+	public static final field Companion Lio/github/smallmiro/teslable/ble/BleAvailability$Companion;
+	public abstract fun check ()Lio/github/smallmiro/teslable/model/VehicleError$TransportError;
+}
+
+public final class io/github/smallmiro/teslable/ble/BleAvailability$Companion {
+	public final fun getALWAYS ()Lio/github/smallmiro/teslable/ble/BleAvailability;
+}
+
 public final class io/github/smallmiro/teslable/ble/GattProbe {
 	public static final field INSTANCE Lio/github/smallmiro/teslable/ble/GattProbe;
 	public final fun run-Lkj3upI (Ljava/lang/String;[BZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;JJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
