@@ -32,3 +32,6 @@ samples/ios/Local.xcconfig
 samples/ios/*.xcodeproj/
 # XcodeGen regenerates Info.plist from project.yml's `info:` block on every `xcodegen generate`
 samples/ios/Sources/Info.plist
+
+# Golden capture output (real vehicle data; never commit)
+tools/fixtures/captures/
