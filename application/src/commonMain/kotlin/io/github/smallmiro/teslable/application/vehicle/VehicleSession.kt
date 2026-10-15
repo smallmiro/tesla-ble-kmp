@@ -5,13 +5,19 @@ import com.tesla.generated.universalmessage.Domain
 import io.github.smallmiro.teslable.application.cache.SessionCacheSync
 import io.github.smallmiro.teslable.application.dispatcher.Dispatcher
 import io.github.smallmiro.teslable.application.dispatcher.HandshakeFlow
+import io.github.smallmiro.teslable.application.dispatcher.SessionEvent
 import io.github.smallmiro.teslable.application.dispatcher.retryWhileRetriable
 import io.github.smallmiro.teslable.application.dispatcher.withAttemptTimeout
 import io.github.smallmiro.teslable.application.infotainment.InfotainmentCommands
 import io.github.smallmiro.teslable.application.vcsec.VcsecCommands
 import io.github.smallmiro.teslable.application.vcsec.VehicleInfoQueries
 import io.github.smallmiro.teslable.model.VehicleResult
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
@@ -25,7 +31,9 @@ public class VehicleSession(
     private val dispatcher: Dispatcher,
     private val timeouts: CommandTimeouts = CommandTimeouts(),
     private val cacheSync: SessionCacheSync? = null,
+    private val eventScope: CoroutineScope? = null,
 ) {
+    private var eventJob: Job? = null
     private val disconnectMutex = Mutex()
     private var storedOnDisconnect = false
     private val connectMutex = Mutex()
@@ -59,6 +67,7 @@ public class VehicleSession(
             val restored = cacheSync?.load(dispatcher) ?: emptySet()
             restoredDomains = restored
             hasLoadedCache = true
+            startEventCollector()
             dispatcher.start()
             restored
         }
@@ -109,13 +118,38 @@ public class VehicleSession(
      */
     public suspend fun disconnect() {
         try {
+            eventJob?.cancelAndJoin()
             storeOnceForDisconnect()
         } finally {
             withContext(NonCancellable) {
+                eventJob?.cancel()
                 connectMutex.withLock { disconnected = true }
                 dispatcher.close()
             }
         }
+    }
+
+    // 설계 구체화 14: 세션정보 갱신 시 캐시 저장, 오래된 캐시 도메인 삭제. 수신 코루틴이 아니라 eventScope에서 저장한다(SDD §5).
+    // dispatcher.start() 전에 UNDISPATCHED로 구독해 첫 이벤트를 놓치지 않는다.
+    private fun startEventCollector() {
+        val sync = cacheSync
+        val scope = eventScope
+        if (scope == null || sync == null) return
+        eventJob =
+            scope.launch(start = CoroutineStart.UNDISPATCHED) {
+                dispatcher.sessionEvents.collect { event ->
+                    when (event) {
+                        is SessionEvent.Updated -> {
+                            sync.store(dispatcher)
+                        }
+
+                        is SessionEvent.StaleCache -> {
+                            sync.markStale(event.domain)
+                            sync.store(dispatcher)
+                        }
+                    }
+                }
+            }
     }
 
     private suspend fun storeOnceForDisconnect() {
