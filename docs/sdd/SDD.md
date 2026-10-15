@@ -62,8 +62,8 @@ Go SDK의 BLE 경로(`pkg/connector/ble` → `internal/dispatcher` → `internal
         ▲                         ▲                          ▲
         │ implementation          │ implementation           │ implementation
  :adapter-ble (Kable)      :adapter-crypto              :adapter-storage
-  KableTransport            android: JCA + AndroidKeyStore     android: 앱 전용 파일
-  KableScanner              ios: CommonCrypto + Security.fw     ios: Keychain
+  BleTransport (Kable 바인딩)  android: JCA + AndroidKeyStore     android: 앱 전용 파일
+  KableGattConnector          ios: CommonCrypto + Security.fw     ios: Keychain
                                  + AES-GCM 공급자(ADR-0004)      common: InMemory
         ▲
  :testing (commonMain, 테스트 전용 의존): FakeVehicle, FakeTransport, FixedRandom,
@@ -83,7 +83,7 @@ Go SDK의 BLE 경로(`pkg/connector/ble` → `internal/dispatcher` → `internal
 | `internal/authentication/crypto.go`, `error.go` | 134 | `:domain` `protocol/Constants.kt`, `VehicleError.kt` | 라벨, 길이, `epochLength`, `MessageFault` 오류 |
 | `internal/dispatcher/dispatcher.go`, `session.go`, `receiver.go` | 729 | `:application` `dispatcher/Dispatcher.kt`, `SessionState.kt`, `PendingRequest.kt`, `HandshakeFlow.kt` | goroutine → 코루틴, `chan` → `Channel(10)`, `readySignal` → `CompletableDeferred` |
 | `pkg/connector/connector.go` | 72 | `:domain` `port/Transport.kt` | `send`는 `VehicleResult<Unit>`(값), `AuthMethod`는 NONE/GCM |
-| `pkg/connector/ble/ble.go` | 360 | `:domain` `transport/Framer.kt`, `Reassembler.kt`, `LocalName.kt` + `:adapter-ble` `KableTransport.kt`, `KableScanner.kt` | 프레이밍·재조립·이름은 순수 Kotlin(PoC), GATT는 Kable |
+| `pkg/connector/ble/ble.go` | 360 | `:domain` `transport/Framer.kt`, `Reassembler.kt`, `LocalName.kt` + `:adapter-ble` `BleTransport.kt`, `BleTransportFactory.kt`, `KableGattConnector.kt`, `KableGattLink.kt` | 프레이밍·재조립·이름은 순수 Kotlin(PoC), GATT는 Kable |
 | `pkg/protocol/error.go` | 267 | `:domain` `ResponseClassifier.kt`(`GetError` → `protocolError`), `VehicleError.kt`(`MayHaveSucceeded`/`Temporary` → `mayHaveSucceeded`/`temporary` 프로퍼티, `ShouldRetry` → `shouldRetry()` 확장) | `GetError`, `ShouldRetry`, `MayHaveSucceeded`, `Temporary` |
 | `pkg/protocol/key.go` | 173 | `:domain` `port/EcdhPrivateKey.kt`, `PublicKey.kt` | 파일 로딩은 포팅하지 않음. 65바이트 검증만 |
 | `pkg/vehicle/vehicle.go` | 275 | `:application` `vehicle/VehicleSession.kt`, `SendWithRetry.kt`, `CommandTimeouts.kt` | `Send`, `trySend`, `StartSession`, `SessionInfo`, `Wakeup` |
@@ -250,8 +250,9 @@ public class TeslaBle internal constructor(...) {
         //  Android: PlatformContext(context: Context)  /  iOS: PlatformContext()
     }
     public val keys: VehicleKeyStore
-    public fun scan(vin: Vin): Flow<VehicleAdvertisement>                           // FR-001, FR-030
-    public suspend fun connect(vin: Vin, key: VehicleKey?, options: ConnectOptions = ConnectOptions()): VehicleResult<Vehicle>   // FR-002~004
+    public fun scan(vin: Vin): Flow<ScanEvent>                                       // FR-001, FR-030. ScanEvent.Found(advertisement) / Failed(error: TransportError)
+    public suspend fun connect(vin: Vin, key: VehicleKey?, target: VehicleAdvertisement? = null, options: ConnectOptions = ConnectOptions()): VehicleResult<Vehicle>   // FR-002~004. target가 없으면 스캔
+    public fun close()                                                               // 이 인스턴스의 백그라운드 작업 정지(연결된 차량은 먼저 disconnect)
 }
 
 public data class TeslaBleConfig(
@@ -261,26 +262,33 @@ public data class TeslaBleConfig(
     val commandLifetime: Duration = 5.seconds,   // expires_at
     val handshakeTimeout: Duration = 20.seconds,
     val connectTimeout: Duration = 30.seconds,
-)
+) {
+    public companion object {
+        public fun default(logger: TeslaLogger = TeslaLogger.NoOp): TeslaBleConfig   // Swift용: 기본 인자·Duration 없이 만든다
+    }
+}
+
+// Vin.parseOrNull(value: String): Vin?  — 형식 오류를 예외 없이 null로(Swift 친화)
+// DebugLogger(): TeslaLogger  — expect/actual. Android Logcat, iOS 통합 로그, JVM java.util.logging. 개발용, 릴리스 빌드에는 쓰지 않는다
 
 public interface Vehicle {
     public val vin: Vin
     public val hasKey: Boolean
-    public val connection: StateFlow<ConnectionState>
+    public val connection: StateFlow<TransportState>                                // Connected / Disconnected(reason). 링크 손실 뒤에도 disconnect()를 불러야 세션 키·스코프가 풀린다
     public val sessions: StateFlow<Map<VehicleDomain, SessionStatus>>               // None / Handshaking / Ready(fromCache)
 
     public suspend fun startSession(domains: Set<VehicleDomain> = VehicleDomain.ALL, timeout: Duration? = null): VehicleResult<Unit>   // FR-012
     public suspend fun sessionInfo(publicKey: PublicKeyBytes, domain: VehicleDomain, timeout: Duration? = null): VehicleResult<SessionInfoSummary>  // FR-024
     public suspend fun disconnect()
 
-    // 키 (FR-022~027)
+    // 키 (FR-022~027) — M3에서 구현된 것은 listKeys, keySummary뿐(인증 없음). 나머지는 M4
     public fun addKeyRequest(role: KeyRole = KeyRole.OWNER, formFactor: KeyFormFactor = KeyFormFactor.platformDefault()): Flow<PairingEvent>
     public suspend fun listKeys(timeout: Duration? = null): VehicleResult<List<WhitelistEntry>>
     public suspend fun keySummary(...): VehicleResult<WhitelistSummary>
     public suspend fun addKey(publicKey: PublicKeyBytes, role: KeyRole, formFactor: KeyFormFactor, ...): VehicleResult<Unit>
     public suspend fun removeKey(publicKey: PublicKeyBytes, ...): VehicleResult<Unit>
 
-    // 조회 (FR-031~034)
+    // 조회 (FR-031~034) — M3에서 구현된 것은 vehicleStatus뿐(인증 없음). 나머지는 M5
     public suspend fun vehicleStatus(...): VehicleResult<VehicleStatus>              // 수기 값 객체
     public suspend fun getState(category: StateCategory, ...): VehicleResult<VehicleData>   // Wire 생성 타입 그대로
     public suspend fun ping(...): VehicleResult<Unit>
@@ -292,9 +300,13 @@ public interface Vehicle {
 ```
 
 - 모든 `timeout: Duration? = null`은 `TeslaBleConfig.commandTimeout`을 기본으로 쓴다.
+- **M3 구현 범위:** `Vehicle`에는 `vin`, `hasKey`, `connection`, `sessions`, `startSession`, `disconnect`, `vehicleStatus`, `keySummary`, `listKeys`가 있다. 위 코드 블록의 나머지(`sessionInfo`, `addKeyRequest`, `addKey`, `removeKey`, `getState`, `ping`, 제어 명령)는 M4~M5 설계이며 아직 없다.
+- **링크 손실:** BLE 링크가 끊기면 전송은 수신 흐름을 닫고 `connection`을 `Disconnected`로 바꾸며(M3에서 전송 자원은 풀린다), 진행 중이던 명령은 `Uncertain`/`NotConnected`로 끝난다. 세션 키와 스코프는 앱이 `Vehicle.disconnect()`를 불러야 풀린다. `connect`가 늦게 실패하거나 취소돼도 전송과 스코프를 풀고 다시 던진다.
+- `Vehicle`은 연결 하나에 객체 하나다. `disconnect()` 뒤 명령은 `Failure(NotConnected)`이고 세션 캐시는 유지된다(설계 구체화 13).
 - `PairingEvent`: `Sent`, `WaitingForTap`, `Accepted`, `Rejected(KeychainError)`, `Unknown(raw)`. 실차에서 응답 형식이 확인되기 전까지 `Unknown`을 통해 원시 바이트를 노출한다(M4 실차 검증 항목).
 - `VehicleStatus`, `WhitelistEntry`, `WhitelistSummary`, `SessionInfoSummary`, `VehicleAdvertisement`는 **수기 값 객체**다(작고 안정적). `VehicleData`(GetState 12 카테고리, 200여 필드)와 그 하위 타입은 **Wire 생성 타입을 그대로 노출**한다(FR-033). 이유: 필드가 많고 펌웨어에 따라 늘어나며, 래핑하면 손실·지연이 생긴다. 생성 타입은 `@TeslableGenerated` 문서 주석으로 표시하고 `apiDump`에 포함한다.
-- iOS: SKIE가 `suspend` → `async throws`, `Flow` → `AsyncSequence`, `sealed` → `enum`으로 변환한다. `VehicleResult`는 Swift에서 `switch result { case .success(let v): ... case .uncertain(let e): ... case .failure(let e): ... }`.
+- iOS: SKIE가 `suspend` → `async throws`, `Flow` → `AsyncSequence`로 바꾸고, `sealed`는 `onEnum(of:)`로 Swift `switch`에서 다룬다. `VehicleResult`는 Swift에서 `switch onEnum(of: result) { case .success(let s): ... case .uncertain(let u): ... case .failure(let f): ... }`(실제 코드는 `samples/ios/Sources/SampleModel.swift`).
+- **Android 공개 API와 `apiCheck`:** `androidVehicleKeyStore`, `androidSessionCache`, `androidBleAvailability`는 공개 함수지만, 어느 모듈에도 Android용 BCV 덤프가 없어 `apiCheck`가 다루지 않는다. Android 변형의 공개 API 호환성 검사는 보류(deferred)한다.
 
 ### 2.4 `:adapter-ble`
 
@@ -309,8 +321,8 @@ public interface Vehicle {
 
 | 플랫폼 | `CryptoPrimitives` | `VehicleKeyStore` / `EcdhPrivateKey` |
 |---|---|---|
-| Android (API 31+) | JCA `MessageDigest`(SHA-1/256), `Mac`(HmacSHA256), `Cipher("AES/GCM/NoPadding")`, `SecureRandom`, `MessageDigest.isEqual` | `AndroidKeyStore` EC P-256, `PURPOSE_AGREE_KEY`, `setIsStrongBoxBacked(true)` 시도 → 실패 시 TEE → 실패 시 `KeyPairGenerator("EC")` 소프트웨어 키를 Keystore AES 키로 암호화해 앱 전용 파일 보관(D10). `KeyAgreement("ECDH", "AndroidKeyStore").generateSecret()` = 32바이트 X |
-| iOS (16+) | CommonCrypto `CC_SHA1`, `CC_SHA256`, `CCHmac`; `SecRandomCopyBytes`; AES-GCM은 **ADR-0004** 공급자; 상수 시간 비교는 Kotlin 구현(XOR 누적) | `SecKeyCreateRandomKey` + `kSecAttrTokenIDSecureEnclave`(가능 시) → 실패 시 Keychain 저장 소프트웨어 키. `SecKeyCopyKeyExchangeResult(kSecKeyAlgorithmECDHKeyExchangeStandard)` = 32바이트 X. 공개키는 `SecKeyCopyExternalRepresentation`(65바이트 X9.63) |
+| Android (API 31+) | JCA `MessageDigest`(SHA-1/256), `Mac`(HmacSHA256), `Cipher("AES/GCM/NoPadding")`, `SecureRandom`, `MessageDigest.isEqual` | `AndroidKeyStore` EC P-256, `PURPOSE_AGREE_KEY`, `setIsStrongBoxBacked(true)` 시도 → 실패 시 TEE → 실패 시 `KeyPairGenerator("EC")` 소프트웨어 키를 `04‖X‖Y‖d`(97바이트)로 직렬화해 Keystore AES 키로 감싼 `TBK1` 파일로 앱 전용 보관(D10, 설계 구체화 10). Keystore 별칭은 `teslable.key:<alias>`/`teslable.wrap:<alias>`로 네임스페이스를 둔다. `KeyAgreement("ECDH", "AndroidKeyStore").generateSecret()` = 32바이트 X |
+| iOS (16+) | CommonCrypto `CC_SHA1`, `CC_SHA256`, `CCHmac`; `SecRandomCopyBytes`; AES-GCM은 **ADR-0004** 공급자; 상수 시간 비교는 Kotlin 구현(XOR 누적) | `SecKeyCreateRandomKey` + `kSecAttrTokenIDSecureEnclave`(가능 시) → 실패 시 Keychain generic password(service `io.github.smallmiro.teslable.key`)에 `04‖X‖Y‖d`(97바이트)로 저장한 소프트웨어 키(설계 구체화 10). Secure Enclave 조회 자체가 실패한 경우는 "키 없음"이 아니라 오류다(덮어쓰지 않음). `SecKeyCopyKeyExchangeResult(kSecKeyAlgorithmECDHKeyExchangeStandard)` = 32바이트 X. 공개키는 `SecKeyCopyExternalRepresentation`(65바이트 X9.63) |
 | 테스트 (`:testing`) | JVM: 위 JCA 구현 재사용. iOS 시뮬레이터: 위 iOS 구현 | `SoftwareEcdhKey(privateScalar)`: JVM은 JCA `ECPrivateKeySpec`, iOS는 `SecKeyCreateWithData`(kSecAttrKeyClassPrivate). `protocol.md` 클라이언트 키로 벡터 검증 |
 
 ### 2.6 `:adapter-storage`
@@ -338,7 +350,7 @@ public interface Vehicle {
 ### 3.1 스캔과 연결 (FR-001~005)
 
 ```
-App ─ scan(vin) ──▶ KableScanner: Filter.Name.Exact(LocalName(vin))  ──▶ Flow<VehicleAdvertisement>
+App ─ scan(vin) ──▶ KableGattConnector: Filter.Name.Exact(LocalName(vin))  ──▶ Flow<ScanEvent>
 App ─ connect(vin, key) ──▶ TransportFactory.connect
         loop(재시도, Go NewConnectionFromScanResult):
           scan 첫 매치 (없으면 connectTimeout까지 대기)
@@ -506,7 +518,7 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 
 ### 7.2 키 메타데이터
 
-`VehicleKeyStore`는 별칭(`alias`, 기본 `"teslable-default"`)으로 키를 찾는다. 키마다 `KeyProtection`(SECURE_ENCLAVE / STRONGBOX / TEE / SOFTWARE), 생성 시각, 공개키 65바이트를 노출한다. Android 소프트웨어 대체 키는 `filesDir/teslable/keys/<alias>.enc`(Keystore AES-GCM 키로 암호화)에 둔다. iOS 소프트웨어 대체 키는 Keychain(`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`)에 둔다.
+`VehicleKeyStore`는 별칭(`alias`, 기본 `"teslable-default"`)으로 키를 찾는다. 키마다 `KeyProtection`(SECURE_ENCLAVE / STRONGBOX / TEE / SOFTWARE), 생성 시각, 공개키 65바이트를 노출한다. 소프트웨어 대체 키의 개인키 직렬화는 플랫폼 공통으로 `04‖X‖Y‖d`(97바이트)다(설계 구체화 10). Android는 `filesDir/teslable/keys/<alias>.enc` = `"TBK1" ‖ wrap(04‖X‖Y‖d)`(Keystore AES-GCM 키 `teslable.wrap:<alias>`로 감쌈, 임시 파일 + rename으로 원자적 쓰기)에 둔다. iOS는 Keychain generic password(`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`)에 둔다. **손상된 저장 키(매직·길이·태그 불일치, 복호화 실패)는 자동으로 교체하지 않고** `KeyStoreError.PlatformFailure("stored key is corrupted")`로 돌려준다 — 앱이 `delete` 후 재생성하고 차량에 다시 등록한다. Android 자동 백업이 `.enc` 파일만 복원하면 이 상태가 되므로 앱은 `files/teslable/keys/`를 백업에서 제외한다(`{{LIB_DOCS_DIR}}platform-notes.md`).
 
 ### 7.3 공개 값 객체 ↔ protobuf
 
@@ -552,7 +564,7 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 | 삭제 | `KeyStore.deleteEntry(alias)` + 대체 키 파일 삭제 | `SecItemDelete` |
 | 스레드 | `Dispatchers.IO` | 기본 디스패처(Security.framework는 스레드 안전) |
 
-소프트웨어 대체 키(Android): `KeyPairGenerator("EC")`로 만든 PKCS#8 개인키를 Keystore의 AES-256-GCM 키(`alias + ".wrap"`)로 암호화해 `filesDir/teslable/keys/<alias>.enc`에 저장. ECDH는 JCA 소프트웨어 `KeyAgreement`. `KeyProtection.SOFTWARE`로 보고.
+소프트웨어 대체 키(Android): `KeyPairGenerator("EC")`로 만든 개인키를 `04‖X‖Y‖d`(97바이트)로 직렬화하고, Keystore의 AES-256-GCM 키(`teslable.wrap:<alias>`)로 감싸 `TBK1` 파일 `filesDir/teslable/keys/<alias>.enc`에 저장(설계 구체화 10). 하드웨어 키의 Keystore 별칭은 `teslable.key:<alias>`. 파일이 손상됐거나 래핑 키가 없으면 자동 교체 없이 `PlatformFailure("stored key is corrupted")`. iOS: Secure Enclave 조회 실패(`find` 실패)는 "없음"으로 취급하지 않고 오류로 돌려준다(없을 때만 Keychain 소프트웨어 키를 찾는다). ECDH는 JCA 소프트웨어 `KeyAgreement`. `KeyProtection.SOFTWARE`로 보고.
 
 `EcdhPrivateKey.sharedX`는 항상 32바이트를 반환한다(Go `sharedX.FillBytes(32)`와 동일). 공유점이 무한원점이면 `KeyStoreError.PlatformFailure`.
 
@@ -659,6 +671,8 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 - Android instrumented: Keystore 키와 소프트웨어 키가 같은 상대 공개키에 대해 같은 K를 만드는지(Keystore ECDH 정합성), StrongBox/TEE/소프트웨어 대체 경로.
 - iOS XCTest(샘플 앱 타깃): Secure Enclave 키 ECDH vs 소프트웨어 키 ECDH 정합성, cryptokit GCM 벡터.
 - iOS Keychain: 시뮬레이터 테스트 실행 파일에서는 Keychain을 쓸 수 없다(`SecItemAdd`가 -25291 errSecNotAvailable로 실패). `AppleKeychainItems` 왕복은 단위 테스트 대신 Task 14 iPhone 샘플로 확인하고, 키스토어 로직은 가짜 Keychain·Secure Enclave로 검증한다.
+- **M3 결과(시뮬레이터 Keychain):** 확인됨 — 시뮬레이터의 순수 Kotlin/Native 테스트 바이너리에서는 `SecItemAdd`가 -25291로 실패한다. 실제 Keychain(키·세션 캐시)은 샘플 앱(번들 앱)에서 확인한다.
+- **기기에서만 검증되는 것:** Kable 바인딩(`KableGattConnector`/`KableGattLink`), Android Keystore(StrongBox/TEE/래핑 키), iOS Secure Enclave, BLE 링크 손실 처리, MTU 협상, 권한 흐름은 단위 테스트 대신 샘플 앱 확인(M3 Task 14 표)으로 검증한다. 실차 확인 결과는 M3 인계 노트에 기록한다. Android 실기기 BLE는 아직 미확인이다.
 - Kable 스파이크(M3 첫 작업): 실차에서 0213 구독 방식(notify/indicate)과 MTU 협상 결과를 로그로 확인. 실패 시 ADR-0003 대체 경로.
 
 ### 9.6 실차 체크리스트
@@ -704,6 +718,13 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 | # | 매뉴얼 위치 | 원본 위치 | 내용 | 처리 |
 |---|---|---|---|---|
 | 1 | `03-protocol.md` §9.2 "응답 메타데이터 (AAD)" 첫 문장 | `internal/authentication/peer.go` `responseMetadata` (`newMetadata()` = SHA-256 컨텍스트, `Checksum(nil)` 반환) | 매뉴얼은 "AAD는 SHA-256 해시가 아니라 직렬화 바이트 자체"라고 굵게 적었으나, 같은 문단 괄호와 원본 코드는 `SHA256(TLV‖0xFF)`를 AAD로 사용 | **원본을 따름**(SHA-256 다이제스트). §3.3, PoC `decryptResponse`도 동일. 사용자에게 보고. 매뉴얼 문장 수정은 승인 후 |
+
+| 2 | `10-porting-guide.md:88` | `pkg/connector/ble/ble.go:20, 349` | 매뉴얼은 `ble.MaxMTU = 517`. Go는 go-ble `ble.MaxMTU`를 요청(go-ble 소스는 이 저장소에 없어 값 미확인; 517은 Android 상한). 우리는 Android `requestMtu(517)` | **원본을 따름**. 매뉴얼은 승인 전 수정하지 않음 |
+| 3 | `10-porting-guide.md:92` | `ble.go:314-352` | 매뉴얼은 "서비스·특성·구독·MTU 실패 시 연결을 끊고 재시도". Go는 끊지 않고(누수), MTU 실패는 재시도 없이 블록 20 | 원본의 재시도 구조를 따르되 실패한 시도의 연결은 닫는다(아래 "의도" 절). 매뉴얼은 승인 전 수정하지 않음 |
+| 4 | `10-porting-guide.md:72` | `ble.go:234-250, 270-275` | 매뉴얼 "timeout → retry". Go 스캔은 ctx 만료까지 하나이고, 다른 스캔 오류일 때만 재시도 | **원본을 따름**. 매뉴얼은 승인 전 수정하지 않음 |
+| 5 | `02-ble-transport.md` §13.7(351행) | `ble.go:89-92`, `connector.go:48-52` | 매뉴얼 "Close 멱등". Go BLE `Close`에는 멱등 장치가 없음(계약은 멱등 요구) | 계약(멱등)을 따름. 매뉴얼은 승인 전 수정하지 않음 |
+| 6 | `02-ble-transport.md`:182 | `ble.go:98-109` | "청크는 락으로 직렬화"는 송신에만 해당. `rx`는 락 없이 버퍼를 만진다 | **원본을 따름**(수신 코루틴 1개). 매뉴얼은 승인 전 수정하지 않음 |
+| 7 | `00-agent-guide.md`:142 | `ble.go:345` | 표 머리 "Read/notify" — 원본은 indication 구독 | **원본을 따름**(ADR-0003 스파이크로 실기기 확인). 매뉴얼은 승인 전 수정하지 않음 |
 
 HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 나머지 내용은 이번 설계에서 인용한 범위(`01`, `02`, `03`, `05`, `08`, `10`)에서 원본과 일치했다.
 
