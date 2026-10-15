@@ -2,8 +2,10 @@ package io.github.smallmiro.teslable.application.logging
 
 import io.github.smallmiro.teslable.port.LogLevel
 import io.github.smallmiro.teslable.port.TeslaLogger
+import kotlinx.coroutines.CancellationException
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 
 class SafeLoggerTest {
     @Test
@@ -20,6 +22,12 @@ class SafeLoggerTest {
         safe.log(LogLevel.INFO, "t") { "ok" }
         safe.log(LogLevel.INFO, "t") { error("message bug") }
         assertEquals(2, calls)
+    }
+
+    @Test
+    fun rethrowsCancellationSoStructuredConcurrencyIsNotBroken() {
+        val cancelling = TeslaLogger { _, _, _ -> throw CancellationException("cancelled") }
+        assertFailsWith<CancellationException> { SafeLogger(cancelling).log(LogLevel.INFO, "t") { "x" } }
     }
 
     @Test

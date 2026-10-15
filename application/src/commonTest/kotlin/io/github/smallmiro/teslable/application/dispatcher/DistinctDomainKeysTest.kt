@@ -18,7 +18,7 @@ import kotlin.time.Duration.Companion.seconds
 class DistinctDomainKeysTest {
     @Test
     fun handshakesBothDomainsWhenEachDomainHasItsOwnVehicleKey() =
-        // dispatcher_test.go:126 — Go 테스트는 도메인마다 다른 차량 키를 쓴다(M2 인계: 같은 키면 도메인 간 세션정보 혼동이 HMAC을 통과할 수 있다)
+        // dispatcher_test.go:126 — Go 테스트 구성(도메인마다 다른 차량 키)을 포팅한다. 도메인 간 세션정보 혼동 거부를 증명하는 테스트는 아니다.
         runTest {
             val fake = FakeVehicle(timeSource = testTimeSource, infotainmentKey = TestCrypto.goKnownVerifierKey())
             val h = dispatcherHarness(fake = fake)

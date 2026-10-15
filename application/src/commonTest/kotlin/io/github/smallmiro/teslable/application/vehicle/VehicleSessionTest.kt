@@ -18,10 +18,7 @@ import io.github.smallmiro.teslable.testing.FakeVehicle
 import io.github.smallmiro.teslable.testing.RecordingSessionCache
 import io.github.smallmiro.teslable.testing.TestCrypto
 import kotlinx.coroutines.CompletableDeferred
-import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -66,6 +63,7 @@ class VehicleSessionTest {
             session.connect()
             assertIs<VehicleResult.Success<Unit>>(session.startSession(timeout = 1.seconds))
             assertEquals(3, h.fake.sessionInfoRequests)
+            // Go는 여기서 VCSEC로 보내지만 Kotlin은 SendWithRetry에서 VCSEC를 금지한다(설계 구체화 13)
             assertIs<VehicleResult.Success<*>>(session.send.send(infotainment, "x".encodeToByteArray(), AuthMethod.GCM))
         }
 
@@ -122,6 +120,7 @@ class VehicleSessionTest {
             assertEquals(setOf(vcsec, Domain.DOMAIN_INFOTAINMENT), session2.connect())
             assertIs<VehicleResult.Success<Unit>>(session2.startSession()) // 이미 준비됨 → 요청 없음
             assertEquals(2, fake.sessionInfoRequests)
+            // Go는 여기서 VCSEC로 보내지만 Kotlin은 SendWithRetry에서 VCSEC를 금지한다(설계 구체화 13)
             assertIs<VehicleResult.Success<*>>(session2.send.send(infotainment, "x".encodeToByteArray(), AuthMethod.GCM))
         }
 
@@ -291,20 +290,38 @@ class VehicleSessionTest {
         }
 
     @Test
-    fun disconnectClosesTheDispatcherEvenIfTheCallerIsAlreadyCancelled() =
-        // M2 인계: disconnect()의 바깥 NonCancellable을 직접 고정
+    fun cancelledDisconnectStillClosesAndMarksSessionWhileConnectHoldsTheLock() =
+        // M2 인계: disconnect()의 바깥 NonCancellable을 직접 고정. connect()가 캐시 load에서 connectMutex를 쥔 채 멈춰 있으면
+        // disconnect()는 finally의 connectMutex 대기에서 취소되는데, NonCancellable이 없으면 닫기와 disconnected 표시가 건너뛰어진다.
         runTest {
-            val h = dispatcherHarness(start = false)
-            val session = VehicleSession(h.dispatcher)
-            session.connect()
-            val job =
-                launch(start = CoroutineStart.UNDISPATCHED) {
-                    currentCoroutineContext()[Job]?.cancel()
-                    session.disconnect()
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val gate = CompletableDeferred<Unit>()
+            val gated =
+                object : SessionCache by RecordingSessionCache() {
+                    override suspend fun load(
+                        vin: Vin,
+                        keyId: KeyId,
+                    ): List<CachedSession> {
+                        gate.await()
+                        return emptyList()
+                    }
                 }
-            job.join()
-            assertTrue(job.isCancelled)
+            val sync = SessionCacheSync(gated, fake.vin, KeyId.of(TestCrypto.clientPublicKey, TestCrypto.primitives))
+            val h = dispatcherHarness(fake = fake, start = false)
+            val session = VehicleSession(h.dispatcher, cacheSync = sync)
+            val connectJob = launch { session.connect() }
+            runCurrent() // connect()가 connectMutex를 쥐고 load에서 대기
+            val disconnectJob = launch { session.disconnect() }
+            runCurrent() // disconnect()가 connectMutex 대기 중
+            disconnectJob.cancel()
+            runCurrent()
+            gate.complete(Unit)
+            runCurrent()
+            connectJob.join()
+            disconnectJob.join()
+            assertTrue(disconnectJob.isCancelled || disconnectJob.isCompleted)
             assertFalse(h.dispatcher.isListening)
             assertEquals(TransportState.Disconnected(reason = null), h.transport.state.value)
+            assertFailsWith<IllegalStateException> { session.connect() }
         }
 }
