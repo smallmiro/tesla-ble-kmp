@@ -27,6 +27,9 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.uuid.ExperimentalUuidApi
 
+/** BLE 로그 태그. */
+internal const val BLE_LOG_TAG = "ble"
+
 /**
  * Kable [GattConnector]. 스캔 필터는 로컬 이름 정확 일치(Go `ble.go:222`), 쓰기는 항상 with response.
  * [open]은 취소 외에는 던지지 않고 모든 실패를 [OpenResult.Failed]로 돌려준다. [scope]는 `SupervisorJob`을 가져야 한다.
@@ -58,7 +61,7 @@ internal class KableGattConnector(
             throw e
         } catch (e: Exception) {
             val error = KableErrors.map(e)
-            OpenResult.Failed(error, retry = KableErrors.isRetriable(error))
+            OpenResult.Failed(error, retry = KableErrors.isRetriable(error) && !KableErrors.isUnsupported(e))
         }
 
     @Suppress("TooGenericExceptionCaught") // 취소 외 모든 실패는 정리 후 호출자가 값으로 바꾼다
@@ -76,7 +79,7 @@ internal class KableGattConnector(
                 return OpenResult.Failed(VehicleError.TransportError.ConnectFailed("vehicle GATT service not found"), retry = true)
             }
             val blockLength = negotiateBlockLength(peripheral, logger)
-            logger.log(LogLevel.INFO, TAG) { "Connected to ${hit.advertisement.localName} (block length $blockLength)" }
+            logger.log(LogLevel.INFO, BLE_LOG_TAG) { "Connected to ${hit.advertisement.localName} (block length $blockLength)" }
             return OpenResult.Opened(KableGattLink(peripheral, blockLength, chunks, observeJob, scope))
         } catch (e: Throwable) {
             cleanup(peripheral, observeJob, chunks) // 취소여도 정리는 NonCancellable
@@ -129,9 +132,5 @@ internal class KableGattConnector(
             }
             peripheral.close()
         }
-    }
-
-    private companion object {
-        const val TAG = "ble"
     }
 }

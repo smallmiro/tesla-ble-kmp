@@ -22,6 +22,6 @@ internal actual suspend fun negotiateBlockLength(
         @Suppress("TooGenericExceptionCaught") e: Exception,
     ) {
         // Go ble.go:350-352: 경고 후 기본값
-        logger.log(LogLevel.WARN, "ble") { "Failed to set BLE MTU, using ${BlockLength.DEFAULT}-byte blocks: ${e::class.simpleName}" }
+        logger.log(LogLevel.WARN, BLE_LOG_TAG) { "Failed to set BLE MTU, using ${BlockLength.DEFAULT}-byte blocks: ${e::class.simpleName}" }
         BlockLength.DEFAULT
     }
