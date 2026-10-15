@@ -304,26 +304,27 @@ public class Dispatcher
          * (Go는 전체 실패 — 설계 구체화 6). 복원한 도메인 집합을 돌려준다. Go는 세션 맵을 통째로 새로 만들어 교체하지만 이 구현은
          * 기존 [sessions]에 도메인별로 병합한다 — 새 [Dispatcher](세션이 전부 비어 있는 상태)에서 부르면 결과는 같다.
          */
-        public suspend fun loadSessions(entries: List<CachedSession>): Set<Domain> {
-            val loaded = mutableSetOf<Domain>()
-            for (entry in entries) {
-                val session = sessions[entry.domain]
-                if (session == null) {
-                    logger.log(LogLevel.WARN, TAG) { "invalid cache: ${entry.domain}: no session (private key missing)" }
-                    continue
-                }
-                when (val result = session.loadFromCache(entry.sessionInfo, entry.age)) {
-                    is SignerResult.Ok -> {
-                        logger.log(LogLevel.INFO, TAG) { "Session for ${entry.domain} loaded from cache" }
-                        loaded += entry.domain
-                    }
+        public suspend fun loadSessions(entries: List<CachedSession>): Set<Domain> =
+            entries.filter { loadEntry(it) }.map { it.domain }.toSet()
 
-                    is SignerResult.Fault -> {
-                        logger.log(LogLevel.WARN, TAG) { "invalid cache: ${entry.domain}: ${result.fault.name}: ${result.detail}" }
-                    }
+        /** [loadSessions]의 항목 하나. 복원했으면 true, 건너뛰었으면(WARN 로그) false. */
+        private suspend fun loadEntry(entry: CachedSession): Boolean {
+            val session = sessions[entry.domain]
+            if (session == null) {
+                logger.log(LogLevel.WARN, TAG) { "invalid cache: ${entry.domain}: no session (private key missing)" }
+                return false
+            }
+            return when (val result = session.loadFromCache(entry.sessionInfo, entry.age)) {
+                is SignerResult.Ok -> {
+                    logger.log(LogLevel.INFO, TAG) { "Session for ${entry.domain} loaded from cache" }
+                    true
+                }
+
+                is SignerResult.Fault -> {
+                    logger.log(LogLevel.WARN, TAG) { "invalid cache: ${entry.domain}: ${result.fault.name}: ${result.detail}" }
+                    false
                 }
             }
-            return loaded
         }
 
         /** 열려 있는 요청 수(테스트용: 등록 누수 확인). */
