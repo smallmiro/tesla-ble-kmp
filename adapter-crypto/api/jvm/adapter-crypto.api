@@ -1,3 +1,7 @@
+public final class io/github/smallmiro/teslable/crypto/InMemoryVehicleKeyStoreKt {
+	public static final fun inMemoryVehicleKeyStore ()Lio/github/smallmiro/teslable/port/VehicleKeyStore;
+}
+
 public final class io/github/smallmiro/teslable/crypto/JcaCryptoPrimitives : io/github/smallmiro/teslable/port/CryptoPrimitives {
 	public fun <init> ()V
 	public fun aesGcmDecrypt ([B[B[B[B[B)[B
