@@ -386,6 +386,126 @@ class TeslaBleTest {
         }
 
     @Test
+    fun closeDisconnectsConnectedVehiclesAndStoresTheCacheOnce() =
+        // 최종 리뷰 I2: close()는 살아 있는 차량을 disconnect()한다(링크 해제, 세션 키 제거 NFR-005, 마지막 캐시 저장)
+        runTest {
+            val r = rig()
+            val vehicle = r.connected()
+            assertIs<VehicleResult.Success<Unit>>(vehicle.startSession(timeout = 1.seconds))
+            val storesBefore = r.cache.stores.size
+            r.ble.close()
+            assertEquals(TransportState.Disconnected(null), checkNotNull(r.factory.lastTransport).state.value)
+            assertEquals(TransportState.Disconnected(null), vehicle.connection.value)
+            assertEquals(storesBefore + 1, r.cache.stores.size) // disconnect 시점 저장 한 번
+            assertEquals(
+                2,
+                r.cache.stores
+                    .last()
+                    .entries.size,
+            )
+            assertEquals(VehicleDomain.ALL.associateWith { SessionStatus.None }, vehicle.sessions.value)
+            assertEquals(VehicleResult.Failure(VehicleError.NotConnected), vehicle.vehicleStatus(timeout = 1.seconds))
+            r.ble.close() // 멱등
+            assertEquals(storesBefore + 1, r.cache.stores.size)
+        }
+
+    @Test
+    fun vehicleDisconnectedBeforeCloseIsNotDisconnectedAgain() =
+        runTest {
+            val r = rig()
+            val vehicle = r.connected()
+            vehicle.startSession(timeout = 1.seconds)
+            vehicle.disconnect()
+            val storesBefore = r.cache.stores.size
+            r.ble.close()
+            assertEquals(storesBefore, r.cache.stores.size) // disconnect()한 차량은 목록에서 빠진다
+        }
+
+    @Test
+    fun closeDuringAnInFlightConnectFailsTheConnectAndReleasesTheTransport() =
+        // 최종 리뷰 I2: 연결 도중 close()되면 죽은 Vehicle을 돌려주지 않는다
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val gated = GatedCache()
+            val factory = FakeTransportFactory(fake)
+            val ble =
+                TeslaBle(
+                    transports = factory,
+                    keys = FakeVehicleKeyStore(),
+                    sessionCache = gated,
+                    crypto = TestCrypto.primitives,
+                    random = TestCrypto.random,
+                    config = TeslaBleConfig(),
+                    timeSource = testTimeSource,
+                    vehicleScope = {
+                        CoroutineScope(
+                            backgroundScope.coroutineContext + SupervisorJob(backgroundScope.coroutineContext[Job]),
+                        )
+                    },
+                )
+            val key = assertIs<VehicleResult.Success<VehicleKey>>(FakeVehicleKeyStore().getOrCreate()).value
+            val pending = async { ble.connect(fake.vin, key) }
+            runCurrent() // 캐시 load에서 멈춘다
+            val transport = checkNotNull(factory.lastTransport)
+            ble.close()
+            gated.gate.complete(Unit)
+            assertEquals(VehicleResult.Failure(VehicleError.NotConnected), pending.await())
+            assertEquals(TransportState.Disconnected(null), transport.state.value)
+        }
+
+    @Test
+    fun appScopeCancelledByCloseTurnsAnInFlightConnectIntoNotConnected() =
+        // 최종 리뷰 I2: 앱 스코프 취소(호출자 취소 아님)로 난 CancellationException은 값으로 바꾼다(ADR-0010은 호출자 취소만 전파)
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val real = FakeTransportFactory(fake)
+            val appScope = CoroutineScope(backgroundScope.coroutineContext + SupervisorJob(backgroundScope.coroutineContext[Job]))
+            val gate = CompletableDeferred<Unit>()
+            val factory =
+                object : TransportFactory by real {
+                    // BleTransportFactory.openOwned처럼 앱 스코프에서 열기를 기다린다
+                    override suspend fun connect(
+                        vin: Vin,
+                        target: VehicleAdvertisement?,
+                        options: ConnectOptions,
+                    ): VehicleResult<Transport> =
+                        appScope
+                            .async {
+                                gate.await()
+                                real.connect(vin, target, options)
+                            }.await()
+                }
+            val ble =
+                TeslaBle(
+                    transports = factory,
+                    keys = FakeVehicleKeyStore(),
+                    sessionCache = RecordingSessionCache(),
+                    crypto = TestCrypto.primitives,
+                    random = TestCrypto.random,
+                    config = TeslaBleConfig(),
+                    timeSource = testTimeSource,
+                    vehicleScope = { CoroutineScope(appScope.coroutineContext + SupervisorJob(appScope.coroutineContext[Job])) },
+                    ownScope = appScope,
+                )
+            val pending = async { ble.connect(fake.vin, key = null) }
+            runCurrent()
+            ble.close()
+            assertEquals(VehicleResult.Failure(VehicleError.NotConnected), pending.await())
+        }
+
+    @Test
+    fun scanAfterCloseEmitsOneDisconnectedFailureWithoutBleWork() =
+        runTest {
+            val r = rig()
+            r.factory.scanFailure = VehicleError.TransportError.PermissionDenied // 팩토리에 닿으면 이 오류가 나온다
+            r.ble.close()
+            assertEquals(
+                listOf<ScanEvent>(ScanEvent.Failed(VehicleError.TransportError.Disconnected)),
+                r.ble.scan(r.fake.vin).toList(),
+            )
+        }
+
+    @Test
     fun connectAfterCloseFailsWithoutTouchingTheFactory() =
         runTest {
             val r = rig()

@@ -10,6 +10,7 @@ import io.github.smallmiro.teslable.model.WhitelistSummary
 import io.github.smallmiro.teslable.port.Transport
 import io.github.smallmiro.teslable.port.TransportState
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -17,9 +18,10 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import kotlin.time.Duration
 
-/** [Vehicle] 구현: [VehicleSession] + 상태 흐름. [scope]는 연결 하나의 수명이며 [disconnect]가 취소한다. */
+/** [Vehicle] 구현: [VehicleSession] + 상태 흐름. [scope]는 연결 하나의 수명이며 [disconnect]가 취소하고 [onDisconnected]로 알린다. */
 @Suppress("LongParameterList") // 연결 하나를 이루는 조각들 — TeslaBle.connect만 만든다
 internal class DefaultVehicle(
     override val vin: Vin,
@@ -29,6 +31,7 @@ internal class DefaultVehicle(
     restored: Set<VehicleDomain>,
     private val scope: CoroutineScope,
     private val config: TeslaBleConfig,
+    private val onDisconnected: suspend (DefaultVehicle) -> Unit = {},
 ) : Vehicle {
     private val states =
         MutableStateFlow(
@@ -88,6 +91,7 @@ internal class DefaultVehicle(
         } finally {
             resetSessions()
             scope.cancel()
+            withContext(NonCancellable) { onDisconnected(this@DefaultVehicle) } // TeslaBle.close()가 다시 끊지 않게 목록에서 뺀다
         }
     }
 
