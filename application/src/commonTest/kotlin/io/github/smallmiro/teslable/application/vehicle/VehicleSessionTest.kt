@@ -18,13 +18,17 @@ import io.github.smallmiro.teslable.testing.FakeVehicle
 import io.github.smallmiro.teslable.testing.RecordingSessionCache
 import io.github.smallmiro.teslable.testing.TestCrypto
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.currentCoroutineContext
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFailsWith
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNull
@@ -62,7 +66,7 @@ class VehicleSessionTest {
             session.connect()
             assertIs<VehicleResult.Success<Unit>>(session.startSession(timeout = 1.seconds))
             assertEquals(3, h.fake.sessionInfoRequests)
-            assertIs<VehicleResult.Success<*>>(session.send.send(vcsec, "x".encodeToByteArray(), AuthMethod.GCM))
+            assertIs<VehicleResult.Success<*>>(session.send.send(infotainment, "x".encodeToByteArray(), AuthMethod.GCM))
         }
 
     @Test
@@ -118,7 +122,7 @@ class VehicleSessionTest {
             assertEquals(setOf(vcsec, Domain.DOMAIN_INFOTAINMENT), session2.connect())
             assertIs<VehicleResult.Success<Unit>>(session2.startSession()) // 이미 준비됨 → 요청 없음
             assertEquals(2, fake.sessionInfoRequests)
-            assertIs<VehicleResult.Success<*>>(session2.send.send(vcsec, "x".encodeToByteArray(), AuthMethod.GCM))
+            assertIs<VehicleResult.Success<*>>(session2.send.send(infotainment, "x".encodeToByteArray(), AuthMethod.GCM))
         }
 
     @Test
@@ -262,5 +266,45 @@ class VehicleSessionTest {
             session.disconnect()
 
             assertEquals(1, cache.stores.size) // disconnect() must not have stored anything
+        }
+
+    @Test
+    fun connectIsIdempotent() =
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val cache = RecordingSessionCache()
+            val sync = SessionCacheSync(cache, fake.vin, KeyId.of(TestCrypto.clientPublicKey, TestCrypto.primitives))
+            val session = VehicleSession(dispatcherHarness(fake = fake, start = false).dispatcher, cacheSync = sync)
+            session.connect()
+            session.connect()
+            assertEquals(1, cache.loads)
+        }
+
+    @Test
+    fun connectAfterDisconnectIsRejected() =
+        // Review Focus 4, 설계 구체화 13: 재연결은 TeslaBle.connect()가 새 객체로
+        runTest {
+            val session = VehicleSession(dispatcherHarness(start = false).dispatcher)
+            session.connect()
+            session.disconnect()
+            assertFailsWith<IllegalStateException> { session.connect() }
+        }
+
+    @Test
+    fun disconnectClosesTheDispatcherEvenIfTheCallerIsAlreadyCancelled() =
+        // M2 인계: disconnect()의 바깥 NonCancellable을 직접 고정
+        runTest {
+            val h = dispatcherHarness(start = false)
+            val session = VehicleSession(h.dispatcher)
+            session.connect()
+            val job =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    currentCoroutineContext()[Job]?.cancel()
+                    session.disconnect()
+                }
+            job.join()
+            assertTrue(job.isCancelled)
+            assertFalse(h.dispatcher.isListening)
+            assertEquals(TransportState.Disconnected(reason = null), h.transport.state.value)
         }
 }

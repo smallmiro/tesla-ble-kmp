@@ -57,6 +57,7 @@ public final class io/github/smallmiro/teslable/application/dispatcher/SessionSt
 	public final fun counter-gbq4QnA (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun decrypt (Lcom/tesla/generated/universalmessage/RoutableMessage;[BLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun export (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun isClosed ()Z
 	public final fun isReady ()Z
 	public final fun loadFromCache-8Mi8wO0 ([BJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun processHello ([B[B[BLkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -72,6 +73,11 @@ public final class io/github/smallmiro/teslable/application/infotainment/Infotai
 public final class io/github/smallmiro/teslable/application/infotainment/InfotainmentResponses {
 	public static final field INSTANCE Lio/github/smallmiro/teslable/application/infotainment/InfotainmentResponses;
 	public final fun interpret ([B)Lio/github/smallmiro/teslable/model/VehicleResult;
+}
+
+public final class io/github/smallmiro/teslable/application/logging/SafeLogger : io/github/smallmiro/teslable/port/TeslaLogger {
+	public fun <init> (Lio/github/smallmiro/teslable/port/TeslaLogger;)V
+	public fun log (Lio/github/smallmiro/teslable/port/LogLevel;Ljava/lang/String;Lkotlin/jvm/functions/Function0;)V
 }
 
 public final class io/github/smallmiro/teslable/application/vcsec/VcsecCommands {

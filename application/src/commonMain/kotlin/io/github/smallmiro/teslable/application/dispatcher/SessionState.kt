@@ -37,6 +37,10 @@ public class SessionState internal constructor(
     private val mutex = Mutex()
     private var signer: Signer? = null
     private val readySignal = CompletableDeferred<Unit>()
+    private var closed = false
+
+    /** [close]가 불렸는지. 닫힌 세션은 되살리지 않는다(설계 구체화 13). */
+    public val isClosed: Boolean get() = closed
 
     /** Go `session.ready`: 인가할 수 있는 상태인지. */
     public val isReady: Boolean get() = readySignal.isCompleted
@@ -58,6 +62,7 @@ public class SessionState internal constructor(
         tag: ByteArray,
     ): SignerResult<Unit> =
         mutex.withLock {
+            if (closed) return@withLock SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INTERNAL, "session closed")
             val result = signer?.updateSignedSessionInfo(challenge, encodedInfo, tag) ?: createSigner(challenge, encodedInfo, tag)
             if (result is SignerResult.Ok) readySignal.complete(Unit)
             result
@@ -114,6 +119,7 @@ public class SessionState internal constructor(
         age: Duration,
     ): SignerResult<Unit> =
         mutex.withLock {
+            if (closed) return@withLock SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INTERNAL, "session closed")
             when (val imported = Signer.importSessionInfo(privateKey, vin, encodedInfo, age, crypto, random, timeSource)) {
                 is SignerResult.Ok -> {
                     signer?.close()
@@ -134,12 +140,10 @@ public class SessionState internal constructor(
     /** 마지막으로 쓴 counter. 세션이 없으면 null. */
     public suspend fun counter(): UInt? = mutex.withLock { signer?.counter }
 
-    /**
-     * 세션 키를 0으로 덮는다. 이후 [authorize]는 `INTERNAL` fault, [decrypt]·[export]는 null이지만, 영구적이지 않다 —
-     * 이후 [processHello]나 [loadFromCache]가 다시 불리면 새 `Signer`를 만들어 세션을 되살린다(단일 사용 강제는 M3 항목).
-     */
+    /** 세션 키를 0으로 덮고 영구히 닫는다. 이후 [authorize]는 `INTERNAL` fault, [processHello]·[loadFromCache]도 거부한다. */
     public suspend fun close(): Unit =
         mutex.withLock {
+            closed = true
             signer?.close()
             signer = null
         }

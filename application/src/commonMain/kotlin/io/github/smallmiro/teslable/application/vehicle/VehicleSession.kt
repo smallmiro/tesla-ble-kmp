@@ -28,7 +28,10 @@ public class VehicleSession(
 ) {
     private val disconnectMutex = Mutex()
     private var storedOnDisconnect = false
+    private val connectMutex = Mutex()
     private var hasLoadedCache = false
+    private var disconnected = false
+    private var restoredDomains: Set<Domain> = emptySet()
 
     /** Go `StartSessions` 계층. */
     public val handshake: HandshakeFlow = HandshakeFlow(dispatcher)
@@ -48,13 +51,17 @@ public class VehicleSession(
     /** 전송 계층의 재전송 간격. */
     public val retryInterval: Duration get() = dispatcher.retryInterval
 
-    /** Go `NewVehicle`(캐시 복원) + `Connect`(수신 시작). 캐시로 준비된 도메인을 돌려준다. */
-    public suspend fun connect(): Set<Domain> {
-        val restored = cacheSync?.load(dispatcher) ?: emptySet()
-        hasLoadedCache = true
-        dispatcher.start()
-        return restored
-    }
+    /** Go `NewVehicle`(캐시 복원) + `Connect`(수신 시작). 멱등. [disconnect] 뒤에는 다시 쓸 수 없다(설계 구체화 13). */
+    public suspend fun connect(): Set<Domain> =
+        connectMutex.withLock {
+            check(!disconnected) { "VehicleSession cannot be reused after disconnect(); connect again through TeslaBle" }
+            if (hasLoadedCache) return@withLock restoredDomains
+            val restored = cacheSync?.load(dispatcher) ?: emptySet()
+            restoredDomains = restored
+            hasLoadedCache = true
+            dispatcher.start()
+            restored
+        }
 
     /**
      * Go `Vehicle.StartSession`: `shouldRetry()` 오류면 [retryInterval] 뒤 다시 핸드셰이크(`retryWhileRetriable`).
@@ -102,7 +109,10 @@ public class VehicleSession(
         try {
             storeOnceForDisconnect()
         } finally {
-            withContext(NonCancellable) { dispatcher.close() }
+            withContext(NonCancellable) {
+                connectMutex.withLock { disconnected = true }
+                dispatcher.close()
+            }
         }
     }
 

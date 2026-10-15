@@ -70,6 +70,8 @@ final class io.github.smallmiro.teslable.application.dispatcher/PendingRequest :
 }
 
 final class io.github.smallmiro.teslable.application.dispatcher/SessionState { // io.github.smallmiro.teslable.application.dispatcher/SessionState|null[0]
+    final val isClosed // io.github.smallmiro.teslable.application.dispatcher/SessionState.isClosed|{}isClosed[0]
+        final fun <get-isClosed>(): kotlin/Boolean // io.github.smallmiro.teslable.application.dispatcher/SessionState.isClosed.<get-isClosed>|<get-isClosed>(){}[0]
     final val isReady // io.github.smallmiro.teslable.application.dispatcher/SessionState.isReady|{}isReady[0]
         final fun <get-isReady>(): kotlin/Boolean // io.github.smallmiro.teslable.application.dispatcher/SessionState.isReady.<get-isReady>|<get-isReady>(){}[0]
 
@@ -88,6 +90,12 @@ final class io.github.smallmiro.teslable.application.infotainment/InfotainmentCo
     constructor <init>(io.github.smallmiro.teslable.application.vehicle/SendWithRetry) // io.github.smallmiro.teslable.application.infotainment/InfotainmentCommands.<init>|<init>(io.github.smallmiro.teslable.application.vehicle.SendWithRetry){}[0]
 
     final suspend fun execute(com.tesla.generated.carserver.server/Action, kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<com.tesla.generated.carserver.server/Response> // io.github.smallmiro.teslable.application.infotainment/InfotainmentCommands.execute|execute(com.tesla.generated.carserver.server.Action;kotlin.time.Duration){}[0]
+}
+
+final class io.github.smallmiro.teslable.application.logging/SafeLogger : io.github.smallmiro.teslable.port/TeslaLogger { // io.github.smallmiro.teslable.application.logging/SafeLogger|null[0]
+    constructor <init>(io.github.smallmiro.teslable.port/TeslaLogger) // io.github.smallmiro.teslable.application.logging/SafeLogger.<init>|<init>(io.github.smallmiro.teslable.port.TeslaLogger){}[0]
+
+    final fun log(io.github.smallmiro.teslable.port/LogLevel, kotlin/String, kotlin/Function0<kotlin/String>) // io.github.smallmiro.teslable.application.logging/SafeLogger.log|log(io.github.smallmiro.teslable.port.LogLevel;kotlin.String;kotlin.Function0<kotlin.String>){}[0]
 }
 
 final class io.github.smallmiro.teslable.application.vcsec/VcsecCommands { // io.github.smallmiro.teslable.application.vcsec/VcsecCommands|null[0]
