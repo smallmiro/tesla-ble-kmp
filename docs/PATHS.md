@@ -21,7 +21,7 @@
 | `PLANS_DIR` | `docs/superpowers/plans/` | 구현 계획 |
 | `ADR_DIR` | `docs/adr/` | 아키텍처 결정 기록 (`NNNN-<slug>.md`) |
 | `HANDOFF_DIR` | `docs/handoff/` | 세션 인계 노트 (`YYYY-MM-DD-<slug>.md`) |
-| `FIXTURES_DIR` | `testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/fixtures/` | 테스트 벡터, 골든 TX/RX (VIN 마스킹본만). Kotlin 상수로 저장 (SDD D30, ADR-0011) |
+| `FIXTURES_DIR` | `testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/fixtures/` | 테스트 벡터, 골든 TX/RX (VIN 마스킹본만). Kotlin 상수로 저장 (SDD D30, ADR-0011) |
 | `REF_REPO_DIR` | `vehicle-command/` | 공식 Go 저장소 로컬 클론. **git-ignored, 읽기 전용** |
 | `REF_REPO_URL` | `https://github.com/teslamotors/vehicle-command` | 원본 저장소 |
 | `REF_REPO_COMMIT` | `a4b43c1eff0e09d77deb9f2dce97031141fe8c8a` | 포팅 기준 커밋 (2026-09-25) |
@@ -29,7 +29,7 @@
 | `LIB_NAME` | `tesla-ble-kmp` | 라이브러리 / Gradle 루트 이름 (= GitHub 저장소 이름, 2026-09-26 확정) |
 | `REPO_URL` | `https://github.com/smallmiro/tesla-ble-kmp` | 공개 저장소 (Apache-2.0). 브랜치 `main` 보호 |
 | `PACKAGES_MAVEN_URL` | `https://maven.pkg.github.com/smallmiro/tesla-ble-kmp` | GitHub Packages Maven 레지스트리 (M6에서 첫 배포). 소비자는 `read:packages` 토큰 필요 |
-| `BASE_PACKAGE` | `io.github.smallmiro.teslable` | Kotlin 패키지 루트 (Phase 1 Q5-b에서 확정) |
+| `BASE_PACKAGE` | `dev.mirolab.teslable` | Kotlin 패키지 루트 (Phase 1 Q5-b에서 확정, 도메인 `mirolab.dev` 에 맞춰 ADR-0013에서 변경) |
 
 ## 규칙
 1. 문서와 지침에서는 `{{MANUAL_DIR}}` 처럼 **키로 참조**합니다. 링크가 꼭 필요하면 이 파일로 링크합니다.

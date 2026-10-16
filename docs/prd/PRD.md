@@ -22,7 +22,7 @@
 | D11 | 키 등록 기본 역할 | **Owner.** 역할 지정 오버로드 제공 | Go `SendAddKeyRequest`와 동일 기본값. `03-protocol §3`, `05-command-catalog B` |
 | D12 | 공개 API 스타일 | **commonMain은 `suspend` + `Flow`. iOS는 SKIE로 Swift async/await, AsyncSequence, enum 변환** | SKIE(Apache-2.0) 도입은 SDD에서 ADR로 기록. `04-go-api-reference pkg/vehicle` |
 | D13 | 공개·배포 | **저장소는 처음부터 공개(오픈소스, Apache-2.0).** 배포 채널은 **GitHub Packages(Maven 레지스트리, `{{PACKAGES_MAVEN_URL}}`)** **+ SPM**(`Package.swift` + GitHub Release의 XCFramework). Maven Central과 GitHub Pages Maven 저장소는 쓰지 않음. 배포 파이프라인 구축은 **M6의 마지막 과제**이며 그 전까지는 `mavenLocal` + 로컬 XCFramework | 앱 개발자는 공개 패키지를 받을 때도 GitHub PAT(`read:packages`)가 필요하므로 `getting-started.md`에 설정법(gradle.properties, CI 시크릿)을 명시. `LICENSE`·`NOTICE`는 저장소 생성 시(Phase 1) 커밋됨 |
-| D14 | 패키지 루트 | **`io.github.smallmiro.teslable`** (`{{PATHS_FILE}}` `BASE_PACKAGE`에 기록됨) | GitHub Packages는 그룹 제약이 없지만, 나중에 Maven Central로 옮길 수 있도록 `io.github.<계정>` 규칙을 유지 |
+| D14 | 패키지 루트 | **`dev.mirolab.teslable`** (`{{PATHS_FILE}}` `BASE_PACKAGE`에 기록됨) | 프로젝트 도메인 `mirolab.dev` 의 역도메인 규칙. 처음에는 `io.github.smallmiro.teslable` 이었으나 2026-10-17에 변경 (ADR-0013) |
 | D15 | 샘플 앱 UI | **Android Jetpack Compose + iOS SwiftUI** (각각 네이티브) | 실제 소비자 앱과 같은 구성. SKIE가 만든 Swift 표면을 검증 |
 | D16 | 동시 연결 차량 수 | **설계는 차량 단위 객체(연결마다 독립 인스턴스). v1 검증은 1대.** 다중 연결은 막지 않되 "미검증"으로 문서화 | Go와 동일 (연결 1 = Vehicle 1). `01-architecture §5`, `02-ble-transport §11` |
 | D17 | v1 기능 범위 | **P0 + P1을 v1에 포함. P2는 v1.1** (§5 표 참조) | `{{HANDOFF_FILE}}` §12 M5 완료 기준 = P0/P1 |

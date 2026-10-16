@@ -7,7 +7,7 @@
 | 정답 기준 | `{{REF_REPO_DIR}}` @ `{{REF_REPO_COMMIT}}` + `pkg/protocol/protocol.md` |
 | 1차 가이드 | `{{MANUAL_DIR}}` (`01-architecture`, `02-ble-transport`, `03-protocol`, `08-errors`, `10-porting-guide`) |
 | 설계 원본 | `{{SPECS_DIR}}2026-09-26-tesla-ble-kmp-design.md` |
-| 결정 기록 | `{{ADR_DIR}}0001` ~ `0011` (§11) |
+| 결정 기록 | `{{ADR_DIR}}0001` ~ `0013` (§11) |
 | 다음 문서 | `{{PLANS_DIR}}` (Phase 3) |
 
 경로는 `{{PATHS_FILE}}` 의 키로 참조한다. Go 파일 경로는 `{{REF_REPO_DIR}}` 기준이며, 인용한 줄 번호는 커밋 `{{REF_REPO_COMMIT}}` 기준이다.
@@ -322,7 +322,7 @@ public interface Vehicle {
 | 플랫폼 | `CryptoPrimitives` | `VehicleKeyStore` / `EcdhPrivateKey` |
 |---|---|---|
 | Android (API 31+) | JCA `MessageDigest`(SHA-1/256), `Mac`(HmacSHA256), `Cipher("AES/GCM/NoPadding")`, `SecureRandom`, `MessageDigest.isEqual` | `AndroidKeyStore` EC P-256, `PURPOSE_AGREE_KEY`, `setIsStrongBoxBacked(true)` 시도 → 실패 시 TEE → 실패 시 `KeyPairGenerator("EC")` 소프트웨어 키를 `04‖X‖Y‖d`(97바이트)로 직렬화해 Keystore AES 키로 감싼 `TBK1` 파일로 앱 전용 보관(D10, 설계 구체화 10). Keystore 별칭은 `teslable.key:<alias>`/`teslable.wrap:<alias>`로 네임스페이스를 둔다. `KeyAgreement("ECDH", "AndroidKeyStore").generateSecret()` = 32바이트 X |
-| iOS (16+) | CommonCrypto `CC_SHA1`, `CC_SHA256`, `CCHmac`; `SecRandomCopyBytes`; AES-GCM은 **ADR-0004** 공급자; 상수 시간 비교는 Kotlin 구현(XOR 누적) | `SecKeyCreateRandomKey` + `kSecAttrTokenIDSecureEnclave`(가능 시) → 실패 시 Keychain generic password(service `io.github.smallmiro.teslable.key`)에 `04‖X‖Y‖d`(97바이트)로 저장한 소프트웨어 키(설계 구체화 10). Secure Enclave 조회 자체가 실패한 경우는 "키 없음"이 아니라 오류다(덮어쓰지 않음). `SecKeyCopyKeyExchangeResult(kSecKeyAlgorithmECDHKeyExchangeStandard)` = 32바이트 X. 공개키는 `SecKeyCopyExternalRepresentation`(65바이트 X9.63) |
+| iOS (16+) | CommonCrypto `CC_SHA1`, `CC_SHA256`, `CCHmac`; `SecRandomCopyBytes`; AES-GCM은 **ADR-0004** 공급자; 상수 시간 비교는 Kotlin 구현(XOR 누적) | `SecKeyCreateRandomKey` + `kSecAttrTokenIDSecureEnclave`(가능 시) → 실패 시 Keychain generic password(service `dev.mirolab.teslable.key`)에 `04‖X‖Y‖d`(97바이트)로 저장한 소프트웨어 키(설계 구체화 10). Secure Enclave 조회 자체가 실패한 경우는 "키 없음"이 아니라 오류다(덮어쓰지 않음). `SecKeyCopyKeyExchangeResult(kSecKeyAlgorithmECDHKeyExchangeStandard)` = 32바이트 X. 공개키는 `SecKeyCopyExternalRepresentation`(65바이트 X9.63) |
 | 테스트 (`:testing`) | JVM: 위 JCA 구현 재사용. iOS 시뮬레이터: 위 iOS 구현 | `SoftwareEcdhKey(privateScalar)`: JVM은 JCA `ECPrivateKeySpec`, iOS는 `SecKeyCreateWithData`(kSecAttrKeyClassPrivate). `protocol.md` 클라이언트 키로 벡터 검증 |
 
 ### 2.6 `:adapter-storage`
@@ -330,7 +330,7 @@ public interface Vehicle {
 | 플랫폼 | 구현 | 위치 |
 |---|---|---|
 | Android | `FileSessionCache` | `context.filesDir/teslable/sessions/<sha1(vin)>.bin` (MODE_PRIVATE) |
-| iOS | `KeychainSessionCache` | Keychain generic password, service `io.github.smallmiro.teslable.session`, account `<sha1(vin)>`, `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` |
+| iOS | `KeychainSessionCache` | Keychain generic password, service `dev.mirolab.teslable.session`, account `<sha1(vin)>`, `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` |
 | 공통 | `InMemorySessionCache` | 테스트·옵트아웃용 |
 
 포맷은 §7.1.
@@ -710,6 +710,7 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 | 0010 | 타임아웃 파라미터와 취소 전파 | D29 |
 | 0011 | 골든 픽스처를 Kotlin 상수로 | D30 |
 | 0012 | 로컬 검증 게이트가 GitHub Actions CI를 대체 | 사용자 결정 (2026-09-27) |
+| 0013 | 패키지 루트를 `dev.mirolab.teslable` 로 변경 | PRD D14 (2026-10-17) |
 
 ---
 
