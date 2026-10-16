@@ -33,7 +33,7 @@ SDD·ADR이 비워 두었거나 M1 결과와 어긋나는 점을 아래처럼 �
 
 ## Global Constraints
 
-- 패키지 루트 `io.github.smallmiro.teslable` (`{{PATHS_FILE}}` `BASE_PACKAGE`). Wire 생성 코드는 `com.tesla.generated.*` 그대로. `:application`은 `io.github.smallmiro.teslable.application.*`, `:adapter-storage`는 `io.github.smallmiro.teslable.storage`, `:testing`은 `io.github.smallmiro.teslable.testing`.
+- 패키지 루트 `dev.mirolab.teslable` (`{{PATHS_FILE}}` `BASE_PACKAGE`). Wire 생성 코드는 `com.tesla.generated.*` 그대로. `:application`은 `dev.mirolab.teslable.application.*`, `:adapter-storage`는 `dev.mirolab.teslable.storage`, `:testing`은 `dev.mirolab.teslable.testing`.
 - 타깃: `jvm()`, Android(`minSdk 31`, `compileSdk 37`), `iosArm64()`, `iosSimulatorArm64()`. iOS 배포 타깃 16.0(컨벤션 플러그인이 선언).
 - 모든 라이브러리 모듈은 `explicitApi()`, `allWarningsAsErrors = true`, 공개 API에 KDoc 필수. detekt `UndocumentedPublicClass/Function/Property`가 `:testing`을 포함한 모든 라이브러리 모듈에서 이를 강제한다.
 - 의존 방향(ADR-0001): `:domain` ← `:application`, `:adapter-*` ← `:sdk`. **`:application`은 `:domain`에만 의존한다.** `:testing`은 `:domain`, `:adapter-crypto`에만 의존하고 다른 모듈의 **테스트 소스셋**에서만 참조된다. `:domain` 외부 의존은 `kotlin-stdlib*`, `kotlinx-coroutines*`, `wire-runtime`, `okio`뿐(경계 플러그인 allowlist).
@@ -114,9 +114,9 @@ SDD·ADR이 비워 두었거나 M1 결과와 어긋나는 점을 아래처럼 �
 참고: `{{HANDOFF_DIR}}2026-09-27-m1-rulings.md` L80~L83, L120 잔여; M1 최종 리뷰 M-7, 권고 6. Go 원본: `internal/authentication/verifier.go`(`AssignHandle` 75~79행, `SetSessionInfo` 127~146행, `sessionInfo` 81~92행), `verifier_test.go`(`TestProvideHandle` 553~564행, `TestGCMExpired` 319~327행의 `verifier.timeZero` 직접 조작).
 
 **Files:**
-- Modify: `testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/TestVerifier.kt`
-- Modify: `testing/src/commonTest/kotlin/io/github/smallmiro/teslable/testing/TestVerifierTest.kt`
-- Modify: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/Signer.kt:309-311` (KDoc 문구만)
+- Modify: `testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/TestVerifier.kt`
+- Modify: `testing/src/commonTest/kotlin/dev/mirolab/teslable/testing/TestVerifierTest.kt`
+- Modify: `domain/src/commonMain/kotlin/dev/mirolab/teslable/protocol/Signer.kt:309-311` (KDoc 문구만)
 - Modify: `docs/sdd/SDD.md:187`, `docs/sdd/SDD.md:669`, `docs/handoff/2026-09-27-m1-protocol.md:24` (문구만)
 
 **Interfaces:**
@@ -268,7 +268,7 @@ Run: `./gradlew :domain:detekt --console=plain`
 Expected: PASS (KDoc만 바뀜)
 
 ```bash
-git add domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/Signer.kt docs/sdd/SDD.md docs/handoff/2026-09-27-m1-protocol.md
+git add domain/src/commonMain/kotlin/dev/mirolab/teslable/protocol/Signer.kt docs/sdd/SDD.md docs/handoff/2026-09-27-m1-protocol.md
 git commit -m "docs: say a future generatedAt makes timeZero later, not earlier (Signer KDoc, SDD, M1 handoff)
 
 Refs: FR-019
@@ -282,11 +282,11 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 참고 매뉴얼: `01-architecture.md` §3.1(Connector 계약), §5(락·채널); `10-porting-guide.md` §3(수신 버퍼). Go 원본: `pkg/connector/connector.go`(`Connector`, `AuthMethod`, `BufferSize`), `dispatcher_test.go`(`dummyConnector` 84~274행: `Sleep`/`Wake`, `EnqueueReply`, `EnqueueSendError`, `Send`, `AckRequests`, `RetryInterval = 1ms`, `AllowedLatency = 1s`). 설계: `{{SDD_FILE}}` §2.1 포트, 설계 구체화 1·2.
 
 **Files:**
-- Create: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/Transport.kt`
-- Create: `testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/FakeTransport.kt`
+- Create: `domain/src/commonMain/kotlin/dev/mirolab/teslable/port/Transport.kt`
+- Create: `testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/FakeTransport.kt`
 - Modify: `tools/ci/ported-files.txt` (Transport.kt 추가)
 - Modify: `domain/api/*` (`apiDump`)
-- Test: `testing/src/commonTest/kotlin/io/github/smallmiro/teslable/testing/FakeTransportTest.kt`
+- Test: `testing/src/commonTest/kotlin/dev/mirolab/teslable/testing/FakeTransportTest.kt`
 
 **Interfaces:**
 - Consumes: M0 `Vin`, M1 `VehicleError`, `VehicleResult`, `toResult()`.
@@ -300,12 +300,12 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: 실패 테스트 작성**
 
 ```kotlin
-// testing/src/commonTest/kotlin/io/github/smallmiro/teslable/testing/FakeTransportTest.kt
-package io.github.smallmiro.teslable.testing
+// testing/src/commonTest/kotlin/dev/mirolab/teslable/testing/FakeTransportTest.kt
+package dev.mirolab.teslable.testing
 
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.port.TransportState
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.TransportState
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -397,13 +397,13 @@ Expected: 컴파일 실패 (`Transport`, `FakeTransport` 없음)
 - [ ] **Step 3: 구현**
 
 ```kotlin
-// domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/Transport.kt
+// domain/src/commonMain/kotlin/dev/mirolab/teslable/port/Transport.kt
 // Ported from vehicle-command@a4b43c1 pkg/connector/connector.go (Apache-2.0) — Connector, AuthMethod (GCM only, D6)
-package io.github.smallmiro.teslable.port
+package dev.mirolab.teslable.port
 
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.Vin
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.Vin
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.time.Duration
@@ -459,15 +459,15 @@ public interface Transport {
 ```
 
 ```kotlin
-// testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/FakeTransport.kt
-package io.github.smallmiro.teslable.testing
+// testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/FakeTransport.kt
+package dev.mirolab.teslable.testing
 
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.model.toResult
-import io.github.smallmiro.teslable.port.Transport
-import io.github.smallmiro.teslable.port.TransportState
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.model.toResult
+import dev.mirolab.teslable.port.Transport
+import dev.mirolab.teslable.port.TransportState
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -557,7 +557,7 @@ public class FakeTransport(
 }
 ```
 
-`tools/ci/ported-files.txt`에 `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/Transport.kt`를 정렬 위치에 추가한다.
+`tools/ci/ported-files.txt`에 `domain/src/commonMain/kotlin/dev/mirolab/teslable/port/Transport.kt`를 정렬 위치에 추가한다.
 
 - [ ] **Step 4: 통과 확인, API 덤프, 커밋**
 
@@ -566,7 +566,7 @@ Run: `./gradlew :testing:jvmTest --tests '*FakeTransportTest*' :domain:check :te
 Expected: PASS (JVM, iOS). `domain/api/*`에 `Transport`, `TransportState`, `AuthMethod` 반영.
 
 ```bash
-git add domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/Transport.kt domain/api tools/ci/ported-files.txt
+git add domain/src/commonMain/kotlin/dev/mirolab/teslable/port/Transport.kt domain/api tools/ci/ported-files.txt
 git commit -m "feat(domain): Transport port and AuthMethod from connector.go (send returns VehicleResult, GCM only)
 
 Refs: FR-010, NFR-012, ADR-0006
@@ -584,10 +584,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 참고 매뉴얼: `03-protocol.md` §9.2(TAG_FAULT = 응답의 `signed_message_fault`를 uint32 BE 4바이트); `08-errors.md` §1.4. Go 원본: `internal/authentication/signer.go` `Decrypt`(`message.GetSignedMessageStatus().GetSignedMessageFault()`를 `uint32`로 `responseMetadata`에 넘김), `pkg/protocol/error.go` 241행. 설계: `{{SDD_FILE}}` §12 마지막 항목("M2에서 보완"), M1 판정 L101, 설계 구체화 10.
 
 **Files:**
-- Create: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/UnknownFields.kt`
-- Modify: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/ResponseClassifier.kt:86-110` (`unknownVarint`를 확장 함수 호출로 교체)
-- Modify: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/Signer.kt:202-245` (`decrypt`)
-- Test: `domain/src/commonTest/kotlin/io/github/smallmiro/teslable/protocol/SignerCryptoTest.kt` (테스트 1개 추가)
+- Create: `domain/src/commonMain/kotlin/dev/mirolab/teslable/protocol/UnknownFields.kt`
+- Modify: `domain/src/commonMain/kotlin/dev/mirolab/teslable/protocol/ResponseClassifier.kt:86-110` (`unknownVarint`를 확장 함수 호출로 교체)
+- Modify: `domain/src/commonMain/kotlin/dev/mirolab/teslable/protocol/Signer.kt:202-245` (`decrypt`)
+- Test: `domain/src/commonTest/kotlin/dev/mirolab/teslable/protocol/SignerCryptoTest.kt` (테스트 1개 추가)
 
 **Interfaces:**
 - Consumes: M1 `Signer.decrypt`, `ResponseMetadata.build`, `Session.encrypt`, Wire `MessageStatus.unknownFields`.
@@ -596,8 +596,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: 구조 변경 — `unknownVarint` 추출 (동작 불변)**
 
 ```kotlin
-// domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/UnknownFields.kt
-package io.github.smallmiro.teslable.protocol
+// domain/src/commonMain/kotlin/dev/mirolab/teslable/protocol/UnknownFields.kt
+package dev.mirolab.teslable.protocol
 
 import com.squareup.wire.ProtoReader
 import okio.Buffer
@@ -634,7 +634,7 @@ Run: `./gradlew :domain:jvmTest --tests '*ResponseClassifierTest*' :domain:detek
 Expected: PASS (9개 그대로)
 
 ```bash
-git add domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/UnknownFields.kt domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/ResponseClassifier.kt
+git add domain/src/commonMain/kotlin/dev/mirolab/teslable/protocol/UnknownFields.kt domain/src/commonMain/kotlin/dev/mirolab/teslable/protocol/ResponseClassifier.kt
 git commit -m "struct(domain): extract ByteString.unknownVarint from ResponseClassifier for reuse
 
 Refs: FR-016
@@ -705,7 +705,7 @@ Run: `./gradlew :domain:jvmTest --tests '*SignerCryptoTest*' :domain:detekt :dom
 Expected: PASS (JVM, iOS). 공개 API는 바뀌지 않으므로 `apiDump`는 불필요(변경이 있으면 `apiCheck`가 CI에서 잡는다).
 
 ```bash
-git add domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/Signer.kt domain/src/commonTest/kotlin/io/github/smallmiro/teslable/protocol/SignerCryptoTest.kt
+git add domain/src/commonMain/kotlin/dev/mirolab/teslable/protocol/Signer.kt domain/src/commonTest/kotlin/dev/mirolab/teslable/protocol/SignerCryptoTest.kt
 git commit -m "feat(domain): Signer.decrypt uses the raw signed_message_fault from unknownFields in the response AAD like Go
 
 Refs: FR-016, NFR-017
@@ -719,9 +719,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 참고 매뉴얼: `03-protocol.md` §7(핸드셰이크), §9.4(복구 규칙), §11(VCSEC 응답); `{{WORKFLOW_FILE}}` §2.4(FakeVehicle 원칙 — 7 시나리오, sleep 없음); `{{SDD_FILE}}` §9.3(대본 API), §9.4 M2 행(`verifier_test.go` 포팅). Go 원본: `dispatcher_test.go`(`dummyConnector` 84~274행, `handleSessionInfoRequests` 204~227행, `initReply` 195~202행, `SessionInfoReply` 179~193행, `testUUID` 38~44행), `verifier.go`(`Verify`, `SetSessionInfo`, `Encrypt`), `verifier_test.go`(`TestValidGCMEncryption` 47행, `TestGCMFlags` 57행, `TestGCMMissingDestination` 141행, `TestGCMOutOfOrderMessage` 218행, `TestEpochChange` 232행, `TestGCMCorruptedCiphertext` 298행, `TestGCMExpired` 319행, `TestGCMInvalidEpoch` 329행, `TestGCMInvalidTime` 339행, `TestGCMWindow` 439행, `TestVerifierEncryption` 566행).
 
 **Files:**
-- Create: `testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/FakeVehicle.kt`
+- Create: `testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/FakeVehicle.kt`
 - Modify: `tools/ci/ported-files.txt` (FakeVehicle.kt 추가)
-- Test: `testing/src/commonTest/kotlin/io/github/smallmiro/teslable/testing/FakeVehicleTest.kt`
+- Test: `testing/src/commonTest/kotlin/dev/mirolab/teslable/testing/FakeVehicleTest.kt`
 
 **Interfaces:**
 - Consumes: Task 1 `TestVerifier`(`create`, `verify`, `setSessionInfo`, `signedSessionInfo`, `encryptResponse`, `rotateEpoch`, `shiftTimeZero`, `epoch`), Task 2 `FakeTransport`, M1 `Signer`(테스트에서), `RequestHash.of`, Wire `RoutableMessage`/`SessionInfoRequest`/`FromVCSECMessage`/`CommandStatus`/`Response`/`ActionStatus`/`NominalError`.
@@ -736,8 +736,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: 실패 테스트 작성**
 
 ```kotlin
-// testing/src/commonTest/kotlin/io/github/smallmiro/teslable/testing/FakeVehicleTest.kt
-package io.github.smallmiro.teslable.testing
+// testing/src/commonTest/kotlin/dev/mirolab/teslable/testing/FakeVehicleTest.kt
+package dev.mirolab.teslable.testing
 
 import com.tesla.generated.signatures.SignatureData
 import com.tesla.generated.universalmessage.Destination
@@ -745,15 +745,15 @@ import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
 import com.tesla.generated.universalmessage.RoutableMessage
 import com.tesla.generated.universalmessage.SessionInfoRequest
-import io.github.smallmiro.teslable.InternalTeslableApi
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.shouldRetry
-import io.github.smallmiro.teslable.protocol.CommandMetadata
-import io.github.smallmiro.teslable.protocol.RequestHash
-import io.github.smallmiro.teslable.protocol.Session
-import io.github.smallmiro.teslable.protocol.Signer
-import io.github.smallmiro.teslable.protocol.SignerResult
+import dev.mirolab.teslable.InternalTeslableApi
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.shouldRetry
+import dev.mirolab.teslable.protocol.CommandMetadata
+import dev.mirolab.teslable.protocol.RequestHash
+import dev.mirolab.teslable.protocol.Session
+import dev.mirolab.teslable.protocol.Signer
+import dev.mirolab.teslable.protocol.SignerResult
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -1110,9 +1110,9 @@ Expected: 컴파일 실패 (`FakeVehicle` 없음)
 - [ ] **Step 3: 구현**
 
 ```kotlin
-// testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/FakeVehicle.kt
+// testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/FakeVehicle.kt
 // Ported from vehicle-command@a4b43c1 internal/dispatcher/dispatcher_test.go (Apache-2.0) — dummyConnector, handleSessionInfoRequests, initReply, testUUID
-package io.github.smallmiro.teslable.testing
+package dev.mirolab.teslable.testing
 
 import com.tesla.generated.carserver.server.ActionStatus
 import com.tesla.generated.carserver.server.Response
@@ -1131,15 +1131,15 @@ import com.tesla.generated.vcsec.FromVCSECMessage
 import com.tesla.generated.vcsec.SignedMessage_status
 import com.tesla.generated.vcsec.WhitelistOperation_information_E
 import com.tesla.generated.vcsec.WhitelistOperation_status
-import io.github.smallmiro.teslable.InternalTeslableApi
-import io.github.smallmiro.teslable.model.PublicKeyBytes
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.port.CryptoPrimitives
-import io.github.smallmiro.teslable.port.EcdhPrivateKey
-import io.github.smallmiro.teslable.port.RandomSource
-import io.github.smallmiro.teslable.protocol.RequestHash
+import dev.mirolab.teslable.InternalTeslableApi
+import dev.mirolab.teslable.model.PublicKeyBytes
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.CryptoPrimitives
+import dev.mirolab.teslable.port.EcdhPrivateKey
+import dev.mirolab.teslable.port.RandomSource
+import dev.mirolab.teslable.protocol.RequestHash
 import okio.ByteString.Companion.toByteString
 import okio.IOException
 import kotlin.time.Duration
@@ -1534,7 +1534,7 @@ public class FakeVehicle(
 }
 ```
 
-`tools/ci/ported-files.txt`에 `testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/FakeVehicle.kt`를 추가한다. Wire enum 두 개가 같은 단순 이름(`OperationStatus_E`)이라 `as` 별칭 import를 쓴다(ktlint는 별칭 import를 파일 끝에 정렬한다 — `lintKotlin`이 지적하면 그 순서를 따른다).
+`tools/ci/ported-files.txt`에 `testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/FakeVehicle.kt`를 추가한다. Wire enum 두 개가 같은 단순 이름(`OperationStatus_E`)이라 `as` 별칭 import를 쓴다(ktlint는 별칭 import를 파일 끝에 정렬한다 — `lintKotlin`이 지적하면 그 순서를 따른다).
 
 - [ ] **Step 4: 통과 확인, 커밋**
 
@@ -1555,13 +1555,13 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 참고 매뉴얼: `01-architecture.md` §4.1(receiverKey 매칭), §5(락 순서 `sessionLock → session.lock`, `readySignal`), `03-protocol.md` §9.2(요청별 counter 윈도우), §9.4; `08-errors.md` §5(processHello 흐름). Go 원본: `internal/dispatcher/receiver.go`(전부: `receiverBufferSize = 10`, `receiverKey`, `receiver`, `expired`), `session.go`(`newSession`, `decrypt`, `authorize`, `export`, `processHello`). 설계: `{{SDD_FILE}}` §2.2(`SessionState`, `PendingRequest`), §5, 설계 구체화 4·5.
 
 **Files:**
-- Create: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/PendingRequest.kt`
-- Create: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/SessionState.kt`
-- Delete: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/Placeholder.kt`
+- Create: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/PendingRequest.kt`
+- Create: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/SessionState.kt`
+- Delete: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/Placeholder.kt`
 - Modify: `tools/ci/ported-files.txt` (두 파일 추가)
 - Modify: `application/api/*` (`apiDump`)
-- Test: `application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/dispatcher/PendingRequestTest.kt`
-- Test: `application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/dispatcher/SessionStateTest.kt`
+- Test: `application/src/commonTest/kotlin/dev/mirolab/teslable/application/dispatcher/PendingRequestTest.kt`
+- Test: `application/src/commonTest/kotlin/dev/mirolab/teslable/application/dispatcher/SessionStateTest.kt`
 
 **Interfaces:**
 - Consumes: M1 `Signer`(`createAuthenticated`, `updateSignedSessionInfo`, `importSessionInfo`, `encrypt`, `decrypt`, `exportSessionInfo`, `timestamp`, `counter`, `close`), `SignerResult`, M0 `SlidingWindow`, Wire `RoutableMessage`, `Domain`, okio `ByteString`, `kotlinx.coroutines` `Channel`/`Mutex`/`CompletableDeferred`.
@@ -1574,8 +1574,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: 실패 테스트 작성**
 
 ```kotlin
-// application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/dispatcher/PendingRequestTest.kt
-package io.github.smallmiro.teslable.application.dispatcher
+// application/src/commonTest/kotlin/dev/mirolab/teslable/application/dispatcher/PendingRequestTest.kt
+package dev.mirolab.teslable.application.dispatcher
 
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
@@ -1648,21 +1648,21 @@ class PendingRequestTest {
 ```
 
 ```kotlin
-// application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/dispatcher/SessionStateTest.kt
-package io.github.smallmiro.teslable.application.dispatcher
+// application/src/commonTest/kotlin/dev/mirolab/teslable/application/dispatcher/SessionStateTest.kt
+package dev.mirolab.teslable.application.dispatcher
 
 import com.tesla.generated.universalmessage.Destination
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
 import com.tesla.generated.universalmessage.RoutableMessage
-import io.github.smallmiro.teslable.InternalTeslableApi
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.protocol.SignerResult
-import io.github.smallmiro.teslable.testing.FixedRandom
-import io.github.smallmiro.teslable.testing.TestCrypto
-import io.github.smallmiro.teslable.testing.TestVerifier
-import io.github.smallmiro.teslable.testing.fixtures.ProtocolVectors
-import io.github.smallmiro.teslable.util.hexToBytes
+import dev.mirolab.teslable.InternalTeslableApi
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.protocol.SignerResult
+import dev.mirolab.teslable.testing.FixedRandom
+import dev.mirolab.teslable.testing.TestCrypto
+import dev.mirolab.teslable.testing.TestVerifier
+import dev.mirolab.teslable.testing.fixtures.ProtocolVectors
+import dev.mirolab.teslable.util.hexToBytes
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.TestScope
@@ -1839,13 +1839,13 @@ kotlin {
 `Placeholder.kt`를 삭제한다.
 
 ```kotlin
-// application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/PendingRequest.kt
+// application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/PendingRequest.kt
 // Ported from vehicle-command@a4b43c1 internal/dispatcher/receiver.go (Apache-2.0) — receiverKey, receiver, expired
-package io.github.smallmiro.teslable.application.dispatcher
+package dev.mirolab.teslable.application.dispatcher
 
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
-import io.github.smallmiro.teslable.protocol.SlidingWindow
+import dev.mirolab.teslable.protocol.SlidingWindow
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.selects.SelectClause1
 import okio.ByteString
@@ -1923,18 +1923,18 @@ public class PendingRequest internal constructor(
 ```
 
 ```kotlin
-// application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/SessionState.kt
+// application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/SessionState.kt
 // Ported from vehicle-command@a4b43c1 internal/dispatcher/session.go (Apache-2.0) — session, processHello, authorize, decrypt, export; LoadCache (dispatcher.go)
-package io.github.smallmiro.teslable.application.dispatcher
+package dev.mirolab.teslable.application.dispatcher
 
 import com.tesla.generated.universalmessage.MessageFault_E
 import com.tesla.generated.universalmessage.RoutableMessage
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.port.CryptoPrimitives
-import io.github.smallmiro.teslable.port.EcdhPrivateKey
-import io.github.smallmiro.teslable.port.RandomSource
-import io.github.smallmiro.teslable.protocol.Signer
-import io.github.smallmiro.teslable.protocol.SignerResult
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.CryptoPrimitives
+import dev.mirolab.teslable.port.EcdhPrivateKey
+import dev.mirolab.teslable.port.RandomSource
+import dev.mirolab.teslable.protocol.Signer
+import dev.mirolab.teslable.protocol.SignerResult
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.sync.Mutex
@@ -2080,13 +2080,13 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 참고 매뉴얼: `01-architecture.md` §3.2, §4(전체 경로), §4.1(receiverKey), §5(goroutine 1개); `03-protocol.md` §9.2, §9.4; `08-errors.md` §5(폐기 조건과 로그 문구), §6(리플레이·드롭); `10-porting-guide.md` §4, §7(a)(b). Go 원본: `internal/dispatcher/dispatcher.go`(`New` 43~57행, `SetMaxLatency` 59~65행, `createHandler`/`closeHandler` 158~180행, `checkForSessionUpdate` 182~224행, `decrypt` 226~243행, `process` 245~315행, `Start`/`listen`/`Stop` 319~376행, `Send` 379~461행, `SessionInfoRequest` 464~478행, `RequestSessionInfo` 482~488행), `dispatcher_test.go`(`TestSendWithoutSession` 276행, `TestInvalidMessages` 382행, `TestVehicleUnreachable` 607행, `TestRetrySend` 698행, `TestSendTimeout` 722행, `TestStopDispatcher` 754행, `TestDoNotBlockOnResponder` 792행, `TestRequestSessionWithoutKey` 841행, `TestUnsolicitedSessionInfo` 472행, `TestCorruptedSessionInfo` 518행, `TestDiscardUnauthenticatedSessionInfo` 565행). 설계: `{{SDD_FILE}}` §2.2, §3.3 수신 측, §5, §10(로그 문구), FR-010, FR-011, FR-014, FR-016, 설계 구체화 4·9·10, Review Focus 1·2·5.
 
 **Files:**
-- Create: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/TeslaLogger.kt`
-- Create: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/Dispatcher.kt`
-- Create: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/Results.kt`
-- Create: `testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/RecordingLogger.kt`
-- Create: `application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/dispatcher/DispatcherFixtures.kt`
+- Create: `domain/src/commonMain/kotlin/dev/mirolab/teslable/port/TeslaLogger.kt`
+- Create: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/Dispatcher.kt`
+- Create: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/Results.kt`
+- Create: `testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/RecordingLogger.kt`
+- Create: `application/src/commonTest/kotlin/dev/mirolab/teslable/application/dispatcher/DispatcherFixtures.kt`
 - Modify: `tools/ci/ported-files.txt`, `domain/api/*`, `application/api/*`
-- Test: `application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/dispatcher/DispatcherTest.kt`
+- Test: `application/src/commonTest/kotlin/dev/mirolab/teslable/application/dispatcher/DispatcherTest.kt`
 
 **Interfaces:**
 - Consumes: Task 2 `Transport`/`AuthMethod`/`FakeTransport`, Task 4 `FakeVehicle`, Task 5 `PendingKey`/`PendingRequest`/`SessionState`, M1 `RequestHash.of`, `SignerResult`, `VehicleError`, `VehicleResult`, `shouldRetry()`, `toResult()`.
@@ -2101,18 +2101,18 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: 하네스와 실패 테스트 작성**
 
 ```kotlin
-// application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/dispatcher/DispatcherFixtures.kt
-package io.github.smallmiro.teslable.application.dispatcher
+// application/src/commonTest/kotlin/dev/mirolab/teslable/application/dispatcher/DispatcherFixtures.kt
+package dev.mirolab.teslable.application.dispatcher
 
 import com.tesla.generated.universalmessage.Destination
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.port.EcdhPrivateKey
-import io.github.smallmiro.teslable.testing.FakeTransport
-import io.github.smallmiro.teslable.testing.FakeVehicle
-import io.github.smallmiro.teslable.testing.RecordingLogger
-import io.github.smallmiro.teslable.testing.TestCrypto
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.EcdhPrivateKey
+import dev.mirolab.teslable.testing.FakeTransport
+import dev.mirolab.teslable.testing.FakeVehicle
+import dev.mirolab.teslable.testing.RecordingLogger
+import dev.mirolab.teslable.testing.TestCrypto
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.testTimeSource
@@ -2178,8 +2178,8 @@ internal suspend fun DispatcherHarness.manualHandshake(domain: Domain) {
 ```
 
 ```kotlin
-// application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/dispatcher/DispatcherTest.kt
-package io.github.smallmiro.teslable.application.dispatcher
+// application/src/commonTest/kotlin/dev/mirolab/teslable/application/dispatcher/DispatcherTest.kt
+package dev.mirolab.teslable.application.dispatcher
 
 import com.tesla.generated.signatures.HMAC_Signature_Data
 import com.tesla.generated.signatures.SessionInfo
@@ -2188,12 +2188,12 @@ import com.tesla.generated.universalmessage.Destination
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
 import com.tesla.generated.universalmessage.RoutableMessage
-import io.github.smallmiro.teslable.InternalTeslableApi
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.protocol.RequestHash
-import io.github.smallmiro.teslable.protocol.ResponseClassifier
-import io.github.smallmiro.teslable.testing.FakeVehicle
+import dev.mirolab.teslable.InternalTeslableApi
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.protocol.RequestHash
+import dev.mirolab.teslable.protocol.ResponseClassifier
+import dev.mirolab.teslable.testing.FakeVehicle
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.withTimeoutOrNull
@@ -2220,10 +2220,10 @@ class DispatcherTest {
         // dispatcher_test.go TestSendWithoutSession
         runTest {
             val h = dispatcherHarness()
-            val refused = assertIs<VehicleResult.Failure>(h.dispatcher.send(testCommand(), io.github.smallmiro.teslable.port.AuthMethod.GCM))
+            val refused = assertIs<VehicleResult.Failure>(h.dispatcher.send(testCommand(), dev.mirolab.teslable.port.AuthMethod.GCM))
             assertEquals(VehicleError.NoSession, refused.error)
             assertTrue(h.logger.contains("No session available for DOMAIN_INFOTAINMENT"))
-            val sent = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), io.github.smallmiro.teslable.port.AuthMethod.NONE))
+            val sent = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), dev.mirolab.teslable.port.AuthMethod.NONE))
             sent.value.use { pending ->
                 val request = h.lastRequest()
                 assertEquals(16, request.uuid.size) // FR-010: 16B 랜덤 uuid
@@ -2240,7 +2240,7 @@ class DispatcherTest {
             val h = dispatcherHarness()
             h.fake.script(vcsec, emptyList(), emptyList())
             h.fake.script(infotainment, emptyList(), emptyList())
-            val none = io.github.smallmiro.teslable.port.AuthMethod.NONE
+            val none = dev.mirolab.teslable.port.AuthMethod.NONE
             assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(vcsec), none)).value.use {
                 assertEquals(0, it.uuid.size) // VCSEC 키는 uuid를 쓰지 않는다
             }
@@ -2261,7 +2261,7 @@ class DispatcherTest {
         // dispatcher_test.go TestStopDispatcher
         runTest {
             val h = dispatcherHarness(start = false)
-            val none = io.github.smallmiro.teslable.port.AuthMethod.NONE
+            val none = dev.mirolab.teslable.port.AuthMethod.NONE
             assertEquals(VehicleError.NotConnected, assertIs<VehicleResult.Failure>(h.dispatcher.send(testCommand(), none)).error)
             h.dispatcher.start()
             assertTrue(h.dispatcher.isListening)
@@ -2276,7 +2276,7 @@ class DispatcherTest {
         // dispatcher.go Send: "cannot send message without a destination domain"
         runTest {
             val h = dispatcherHarness()
-            val none = io.github.smallmiro.teslable.port.AuthMethod.NONE
+            val none = dev.mirolab.teslable.port.AuthMethod.NONE
             val noDomain = RoutableMessage(protobuf_message_as_bytes = "x".encodeToByteArray().toByteString())
             assertIs<VehicleError.InvalidArgument>(assertIs<VehicleResult.Failure>(h.dispatcher.send(noDomain, none)).error)
             val broadcast = testCommand(Domain.DOMAIN_BROADCAST)
@@ -2289,7 +2289,7 @@ class DispatcherTest {
         runTest {
             val h = dispatcherHarness()
             h.transport.ackRequests = false
-            val failed = assertIs<VehicleResult.Failure>(h.dispatcher.send(testCommand(), io.github.smallmiro.teslable.port.AuthMethod.NONE))
+            val failed = assertIs<VehicleResult.Failure>(h.dispatcher.send(testCommand(), dev.mirolab.teslable.port.AuthMethod.NONE))
             assertEquals(VehicleError.TransportError.Disconnected, failed.error)
             assertEquals(1, h.transport.sent.size)
             assertEquals(0, h.dispatcher.pendingCount()) // 실패한 요청의 등록은 풀린다
@@ -2303,7 +2303,7 @@ class DispatcherTest {
             val h = dispatcherHarness()
             repeat(3) { h.transport.enqueueSendError(VehicleError.TransportError.WriteFailed("busy")) }
             h.transport.enqueueSendError(VehicleError.Timeout(afterSend = true))
-            val result = assertIs<VehicleResult.Uncertain>(h.dispatcher.send(testCommand(), io.github.smallmiro.teslable.port.AuthMethod.NONE))
+            val result = assertIs<VehicleResult.Uncertain>(h.dispatcher.send(testCommand(), dev.mirolab.teslable.port.AuthMethod.NONE))
             assertEquals(VehicleError.Timeout(afterSend = true), result.error)
             assertEquals(4, h.transport.sent.size)
             assertEquals(3, h.logger.count("Retrying transmission after error"))
@@ -2316,7 +2316,7 @@ class DispatcherTest {
         runTest {
             val h = dispatcherHarness()
             repeat(50) { h.transport.enqueueSendError(VehicleError.TransportError.WriteFailed("busy")) }
-            val result = withTimeoutOrNull(h.transport.retryInterval / 2) { h.dispatcher.send(testCommand(), io.github.smallmiro.teslable.port.AuthMethod.NONE) }
+            val result = withTimeoutOrNull(h.transport.retryInterval / 2) { h.dispatcher.send(testCommand(), dev.mirolab.teslable.port.AuthMethod.NONE) }
             assertNull(result)
             assertEquals(1, h.transport.sent.size)
             assertEquals(0, h.dispatcher.pendingCount())
@@ -2327,7 +2327,7 @@ class DispatcherTest {
         // dispatcher_test.go TestStartSession의 매칭 부분(인증 없이): FakeVehicle 기본 응답이 (address, uuid, domain)으로 매칭된다
         runTest {
             val h = dispatcherHarness()
-            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), io.github.smallmiro.teslable.port.AuthMethod.NONE)).value
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), dev.mirolab.teslable.port.AuthMethod.NONE)).value
             pending.use {
                 val reply = it.receive()
                 assertNull(ResponseClassifier.protocolError(reply))
@@ -2341,7 +2341,7 @@ class DispatcherTest {
         runTest {
             val h = dispatcherHarness()
             h.fake.script(infotainment, emptyList())
-            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), io.github.smallmiro.teslable.port.AuthMethod.NONE)).value
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), dev.mirolab.teslable.port.AuthMethod.NONE)).value
             val request = h.lastRequest()
             fun reply(payload: String): RoutableMessage = replyTo(request, payload.encodeToByteArray())
             h.transport.deliver("I'm not a valid protobuf".encodeToByteArray())
@@ -2374,7 +2374,7 @@ class DispatcherTest {
         runTest {
             val h = dispatcherHarness()
             h.fake.script(infotainment, emptyList())
-            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), io.github.smallmiro.teslable.port.AuthMethod.NONE)).value
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), dev.mirolab.teslable.port.AuthMethod.NONE)).value
             val unknownDomain = Destination.ADAPTER.decode(byteArrayOf(0x08, 0x04)) // 태그 1(domain) varint 4
             assertNull(unknownDomain.domain)
             h.transport.deliver(encode(replyTo(h.lastRequest(), "x".encodeToByteArray()).copy(from_destination = unknownDomain)))
@@ -2389,7 +2389,7 @@ class DispatcherTest {
         runTest {
             val h = dispatcherHarness()
             h.fake.script(infotainment, emptyList(), emptyList())
-            val none = io.github.smallmiro.teslable.port.AuthMethod.NONE
+            val none = dev.mirolab.teslable.port.AuthMethod.NONE
             val first = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), none)).value
             val firstRequest = h.lastRequest()
             val second = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), none)).value
@@ -2434,7 +2434,7 @@ class DispatcherTest {
             pending.use { assertNotNull(it.receive().session_info, "sanity: reply carries session info") }
             assertFalse(assertNotNull(h.dispatcher.session(vcsec)).isReady)
             assertTrue(h.logger.contains("Session info error: MESSAGEFAULT_ERROR_INVALID_SIGNATURE"))
-            val refused = assertIs<VehicleResult.Failure>(h.dispatcher.send(testCommand(vcsec), io.github.smallmiro.teslable.port.AuthMethod.GCM))
+            val refused = assertIs<VehicleResult.Failure>(h.dispatcher.send(testCommand(vcsec), dev.mirolab.teslable.port.AuthMethod.GCM))
             assertEquals(VehicleError.NoSession, refused.error)
         }
 
@@ -2533,7 +2533,7 @@ class DispatcherTest {
             h.manualHandshake(vcsec)
             val pending =
                 assertIs<VehicleResult.Success<PendingRequest>>(
-                    h.dispatcher.send(testCommand(vcsec, flags = FakeVehicle.FLAG_ENCRYPT_RESPONSE), io.github.smallmiro.teslable.port.AuthMethod.GCM),
+                    h.dispatcher.send(testCommand(vcsec, flags = FakeVehicle.FLAG_ENCRYPT_RESPONSE), dev.mirolab.teslable.port.AuthMethod.GCM),
                 ).value
             pending.use {
                 assertContentEquals(RequestHash.of(h.lastRequest()), it.requestHash)
@@ -2552,7 +2552,7 @@ class DispatcherTest {
             h.manualHandshake(vcsec)
             val pending =
                 assertIs<VehicleResult.Success<PendingRequest>>(
-                    h.dispatcher.send(testCommand(vcsec, flags = FakeVehicle.FLAG_ENCRYPT_RESPONSE), io.github.smallmiro.teslable.port.AuthMethod.GCM),
+                    h.dispatcher.send(testCommand(vcsec, flags = FakeVehicle.FLAG_ENCRYPT_RESPONSE), dev.mirolab.teslable.port.AuthMethod.GCM),
                 ).value
             pending.use {
                 assertNotNull(it.receive())
@@ -2572,7 +2572,7 @@ class DispatcherTest {
             h.fake.script(vcsec, emptyList())
             val pending =
                 assertIs<VehicleResult.Success<PendingRequest>>(
-                    h.dispatcher.send(testCommand(vcsec, flags = FakeVehicle.FLAG_ENCRYPT_RESPONSE), io.github.smallmiro.teslable.port.AuthMethod.GCM),
+                    h.dispatcher.send(testCommand(vcsec, flags = FakeVehicle.FLAG_ENCRYPT_RESPONSE), dev.mirolab.teslable.port.AuthMethod.GCM),
                 ).value
             val request = h.lastRequest()
             val wrongHash = assertNotNull(RequestHash.of(request)).also { it[3] = (it[3].toInt() xor 1).toByte() }
@@ -2589,7 +2589,7 @@ class DispatcherTest {
         runTest {
             val h = dispatcherHarness()
             h.fake.script(vcsec, emptyList())
-            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(vcsec), io.github.smallmiro.teslable.port.AuthMethod.NONE)).value
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(vcsec), dev.mirolab.teslable.port.AuthMethod.NONE)).value
             val request = h.lastRequest()
             h.transport.deliver(encode(replyTo(request, "echoed".encodeToByteArray())))
             h.transport.deliver(encode(replyTo(request, "zeroed".encodeToByteArray()).copy(request_uuid = ByteArray(16).toByteString())))
@@ -2609,7 +2609,7 @@ class DispatcherTest {
             h.transport.close()
             runCurrent()
             assertFalse(h.dispatcher.isListening)
-            assertEquals(VehicleError.NotConnected, assertIs<VehicleResult.Failure>(h.dispatcher.send(testCommand(), io.github.smallmiro.teslable.port.AuthMethod.NONE)).error)
+            assertEquals(VehicleError.NotConnected, assertIs<VehicleResult.Failure>(h.dispatcher.send(testCommand(), dev.mirolab.teslable.port.AuthMethod.NONE)).error)
         }
 
     @Test
@@ -2618,7 +2618,7 @@ class DispatcherTest {
         runTest {
             val h = dispatcherHarness(privateKey = null)
             h.fake.script(vcsec, emptyList())
-            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(vcsec), io.github.smallmiro.teslable.port.AuthMethod.NONE)).value
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(vcsec), dev.mirolab.teslable.port.AuthMethod.NONE)).value
             val reply =
                 replyTo(h.lastRequest(), ByteArray(0)).copy(
                     protobuf_message_as_bytes = null,
@@ -2632,7 +2632,7 @@ class DispatcherTest {
 
     private companion object {
         /** protocol.md client 공개키 hex (SessionInfoRequest.public_key 확인용). */
-        val TestCryptoPublicKeyHex: String = io.github.smallmiro.teslable.testing.TestCrypto.clientPublicKey.toByteArray().toByteString().hex()
+        val TestCryptoPublicKeyHex: String = dev.mirolab.teslable.testing.TestCrypto.clientPublicKey.toByteArray().toByteString().hex()
     }
 }
 ```
@@ -2645,8 +2645,8 @@ Expected: 컴파일 실패 (`Dispatcher`, `RecordingLogger`, `TeslaLogger` 없�
 - [ ] **Step 3: 구현**
 
 ```kotlin
-// domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/TeslaLogger.kt
-package io.github.smallmiro.teslable.port
+// domain/src/commonMain/kotlin/dev/mirolab/teslable/port/TeslaLogger.kt
+package dev.mirolab.teslable.port
 
 /** 로그 레벨. Go `internal/log`의 Error/Warning/Info/Debug. */
 public enum class LogLevel {
@@ -2683,11 +2683,11 @@ public fun interface TeslaLogger {
 ```
 
 ```kotlin
-// testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/RecordingLogger.kt
-package io.github.smallmiro.teslable.testing
+// testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/RecordingLogger.kt
+package dev.mirolab.teslable.testing
 
-import io.github.smallmiro.teslable.port.LogLevel
-import io.github.smallmiro.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.LogLevel
+import dev.mirolab.teslable.port.TeslaLogger
 
 /** 로그를 모아 두는 테스트용 로거. 드롭·폐기 사유를 단언하는 데 쓴다. */
 public class RecordingLogger : TeslaLogger {
@@ -2723,13 +2723,13 @@ public class RecordingLogger : TeslaLogger {
 ```
 
 ```kotlin
-// application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/Results.kt
-package io.github.smallmiro.teslable.application.dispatcher
+// application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/Results.kt
+package dev.mirolab.teslable.application.dispatcher
 
 import com.tesla.generated.universalmessage.MessageFault_E
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.protocol.SignerResult
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.protocol.SignerResult
 
 /** `Signer`의 fault를 공개 오류로. `UNKNOWN_KEY_ID`는 Go `GetError`처럼 [VehicleError.KeyNotPaired]. */
 internal fun SignerResult.Fault.toVehicleError(): VehicleError =
@@ -2753,29 +2753,29 @@ internal inline fun <T> VehicleResult<T>.valueOr(onError: (VehicleError) -> Noth
 ```
 
 ```kotlin
-// application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/Dispatcher.kt
+// application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/Dispatcher.kt
 // Ported from vehicle-command@a4b43c1 internal/dispatcher/dispatcher.go (Apache-2.0) — New, SetMaxLatency, Send, RequestSessionInfo, SessionInfoRequest, listen, process, checkForSessionUpdate, decrypt, Stop
-package io.github.smallmiro.teslable.application.dispatcher
+package dev.mirolab.teslable.application.dispatcher
 
 import com.tesla.generated.universalmessage.Destination
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
 import com.tesla.generated.universalmessage.SessionInfoRequest
-import io.github.smallmiro.teslable.model.PublicKeyBytes
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.model.shouldRetry
-import io.github.smallmiro.teslable.model.toResult
-import io.github.smallmiro.teslable.port.AuthMethod
-import io.github.smallmiro.teslable.port.CryptoPrimitives
-import io.github.smallmiro.teslable.port.EcdhPrivateKey
-import io.github.smallmiro.teslable.port.LogLevel
-import io.github.smallmiro.teslable.port.RandomSource
-import io.github.smallmiro.teslable.port.TeslaLogger
-import io.github.smallmiro.teslable.port.Transport
-import io.github.smallmiro.teslable.protocol.RequestHash
-import io.github.smallmiro.teslable.protocol.SignerResult
+import dev.mirolab.teslable.model.PublicKeyBytes
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.model.shouldRetry
+import dev.mirolab.teslable.model.toResult
+import dev.mirolab.teslable.port.AuthMethod
+import dev.mirolab.teslable.port.CryptoPrimitives
+import dev.mirolab.teslable.port.EcdhPrivateKey
+import dev.mirolab.teslable.port.LogLevel
+import dev.mirolab.teslable.port.RandomSource
+import dev.mirolab.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.Transport
+import dev.mirolab.teslable.protocol.RequestHash
+import dev.mirolab.teslable.protocol.SignerResult
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
@@ -3103,7 +3103,7 @@ public class Dispatcher
     }
 ```
 
-`tools/ci/ported-files.txt`에 `application/…/dispatcher/Dispatcher.kt`를 추가한다. `DispatcherTest`의 `TestCryptoPublicKeyHex`는 `TestCrypto.clientPublicKey.toByteArray().toByteString().hex()`다(작성 시 `import io.github.smallmiro.teslable.testing.TestCrypto`를 추가하고 정규화해도 된다).
+`tools/ci/ported-files.txt`에 `application/…/dispatcher/Dispatcher.kt`를 추가한다. `DispatcherTest`의 `TestCryptoPublicKeyHex`는 `TestCrypto.clientPublicKey.toByteArray().toByteString().hex()`다(작성 시 `import dev.mirolab.teslable.testing.TestCrypto`를 추가하고 정규화해도 된다).
 
 - [ ] **Step 4: 통과 확인, API 덤프, 커밋**
 
@@ -3113,12 +3113,12 @@ Run: `./gradlew :application:jvmTest :domain:check :application:check :testing:c
 Expected: PASS (JVM, iOS). `domain/api/*`에 `TeslaLogger`/`LogLevel`, `application/api/*`에 `Dispatcher` 반영.
 
 ```bash
-git add domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/TeslaLogger.kt domain/api
+git add domain/src/commonMain/kotlin/dev/mirolab/teslable/port/TeslaLogger.kt domain/api
 git commit -m "feat(domain): TeslaLogger port with NoOp default (SDD §10)
 
 Refs: FR-112, NFR-006
 Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
-git add testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/RecordingLogger.kt
+git add testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/RecordingLogger.kt
 git commit -m "test(testing): RecordingLogger for asserting dispatcher drop reasons
 
 Refs: NFR-003
@@ -3136,10 +3136,10 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 참고 매뉴얼: `01-architecture.md` §3.2(`StartSession`, `tryStartSession`, `StartSessions`), `08-errors.md` §4(핸드셰이크 재시도 표); `03-protocol.md` §7. Go 원본: `internal/dispatcher/dispatcher.go`(`StartSession` 73~94행, `tryStartSession` 96~125행, `StartSessions` 131~156행), `dispatcher_test.go`(`TestStartSession` 328행, `TestTimeout` 350행, `TestVehicleDropsReply` 457행, `TestConnect` 621행, `TestWaitForAllSessions` 668행, `TestHandshakeWithoutKey` 856행, `TestNoValidHandshakeResponse` 878행, `TestRetryNonresponsive` 932행). 설계: `{{SDD_FILE}}` §3.2, §5(핸드셰이크 병렬), FR-012, FR-014.
 
 **Files:**
-- Create: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/HandshakeFlow.kt`
-- Modify: `testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/FakeVehicle.kt` (`corruptNextSessionInfoTag(domain, count = 1)` — 횟수 지원)
+- Create: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/HandshakeFlow.kt`
+- Modify: `testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/FakeVehicle.kt` (`corruptNextSessionInfoTag(domain, count = 1)` — 횟수 지원)
 - Modify: `tools/ci/ported-files.txt`, `application/api/*`
-- Test: `application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/dispatcher/HandshakeFlowTest.kt`
+- Test: `application/src/commonTest/kotlin/dev/mirolab/teslable/application/dispatcher/HandshakeFlowTest.kt`
 
 **Interfaces:**
 - Consumes: Task 6 `Dispatcher`(`session`, `requestSessionInfo`, `retryInterval`, `ALL_DOMAINS`), Task 5 `SessionState.ready`/`awaitReady`, `PendingRequest.onReceive`, M1 `ResponseClassifier.protocolError`, `Results.kt` 헬퍼.
@@ -3179,15 +3179,15 @@ Expected: PASS (기존 테스트는 기본값 1로 그대로)
 - [ ] **Step 2: 실패 테스트 작성**
 
 ```kotlin
-// application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/dispatcher/HandshakeFlowTest.kt
-package io.github.smallmiro.teslable.application.dispatcher
+// application/src/commonTest/kotlin/dev/mirolab/teslable/application/dispatcher/HandshakeFlowTest.kt
+package dev.mirolab.teslable.application.dispatcher
 
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.port.AuthMethod
-import io.github.smallmiro.teslable.protocol.ResponseClassifier
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.AuthMethod
+import dev.mirolab.teslable.protocol.ResponseClassifier
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
@@ -3344,16 +3344,16 @@ Expected: 컴파일 실패 (`HandshakeFlow` 없음)
 - [ ] **Step 4: 구현**
 
 ```kotlin
-// application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/HandshakeFlow.kt
+// application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/HandshakeFlow.kt
 // Ported from vehicle-command@a4b43c1 internal/dispatcher/dispatcher.go (Apache-2.0) — StartSession, tryStartSession, StartSessions
-package io.github.smallmiro.teslable.application.dispatcher
+package dev.mirolab.teslable.application.dispatcher
 
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.toResult
-import io.github.smallmiro.teslable.protocol.ResponseClassifier
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.toResult
+import dev.mirolab.teslable.protocol.ResponseClassifier
 import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
@@ -3452,7 +3452,7 @@ Run: `./gradlew :application:jvmTest :application:check :testing:jvmTest :applic
 Expected: PASS (JVM, iOS)
 
 ```bash
-git add testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/FakeVehicle.kt
+git add testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/FakeVehicle.kt
 git commit -m "test(testing): FakeVehicle.corruptNextSessionInfoTag takes a count
 
 Refs: NFR-003
@@ -3471,19 +3471,19 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 참고 매뉴얼: `01-architecture.md` §6(세션 캐시 데이터 구조), `03-protocol.md` §9.3, `10-porting-guide.md` §9(Go 형식 — 우리는 자체 형식 v1, D26). Go 원본: `internal/dispatcher/session.go`(`CacheEntry` 20~24행), `dispatcher.go`(`Cache` 492~512행, `LoadCache` 516~536행), `pkg/cache/cache.go`(`Update`, `GetEntry`), `pkg/vehicle/vehicle.go`(`NewVehicle` 91~97행, `UpdateCachedSessions`, `LoadCachedSessions`), `cache_test.go`(`TestImportExport` — 자체 형식으로; `TestEviction`은 VIN당 1항목이라 해당 없음), `dispatcher_test.go`(`TestCache` 977행). 설계: `{{SDD_FILE}}` §2.1(`SessionCache`), §2.6, §7.1, ADR-0007, FR-017, 설계 구체화 6·7·8·12, Review Focus 4.
 
 **Files:**
-- Create: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/model/KeyId.kt`
-- Create: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/cache/CachedSession.kt`
-- Create: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/cache/SessionCacheCodec.kt`
-- Create: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/SessionCache.kt`
-- Create: `adapter-storage/src/commonMain/kotlin/io/github/smallmiro/teslable/storage/InMemorySessionCache.kt`
-- Delete: `adapter-storage/src/commonMain/kotlin/io/github/smallmiro/teslable/storage/Placeholder.kt`
-- Create: `testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/RecordingSessionCache.kt`
-- Modify: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/Dispatcher.kt` (`exportSessions`, `loadSessions`)
-- Create: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/cache/SessionCacheSync.kt`
+- Create: `domain/src/commonMain/kotlin/dev/mirolab/teslable/model/KeyId.kt`
+- Create: `domain/src/commonMain/kotlin/dev/mirolab/teslable/cache/CachedSession.kt`
+- Create: `domain/src/commonMain/kotlin/dev/mirolab/teslable/cache/SessionCacheCodec.kt`
+- Create: `domain/src/commonMain/kotlin/dev/mirolab/teslable/port/SessionCache.kt`
+- Create: `adapter-storage/src/commonMain/kotlin/dev/mirolab/teslable/storage/InMemorySessionCache.kt`
+- Delete: `adapter-storage/src/commonMain/kotlin/dev/mirolab/teslable/storage/Placeholder.kt`
+- Create: `testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/RecordingSessionCache.kt`
+- Modify: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/Dispatcher.kt` (`exportSessions`, `loadSessions`)
+- Create: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/cache/SessionCacheSync.kt`
 - Modify: `adapter-storage/build.gradle.kts` (`commonTest` → `:testing`), `tools/ci/ported-files.txt`, `domain/api/*`, `application/api/*`, `adapter-storage/api/*`
-- Test: `domain/src/commonTest/kotlin/io/github/smallmiro/teslable/cache/SessionCacheCodecTest.kt`
-- Test: `adapter-storage/src/commonTest/kotlin/io/github/smallmiro/teslable/storage/InMemorySessionCacheTest.kt`
-- Test: `application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/cache/SessionCacheSyncTest.kt`
+- Test: `domain/src/commonTest/kotlin/dev/mirolab/teslable/cache/SessionCacheCodecTest.kt`
+- Test: `adapter-storage/src/commonTest/kotlin/dev/mirolab/teslable/storage/InMemorySessionCacheTest.kt`
+- Test: `application/src/commonTest/kotlin/dev/mirolab/teslable/application/cache/SessionCacheSyncTest.kt`
 
 **Interfaces:**
 - Consumes: M0 `Vin`, `PublicKeyBytes`, `CryptoPrimitives.sha1`, Task 5 `SessionState.export`/`loadFromCache`, Task 6 `Dispatcher`, Task 7 `HandshakeFlow`, okio `Buffer`.
@@ -3501,15 +3501,15 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: 실패 테스트 작성**
 
 ```kotlin
-// domain/src/commonTest/kotlin/io/github/smallmiro/teslable/cache/SessionCacheCodecTest.kt
-package io.github.smallmiro.teslable.cache
+// domain/src/commonTest/kotlin/dev/mirolab/teslable/cache/SessionCacheCodecTest.kt
+package dev.mirolab.teslable.cache
 
 import com.tesla.generated.universalmessage.Domain
-import io.github.smallmiro.teslable.InternalTeslableApi
-import io.github.smallmiro.teslable.model.KeyId
-import io.github.smallmiro.teslable.testing.TestCrypto
-import io.github.smallmiro.teslable.util.hexToBytes
-import io.github.smallmiro.teslable.util.toHex
+import dev.mirolab.teslable.InternalTeslableApi
+import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.testing.TestCrypto
+import dev.mirolab.teslable.util.hexToBytes
+import dev.mirolab.teslable.util.toHex
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
@@ -3586,14 +3586,14 @@ class SessionCacheCodecTest {
 ```
 
 ```kotlin
-// adapter-storage/src/commonTest/kotlin/io/github/smallmiro/teslable/storage/InMemorySessionCacheTest.kt
-package io.github.smallmiro.teslable.storage
+// adapter-storage/src/commonTest/kotlin/dev/mirolab/teslable/storage/InMemorySessionCacheTest.kt
+package dev.mirolab.teslable.storage
 
 import com.tesla.generated.universalmessage.Domain
-import io.github.smallmiro.teslable.cache.SessionSnapshot
-import io.github.smallmiro.teslable.model.KeyId
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.testing.fixtures.ProtocolVectors
+import dev.mirolab.teslable.cache.SessionSnapshot
+import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.testing.fixtures.ProtocolVectors
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -3652,25 +3652,25 @@ class InMemorySessionCacheTest {
 ```
 
 ```kotlin
-// application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/cache/SessionCacheSyncTest.kt
-package io.github.smallmiro.teslable.application.cache
+// application/src/commonTest/kotlin/dev/mirolab/teslable/application/cache/SessionCacheSyncTest.kt
+package dev.mirolab.teslable.application.cache
 
 import com.tesla.generated.signatures.SessionInfo
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
-import io.github.smallmiro.teslable.application.dispatcher.HandshakeFlow
-import io.github.smallmiro.teslable.application.dispatcher.PendingRequest
-import io.github.smallmiro.teslable.application.dispatcher.dispatcherHarness
-import io.github.smallmiro.teslable.application.dispatcher.testCommand
-import io.github.smallmiro.teslable.cache.SessionCacheCodec
-import io.github.smallmiro.teslable.model.KeyId
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.port.AuthMethod
-import io.github.smallmiro.teslable.protocol.ResponseClassifier
-import io.github.smallmiro.teslable.testing.FakeVehicle
-import io.github.smallmiro.teslable.testing.RecordingSessionCache
-import io.github.smallmiro.teslable.testing.TestCrypto
+import dev.mirolab.teslable.application.dispatcher.HandshakeFlow
+import dev.mirolab.teslable.application.dispatcher.PendingRequest
+import dev.mirolab.teslable.application.dispatcher.dispatcherHarness
+import dev.mirolab.teslable.application.dispatcher.testCommand
+import dev.mirolab.teslable.cache.SessionCacheCodec
+import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.AuthMethod
+import dev.mirolab.teslable.protocol.ResponseClassifier
+import dev.mirolab.teslable.testing.FakeVehicle
+import dev.mirolab.teslable.testing.RecordingSessionCache
+import dev.mirolab.teslable.testing.TestCrypto
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
@@ -3805,10 +3805,10 @@ Expected: 컴파일 실패 (`SessionCacheCodec`, `KeyId` 없음). `adapter-stora
 - [ ] **Step 3: 구현**
 
 ```kotlin
-// domain/src/commonMain/kotlin/io/github/smallmiro/teslable/model/KeyId.kt
-package io.github.smallmiro.teslable.model
+// domain/src/commonMain/kotlin/dev/mirolab/teslable/model/KeyId.kt
+package dev.mirolab.teslable.model
 
-import io.github.smallmiro.teslable.port.CryptoPrimitives
+import dev.mirolab.teslable.port.CryptoPrimitives
 
 private const val DISPLAY_BYTES = 4
 private const val BYTE_MASK = 0xff
@@ -3850,9 +3850,9 @@ public class KeyId(
 ```
 
 ```kotlin
-// domain/src/commonMain/kotlin/io/github/smallmiro/teslable/cache/CachedSession.kt
+// domain/src/commonMain/kotlin/dev/mirolab/teslable/cache/CachedSession.kt
 // Ported from vehicle-command@a4b43c1 internal/dispatcher/session.go (Apache-2.0) — CacheEntry (createdAt → age)
-package io.github.smallmiro.teslable.cache
+package dev.mirolab.teslable.cache
 
 import com.tesla.generated.universalmessage.Domain
 import kotlin.time.Duration
@@ -3885,11 +3885,11 @@ public class CachedSession(
 ```
 
 ```kotlin
-// domain/src/commonMain/kotlin/io/github/smallmiro/teslable/cache/SessionCacheCodec.kt
-package io.github.smallmiro.teslable.cache
+// domain/src/commonMain/kotlin/dev/mirolab/teslable/cache/SessionCacheCodec.kt
+package dev.mirolab.teslable.cache
 
 import com.tesla.generated.universalmessage.Domain
-import io.github.smallmiro.teslable.model.KeyId
+import dev.mirolab.teslable.model.KeyId
 import okio.Buffer
 import okio.EOFException
 
@@ -3979,14 +3979,14 @@ public object SessionCacheCodec {
 ```
 
 ```kotlin
-// domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/SessionCache.kt
+// domain/src/commonMain/kotlin/dev/mirolab/teslable/port/SessionCache.kt
 // Ported from vehicle-command@a4b43c1 pkg/cache/cache.go (Apache-2.0) — SessionCache.Update/GetEntry as a port (own format v1, D26)
-package io.github.smallmiro.teslable.port
+package dev.mirolab.teslable.port
 
-import io.github.smallmiro.teslable.cache.CachedSession
-import io.github.smallmiro.teslable.cache.SessionSnapshot
-import io.github.smallmiro.teslable.model.KeyId
-import io.github.smallmiro.teslable.model.Vin
+import dev.mirolab.teslable.cache.CachedSession
+import dev.mirolab.teslable.cache.SessionSnapshot
+import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.model.Vin
 
 /**
  * 세션 캐시 포트(FR-017, SDD §7.1). VIN당 항목 하나(도메인별 `SessionInfo` 묶음), 클라이언트 키(`keyId`)에 종속.
@@ -4026,15 +4026,15 @@ detekt { config.setFrom(files("$rootDir/config/detekt/detekt.yml", "$rootDir/con
 ```
 
 ```kotlin
-// adapter-storage/src/commonMain/kotlin/io/github/smallmiro/teslable/storage/InMemorySessionCache.kt
-package io.github.smallmiro.teslable.storage
+// adapter-storage/src/commonMain/kotlin/dev/mirolab/teslable/storage/InMemorySessionCache.kt
+package dev.mirolab.teslable.storage
 
-import io.github.smallmiro.teslable.cache.CachedSession
-import io.github.smallmiro.teslable.cache.SessionCacheCodec
-import io.github.smallmiro.teslable.cache.SessionSnapshot
-import io.github.smallmiro.teslable.model.KeyId
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.port.SessionCache
+import dev.mirolab.teslable.cache.CachedSession
+import dev.mirolab.teslable.cache.SessionCacheCodec
+import dev.mirolab.teslable.cache.SessionSnapshot
+import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.SessionCache
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlin.time.Clock
@@ -4085,15 +4085,15 @@ public class InMemorySessionCache(
 `kotlin.time.Clock`이 옵트인을 요구하면 파일 상단에 `@file:OptIn(kotlin.time.ExperimentalTime::class)`를 붙인다.
 
 ```kotlin
-// testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/RecordingSessionCache.kt
-package io.github.smallmiro.teslable.testing
+// testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/RecordingSessionCache.kt
+package dev.mirolab.teslable.testing
 
-import io.github.smallmiro.teslable.cache.CachedSession
-import io.github.smallmiro.teslable.cache.SessionCacheCodec
-import io.github.smallmiro.teslable.cache.SessionSnapshot
-import io.github.smallmiro.teslable.model.KeyId
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.port.SessionCache
+import dev.mirolab.teslable.cache.CachedSession
+import dev.mirolab.teslable.cache.SessionCacheCodec
+import dev.mirolab.teslable.cache.SessionSnapshot
+import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.SessionCache
 import kotlin.time.Duration.Companion.milliseconds
 
 /**
@@ -4163,7 +4163,7 @@ public class RecordingSessionCache(
 }
 ```
 
-`Dispatcher.kt`에 추가(import `io.github.smallmiro.teslable.cache.CachedSession`, `io.github.smallmiro.teslable.cache.SessionSnapshot`):
+`Dispatcher.kt`에 추가(import `dev.mirolab.teslable.cache.CachedSession`, `dev.mirolab.teslable.cache.SessionSnapshot`):
 
 ```kotlin
         /** Go `Cache()`: 세션이 있는 도메인의 `SessionInfo`(clock_time = 지금)를 내보낸다. */
@@ -4195,15 +4195,15 @@ public class RecordingSessionCache(
 ```
 
 ```kotlin
-// application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/cache/SessionCacheSync.kt
+// application/src/commonMain/kotlin/dev/mirolab/teslable/application/cache/SessionCacheSync.kt
 // Ported from vehicle-command@a4b43c1 pkg/vehicle/vehicle.go (Apache-2.0) — NewVehicle (cache load), UpdateCachedSessions
-package io.github.smallmiro.teslable.application.cache
+package dev.mirolab.teslable.application.cache
 
 import com.tesla.generated.universalmessage.Domain
-import io.github.smallmiro.teslable.application.dispatcher.Dispatcher
-import io.github.smallmiro.teslable.model.KeyId
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.port.SessionCache
+import dev.mirolab.teslable.application.dispatcher.Dispatcher
+import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.SessionCache
 
 /** [SessionCache] 포트와 [Dispatcher] 사이의 동기화(SDD §2.2 `SessionCacheSync`). 저장 시점: 핸드셰이크 완료·세션 갱신·해제(§7.1). */
 public class SessionCacheSync(
@@ -4260,12 +4260,12 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 참고 매뉴얼: `01-architecture.md` §4(명령 전체 경로), §7(재시도 정책 위치 표); `08-errors.md` §4(재시도 루프 표), §7("Couldn't verify success" — 자동 재전송 금지); `10-porting-guide.md` §8. Go 원본: `pkg/vehicle/vehicle.go`(`DefaultFlags` 22행, `NewVehicle` 77~99행, `Connect` 116행, `StartSession` 149~167행, `Disconnect` 174~179행, `getReceiver` 181~199행, `trySend` 201~214행, `Send` 236~257행), `vehicle_test.go`(`TestVehicleStartSessionFailed` 145행, `TestVehicleConnectionRetry` 164행, `TestVehicleConnectionTimeout` 183행, `TestVehicleSendError` 205행, `TestVehicleSendTimeout` 221행, `TestVehicleRetryTimeout` 242행, `TestVehicleNoResponseTimeout` 265행, `TestVehicleRetryFail` 281행). 설계: `{{SDD_FILE}}` §2.2(`SendWithRetry`, `VehicleSession`), §3.3, §3.4, §5(타임아웃·취소), §6, ADR-0010, FR-100, FR-101, FR-102, NFR-007, NFR-012, Review Focus 3.
 
 **Files:**
-- Create: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vehicle/CommandTimeouts.kt`
-- Create: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vehicle/SendWithRetry.kt`
-- Create: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vehicle/VehicleSession.kt`
+- Create: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/vehicle/CommandTimeouts.kt`
+- Create: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/vehicle/SendWithRetry.kt`
+- Create: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/vehicle/VehicleSession.kt`
 - Modify: `tools/ci/ported-files.txt`, `application/api/*`
-- Test: `application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/vehicle/SendWithRetryTest.kt`
-- Test: `application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/vehicle/VehicleSessionTest.kt`
+- Test: `application/src/commonTest/kotlin/dev/mirolab/teslable/application/vehicle/SendWithRetryTest.kt`
+- Test: `application/src/commonTest/kotlin/dev/mirolab/teslable/application/vehicle/VehicleSessionTest.kt`
 
 **Interfaces:**
 - Consumes: Task 6 `Dispatcher`(`send`, `retryInterval`, `start`, `close`, `pendingCount`), Task 7 `HandshakeFlow`, Task 8 `SessionCacheSync`, `Results.kt`(`errorOrNull`, `valueOr`), M1 `ResponseClassifier`, `shouldRetry()`, `toResult()`.
@@ -4277,18 +4277,18 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: 실패 테스트 작성**
 
 ```kotlin
-// application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/vehicle/SendWithRetryTest.kt
-package io.github.smallmiro.teslable.application.vehicle
+// application/src/commonTest/kotlin/dev/mirolab/teslable/application/vehicle/SendWithRetryTest.kt
+package dev.mirolab.teslable.application.vehicle
 
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
 import com.tesla.generated.universalmessage.OperationStatus_E
-import io.github.smallmiro.teslable.application.dispatcher.HandshakeFlow
-import io.github.smallmiro.teslable.application.dispatcher.dispatcherHarness
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.port.AuthMethod
-import io.github.smallmiro.teslable.testing.FakeVehicle
+import dev.mirolab.teslable.application.dispatcher.HandshakeFlow
+import dev.mirolab.teslable.application.dispatcher.dispatcherHarness
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.AuthMethod
+import dev.mirolab.teslable.testing.FakeVehicle
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runTest
@@ -4418,8 +4418,8 @@ class SendWithRetryTest {
             runCurrent()
             assertTrue(job.isCancelled)
             assertEquals(0, h.dispatcher.pendingCount())
-            val late = io.github.smallmiro.teslable.application.dispatcher.replyTo(h.fake.received.last(), "late".encodeToByteArray())
-            h.transport.deliver(io.github.smallmiro.teslable.application.dispatcher.encode(late))
+            val late = dev.mirolab.teslable.application.dispatcher.replyTo(h.fake.received.last(), "late".encodeToByteArray())
+            h.transport.deliver(dev.mirolab.teslable.application.dispatcher.encode(late))
             runCurrent()
             assertTrue(h.logger.contains("Dropping message without registered handler"))
         }
@@ -4427,20 +4427,20 @@ class SendWithRetryTest {
 ```
 
 ```kotlin
-// application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/vehicle/VehicleSessionTest.kt
-package io.github.smallmiro.teslable.application.vehicle
+// application/src/commonTest/kotlin/dev/mirolab/teslable/application/vehicle/VehicleSessionTest.kt
+package dev.mirolab.teslable.application.vehicle
 
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
-import io.github.smallmiro.teslable.application.cache.SessionCacheSync
-import io.github.smallmiro.teslable.application.dispatcher.dispatcherHarness
-import io.github.smallmiro.teslable.model.KeyId
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.port.AuthMethod
-import io.github.smallmiro.teslable.testing.FakeVehicle
-import io.github.smallmiro.teslable.testing.RecordingSessionCache
-import io.github.smallmiro.teslable.testing.TestCrypto
+import dev.mirolab.teslable.application.cache.SessionCacheSync
+import dev.mirolab.teslable.application.dispatcher.dispatcherHarness
+import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.AuthMethod
+import dev.mirolab.teslable.testing.FakeVehicle
+import dev.mirolab.teslable.testing.RecordingSessionCache
+import dev.mirolab.teslable.testing.TestCrypto
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
@@ -4527,8 +4527,8 @@ Expected: 컴파일 실패 (`SendWithRetry`, `VehicleSession`, `CommandTimeouts`
 - [ ] **Step 3: 구현**
 
 ```kotlin
-// application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vehicle/CommandTimeouts.kt
-package io.github.smallmiro.teslable.application.vehicle
+// application/src/commonMain/kotlin/dev/mirolab/teslable/application/vehicle/CommandTimeouts.kt
+package dev.mirolab.teslable.application.vehicle
 
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -4545,22 +4545,22 @@ public data class CommandTimeouts(
 ```
 
 ```kotlin
-// application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vehicle/SendWithRetry.kt
+// application/src/commonMain/kotlin/dev/mirolab/teslable/application/vehicle/SendWithRetry.kt
 // Ported from vehicle-command@a4b43c1 pkg/vehicle/vehicle.go (Apache-2.0) — DefaultFlags, getReceiver, trySend, Send
-package io.github.smallmiro.teslable.application.vehicle
+package dev.mirolab.teslable.application.vehicle
 
 import com.tesla.generated.universalmessage.Destination
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
-import io.github.smallmiro.teslable.application.dispatcher.Dispatcher
-import io.github.smallmiro.teslable.application.dispatcher.errorOrNull
-import io.github.smallmiro.teslable.application.dispatcher.valueOr
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.shouldRetry
-import io.github.smallmiro.teslable.model.toResult
-import io.github.smallmiro.teslable.port.AuthMethod
-import io.github.smallmiro.teslable.protocol.ResponseClassifier
+import dev.mirolab.teslable.application.dispatcher.Dispatcher
+import dev.mirolab.teslable.application.dispatcher.errorOrNull
+import dev.mirolab.teslable.application.dispatcher.valueOr
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.shouldRetry
+import dev.mirolab.teslable.model.toResult
+import dev.mirolab.teslable.port.AuthMethod
+import dev.mirolab.teslable.protocol.ResponseClassifier
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import okio.ByteString.Companion.toByteString
@@ -4645,18 +4645,18 @@ public class SendWithRetry(
 ```
 
 ```kotlin
-// application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vehicle/VehicleSession.kt
+// application/src/commonMain/kotlin/dev/mirolab/teslable/application/vehicle/VehicleSession.kt
 // Ported from vehicle-command@a4b43c1 pkg/vehicle/vehicle.go (Apache-2.0) — NewVehicle, Connect, StartSession, Disconnect
-package io.github.smallmiro.teslable.application.vehicle
+package dev.mirolab.teslable.application.vehicle
 
 import com.tesla.generated.universalmessage.Domain
-import io.github.smallmiro.teslable.application.cache.SessionCacheSync
-import io.github.smallmiro.teslable.application.dispatcher.Dispatcher
-import io.github.smallmiro.teslable.application.dispatcher.HandshakeFlow
-import io.github.smallmiro.teslable.application.dispatcher.errorOrNull
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.shouldRetry
+import dev.mirolab.teslable.application.cache.SessionCacheSync
+import dev.mirolab.teslable.application.dispatcher.Dispatcher
+import dev.mirolab.teslable.application.dispatcher.HandshakeFlow
+import dev.mirolab.teslable.application.dispatcher.errorOrNull
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.shouldRetry
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration
@@ -4741,18 +4741,18 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 참고 매뉴얼: `03-protocol.md` §10(Infotainment 응답), §11(VCSEC 종료 규칙); `08-errors.md` §3.5(VCSEC 해석 규칙 6단계), §3.6(Infotainment — `CarServer.OperationStatus_E`는 값이 다르다: OK=0, ERROR=1), §3.7; `00-agent-guide.md` §3.1-2(VCSEC 직렬화). Go 원본: `pkg/vehicle/vcsec.go`(`unmarshalVCSECResponse` 23~62행, `isTerminalTest` 64행, `readUntil` 67~82행, `getVCSECResult` 85~105행, `isWhitelistOperationComplete` 132~144행, `executeRKEAction`의 `done` 175~180행, `getVCSECInfo`의 `done` 128행), `infotainment.go`(`getCarServerResponse` 19~45행), `vcsec_test.go`(`TestNominalVSCECError` 79행, `TestGibberishVCSECResponse` 114행, `TestWhitelistOperationError` 214행), `pkg/protocol/error.go`(`KeychainError` 88~100행). 설계: `{{SDD_FILE}}` §2.2(`VcsecCommands`, `InfotainmentCommands`), §3.3, §5(VCSEC 직렬화), §6, FR-048, FR-049, 설계 구체화 11.
 
 **Files:**
-- Modify: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/model/VehicleError.kt` (`UnknownKeychainCode` 추가)
-- Modify: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/UnknownFields.kt` (`internal` → `@InternalTeslableApi public`; `:application`이 쓴다)
-- Create: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vcsec/VcsecResponses.kt`
-- Create: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vcsec/VcsecCommands.kt`
-- Create: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/infotainment/InfotainmentResponses.kt`
-- Create: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/infotainment/InfotainmentCommands.kt`
-- Modify: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vehicle/VehicleSession.kt` (`vcsec`, `infotainment` 프로퍼티)
+- Modify: `domain/src/commonMain/kotlin/dev/mirolab/teslable/model/VehicleError.kt` (`UnknownKeychainCode` 추가)
+- Modify: `domain/src/commonMain/kotlin/dev/mirolab/teslable/protocol/UnknownFields.kt` (`internal` → `@InternalTeslableApi public`; `:application`이 쓴다)
+- Create: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/VcsecResponses.kt`
+- Create: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/VcsecCommands.kt`
+- Create: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/infotainment/InfotainmentResponses.kt`
+- Create: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/infotainment/InfotainmentCommands.kt`
+- Modify: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/vehicle/VehicleSession.kt` (`vcsec`, `infotainment` 프로퍼티)
 - Modify: `tools/ci/ported-files.txt`, `domain/api/*`, `application/api/*`
-- Test: `application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/vcsec/VcsecResponsesTest.kt`
-- Test: `application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/vcsec/VcsecCommandsTest.kt`
-- Test: `application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/infotainment/InfotainmentResponsesTest.kt`
-- Test: `domain/src/commonTest/kotlin/io/github/smallmiro/teslable/model/VehicleErrorTest.kt` (`UnknownKeychainCode` 1개 추가)
+- Test: `application/src/commonTest/kotlin/dev/mirolab/teslable/application/vcsec/VcsecResponsesTest.kt`
+- Test: `application/src/commonTest/kotlin/dev/mirolab/teslable/application/vcsec/VcsecCommandsTest.kt`
+- Test: `application/src/commonTest/kotlin/dev/mirolab/teslable/application/infotainment/InfotainmentResponsesTest.kt`
+- Test: `domain/src/commonTest/kotlin/dev/mirolab/teslable/model/VehicleErrorTest.kt` (`UnknownKeychainCode` 1개 추가)
 
 **Interfaces:**
 - Consumes: Task 3 `ByteString.unknownVarint`, Task 6 `Dispatcher`, Task 9 `SendWithRetry`/`CommandTimeouts`/`VehicleSession`, M1 `ResponseClassifier`, `VehicleError`, Wire `FromVCSECMessage`/`CommandStatus`/`WhitelistOperation_status`/`Response`/`ActionStatus`/`Action`.
@@ -4781,8 +4781,8 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ```kotlin
-// application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/vcsec/VcsecResponsesTest.kt
-package io.github.smallmiro.teslable.application.vcsec
+// application/src/commonTest/kotlin/dev/mirolab/teslable/application/vcsec/VcsecResponsesTest.kt
+package dev.mirolab.teslable.application.vcsec
 
 import com.tesla.generated.errors.GenericError_E
 import com.tesla.generated.errors.NominalError
@@ -4795,8 +4795,8 @@ import com.tesla.generated.vcsec.OperationStatus_E
 import com.tesla.generated.vcsec.SignedMessage_status
 import com.tesla.generated.vcsec.WhitelistOperation_information_E
 import com.tesla.generated.vcsec.WhitelistOperation_status
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
 import okio.ByteString.Companion.toByteString
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -4906,15 +4906,15 @@ class VcsecResponsesTest {
 ```
 
 ```kotlin
-// application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/infotainment/InfotainmentResponsesTest.kt
-package io.github.smallmiro.teslable.application.infotainment
+// application/src/commonTest/kotlin/dev/mirolab/teslable/application/infotainment/InfotainmentResponsesTest.kt
+package dev.mirolab.teslable.application.infotainment
 
 import com.tesla.generated.carserver.server.ActionStatus
 import com.tesla.generated.carserver.server.OperationStatus_E
 import com.tesla.generated.carserver.server.Response
 import com.tesla.generated.carserver.server.ResultReason
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
@@ -4957,8 +4957,8 @@ class InfotainmentResponsesTest {
 ```
 
 ```kotlin
-// application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/vcsec/VcsecCommandsTest.kt
-package io.github.smallmiro.teslable.application.vcsec
+// application/src/commonTest/kotlin/dev/mirolab/teslable/application/vcsec/VcsecCommandsTest.kt
+package dev.mirolab.teslable.application.vcsec
 
 import com.tesla.generated.carserver.server.Action
 import com.tesla.generated.carserver.server.Ping
@@ -4968,12 +4968,12 @@ import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.vcsec.RKEAction_E
 import com.tesla.generated.vcsec.UnsignedMessage
 import com.tesla.generated.vcsec.WhitelistOperation_information_E
-import io.github.smallmiro.teslable.application.dispatcher.dispatcherHarness
-import io.github.smallmiro.teslable.application.vehicle.VehicleSession
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.port.AuthMethod
-import io.github.smallmiro.teslable.testing.FakeVehicle
+import dev.mirolab.teslable.application.dispatcher.dispatcherHarness
+import dev.mirolab.teslable.application.vehicle.VehicleSession
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.AuthMethod
+import dev.mirolab.teslable.testing.FakeVehicle
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
@@ -4991,7 +4991,7 @@ class VcsecCommandsTest {
     private val lock = UnsignedMessage(RKEAction = RKEAction_E.RKE_ACTION_LOCK).encode() // vcsec.go executeRKEAction payload (M4가 빌더로 만든다)
     private val addKey = "whitelist operation".encodeToByteArray() // FakeVehicle은 payload를 해석하지 않으므로 임의 바이트로 충분하다
 
-    private suspend fun connected(h: io.github.smallmiro.teslable.application.dispatcher.DispatcherHarness): VehicleSession {
+    private suspend fun connected(h: dev.mirolab.teslable.application.dispatcher.DispatcherHarness): VehicleSession {
         val session = VehicleSession(h.dispatcher)
         assertIs<VehicleResult.Success<Unit>>(session.startSession(timeout = 1.seconds))
         return session
@@ -5110,14 +5110,14 @@ Expected: 컴파일 실패 (`VcsecResponses`, `UnknownKeychainCode` 없음)
 
 - [ ] **Step 3: 구조 변경 — `unknownVarint` 공개 (동작 불변)**
 
-`UnknownFields.kt`의 `internal fun`을 `@InternalTeslableApi public fun`으로 바꾸고 `import io.github.smallmiro.teslable.InternalTeslableApi`를 추가한다. `ResponseClassifier`와 `Signer`는 같은 파일 안 호출이 아니라 다른 파일이므로 `@OptIn(InternalTeslableApi::class)`가 필요하다 — `Signer`는 이미 클래스에 붙어 있고, `ResponseClassifier`의 `object`에 `@OptIn(InternalTeslableApi::class)`를 붙인다.
+`UnknownFields.kt`의 `internal fun`을 `@InternalTeslableApi public fun`으로 바꾸고 `import dev.mirolab.teslable.InternalTeslableApi`를 추가한다. `ResponseClassifier`와 `Signer`는 같은 파일 안 호출이 아니라 다른 파일이므로 `@OptIn(InternalTeslableApi::class)`가 필요하다 — `Signer`는 이미 클래스에 붙어 있고, `ResponseClassifier`의 `object`에 `@OptIn(InternalTeslableApi::class)`를 붙인다.
 
 Run: `./gradlew :domain:apiDump --console=plain`
 Run: `./gradlew :domain:jvmTest :domain:detekt --console=plain`
 Expected: PASS
 
 ```bash
-git add domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/UnknownFields.kt domain/src/commonMain/kotlin/io/github/smallmiro/teslable/protocol/ResponseClassifier.kt domain/api
+git add domain/src/commonMain/kotlin/dev/mirolab/teslable/protocol/UnknownFields.kt domain/src/commonMain/kotlin/dev/mirolab/teslable/protocol/ResponseClassifier.kt domain/api
 git commit -m "struct(domain): expose ByteString.unknownVarint as InternalTeslableApi for :application response interpreters
 
 Refs: FR-048
@@ -5141,9 +5141,9 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 ```
 
 ```kotlin
-// application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vcsec/VcsecResponses.kt
+// application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/VcsecResponses.kt
 // Ported from vehicle-command@a4b43c1 pkg/vehicle/vcsec.go (Apache-2.0) — unmarshalVCSECResponse, isTerminalTest, readUntil, isWhitelistOperationComplete, executeRKEAction/getVCSECInfo done
-package io.github.smallmiro.teslable.application.vcsec
+package dev.mirolab.teslable.application.vcsec
 
 import com.tesla.generated.universalmessage.RoutableMessage
 import com.tesla.generated.vcsec.CommandStatus
@@ -5151,14 +5151,14 @@ import com.tesla.generated.vcsec.FromVCSECMessage
 import com.tesla.generated.vcsec.OperationStatus_E
 import com.tesla.generated.vcsec.WhitelistOperation_information_E
 import com.tesla.generated.vcsec.WhitelistOperation_status
-import io.github.smallmiro.teslable.InternalTeslableApi
-import io.github.smallmiro.teslable.application.dispatcher.PendingRequest
-import io.github.smallmiro.teslable.application.dispatcher.valueOr
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.toResult
-import io.github.smallmiro.teslable.protocol.ResponseClassifier
-import io.github.smallmiro.teslable.protocol.unknownVarint
+import dev.mirolab.teslable.InternalTeslableApi
+import dev.mirolab.teslable.application.dispatcher.PendingRequest
+import dev.mirolab.teslable.application.dispatcher.valueOr
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.toResult
+import dev.mirolab.teslable.protocol.ResponseClassifier
+import dev.mirolab.teslable.protocol.unknownVarint
 import okio.IOException
 
 /** VCSEC 응답 해석과 종료 판정(`03-protocol.md` §11, `08-errors.md` §3.5). */
@@ -5267,24 +5267,24 @@ public object VcsecResponses {
 ```
 
 ```kotlin
-// application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vcsec/VcsecCommands.kt
+// application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/VcsecCommands.kt
 // Ported from vehicle-command@a4b43c1 pkg/vehicle/vcsec.go (Apache-2.0) — getVCSECResult (+ per-connection serialization, FR-049)
-package io.github.smallmiro.teslable.application.vcsec
+package dev.mirolab.teslable.application.vcsec
 
 import com.tesla.generated.universalmessage.Destination
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
 import com.tesla.generated.vcsec.FromVCSECMessage
-import io.github.smallmiro.teslable.application.dispatcher.Dispatcher
-import io.github.smallmiro.teslable.application.dispatcher.errorOrNull
-import io.github.smallmiro.teslable.application.dispatcher.valueOr
-import io.github.smallmiro.teslable.application.vehicle.CommandTimeouts
-import io.github.smallmiro.teslable.application.vehicle.SendWithRetry
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.shouldRetry
-import io.github.smallmiro.teslable.model.toResult
-import io.github.smallmiro.teslable.port.AuthMethod
+import dev.mirolab.teslable.application.dispatcher.Dispatcher
+import dev.mirolab.teslable.application.dispatcher.errorOrNull
+import dev.mirolab.teslable.application.dispatcher.valueOr
+import dev.mirolab.teslable.application.vehicle.CommandTimeouts
+import dev.mirolab.teslable.application.vehicle.SendWithRetry
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.shouldRetry
+import dev.mirolab.teslable.model.toResult
+import dev.mirolab.teslable.port.AuthMethod
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -5358,15 +5358,15 @@ public class VcsecCommands(
 ```
 
 ```kotlin
-// application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/infotainment/InfotainmentResponses.kt
+// application/src/commonMain/kotlin/dev/mirolab/teslable/application/infotainment/InfotainmentResponses.kt
 // Ported from vehicle-command@a4b43c1 pkg/vehicle/infotainment.go (Apache-2.0) — getCarServerResponse (response interpretation)
-package io.github.smallmiro.teslable.application.infotainment
+package dev.mirolab.teslable.application.infotainment
 
 import com.tesla.generated.carserver.server.OperationStatus_E
 import com.tesla.generated.carserver.server.Response
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.toResult
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.toResult
 import okio.IOException
 
 /** Infotainment 응답 해석(`03-protocol.md` §10, `08-errors.md` §3.6). `CarServer.OperationStatus_E`는 OK=0, ERROR=1이다(VCSEC와 다르다). */
@@ -5395,18 +5395,18 @@ public object InfotainmentResponses {
 ```
 
 ```kotlin
-// application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/infotainment/InfotainmentCommands.kt
+// application/src/commonMain/kotlin/dev/mirolab/teslable/application/infotainment/InfotainmentCommands.kt
 // Ported from vehicle-command@a4b43c1 pkg/vehicle/infotainment.go (Apache-2.0) — getCarServerResponse, executeCarServerAction
-package io.github.smallmiro.teslable.application.infotainment
+package dev.mirolab.teslable.application.infotainment
 
 import com.tesla.generated.carserver.server.Action
 import com.tesla.generated.carserver.server.Response
 import com.tesla.generated.universalmessage.Domain
-import io.github.smallmiro.teslable.application.dispatcher.valueOr
-import io.github.smallmiro.teslable.application.vehicle.SendWithRetry
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.toResult
-import io.github.smallmiro.teslable.port.AuthMethod
+import dev.mirolab.teslable.application.dispatcher.valueOr
+import dev.mirolab.teslable.application.vehicle.SendWithRetry
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.toResult
+import dev.mirolab.teslable.port.AuthMethod
 import kotlin.time.Duration
 
 /** Go `executeCarServerAction`/`getCarServerResponse`: `Action`을 Infotainment에 보내고(단일 응답, GCM) `Response`로 해석한다. M5가 명령별 빌더를 더한다. */
@@ -5444,7 +5444,7 @@ Run: `./gradlew :domain:jvmTest :application:jvmTest :domain:check :application:
 Expected: PASS (JVM, iOS)
 
 ```bash
-git add domain/src/commonMain/kotlin/io/github/smallmiro/teslable/model/VehicleError.kt domain/src/commonTest/kotlin/io/github/smallmiro/teslable/model/VehicleErrorTest.kt domain/api
+git add domain/src/commonMain/kotlin/dev/mirolab/teslable/model/VehicleError.kt domain/src/commonTest/kotlin/dev/mirolab/teslable/model/VehicleErrorTest.kt domain/api
 git commit -m "feat(domain): VehicleError.UnknownKeychainCode preserves whitelist codes unknown to Wire (Go KeychainError{Code})
 
 Refs: FR-103, FR-048
@@ -5462,7 +5462,7 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 참고 매뉴얼: `08-errors.md` §5(desync 복구), §6(리플레이·드롭), §7("Couldn't verify success"), `03-protocol.md` §9.4, §11; `{{WORKFLOW_FILE}}` §2.4; `{{SDD_FILE}}` §3.3~§3.4, §9.3. Go 원본: 시나리오는 `verifier_test.go`(`TestEpochChange`, `TestGCMExpired`)와 `dispatcher_test.go`(`TestVehicleDropsReply`, `TestCorruptedSessionInfo`)의 조합이며 `pkg/vehicle` 경로(`getVCSECResult`, `Send`)를 끝까지 탄다. 설계: NFR-003(7 시나리오), NFR-007, FR-018, FR-048, FR-049, 설계 구체화 2.
 
 **Files:**
-- Test: `application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/scenario/FakeVehicleScenarioTest.kt`
+- Test: `application/src/commonTest/kotlin/dev/mirolab/teslable/application/scenario/FakeVehicleScenarioTest.kt`
 
 **Interfaces:**
 - Consumes: Task 4 `FakeVehicle`(대본 전부), Task 6 하네스, Task 9 `VehicleSession`, Task 10 `VcsecResponses`/`VcsecCommands`, `RecordingLogger`.
@@ -5471,28 +5471,28 @@ Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>"
 - [ ] **Step 1: 시나리오 테스트 작성 (전부 통과해야 한다 — 앞 Task들이 이미 구현했으므로 여기서는 Red가 없다; 실패하면 그 Task의 결함이다)**
 
 ```kotlin
-// application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/scenario/FakeVehicleScenarioTest.kt
-package io.github.smallmiro.teslable.application.scenario
+// application/src/commonTest/kotlin/dev/mirolab/teslable/application/scenario/FakeVehicleScenarioTest.kt
+package dev.mirolab.teslable.application.scenario
 
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
 import com.tesla.generated.vcsec.RKEAction_E
 import com.tesla.generated.vcsec.UnsignedMessage
-import io.github.smallmiro.teslable.application.dispatcher.DispatcherHarness
-import io.github.smallmiro.teslable.application.dispatcher.PendingRequest
-import io.github.smallmiro.teslable.application.dispatcher.dispatcherHarness
-import io.github.smallmiro.teslable.application.dispatcher.encode
-import io.github.smallmiro.teslable.application.dispatcher.manualHandshake
-import io.github.smallmiro.teslable.application.dispatcher.replyTo
-import io.github.smallmiro.teslable.application.dispatcher.testCommand
-import io.github.smallmiro.teslable.application.vcsec.VcsecResponses
-import io.github.smallmiro.teslable.application.vehicle.VehicleSession
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.shouldRetry
-import io.github.smallmiro.teslable.port.AuthMethod
-import io.github.smallmiro.teslable.protocol.RequestHash
-import io.github.smallmiro.teslable.testing.FakeVehicle
+import dev.mirolab.teslable.application.dispatcher.DispatcherHarness
+import dev.mirolab.teslable.application.dispatcher.PendingRequest
+import dev.mirolab.teslable.application.dispatcher.dispatcherHarness
+import dev.mirolab.teslable.application.dispatcher.encode
+import dev.mirolab.teslable.application.dispatcher.manualHandshake
+import dev.mirolab.teslable.application.dispatcher.replyTo
+import dev.mirolab.teslable.application.dispatcher.testCommand
+import dev.mirolab.teslable.application.vcsec.VcsecResponses
+import dev.mirolab.teslable.application.vehicle.VehicleSession
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.shouldRetry
+import dev.mirolab.teslable.port.AuthMethod
+import dev.mirolab.teslable.protocol.RequestHash
+import dev.mirolab.teslable.testing.FakeVehicle
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
@@ -5652,7 +5652,7 @@ Run: `./gradlew :application:jvmTest --tests '*FakeVehicleScenarioTest*' :applic
 Expected: PASS (JVM, iOS). 실패하면 해당 시나리오가 가리키는 Task의 결함이다 — 재현 테스트가 이미 있으므로 그 Task 코드를 고친다(`superpowers:systematic-debugging`, 원본 Go와 대조).
 
 ```bash
-git add application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/scenario
+git add application/src/commonTest/kotlin/dev/mirolab/teslable/application/scenario
 git commit -m "test(application): seven FakeVehicle end-to-end scenarios (WAIT→final, lost reply, epoch change, clock regression, bad HMAC, replay, not connectable)
 
 Refs: NFR-003, NFR-007, FR-014, FR-018, FR-048, FR-049

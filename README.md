@@ -43,7 +43,7 @@ M0 골격이 `main`에 있습니다 — 라이브러리 모듈 7개 + 샘플 앱
 - `:testing` 테스트 픽스처 (`protocol.md` 벡터, `FixedRandom`, `TestCrypto`, 테스트 소스셋 전용)
 - `samples/android` (Compose), `samples/ios` (SwiftUI, XcodeGen)
 
-패키지 루트: `io.github.smallmiro.teslable`. 최소 지원: Android API 31, iOS 16.
+패키지 루트: `dev.mirolab.teslable`. 최소 지원: Android API 31, iOS 16.
 빌드·검증 명령은 [`AGENTS.md`](AGENTS.md) §6 참조.
 
 ## 배포 (예정, M6)

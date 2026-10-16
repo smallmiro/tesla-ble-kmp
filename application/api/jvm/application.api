@@ -1,47 +1,47 @@
-public final class io/github/smallmiro/teslable/application/cache/SessionCacheSync {
-	public fun <init> (Lio/github/smallmiro/teslable/port/SessionCache;Lio/github/smallmiro/teslable/model/Vin;Lio/github/smallmiro/teslable/model/KeyId;)V
-	public final fun load (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+public final class dev/mirolab/teslable/application/cache/SessionCacheSync {
+	public fun <init> (Ldev/mirolab/teslable/port/SessionCache;Ldev/mirolab/teslable/model/Vin;Ldev/mirolab/teslable/model/KeyId;)V
+	public final fun load (Ldev/mirolab/teslable/application/dispatcher/Dispatcher;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun markStale (Lcom/tesla/generated/universalmessage/Domain;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public final fun store (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun store (Ldev/mirolab/teslable/application/dispatcher/Dispatcher;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
-public final class io/github/smallmiro/teslable/application/dispatcher/Dispatcher {
-	public static final field Companion Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher$Companion;
-	public fun <init> (Lio/github/smallmiro/teslable/port/Transport;Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlinx/coroutines/CoroutineScope;Lkotlin/time/TimeSource;Lio/github/smallmiro/teslable/port/TeslaLogger;)V
-	public synthetic fun <init> (Lio/github/smallmiro/teslable/port/Transport;Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlinx/coroutines/CoroutineScope;Lkotlin/time/TimeSource;Lio/github/smallmiro/teslable/port/TeslaLogger;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+public final class dev/mirolab/teslable/application/dispatcher/Dispatcher {
+	public static final field Companion Ldev/mirolab/teslable/application/dispatcher/Dispatcher$Companion;
+	public fun <init> (Ldev/mirolab/teslable/port/Transport;Ldev/mirolab/teslable/port/EcdhPrivateKey;Ldev/mirolab/teslable/port/CryptoPrimitives;Ldev/mirolab/teslable/port/RandomSource;Lkotlinx/coroutines/CoroutineScope;Lkotlin/time/TimeSource;Ldev/mirolab/teslable/port/TeslaLogger;)V
+	public synthetic fun <init> (Ldev/mirolab/teslable/port/Transport;Ldev/mirolab/teslable/port/EcdhPrivateKey;Ldev/mirolab/teslable/port/CryptoPrimitives;Ldev/mirolab/teslable/port/RandomSource;Lkotlinx/coroutines/CoroutineScope;Lkotlin/time/TimeSource;Ldev/mirolab/teslable/port/TeslaLogger;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun close (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun exportSessions (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun getMaxLatency-UwyO8pc ()J
 	public final fun getRetryInterval-UwyO8pc ()J
 	public final fun getSessionEvents ()Lkotlinx/coroutines/flow/SharedFlow;
-	public final fun getVin ()Lio/github/smallmiro/teslable/model/Vin;
+	public final fun getVin ()Ldev/mirolab/teslable/model/Vin;
 	public final fun isListening ()Z
 	public final fun loadSessions (Ljava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun requestSessionInfo (Lcom/tesla/generated/universalmessage/Domain;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public final fun send-exY8QGI (Lcom/tesla/generated/universalmessage/RoutableMessage;Lio/github/smallmiro/teslable/port/AuthMethod;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun send-exY8QGI$default (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lcom/tesla/generated/universalmessage/RoutableMessage;Lio/github/smallmiro/teslable/port/AuthMethod;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public final fun session (Lcom/tesla/generated/universalmessage/Domain;)Lio/github/smallmiro/teslable/application/dispatcher/SessionState;
+	public final fun send-exY8QGI (Lcom/tesla/generated/universalmessage/RoutableMessage;Ldev/mirolab/teslable/port/AuthMethod;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun send-exY8QGI$default (Ldev/mirolab/teslable/application/dispatcher/Dispatcher;Lcom/tesla/generated/universalmessage/RoutableMessage;Ldev/mirolab/teslable/port/AuthMethod;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun session (Lcom/tesla/generated/universalmessage/Domain;)Ldev/mirolab/teslable/application/dispatcher/SessionState;
 	public final fun setMaxLatency-LRDsOJo (J)V
 	public final fun start ()V
 	public final fun stop (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
-public final class io/github/smallmiro/teslable/application/dispatcher/Dispatcher$Companion {
+public final class dev/mirolab/teslable/application/dispatcher/Dispatcher$Companion {
 	public final fun getALL_DOMAINS ()Ljava/util/Set;
 	public final fun getDEFAULT_LIFETIME-UwyO8pc ()J
-	public final fun sessionInfoRequest (Lcom/tesla/generated/universalmessage/Domain;Lio/github/smallmiro/teslable/model/PublicKeyBytes;)Lcom/tesla/generated/universalmessage/RoutableMessage;
+	public final fun sessionInfoRequest (Lcom/tesla/generated/universalmessage/Domain;Ldev/mirolab/teslable/model/PublicKeyBytes;)Lcom/tesla/generated/universalmessage/RoutableMessage;
 }
 
-public final class io/github/smallmiro/teslable/application/dispatcher/HandshakeFlow {
-	public fun <init> (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;)V
+public final class dev/mirolab/teslable/application/dispatcher/HandshakeFlow {
+	public fun <init> (Ldev/mirolab/teslable/application/dispatcher/Dispatcher;)V
 	public final fun startSession (Lcom/tesla/generated/universalmessage/Domain;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun startSessions (Ljava/util/Set;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun startSessions$default (Lio/github/smallmiro/teslable/application/dispatcher/HandshakeFlow;Ljava/util/Set;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun startSessions$default (Ldev/mirolab/teslable/application/dispatcher/HandshakeFlow;Ljava/util/Set;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
-public final class io/github/smallmiro/teslable/application/dispatcher/PendingRequest : java/lang/AutoCloseable {
+public final class dev/mirolab/teslable/application/dispatcher/PendingRequest : java/lang/AutoCloseable {
 	public static final field BUFFER_SIZE I
-	public static final field Companion Lio/github/smallmiro/teslable/application/dispatcher/PendingRequest$Companion;
+	public static final field Companion Ldev/mirolab/teslable/application/dispatcher/PendingRequest$Companion;
 	public fun close ()V
 	public final fun getRequestHash ()[B
 	public final fun getUuid ()[B
@@ -49,35 +49,35 @@ public final class io/github/smallmiro/teslable/application/dispatcher/PendingRe
 	public final fun tryReceive ()Lcom/tesla/generated/universalmessage/RoutableMessage;
 }
 
-public final class io/github/smallmiro/teslable/application/dispatcher/PendingRequest$Companion {
+public final class dev/mirolab/teslable/application/dispatcher/PendingRequest$Companion {
 }
 
-public abstract interface class io/github/smallmiro/teslable/application/dispatcher/SessionEvent {
+public abstract interface class dev/mirolab/teslable/application/dispatcher/SessionEvent {
 }
 
-public final class io/github/smallmiro/teslable/application/dispatcher/SessionEvent$StaleCache : io/github/smallmiro/teslable/application/dispatcher/SessionEvent {
+public final class dev/mirolab/teslable/application/dispatcher/SessionEvent$StaleCache : dev/mirolab/teslable/application/dispatcher/SessionEvent {
 	public fun <init> (Lcom/tesla/generated/universalmessage/Domain;)V
 	public final fun component1 ()Lcom/tesla/generated/universalmessage/Domain;
-	public final fun copy (Lcom/tesla/generated/universalmessage/Domain;)Lio/github/smallmiro/teslable/application/dispatcher/SessionEvent$StaleCache;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/application/dispatcher/SessionEvent$StaleCache;Lcom/tesla/generated/universalmessage/Domain;ILjava/lang/Object;)Lio/github/smallmiro/teslable/application/dispatcher/SessionEvent$StaleCache;
+	public final fun copy (Lcom/tesla/generated/universalmessage/Domain;)Ldev/mirolab/teslable/application/dispatcher/SessionEvent$StaleCache;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/application/dispatcher/SessionEvent$StaleCache;Lcom/tesla/generated/universalmessage/Domain;ILjava/lang/Object;)Ldev/mirolab/teslable/application/dispatcher/SessionEvent$StaleCache;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getDomain ()Lcom/tesla/generated/universalmessage/Domain;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/application/dispatcher/SessionEvent$Updated : io/github/smallmiro/teslable/application/dispatcher/SessionEvent {
+public final class dev/mirolab/teslable/application/dispatcher/SessionEvent$Updated : dev/mirolab/teslable/application/dispatcher/SessionEvent {
 	public fun <init> (Lcom/tesla/generated/universalmessage/Domain;)V
 	public final fun component1 ()Lcom/tesla/generated/universalmessage/Domain;
-	public final fun copy (Lcom/tesla/generated/universalmessage/Domain;)Lio/github/smallmiro/teslable/application/dispatcher/SessionEvent$Updated;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/application/dispatcher/SessionEvent$Updated;Lcom/tesla/generated/universalmessage/Domain;ILjava/lang/Object;)Lio/github/smallmiro/teslable/application/dispatcher/SessionEvent$Updated;
+	public final fun copy (Lcom/tesla/generated/universalmessage/Domain;)Ldev/mirolab/teslable/application/dispatcher/SessionEvent$Updated;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/application/dispatcher/SessionEvent$Updated;Lcom/tesla/generated/universalmessage/Domain;ILjava/lang/Object;)Ldev/mirolab/teslable/application/dispatcher/SessionEvent$Updated;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getDomain ()Lcom/tesla/generated/universalmessage/Domain;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/application/dispatcher/SessionState {
+public final class dev/mirolab/teslable/application/dispatcher/SessionState {
 	public final fun authorize-8Mi8wO0 (Lcom/tesla/generated/universalmessage/RoutableMessage;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun awaitReady (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun close (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -93,94 +93,94 @@ public final class io/github/smallmiro/teslable/application/dispatcher/SessionSt
 	public final fun timestamp-gbq4QnA (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
-public final class io/github/smallmiro/teslable/application/infotainment/InfotainmentCommands {
-	public fun <init> (Lio/github/smallmiro/teslable/application/vehicle/SendWithRetry;)V
+public final class dev/mirolab/teslable/application/infotainment/InfotainmentCommands {
+	public fun <init> (Ldev/mirolab/teslable/application/vehicle/SendWithRetry;)V
 	public final fun execute-8Mi8wO0 (Lcom/tesla/generated/carserver/server/Action;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun execute-8Mi8wO0$default (Lio/github/smallmiro/teslable/application/infotainment/InfotainmentCommands;Lcom/tesla/generated/carserver/server/Action;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun execute-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Lcom/tesla/generated/carserver/server/Action;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
-public final class io/github/smallmiro/teslable/application/infotainment/InfotainmentResponses {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/application/infotainment/InfotainmentResponses;
-	public final fun interpret ([B)Lio/github/smallmiro/teslable/model/VehicleResult;
+public final class dev/mirolab/teslable/application/infotainment/InfotainmentResponses {
+	public static final field INSTANCE Ldev/mirolab/teslable/application/infotainment/InfotainmentResponses;
+	public final fun interpret ([B)Ldev/mirolab/teslable/model/VehicleResult;
 }
 
-public final class io/github/smallmiro/teslable/application/logging/SafeLogger : io/github/smallmiro/teslable/port/TeslaLogger {
-	public fun <init> (Lio/github/smallmiro/teslable/port/TeslaLogger;)V
-	public fun log (Lio/github/smallmiro/teslable/port/LogLevel;Ljava/lang/String;Lkotlin/jvm/functions/Function0;)V
+public final class dev/mirolab/teslable/application/logging/SafeLogger : dev/mirolab/teslable/port/TeslaLogger {
+	public fun <init> (Ldev/mirolab/teslable/port/TeslaLogger;)V
+	public fun log (Ldev/mirolab/teslable/port/LogLevel;Ljava/lang/String;Lkotlin/jvm/functions/Function0;)V
 }
 
-public final class io/github/smallmiro/teslable/application/vcsec/VcsecCommands {
-	public final fun execute-myKFqkg ([BLio/github/smallmiro/teslable/port/AuthMethod;Lio/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalTest;IJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun execute-myKFqkg$default (Lio/github/smallmiro/teslable/application/vcsec/VcsecCommands;[BLio/github/smallmiro/teslable/port/AuthMethod;Lio/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalTest;IJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+public final class dev/mirolab/teslable/application/vcsec/VcsecCommands {
+	public final fun execute-myKFqkg ([BLdev/mirolab/teslable/port/AuthMethod;Ldev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalTest;IJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun execute-myKFqkg$default (Ldev/mirolab/teslable/application/vcsec/VcsecCommands;[BLdev/mirolab/teslable/port/AuthMethod;Ldev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalTest;IJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
-public final class io/github/smallmiro/teslable/application/vcsec/VcsecResponses {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/application/vcsec/VcsecResponses;
-	public final fun getCOMMAND_STATUS_ABSENT ()Lio/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalTest;
-	public final fun getFIRST_MESSAGE ()Lio/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalTest;
-	public final fun getWHITELIST_OPERATION_COMPLETE ()Lio/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalTest;
-	public final fun interpret (Lcom/tesla/generated/universalmessage/RoutableMessage;)Lio/github/smallmiro/teslable/model/VehicleResult;
-	public final fun readUntil (Lio/github/smallmiro/teslable/application/dispatcher/PendingRequest;Lio/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalTest;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+public final class dev/mirolab/teslable/application/vcsec/VcsecResponses {
+	public static final field INSTANCE Ldev/mirolab/teslable/application/vcsec/VcsecResponses;
+	public final fun getCOMMAND_STATUS_ABSENT ()Ldev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalTest;
+	public final fun getFIRST_MESSAGE ()Ldev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalTest;
+	public final fun getWHITELIST_OPERATION_COMPLETE ()Ldev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalTest;
+	public final fun interpret (Lcom/tesla/generated/universalmessage/RoutableMessage;)Ldev/mirolab/teslable/model/VehicleResult;
+	public final fun readUntil (Ldev/mirolab/teslable/application/dispatcher/PendingRequest;Ldev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalTest;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
-public abstract interface class io/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalCheck {
+public abstract interface class dev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalCheck {
 }
 
-public final class io/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalCheck$Continue : io/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalCheck {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalCheck$Continue;
+public final class dev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalCheck$Continue : dev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalCheck {
+	public static final field INSTANCE Ldev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalCheck$Continue;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalCheck$Done : io/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalCheck {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalCheck$Done;
+public final class dev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalCheck$Done : dev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalCheck {
+	public static final field INSTANCE Ldev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalCheck$Done;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalCheck$Fail : io/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalCheck {
-	public fun <init> (Lio/github/smallmiro/teslable/model/VehicleError;)V
-	public final fun component1 ()Lio/github/smallmiro/teslable/model/VehicleError;
-	public final fun copy (Lio/github/smallmiro/teslable/model/VehicleError;)Lio/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalCheck$Fail;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalCheck$Fail;Lio/github/smallmiro/teslable/model/VehicleError;ILjava/lang/Object;)Lio/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalCheck$Fail;
+public final class dev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalCheck$Fail : dev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalCheck {
+	public fun <init> (Ldev/mirolab/teslable/model/VehicleError;)V
+	public final fun component1 ()Ldev/mirolab/teslable/model/VehicleError;
+	public final fun copy (Ldev/mirolab/teslable/model/VehicleError;)Ldev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalCheck$Fail;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalCheck$Fail;Ldev/mirolab/teslable/model/VehicleError;ILjava/lang/Object;)Ldev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalCheck$Fail;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getError ()Lio/github/smallmiro/teslable/model/VehicleError;
+	public final fun getError ()Ldev/mirolab/teslable/model/VehicleError;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public abstract interface class io/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalTest {
-	public abstract fun check (Lcom/tesla/generated/vcsec/FromVCSECMessage;)Lio/github/smallmiro/teslable/application/vcsec/VcsecResponses$TerminalCheck;
+public abstract interface class dev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalTest {
+	public abstract fun check (Lcom/tesla/generated/vcsec/FromVCSECMessage;)Ldev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalCheck;
 }
 
-public final class io/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries {
-	public static final field Companion Lio/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries$Companion;
+public final class dev/mirolab/teslable/application/vcsec/VehicleInfoQueries {
+	public static final field Companion Ldev/mirolab/teslable/application/vcsec/VehicleInfoQueries$Companion;
 	public final fun keyInfoBySlot-8Mi8wO0 (IJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun keyInfoBySlot-8Mi8wO0$default (Lio/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries;IJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun keyInfoBySlot-8Mi8wO0$default (Ldev/mirolab/teslable/application/vcsec/VehicleInfoQueries;IJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun keySummary-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun keySummary-VtjQ1oo$default (Lio/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun keySummary-VtjQ1oo$default (Ldev/mirolab/teslable/application/vcsec/VehicleInfoQueries;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun listKeys-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun listKeys-VtjQ1oo$default (Lio/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun listKeys-VtjQ1oo$default (Ldev/mirolab/teslable/application/vcsec/VehicleInfoQueries;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun vehicleStatus-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun vehicleStatus-VtjQ1oo$default (Lio/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun vehicleStatus-VtjQ1oo$default (Ldev/mirolab/teslable/application/vcsec/VehicleInfoQueries;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
-public final class io/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries$Companion {
+public final class dev/mirolab/teslable/application/vcsec/VehicleInfoQueries$Companion {
 	public final fun informationRequest (Lcom/tesla/generated/vcsec/InformationRequestType;Ljava/lang/Integer;)[B
-	public static synthetic fun informationRequest$default (Lio/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries$Companion;Lcom/tesla/generated/vcsec/InformationRequestType;Ljava/lang/Integer;ILjava/lang/Object;)[B
+	public static synthetic fun informationRequest$default (Ldev/mirolab/teslable/application/vcsec/VehicleInfoQueries$Companion;Lcom/tesla/generated/vcsec/InformationRequestType;Ljava/lang/Integer;ILjava/lang/Object;)[B
 }
 
-public final class io/github/smallmiro/teslable/application/vehicle/CommandTimeouts {
+public final class dev/mirolab/teslable/application/vehicle/CommandTimeouts {
 	public fun <init> ()V
 	public synthetic fun <init> (JJJILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (JJJLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1-UwyO8pc ()J
 	public final fun component2-UwyO8pc ()J
 	public final fun component3-UwyO8pc ()J
-	public final fun copy-WzaCiaA (JJJ)Lio/github/smallmiro/teslable/application/vehicle/CommandTimeouts;
-	public static synthetic fun copy-WzaCiaA$default (Lio/github/smallmiro/teslable/application/vehicle/CommandTimeouts;JJJILjava/lang/Object;)Lio/github/smallmiro/teslable/application/vehicle/CommandTimeouts;
+	public final fun copy-WzaCiaA (JJJ)Ldev/mirolab/teslable/application/vehicle/CommandTimeouts;
+	public static synthetic fun copy-WzaCiaA$default (Ldev/mirolab/teslable/application/vehicle/CommandTimeouts;JJJILjava/lang/Object;)Ldev/mirolab/teslable/application/vehicle/CommandTimeouts;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getCommandLifetime-UwyO8pc ()J
 	public final fun getCommandTimeout-UwyO8pc ()J
@@ -189,31 +189,31 @@ public final class io/github/smallmiro/teslable/application/vehicle/CommandTimeo
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/application/vehicle/SendWithRetry {
-	public static final field Companion Lio/github/smallmiro/teslable/application/vehicle/SendWithRetry$Companion;
+public final class dev/mirolab/teslable/application/vehicle/SendWithRetry {
+	public static final field Companion Ldev/mirolab/teslable/application/vehicle/SendWithRetry$Companion;
 	public static final field DEFAULT_FLAGS I
-	public fun <init> (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lio/github/smallmiro/teslable/application/vehicle/CommandTimeouts;)V
-	public synthetic fun <init> (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lio/github/smallmiro/teslable/application/vehicle/CommandTimeouts;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public fun <init> (Ldev/mirolab/teslable/application/dispatcher/Dispatcher;Ldev/mirolab/teslable/application/vehicle/CommandTimeouts;)V
+	public synthetic fun <init> (Ldev/mirolab/teslable/application/dispatcher/Dispatcher;Ldev/mirolab/teslable/application/vehicle/CommandTimeouts;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getCommandTimeout-UwyO8pc ()J
-	public final fun send-myKFqkg (Lcom/tesla/generated/universalmessage/Domain;[BLio/github/smallmiro/teslable/port/AuthMethod;IJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun send-myKFqkg$default (Lio/github/smallmiro/teslable/application/vehicle/SendWithRetry;Lcom/tesla/generated/universalmessage/Domain;[BLio/github/smallmiro/teslable/port/AuthMethod;IJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun send-myKFqkg (Lcom/tesla/generated/universalmessage/Domain;[BLdev/mirolab/teslable/port/AuthMethod;IJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun send-myKFqkg$default (Ldev/mirolab/teslable/application/vehicle/SendWithRetry;Lcom/tesla/generated/universalmessage/Domain;[BLdev/mirolab/teslable/port/AuthMethod;IJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
-public final class io/github/smallmiro/teslable/application/vehicle/SendWithRetry$Companion {
+public final class dev/mirolab/teslable/application/vehicle/SendWithRetry$Companion {
 }
 
-public final class io/github/smallmiro/teslable/application/vehicle/VehicleSession {
-	public fun <init> (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lio/github/smallmiro/teslable/application/vehicle/CommandTimeouts;Lio/github/smallmiro/teslable/application/cache/SessionCacheSync;Lkotlinx/coroutines/CoroutineScope;)V
-	public synthetic fun <init> (Lio/github/smallmiro/teslable/application/dispatcher/Dispatcher;Lio/github/smallmiro/teslable/application/vehicle/CommandTimeouts;Lio/github/smallmiro/teslable/application/cache/SessionCacheSync;Lkotlinx/coroutines/CoroutineScope;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
+public final class dev/mirolab/teslable/application/vehicle/VehicleSession {
+	public fun <init> (Ldev/mirolab/teslable/application/dispatcher/Dispatcher;Ldev/mirolab/teslable/application/vehicle/CommandTimeouts;Ldev/mirolab/teslable/application/cache/SessionCacheSync;Lkotlinx/coroutines/CoroutineScope;)V
+	public synthetic fun <init> (Ldev/mirolab/teslable/application/dispatcher/Dispatcher;Ldev/mirolab/teslable/application/vehicle/CommandTimeouts;Ldev/mirolab/teslable/application/cache/SessionCacheSync;Lkotlinx/coroutines/CoroutineScope;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun connect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun disconnect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public final fun getHandshake ()Lio/github/smallmiro/teslable/application/dispatcher/HandshakeFlow;
-	public final fun getInfo ()Lio/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries;
-	public final fun getInfotainment ()Lio/github/smallmiro/teslable/application/infotainment/InfotainmentCommands;
+	public final fun getHandshake ()Ldev/mirolab/teslable/application/dispatcher/HandshakeFlow;
+	public final fun getInfo ()Ldev/mirolab/teslable/application/vcsec/VehicleInfoQueries;
+	public final fun getInfotainment ()Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;
 	public final fun getRetryInterval-UwyO8pc ()J
-	public final fun getSend ()Lio/github/smallmiro/teslable/application/vehicle/SendWithRetry;
-	public final fun getVcsec ()Lio/github/smallmiro/teslable/application/vcsec/VcsecCommands;
+	public final fun getSend ()Ldev/mirolab/teslable/application/vehicle/SendWithRetry;
+	public final fun getVcsec ()Ldev/mirolab/teslable/application/vcsec/VcsecCommands;
 	public final fun startSession-8Mi8wO0 (Ljava/util/Set;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun startSession-8Mi8wO0$default (Lio/github/smallmiro/teslable/application/vehicle/VehicleSession;Ljava/util/Set;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun startSession-8Mi8wO0$default (Ldev/mirolab/teslable/application/vehicle/VehicleSession;Ljava/util/Set;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 

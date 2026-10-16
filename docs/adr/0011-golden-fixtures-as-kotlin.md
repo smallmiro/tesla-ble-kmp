@@ -10,7 +10,7 @@
 `{{PATHS_FILE}}` 초안은 `FIXTURES_DIR = testing/src/commonTest/resources/fixtures/`였다. Kotlin/Native 테스트 바이너리는 commonTest 리소스를 표준 방식으로 로드하지 못한다.
 
 ## 결정
-테스트 벡터와 골든 TX/RX 헥사는 `:testing` commonMain의 Kotlin `object` 상수로 둔다(`{{FIXTURES_DIR}}` = `testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/fixtures/`). 캡처 로그에서 상수 파일을 만드는 스크립트(`tools/fixtures/import-debug-log.py`)를 M3에서 추가한다. VIN은 테스트 VIN으로 치환한 것만 커밋한다.
+테스트 벡터와 골든 TX/RX 헥사는 `:testing` commonMain의 Kotlin `object` 상수로 둔다(`{{FIXTURES_DIR}}` = `testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/fixtures/`). 캡처 로그에서 상수 파일을 만드는 스크립트(`tools/fixtures/import-debug-log.py`)를 M3에서 추가한다. VIN은 테스트 VIN으로 치환한 것만 커밋한다.
 
 ## 결과
 - JVM과 iOS 시뮬레이터에서 같은 코드로 픽스처를 읽는다.

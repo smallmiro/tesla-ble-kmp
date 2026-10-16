@@ -1,6 +1,6 @@
 name: TeslableSample
 options:
-  bundleIdPrefix: io.github.smallmiro
+  bundleIdPrefix: dev.mirolab
   deploymentTarget:
     iOS: "16.0"
 targets:
@@ -46,7 +46,7 @@ targets:
         NSBluetoothAlwaysUsageDescription: 차량과 BLE로 통신하기 위해 블루투스가 필요합니다.
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: io.github.smallmiro.TeslableSampleDevice
+        PRODUCT_BUNDLE_IDENTIFIER: dev.mirolab.TeslableSampleDevice
         SWIFT_VERSION: "6.0"
     dependencies:
       - framework: ../../sdk/build/bin/iosArm64/debugFramework/Teslable.framework

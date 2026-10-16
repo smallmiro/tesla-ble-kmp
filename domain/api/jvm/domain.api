@@ -4566,89 +4566,89 @@ public final class com/tesla/generated/vcsec/WhitelistOperation_status : com/squ
 public final class com/tesla/generated/vcsec/WhitelistOperation_status$Companion {
 }
 
-public abstract interface annotation class io/github/smallmiro/teslable/InternalTeslableApi : java/lang/annotation/Annotation {
+public abstract interface annotation class dev/mirolab/teslable/InternalTeslableApi : java/lang/annotation/Annotation {
 }
 
-public final class io/github/smallmiro/teslable/cache/CachedSession {
+public final class dev/mirolab/teslable/cache/CachedSession {
 	public synthetic fun <init> (Lcom/tesla/generated/universalmessage/Domain;[BJLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getAge-UwyO8pc ()J
 	public final fun getDomain ()Lcom/tesla/generated/universalmessage/Domain;
 	public final fun getSessionInfo ()[B
 }
 
-public final class io/github/smallmiro/teslable/cache/SessionCacheCodec {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/cache/SessionCacheCodec;
+public final class dev/mirolab/teslable/cache/SessionCacheCodec {
+	public static final field INSTANCE Ldev/mirolab/teslable/cache/SessionCacheCodec;
 	public static final field VERSION I
-	public final fun decode ([BLio/github/smallmiro/teslable/model/KeyId;)Ljava/util/List;
-	public final fun decodeSessions ([BLio/github/smallmiro/teslable/model/KeyId;J)Ljava/util/List;
-	public final fun encode (Lio/github/smallmiro/teslable/model/KeyId;Ljava/util/List;)[B
-	public final fun encodeSnapshots (Lio/github/smallmiro/teslable/model/KeyId;Ljava/util/List;J)[B
+	public final fun decode ([BLdev/mirolab/teslable/model/KeyId;)Ljava/util/List;
+	public final fun decodeSessions ([BLdev/mirolab/teslable/model/KeyId;J)Ljava/util/List;
+	public final fun encode (Ldev/mirolab/teslable/model/KeyId;Ljava/util/List;)[B
+	public final fun encodeSnapshots (Ldev/mirolab/teslable/model/KeyId;Ljava/util/List;J)[B
 }
 
-public final class io/github/smallmiro/teslable/cache/SessionCacheCodec$Entry {
+public final class dev/mirolab/teslable/cache/SessionCacheCodec$Entry {
 	public fun <init> (Lcom/tesla/generated/universalmessage/Domain;J[B)V
 	public final fun getCreatedAtEpochMillis ()J
 	public final fun getDomain ()Lcom/tesla/generated/universalmessage/Domain;
 	public final fun getSessionInfo ()[B
 }
 
-public final class io/github/smallmiro/teslable/cache/SessionSnapshot {
+public final class dev/mirolab/teslable/cache/SessionSnapshot {
 	public fun <init> (Lcom/tesla/generated/universalmessage/Domain;[B)V
 	public final fun getDomain ()Lcom/tesla/generated/universalmessage/Domain;
 	public final fun getSessionInfo ()[B
 }
 
-public final class io/github/smallmiro/teslable/model/ClosureState : java/lang/Enum {
-	public static final field AJAR Lio/github/smallmiro/teslable/model/ClosureState;
-	public static final field CLOSED Lio/github/smallmiro/teslable/model/ClosureState;
-	public static final field CLOSING Lio/github/smallmiro/teslable/model/ClosureState;
-	public static final field FAILED_UNLATCH Lio/github/smallmiro/teslable/model/ClosureState;
-	public static final field OPEN Lio/github/smallmiro/teslable/model/ClosureState;
-	public static final field OPENING Lio/github/smallmiro/teslable/model/ClosureState;
-	public static final field UNKNOWN Lio/github/smallmiro/teslable/model/ClosureState;
+public final class dev/mirolab/teslable/model/ClosureState : java/lang/Enum {
+	public static final field AJAR Ldev/mirolab/teslable/model/ClosureState;
+	public static final field CLOSED Ldev/mirolab/teslable/model/ClosureState;
+	public static final field CLOSING Ldev/mirolab/teslable/model/ClosureState;
+	public static final field FAILED_UNLATCH Ldev/mirolab/teslable/model/ClosureState;
+	public static final field OPEN Ldev/mirolab/teslable/model/ClosureState;
+	public static final field OPENING Ldev/mirolab/teslable/model/ClosureState;
+	public static final field UNKNOWN Ldev/mirolab/teslable/model/ClosureState;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/ClosureState;
-	public static fun values ()[Lio/github/smallmiro/teslable/model/ClosureState;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/model/ClosureState;
+	public static fun values ()[Ldev/mirolab/teslable/model/ClosureState;
 }
 
-public final class io/github/smallmiro/teslable/model/Closures {
-	public fun <init> (Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;)V
-	public final fun component1 ()Lio/github/smallmiro/teslable/model/ClosureState;
-	public final fun component2 ()Lio/github/smallmiro/teslable/model/ClosureState;
-	public final fun component3 ()Lio/github/smallmiro/teslable/model/ClosureState;
-	public final fun component4 ()Lio/github/smallmiro/teslable/model/ClosureState;
-	public final fun component5 ()Lio/github/smallmiro/teslable/model/ClosureState;
-	public final fun component6 ()Lio/github/smallmiro/teslable/model/ClosureState;
-	public final fun component7 ()Lio/github/smallmiro/teslable/model/ClosureState;
-	public final fun component8 ()Lio/github/smallmiro/teslable/model/ClosureState;
-	public final fun copy (Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;)Lio/github/smallmiro/teslable/model/Closures;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/Closures;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;Lio/github/smallmiro/teslable/model/ClosureState;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/Closures;
+public final class dev/mirolab/teslable/model/Closures {
+	public fun <init> (Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;)V
+	public final fun component1 ()Ldev/mirolab/teslable/model/ClosureState;
+	public final fun component2 ()Ldev/mirolab/teslable/model/ClosureState;
+	public final fun component3 ()Ldev/mirolab/teslable/model/ClosureState;
+	public final fun component4 ()Ldev/mirolab/teslable/model/ClosureState;
+	public final fun component5 ()Ldev/mirolab/teslable/model/ClosureState;
+	public final fun component6 ()Ldev/mirolab/teslable/model/ClosureState;
+	public final fun component7 ()Ldev/mirolab/teslable/model/ClosureState;
+	public final fun component8 ()Ldev/mirolab/teslable/model/ClosureState;
+	public final fun copy (Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;)Ldev/mirolab/teslable/model/Closures;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/Closures;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;Ldev/mirolab/teslable/model/ClosureState;ILjava/lang/Object;)Ldev/mirolab/teslable/model/Closures;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getChargePort ()Lio/github/smallmiro/teslable/model/ClosureState;
-	public final fun getFrontDriverDoor ()Lio/github/smallmiro/teslable/model/ClosureState;
-	public final fun getFrontPassengerDoor ()Lio/github/smallmiro/teslable/model/ClosureState;
-	public final fun getFrontTrunk ()Lio/github/smallmiro/teslable/model/ClosureState;
-	public final fun getRearDriverDoor ()Lio/github/smallmiro/teslable/model/ClosureState;
-	public final fun getRearPassengerDoor ()Lio/github/smallmiro/teslable/model/ClosureState;
-	public final fun getRearTrunk ()Lio/github/smallmiro/teslable/model/ClosureState;
-	public final fun getTonneau ()Lio/github/smallmiro/teslable/model/ClosureState;
+	public final fun getChargePort ()Ldev/mirolab/teslable/model/ClosureState;
+	public final fun getFrontDriverDoor ()Ldev/mirolab/teslable/model/ClosureState;
+	public final fun getFrontPassengerDoor ()Ldev/mirolab/teslable/model/ClosureState;
+	public final fun getFrontTrunk ()Ldev/mirolab/teslable/model/ClosureState;
+	public final fun getRearDriverDoor ()Ldev/mirolab/teslable/model/ClosureState;
+	public final fun getRearPassengerDoor ()Ldev/mirolab/teslable/model/ClosureState;
+	public final fun getRearTrunk ()Ldev/mirolab/teslable/model/ClosureState;
+	public final fun getTonneau ()Ldev/mirolab/teslable/model/ClosureState;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/KeyFormFactor : java/lang/Enum {
-	public static final field ANDROID_DEVICE Lio/github/smallmiro/teslable/model/KeyFormFactor;
-	public static final field CLOUD_KEY Lio/github/smallmiro/teslable/model/KeyFormFactor;
-	public static final field IOS_DEVICE Lio/github/smallmiro/teslable/model/KeyFormFactor;
-	public static final field NFC_CARD Lio/github/smallmiro/teslable/model/KeyFormFactor;
-	public static final field UNKNOWN Lio/github/smallmiro/teslable/model/KeyFormFactor;
+public final class dev/mirolab/teslable/model/KeyFormFactor : java/lang/Enum {
+	public static final field ANDROID_DEVICE Ldev/mirolab/teslable/model/KeyFormFactor;
+	public static final field CLOUD_KEY Ldev/mirolab/teslable/model/KeyFormFactor;
+	public static final field IOS_DEVICE Ldev/mirolab/teslable/model/KeyFormFactor;
+	public static final field NFC_CARD Ldev/mirolab/teslable/model/KeyFormFactor;
+	public static final field UNKNOWN Ldev/mirolab/teslable/model/KeyFormFactor;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/KeyFormFactor;
-	public static fun values ()[Lio/github/smallmiro/teslable/model/KeyFormFactor;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/model/KeyFormFactor;
+	public static fun values ()[Ldev/mirolab/teslable/model/KeyFormFactor;
 }
 
-public final class io/github/smallmiro/teslable/model/KeyId {
-	public static final field Companion Lio/github/smallmiro/teslable/model/KeyId$Companion;
+public final class dev/mirolab/teslable/model/KeyId {
+	public static final field Companion Ldev/mirolab/teslable/model/KeyId$Companion;
 	public static final field SIZE I
 	public fun <init> ([B)V
 	public fun equals (Ljava/lang/Object;)Z
@@ -4657,38 +4657,38 @@ public final class io/github/smallmiro/teslable/model/KeyId {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/KeyId$Companion {
-	public final fun of (Lio/github/smallmiro/teslable/model/PublicKeyBytes;Lio/github/smallmiro/teslable/port/CryptoPrimitives;)Lio/github/smallmiro/teslable/model/KeyId;
+public final class dev/mirolab/teslable/model/KeyId$Companion {
+	public final fun of (Ldev/mirolab/teslable/model/PublicKeyBytes;Ldev/mirolab/teslable/port/CryptoPrimitives;)Ldev/mirolab/teslable/model/KeyId;
 }
 
-public final class io/github/smallmiro/teslable/model/KeyRole : java/lang/Enum {
-	public static final field CHARGING_MANAGER Lio/github/smallmiro/teslable/model/KeyRole;
-	public static final field DRIVER Lio/github/smallmiro/teslable/model/KeyRole;
-	public static final field FLEET_MANAGER Lio/github/smallmiro/teslable/model/KeyRole;
-	public static final field GUEST Lio/github/smallmiro/teslable/model/KeyRole;
-	public static final field NONE Lio/github/smallmiro/teslable/model/KeyRole;
-	public static final field OWNER Lio/github/smallmiro/teslable/model/KeyRole;
-	public static final field SERVICE Lio/github/smallmiro/teslable/model/KeyRole;
-	public static final field UNKNOWN Lio/github/smallmiro/teslable/model/KeyRole;
-	public static final field VEHICLE_MONITOR Lio/github/smallmiro/teslable/model/KeyRole;
+public final class dev/mirolab/teslable/model/KeyRole : java/lang/Enum {
+	public static final field CHARGING_MANAGER Ldev/mirolab/teslable/model/KeyRole;
+	public static final field DRIVER Ldev/mirolab/teslable/model/KeyRole;
+	public static final field FLEET_MANAGER Ldev/mirolab/teslable/model/KeyRole;
+	public static final field GUEST Ldev/mirolab/teslable/model/KeyRole;
+	public static final field NONE Ldev/mirolab/teslable/model/KeyRole;
+	public static final field OWNER Ldev/mirolab/teslable/model/KeyRole;
+	public static final field SERVICE Ldev/mirolab/teslable/model/KeyRole;
+	public static final field UNKNOWN Ldev/mirolab/teslable/model/KeyRole;
+	public static final field VEHICLE_MONITOR Ldev/mirolab/teslable/model/KeyRole;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/KeyRole;
-	public static fun values ()[Lio/github/smallmiro/teslable/model/KeyRole;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/model/KeyRole;
+	public static fun values ()[Ldev/mirolab/teslable/model/KeyRole;
 }
 
-public final class io/github/smallmiro/teslable/model/LockState : java/lang/Enum {
-	public static final field INTERNAL_LOCKED Lio/github/smallmiro/teslable/model/LockState;
-	public static final field LOCKED Lio/github/smallmiro/teslable/model/LockState;
-	public static final field SELECTIVE_UNLOCKED Lio/github/smallmiro/teslable/model/LockState;
-	public static final field UNKNOWN Lio/github/smallmiro/teslable/model/LockState;
-	public static final field UNLOCKED Lio/github/smallmiro/teslable/model/LockState;
+public final class dev/mirolab/teslable/model/LockState : java/lang/Enum {
+	public static final field INTERNAL_LOCKED Ldev/mirolab/teslable/model/LockState;
+	public static final field LOCKED Ldev/mirolab/teslable/model/LockState;
+	public static final field SELECTIVE_UNLOCKED Ldev/mirolab/teslable/model/LockState;
+	public static final field UNKNOWN Ldev/mirolab/teslable/model/LockState;
+	public static final field UNLOCKED Ldev/mirolab/teslable/model/LockState;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/LockState;
-	public static fun values ()[Lio/github/smallmiro/teslable/model/LockState;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/model/LockState;
+	public static fun values ()[Ldev/mirolab/teslable/model/LockState;
 }
 
-public final class io/github/smallmiro/teslable/model/PublicKeyBytes {
-	public static final field Companion Lio/github/smallmiro/teslable/model/PublicKeyBytes$Companion;
+public final class dev/mirolab/teslable/model/PublicKeyBytes {
+	public static final field Companion Ldev/mirolab/teslable/model/PublicKeyBytes$Companion;
 	public static final field SIZE I
 	public fun <init> ([B)V
 	public fun equals (Ljava/lang/Object;)Z
@@ -4699,56 +4699,56 @@ public final class io/github/smallmiro/teslable/model/PublicKeyBytes {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/PublicKeyBytes$Companion {
+public final class dev/mirolab/teslable/model/PublicKeyBytes$Companion {
 }
 
-public final class io/github/smallmiro/teslable/model/SleepStatus : java/lang/Enum {
-	public static final field ASLEEP Lio/github/smallmiro/teslable/model/SleepStatus;
-	public static final field AWAKE Lio/github/smallmiro/teslable/model/SleepStatus;
-	public static final field UNKNOWN Lio/github/smallmiro/teslable/model/SleepStatus;
+public final class dev/mirolab/teslable/model/SleepStatus : java/lang/Enum {
+	public static final field ASLEEP Ldev/mirolab/teslable/model/SleepStatus;
+	public static final field AWAKE Ldev/mirolab/teslable/model/SleepStatus;
+	public static final field UNKNOWN Ldev/mirolab/teslable/model/SleepStatus;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/SleepStatus;
-	public static fun values ()[Lio/github/smallmiro/teslable/model/SleepStatus;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/model/SleepStatus;
+	public static fun values ()[Ldev/mirolab/teslable/model/SleepStatus;
 }
 
-public final class io/github/smallmiro/teslable/model/UserPresence : java/lang/Enum {
-	public static final field NOT_PRESENT Lio/github/smallmiro/teslable/model/UserPresence;
-	public static final field PRESENT Lio/github/smallmiro/teslable/model/UserPresence;
-	public static final field UNKNOWN Lio/github/smallmiro/teslable/model/UserPresence;
+public final class dev/mirolab/teslable/model/UserPresence : java/lang/Enum {
+	public static final field NOT_PRESENT Ldev/mirolab/teslable/model/UserPresence;
+	public static final field PRESENT Ldev/mirolab/teslable/model/UserPresence;
+	public static final field UNKNOWN Ldev/mirolab/teslable/model/UserPresence;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/UserPresence;
-	public static fun values ()[Lio/github/smallmiro/teslable/model/UserPresence;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/model/UserPresence;
+	public static fun values ()[Ldev/mirolab/teslable/model/UserPresence;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleDomain : java/lang/Enum {
-	public static final field Companion Lio/github/smallmiro/teslable/model/VehicleDomain$Companion;
-	public static final field INFOTAINMENT Lio/github/smallmiro/teslable/model/VehicleDomain;
-	public static final field VCSEC Lio/github/smallmiro/teslable/model/VehicleDomain;
+public final class dev/mirolab/teslable/model/VehicleDomain : java/lang/Enum {
+	public static final field Companion Ldev/mirolab/teslable/model/VehicleDomain$Companion;
+	public static final field INFOTAINMENT Ldev/mirolab/teslable/model/VehicleDomain;
+	public static final field VCSEC Ldev/mirolab/teslable/model/VehicleDomain;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public final fun getWire ()Lcom/tesla/generated/universalmessage/Domain;
-	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/VehicleDomain;
-	public static fun values ()[Lio/github/smallmiro/teslable/model/VehicleDomain;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/model/VehicleDomain;
+	public static fun values ()[Ldev/mirolab/teslable/model/VehicleDomain;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleDomain$Companion {
+public final class dev/mirolab/teslable/model/VehicleDomain$Companion {
 	public final fun getALL ()Ljava/util/Set;
-	public final fun of (Lcom/tesla/generated/universalmessage/Domain;)Lio/github/smallmiro/teslable/model/VehicleDomain;
+	public final fun of (Lcom/tesla/generated/universalmessage/Domain;)Ldev/mirolab/teslable/model/VehicleDomain;
 }
 
-public abstract interface class io/github/smallmiro/teslable/model/VehicleError {
-	public static final field Companion Lio/github/smallmiro/teslable/model/VehicleError$Companion;
+public abstract interface class dev/mirolab/teslable/model/VehicleError {
+	public static final field Companion Ldev/mirolab/teslable/model/VehicleError$Companion;
 	public abstract fun getMayHaveSucceeded ()Z
 	public abstract fun getMessage ()Ljava/lang/String;
 	public abstract fun getTemporary ()Z
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$BadResponse : io/github/smallmiro/teslable/model/VehicleError {
+public final class dev/mirolab/teslable/model/VehicleError$BadResponse : dev/mirolab/teslable/model/VehicleError {
 	public fun <init> (Ljava/lang/String;Z)V
 	public synthetic fun <init> (Ljava/lang/String;ZILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ljava/lang/String;
 	public final fun component2 ()Z
-	public final fun copy (Ljava/lang/String;Z)Lio/github/smallmiro/teslable/model/VehicleError$BadResponse;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$BadResponse;Ljava/lang/String;ZILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$BadResponse;
+	public final fun copy (Ljava/lang/String;Z)Ldev/mirolab/teslable/model/VehicleError$BadResponse;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/VehicleError$BadResponse;Ljava/lang/String;ZILjava/lang/Object;)Ldev/mirolab/teslable/model/VehicleError$BadResponse;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getDetail ()Ljava/lang/String;
 	public fun getMayHaveSucceeded ()Z
@@ -4758,8 +4758,8 @@ public final class io/github/smallmiro/teslable/model/VehicleError$BadResponse :
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$Busy : io/github/smallmiro/teslable/model/VehicleError {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$Busy;
+public final class dev/mirolab/teslable/model/VehicleError$Busy : dev/mirolab/teslable/model/VehicleError {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/VehicleError$Busy;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMayHaveSucceeded ()Z
 	public fun getMessage ()Ljava/lang/String;
@@ -4768,15 +4768,15 @@ public final class io/github/smallmiro/teslable/model/VehicleError$Busy : io/git
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$Companion {
+public final class dev/mirolab/teslable/model/VehicleError$Companion {
 	public final fun getRETRIABLE_FAULTS ()Ljava/util/Set;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$InfotainmentRejected : io/github/smallmiro/teslable/model/VehicleError {
+public final class dev/mirolab/teslable/model/VehicleError$InfotainmentRejected : dev/mirolab/teslable/model/VehicleError {
 	public fun <init> (Ljava/lang/String;)V
 	public final fun component1 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/VehicleError$InfotainmentRejected;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$InfotainmentRejected;Ljava/lang/String;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$InfotainmentRejected;
+	public final fun copy (Ljava/lang/String;)Ldev/mirolab/teslable/model/VehicleError$InfotainmentRejected;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/VehicleError$InfotainmentRejected;Ljava/lang/String;ILjava/lang/Object;)Ldev/mirolab/teslable/model/VehicleError$InfotainmentRejected;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMayHaveSucceeded ()Z
 	public fun getMessage ()Ljava/lang/String;
@@ -4786,11 +4786,11 @@ public final class io/github/smallmiro/teslable/model/VehicleError$InfotainmentR
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$InvalidArgument : io/github/smallmiro/teslable/model/VehicleError {
+public final class dev/mirolab/teslable/model/VehicleError$InvalidArgument : dev/mirolab/teslable/model/VehicleError {
 	public fun <init> (Ljava/lang/String;)V
 	public final fun component1 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/VehicleError$InvalidArgument;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$InvalidArgument;Ljava/lang/String;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$InvalidArgument;
+	public final fun copy (Ljava/lang/String;)Ldev/mirolab/teslable/model/VehicleError$InvalidArgument;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/VehicleError$InvalidArgument;Ljava/lang/String;ILjava/lang/Object;)Ldev/mirolab/teslable/model/VehicleError$InvalidArgument;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getDetail ()Ljava/lang/String;
 	public fun getMayHaveSucceeded ()Z
@@ -4800,8 +4800,8 @@ public final class io/github/smallmiro/teslable/model/VehicleError$InvalidArgume
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$KeyNotPaired : io/github/smallmiro/teslable/model/VehicleError {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$KeyNotPaired;
+public final class dev/mirolab/teslable/model/VehicleError$KeyNotPaired : dev/mirolab/teslable/model/VehicleError {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/VehicleError$KeyNotPaired;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMayHaveSucceeded ()Z
 	public fun getMessage ()Ljava/lang/String;
@@ -4810,11 +4810,11 @@ public final class io/github/smallmiro/teslable/model/VehicleError$KeyNotPaired 
 	public fun toString ()Ljava/lang/String;
 }
 
-public abstract interface class io/github/smallmiro/teslable/model/VehicleError$KeyStoreError : io/github/smallmiro/teslable/model/VehicleError {
+public abstract interface class dev/mirolab/teslable/model/VehicleError$KeyStoreError : dev/mirolab/teslable/model/VehicleError {
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$KeyStoreError$HardwareUnavailable : io/github/smallmiro/teslable/model/VehicleError$KeyStoreError {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$KeyStoreError$HardwareUnavailable;
+public final class dev/mirolab/teslable/model/VehicleError$KeyStoreError$HardwareUnavailable : dev/mirolab/teslable/model/VehicleError$KeyStoreError {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/VehicleError$KeyStoreError$HardwareUnavailable;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMayHaveSucceeded ()Z
 	public fun getMessage ()Ljava/lang/String;
@@ -4823,8 +4823,8 @@ public final class io/github/smallmiro/teslable/model/VehicleError$KeyStoreError
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$KeyStoreError$KeyNotFound : io/github/smallmiro/teslable/model/VehicleError$KeyStoreError {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$KeyStoreError$KeyNotFound;
+public final class dev/mirolab/teslable/model/VehicleError$KeyStoreError$KeyNotFound : dev/mirolab/teslable/model/VehicleError$KeyStoreError {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/VehicleError$KeyStoreError$KeyNotFound;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMayHaveSucceeded ()Z
 	public fun getMessage ()Ljava/lang/String;
@@ -4833,11 +4833,11 @@ public final class io/github/smallmiro/teslable/model/VehicleError$KeyStoreError
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$KeyStoreError$PlatformFailure : io/github/smallmiro/teslable/model/VehicleError$KeyStoreError {
+public final class dev/mirolab/teslable/model/VehicleError$KeyStoreError$PlatformFailure : dev/mirolab/teslable/model/VehicleError$KeyStoreError {
 	public fun <init> (Ljava/lang/String;)V
 	public final fun component1 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/VehicleError$KeyStoreError$PlatformFailure;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$KeyStoreError$PlatformFailure;Ljava/lang/String;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$KeyStoreError$PlatformFailure;
+	public final fun copy (Ljava/lang/String;)Ldev/mirolab/teslable/model/VehicleError$KeyStoreError$PlatformFailure;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/VehicleError$KeyStoreError$PlatformFailure;Ljava/lang/String;ILjava/lang/Object;)Ldev/mirolab/teslable/model/VehicleError$KeyStoreError$PlatformFailure;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getCause ()Ljava/lang/String;
 	public fun getMayHaveSucceeded ()Z
@@ -4847,11 +4847,11 @@ public final class io/github/smallmiro/teslable/model/VehicleError$KeyStoreError
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$KeychainRejected : io/github/smallmiro/teslable/model/VehicleError {
+public final class dev/mirolab/teslable/model/VehicleError$KeychainRejected : dev/mirolab/teslable/model/VehicleError {
 	public fun <init> (Lcom/tesla/generated/vcsec/WhitelistOperation_information_E;)V
 	public final fun component1 ()Lcom/tesla/generated/vcsec/WhitelistOperation_information_E;
-	public final fun copy (Lcom/tesla/generated/vcsec/WhitelistOperation_information_E;)Lio/github/smallmiro/teslable/model/VehicleError$KeychainRejected;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$KeychainRejected;Lcom/tesla/generated/vcsec/WhitelistOperation_information_E;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$KeychainRejected;
+	public final fun copy (Lcom/tesla/generated/vcsec/WhitelistOperation_information_E;)Ldev/mirolab/teslable/model/VehicleError$KeychainRejected;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/VehicleError$KeychainRejected;Lcom/tesla/generated/vcsec/WhitelistOperation_information_E;ILjava/lang/Object;)Ldev/mirolab/teslable/model/VehicleError$KeychainRejected;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getCode ()Lcom/tesla/generated/vcsec/WhitelistOperation_information_E;
 	public fun getMayHaveSucceeded ()Z
@@ -4861,8 +4861,8 @@ public final class io/github/smallmiro/teslable/model/VehicleError$KeychainRejec
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$NoSession : io/github/smallmiro/teslable/model/VehicleError {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$NoSession;
+public final class dev/mirolab/teslable/model/VehicleError$NoSession : dev/mirolab/teslable/model/VehicleError {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/VehicleError$NoSession;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMayHaveSucceeded ()Z
 	public fun getMessage ()Ljava/lang/String;
@@ -4871,8 +4871,8 @@ public final class io/github/smallmiro/teslable/model/VehicleError$NoSession : i
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$NotConnected : io/github/smallmiro/teslable/model/VehicleError {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$NotConnected;
+public final class dev/mirolab/teslable/model/VehicleError$NotConnected : dev/mirolab/teslable/model/VehicleError {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/VehicleError$NotConnected;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMayHaveSucceeded ()Z
 	public fun getMessage ()Ljava/lang/String;
@@ -4881,11 +4881,11 @@ public final class io/github/smallmiro/teslable/model/VehicleError$NotConnected 
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$ProtocolFault : io/github/smallmiro/teslable/model/VehicleError {
+public final class dev/mirolab/teslable/model/VehicleError$ProtocolFault : dev/mirolab/teslable/model/VehicleError {
 	public fun <init> (Lcom/tesla/generated/universalmessage/MessageFault_E;)V
 	public final fun component1 ()Lcom/tesla/generated/universalmessage/MessageFault_E;
-	public final fun copy (Lcom/tesla/generated/universalmessage/MessageFault_E;)Lio/github/smallmiro/teslable/model/VehicleError$ProtocolFault;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$ProtocolFault;Lcom/tesla/generated/universalmessage/MessageFault_E;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$ProtocolFault;
+	public final fun copy (Lcom/tesla/generated/universalmessage/MessageFault_E;)Ldev/mirolab/teslable/model/VehicleError$ProtocolFault;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/VehicleError$ProtocolFault;Lcom/tesla/generated/universalmessage/MessageFault_E;ILjava/lang/Object;)Ldev/mirolab/teslable/model/VehicleError$ProtocolFault;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getFault ()Lcom/tesla/generated/universalmessage/MessageFault_E;
 	public fun getMayHaveSucceeded ()Z
@@ -4895,8 +4895,8 @@ public final class io/github/smallmiro/teslable/model/VehicleError$ProtocolFault
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$RequiresKey : io/github/smallmiro/teslable/model/VehicleError {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$RequiresKey;
+public final class dev/mirolab/teslable/model/VehicleError$RequiresKey : dev/mirolab/teslable/model/VehicleError {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/VehicleError$RequiresKey;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMayHaveSucceeded ()Z
 	public fun getMessage ()Ljava/lang/String;
@@ -4905,11 +4905,11 @@ public final class io/github/smallmiro/teslable/model/VehicleError$RequiresKey :
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$Timeout : io/github/smallmiro/teslable/model/VehicleError {
+public final class dev/mirolab/teslable/model/VehicleError$Timeout : dev/mirolab/teslable/model/VehicleError {
 	public fun <init> (Z)V
 	public final fun component1 ()Z
-	public final fun copy (Z)Lio/github/smallmiro/teslable/model/VehicleError$Timeout;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$Timeout;ZILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$Timeout;
+	public final fun copy (Z)Ldev/mirolab/teslable/model/VehicleError$Timeout;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/VehicleError$Timeout;ZILjava/lang/Object;)Ldev/mirolab/teslable/model/VehicleError$Timeout;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getAfterSend ()Z
 	public fun getMayHaveSucceeded ()Z
@@ -4919,11 +4919,11 @@ public final class io/github/smallmiro/teslable/model/VehicleError$Timeout : io/
 	public fun toString ()Ljava/lang/String;
 }
 
-public abstract interface class io/github/smallmiro/teslable/model/VehicleError$TransportError : io/github/smallmiro/teslable/model/VehicleError {
+public abstract interface class dev/mirolab/teslable/model/VehicleError$TransportError : dev/mirolab/teslable/model/VehicleError {
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$TransportError$BluetoothOff : io/github/smallmiro/teslable/model/VehicleError$TransportError {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$TransportError$BluetoothOff;
+public final class dev/mirolab/teslable/model/VehicleError$TransportError$BluetoothOff : dev/mirolab/teslable/model/VehicleError$TransportError {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/VehicleError$TransportError$BluetoothOff;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMayHaveSucceeded ()Z
 	public fun getMessage ()Ljava/lang/String;
@@ -4932,11 +4932,11 @@ public final class io/github/smallmiro/teslable/model/VehicleError$TransportErro
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$TransportError$ConnectFailed : io/github/smallmiro/teslable/model/VehicleError$TransportError {
+public final class dev/mirolab/teslable/model/VehicleError$TransportError$ConnectFailed : dev/mirolab/teslable/model/VehicleError$TransportError {
 	public fun <init> (Ljava/lang/String;)V
 	public final fun component1 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/VehicleError$TransportError$ConnectFailed;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$TransportError$ConnectFailed;Ljava/lang/String;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$TransportError$ConnectFailed;
+	public final fun copy (Ljava/lang/String;)Ldev/mirolab/teslable/model/VehicleError$TransportError$ConnectFailed;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/VehicleError$TransportError$ConnectFailed;Ljava/lang/String;ILjava/lang/Object;)Ldev/mirolab/teslable/model/VehicleError$TransportError$ConnectFailed;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getCause ()Ljava/lang/String;
 	public fun getMayHaveSucceeded ()Z
@@ -4946,8 +4946,8 @@ public final class io/github/smallmiro/teslable/model/VehicleError$TransportErro
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$TransportError$Disconnected : io/github/smallmiro/teslable/model/VehicleError$TransportError {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$TransportError$Disconnected;
+public final class dev/mirolab/teslable/model/VehicleError$TransportError$Disconnected : dev/mirolab/teslable/model/VehicleError$TransportError {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/VehicleError$TransportError$Disconnected;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMayHaveSucceeded ()Z
 	public fun getMessage ()Ljava/lang/String;
@@ -4956,8 +4956,8 @@ public final class io/github/smallmiro/teslable/model/VehicleError$TransportErro
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$TransportError$MaxConnectionsExceeded : io/github/smallmiro/teslable/model/VehicleError$TransportError {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$TransportError$MaxConnectionsExceeded;
+public final class dev/mirolab/teslable/model/VehicleError$TransportError$MaxConnectionsExceeded : dev/mirolab/teslable/model/VehicleError$TransportError {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/VehicleError$TransportError$MaxConnectionsExceeded;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMayHaveSucceeded ()Z
 	public fun getMessage ()Ljava/lang/String;
@@ -4966,8 +4966,8 @@ public final class io/github/smallmiro/teslable/model/VehicleError$TransportErro
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$TransportError$PermissionDenied : io/github/smallmiro/teslable/model/VehicleError$TransportError {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$TransportError$PermissionDenied;
+public final class dev/mirolab/teslable/model/VehicleError$TransportError$PermissionDenied : dev/mirolab/teslable/model/VehicleError$TransportError {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/VehicleError$TransportError$PermissionDenied;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMayHaveSucceeded ()Z
 	public fun getMessage ()Ljava/lang/String;
@@ -4976,8 +4976,8 @@ public final class io/github/smallmiro/teslable/model/VehicleError$TransportErro
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$TransportError$ScanTimeout : io/github/smallmiro/teslable/model/VehicleError$TransportError {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$TransportError$ScanTimeout;
+public final class dev/mirolab/teslable/model/VehicleError$TransportError$ScanTimeout : dev/mirolab/teslable/model/VehicleError$TransportError {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/VehicleError$TransportError$ScanTimeout;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMayHaveSucceeded ()Z
 	public fun getMessage ()Ljava/lang/String;
@@ -4986,11 +4986,11 @@ public final class io/github/smallmiro/teslable/model/VehicleError$TransportErro
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$TransportError$WriteFailed : io/github/smallmiro/teslable/model/VehicleError$TransportError {
+public final class dev/mirolab/teslable/model/VehicleError$TransportError$WriteFailed : dev/mirolab/teslable/model/VehicleError$TransportError {
 	public fun <init> (Ljava/lang/String;)V
 	public final fun component1 ()Ljava/lang/String;
-	public final fun copy (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/VehicleError$TransportError$WriteFailed;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$TransportError$WriteFailed;Ljava/lang/String;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$TransportError$WriteFailed;
+	public final fun copy (Ljava/lang/String;)Ldev/mirolab/teslable/model/VehicleError$TransportError$WriteFailed;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/VehicleError$TransportError$WriteFailed;Ljava/lang/String;ILjava/lang/Object;)Ldev/mirolab/teslable/model/VehicleError$TransportError$WriteFailed;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getCause ()Ljava/lang/String;
 	public fun getMayHaveSucceeded ()Z
@@ -5000,11 +5000,11 @@ public final class io/github/smallmiro/teslable/model/VehicleError$TransportErro
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$UnknownFault : io/github/smallmiro/teslable/model/VehicleError {
+public final class dev/mirolab/teslable/model/VehicleError$UnknownFault : dev/mirolab/teslable/model/VehicleError {
 	public fun <init> (I)V
 	public final fun component1 ()I
-	public final fun copy (I)Lio/github/smallmiro/teslable/model/VehicleError$UnknownFault;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$UnknownFault;IILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$UnknownFault;
+	public final fun copy (I)Ldev/mirolab/teslable/model/VehicleError$UnknownFault;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/VehicleError$UnknownFault;IILjava/lang/Object;)Ldev/mirolab/teslable/model/VehicleError$UnknownFault;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMayHaveSucceeded ()Z
 	public fun getMessage ()Ljava/lang/String;
@@ -5014,11 +5014,11 @@ public final class io/github/smallmiro/teslable/model/VehicleError$UnknownFault 
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$UnknownKeychainCode : io/github/smallmiro/teslable/model/VehicleError {
+public final class dev/mirolab/teslable/model/VehicleError$UnknownKeychainCode : dev/mirolab/teslable/model/VehicleError {
 	public fun <init> (I)V
 	public final fun component1 ()I
-	public final fun copy (I)Lio/github/smallmiro/teslable/model/VehicleError$UnknownKeychainCode;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$UnknownKeychainCode;IILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$UnknownKeychainCode;
+	public final fun copy (I)Ldev/mirolab/teslable/model/VehicleError$UnknownKeychainCode;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/VehicleError$UnknownKeychainCode;IILjava/lang/Object;)Ldev/mirolab/teslable/model/VehicleError$UnknownKeychainCode;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMayHaveSucceeded ()Z
 	public fun getMessage ()Ljava/lang/String;
@@ -5028,8 +5028,8 @@ public final class io/github/smallmiro/teslable/model/VehicleError$UnknownKeycha
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$UnknownResponse : io/github/smallmiro/teslable/model/VehicleError {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/model/VehicleError$UnknownResponse;
+public final class dev/mirolab/teslable/model/VehicleError$UnknownResponse : dev/mirolab/teslable/model/VehicleError {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/VehicleError$UnknownResponse;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMayHaveSucceeded ()Z
 	public fun getMessage ()Ljava/lang/String;
@@ -5038,11 +5038,11 @@ public final class io/github/smallmiro/teslable/model/VehicleError$UnknownRespon
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleError$VcsecRejected : io/github/smallmiro/teslable/model/VehicleError {
+public final class dev/mirolab/teslable/model/VehicleError$VcsecRejected : dev/mirolab/teslable/model/VehicleError {
 	public fun <init> (Lcom/tesla/generated/errors/GenericError_E;)V
 	public final fun component1 ()Lcom/tesla/generated/errors/GenericError_E;
-	public final fun copy (Lcom/tesla/generated/errors/GenericError_E;)Lio/github/smallmiro/teslable/model/VehicleError$VcsecRejected;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleError$VcsecRejected;Lcom/tesla/generated/errors/GenericError_E;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleError$VcsecRejected;
+	public final fun copy (Lcom/tesla/generated/errors/GenericError_E;)Ldev/mirolab/teslable/model/VehicleError$VcsecRejected;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/VehicleError$VcsecRejected;Lcom/tesla/generated/errors/GenericError_E;ILjava/lang/Object;)Ldev/mirolab/teslable/model/VehicleError$VcsecRejected;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getError ()Lcom/tesla/generated/errors/GenericError_E;
 	public fun getMayHaveSucceeded ()Z
@@ -5052,68 +5052,68 @@ public final class io/github/smallmiro/teslable/model/VehicleError$VcsecRejected
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleErrorKt {
-	public static final fun shouldRetry (Lio/github/smallmiro/teslable/model/VehicleError;)Z
-	public static final fun toResult (Lio/github/smallmiro/teslable/model/VehicleError;)Lio/github/smallmiro/teslable/model/VehicleResult;
+public final class dev/mirolab/teslable/model/VehicleErrorKt {
+	public static final fun shouldRetry (Ldev/mirolab/teslable/model/VehicleError;)Z
+	public static final fun toResult (Ldev/mirolab/teslable/model/VehicleError;)Ldev/mirolab/teslable/model/VehicleResult;
 }
 
-public abstract interface class io/github/smallmiro/teslable/model/VehicleResult {
+public abstract interface class dev/mirolab/teslable/model/VehicleResult {
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleResult$Failure : io/github/smallmiro/teslable/model/VehicleResult {
-	public fun <init> (Lio/github/smallmiro/teslable/model/VehicleError;)V
-	public final fun component1 ()Lio/github/smallmiro/teslable/model/VehicleError;
-	public final fun copy (Lio/github/smallmiro/teslable/model/VehicleError;)Lio/github/smallmiro/teslable/model/VehicleResult$Failure;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleResult$Failure;Lio/github/smallmiro/teslable/model/VehicleError;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleResult$Failure;
+public final class dev/mirolab/teslable/model/VehicleResult$Failure : dev/mirolab/teslable/model/VehicleResult {
+	public fun <init> (Ldev/mirolab/teslable/model/VehicleError;)V
+	public final fun component1 ()Ldev/mirolab/teslable/model/VehicleError;
+	public final fun copy (Ldev/mirolab/teslable/model/VehicleError;)Ldev/mirolab/teslable/model/VehicleResult$Failure;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/VehicleResult$Failure;Ldev/mirolab/teslable/model/VehicleError;ILjava/lang/Object;)Ldev/mirolab/teslable/model/VehicleResult$Failure;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getError ()Lio/github/smallmiro/teslable/model/VehicleError;
+	public final fun getError ()Ldev/mirolab/teslable/model/VehicleError;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleResult$Success : io/github/smallmiro/teslable/model/VehicleResult {
+public final class dev/mirolab/teslable/model/VehicleResult$Success : dev/mirolab/teslable/model/VehicleResult {
 	public fun <init> (Ljava/lang/Object;)V
 	public final fun component1 ()Ljava/lang/Object;
-	public final fun copy (Ljava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleResult$Success;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleResult$Success;Ljava/lang/Object;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleResult$Success;
+	public final fun copy (Ljava/lang/Object;)Ldev/mirolab/teslable/model/VehicleResult$Success;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/VehicleResult$Success;Ljava/lang/Object;ILjava/lang/Object;)Ldev/mirolab/teslable/model/VehicleResult$Success;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getValue ()Ljava/lang/Object;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleResult$Uncertain : io/github/smallmiro/teslable/model/VehicleResult {
-	public fun <init> (Lio/github/smallmiro/teslable/model/VehicleError;)V
-	public final fun component1 ()Lio/github/smallmiro/teslable/model/VehicleError;
-	public final fun copy (Lio/github/smallmiro/teslable/model/VehicleError;)Lio/github/smallmiro/teslable/model/VehicleResult$Uncertain;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleResult$Uncertain;Lio/github/smallmiro/teslable/model/VehicleError;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleResult$Uncertain;
+public final class dev/mirolab/teslable/model/VehicleResult$Uncertain : dev/mirolab/teslable/model/VehicleResult {
+	public fun <init> (Ldev/mirolab/teslable/model/VehicleError;)V
+	public final fun component1 ()Ldev/mirolab/teslable/model/VehicleError;
+	public final fun copy (Ldev/mirolab/teslable/model/VehicleError;)Ldev/mirolab/teslable/model/VehicleResult$Uncertain;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/VehicleResult$Uncertain;Ldev/mirolab/teslable/model/VehicleError;ILjava/lang/Object;)Ldev/mirolab/teslable/model/VehicleResult$Uncertain;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getError ()Lio/github/smallmiro/teslable/model/VehicleError;
+	public final fun getError ()Ldev/mirolab/teslable/model/VehicleError;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/VehicleStatus {
-	public fun <init> (Lio/github/smallmiro/teslable/model/LockState;Lio/github/smallmiro/teslable/model/Closures;Lio/github/smallmiro/teslable/model/SleepStatus;Lio/github/smallmiro/teslable/model/UserPresence;Ljava/lang/Integer;)V
-	public final fun component1 ()Lio/github/smallmiro/teslable/model/LockState;
-	public final fun component2 ()Lio/github/smallmiro/teslable/model/Closures;
-	public final fun component3 ()Lio/github/smallmiro/teslable/model/SleepStatus;
-	public final fun component4 ()Lio/github/smallmiro/teslable/model/UserPresence;
+public final class dev/mirolab/teslable/model/VehicleStatus {
+	public fun <init> (Ldev/mirolab/teslable/model/LockState;Ldev/mirolab/teslable/model/Closures;Ldev/mirolab/teslable/model/SleepStatus;Ldev/mirolab/teslable/model/UserPresence;Ljava/lang/Integer;)V
+	public final fun component1 ()Ldev/mirolab/teslable/model/LockState;
+	public final fun component2 ()Ldev/mirolab/teslable/model/Closures;
+	public final fun component3 ()Ldev/mirolab/teslable/model/SleepStatus;
+	public final fun component4 ()Ldev/mirolab/teslable/model/UserPresence;
 	public final fun component5 ()Ljava/lang/Integer;
-	public final fun copy (Lio/github/smallmiro/teslable/model/LockState;Lio/github/smallmiro/teslable/model/Closures;Lio/github/smallmiro/teslable/model/SleepStatus;Lio/github/smallmiro/teslable/model/UserPresence;Ljava/lang/Integer;)Lio/github/smallmiro/teslable/model/VehicleStatus;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/VehicleStatus;Lio/github/smallmiro/teslable/model/LockState;Lio/github/smallmiro/teslable/model/Closures;Lio/github/smallmiro/teslable/model/SleepStatus;Lio/github/smallmiro/teslable/model/UserPresence;Ljava/lang/Integer;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/VehicleStatus;
+	public final fun copy (Ldev/mirolab/teslable/model/LockState;Ldev/mirolab/teslable/model/Closures;Ldev/mirolab/teslable/model/SleepStatus;Ldev/mirolab/teslable/model/UserPresence;Ljava/lang/Integer;)Ldev/mirolab/teslable/model/VehicleStatus;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/VehicleStatus;Ldev/mirolab/teslable/model/LockState;Ldev/mirolab/teslable/model/Closures;Ldev/mirolab/teslable/model/SleepStatus;Ldev/mirolab/teslable/model/UserPresence;Ljava/lang/Integer;ILjava/lang/Object;)Ldev/mirolab/teslable/model/VehicleStatus;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getClosures ()Lio/github/smallmiro/teslable/model/Closures;
-	public final fun getLockState ()Lio/github/smallmiro/teslable/model/LockState;
-	public final fun getSleepStatus ()Lio/github/smallmiro/teslable/model/SleepStatus;
+	public final fun getClosures ()Ldev/mirolab/teslable/model/Closures;
+	public final fun getLockState ()Ldev/mirolab/teslable/model/LockState;
+	public final fun getSleepStatus ()Ldev/mirolab/teslable/model/SleepStatus;
 	public final fun getTonneauPercentOpen ()Ljava/lang/Integer;
-	public final fun getUserPresence ()Lio/github/smallmiro/teslable/model/UserPresence;
+	public final fun getUserPresence ()Ldev/mirolab/teslable/model/UserPresence;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/Vin {
-	public static final field Companion Lio/github/smallmiro/teslable/model/Vin$Companion;
+public final class dev/mirolab/teslable/model/Vin {
+	public static final field Companion Ldev/mirolab/teslable/model/Vin$Companion;
 	public fun <init> (Ljava/lang/String;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getValue ()Ljava/lang/String;
@@ -5122,35 +5122,35 @@ public final class io/github/smallmiro/teslable/model/Vin {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/Vin$Companion {
-	public final fun parseOrNull (Ljava/lang/String;)Lio/github/smallmiro/teslable/model/Vin;
+public final class dev/mirolab/teslable/model/Vin$Companion {
+	public final fun parseOrNull (Ljava/lang/String;)Ldev/mirolab/teslable/model/Vin;
 }
 
-public final class io/github/smallmiro/teslable/model/WhitelistEntry {
-	public fun <init> (ILio/github/smallmiro/teslable/model/PublicKeyBytes;Ljava/lang/String;Lio/github/smallmiro/teslable/model/KeyRole;Lio/github/smallmiro/teslable/model/KeyFormFactor;)V
+public final class dev/mirolab/teslable/model/WhitelistEntry {
+	public fun <init> (ILdev/mirolab/teslable/model/PublicKeyBytes;Ljava/lang/String;Ldev/mirolab/teslable/model/KeyRole;Ldev/mirolab/teslable/model/KeyFormFactor;)V
 	public final fun component1 ()I
-	public final fun component2 ()Lio/github/smallmiro/teslable/model/PublicKeyBytes;
+	public final fun component2 ()Ldev/mirolab/teslable/model/PublicKeyBytes;
 	public final fun component3 ()Ljava/lang/String;
-	public final fun component4 ()Lio/github/smallmiro/teslable/model/KeyRole;
-	public final fun component5 ()Lio/github/smallmiro/teslable/model/KeyFormFactor;
-	public final fun copy (ILio/github/smallmiro/teslable/model/PublicKeyBytes;Ljava/lang/String;Lio/github/smallmiro/teslable/model/KeyRole;Lio/github/smallmiro/teslable/model/KeyFormFactor;)Lio/github/smallmiro/teslable/model/WhitelistEntry;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/model/WhitelistEntry;ILio/github/smallmiro/teslable/model/PublicKeyBytes;Ljava/lang/String;Lio/github/smallmiro/teslable/model/KeyRole;Lio/github/smallmiro/teslable/model/KeyFormFactor;ILjava/lang/Object;)Lio/github/smallmiro/teslable/model/WhitelistEntry;
+	public final fun component4 ()Ldev/mirolab/teslable/model/KeyRole;
+	public final fun component5 ()Ldev/mirolab/teslable/model/KeyFormFactor;
+	public final fun copy (ILdev/mirolab/teslable/model/PublicKeyBytes;Ljava/lang/String;Ldev/mirolab/teslable/model/KeyRole;Ldev/mirolab/teslable/model/KeyFormFactor;)Ldev/mirolab/teslable/model/WhitelistEntry;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/WhitelistEntry;ILdev/mirolab/teslable/model/PublicKeyBytes;Ljava/lang/String;Ldev/mirolab/teslable/model/KeyRole;Ldev/mirolab/teslable/model/KeyFormFactor;ILjava/lang/Object;)Ldev/mirolab/teslable/model/WhitelistEntry;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getFormFactor ()Lio/github/smallmiro/teslable/model/KeyFormFactor;
+	public final fun getFormFactor ()Ldev/mirolab/teslable/model/KeyFormFactor;
 	public final fun getKeyIdSha1Hex ()Ljava/lang/String;
-	public final fun getPublicKey ()Lio/github/smallmiro/teslable/model/PublicKeyBytes;
-	public final fun getRole ()Lio/github/smallmiro/teslable/model/KeyRole;
+	public final fun getPublicKey ()Ldev/mirolab/teslable/model/PublicKeyBytes;
+	public final fun getRole ()Ldev/mirolab/teslable/model/KeyRole;
 	public final fun getSlot ()I
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/model/WhitelistSummary {
+public final class dev/mirolab/teslable/model/WhitelistSummary {
 	public synthetic fun <init> (IILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()I
 	public final fun component2-pVg5ArA ()I
-	public final fun copy-Qn1smSk (II)Lio/github/smallmiro/teslable/model/WhitelistSummary;
-	public static synthetic fun copy-Qn1smSk$default (Lio/github/smallmiro/teslable/model/WhitelistSummary;IIILjava/lang/Object;)Lio/github/smallmiro/teslable/model/WhitelistSummary;
+	public final fun copy-Qn1smSk (II)Ldev/mirolab/teslable/model/WhitelistSummary;
+	public static synthetic fun copy-Qn1smSk$default (Ldev/mirolab/teslable/model/WhitelistSummary;IIILjava/lang/Object;)Ldev/mirolab/teslable/model/WhitelistSummary;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getNumberOfEntries ()I
 	public final fun getOccupiedSlots ()Ljava/util/List;
@@ -5159,306 +5159,306 @@ public final class io/github/smallmiro/teslable/model/WhitelistSummary {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/port/AesGcmOutput {
+public final class dev/mirolab/teslable/port/AesGcmOutput {
 	public fun <init> ([B[B)V
 	public final fun getCiphertext ()[B
 	public final fun getTag ()[B
 }
 
-public final class io/github/smallmiro/teslable/port/AuthMethod : java/lang/Enum {
-	public static final field GCM Lio/github/smallmiro/teslable/port/AuthMethod;
-	public static final field NONE Lio/github/smallmiro/teslable/port/AuthMethod;
+public final class dev/mirolab/teslable/port/AuthMethod : java/lang/Enum {
+	public static final field GCM Ldev/mirolab/teslable/port/AuthMethod;
+	public static final field NONE Ldev/mirolab/teslable/port/AuthMethod;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/port/AuthMethod;
-	public static fun values ()[Lio/github/smallmiro/teslable/port/AuthMethod;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/port/AuthMethod;
+	public static fun values ()[Ldev/mirolab/teslable/port/AuthMethod;
 }
 
-public final class io/github/smallmiro/teslable/port/ConnectOptions {
+public final class dev/mirolab/teslable/port/ConnectOptions {
 	public fun <init> ()V
 	public synthetic fun <init> (Lkotlin/time/Duration;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (Lkotlin/time/Duration;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1-FghU774 ()Lkotlin/time/Duration;
-	public final fun copy-BwNAW2A (Lkotlin/time/Duration;)Lio/github/smallmiro/teslable/port/ConnectOptions;
-	public static synthetic fun copy-BwNAW2A$default (Lio/github/smallmiro/teslable/port/ConnectOptions;Lkotlin/time/Duration;ILjava/lang/Object;)Lio/github/smallmiro/teslable/port/ConnectOptions;
+	public final fun copy-BwNAW2A (Lkotlin/time/Duration;)Ldev/mirolab/teslable/port/ConnectOptions;
+	public static synthetic fun copy-BwNAW2A$default (Ldev/mirolab/teslable/port/ConnectOptions;Lkotlin/time/Duration;ILjava/lang/Object;)Ldev/mirolab/teslable/port/ConnectOptions;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getTimeout-FghU774 ()Lkotlin/time/Duration;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public abstract interface class io/github/smallmiro/teslable/port/CryptoPrimitives {
+public abstract interface class dev/mirolab/teslable/port/CryptoPrimitives {
 	public abstract fun aesGcmDecrypt ([B[B[B[B[B)[B
-	public abstract fun aesGcmEncrypt ([B[B[B[B)Lio/github/smallmiro/teslable/port/AesGcmOutput;
+	public abstract fun aesGcmEncrypt ([B[B[B[B)Ldev/mirolab/teslable/port/AesGcmOutput;
 	public abstract fun constantTimeEquals ([B[B)Z
 	public abstract fun hmacSha256 ([B[B)[B
 	public abstract fun sha1 ([B)[B
 	public abstract fun sha256 ([B)[B
 }
 
-public abstract interface class io/github/smallmiro/teslable/port/EcdhPrivateKey {
-	public abstract fun getPublicKey ()Lio/github/smallmiro/teslable/model/PublicKeyBytes;
-	public abstract fun sharedX (Lio/github/smallmiro/teslable/model/PublicKeyBytes;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+public abstract interface class dev/mirolab/teslable/port/EcdhPrivateKey {
+	public abstract fun getPublicKey ()Ldev/mirolab/teslable/model/PublicKeyBytes;
+	public abstract fun sharedX (Ldev/mirolab/teslable/model/PublicKeyBytes;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
-public final class io/github/smallmiro/teslable/port/KeyPolicy : java/lang/Enum {
-	public static final field PREFER_HARDWARE Lio/github/smallmiro/teslable/port/KeyPolicy;
-	public static final field REQUIRE_HARDWARE Lio/github/smallmiro/teslable/port/KeyPolicy;
-	public static final field SOFTWARE_ONLY Lio/github/smallmiro/teslable/port/KeyPolicy;
+public final class dev/mirolab/teslable/port/KeyPolicy : java/lang/Enum {
+	public static final field PREFER_HARDWARE Ldev/mirolab/teslable/port/KeyPolicy;
+	public static final field REQUIRE_HARDWARE Ldev/mirolab/teslable/port/KeyPolicy;
+	public static final field SOFTWARE_ONLY Ldev/mirolab/teslable/port/KeyPolicy;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/port/KeyPolicy;
-	public static fun values ()[Lio/github/smallmiro/teslable/port/KeyPolicy;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/port/KeyPolicy;
+	public static fun values ()[Ldev/mirolab/teslable/port/KeyPolicy;
 }
 
-public final class io/github/smallmiro/teslable/port/KeyProtection : java/lang/Enum {
-	public static final field SECURE_ENCLAVE Lio/github/smallmiro/teslable/port/KeyProtection;
-	public static final field SOFTWARE Lio/github/smallmiro/teslable/port/KeyProtection;
-	public static final field STRONGBOX Lio/github/smallmiro/teslable/port/KeyProtection;
-	public static final field TEE Lio/github/smallmiro/teslable/port/KeyProtection;
+public final class dev/mirolab/teslable/port/KeyProtection : java/lang/Enum {
+	public static final field SECURE_ENCLAVE Ldev/mirolab/teslable/port/KeyProtection;
+	public static final field SOFTWARE Ldev/mirolab/teslable/port/KeyProtection;
+	public static final field STRONGBOX Ldev/mirolab/teslable/port/KeyProtection;
+	public static final field TEE Ldev/mirolab/teslable/port/KeyProtection;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
 	public final fun isHardware ()Z
-	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/port/KeyProtection;
-	public static fun values ()[Lio/github/smallmiro/teslable/port/KeyProtection;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/port/KeyProtection;
+	public static fun values ()[Ldev/mirolab/teslable/port/KeyProtection;
 }
 
-public final class io/github/smallmiro/teslable/port/LogLevel : java/lang/Enum {
-	public static final field DEBUG Lio/github/smallmiro/teslable/port/LogLevel;
-	public static final field ERROR Lio/github/smallmiro/teslable/port/LogLevel;
-	public static final field INFO Lio/github/smallmiro/teslable/port/LogLevel;
-	public static final field WARN Lio/github/smallmiro/teslable/port/LogLevel;
+public final class dev/mirolab/teslable/port/LogLevel : java/lang/Enum {
+	public static final field DEBUG Ldev/mirolab/teslable/port/LogLevel;
+	public static final field ERROR Ldev/mirolab/teslable/port/LogLevel;
+	public static final field INFO Ldev/mirolab/teslable/port/LogLevel;
+	public static final field WARN Ldev/mirolab/teslable/port/LogLevel;
 	public static fun getEntries ()Lkotlin/enums/EnumEntries;
-	public static fun valueOf (Ljava/lang/String;)Lio/github/smallmiro/teslable/port/LogLevel;
-	public static fun values ()[Lio/github/smallmiro/teslable/port/LogLevel;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/port/LogLevel;
+	public static fun values ()[Ldev/mirolab/teslable/port/LogLevel;
 }
 
-public abstract interface class io/github/smallmiro/teslable/port/RandomSource {
+public abstract interface class dev/mirolab/teslable/port/RandomSource {
 	public abstract fun nextBytes (I)[B
 }
 
-public abstract interface class io/github/smallmiro/teslable/port/ScanEvent {
+public abstract interface class dev/mirolab/teslable/port/ScanEvent {
 }
 
-public final class io/github/smallmiro/teslable/port/ScanEvent$Failed : io/github/smallmiro/teslable/port/ScanEvent {
-	public fun <init> (Lio/github/smallmiro/teslable/model/VehicleError$TransportError;)V
-	public final fun component1 ()Lio/github/smallmiro/teslable/model/VehicleError$TransportError;
-	public final fun copy (Lio/github/smallmiro/teslable/model/VehicleError$TransportError;)Lio/github/smallmiro/teslable/port/ScanEvent$Failed;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/port/ScanEvent$Failed;Lio/github/smallmiro/teslable/model/VehicleError$TransportError;ILjava/lang/Object;)Lio/github/smallmiro/teslable/port/ScanEvent$Failed;
+public final class dev/mirolab/teslable/port/ScanEvent$Failed : dev/mirolab/teslable/port/ScanEvent {
+	public fun <init> (Ldev/mirolab/teslable/model/VehicleError$TransportError;)V
+	public final fun component1 ()Ldev/mirolab/teslable/model/VehicleError$TransportError;
+	public final fun copy (Ldev/mirolab/teslable/model/VehicleError$TransportError;)Ldev/mirolab/teslable/port/ScanEvent$Failed;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/port/ScanEvent$Failed;Ldev/mirolab/teslable/model/VehicleError$TransportError;ILjava/lang/Object;)Ldev/mirolab/teslable/port/ScanEvent$Failed;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getError ()Lio/github/smallmiro/teslable/model/VehicleError$TransportError;
+	public final fun getError ()Ldev/mirolab/teslable/model/VehicleError$TransportError;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/port/ScanEvent$Found : io/github/smallmiro/teslable/port/ScanEvent {
-	public fun <init> (Lio/github/smallmiro/teslable/port/VehicleAdvertisement;)V
-	public final fun component1 ()Lio/github/smallmiro/teslable/port/VehicleAdvertisement;
-	public final fun copy (Lio/github/smallmiro/teslable/port/VehicleAdvertisement;)Lio/github/smallmiro/teslable/port/ScanEvent$Found;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/port/ScanEvent$Found;Lio/github/smallmiro/teslable/port/VehicleAdvertisement;ILjava/lang/Object;)Lio/github/smallmiro/teslable/port/ScanEvent$Found;
+public final class dev/mirolab/teslable/port/ScanEvent$Found : dev/mirolab/teslable/port/ScanEvent {
+	public fun <init> (Ldev/mirolab/teslable/port/VehicleAdvertisement;)V
+	public final fun component1 ()Ldev/mirolab/teslable/port/VehicleAdvertisement;
+	public final fun copy (Ldev/mirolab/teslable/port/VehicleAdvertisement;)Ldev/mirolab/teslable/port/ScanEvent$Found;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/port/ScanEvent$Found;Ldev/mirolab/teslable/port/VehicleAdvertisement;ILjava/lang/Object;)Ldev/mirolab/teslable/port/ScanEvent$Found;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getAdvertisement ()Lio/github/smallmiro/teslable/port/VehicleAdvertisement;
+	public final fun getAdvertisement ()Ldev/mirolab/teslable/port/VehicleAdvertisement;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public abstract interface class io/github/smallmiro/teslable/port/SessionCache {
-	public abstract fun clear (Lio/github/smallmiro/teslable/model/Vin;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public abstract fun load (Lio/github/smallmiro/teslable/model/Vin;Lio/github/smallmiro/teslable/model/KeyId;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public abstract fun store (Lio/github/smallmiro/teslable/model/Vin;Lio/github/smallmiro/teslable/model/KeyId;Ljava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+public abstract interface class dev/mirolab/teslable/port/SessionCache {
+	public abstract fun clear (Ldev/mirolab/teslable/model/Vin;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun load (Ldev/mirolab/teslable/model/Vin;Ldev/mirolab/teslable/model/KeyId;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun store (Ldev/mirolab/teslable/model/Vin;Ldev/mirolab/teslable/model/KeyId;Ljava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
-public abstract interface class io/github/smallmiro/teslable/port/TeslaLogger {
-	public static final field Companion Lio/github/smallmiro/teslable/port/TeslaLogger$Companion;
-	public abstract fun log (Lio/github/smallmiro/teslable/port/LogLevel;Ljava/lang/String;Lkotlin/jvm/functions/Function0;)V
+public abstract interface class dev/mirolab/teslable/port/TeslaLogger {
+	public static final field Companion Ldev/mirolab/teslable/port/TeslaLogger$Companion;
+	public abstract fun log (Ldev/mirolab/teslable/port/LogLevel;Ljava/lang/String;Lkotlin/jvm/functions/Function0;)V
 }
 
-public final class io/github/smallmiro/teslable/port/TeslaLogger$Companion {
-	public final fun getNoOp ()Lio/github/smallmiro/teslable/port/TeslaLogger;
+public final class dev/mirolab/teslable/port/TeslaLogger$Companion {
+	public final fun getNoOp ()Ldev/mirolab/teslable/port/TeslaLogger;
 }
 
-public abstract interface class io/github/smallmiro/teslable/port/Transport {
+public abstract interface class dev/mirolab/teslable/port/Transport {
 	public abstract fun close (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun getAllowedLatency-UwyO8pc ()J
 	public abstract fun getIncoming ()Lkotlinx/coroutines/flow/Flow;
 	public abstract fun getRetryInterval-UwyO8pc ()J
 	public abstract fun getState ()Lkotlinx/coroutines/flow/StateFlow;
-	public abstract fun getVin ()Lio/github/smallmiro/teslable/model/Vin;
+	public abstract fun getVin ()Ldev/mirolab/teslable/model/Vin;
 	public abstract fun send ([BLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
-public abstract interface class io/github/smallmiro/teslable/port/TransportFactory {
-	public abstract fun connect (Lio/github/smallmiro/teslable/model/Vin;Lio/github/smallmiro/teslable/port/VehicleAdvertisement;Lio/github/smallmiro/teslable/port/ConnectOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public abstract fun scan (Lio/github/smallmiro/teslable/transport/LocalName;)Lkotlinx/coroutines/flow/Flow;
+public abstract interface class dev/mirolab/teslable/port/TransportFactory {
+	public abstract fun connect (Ldev/mirolab/teslable/model/Vin;Ldev/mirolab/teslable/port/VehicleAdvertisement;Ldev/mirolab/teslable/port/ConnectOptions;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun scan (Ldev/mirolab/teslable/transport/LocalName;)Lkotlinx/coroutines/flow/Flow;
 }
 
-public abstract interface class io/github/smallmiro/teslable/port/TransportState {
+public abstract interface class dev/mirolab/teslable/port/TransportState {
 }
 
-public final class io/github/smallmiro/teslable/port/TransportState$Connected : io/github/smallmiro/teslable/port/TransportState {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/port/TransportState$Connected;
+public final class dev/mirolab/teslable/port/TransportState$Connected : dev/mirolab/teslable/port/TransportState {
+	public static final field INSTANCE Ldev/mirolab/teslable/port/TransportState$Connected;
 	public fun equals (Ljava/lang/Object;)Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/port/TransportState$Disconnected : io/github/smallmiro/teslable/port/TransportState {
-	public fun <init> (Lio/github/smallmiro/teslable/model/VehicleError$TransportError;)V
-	public final fun component1 ()Lio/github/smallmiro/teslable/model/VehicleError$TransportError;
-	public final fun copy (Lio/github/smallmiro/teslable/model/VehicleError$TransportError;)Lio/github/smallmiro/teslable/port/TransportState$Disconnected;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/port/TransportState$Disconnected;Lio/github/smallmiro/teslable/model/VehicleError$TransportError;ILjava/lang/Object;)Lio/github/smallmiro/teslable/port/TransportState$Disconnected;
+public final class dev/mirolab/teslable/port/TransportState$Disconnected : dev/mirolab/teslable/port/TransportState {
+	public fun <init> (Ldev/mirolab/teslable/model/VehicleError$TransportError;)V
+	public final fun component1 ()Ldev/mirolab/teslable/model/VehicleError$TransportError;
+	public final fun copy (Ldev/mirolab/teslable/model/VehicleError$TransportError;)Ldev/mirolab/teslable/port/TransportState$Disconnected;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/port/TransportState$Disconnected;Ldev/mirolab/teslable/model/VehicleError$TransportError;ILjava/lang/Object;)Ldev/mirolab/teslable/port/TransportState$Disconnected;
 	public fun equals (Ljava/lang/Object;)Z
-	public final fun getReason ()Lio/github/smallmiro/teslable/model/VehicleError$TransportError;
+	public final fun getReason ()Ldev/mirolab/teslable/model/VehicleError$TransportError;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/port/VehicleAdvertisement {
-	public fun <init> (Lio/github/smallmiro/teslable/transport/LocalName;Ljava/lang/String;ILjava/lang/Boolean;)V
-	public final fun component1 ()Lio/github/smallmiro/teslable/transport/LocalName;
+public final class dev/mirolab/teslable/port/VehicleAdvertisement {
+	public fun <init> (Ldev/mirolab/teslable/transport/LocalName;Ljava/lang/String;ILjava/lang/Boolean;)V
+	public final fun component1 ()Ldev/mirolab/teslable/transport/LocalName;
 	public final fun component2 ()Ljava/lang/String;
 	public final fun component3 ()I
 	public final fun component4 ()Ljava/lang/Boolean;
-	public final fun copy (Lio/github/smallmiro/teslable/transport/LocalName;Ljava/lang/String;ILjava/lang/Boolean;)Lio/github/smallmiro/teslable/port/VehicleAdvertisement;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/port/VehicleAdvertisement;Lio/github/smallmiro/teslable/transport/LocalName;Ljava/lang/String;ILjava/lang/Boolean;ILjava/lang/Object;)Lio/github/smallmiro/teslable/port/VehicleAdvertisement;
+	public final fun copy (Ldev/mirolab/teslable/transport/LocalName;Ljava/lang/String;ILjava/lang/Boolean;)Ldev/mirolab/teslable/port/VehicleAdvertisement;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/port/VehicleAdvertisement;Ldev/mirolab/teslable/transport/LocalName;Ljava/lang/String;ILjava/lang/Boolean;ILjava/lang/Object;)Ldev/mirolab/teslable/port/VehicleAdvertisement;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getIdentifier ()Ljava/lang/String;
-	public final fun getLocalName ()Lio/github/smallmiro/teslable/transport/LocalName;
+	public final fun getLocalName ()Ldev/mirolab/teslable/transport/LocalName;
 	public final fun getRssi ()I
 	public fun hashCode ()I
 	public final fun isConnectable ()Ljava/lang/Boolean;
 	public fun toString ()Ljava/lang/String;
 }
 
-public abstract interface class io/github/smallmiro/teslable/port/VehicleKey : io/github/smallmiro/teslable/port/EcdhPrivateKey {
+public abstract interface class dev/mirolab/teslable/port/VehicleKey : dev/mirolab/teslable/port/EcdhPrivateKey {
 	public abstract fun getAlias ()Ljava/lang/String;
-	public abstract fun getProtection ()Lio/github/smallmiro/teslable/port/KeyProtection;
+	public abstract fun getProtection ()Ldev/mirolab/teslable/port/KeyProtection;
 }
 
-public abstract interface class io/github/smallmiro/teslable/port/VehicleKeyStore {
-	public static final field Companion Lio/github/smallmiro/teslable/port/VehicleKeyStore$Companion;
+public abstract interface class dev/mirolab/teslable/port/VehicleKeyStore {
+	public static final field Companion Ldev/mirolab/teslable/port/VehicleKeyStore$Companion;
 	public static final field DEFAULT_ALIAS Ljava/lang/String;
 	public abstract fun delete (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun delete$default (Lio/github/smallmiro/teslable/port/VehicleKeyStore;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun delete$default (Ldev/mirolab/teslable/port/VehicleKeyStore;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public abstract fun get (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun get$default (Lio/github/smallmiro/teslable/port/VehicleKeyStore;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public abstract fun getOrCreate (Ljava/lang/String;Lio/github/smallmiro/teslable/port/KeyPolicy;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun getOrCreate$default (Lio/github/smallmiro/teslable/port/VehicleKeyStore;Ljava/lang/String;Lio/github/smallmiro/teslable/port/KeyPolicy;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun get$default (Ldev/mirolab/teslable/port/VehicleKeyStore;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun getOrCreate (Ljava/lang/String;Ldev/mirolab/teslable/port/KeyPolicy;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun getOrCreate$default (Ldev/mirolab/teslable/port/VehicleKeyStore;Ljava/lang/String;Ldev/mirolab/teslable/port/KeyPolicy;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
-public final class io/github/smallmiro/teslable/port/VehicleKeyStore$Companion {
+public final class dev/mirolab/teslable/port/VehicleKeyStore$Companion {
 	public static final field DEFAULT_ALIAS Ljava/lang/String;
 	public final fun requireValidAlias (Ljava/lang/String;)V
 }
 
-public final class io/github/smallmiro/teslable/port/VehicleKeyStore$DefaultImpls {
-	public static synthetic fun delete$default (Lio/github/smallmiro/teslable/port/VehicleKeyStore;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public static synthetic fun get$default (Lio/github/smallmiro/teslable/port/VehicleKeyStore;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public static synthetic fun getOrCreate$default (Lio/github/smallmiro/teslable/port/VehicleKeyStore;Ljava/lang/String;Lio/github/smallmiro/teslable/port/KeyPolicy;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+public final class dev/mirolab/teslable/port/VehicleKeyStore$DefaultImpls {
+	public static synthetic fun delete$default (Ldev/mirolab/teslable/port/VehicleKeyStore;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun get$default (Ldev/mirolab/teslable/port/VehicleKeyStore;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun getOrCreate$default (Ldev/mirolab/teslable/port/VehicleKeyStore;Ljava/lang/String;Ldev/mirolab/teslable/port/KeyPolicy;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
-public final class io/github/smallmiro/teslable/protocol/CommandMetadata {
+public final class dev/mirolab/teslable/protocol/CommandMetadata {
 	public static final field EPOCH_LENGTH_SECONDS I
-	public static final field INSTANCE Lio/github/smallmiro/teslable/protocol/CommandMetadata;
-	public final fun build-ghj1vr8 (Lcom/tesla/generated/universalmessage/Domain;[B[BIIILcom/tesla/generated/signatures/SignatureType;)Lio/github/smallmiro/teslable/protocol/Metadata;
-	public static synthetic fun build-ghj1vr8$default (Lio/github/smallmiro/teslable/protocol/CommandMetadata;Lcom/tesla/generated/universalmessage/Domain;[B[BIIILcom/tesla/generated/signatures/SignatureType;ILjava/lang/Object;)Lio/github/smallmiro/teslable/protocol/Metadata;
+	public static final field INSTANCE Ldev/mirolab/teslable/protocol/CommandMetadata;
+	public final fun build-ghj1vr8 (Lcom/tesla/generated/universalmessage/Domain;[B[BIIILcom/tesla/generated/signatures/SignatureType;)Ldev/mirolab/teslable/protocol/Metadata;
+	public static synthetic fun build-ghj1vr8$default (Ldev/mirolab/teslable/protocol/CommandMetadata;Lcom/tesla/generated/universalmessage/Domain;[B[BIIILcom/tesla/generated/signatures/SignatureType;ILjava/lang/Object;)Ldev/mirolab/teslable/protocol/Metadata;
 }
 
-public final class io/github/smallmiro/teslable/protocol/Metadata {
+public final class dev/mirolab/teslable/protocol/Metadata {
 	public fun <init> ()V
-	public final fun add (Lcom/tesla/generated/signatures/Tag;[B)Lio/github/smallmiro/teslable/protocol/Metadata;
-	public final fun addUInt32-Qn1smSk (Lcom/tesla/generated/signatures/Tag;I)Lio/github/smallmiro/teslable/protocol/Metadata;
+	public final fun add (Lcom/tesla/generated/signatures/Tag;[B)Ldev/mirolab/teslable/protocol/Metadata;
+	public final fun addUInt32-Qn1smSk (Lcom/tesla/generated/signatures/Tag;I)Ldev/mirolab/teslable/protocol/Metadata;
 	public final fun serialize ([B)[B
-	public static synthetic fun serialize$default (Lio/github/smallmiro/teslable/protocol/Metadata;[BILjava/lang/Object;)[B
+	public static synthetic fun serialize$default (Ldev/mirolab/teslable/protocol/Metadata;[BILjava/lang/Object;)[B
 }
 
-public final class io/github/smallmiro/teslable/protocol/MetadataFieldTooLongException : java/lang/IllegalArgumentException {
+public final class dev/mirolab/teslable/protocol/MetadataFieldTooLongException : java/lang/IllegalArgumentException {
 	public fun <init> ()V
 }
 
-public final class io/github/smallmiro/teslable/protocol/RequestHash {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/protocol/RequestHash;
+public final class dev/mirolab/teslable/protocol/RequestHash {
+	public static final field INSTANCE Ldev/mirolab/teslable/protocol/RequestHash;
 	public final fun of (Lcom/tesla/generated/signatures/SignatureType;[BLcom/tesla/generated/universalmessage/Domain;)[B
 	public final fun of (Lcom/tesla/generated/universalmessage/RoutableMessage;)[B
 }
 
-public final class io/github/smallmiro/teslable/protocol/ResponseClassifier {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/protocol/ResponseClassifier;
-	public final fun protocolError (Lcom/tesla/generated/universalmessage/RoutableMessage;)Lio/github/smallmiro/teslable/model/VehicleError;
+public final class dev/mirolab/teslable/protocol/ResponseClassifier {
+	public static final field INSTANCE Ldev/mirolab/teslable/protocol/ResponseClassifier;
+	public final fun protocolError (Lcom/tesla/generated/universalmessage/RoutableMessage;)Ldev/mirolab/teslable/model/VehicleError;
 }
 
-public final class io/github/smallmiro/teslable/protocol/ResponseMetadata {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/protocol/ResponseMetadata;
-	public final fun build-oecLfNU (Lcom/tesla/generated/universalmessage/Domain;[BII[BI)Lio/github/smallmiro/teslable/protocol/Metadata;
+public final class dev/mirolab/teslable/protocol/ResponseMetadata {
+	public static final field INSTANCE Ldev/mirolab/teslable/protocol/ResponseMetadata;
+	public final fun build-oecLfNU (Lcom/tesla/generated/universalmessage/Domain;[BII[BI)Ldev/mirolab/teslable/protocol/Metadata;
 }
 
-public final class io/github/smallmiro/teslable/protocol/Session : java/lang/AutoCloseable {
-	public static final field Companion Lio/github/smallmiro/teslable/protocol/Session$Companion;
+public final class dev/mirolab/teslable/protocol/Session : java/lang/AutoCloseable {
+	public static final field Companion Ldev/mirolab/teslable/protocol/Session$Companion;
 	public static final field NONCE_SIZE I
-	public synthetic fun <init> ([BLio/github/smallmiro/teslable/model/PublicKeyBytes;Lio/github/smallmiro/teslable/model/PublicKeyBytes;Lio/github/smallmiro/teslable/port/CryptoPrimitives;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> ([BLdev/mirolab/teslable/model/PublicKeyBytes;Ldev/mirolab/teslable/model/PublicKeyBytes;Ldev/mirolab/teslable/port/CryptoPrimitives;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun close ()V
 	public final fun decrypt ([B[B[B[B)[B
-	public final fun encrypt ([B[B[B)Lio/github/smallmiro/teslable/port/AesGcmOutput;
-	public final fun getLocalPublicKey ()Lio/github/smallmiro/teslable/model/PublicKeyBytes;
-	public final fun getVehiclePublicKey ()Lio/github/smallmiro/teslable/model/PublicKeyBytes;
+	public final fun encrypt ([B[B[B)Ldev/mirolab/teslable/port/AesGcmOutput;
+	public final fun getLocalPublicKey ()Ldev/mirolab/teslable/model/PublicKeyBytes;
+	public final fun getVehiclePublicKey ()Ldev/mirolab/teslable/model/PublicKeyBytes;
 	public final fun sessionInfoTag ([B[B[B)[B
 	public final fun subkey (Ljava/lang/String;)[B
 	public fun toString ()Ljava/lang/String;
 	public final fun verifySessionInfoTag ([B[B[B[B)Z
 }
 
-public final class io/github/smallmiro/teslable/protocol/Session$Companion {
-	public final fun establish (Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/model/PublicKeyBytes;Lio/github/smallmiro/teslable/port/CryptoPrimitives;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public final fun fromSharedKey ([BLio/github/smallmiro/teslable/model/PublicKeyBytes;Lio/github/smallmiro/teslable/model/PublicKeyBytes;Lio/github/smallmiro/teslable/port/CryptoPrimitives;)Lio/github/smallmiro/teslable/protocol/Session;
+public final class dev/mirolab/teslable/protocol/Session$Companion {
+	public final fun establish (Ldev/mirolab/teslable/port/EcdhPrivateKey;Ldev/mirolab/teslable/model/PublicKeyBytes;Ldev/mirolab/teslable/port/CryptoPrimitives;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun fromSharedKey ([BLdev/mirolab/teslable/model/PublicKeyBytes;Ldev/mirolab/teslable/model/PublicKeyBytes;Ldev/mirolab/teslable/port/CryptoPrimitives;)Ldev/mirolab/teslable/protocol/Session;
 }
 
-public final class io/github/smallmiro/teslable/protocol/SessionKeys {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/protocol/SessionKeys;
+public final class dev/mirolab/teslable/protocol/SessionKeys {
+	public static final field INSTANCE Ldev/mirolab/teslable/protocol/SessionKeys;
 	public static final field LABEL_AUTHENTICATED_COMMAND Ljava/lang/String;
 	public static final field LABEL_SESSION_INFO Ljava/lang/String;
 	public static final field SHARED_KEY_SIZE I
-	public final fun deriveK ([BLio/github/smallmiro/teslable/port/CryptoPrimitives;)[B
+	public final fun deriveK ([BLdev/mirolab/teslable/port/CryptoPrimitives;)[B
 }
 
-public final class io/github/smallmiro/teslable/protocol/Signer : java/lang/AutoCloseable {
-	public static final field Companion Lio/github/smallmiro/teslable/protocol/Signer$Companion;
-	public synthetic fun <init> (Lio/github/smallmiro/teslable/protocol/Session;Lio/github/smallmiro/teslable/model/Vin;[BIILio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;JLkotlin/jvm/internal/DefaultConstructorMarker;)V
+public final class dev/mirolab/teslable/protocol/Signer : java/lang/AutoCloseable {
+	public static final field Companion Ldev/mirolab/teslable/protocol/Signer$Companion;
+	public synthetic fun <init> (Ldev/mirolab/teslable/protocol/Session;Ldev/mirolab/teslable/model/Vin;[BIILdev/mirolab/teslable/port/CryptoPrimitives;Ldev/mirolab/teslable/port/RandomSource;Lkotlin/time/TimeSource;JLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public fun close ()V
-	public final fun decrypt (Lcom/tesla/generated/universalmessage/RoutableMessage;[B)Lio/github/smallmiro/teslable/protocol/SignerResult;
-	public final fun encrypt-HG0u8IE (Lcom/tesla/generated/universalmessage/RoutableMessage;J)Lio/github/smallmiro/teslable/protocol/SignerResult;
+	public final fun decrypt (Lcom/tesla/generated/universalmessage/RoutableMessage;[B)Ldev/mirolab/teslable/protocol/SignerResult;
+	public final fun encrypt-HG0u8IE (Lcom/tesla/generated/universalmessage/RoutableMessage;J)Ldev/mirolab/teslable/protocol/SignerResult;
 	public final fun exportSessionInfo ()[B
 	public final fun getCounter-pVg5ArA ()I
 	public final fun getEpoch ()[B
-	public final fun getLocalPublicKey ()Lio/github/smallmiro/teslable/model/PublicKeyBytes;
-	public final fun getVehiclePublicKey ()Lio/github/smallmiro/teslable/model/PublicKeyBytes;
-	public final fun getVin ()Lio/github/smallmiro/teslable/model/Vin;
+	public final fun getLocalPublicKey ()Ldev/mirolab/teslable/model/PublicKeyBytes;
+	public final fun getVehiclePublicKey ()Ldev/mirolab/teslable/model/PublicKeyBytes;
+	public final fun getVin ()Ldev/mirolab/teslable/model/Vin;
 	public final fun timestamp-pVg5ArA ()I
 	public fun toString ()Ljava/lang/String;
-	public final fun updateSessionInfo (Lcom/tesla/generated/signatures/SessionInfo;)Lio/github/smallmiro/teslable/protocol/SignerResult;
-	public final fun updateSignedSessionInfo ([B[B[B)Lio/github/smallmiro/teslable/protocol/SignerResult;
+	public final fun updateSessionInfo (Lcom/tesla/generated/signatures/SessionInfo;)Ldev/mirolab/teslable/protocol/SignerResult;
+	public final fun updateSignedSessionInfo ([B[B[B)Ldev/mirolab/teslable/protocol/SignerResult;
 }
 
-public final class io/github/smallmiro/teslable/protocol/Signer$Companion {
-	public final fun create (Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/model/Vin;Lcom/tesla/generated/signatures/SessionInfo;Lio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun create$default (Lio/github/smallmiro/teslable/protocol/Signer$Companion;Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/model/Vin;Lcom/tesla/generated/signatures/SessionInfo;Lio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public final fun createAuthenticated (Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/model/Vin;[B[B[BLio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun createAuthenticated$default (Lio/github/smallmiro/teslable/protocol/Signer$Companion;Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/model/Vin;[B[B[BLio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public final fun importSessionInfo-mGOUYlo (Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/model/Vin;[BJLio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun importSessionInfo-mGOUYlo$default (Lio/github/smallmiro/teslable/protocol/Signer$Companion;Lio/github/smallmiro/teslable/port/EcdhPrivateKey;Lio/github/smallmiro/teslable/model/Vin;[BJLio/github/smallmiro/teslable/port/CryptoPrimitives;Lio/github/smallmiro/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+public final class dev/mirolab/teslable/protocol/Signer$Companion {
+	public final fun create (Ldev/mirolab/teslable/port/EcdhPrivateKey;Ldev/mirolab/teslable/model/Vin;Lcom/tesla/generated/signatures/SessionInfo;Ldev/mirolab/teslable/port/CryptoPrimitives;Ldev/mirolab/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun create$default (Ldev/mirolab/teslable/protocol/Signer$Companion;Ldev/mirolab/teslable/port/EcdhPrivateKey;Ldev/mirolab/teslable/model/Vin;Lcom/tesla/generated/signatures/SessionInfo;Ldev/mirolab/teslable/port/CryptoPrimitives;Ldev/mirolab/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun createAuthenticated (Ldev/mirolab/teslable/port/EcdhPrivateKey;Ldev/mirolab/teslable/model/Vin;[B[B[BLdev/mirolab/teslable/port/CryptoPrimitives;Ldev/mirolab/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun createAuthenticated$default (Ldev/mirolab/teslable/protocol/Signer$Companion;Ldev/mirolab/teslable/port/EcdhPrivateKey;Ldev/mirolab/teslable/model/Vin;[B[B[BLdev/mirolab/teslable/port/CryptoPrimitives;Ldev/mirolab/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun importSessionInfo-mGOUYlo (Ldev/mirolab/teslable/port/EcdhPrivateKey;Ldev/mirolab/teslable/model/Vin;[BJLdev/mirolab/teslable/port/CryptoPrimitives;Ldev/mirolab/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun importSessionInfo-mGOUYlo$default (Ldev/mirolab/teslable/protocol/Signer$Companion;Ldev/mirolab/teslable/port/EcdhPrivateKey;Ldev/mirolab/teslable/model/Vin;[BJLdev/mirolab/teslable/port/CryptoPrimitives;Ldev/mirolab/teslable/port/RandomSource;Lkotlin/time/TimeSource;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
-public final class io/github/smallmiro/teslable/protocol/Signer$DecryptedResponse {
+public final class dev/mirolab/teslable/protocol/Signer$DecryptedResponse {
 	public synthetic fun <init> (Lcom/tesla/generated/universalmessage/RoutableMessage;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun getCounter-pVg5ArA ()I
 	public final fun getMessage ()Lcom/tesla/generated/universalmessage/RoutableMessage;
 }
 
-public abstract interface class io/github/smallmiro/teslable/protocol/SignerResult {
+public abstract interface class dev/mirolab/teslable/protocol/SignerResult {
 }
 
-public final class io/github/smallmiro/teslable/protocol/SignerResult$Fault : io/github/smallmiro/teslable/protocol/SignerResult {
+public final class dev/mirolab/teslable/protocol/SignerResult$Fault : dev/mirolab/teslable/protocol/SignerResult {
 	public fun <init> (Lcom/tesla/generated/universalmessage/MessageFault_E;Ljava/lang/String;)V
 	public final fun component1 ()Lcom/tesla/generated/universalmessage/MessageFault_E;
 	public final fun component2 ()Ljava/lang/String;
-	public final fun copy (Lcom/tesla/generated/universalmessage/MessageFault_E;Ljava/lang/String;)Lio/github/smallmiro/teslable/protocol/SignerResult$Fault;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/protocol/SignerResult$Fault;Lcom/tesla/generated/universalmessage/MessageFault_E;Ljava/lang/String;ILjava/lang/Object;)Lio/github/smallmiro/teslable/protocol/SignerResult$Fault;
+	public final fun copy (Lcom/tesla/generated/universalmessage/MessageFault_E;Ljava/lang/String;)Ldev/mirolab/teslable/protocol/SignerResult$Fault;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/protocol/SignerResult$Fault;Lcom/tesla/generated/universalmessage/MessageFault_E;Ljava/lang/String;ILjava/lang/Object;)Ldev/mirolab/teslable/protocol/SignerResult$Fault;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getDetail ()Ljava/lang/String;
 	public final fun getFault ()Lcom/tesla/generated/universalmessage/MessageFault_E;
@@ -5466,19 +5466,19 @@ public final class io/github/smallmiro/teslable/protocol/SignerResult$Fault : io
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/protocol/SignerResult$Ok : io/github/smallmiro/teslable/protocol/SignerResult {
+public final class dev/mirolab/teslable/protocol/SignerResult$Ok : dev/mirolab/teslable/protocol/SignerResult {
 	public fun <init> (Ljava/lang/Object;)V
 	public final fun component1 ()Ljava/lang/Object;
-	public final fun copy (Ljava/lang/Object;)Lio/github/smallmiro/teslable/protocol/SignerResult$Ok;
-	public static synthetic fun copy$default (Lio/github/smallmiro/teslable/protocol/SignerResult$Ok;Ljava/lang/Object;ILjava/lang/Object;)Lio/github/smallmiro/teslable/protocol/SignerResult$Ok;
+	public final fun copy (Ljava/lang/Object;)Ldev/mirolab/teslable/protocol/SignerResult$Ok;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/protocol/SignerResult$Ok;Ljava/lang/Object;ILjava/lang/Object;)Ldev/mirolab/teslable/protocol/SignerResult$Ok;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getValue ()Ljava/lang/Object;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/protocol/SlidingWindow {
-	public static final field Companion Lio/github/smallmiro/teslable/protocol/SlidingWindow$Companion;
+public final class dev/mirolab/teslable/protocol/SlidingWindow {
+	public static final field Companion Ldev/mirolab/teslable/protocol/SlidingWindow$Companion;
 	public static final field DEFAULT_SIZE I
 	public fun <init> ()V
 	public fun <init> (I)V
@@ -5486,25 +5486,25 @@ public final class io/github/smallmiro/teslable/protocol/SlidingWindow {
 	public final fun update-WZ4Q5Ns (I)Z
 }
 
-public final class io/github/smallmiro/teslable/protocol/SlidingWindow$Companion {
+public final class dev/mirolab/teslable/protocol/SlidingWindow$Companion {
 }
 
-public final class io/github/smallmiro/teslable/protocol/UnknownFieldsKt {
+public final class dev/mirolab/teslable/protocol/UnknownFieldsKt {
 	public static final fun unknownVarint (Lokio/ByteString;I)Ljava/lang/Integer;
 }
 
-public final class io/github/smallmiro/teslable/protocol/WireDecodingKt {
+public final class dev/mirolab/teslable/protocol/WireDecodingKt {
 	public static final fun decodeOrNull (Lcom/squareup/wire/ProtoAdapter;[B)Ljava/lang/Object;
 }
 
-public final class io/github/smallmiro/teslable/transport/Framer {
-	public static final field INSTANCE Lio/github/smallmiro/teslable/transport/Framer;
+public final class dev/mirolab/teslable/transport/Framer {
+	public static final field INSTANCE Ldev/mirolab/teslable/transport/Framer;
 	public static final field MAX_MESSAGE_SIZE I
 	public final fun frame ([BI)Ljava/util/List;
 }
 
-public final class io/github/smallmiro/teslable/transport/LocalName {
-	public static final field Companion Lio/github/smallmiro/teslable/transport/LocalName$Companion;
+public final class dev/mirolab/teslable/transport/LocalName {
+	public static final field Companion Ldev/mirolab/teslable/transport/LocalName$Companion;
 	public fun <init> (Ljava/lang/String;)V
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getValue ()Ljava/lang/String;
@@ -5512,11 +5512,11 @@ public final class io/github/smallmiro/teslable/transport/LocalName {
 	public fun toString ()Ljava/lang/String;
 }
 
-public final class io/github/smallmiro/teslable/transport/LocalName$Companion {
-	public final fun of (Lio/github/smallmiro/teslable/model/Vin;Lio/github/smallmiro/teslable/port/CryptoPrimitives;)Lio/github/smallmiro/teslable/transport/LocalName;
+public final class dev/mirolab/teslable/transport/LocalName$Companion {
+	public final fun of (Ldev/mirolab/teslable/model/Vin;Ldev/mirolab/teslable/port/CryptoPrimitives;)Ldev/mirolab/teslable/transport/LocalName;
 }
 
-public final class io/github/smallmiro/teslable/transport/Reassembler {
+public final class dev/mirolab/teslable/transport/Reassembler {
 	public fun <init> ()V
 	public synthetic fun <init> (Lkotlin/time/TimeSource;JIILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public synthetic fun <init> (Lkotlin/time/TimeSource;JILkotlin/jvm/internal/DefaultConstructorMarker;)V
@@ -5524,7 +5524,7 @@ public final class io/github/smallmiro/teslable/transport/Reassembler {
 	public final fun reset ()V
 }
 
-public final class io/github/smallmiro/teslable/util/HexKt {
+public final class dev/mirolab/teslable/util/HexKt {
 	public static final fun hexToBytes (Ljava/lang/String;)[B
 	public static final fun toHex ([B)Ljava/lang/String;
 }

@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "io.github.smallmiro.teslable.sample"
+    namespace = "dev.mirolab.teslable.sample"
     compileSdk = libs.versions.android.compileSdk.get().toInt()
 
     defaultConfig {
-        applicationId = "io.github.smallmiro.teslable.sample"
+        applicationId = "dev.mirolab.teslable.sample"
         minSdk = libs.versions.android.minSdk.get().toInt()
         targetSdk = libs.versions.android.compileSdk.get().toInt()
         versionCode = 1

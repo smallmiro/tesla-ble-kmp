@@ -6,245 +6,245 @@
 // - Show declarations: true
 
 // Library unique name: <tesla-ble-kmp:application>
-sealed interface io.github.smallmiro.teslable.application.dispatcher/SessionEvent { // io.github.smallmiro.teslable.application.dispatcher/SessionEvent|null[0]
-    final class StaleCache : io.github.smallmiro.teslable.application.dispatcher/SessionEvent { // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.StaleCache|null[0]
-        constructor <init>(com.tesla.generated.universalmessage/Domain) // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.StaleCache.<init>|<init>(com.tesla.generated.universalmessage.Domain){}[0]
+sealed interface dev.mirolab.teslable.application.dispatcher/SessionEvent { // dev.mirolab.teslable.application.dispatcher/SessionEvent|null[0]
+    final class StaleCache : dev.mirolab.teslable.application.dispatcher/SessionEvent { // dev.mirolab.teslable.application.dispatcher/SessionEvent.StaleCache|null[0]
+        constructor <init>(com.tesla.generated.universalmessage/Domain) // dev.mirolab.teslable.application.dispatcher/SessionEvent.StaleCache.<init>|<init>(com.tesla.generated.universalmessage.Domain){}[0]
 
-        final val domain // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.StaleCache.domain|{}domain[0]
-            final fun <get-domain>(): com.tesla.generated.universalmessage/Domain // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.StaleCache.domain.<get-domain>|<get-domain>(){}[0]
+        final val domain // dev.mirolab.teslable.application.dispatcher/SessionEvent.StaleCache.domain|{}domain[0]
+            final fun <get-domain>(): com.tesla.generated.universalmessage/Domain // dev.mirolab.teslable.application.dispatcher/SessionEvent.StaleCache.domain.<get-domain>|<get-domain>(){}[0]
 
-        final fun component1(): com.tesla.generated.universalmessage/Domain // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.StaleCache.component1|component1(){}[0]
-        final fun copy(com.tesla.generated.universalmessage/Domain = ...): io.github.smallmiro.teslable.application.dispatcher/SessionEvent.StaleCache // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.StaleCache.copy|copy(com.tesla.generated.universalmessage.Domain){}[0]
-        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.StaleCache.equals|equals(kotlin.Any?){}[0]
-        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.StaleCache.hashCode|hashCode(){}[0]
-        final fun toString(): kotlin/String // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.StaleCache.toString|toString(){}[0]
+        final fun component1(): com.tesla.generated.universalmessage/Domain // dev.mirolab.teslable.application.dispatcher/SessionEvent.StaleCache.component1|component1(){}[0]
+        final fun copy(com.tesla.generated.universalmessage/Domain = ...): dev.mirolab.teslable.application.dispatcher/SessionEvent.StaleCache // dev.mirolab.teslable.application.dispatcher/SessionEvent.StaleCache.copy|copy(com.tesla.generated.universalmessage.Domain){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.application.dispatcher/SessionEvent.StaleCache.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.mirolab.teslable.application.dispatcher/SessionEvent.StaleCache.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.mirolab.teslable.application.dispatcher/SessionEvent.StaleCache.toString|toString(){}[0]
     }
 
-    final class Updated : io.github.smallmiro.teslable.application.dispatcher/SessionEvent { // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.Updated|null[0]
-        constructor <init>(com.tesla.generated.universalmessage/Domain) // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.Updated.<init>|<init>(com.tesla.generated.universalmessage.Domain){}[0]
+    final class Updated : dev.mirolab.teslable.application.dispatcher/SessionEvent { // dev.mirolab.teslable.application.dispatcher/SessionEvent.Updated|null[0]
+        constructor <init>(com.tesla.generated.universalmessage/Domain) // dev.mirolab.teslable.application.dispatcher/SessionEvent.Updated.<init>|<init>(com.tesla.generated.universalmessage.Domain){}[0]
 
-        final val domain // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.Updated.domain|{}domain[0]
-            final fun <get-domain>(): com.tesla.generated.universalmessage/Domain // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.Updated.domain.<get-domain>|<get-domain>(){}[0]
+        final val domain // dev.mirolab.teslable.application.dispatcher/SessionEvent.Updated.domain|{}domain[0]
+            final fun <get-domain>(): com.tesla.generated.universalmessage/Domain // dev.mirolab.teslable.application.dispatcher/SessionEvent.Updated.domain.<get-domain>|<get-domain>(){}[0]
 
-        final fun component1(): com.tesla.generated.universalmessage/Domain // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.Updated.component1|component1(){}[0]
-        final fun copy(com.tesla.generated.universalmessage/Domain = ...): io.github.smallmiro.teslable.application.dispatcher/SessionEvent.Updated // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.Updated.copy|copy(com.tesla.generated.universalmessage.Domain){}[0]
-        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.Updated.equals|equals(kotlin.Any?){}[0]
-        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.Updated.hashCode|hashCode(){}[0]
-        final fun toString(): kotlin/String // io.github.smallmiro.teslable.application.dispatcher/SessionEvent.Updated.toString|toString(){}[0]
-    }
-}
-
-final class io.github.smallmiro.teslable.application.cache/SessionCacheSync { // io.github.smallmiro.teslable.application.cache/SessionCacheSync|null[0]
-    constructor <init>(io.github.smallmiro.teslable.port/SessionCache, io.github.smallmiro.teslable.model/Vin, io.github.smallmiro.teslable.model/KeyId) // io.github.smallmiro.teslable.application.cache/SessionCacheSync.<init>|<init>(io.github.smallmiro.teslable.port.SessionCache;io.github.smallmiro.teslable.model.Vin;io.github.smallmiro.teslable.model.KeyId){}[0]
-
-    final suspend fun load(io.github.smallmiro.teslable.application.dispatcher/Dispatcher): kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> // io.github.smallmiro.teslable.application.cache/SessionCacheSync.load|load(io.github.smallmiro.teslable.application.dispatcher.Dispatcher){}[0]
-    final suspend fun markStale(com.tesla.generated.universalmessage/Domain) // io.github.smallmiro.teslable.application.cache/SessionCacheSync.markStale|markStale(com.tesla.generated.universalmessage.Domain){}[0]
-    final suspend fun store(io.github.smallmiro.teslable.application.dispatcher/Dispatcher) // io.github.smallmiro.teslable.application.cache/SessionCacheSync.store|store(io.github.smallmiro.teslable.application.dispatcher.Dispatcher){}[0]
-}
-
-final class io.github.smallmiro.teslable.application.dispatcher/Dispatcher { // io.github.smallmiro.teslable.application.dispatcher/Dispatcher|null[0]
-    constructor <init>(io.github.smallmiro.teslable.port/Transport, io.github.smallmiro.teslable.port/EcdhPrivateKey?, io.github.smallmiro.teslable.port/CryptoPrimitives, io.github.smallmiro.teslable.port/RandomSource, kotlinx.coroutines/CoroutineScope, kotlin.time/TimeSource = ..., io.github.smallmiro.teslable.port/TeslaLogger = ...) // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.<init>|<init>(io.github.smallmiro.teslable.port.Transport;io.github.smallmiro.teslable.port.EcdhPrivateKey?;io.github.smallmiro.teslable.port.CryptoPrimitives;io.github.smallmiro.teslable.port.RandomSource;kotlinx.coroutines.CoroutineScope;kotlin.time.TimeSource;io.github.smallmiro.teslable.port.TeslaLogger){}[0]
-
-    final val isListening // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.isListening|{}isListening[0]
-        final fun <get-isListening>(): kotlin/Boolean // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.isListening.<get-isListening>|<get-isListening>(){}[0]
-    final val retryInterval // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.retryInterval|{}retryInterval[0]
-        final fun <get-retryInterval>(): kotlin.time/Duration // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.retryInterval.<get-retryInterval>|<get-retryInterval>(){}[0]
-    final val sessionEvents // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.sessionEvents|{}sessionEvents[0]
-        final fun <get-sessionEvents>(): kotlinx.coroutines.flow/SharedFlow<io.github.smallmiro.teslable.application.dispatcher/SessionEvent> // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.sessionEvents.<get-sessionEvents>|<get-sessionEvents>(){}[0]
-    final val vin // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.vin|{}vin[0]
-        final fun <get-vin>(): io.github.smallmiro.teslable.model/Vin // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.vin.<get-vin>|<get-vin>(){}[0]
-
-    final var maxLatency // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.maxLatency|{}maxLatency[0]
-        final fun <get-maxLatency>(): kotlin.time/Duration // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.maxLatency.<get-maxLatency>|<get-maxLatency>(){}[0]
-
-    final fun session(com.tesla.generated.universalmessage/Domain): io.github.smallmiro.teslable.application.dispatcher/SessionState? // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.session|session(com.tesla.generated.universalmessage.Domain){}[0]
-    final fun setMaxLatency(kotlin.time/Duration) // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.setMaxLatency|setMaxLatency(kotlin.time.Duration){}[0]
-    final fun start() // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.start|start(){}[0]
-    final suspend fun close() // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.close|close(){}[0]
-    final suspend fun exportSessions(): kotlin.collections/List<io.github.smallmiro.teslable.cache/SessionSnapshot> // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.exportSessions|exportSessions(){}[0]
-    final suspend fun loadSessions(kotlin.collections/List<io.github.smallmiro.teslable.cache/CachedSession>): kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.loadSessions|loadSessions(kotlin.collections.List<io.github.smallmiro.teslable.cache.CachedSession>){}[0]
-    final suspend fun requestSessionInfo(com.tesla.generated.universalmessage/Domain): io.github.smallmiro.teslable.model/VehicleResult<io.github.smallmiro.teslable.application.dispatcher/PendingRequest> // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.requestSessionInfo|requestSessionInfo(com.tesla.generated.universalmessage.Domain){}[0]
-    final suspend fun send(com.tesla.generated.universalmessage/RoutableMessage, io.github.smallmiro.teslable.port/AuthMethod, kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<io.github.smallmiro.teslable.application.dispatcher/PendingRequest> // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.send|send(com.tesla.generated.universalmessage.RoutableMessage;io.github.smallmiro.teslable.port.AuthMethod;kotlin.time.Duration){}[0]
-    final suspend fun stop() // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.stop|stop(){}[0]
-
-    final object Companion { // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.Companion|null[0]
-        final val ALL_DOMAINS // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.Companion.ALL_DOMAINS|{}ALL_DOMAINS[0]
-            final fun <get-ALL_DOMAINS>(): kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.Companion.ALL_DOMAINS.<get-ALL_DOMAINS>|<get-ALL_DOMAINS>(){}[0]
-        final val DEFAULT_LIFETIME // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.Companion.DEFAULT_LIFETIME|{}DEFAULT_LIFETIME[0]
-            final fun <get-DEFAULT_LIFETIME>(): kotlin.time/Duration // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.Companion.DEFAULT_LIFETIME.<get-DEFAULT_LIFETIME>|<get-DEFAULT_LIFETIME>(){}[0]
-
-        final fun sessionInfoRequest(com.tesla.generated.universalmessage/Domain, io.github.smallmiro.teslable.model/PublicKeyBytes): com.tesla.generated.universalmessage/RoutableMessage // io.github.smallmiro.teslable.application.dispatcher/Dispatcher.Companion.sessionInfoRequest|sessionInfoRequest(com.tesla.generated.universalmessage.Domain;io.github.smallmiro.teslable.model.PublicKeyBytes){}[0]
+        final fun component1(): com.tesla.generated.universalmessage/Domain // dev.mirolab.teslable.application.dispatcher/SessionEvent.Updated.component1|component1(){}[0]
+        final fun copy(com.tesla.generated.universalmessage/Domain = ...): dev.mirolab.teslable.application.dispatcher/SessionEvent.Updated // dev.mirolab.teslable.application.dispatcher/SessionEvent.Updated.copy|copy(com.tesla.generated.universalmessage.Domain){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.application.dispatcher/SessionEvent.Updated.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.mirolab.teslable.application.dispatcher/SessionEvent.Updated.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.mirolab.teslable.application.dispatcher/SessionEvent.Updated.toString|toString(){}[0]
     }
 }
 
-final class io.github.smallmiro.teslable.application.dispatcher/HandshakeFlow { // io.github.smallmiro.teslable.application.dispatcher/HandshakeFlow|null[0]
-    constructor <init>(io.github.smallmiro.teslable.application.dispatcher/Dispatcher) // io.github.smallmiro.teslable.application.dispatcher/HandshakeFlow.<init>|<init>(io.github.smallmiro.teslable.application.dispatcher.Dispatcher){}[0]
+final class dev.mirolab.teslable.application.cache/SessionCacheSync { // dev.mirolab.teslable.application.cache/SessionCacheSync|null[0]
+    constructor <init>(dev.mirolab.teslable.port/SessionCache, dev.mirolab.teslable.model/Vin, dev.mirolab.teslable.model/KeyId) // dev.mirolab.teslable.application.cache/SessionCacheSync.<init>|<init>(dev.mirolab.teslable.port.SessionCache;dev.mirolab.teslable.model.Vin;dev.mirolab.teslable.model.KeyId){}[0]
 
-    final suspend fun startSession(com.tesla.generated.universalmessage/Domain): io.github.smallmiro.teslable.model/VehicleResult<kotlin/Unit> // io.github.smallmiro.teslable.application.dispatcher/HandshakeFlow.startSession|startSession(com.tesla.generated.universalmessage.Domain){}[0]
-    final suspend fun startSessions(kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> = ...): io.github.smallmiro.teslable.model/VehicleResult<kotlin/Unit> // io.github.smallmiro.teslable.application.dispatcher/HandshakeFlow.startSessions|startSessions(kotlin.collections.Set<com.tesla.generated.universalmessage.Domain>){}[0]
+    final suspend fun load(dev.mirolab.teslable.application.dispatcher/Dispatcher): kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> // dev.mirolab.teslable.application.cache/SessionCacheSync.load|load(dev.mirolab.teslable.application.dispatcher.Dispatcher){}[0]
+    final suspend fun markStale(com.tesla.generated.universalmessage/Domain) // dev.mirolab.teslable.application.cache/SessionCacheSync.markStale|markStale(com.tesla.generated.universalmessage.Domain){}[0]
+    final suspend fun store(dev.mirolab.teslable.application.dispatcher/Dispatcher) // dev.mirolab.teslable.application.cache/SessionCacheSync.store|store(dev.mirolab.teslable.application.dispatcher.Dispatcher){}[0]
 }
 
-final class io.github.smallmiro.teslable.application.dispatcher/PendingRequest : kotlin/AutoCloseable { // io.github.smallmiro.teslable.application.dispatcher/PendingRequest|null[0]
-    final val requestHash // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.requestHash|{}requestHash[0]
-        final fun <get-requestHash>(): kotlin/ByteArray? // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.requestHash.<get-requestHash>|<get-requestHash>(){}[0]
-    final val uuid // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.uuid|{}uuid[0]
-        final fun <get-uuid>(): kotlin/ByteArray // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.uuid.<get-uuid>|<get-uuid>(){}[0]
+final class dev.mirolab.teslable.application.dispatcher/Dispatcher { // dev.mirolab.teslable.application.dispatcher/Dispatcher|null[0]
+    constructor <init>(dev.mirolab.teslable.port/Transport, dev.mirolab.teslable.port/EcdhPrivateKey?, dev.mirolab.teslable.port/CryptoPrimitives, dev.mirolab.teslable.port/RandomSource, kotlinx.coroutines/CoroutineScope, kotlin.time/TimeSource = ..., dev.mirolab.teslable.port/TeslaLogger = ...) // dev.mirolab.teslable.application.dispatcher/Dispatcher.<init>|<init>(dev.mirolab.teslable.port.Transport;dev.mirolab.teslable.port.EcdhPrivateKey?;dev.mirolab.teslable.port.CryptoPrimitives;dev.mirolab.teslable.port.RandomSource;kotlinx.coroutines.CoroutineScope;kotlin.time.TimeSource;dev.mirolab.teslable.port.TeslaLogger){}[0]
 
-    final fun close() // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.close|close(){}[0]
-    final fun tryReceive(): com.tesla.generated.universalmessage/RoutableMessage? // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.tryReceive|tryReceive(){}[0]
-    final suspend fun receive(): com.tesla.generated.universalmessage/RoutableMessage // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.receive|receive(){}[0]
+    final val isListening // dev.mirolab.teslable.application.dispatcher/Dispatcher.isListening|{}isListening[0]
+        final fun <get-isListening>(): kotlin/Boolean // dev.mirolab.teslable.application.dispatcher/Dispatcher.isListening.<get-isListening>|<get-isListening>(){}[0]
+    final val retryInterval // dev.mirolab.teslable.application.dispatcher/Dispatcher.retryInterval|{}retryInterval[0]
+        final fun <get-retryInterval>(): kotlin.time/Duration // dev.mirolab.teslable.application.dispatcher/Dispatcher.retryInterval.<get-retryInterval>|<get-retryInterval>(){}[0]
+    final val sessionEvents // dev.mirolab.teslable.application.dispatcher/Dispatcher.sessionEvents|{}sessionEvents[0]
+        final fun <get-sessionEvents>(): kotlinx.coroutines.flow/SharedFlow<dev.mirolab.teslable.application.dispatcher/SessionEvent> // dev.mirolab.teslable.application.dispatcher/Dispatcher.sessionEvents.<get-sessionEvents>|<get-sessionEvents>(){}[0]
+    final val vin // dev.mirolab.teslable.application.dispatcher/Dispatcher.vin|{}vin[0]
+        final fun <get-vin>(): dev.mirolab.teslable.model/Vin // dev.mirolab.teslable.application.dispatcher/Dispatcher.vin.<get-vin>|<get-vin>(){}[0]
 
-    final object Companion { // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.Companion|null[0]
-        final const val BUFFER_SIZE // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.Companion.BUFFER_SIZE|{}BUFFER_SIZE[0]
-            final fun <get-BUFFER_SIZE>(): kotlin/Int // io.github.smallmiro.teslable.application.dispatcher/PendingRequest.Companion.BUFFER_SIZE.<get-BUFFER_SIZE>|<get-BUFFER_SIZE>(){}[0]
+    final var maxLatency // dev.mirolab.teslable.application.dispatcher/Dispatcher.maxLatency|{}maxLatency[0]
+        final fun <get-maxLatency>(): kotlin.time/Duration // dev.mirolab.teslable.application.dispatcher/Dispatcher.maxLatency.<get-maxLatency>|<get-maxLatency>(){}[0]
+
+    final fun session(com.tesla.generated.universalmessage/Domain): dev.mirolab.teslable.application.dispatcher/SessionState? // dev.mirolab.teslable.application.dispatcher/Dispatcher.session|session(com.tesla.generated.universalmessage.Domain){}[0]
+    final fun setMaxLatency(kotlin.time/Duration) // dev.mirolab.teslable.application.dispatcher/Dispatcher.setMaxLatency|setMaxLatency(kotlin.time.Duration){}[0]
+    final fun start() // dev.mirolab.teslable.application.dispatcher/Dispatcher.start|start(){}[0]
+    final suspend fun close() // dev.mirolab.teslable.application.dispatcher/Dispatcher.close|close(){}[0]
+    final suspend fun exportSessions(): kotlin.collections/List<dev.mirolab.teslable.cache/SessionSnapshot> // dev.mirolab.teslable.application.dispatcher/Dispatcher.exportSessions|exportSessions(){}[0]
+    final suspend fun loadSessions(kotlin.collections/List<dev.mirolab.teslable.cache/CachedSession>): kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> // dev.mirolab.teslable.application.dispatcher/Dispatcher.loadSessions|loadSessions(kotlin.collections.List<dev.mirolab.teslable.cache.CachedSession>){}[0]
+    final suspend fun requestSessionInfo(com.tesla.generated.universalmessage/Domain): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.application.dispatcher/PendingRequest> // dev.mirolab.teslable.application.dispatcher/Dispatcher.requestSessionInfo|requestSessionInfo(com.tesla.generated.universalmessage.Domain){}[0]
+    final suspend fun send(com.tesla.generated.universalmessage/RoutableMessage, dev.mirolab.teslable.port/AuthMethod, kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.application.dispatcher/PendingRequest> // dev.mirolab.teslable.application.dispatcher/Dispatcher.send|send(com.tesla.generated.universalmessage.RoutableMessage;dev.mirolab.teslable.port.AuthMethod;kotlin.time.Duration){}[0]
+    final suspend fun stop() // dev.mirolab.teslable.application.dispatcher/Dispatcher.stop|stop(){}[0]
+
+    final object Companion { // dev.mirolab.teslable.application.dispatcher/Dispatcher.Companion|null[0]
+        final val ALL_DOMAINS // dev.mirolab.teslable.application.dispatcher/Dispatcher.Companion.ALL_DOMAINS|{}ALL_DOMAINS[0]
+            final fun <get-ALL_DOMAINS>(): kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> // dev.mirolab.teslable.application.dispatcher/Dispatcher.Companion.ALL_DOMAINS.<get-ALL_DOMAINS>|<get-ALL_DOMAINS>(){}[0]
+        final val DEFAULT_LIFETIME // dev.mirolab.teslable.application.dispatcher/Dispatcher.Companion.DEFAULT_LIFETIME|{}DEFAULT_LIFETIME[0]
+            final fun <get-DEFAULT_LIFETIME>(): kotlin.time/Duration // dev.mirolab.teslable.application.dispatcher/Dispatcher.Companion.DEFAULT_LIFETIME.<get-DEFAULT_LIFETIME>|<get-DEFAULT_LIFETIME>(){}[0]
+
+        final fun sessionInfoRequest(com.tesla.generated.universalmessage/Domain, dev.mirolab.teslable.model/PublicKeyBytes): com.tesla.generated.universalmessage/RoutableMessage // dev.mirolab.teslable.application.dispatcher/Dispatcher.Companion.sessionInfoRequest|sessionInfoRequest(com.tesla.generated.universalmessage.Domain;dev.mirolab.teslable.model.PublicKeyBytes){}[0]
     }
 }
 
-final class io.github.smallmiro.teslable.application.dispatcher/SessionState { // io.github.smallmiro.teslable.application.dispatcher/SessionState|null[0]
-    final val isClosed // io.github.smallmiro.teslable.application.dispatcher/SessionState.isClosed|{}isClosed[0]
-        final fun <get-isClosed>(): kotlin/Boolean // io.github.smallmiro.teslable.application.dispatcher/SessionState.isClosed.<get-isClosed>|<get-isClosed>(){}[0]
-    final val isReady // io.github.smallmiro.teslable.application.dispatcher/SessionState.isReady|{}isReady[0]
-        final fun <get-isReady>(): kotlin/Boolean // io.github.smallmiro.teslable.application.dispatcher/SessionState.isReady.<get-isReady>|<get-isReady>(){}[0]
-    final val isReportedStale // io.github.smallmiro.teslable.application.dispatcher/SessionState.isReportedStale|{}isReportedStale[0]
-        final fun <get-isReportedStale>(): kotlin/Boolean // io.github.smallmiro.teslable.application.dispatcher/SessionState.isReportedStale.<get-isReportedStale>|<get-isReportedStale>(){}[0]
-    final val isUnconfirmedCacheRestore // io.github.smallmiro.teslable.application.dispatcher/SessionState.isUnconfirmedCacheRestore|{}isUnconfirmedCacheRestore[0]
-        final fun <get-isUnconfirmedCacheRestore>(): kotlin/Boolean // io.github.smallmiro.teslable.application.dispatcher/SessionState.isUnconfirmedCacheRestore.<get-isUnconfirmedCacheRestore>|<get-isUnconfirmedCacheRestore>(){}[0]
+final class dev.mirolab.teslable.application.dispatcher/HandshakeFlow { // dev.mirolab.teslable.application.dispatcher/HandshakeFlow|null[0]
+    constructor <init>(dev.mirolab.teslable.application.dispatcher/Dispatcher) // dev.mirolab.teslable.application.dispatcher/HandshakeFlow.<init>|<init>(dev.mirolab.teslable.application.dispatcher.Dispatcher){}[0]
 
-    final suspend fun authorize(com.tesla.generated.universalmessage/RoutableMessage, kotlin.time/Duration): io.github.smallmiro.teslable.protocol/SignerResult<com.tesla.generated.universalmessage/RoutableMessage> // io.github.smallmiro.teslable.application.dispatcher/SessionState.authorize|authorize(com.tesla.generated.universalmessage.RoutableMessage;kotlin.time.Duration){}[0]
-    final suspend fun awaitReady() // io.github.smallmiro.teslable.application.dispatcher/SessionState.awaitReady|awaitReady(){}[0]
-    final suspend fun close() // io.github.smallmiro.teslable.application.dispatcher/SessionState.close|close(){}[0]
-    final suspend fun counter(): kotlin/UInt? // io.github.smallmiro.teslable.application.dispatcher/SessionState.counter|counter(){}[0]
-    final suspend fun decrypt(com.tesla.generated.universalmessage/RoutableMessage, kotlin/ByteArray): io.github.smallmiro.teslable.protocol/SignerResult<io.github.smallmiro.teslable.protocol/Signer.DecryptedResponse>? // io.github.smallmiro.teslable.application.dispatcher/SessionState.decrypt|decrypt(com.tesla.generated.universalmessage.RoutableMessage;kotlin.ByteArray){}[0]
-    final suspend fun export(): kotlin/ByteArray? // io.github.smallmiro.teslable.application.dispatcher/SessionState.export|export(){}[0]
-    final suspend fun loadFromCache(kotlin/ByteArray, kotlin.time/Duration): io.github.smallmiro.teslable.protocol/SignerResult<kotlin/Unit> // io.github.smallmiro.teslable.application.dispatcher/SessionState.loadFromCache|loadFromCache(kotlin.ByteArray;kotlin.time.Duration){}[0]
-    final suspend fun processHello(kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray): io.github.smallmiro.teslable.protocol/SignerResult<kotlin/Unit> // io.github.smallmiro.teslable.application.dispatcher/SessionState.processHello|processHello(kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray){}[0]
-    final suspend fun timestamp(): kotlin/UInt? // io.github.smallmiro.teslable.application.dispatcher/SessionState.timestamp|timestamp(){}[0]
+    final suspend fun startSession(com.tesla.generated.universalmessage/Domain): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.dispatcher/HandshakeFlow.startSession|startSession(com.tesla.generated.universalmessage.Domain){}[0]
+    final suspend fun startSessions(kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.dispatcher/HandshakeFlow.startSessions|startSessions(kotlin.collections.Set<com.tesla.generated.universalmessage.Domain>){}[0]
 }
 
-final class io.github.smallmiro.teslable.application.infotainment/InfotainmentCommands { // io.github.smallmiro.teslable.application.infotainment/InfotainmentCommands|null[0]
-    constructor <init>(io.github.smallmiro.teslable.application.vehicle/SendWithRetry) // io.github.smallmiro.teslable.application.infotainment/InfotainmentCommands.<init>|<init>(io.github.smallmiro.teslable.application.vehicle.SendWithRetry){}[0]
+final class dev.mirolab.teslable.application.dispatcher/PendingRequest : kotlin/AutoCloseable { // dev.mirolab.teslable.application.dispatcher/PendingRequest|null[0]
+    final val requestHash // dev.mirolab.teslable.application.dispatcher/PendingRequest.requestHash|{}requestHash[0]
+        final fun <get-requestHash>(): kotlin/ByteArray? // dev.mirolab.teslable.application.dispatcher/PendingRequest.requestHash.<get-requestHash>|<get-requestHash>(){}[0]
+    final val uuid // dev.mirolab.teslable.application.dispatcher/PendingRequest.uuid|{}uuid[0]
+        final fun <get-uuid>(): kotlin/ByteArray // dev.mirolab.teslable.application.dispatcher/PendingRequest.uuid.<get-uuid>|<get-uuid>(){}[0]
 
-    final suspend fun execute(com.tesla.generated.carserver.server/Action, kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<com.tesla.generated.carserver.server/Response> // io.github.smallmiro.teslable.application.infotainment/InfotainmentCommands.execute|execute(com.tesla.generated.carserver.server.Action;kotlin.time.Duration){}[0]
-}
+    final fun close() // dev.mirolab.teslable.application.dispatcher/PendingRequest.close|close(){}[0]
+    final fun tryReceive(): com.tesla.generated.universalmessage/RoutableMessage? // dev.mirolab.teslable.application.dispatcher/PendingRequest.tryReceive|tryReceive(){}[0]
+    final suspend fun receive(): com.tesla.generated.universalmessage/RoutableMessage // dev.mirolab.teslable.application.dispatcher/PendingRequest.receive|receive(){}[0]
 
-final class io.github.smallmiro.teslable.application.logging/SafeLogger : io.github.smallmiro.teslable.port/TeslaLogger { // io.github.smallmiro.teslable.application.logging/SafeLogger|null[0]
-    constructor <init>(io.github.smallmiro.teslable.port/TeslaLogger) // io.github.smallmiro.teslable.application.logging/SafeLogger.<init>|<init>(io.github.smallmiro.teslable.port.TeslaLogger){}[0]
-
-    final fun log(io.github.smallmiro.teslable.port/LogLevel, kotlin/String, kotlin/Function0<kotlin/String>) // io.github.smallmiro.teslable.application.logging/SafeLogger.log|log(io.github.smallmiro.teslable.port.LogLevel;kotlin.String;kotlin.Function0<kotlin.String>){}[0]
-}
-
-final class io.github.smallmiro.teslable.application.vcsec/VcsecCommands { // io.github.smallmiro.teslable.application.vcsec/VcsecCommands|null[0]
-    final suspend fun execute(kotlin/ByteArray, io.github.smallmiro.teslable.port/AuthMethod, io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalTest, kotlin/Int = ..., kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<com.tesla.generated.vcsec/FromVCSECMessage> // io.github.smallmiro.teslable.application.vcsec/VcsecCommands.execute|execute(kotlin.ByteArray;io.github.smallmiro.teslable.port.AuthMethod;io.github.smallmiro.teslable.application.vcsec.VcsecResponses.TerminalTest;kotlin.Int;kotlin.time.Duration){}[0]
-}
-
-final class io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries { // io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries|null[0]
-    final suspend fun keyInfoBySlot(kotlin/Int, kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<io.github.smallmiro.teslable.model/WhitelistEntry> // io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries.keyInfoBySlot|keyInfoBySlot(kotlin.Int;kotlin.time.Duration){}[0]
-    final suspend fun keySummary(kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<io.github.smallmiro.teslable.model/WhitelistSummary> // io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries.keySummary|keySummary(kotlin.time.Duration){}[0]
-    final suspend fun listKeys(kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<kotlin.collections/List<io.github.smallmiro.teslable.model/WhitelistEntry>> // io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries.listKeys|listKeys(kotlin.time.Duration){}[0]
-    final suspend fun vehicleStatus(kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<io.github.smallmiro.teslable.model/VehicleStatus> // io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries.vehicleStatus|vehicleStatus(kotlin.time.Duration){}[0]
-
-    final object Companion { // io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries.Companion|null[0]
-        final fun informationRequest(com.tesla.generated.vcsec/InformationRequestType, kotlin/Int? = ...): kotlin/ByteArray // io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries.Companion.informationRequest|informationRequest(com.tesla.generated.vcsec.InformationRequestType;kotlin.Int?){}[0]
+    final object Companion { // dev.mirolab.teslable.application.dispatcher/PendingRequest.Companion|null[0]
+        final const val BUFFER_SIZE // dev.mirolab.teslable.application.dispatcher/PendingRequest.Companion.BUFFER_SIZE|{}BUFFER_SIZE[0]
+            final fun <get-BUFFER_SIZE>(): kotlin/Int // dev.mirolab.teslable.application.dispatcher/PendingRequest.Companion.BUFFER_SIZE.<get-BUFFER_SIZE>|<get-BUFFER_SIZE>(){}[0]
     }
 }
 
-final class io.github.smallmiro.teslable.application.vehicle/CommandTimeouts { // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts|null[0]
-    constructor <init>(kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ...) // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.<init>|<init>(kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
+final class dev.mirolab.teslable.application.dispatcher/SessionState { // dev.mirolab.teslable.application.dispatcher/SessionState|null[0]
+    final val isClosed // dev.mirolab.teslable.application.dispatcher/SessionState.isClosed|{}isClosed[0]
+        final fun <get-isClosed>(): kotlin/Boolean // dev.mirolab.teslable.application.dispatcher/SessionState.isClosed.<get-isClosed>|<get-isClosed>(){}[0]
+    final val isReady // dev.mirolab.teslable.application.dispatcher/SessionState.isReady|{}isReady[0]
+        final fun <get-isReady>(): kotlin/Boolean // dev.mirolab.teslable.application.dispatcher/SessionState.isReady.<get-isReady>|<get-isReady>(){}[0]
+    final val isReportedStale // dev.mirolab.teslable.application.dispatcher/SessionState.isReportedStale|{}isReportedStale[0]
+        final fun <get-isReportedStale>(): kotlin/Boolean // dev.mirolab.teslable.application.dispatcher/SessionState.isReportedStale.<get-isReportedStale>|<get-isReportedStale>(){}[0]
+    final val isUnconfirmedCacheRestore // dev.mirolab.teslable.application.dispatcher/SessionState.isUnconfirmedCacheRestore|{}isUnconfirmedCacheRestore[0]
+        final fun <get-isUnconfirmedCacheRestore>(): kotlin/Boolean // dev.mirolab.teslable.application.dispatcher/SessionState.isUnconfirmedCacheRestore.<get-isUnconfirmedCacheRestore>|<get-isUnconfirmedCacheRestore>(){}[0]
 
-    final val commandLifetime // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.commandLifetime|{}commandLifetime[0]
-        final fun <get-commandLifetime>(): kotlin.time/Duration // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.commandLifetime.<get-commandLifetime>|<get-commandLifetime>(){}[0]
-    final val commandTimeout // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.commandTimeout|{}commandTimeout[0]
-        final fun <get-commandTimeout>(): kotlin.time/Duration // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.commandTimeout.<get-commandTimeout>|<get-commandTimeout>(){}[0]
-    final val handshakeTimeout // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.handshakeTimeout|{}handshakeTimeout[0]
-        final fun <get-handshakeTimeout>(): kotlin.time/Duration // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.handshakeTimeout.<get-handshakeTimeout>|<get-handshakeTimeout>(){}[0]
-
-    final fun component1(): kotlin.time/Duration // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.component1|component1(){}[0]
-    final fun component2(): kotlin.time/Duration // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.component2|component2(){}[0]
-    final fun component3(): kotlin.time/Duration // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.component3|component3(){}[0]
-    final fun copy(kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ...): io.github.smallmiro.teslable.application.vehicle/CommandTimeouts // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.copy|copy(kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
-    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.equals|equals(kotlin.Any?){}[0]
-    final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.hashCode|hashCode(){}[0]
-    final fun toString(): kotlin/String // io.github.smallmiro.teslable.application.vehicle/CommandTimeouts.toString|toString(){}[0]
+    final suspend fun authorize(com.tesla.generated.universalmessage/RoutableMessage, kotlin.time/Duration): dev.mirolab.teslable.protocol/SignerResult<com.tesla.generated.universalmessage/RoutableMessage> // dev.mirolab.teslable.application.dispatcher/SessionState.authorize|authorize(com.tesla.generated.universalmessage.RoutableMessage;kotlin.time.Duration){}[0]
+    final suspend fun awaitReady() // dev.mirolab.teslable.application.dispatcher/SessionState.awaitReady|awaitReady(){}[0]
+    final suspend fun close() // dev.mirolab.teslable.application.dispatcher/SessionState.close|close(){}[0]
+    final suspend fun counter(): kotlin/UInt? // dev.mirolab.teslable.application.dispatcher/SessionState.counter|counter(){}[0]
+    final suspend fun decrypt(com.tesla.generated.universalmessage/RoutableMessage, kotlin/ByteArray): dev.mirolab.teslable.protocol/SignerResult<dev.mirolab.teslable.protocol/Signer.DecryptedResponse>? // dev.mirolab.teslable.application.dispatcher/SessionState.decrypt|decrypt(com.tesla.generated.universalmessage.RoutableMessage;kotlin.ByteArray){}[0]
+    final suspend fun export(): kotlin/ByteArray? // dev.mirolab.teslable.application.dispatcher/SessionState.export|export(){}[0]
+    final suspend fun loadFromCache(kotlin/ByteArray, kotlin.time/Duration): dev.mirolab.teslable.protocol/SignerResult<kotlin/Unit> // dev.mirolab.teslable.application.dispatcher/SessionState.loadFromCache|loadFromCache(kotlin.ByteArray;kotlin.time.Duration){}[0]
+    final suspend fun processHello(kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray): dev.mirolab.teslable.protocol/SignerResult<kotlin/Unit> // dev.mirolab.teslable.application.dispatcher/SessionState.processHello|processHello(kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray){}[0]
+    final suspend fun timestamp(): kotlin/UInt? // dev.mirolab.teslable.application.dispatcher/SessionState.timestamp|timestamp(){}[0]
 }
 
-final class io.github.smallmiro.teslable.application.vehicle/SendWithRetry { // io.github.smallmiro.teslable.application.vehicle/SendWithRetry|null[0]
-    constructor <init>(io.github.smallmiro.teslable.application.dispatcher/Dispatcher, io.github.smallmiro.teslable.application.vehicle/CommandTimeouts = ...) // io.github.smallmiro.teslable.application.vehicle/SendWithRetry.<init>|<init>(io.github.smallmiro.teslable.application.dispatcher.Dispatcher;io.github.smallmiro.teslable.application.vehicle.CommandTimeouts){}[0]
+final class dev.mirolab.teslable.application.infotainment/InfotainmentCommands { // dev.mirolab.teslable.application.infotainment/InfotainmentCommands|null[0]
+    constructor <init>(dev.mirolab.teslable.application.vehicle/SendWithRetry) // dev.mirolab.teslable.application.infotainment/InfotainmentCommands.<init>|<init>(dev.mirolab.teslable.application.vehicle.SendWithRetry){}[0]
 
-    final val commandTimeout // io.github.smallmiro.teslable.application.vehicle/SendWithRetry.commandTimeout|{}commandTimeout[0]
-        final fun <get-commandTimeout>(): kotlin.time/Duration // io.github.smallmiro.teslable.application.vehicle/SendWithRetry.commandTimeout.<get-commandTimeout>|<get-commandTimeout>(){}[0]
+    final suspend fun execute(com.tesla.generated.carserver.server/Action, kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<com.tesla.generated.carserver.server/Response> // dev.mirolab.teslable.application.infotainment/InfotainmentCommands.execute|execute(com.tesla.generated.carserver.server.Action;kotlin.time.Duration){}[0]
+}
 
-    final suspend fun send(com.tesla.generated.universalmessage/Domain, kotlin/ByteArray, io.github.smallmiro.teslable.port/AuthMethod, kotlin/Int = ..., kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<com.tesla.generated.universalmessage/RoutableMessage> // io.github.smallmiro.teslable.application.vehicle/SendWithRetry.send|send(com.tesla.generated.universalmessage.Domain;kotlin.ByteArray;io.github.smallmiro.teslable.port.AuthMethod;kotlin.Int;kotlin.time.Duration){}[0]
+final class dev.mirolab.teslable.application.logging/SafeLogger : dev.mirolab.teslable.port/TeslaLogger { // dev.mirolab.teslable.application.logging/SafeLogger|null[0]
+    constructor <init>(dev.mirolab.teslable.port/TeslaLogger) // dev.mirolab.teslable.application.logging/SafeLogger.<init>|<init>(dev.mirolab.teslable.port.TeslaLogger){}[0]
 
-    final object Companion { // io.github.smallmiro.teslable.application.vehicle/SendWithRetry.Companion|null[0]
-        final const val DEFAULT_FLAGS // io.github.smallmiro.teslable.application.vehicle/SendWithRetry.Companion.DEFAULT_FLAGS|{}DEFAULT_FLAGS[0]
-            final fun <get-DEFAULT_FLAGS>(): kotlin/Int // io.github.smallmiro.teslable.application.vehicle/SendWithRetry.Companion.DEFAULT_FLAGS.<get-DEFAULT_FLAGS>|<get-DEFAULT_FLAGS>(){}[0]
+    final fun log(dev.mirolab.teslable.port/LogLevel, kotlin/String, kotlin/Function0<kotlin/String>) // dev.mirolab.teslable.application.logging/SafeLogger.log|log(dev.mirolab.teslable.port.LogLevel;kotlin.String;kotlin.Function0<kotlin.String>){}[0]
+}
+
+final class dev.mirolab.teslable.application.vcsec/VcsecCommands { // dev.mirolab.teslable.application.vcsec/VcsecCommands|null[0]
+    final suspend fun execute(kotlin/ByteArray, dev.mirolab.teslable.port/AuthMethod, dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalTest, kotlin/Int = ..., kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<com.tesla.generated.vcsec/FromVCSECMessage> // dev.mirolab.teslable.application.vcsec/VcsecCommands.execute|execute(kotlin.ByteArray;dev.mirolab.teslable.port.AuthMethod;dev.mirolab.teslable.application.vcsec.VcsecResponses.TerminalTest;kotlin.Int;kotlin.time.Duration){}[0]
+}
+
+final class dev.mirolab.teslable.application.vcsec/VehicleInfoQueries { // dev.mirolab.teslable.application.vcsec/VehicleInfoQueries|null[0]
+    final suspend fun keyInfoBySlot(kotlin/Int, kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.model/WhitelistEntry> // dev.mirolab.teslable.application.vcsec/VehicleInfoQueries.keyInfoBySlot|keyInfoBySlot(kotlin.Int;kotlin.time.Duration){}[0]
+    final suspend fun keySummary(kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.model/WhitelistSummary> // dev.mirolab.teslable.application.vcsec/VehicleInfoQueries.keySummary|keySummary(kotlin.time.Duration){}[0]
+    final suspend fun listKeys(kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<kotlin.collections/List<dev.mirolab.teslable.model/WhitelistEntry>> // dev.mirolab.teslable.application.vcsec/VehicleInfoQueries.listKeys|listKeys(kotlin.time.Duration){}[0]
+    final suspend fun vehicleStatus(kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.model/VehicleStatus> // dev.mirolab.teslable.application.vcsec/VehicleInfoQueries.vehicleStatus|vehicleStatus(kotlin.time.Duration){}[0]
+
+    final object Companion { // dev.mirolab.teslable.application.vcsec/VehicleInfoQueries.Companion|null[0]
+        final fun informationRequest(com.tesla.generated.vcsec/InformationRequestType, kotlin/Int? = ...): kotlin/ByteArray // dev.mirolab.teslable.application.vcsec/VehicleInfoQueries.Companion.informationRequest|informationRequest(com.tesla.generated.vcsec.InformationRequestType;kotlin.Int?){}[0]
     }
 }
 
-final class io.github.smallmiro.teslable.application.vehicle/VehicleSession { // io.github.smallmiro.teslable.application.vehicle/VehicleSession|null[0]
-    constructor <init>(io.github.smallmiro.teslable.application.dispatcher/Dispatcher, io.github.smallmiro.teslable.application.vehicle/CommandTimeouts = ..., io.github.smallmiro.teslable.application.cache/SessionCacheSync? = ..., kotlinx.coroutines/CoroutineScope? = ...) // io.github.smallmiro.teslable.application.vehicle/VehicleSession.<init>|<init>(io.github.smallmiro.teslable.application.dispatcher.Dispatcher;io.github.smallmiro.teslable.application.vehicle.CommandTimeouts;io.github.smallmiro.teslable.application.cache.SessionCacheSync?;kotlinx.coroutines.CoroutineScope?){}[0]
+final class dev.mirolab.teslable.application.vehicle/CommandTimeouts { // dev.mirolab.teslable.application.vehicle/CommandTimeouts|null[0]
+    constructor <init>(kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ...) // dev.mirolab.teslable.application.vehicle/CommandTimeouts.<init>|<init>(kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
 
-    final val handshake // io.github.smallmiro.teslable.application.vehicle/VehicleSession.handshake|{}handshake[0]
-        final fun <get-handshake>(): io.github.smallmiro.teslable.application.dispatcher/HandshakeFlow // io.github.smallmiro.teslable.application.vehicle/VehicleSession.handshake.<get-handshake>|<get-handshake>(){}[0]
-    final val info // io.github.smallmiro.teslable.application.vehicle/VehicleSession.info|{}info[0]
-        final fun <get-info>(): io.github.smallmiro.teslable.application.vcsec/VehicleInfoQueries // io.github.smallmiro.teslable.application.vehicle/VehicleSession.info.<get-info>|<get-info>(){}[0]
-    final val infotainment // io.github.smallmiro.teslable.application.vehicle/VehicleSession.infotainment|{}infotainment[0]
-        final fun <get-infotainment>(): io.github.smallmiro.teslable.application.infotainment/InfotainmentCommands // io.github.smallmiro.teslable.application.vehicle/VehicleSession.infotainment.<get-infotainment>|<get-infotainment>(){}[0]
-    final val retryInterval // io.github.smallmiro.teslable.application.vehicle/VehicleSession.retryInterval|{}retryInterval[0]
-        final fun <get-retryInterval>(): kotlin.time/Duration // io.github.smallmiro.teslable.application.vehicle/VehicleSession.retryInterval.<get-retryInterval>|<get-retryInterval>(){}[0]
-    final val send // io.github.smallmiro.teslable.application.vehicle/VehicleSession.send|{}send[0]
-        final fun <get-send>(): io.github.smallmiro.teslable.application.vehicle/SendWithRetry // io.github.smallmiro.teslable.application.vehicle/VehicleSession.send.<get-send>|<get-send>(){}[0]
-    final val vcsec // io.github.smallmiro.teslable.application.vehicle/VehicleSession.vcsec|{}vcsec[0]
-        final fun <get-vcsec>(): io.github.smallmiro.teslable.application.vcsec/VcsecCommands // io.github.smallmiro.teslable.application.vehicle/VehicleSession.vcsec.<get-vcsec>|<get-vcsec>(){}[0]
+    final val commandLifetime // dev.mirolab.teslable.application.vehicle/CommandTimeouts.commandLifetime|{}commandLifetime[0]
+        final fun <get-commandLifetime>(): kotlin.time/Duration // dev.mirolab.teslable.application.vehicle/CommandTimeouts.commandLifetime.<get-commandLifetime>|<get-commandLifetime>(){}[0]
+    final val commandTimeout // dev.mirolab.teslable.application.vehicle/CommandTimeouts.commandTimeout|{}commandTimeout[0]
+        final fun <get-commandTimeout>(): kotlin.time/Duration // dev.mirolab.teslable.application.vehicle/CommandTimeouts.commandTimeout.<get-commandTimeout>|<get-commandTimeout>(){}[0]
+    final val handshakeTimeout // dev.mirolab.teslable.application.vehicle/CommandTimeouts.handshakeTimeout|{}handshakeTimeout[0]
+        final fun <get-handshakeTimeout>(): kotlin.time/Duration // dev.mirolab.teslable.application.vehicle/CommandTimeouts.handshakeTimeout.<get-handshakeTimeout>|<get-handshakeTimeout>(){}[0]
 
-    final suspend fun connect(): kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> // io.github.smallmiro.teslable.application.vehicle/VehicleSession.connect|connect(){}[0]
-    final suspend fun disconnect() // io.github.smallmiro.teslable.application.vehicle/VehicleSession.disconnect|disconnect(){}[0]
-    final suspend fun startSession(kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> = ..., kotlin.time/Duration = ...): io.github.smallmiro.teslable.model/VehicleResult<kotlin/Unit> // io.github.smallmiro.teslable.application.vehicle/VehicleSession.startSession|startSession(kotlin.collections.Set<com.tesla.generated.universalmessage.Domain>;kotlin.time.Duration){}[0]
+    final fun component1(): kotlin.time/Duration // dev.mirolab.teslable.application.vehicle/CommandTimeouts.component1|component1(){}[0]
+    final fun component2(): kotlin.time/Duration // dev.mirolab.teslable.application.vehicle/CommandTimeouts.component2|component2(){}[0]
+    final fun component3(): kotlin.time/Duration // dev.mirolab.teslable.application.vehicle/CommandTimeouts.component3|component3(){}[0]
+    final fun copy(kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ...): dev.mirolab.teslable.application.vehicle/CommandTimeouts // dev.mirolab.teslable.application.vehicle/CommandTimeouts.copy|copy(kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.application.vehicle/CommandTimeouts.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.mirolab.teslable.application.vehicle/CommandTimeouts.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.mirolab.teslable.application.vehicle/CommandTimeouts.toString|toString(){}[0]
 }
 
-final object io.github.smallmiro.teslable.application.infotainment/InfotainmentResponses { // io.github.smallmiro.teslable.application.infotainment/InfotainmentResponses|null[0]
-    final fun interpret(kotlin/ByteArray?): io.github.smallmiro.teslable.model/VehicleResult<com.tesla.generated.carserver.server/Response> // io.github.smallmiro.teslable.application.infotainment/InfotainmentResponses.interpret|interpret(kotlin.ByteArray?){}[0]
+final class dev.mirolab.teslable.application.vehicle/SendWithRetry { // dev.mirolab.teslable.application.vehicle/SendWithRetry|null[0]
+    constructor <init>(dev.mirolab.teslable.application.dispatcher/Dispatcher, dev.mirolab.teslable.application.vehicle/CommandTimeouts = ...) // dev.mirolab.teslable.application.vehicle/SendWithRetry.<init>|<init>(dev.mirolab.teslable.application.dispatcher.Dispatcher;dev.mirolab.teslable.application.vehicle.CommandTimeouts){}[0]
+
+    final val commandTimeout // dev.mirolab.teslable.application.vehicle/SendWithRetry.commandTimeout|{}commandTimeout[0]
+        final fun <get-commandTimeout>(): kotlin.time/Duration // dev.mirolab.teslable.application.vehicle/SendWithRetry.commandTimeout.<get-commandTimeout>|<get-commandTimeout>(){}[0]
+
+    final suspend fun send(com.tesla.generated.universalmessage/Domain, kotlin/ByteArray, dev.mirolab.teslable.port/AuthMethod, kotlin/Int = ..., kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<com.tesla.generated.universalmessage/RoutableMessage> // dev.mirolab.teslable.application.vehicle/SendWithRetry.send|send(com.tesla.generated.universalmessage.Domain;kotlin.ByteArray;dev.mirolab.teslable.port.AuthMethod;kotlin.Int;kotlin.time.Duration){}[0]
+
+    final object Companion { // dev.mirolab.teslable.application.vehicle/SendWithRetry.Companion|null[0]
+        final const val DEFAULT_FLAGS // dev.mirolab.teslable.application.vehicle/SendWithRetry.Companion.DEFAULT_FLAGS|{}DEFAULT_FLAGS[0]
+            final fun <get-DEFAULT_FLAGS>(): kotlin/Int // dev.mirolab.teslable.application.vehicle/SendWithRetry.Companion.DEFAULT_FLAGS.<get-DEFAULT_FLAGS>|<get-DEFAULT_FLAGS>(){}[0]
+    }
 }
 
-final object io.github.smallmiro.teslable.application.vcsec/VcsecResponses { // io.github.smallmiro.teslable.application.vcsec/VcsecResponses|null[0]
-    final val COMMAND_STATUS_ABSENT // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.COMMAND_STATUS_ABSENT|{}COMMAND_STATUS_ABSENT[0]
-        final fun <get-COMMAND_STATUS_ABSENT>(): io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalTest // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.COMMAND_STATUS_ABSENT.<get-COMMAND_STATUS_ABSENT>|<get-COMMAND_STATUS_ABSENT>(){}[0]
-    final val FIRST_MESSAGE // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.FIRST_MESSAGE|{}FIRST_MESSAGE[0]
-        final fun <get-FIRST_MESSAGE>(): io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalTest // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.FIRST_MESSAGE.<get-FIRST_MESSAGE>|<get-FIRST_MESSAGE>(){}[0]
-    final val WHITELIST_OPERATION_COMPLETE // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.WHITELIST_OPERATION_COMPLETE|{}WHITELIST_OPERATION_COMPLETE[0]
-        final fun <get-WHITELIST_OPERATION_COMPLETE>(): io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalTest // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.WHITELIST_OPERATION_COMPLETE.<get-WHITELIST_OPERATION_COMPLETE>|<get-WHITELIST_OPERATION_COMPLETE>(){}[0]
+final class dev.mirolab.teslable.application.vehicle/VehicleSession { // dev.mirolab.teslable.application.vehicle/VehicleSession|null[0]
+    constructor <init>(dev.mirolab.teslable.application.dispatcher/Dispatcher, dev.mirolab.teslable.application.vehicle/CommandTimeouts = ..., dev.mirolab.teslable.application.cache/SessionCacheSync? = ..., kotlinx.coroutines/CoroutineScope? = ...) // dev.mirolab.teslable.application.vehicle/VehicleSession.<init>|<init>(dev.mirolab.teslable.application.dispatcher.Dispatcher;dev.mirolab.teslable.application.vehicle.CommandTimeouts;dev.mirolab.teslable.application.cache.SessionCacheSync?;kotlinx.coroutines.CoroutineScope?){}[0]
 
-    final fun interpret(com.tesla.generated.universalmessage/RoutableMessage): io.github.smallmiro.teslable.model/VehicleResult<com.tesla.generated.vcsec/FromVCSECMessage> // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.interpret|interpret(com.tesla.generated.universalmessage.RoutableMessage){}[0]
-    final suspend fun readUntil(io.github.smallmiro.teslable.application.dispatcher/PendingRequest, io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalTest): io.github.smallmiro.teslable.model/VehicleResult<com.tesla.generated.vcsec/FromVCSECMessage> // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.readUntil|readUntil(io.github.smallmiro.teslable.application.dispatcher.PendingRequest;io.github.smallmiro.teslable.application.vcsec.VcsecResponses.TerminalTest){}[0]
+    final val handshake // dev.mirolab.teslable.application.vehicle/VehicleSession.handshake|{}handshake[0]
+        final fun <get-handshake>(): dev.mirolab.teslable.application.dispatcher/HandshakeFlow // dev.mirolab.teslable.application.vehicle/VehicleSession.handshake.<get-handshake>|<get-handshake>(){}[0]
+    final val info // dev.mirolab.teslable.application.vehicle/VehicleSession.info|{}info[0]
+        final fun <get-info>(): dev.mirolab.teslable.application.vcsec/VehicleInfoQueries // dev.mirolab.teslable.application.vehicle/VehicleSession.info.<get-info>|<get-info>(){}[0]
+    final val infotainment // dev.mirolab.teslable.application.vehicle/VehicleSession.infotainment|{}infotainment[0]
+        final fun <get-infotainment>(): dev.mirolab.teslable.application.infotainment/InfotainmentCommands // dev.mirolab.teslable.application.vehicle/VehicleSession.infotainment.<get-infotainment>|<get-infotainment>(){}[0]
+    final val retryInterval // dev.mirolab.teslable.application.vehicle/VehicleSession.retryInterval|{}retryInterval[0]
+        final fun <get-retryInterval>(): kotlin.time/Duration // dev.mirolab.teslable.application.vehicle/VehicleSession.retryInterval.<get-retryInterval>|<get-retryInterval>(){}[0]
+    final val send // dev.mirolab.teslable.application.vehicle/VehicleSession.send|{}send[0]
+        final fun <get-send>(): dev.mirolab.teslable.application.vehicle/SendWithRetry // dev.mirolab.teslable.application.vehicle/VehicleSession.send.<get-send>|<get-send>(){}[0]
+    final val vcsec // dev.mirolab.teslable.application.vehicle/VehicleSession.vcsec|{}vcsec[0]
+        final fun <get-vcsec>(): dev.mirolab.teslable.application.vcsec/VcsecCommands // dev.mirolab.teslable.application.vehicle/VehicleSession.vcsec.<get-vcsec>|<get-vcsec>(){}[0]
 
-    abstract fun interface TerminalTest { // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalTest|null[0]
-        abstract fun check(com.tesla.generated.vcsec/FromVCSECMessage): io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalTest.check|check(com.tesla.generated.vcsec.FromVCSECMessage){}[0]
+    final suspend fun connect(): kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> // dev.mirolab.teslable.application.vehicle/VehicleSession.connect|connect(){}[0]
+    final suspend fun disconnect() // dev.mirolab.teslable.application.vehicle/VehicleSession.disconnect|disconnect(){}[0]
+    final suspend fun startSession(kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> = ..., kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.vehicle/VehicleSession.startSession|startSession(kotlin.collections.Set<com.tesla.generated.universalmessage.Domain>;kotlin.time.Duration){}[0]
+}
+
+final object dev.mirolab.teslable.application.infotainment/InfotainmentResponses { // dev.mirolab.teslable.application.infotainment/InfotainmentResponses|null[0]
+    final fun interpret(kotlin/ByteArray?): dev.mirolab.teslable.model/VehicleResult<com.tesla.generated.carserver.server/Response> // dev.mirolab.teslable.application.infotainment/InfotainmentResponses.interpret|interpret(kotlin.ByteArray?){}[0]
+}
+
+final object dev.mirolab.teslable.application.vcsec/VcsecResponses { // dev.mirolab.teslable.application.vcsec/VcsecResponses|null[0]
+    final val COMMAND_STATUS_ABSENT // dev.mirolab.teslable.application.vcsec/VcsecResponses.COMMAND_STATUS_ABSENT|{}COMMAND_STATUS_ABSENT[0]
+        final fun <get-COMMAND_STATUS_ABSENT>(): dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalTest // dev.mirolab.teslable.application.vcsec/VcsecResponses.COMMAND_STATUS_ABSENT.<get-COMMAND_STATUS_ABSENT>|<get-COMMAND_STATUS_ABSENT>(){}[0]
+    final val FIRST_MESSAGE // dev.mirolab.teslable.application.vcsec/VcsecResponses.FIRST_MESSAGE|{}FIRST_MESSAGE[0]
+        final fun <get-FIRST_MESSAGE>(): dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalTest // dev.mirolab.teslable.application.vcsec/VcsecResponses.FIRST_MESSAGE.<get-FIRST_MESSAGE>|<get-FIRST_MESSAGE>(){}[0]
+    final val WHITELIST_OPERATION_COMPLETE // dev.mirolab.teslable.application.vcsec/VcsecResponses.WHITELIST_OPERATION_COMPLETE|{}WHITELIST_OPERATION_COMPLETE[0]
+        final fun <get-WHITELIST_OPERATION_COMPLETE>(): dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalTest // dev.mirolab.teslable.application.vcsec/VcsecResponses.WHITELIST_OPERATION_COMPLETE.<get-WHITELIST_OPERATION_COMPLETE>|<get-WHITELIST_OPERATION_COMPLETE>(){}[0]
+
+    final fun interpret(com.tesla.generated.universalmessage/RoutableMessage): dev.mirolab.teslable.model/VehicleResult<com.tesla.generated.vcsec/FromVCSECMessage> // dev.mirolab.teslable.application.vcsec/VcsecResponses.interpret|interpret(com.tesla.generated.universalmessage.RoutableMessage){}[0]
+    final suspend fun readUntil(dev.mirolab.teslable.application.dispatcher/PendingRequest, dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalTest): dev.mirolab.teslable.model/VehicleResult<com.tesla.generated.vcsec/FromVCSECMessage> // dev.mirolab.teslable.application.vcsec/VcsecResponses.readUntil|readUntil(dev.mirolab.teslable.application.dispatcher.PendingRequest;dev.mirolab.teslable.application.vcsec.VcsecResponses.TerminalTest){}[0]
+
+    abstract fun interface TerminalTest { // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalTest|null[0]
+        abstract fun check(com.tesla.generated.vcsec/FromVCSECMessage): dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalTest.check|check(com.tesla.generated.vcsec.FromVCSECMessage){}[0]
     }
 
-    sealed interface TerminalCheck { // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck|null[0]
-        final class Fail : io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck { // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail|null[0]
-            constructor <init>(io.github.smallmiro.teslable.model/VehicleError) // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.<init>|<init>(io.github.smallmiro.teslable.model.VehicleError){}[0]
+    sealed interface TerminalCheck { // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck|null[0]
+        final class Fail : dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck { // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail|null[0]
+            constructor <init>(dev.mirolab.teslable.model/VehicleError) // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.<init>|<init>(dev.mirolab.teslable.model.VehicleError){}[0]
 
-            final val error // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.error|{}error[0]
-                final fun <get-error>(): io.github.smallmiro.teslable.model/VehicleError // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.error.<get-error>|<get-error>(){}[0]
+            final val error // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.error|{}error[0]
+                final fun <get-error>(): dev.mirolab.teslable.model/VehicleError // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.error.<get-error>|<get-error>(){}[0]
 
-            final fun component1(): io.github.smallmiro.teslable.model/VehicleError // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.component1|component1(){}[0]
-            final fun copy(io.github.smallmiro.teslable.model/VehicleError = ...): io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.copy|copy(io.github.smallmiro.teslable.model.VehicleError){}[0]
-            final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.equals|equals(kotlin.Any?){}[0]
-            final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.hashCode|hashCode(){}[0]
-            final fun toString(): kotlin/String // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.toString|toString(){}[0]
+            final fun component1(): dev.mirolab.teslable.model/VehicleError // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.component1|component1(){}[0]
+            final fun copy(dev.mirolab.teslable.model/VehicleError = ...): dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.copy|copy(dev.mirolab.teslable.model.VehicleError){}[0]
+            final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.equals|equals(kotlin.Any?){}[0]
+            final fun hashCode(): kotlin/Int // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.hashCode|hashCode(){}[0]
+            final fun toString(): kotlin/String // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Fail.toString|toString(){}[0]
         }
 
-        final object Continue : io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck { // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Continue|null[0]
-            final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Continue.equals|equals(kotlin.Any?){}[0]
-            final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Continue.hashCode|hashCode(){}[0]
-            final fun toString(): kotlin/String // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Continue.toString|toString(){}[0]
+        final object Continue : dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck { // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Continue|null[0]
+            final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Continue.equals|equals(kotlin.Any?){}[0]
+            final fun hashCode(): kotlin/Int // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Continue.hashCode|hashCode(){}[0]
+            final fun toString(): kotlin/String // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Continue.toString|toString(){}[0]
         }
 
-        final object Done : io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck { // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Done|null[0]
-            final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Done.equals|equals(kotlin.Any?){}[0]
-            final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Done.hashCode|hashCode(){}[0]
-            final fun toString(): kotlin/String // io.github.smallmiro.teslable.application.vcsec/VcsecResponses.TerminalCheck.Done.toString|toString(){}[0]
+        final object Done : dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck { // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Done|null[0]
+            final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Done.equals|equals(kotlin.Any?){}[0]
+            final fun hashCode(): kotlin/Int // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Done.hashCode|hashCode(){}[0]
+            final fun toString(): kotlin/String // dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalCheck.Done.toString|toString(){}[0]
         }
     }
 }
