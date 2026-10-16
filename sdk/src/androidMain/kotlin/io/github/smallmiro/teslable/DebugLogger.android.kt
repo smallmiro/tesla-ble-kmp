@@ -6,7 +6,7 @@ import io.github.smallmiro.teslable.port.TeslaLogger
 
 /** Logcat 로거. 태그는 `teslable/<tag>`. */
 public actual class DebugLogger actual constructor() : TeslaLogger {
-    override fun log(
+    actual override fun log(
         level: LogLevel,
         tag: String,
         message: () -> String,
