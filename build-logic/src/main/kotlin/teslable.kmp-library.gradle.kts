@@ -19,7 +19,7 @@ kotlin {
     jvm()
 
     android {
-        namespace = "io.github.smallmiro.teslable." + project.name.replace('-', '.')
+        namespace = "dev.mirolab.teslable." + project.name.replace('-', '.')
         compileSdk = libs.versions.android.compileSdk.get().toInt()
         minSdk = libs.versions.android.minSdk.get().toInt()
         withHostTest { }

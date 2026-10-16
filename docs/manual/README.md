@@ -16,7 +16,7 @@
 ## 지원 플랫폼
 
 - Android 12 (API 31) 이상, iOS 16 이상
-- 패키지 루트 `io.github.smallmiro.teslable`, 배포는 GitHub Packages + Swift Package Manager (M6)
+- 패키지 루트 `dev.mirolab.teslable`, 배포는 GitHub Packages + Swift Package Manager (M6)
 
 ## 설치
 

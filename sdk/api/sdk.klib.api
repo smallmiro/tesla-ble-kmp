@@ -6,105 +6,105 @@
 // - Show declarations: true
 
 // Library unique name: <tesla-ble-kmp:sdk>
-abstract interface io.github.smallmiro.teslable/Vehicle { // io.github.smallmiro.teslable/Vehicle|null[0]
-    abstract val connection // io.github.smallmiro.teslable/Vehicle.connection|{}connection[0]
-        abstract fun <get-connection>(): kotlinx.coroutines.flow/StateFlow<io.github.smallmiro.teslable.port/TransportState> // io.github.smallmiro.teslable/Vehicle.connection.<get-connection>|<get-connection>(){}[0]
-    abstract val hasKey // io.github.smallmiro.teslable/Vehicle.hasKey|{}hasKey[0]
-        abstract fun <get-hasKey>(): kotlin/Boolean // io.github.smallmiro.teslable/Vehicle.hasKey.<get-hasKey>|<get-hasKey>(){}[0]
-    abstract val sessions // io.github.smallmiro.teslable/Vehicle.sessions|{}sessions[0]
-        abstract fun <get-sessions>(): kotlinx.coroutines.flow/StateFlow<kotlin.collections/Map<io.github.smallmiro.teslable.model/VehicleDomain, io.github.smallmiro.teslable/SessionStatus>> // io.github.smallmiro.teslable/Vehicle.sessions.<get-sessions>|<get-sessions>(){}[0]
-    abstract val vin // io.github.smallmiro.teslable/Vehicle.vin|{}vin[0]
-        abstract fun <get-vin>(): io.github.smallmiro.teslable.model/Vin // io.github.smallmiro.teslable/Vehicle.vin.<get-vin>|<get-vin>(){}[0]
+abstract interface dev.mirolab.teslable/Vehicle { // dev.mirolab.teslable/Vehicle|null[0]
+    abstract val connection // dev.mirolab.teslable/Vehicle.connection|{}connection[0]
+        abstract fun <get-connection>(): kotlinx.coroutines.flow/StateFlow<dev.mirolab.teslable.port/TransportState> // dev.mirolab.teslable/Vehicle.connection.<get-connection>|<get-connection>(){}[0]
+    abstract val hasKey // dev.mirolab.teslable/Vehicle.hasKey|{}hasKey[0]
+        abstract fun <get-hasKey>(): kotlin/Boolean // dev.mirolab.teslable/Vehicle.hasKey.<get-hasKey>|<get-hasKey>(){}[0]
+    abstract val sessions // dev.mirolab.teslable/Vehicle.sessions|{}sessions[0]
+        abstract fun <get-sessions>(): kotlinx.coroutines.flow/StateFlow<kotlin.collections/Map<dev.mirolab.teslable.model/VehicleDomain, dev.mirolab.teslable/SessionStatus>> // dev.mirolab.teslable/Vehicle.sessions.<get-sessions>|<get-sessions>(){}[0]
+    abstract val vin // dev.mirolab.teslable/Vehicle.vin|{}vin[0]
+        abstract fun <get-vin>(): dev.mirolab.teslable.model/Vin // dev.mirolab.teslable/Vehicle.vin.<get-vin>|<get-vin>(){}[0]
 
-    abstract suspend fun disconnect() // io.github.smallmiro.teslable/Vehicle.disconnect|disconnect(){}[0]
-    abstract suspend fun keySummary(kotlin.time/Duration? = ...): io.github.smallmiro.teslable.model/VehicleResult<io.github.smallmiro.teslable.model/WhitelistSummary> // io.github.smallmiro.teslable/Vehicle.keySummary|keySummary(kotlin.time.Duration?){}[0]
-    abstract suspend fun listKeys(kotlin.time/Duration? = ...): io.github.smallmiro.teslable.model/VehicleResult<kotlin.collections/List<io.github.smallmiro.teslable.model/WhitelistEntry>> // io.github.smallmiro.teslable/Vehicle.listKeys|listKeys(kotlin.time.Duration?){}[0]
-    abstract suspend fun startSession(kotlin.collections/Set<io.github.smallmiro.teslable.model/VehicleDomain> = ..., kotlin.time/Duration? = ...): io.github.smallmiro.teslable.model/VehicleResult<kotlin/Unit> // io.github.smallmiro.teslable/Vehicle.startSession|startSession(kotlin.collections.Set<io.github.smallmiro.teslable.model.VehicleDomain>;kotlin.time.Duration?){}[0]
-    abstract suspend fun vehicleStatus(kotlin.time/Duration? = ...): io.github.smallmiro.teslable.model/VehicleResult<io.github.smallmiro.teslable.model/VehicleStatus> // io.github.smallmiro.teslable/Vehicle.vehicleStatus|vehicleStatus(kotlin.time.Duration?){}[0]
+    abstract suspend fun disconnect() // dev.mirolab.teslable/Vehicle.disconnect|disconnect(){}[0]
+    abstract suspend fun keySummary(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.model/WhitelistSummary> // dev.mirolab.teslable/Vehicle.keySummary|keySummary(kotlin.time.Duration?){}[0]
+    abstract suspend fun listKeys(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin.collections/List<dev.mirolab.teslable.model/WhitelistEntry>> // dev.mirolab.teslable/Vehicle.listKeys|listKeys(kotlin.time.Duration?){}[0]
+    abstract suspend fun startSession(kotlin.collections/Set<dev.mirolab.teslable.model/VehicleDomain> = ..., kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable/Vehicle.startSession|startSession(kotlin.collections.Set<dev.mirolab.teslable.model.VehicleDomain>;kotlin.time.Duration?){}[0]
+    abstract suspend fun vehicleStatus(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.model/VehicleStatus> // dev.mirolab.teslable/Vehicle.vehicleStatus|vehicleStatus(kotlin.time.Duration?){}[0]
 }
 
-sealed interface io.github.smallmiro.teslable/SessionStatus { // io.github.smallmiro.teslable/SessionStatus|null[0]
-    final class Ready : io.github.smallmiro.teslable/SessionStatus { // io.github.smallmiro.teslable/SessionStatus.Ready|null[0]
-        constructor <init>(kotlin/Boolean) // io.github.smallmiro.teslable/SessionStatus.Ready.<init>|<init>(kotlin.Boolean){}[0]
+sealed interface dev.mirolab.teslable/SessionStatus { // dev.mirolab.teslable/SessionStatus|null[0]
+    final class Ready : dev.mirolab.teslable/SessionStatus { // dev.mirolab.teslable/SessionStatus.Ready|null[0]
+        constructor <init>(kotlin/Boolean) // dev.mirolab.teslable/SessionStatus.Ready.<init>|<init>(kotlin.Boolean){}[0]
 
-        final val fromCache // io.github.smallmiro.teslable/SessionStatus.Ready.fromCache|{}fromCache[0]
-            final fun <get-fromCache>(): kotlin/Boolean // io.github.smallmiro.teslable/SessionStatus.Ready.fromCache.<get-fromCache>|<get-fromCache>(){}[0]
+        final val fromCache // dev.mirolab.teslable/SessionStatus.Ready.fromCache|{}fromCache[0]
+            final fun <get-fromCache>(): kotlin/Boolean // dev.mirolab.teslable/SessionStatus.Ready.fromCache.<get-fromCache>|<get-fromCache>(){}[0]
 
-        final fun component1(): kotlin/Boolean // io.github.smallmiro.teslable/SessionStatus.Ready.component1|component1(){}[0]
-        final fun copy(kotlin/Boolean = ...): io.github.smallmiro.teslable/SessionStatus.Ready // io.github.smallmiro.teslable/SessionStatus.Ready.copy|copy(kotlin.Boolean){}[0]
-        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable/SessionStatus.Ready.equals|equals(kotlin.Any?){}[0]
-        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable/SessionStatus.Ready.hashCode|hashCode(){}[0]
-        final fun toString(): kotlin/String // io.github.smallmiro.teslable/SessionStatus.Ready.toString|toString(){}[0]
+        final fun component1(): kotlin/Boolean // dev.mirolab.teslable/SessionStatus.Ready.component1|component1(){}[0]
+        final fun copy(kotlin/Boolean = ...): dev.mirolab.teslable/SessionStatus.Ready // dev.mirolab.teslable/SessionStatus.Ready.copy|copy(kotlin.Boolean){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable/SessionStatus.Ready.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.mirolab.teslable/SessionStatus.Ready.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.mirolab.teslable/SessionStatus.Ready.toString|toString(){}[0]
     }
 
-    final object Handshaking : io.github.smallmiro.teslable/SessionStatus { // io.github.smallmiro.teslable/SessionStatus.Handshaking|null[0]
-        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable/SessionStatus.Handshaking.equals|equals(kotlin.Any?){}[0]
-        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable/SessionStatus.Handshaking.hashCode|hashCode(){}[0]
-        final fun toString(): kotlin/String // io.github.smallmiro.teslable/SessionStatus.Handshaking.toString|toString(){}[0]
+    final object Handshaking : dev.mirolab.teslable/SessionStatus { // dev.mirolab.teslable/SessionStatus.Handshaking|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable/SessionStatus.Handshaking.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.mirolab.teslable/SessionStatus.Handshaking.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.mirolab.teslable/SessionStatus.Handshaking.toString|toString(){}[0]
     }
 
-    final object None : io.github.smallmiro.teslable/SessionStatus { // io.github.smallmiro.teslable/SessionStatus.None|null[0]
-        final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable/SessionStatus.None.equals|equals(kotlin.Any?){}[0]
-        final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable/SessionStatus.None.hashCode|hashCode(){}[0]
-        final fun toString(): kotlin/String // io.github.smallmiro.teslable/SessionStatus.None.toString|toString(){}[0]
-    }
-}
-
-final class io.github.smallmiro.teslable/DebugLogger : io.github.smallmiro.teslable.port/TeslaLogger { // io.github.smallmiro.teslable/DebugLogger|null[0]
-    constructor <init>() // io.github.smallmiro.teslable/DebugLogger.<init>|<init>(){}[0]
-
-    final fun log(io.github.smallmiro.teslable.port/LogLevel, kotlin/String, kotlin/Function0<kotlin/String>) // io.github.smallmiro.teslable/DebugLogger.log|log(io.github.smallmiro.teslable.port.LogLevel;kotlin.String;kotlin.Function0<kotlin.String>){}[0]
-}
-
-final class io.github.smallmiro.teslable/PlatformContext { // io.github.smallmiro.teslable/PlatformContext|null[0]
-    constructor <init>() // io.github.smallmiro.teslable/PlatformContext.<init>|<init>(){}[0]
-}
-
-final class io.github.smallmiro.teslable/TeslaBle { // io.github.smallmiro.teslable/TeslaBle|null[0]
-    final val keys // io.github.smallmiro.teslable/TeslaBle.keys|{}keys[0]
-        final fun <get-keys>(): io.github.smallmiro.teslable.port/VehicleKeyStore // io.github.smallmiro.teslable/TeslaBle.keys.<get-keys>|<get-keys>(){}[0]
-
-    final fun scan(io.github.smallmiro.teslable.model/Vin): kotlinx.coroutines.flow/Flow<io.github.smallmiro.teslable.port/ScanEvent> // io.github.smallmiro.teslable/TeslaBle.scan|scan(io.github.smallmiro.teslable.model.Vin){}[0]
-    final suspend fun close() // io.github.smallmiro.teslable/TeslaBle.close|close(){}[0]
-    final suspend fun connect(io.github.smallmiro.teslable.model/Vin, io.github.smallmiro.teslable.port/VehicleKey?, io.github.smallmiro.teslable.port/VehicleAdvertisement? = ..., io.github.smallmiro.teslable.port/ConnectOptions = ...): io.github.smallmiro.teslable.model/VehicleResult<io.github.smallmiro.teslable/Vehicle> // io.github.smallmiro.teslable/TeslaBle.connect|connect(io.github.smallmiro.teslable.model.Vin;io.github.smallmiro.teslable.port.VehicleKey?;io.github.smallmiro.teslable.port.VehicleAdvertisement?;io.github.smallmiro.teslable.port.ConnectOptions){}[0]
-
-    final object Companion { // io.github.smallmiro.teslable/TeslaBle.Companion|null[0]
-        final fun create(io.github.smallmiro.teslable/PlatformContext, io.github.smallmiro.teslable/TeslaBleConfig = ...): io.github.smallmiro.teslable/TeslaBle // io.github.smallmiro.teslable/TeslaBle.Companion.create|create(io.github.smallmiro.teslable.PlatformContext;io.github.smallmiro.teslable.TeslaBleConfig){}[0]
+    final object None : dev.mirolab.teslable/SessionStatus { // dev.mirolab.teslable/SessionStatus.None|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable/SessionStatus.None.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.mirolab.teslable/SessionStatus.None.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.mirolab.teslable/SessionStatus.None.toString|toString(){}[0]
     }
 }
 
-final class io.github.smallmiro.teslable/TeslaBleConfig { // io.github.smallmiro.teslable/TeslaBleConfig|null[0]
-    constructor <init>(io.github.smallmiro.teslable.port/TeslaLogger = ..., io.github.smallmiro.teslable.port/SessionCache? = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ...) // io.github.smallmiro.teslable/TeslaBleConfig.<init>|<init>(io.github.smallmiro.teslable.port.TeslaLogger;io.github.smallmiro.teslable.port.SessionCache?;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
+final class dev.mirolab.teslable/DebugLogger : dev.mirolab.teslable.port/TeslaLogger { // dev.mirolab.teslable/DebugLogger|null[0]
+    constructor <init>() // dev.mirolab.teslable/DebugLogger.<init>|<init>(){}[0]
 
-    final val commandLifetime // io.github.smallmiro.teslable/TeslaBleConfig.commandLifetime|{}commandLifetime[0]
-        final fun <get-commandLifetime>(): kotlin.time/Duration // io.github.smallmiro.teslable/TeslaBleConfig.commandLifetime.<get-commandLifetime>|<get-commandLifetime>(){}[0]
-    final val commandTimeout // io.github.smallmiro.teslable/TeslaBleConfig.commandTimeout|{}commandTimeout[0]
-        final fun <get-commandTimeout>(): kotlin.time/Duration // io.github.smallmiro.teslable/TeslaBleConfig.commandTimeout.<get-commandTimeout>|<get-commandTimeout>(){}[0]
-    final val connectTimeout // io.github.smallmiro.teslable/TeslaBleConfig.connectTimeout|{}connectTimeout[0]
-        final fun <get-connectTimeout>(): kotlin.time/Duration // io.github.smallmiro.teslable/TeslaBleConfig.connectTimeout.<get-connectTimeout>|<get-connectTimeout>(){}[0]
-    final val handshakeTimeout // io.github.smallmiro.teslable/TeslaBleConfig.handshakeTimeout|{}handshakeTimeout[0]
-        final fun <get-handshakeTimeout>(): kotlin.time/Duration // io.github.smallmiro.teslable/TeslaBleConfig.handshakeTimeout.<get-handshakeTimeout>|<get-handshakeTimeout>(){}[0]
-    final val logger // io.github.smallmiro.teslable/TeslaBleConfig.logger|{}logger[0]
-        final fun <get-logger>(): io.github.smallmiro.teslable.port/TeslaLogger // io.github.smallmiro.teslable/TeslaBleConfig.logger.<get-logger>|<get-logger>(){}[0]
-    final val sessionCache // io.github.smallmiro.teslable/TeslaBleConfig.sessionCache|{}sessionCache[0]
-        final fun <get-sessionCache>(): io.github.smallmiro.teslable.port/SessionCache? // io.github.smallmiro.teslable/TeslaBleConfig.sessionCache.<get-sessionCache>|<get-sessionCache>(){}[0]
+    final fun log(dev.mirolab.teslable.port/LogLevel, kotlin/String, kotlin/Function0<kotlin/String>) // dev.mirolab.teslable/DebugLogger.log|log(dev.mirolab.teslable.port.LogLevel;kotlin.String;kotlin.Function0<kotlin.String>){}[0]
+}
 
-    final fun component1(): io.github.smallmiro.teslable.port/TeslaLogger // io.github.smallmiro.teslable/TeslaBleConfig.component1|component1(){}[0]
-    final fun component2(): io.github.smallmiro.teslable.port/SessionCache? // io.github.smallmiro.teslable/TeslaBleConfig.component2|component2(){}[0]
-    final fun component3(): kotlin.time/Duration // io.github.smallmiro.teslable/TeslaBleConfig.component3|component3(){}[0]
-    final fun component4(): kotlin.time/Duration // io.github.smallmiro.teslable/TeslaBleConfig.component4|component4(){}[0]
-    final fun component5(): kotlin.time/Duration // io.github.smallmiro.teslable/TeslaBleConfig.component5|component5(){}[0]
-    final fun component6(): kotlin.time/Duration // io.github.smallmiro.teslable/TeslaBleConfig.component6|component6(){}[0]
-    final fun copy(io.github.smallmiro.teslable.port/TeslaLogger = ..., io.github.smallmiro.teslable.port/SessionCache? = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ...): io.github.smallmiro.teslable/TeslaBleConfig // io.github.smallmiro.teslable/TeslaBleConfig.copy|copy(io.github.smallmiro.teslable.port.TeslaLogger;io.github.smallmiro.teslable.port.SessionCache?;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
-    final fun equals(kotlin/Any?): kotlin/Boolean // io.github.smallmiro.teslable/TeslaBleConfig.equals|equals(kotlin.Any?){}[0]
-    final fun hashCode(): kotlin/Int // io.github.smallmiro.teslable/TeslaBleConfig.hashCode|hashCode(){}[0]
-    final fun toString(): kotlin/String // io.github.smallmiro.teslable/TeslaBleConfig.toString|toString(){}[0]
+final class dev.mirolab.teslable/PlatformContext { // dev.mirolab.teslable/PlatformContext|null[0]
+    constructor <init>() // dev.mirolab.teslable/PlatformContext.<init>|<init>(){}[0]
+}
 
-    final object Companion { // io.github.smallmiro.teslable/TeslaBleConfig.Companion|null[0]
-        final fun default(io.github.smallmiro.teslable.port/TeslaLogger = ...): io.github.smallmiro.teslable/TeslaBleConfig // io.github.smallmiro.teslable/TeslaBleConfig.Companion.default|default(io.github.smallmiro.teslable.port.TeslaLogger){}[0]
+final class dev.mirolab.teslable/TeslaBle { // dev.mirolab.teslable/TeslaBle|null[0]
+    final val keys // dev.mirolab.teslable/TeslaBle.keys|{}keys[0]
+        final fun <get-keys>(): dev.mirolab.teslable.port/VehicleKeyStore // dev.mirolab.teslable/TeslaBle.keys.<get-keys>|<get-keys>(){}[0]
+
+    final fun scan(dev.mirolab.teslable.model/Vin): kotlinx.coroutines.flow/Flow<dev.mirolab.teslable.port/ScanEvent> // dev.mirolab.teslable/TeslaBle.scan|scan(dev.mirolab.teslable.model.Vin){}[0]
+    final suspend fun close() // dev.mirolab.teslable/TeslaBle.close|close(){}[0]
+    final suspend fun connect(dev.mirolab.teslable.model/Vin, dev.mirolab.teslable.port/VehicleKey?, dev.mirolab.teslable.port/VehicleAdvertisement? = ..., dev.mirolab.teslable.port/ConnectOptions = ...): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable/Vehicle> // dev.mirolab.teslable/TeslaBle.connect|connect(dev.mirolab.teslable.model.Vin;dev.mirolab.teslable.port.VehicleKey?;dev.mirolab.teslable.port.VehicleAdvertisement?;dev.mirolab.teslable.port.ConnectOptions){}[0]
+
+    final object Companion { // dev.mirolab.teslable/TeslaBle.Companion|null[0]
+        final fun create(dev.mirolab.teslable/PlatformContext, dev.mirolab.teslable/TeslaBleConfig = ...): dev.mirolab.teslable/TeslaBle // dev.mirolab.teslable/TeslaBle.Companion.create|create(dev.mirolab.teslable.PlatformContext;dev.mirolab.teslable.TeslaBleConfig){}[0]
     }
 }
 
-final object io.github.smallmiro.teslable/TeslableDiagnostics { // io.github.smallmiro.teslable/TeslableDiagnostics|null[0]
-    final suspend fun probe(kotlin/String, kotlin/Boolean, kotlin/Function1<kotlin/String, kotlin/Unit>) // io.github.smallmiro.teslable/TeslableDiagnostics.probe|probe(kotlin.String;kotlin.Boolean;kotlin.Function1<kotlin.String,kotlin.Unit>){}[0]
+final class dev.mirolab.teslable/TeslaBleConfig { // dev.mirolab.teslable/TeslaBleConfig|null[0]
+    constructor <init>(dev.mirolab.teslable.port/TeslaLogger = ..., dev.mirolab.teslable.port/SessionCache? = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ...) // dev.mirolab.teslable/TeslaBleConfig.<init>|<init>(dev.mirolab.teslable.port.TeslaLogger;dev.mirolab.teslable.port.SessionCache?;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
+
+    final val commandLifetime // dev.mirolab.teslable/TeslaBleConfig.commandLifetime|{}commandLifetime[0]
+        final fun <get-commandLifetime>(): kotlin.time/Duration // dev.mirolab.teslable/TeslaBleConfig.commandLifetime.<get-commandLifetime>|<get-commandLifetime>(){}[0]
+    final val commandTimeout // dev.mirolab.teslable/TeslaBleConfig.commandTimeout|{}commandTimeout[0]
+        final fun <get-commandTimeout>(): kotlin.time/Duration // dev.mirolab.teslable/TeslaBleConfig.commandTimeout.<get-commandTimeout>|<get-commandTimeout>(){}[0]
+    final val connectTimeout // dev.mirolab.teslable/TeslaBleConfig.connectTimeout|{}connectTimeout[0]
+        final fun <get-connectTimeout>(): kotlin.time/Duration // dev.mirolab.teslable/TeslaBleConfig.connectTimeout.<get-connectTimeout>|<get-connectTimeout>(){}[0]
+    final val handshakeTimeout // dev.mirolab.teslable/TeslaBleConfig.handshakeTimeout|{}handshakeTimeout[0]
+        final fun <get-handshakeTimeout>(): kotlin.time/Duration // dev.mirolab.teslable/TeslaBleConfig.handshakeTimeout.<get-handshakeTimeout>|<get-handshakeTimeout>(){}[0]
+    final val logger // dev.mirolab.teslable/TeslaBleConfig.logger|{}logger[0]
+        final fun <get-logger>(): dev.mirolab.teslable.port/TeslaLogger // dev.mirolab.teslable/TeslaBleConfig.logger.<get-logger>|<get-logger>(){}[0]
+    final val sessionCache // dev.mirolab.teslable/TeslaBleConfig.sessionCache|{}sessionCache[0]
+        final fun <get-sessionCache>(): dev.mirolab.teslable.port/SessionCache? // dev.mirolab.teslable/TeslaBleConfig.sessionCache.<get-sessionCache>|<get-sessionCache>(){}[0]
+
+    final fun component1(): dev.mirolab.teslable.port/TeslaLogger // dev.mirolab.teslable/TeslaBleConfig.component1|component1(){}[0]
+    final fun component2(): dev.mirolab.teslable.port/SessionCache? // dev.mirolab.teslable/TeslaBleConfig.component2|component2(){}[0]
+    final fun component3(): kotlin.time/Duration // dev.mirolab.teslable/TeslaBleConfig.component3|component3(){}[0]
+    final fun component4(): kotlin.time/Duration // dev.mirolab.teslable/TeslaBleConfig.component4|component4(){}[0]
+    final fun component5(): kotlin.time/Duration // dev.mirolab.teslable/TeslaBleConfig.component5|component5(){}[0]
+    final fun component6(): kotlin.time/Duration // dev.mirolab.teslable/TeslaBleConfig.component6|component6(){}[0]
+    final fun copy(dev.mirolab.teslable.port/TeslaLogger = ..., dev.mirolab.teslable.port/SessionCache? = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ...): dev.mirolab.teslable/TeslaBleConfig // dev.mirolab.teslable/TeslaBleConfig.copy|copy(dev.mirolab.teslable.port.TeslaLogger;dev.mirolab.teslable.port.SessionCache?;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable/TeslaBleConfig.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.mirolab.teslable/TeslaBleConfig.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.mirolab.teslable/TeslaBleConfig.toString|toString(){}[0]
+
+    final object Companion { // dev.mirolab.teslable/TeslaBleConfig.Companion|null[0]
+        final fun default(dev.mirolab.teslable.port/TeslaLogger = ...): dev.mirolab.teslable/TeslaBleConfig // dev.mirolab.teslable/TeslaBleConfig.Companion.default|default(dev.mirolab.teslable.port.TeslaLogger){}[0]
+    }
+}
+
+final object dev.mirolab.teslable/TeslableDiagnostics { // dev.mirolab.teslable/TeslableDiagnostics|null[0]
+    final suspend fun probe(kotlin/String, kotlin/Boolean, kotlin/Function1<kotlin/String, kotlin/Unit>) // dev.mirolab.teslable/TeslableDiagnostics.probe|probe(kotlin.String;kotlin.Boolean;kotlin.Function1<kotlin.String,kotlin.Unit>){}[0]
 }

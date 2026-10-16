@@ -1,0 +1,108 @@
+// Task 6 브리프: 하네스(DispatcherHarness)와 헬퍼 함수를 한 파일에 모아 Task 7~11이 재사용한다(단일 top-level 선언 규칙 예외).
+@file:Suppress("MatchingDeclarationName")
+
+package dev.mirolab.teslable.application.dispatcher
+
+import com.tesla.generated.universalmessage.Destination
+import com.tesla.generated.universalmessage.Domain
+import com.tesla.generated.universalmessage.RoutableMessage
+import dev.mirolab.teslable.model.PublicKeyBytes
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.EcdhPrivateKey
+import dev.mirolab.teslable.testing.FakeTransport
+import dev.mirolab.teslable.testing.FakeVehicle
+import dev.mirolab.teslable.testing.RecordingLogger
+import dev.mirolab.teslable.testing.TestCrypto
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.NonCancellable
+import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.testTimeSource
+import kotlinx.coroutines.withContext
+import okio.ByteString.Companion.toByteString
+import kotlin.test.assertIs
+import kotlin.test.assertNotNull
+import kotlin.test.assertTrue
+import kotlin.time.Duration
+import kotlin.time.Duration.Companion.milliseconds
+
+/** Go `getTestSetup`의 결과물. `dispatcher`는 `backgroundScope`에서 수신한다(테스트가 끝나면 자동 취소). */
+internal class DispatcherHarness(
+    val fake: FakeVehicle,
+    val transport: FakeTransport,
+    val dispatcher: Dispatcher,
+    val logger: RecordingLogger,
+)
+
+/**
+ * Go `getTestSetup` 앞부분(생성 + Start). 핸드셰이크는 `manualHandshake` 또는 Task 7 `HandshakeFlow`로.
+ * [transport]는 기본으로 [fake]에 새 전송을 하나 붙이지만, 회복 시나리오(Task 11 시나리오 7)처럼 `fake.connect()`가
+ * 돌려준 전송을 그대로 재사용해야 할 때는 호출자가 넘긴다 — 그래야 "connect로 얻은 전송 위에서 세션이 동작한다"를
+ * 실제로 검증한다(연결과 핸드셰이크 사이에 별개의 전송을 몰래 새로 만들지 않는다).
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
+internal fun TestScope.dispatcherHarness(
+    privateKey: EcdhPrivateKey? = TestCrypto.clientKey(),
+    fake: FakeVehicle = FakeVehicle(timeSource = testTimeSource),
+    start: Boolean = true,
+    retryInterval: Duration = 1.milliseconds,
+    transport: FakeTransport = fake.transport(retryInterval),
+): DispatcherHarness {
+    val logger = RecordingLogger()
+    val dispatcher = Dispatcher(transport, privateKey, TestCrypto.primitives, TestCrypto.random, backgroundScope, testTimeSource, logger)
+    if (start) dispatcher.start()
+    return DispatcherHarness(fake, transport, dispatcher, logger)
+}
+
+/** dispatcher_test.go `testCommand()`: INFOTAINMENT, payload "hello". */
+internal fun testCommand(
+    domain: Domain = Domain.DOMAIN_INFOTAINMENT,
+    payload: String = "hello",
+    flags: Int = 0,
+): RoutableMessage =
+    RoutableMessage(
+        to_destination = Destination(domain = domain),
+        protobuf_message_as_bytes = payload.encodeToByteArray().toByteString(),
+        flags = flags,
+    )
+
+/** dispatcher_test.go `replyWithPayload` + `populateReplyMetadata`: 요청(디스패처가 조립한 뒤의 것)에 대한 평문 응답. */
+internal fun replyTo(
+    request: RoutableMessage,
+    payload: ByteArray,
+): RoutableMessage =
+    RoutableMessage(
+        to_destination = request.from_destination,
+        from_destination = Destination(domain = request.to_destination?.domain),
+        request_uuid = request.uuid,
+        uuid = FakeVehicle.TEST_UUID.toByteString(),
+        protobuf_message_as_bytes = payload.toByteString(),
+    )
+
+internal fun encode(message: RoutableMessage): ByteArray = RoutableMessage.ADAPTER.encode(message)
+
+/** Task 7 이전의 수동 핸드셰이크: 세션정보 요청 → FakeVehicle 응답이 수신 루프에서 processHello된 뒤 채널로 온다. */
+internal suspend fun DispatcherHarness.manualHandshake(domain: Domain) {
+    val pending = assertIs<VehicleResult.Success<PendingRequest>>(dispatcher.requestSessionInfo(domain)).value
+    pending.use { assertNotNull(it.receive().session_info) }
+    assertTrue(assertNotNull(dispatcher.session(domain)).isReady, "session for $domain must be ready")
+}
+
+/**
+ * [EcdhPrivateKey]를 감싸 [sharedX]가 [gate]가 끝날 때까지 진짜로 suspend하게 만든다. `checkForSessionUpdate`의
+ * 첫 `processHello`가 이 안에서 ECDH를 계산하므로, 이 키를 쓰면 수신 코루틴이 `process()` 한가운데(핸들러를
+ * `lookup()`한 뒤, `deliver()`하기 전)에서 확실히 멈추게 만들 수 있다 — 테스트 전용. `NonCancellable`로 감싸 그
+ * 코루틴이 취소되어도 [gate]가 열리기 전까지는 절대 빠져나가지 않는다 — "취소해도
+ * 즉시 끝나지 않고 실제로 process() 안에서 계속 멈춰 있는" 상황을 만든다.
+ */
+internal class StuckEcdhKey(
+    private val delegate: EcdhPrivateKey,
+    private val gate: CompletableDeferred<Unit>,
+) : EcdhPrivateKey {
+    override val publicKey: PublicKeyBytes get() = delegate.publicKey
+
+    override suspend fun sharedX(peer: PublicKeyBytes): ByteArray {
+        withContext(NonCancellable) { gate.await() }
+        return delegate.sharedX(peer)
+    }
+}

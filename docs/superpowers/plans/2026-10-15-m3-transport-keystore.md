@@ -27,7 +27,7 @@ SDD·ADR이 비워 두었거나 M2 인계 노트가 "M3에서 정한다"고 남�
 7. **권한·블루투스 꺼짐(FR-006).** Kable은 어댑터 상태·권한을 공개 흐름으로 주지 않는다(`Bluetooth.availability`는 ERROR 수준 deprecated). 스캔·연결 직전에 `BleAvailability.check()`(Android: `checkSelfPermission(BLUETOOTH_SCAN/CONNECT)`, iOS: `CBManager.authorization`의 denied/restricted)로 `PermissionDenied`를 먼저 돌려주고, 그 뒤 Kable 예외(`UnmetRequirementException(BluetoothDisabled)` → `BluetoothOff`, `IllegalStateException("Missing required … permission")`·`SecurityException` → `PermissionDenied`, `NotConnectedException`/`GattStatusException`/`IOException` → `ConnectFailed`)를 `KableErrors.map`이 변환한다. 실시간 어댑터 상태 흐름은 M3 범위가 아니다.
 8. **`VehicleKeyStore`도 값으로 돌려준다(ADR-0006).** `getOrCreate(alias, policy): VehicleResult<VehicleKey>`, `get(alias): VehicleResult<VehicleKey?>`(없으면 `Success(null)`), `delete(alias): VehicleResult<Unit>`(없어도 성공). SDD §2.1 시그니처를 Task 2에서 고친다. `KeyPolicy`는 `PREFER_HARDWARE`(기본, D10) / `REQUIRE_HARDWARE`(하드웨어가 없으면 `Failure(HardwareUnavailable)`) / `SOFTWARE_ONLY`(테스트·에뮬레이터). JVM 타깃은 **비영속 `InMemoryVehicleKeyStore`**(소프트웨어 키)로 둔다 — 제품 타깃이 아니라 테스트·데스크톱 실험용이며 `platform-notes.md`에 적는다.
 9. **FR-028(로컬 키 삭제 시 캐시 비움)은 기존 `keyId` 검사로 충족한다.** 세션 캐시는 VIN당 하나이고 `keyId = SHA1(공개키)`가 들어 있어(D26), 키를 지운 뒤 새 키로 `connect()`하면 `SessionCache.load`가 `keyId` 불일치로 그 항목을 지운다(M2 `InMemorySessionCache`·Task 9 플랫폼 캐시 모두 같은 규칙). 별도의 "모든 VIN 캐시 비우기" API는 만들지 않는다(YAGNI). `TeslaBle.keys`의 KDoc이 이 동작을 밝힌다.
-10. **소프트웨어 대체 키의 보관 형식.** 두 플랫폼 모두 개인키를 `04‖X‖Y‖d` 97바이트(Apple `SecKeyCopyExternalRepresentation` 형식, `SoftwareKeyPair.toExternal`)로 다룬다. Android: 이 97바이트를 Keystore AES-256-GCM 키(`<alias>.wrap`)로 감싸 `filesDir/teslable/keys/<alias>.enc`에 둔다 — 형식 `"TBK1"(4) | iv(12) | ciphertext+tag`(SDD §8.2의 PKCS#8 대신; Task 15가 SDD를 고친다). 손상된 파일·항목은 새 키로 자동 교체하지 않고 `Failure(PlatformFailure("stored key is corrupted"))`(조용히 바꾸면 차량에 등록된 키를 잃는다). iOS: 같은 97바이트를 Keychain generic password(service `io.github.smallmiro.teslable.key`, account = alias, `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`)에 둔다. Secure Enclave 키는 Keychain에 영속 키(`kSecAttrIsPermanent`, `kSecAttrApplicationTag = "io.github.smallmiro.teslable.key.<alias>"`)로 둔다.
+10. **소프트웨어 대체 키의 보관 형식.** 두 플랫폼 모두 개인키를 `04‖X‖Y‖d` 97바이트(Apple `SecKeyCopyExternalRepresentation` 형식, `SoftwareKeyPair.toExternal`)로 다룬다. Android: 이 97바이트를 Keystore AES-256-GCM 키(`<alias>.wrap`)로 감싸 `filesDir/teslable/keys/<alias>.enc`에 둔다 — 형식 `"TBK1"(4) | iv(12) | ciphertext+tag`(SDD §8.2의 PKCS#8 대신; Task 15가 SDD를 고친다). 손상된 파일·항목은 새 키로 자동 교체하지 않고 `Failure(PlatformFailure("stored key is corrupted"))`(조용히 바꾸면 차량에 등록된 키를 잃는다). iOS: 같은 97바이트를 Keychain generic password(service `dev.mirolab.teslable.key`, account = alias, `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`)에 둔다. Secure Enclave 키는 Keychain에 영속 키(`kSecAttrIsPermanent`, `kSecAttrApplicationTag = "dev.mirolab.teslable.key.<alias>"`)로 둔다.
 11. **Keychain 래퍼는 어댑터마다 하나씩 둔다.** `:adapter-crypto`(키)와 `:adapter-storage`(세션 캐시)는 서로 의존할 수 없다(ADR-0001). 각 모듈에 `internal interface KeychainItems`(generic password `read`/`write`/`delete`)와 iOS 구현을 따로 둔다(약 60줄 중복). 로직 테스트는 가짜 `KeychainItems`로 하고, 실제 Keychain은 iPhone 샘플 앱에서 사용자가 확인한다 — Kotlin/Native 시뮬레이터 테스트 실행 파일은 호스트 앱·entitlement가 없어 Keychain이 `errSecMissingEntitlement(-34018)`로 실패할 수 있기 때문이다(Task 8 Step 1이 이것을 먼저 확인하고, 동작하면 실제 Keychain 왕복 테스트를 추가한다).
 12. **인증 없는 VCSEC 조회(FR-025, FR-031, FR-032).** Go `getVCSECInfo`(`vcsec.go:107-130`): `UnsignedMessage{InformationRequest{type, slot?}}`를 `AuthMethod.NONE` + `FIRST_MESSAGE`로 보낸다. 기존 `VcsecCommands.execute`를 그대로 써서 VCSEC 직렬화(FR-049)를 공유한다. Go는 응답에 해당 필드가 없으면 `(nil, nil)`을 돌려주지만(`state.go:13-19`, `security.go:290-304`) 우리는 `Failure(BadResponse("missing <field>"))`로 돌려준다(값 객체를 만들 수 없음). `listKeys`는 Go `list-keys`(`cmd/tesla-control/commands.go:489-517`)처럼 `slotMask`의 켜진 비트마다 `keyInfoBySlot`을 부르되, Go가 실패한 슬롯을 출력하고 건너뛰는 것과 달리 **첫 실패를 돌려준다**(부분 목록은 앱이 "키가 없다"로 오해할 수 있다). `timeout`은 Go ctx처럼 `listKeys` 전체에 하나다(남은 시간을 각 요청에 넘긴다).
 13. **`VehicleSession`은 연결당 한 번만 쓴다(M2 인계).** `connect()`는 멱등이고, `disconnect()` 뒤 `connect()`는 `IllegalStateException`(프로그래밍 오류) — 재연결은 `TeslaBle.connect()`가 새 `Dispatcher`/`VehicleSession`을 만든다. `SessionState`에 영구 "닫힘" 플래그를 두어 `close()` 뒤의 `processHello`/`loadFromCache`가 키를 다시 만들지 않게 한다. `VehicleSession.send`(=`SendWithRetry`)는 `DOMAIN_VEHICLE_SECURITY`를 `Failure(InvalidArgument)`로 거부한다(VCSEC 직렬화 우회 차단, M2 최종 리뷰 Minor 9).
@@ -39,7 +39,7 @@ SDD·ADR이 비워 두었거나 M2 인계 노트가 "M3에서 정한다"고 남�
 
 ## Global Constraints
 
-- 패키지 루트 `io.github.smallmiro.teslable`. `:adapter-ble` → `io.github.smallmiro.teslable.ble`, `:adapter-crypto` → `…crypto`, `:adapter-storage` → `…storage`, `:application` → `…application.*`, `:sdk` → `io.github.smallmiro.teslable`(파사드). Wire 생성 코드는 `com.tesla.generated.*` 그대로.
+- 패키지 루트 `dev.mirolab.teslable`. `:adapter-ble` → `dev.mirolab.teslable.ble`, `:adapter-crypto` → `…crypto`, `:adapter-storage` → `…storage`, `:application` → `…application.*`, `:sdk` → `dev.mirolab.teslable`(파사드). Wire 생성 코드는 `com.tesla.generated.*` 그대로.
 - 타깃: `jvm()`, Android(`minSdk 31`, `compileSdk 37`), `iosArm64()`, `iosSimulatorArm64()`, iOS 배포 타깃 16.0.
 - 모든 라이브러리 모듈은 `explicitApi()`, `allWarningsAsErrors = true`, 공개 API에 한국어 한 줄 이상 KDoc(detekt `UndocumentedPublic*`). `MaxLineLength` 140.
 - 의존 방향(ADR-0001, `build-logic/…/teslable.boundaries.gradle.kts`): `:application`·`:adapter-*` → `:domain`만, `:sdk` → 전부, `samples/*` → `:sdk`만, `:testing` → `:domain`·`:adapter-crypto`(테스트 소스셋에서만 참조). **이 계획은 경계 표를 바꾸지 않는다.** `:adapter-ble`·`:sdk`의 `commonTest`에 `:testing`을 추가하는 것은 허용된다(테스트 구성).
@@ -151,13 +151,13 @@ Task 1은 사용자가 실차에서 실행해야 끝난다. 결과를 기다리�
 **목적:** 실차에서 (1) 0213의 properties(notify/indicate), (2) Kable 기본 `observe`로 응답이 오는지, (3) `maximumWriteValueLengthForType(WithResponse)` 값을 로그로 확인한다. 인증 없는 `GET_WHITELIST_INFO`(Go `list-keys`의 첫 요청)를 보내 `whitelistInfo`가 돌아오면 "기본 구독으로 충분"이다. 결과는 ADR-0003에 기록하고 Task 5의 구독 방식을 정한다(설계 구체화 4). 이 Task의 프로브 코드는 TDD 예외이며(설계 구체화 17) Task 14에서 지운다.
 
 **Files:**
-- Create: `adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BleUuids.kt`
-- Create: `adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/GattProbe.kt`
-- Delete: `adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/Placeholder.kt`
-- Create: `adapter-ble/src/commonTest/kotlin/io/github/smallmiro/teslable/ble/BleUuidsTest.kt`
+- Create: `adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/BleUuids.kt`
+- Create: `adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/GattProbe.kt`
+- Delete: `adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/Placeholder.kt`
+- Create: `adapter-ble/src/commonTest/kotlin/dev/mirolab/teslable/ble/BleUuidsTest.kt`
 - Modify: `adapter-ble/build.gradle.kts` (commonTest에 `:testing`)
-- Create: `sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/TeslableDiagnostics.kt`
-- Create: `sdk/src/commonTest/kotlin/io/github/smallmiro/teslable/ProbeRequestTest.kt`
+- Create: `sdk/src/commonMain/kotlin/dev/mirolab/teslable/TeslableDiagnostics.kt`
+- Create: `sdk/src/commonTest/kotlin/dev/mirolab/teslable/ProbeRequestTest.kt`
 - Modify: `sdk/build.gradle.kts` (commonTest에 `:testing`)
 - Create: `samples/ios/Sources/DiagnosticsView.swift`
 - Modify: `samples/ios/Sources/ContentView.swift`, `samples/ios/project.yml`, `.gitignore`
@@ -180,8 +180,8 @@ Task 1은 사용자가 실차에서 실행해야 끝난다. 결과를 기다리�
 `sdk/build.gradle.kts`의 `sourceSets`에 같은 줄을 추가한다.
 
 ```kotlin
-// adapter-ble/src/commonTest/kotlin/io/github/smallmiro/teslable/ble/BleUuidsTest.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/commonTest/kotlin/dev/mirolab/teslable/ble/BleUuidsTest.kt
+package dev.mirolab.teslable.ble
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -199,16 +199,16 @@ class BleUuidsTest {
 ```
 
 ```kotlin
-// sdk/src/commonTest/kotlin/io/github/smallmiro/teslable/ProbeRequestTest.kt
-package io.github.smallmiro.teslable
+// sdk/src/commonTest/kotlin/dev/mirolab/teslable/ProbeRequestTest.kt
+package dev.mirolab.teslable
 
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
 import com.tesla.generated.vcsec.FromVCSECMessage
 import com.tesla.generated.vcsec.WhitelistInfo
-import io.github.smallmiro.teslable.testing.FixedRandom
-import io.github.smallmiro.teslable.util.hexToBytes
-import io.github.smallmiro.teslable.util.toHex
+import dev.mirolab.teslable.testing.FixedRandom
+import dev.mirolab.teslable.util.hexToBytes
+import dev.mirolab.teslable.util.toHex
 import okio.ByteString.Companion.toByteString
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -262,10 +262,10 @@ Expected: 컴파일 실패 (`BleUuids`, `ProbeRequest` 없음)
 `Placeholder.kt`를 지우고 아래 파일을 만든다.
 
 ```kotlin
-// adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BleUuids.kt
+// adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/BleUuids.kt
 // Ported from vehicle-command@a4b43c1 pkg/connector/ble/ble.go (Apache-2.0)
 // vehicleServiceUUID, toVehicleUUID, fromVehicleUUID
-package io.github.smallmiro.teslable.ble
+package dev.mirolab.teslable.ble
 
 import kotlin.uuid.Uuid
 
@@ -283,8 +283,8 @@ internal object BleUuids {
 `kotlin.uuid.Uuid`가 Kotlin 2.4.20에서 실험 API로 표시되면 파일 맨 위에 `@file:OptIn(kotlin.uuid.ExperimentalUuidApi::class)`를 붙인다(다른 파일에도 같은 규칙).
 
 ```kotlin
-// adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/GattProbe.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/GattProbe.kt
+package dev.mirolab.teslable.ble
 
 import com.juul.kable.Filter
 import com.juul.kable.Peripheral
@@ -292,10 +292,10 @@ import com.juul.kable.Scanner
 import com.juul.kable.WriteType
 import com.juul.kable.characteristicOf
 import com.juul.kable.descriptorOf
-import io.github.smallmiro.teslable.InternalTeslableApi
-import io.github.smallmiro.teslable.transport.Framer
-import io.github.smallmiro.teslable.transport.Reassembler
-import io.github.smallmiro.teslable.util.toHex
+import dev.mirolab.teslable.InternalTeslableApi
+import dev.mirolab.teslable.transport.Framer
+import dev.mirolab.teslable.transport.Reassembler
+import dev.mirolab.teslable.util.toHex
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.first
@@ -386,8 +386,8 @@ public object GattProbe {
 ```
 
 ```kotlin
-// sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/TeslableDiagnostics.kt
-package io.github.smallmiro.teslable
+// sdk/src/commonMain/kotlin/dev/mirolab/teslable/TeslableDiagnostics.kt
+package dev.mirolab.teslable
 
 import com.tesla.generated.universalmessage.Destination
 import com.tesla.generated.universalmessage.Domain
@@ -396,13 +396,13 @@ import com.tesla.generated.vcsec.FromVCSECMessage
 import com.tesla.generated.vcsec.InformationRequest
 import com.tesla.generated.vcsec.InformationRequestType
 import com.tesla.generated.vcsec.UnsignedMessage
-import io.github.smallmiro.teslable.ble.GattProbe
-import io.github.smallmiro.teslable.crypto.platformCryptoPrimitives
-import io.github.smallmiro.teslable.crypto.platformRandomSource
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.port.RandomSource
-import io.github.smallmiro.teslable.protocol.decodeOrNull
-import io.github.smallmiro.teslable.transport.LocalName
+import dev.mirolab.teslable.ble.GattProbe
+import dev.mirolab.teslable.crypto.platformCryptoPrimitives
+import dev.mirolab.teslable.crypto.platformRandomSource
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.RandomSource
+import dev.mirolab.teslable.protocol.decodeOrNull
+import dev.mirolab.teslable.transport.LocalName
 import okio.ByteString.Companion.toByteString
 
 /** M3 Task 1 실차 스파이크 진입점(ADR-0003). Task 14에서 지운다 — 앱 코드에서 쓰지 않는다. */
@@ -468,7 +468,7 @@ internal object ProbeRequest {
 
 `build`의 `random.nextBytes` 호출 순서(주소 → uuid)는 테스트의 `FixedRandom(address, uuid)` 순서와 같아야 한다 — 인자 평가 순서대로 `from_destination`이 `uuid`보다 먼저 평가된다.
 
-`tools/ci/ported-files.txt`에 `adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BleUuids.kt`를 추가한다.
+`tools/ci/ported-files.txt`에 `adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/BleUuids.kt`를 추가한다.
 
 - [ ] **Step 4: 통과 확인**
 
@@ -516,7 +516,7 @@ FRAMEWORK_SEARCH_PATHS = $(inherited) $(SRCROOT)/../../sdk/build/bin/iosArm64/de
         NSBluetoothAlwaysUsageDescription: 차량과 BLE로 통신하기 위해 블루투스가 필요합니다.
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: io.github.smallmiro.TeslableSampleDevice
+        PRODUCT_BUNDLE_IDENTIFIER: dev.mirolab.TeslableSampleDevice
         SWIFT_VERSION: "6.0"
     dependencies:
       - framework: ../../sdk/build/bin/iosArm64/debugFramework/Teslable.framework
@@ -619,15 +619,15 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 참고: `{{SDD_FILE}}` §2.1(포트), §3.1, §8.2; 설계 구체화 1, 2, 5, 8; M2 설계 구체화 2(`FakeVehicle.connect()`가 M3 `TransportFactory` 가짜의 바탕). Go 원본: `pkg/connector/ble/ble.go:186-257`(`ScanResult`, `ScanVehicleBeacon`), `pkg/connector/connector.go:30-56`, `pkg/protocol/key.go`(`ECDHPrivateKey`).
 
 **Files:**
-- Create: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/model/VehicleDomain.kt`
-- Create: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/TransportFactory.kt`
-- Create: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/VehicleKeyStore.kt`
-- Modify: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/Transport.kt` (KDoc만)
-- Create: `domain/src/commonTest/kotlin/io/github/smallmiro/teslable/model/VehicleDomainTest.kt`
-- Create: `domain/src/commonTest/kotlin/io/github/smallmiro/teslable/port/VehicleKeyStoreTest.kt`
-- Create: `testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/FakeTransportFactory.kt`
-- Create: `testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/FakeVehicleKeyStore.kt`
-- Create: `testing/src/commonTest/kotlin/io/github/smallmiro/teslable/testing/FakeTransportFactoryTest.kt`
+- Create: `domain/src/commonMain/kotlin/dev/mirolab/teslable/model/VehicleDomain.kt`
+- Create: `domain/src/commonMain/kotlin/dev/mirolab/teslable/port/TransportFactory.kt`
+- Create: `domain/src/commonMain/kotlin/dev/mirolab/teslable/port/VehicleKeyStore.kt`
+- Modify: `domain/src/commonMain/kotlin/dev/mirolab/teslable/port/Transport.kt` (KDoc만)
+- Create: `domain/src/commonTest/kotlin/dev/mirolab/teslable/model/VehicleDomainTest.kt`
+- Create: `domain/src/commonTest/kotlin/dev/mirolab/teslable/port/VehicleKeyStoreTest.kt`
+- Create: `testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/FakeTransportFactory.kt`
+- Create: `testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/FakeVehicleKeyStore.kt`
+- Create: `testing/src/commonTest/kotlin/dev/mirolab/teslable/testing/FakeTransportFactoryTest.kt`
 - Modify: `domain/api/*`, `testing/api/*`(있으면), `tools/ci/ported-files.txt`
 
 **Interfaces:**
@@ -647,8 +647,8 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 1: 실패 테스트 작성**
 
 ```kotlin
-// domain/src/commonTest/kotlin/io/github/smallmiro/teslable/model/VehicleDomainTest.kt
-package io.github.smallmiro.teslable.model
+// domain/src/commonTest/kotlin/dev/mirolab/teslable/model/VehicleDomainTest.kt
+package dev.mirolab.teslable.model
 
 import com.tesla.generated.universalmessage.Domain
 import kotlin.test.Test
@@ -669,8 +669,8 @@ class VehicleDomainTest {
 ```
 
 ```kotlin
-// domain/src/commonTest/kotlin/io/github/smallmiro/teslable/port/VehicleKeyStoreTest.kt
-package io.github.smallmiro.teslable.port
+// domain/src/commonTest/kotlin/dev/mirolab/teslable/port/VehicleKeyStoreTest.kt
+package dev.mirolab.teslable.port
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -706,15 +706,15 @@ class VehicleKeyStoreTest {
 ```
 
 ```kotlin
-// testing/src/commonTest/kotlin/io/github/smallmiro/teslable/testing/FakeTransportFactoryTest.kt
-package io.github.smallmiro.teslable.testing
+// testing/src/commonTest/kotlin/dev/mirolab/teslable/testing/FakeTransportFactoryTest.kt
+package dev.mirolab.teslable.testing
 
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.port.ConnectOptions
-import io.github.smallmiro.teslable.port.ScanEvent
-import io.github.smallmiro.teslable.transport.LocalName
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.ConnectOptions
+import dev.mirolab.teslable.port.ScanEvent
+import dev.mirolab.teslable.transport.LocalName
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -782,8 +782,8 @@ Expected: 컴파일 실패 (`VehicleDomain`, `VehicleKeyStore`, `FakeTransportFa
 - [ ] **Step 3: 구현**
 
 ```kotlin
-// domain/src/commonMain/kotlin/io/github/smallmiro/teslable/model/VehicleDomain.kt
-package io.github.smallmiro.teslable.model
+// domain/src/commonMain/kotlin/dev/mirolab/teslable/model/VehicleDomain.kt
+package dev.mirolab.teslable.model
 
 import com.tesla.generated.universalmessage.Domain
 
@@ -811,15 +811,15 @@ public enum class VehicleDomain(
 ```
 
 ```kotlin
-// domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/TransportFactory.kt
+// domain/src/commonMain/kotlin/dev/mirolab/teslable/port/TransportFactory.kt
 // Ported from vehicle-command@a4b43c1 pkg/connector/ble/ble.go (Apache-2.0)
 // ScanResult, ScanVehicleBeacon, NewConnectionFromScanResult as a port (values instead of errors, ADR-0006)
-package io.github.smallmiro.teslable.port
+package dev.mirolab.teslable.port
 
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.transport.LocalName
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.transport.LocalName
 import kotlinx.coroutines.flow.Flow
 import kotlin.time.Duration
 
@@ -874,10 +874,10 @@ public interface TransportFactory {
 ```
 
 ```kotlin
-// domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/VehicleKeyStore.kt
-package io.github.smallmiro.teslable.port
+// domain/src/commonMain/kotlin/dev/mirolab/teslable/port/VehicleKeyStore.kt
+package dev.mirolab.teslable.port
 
-import io.github.smallmiro.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.VehicleResult
 
 /** 개인키가 실제로 보관된 곳(FR-021). */
 public enum class KeyProtection(
@@ -962,20 +962,20 @@ public interface VehicleKeyStore {
 ```
 
 ```kotlin
-// testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/FakeTransportFactory.kt
-package io.github.smallmiro.teslable.testing
+// testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/FakeTransportFactory.kt
+package dev.mirolab.teslable.testing
 
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.model.toResult
-import io.github.smallmiro.teslable.port.ConnectOptions
-import io.github.smallmiro.teslable.port.CryptoPrimitives
-import io.github.smallmiro.teslable.port.ScanEvent
-import io.github.smallmiro.teslable.port.Transport
-import io.github.smallmiro.teslable.port.TransportFactory
-import io.github.smallmiro.teslable.port.VehicleAdvertisement
-import io.github.smallmiro.teslable.transport.LocalName
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.model.toResult
+import dev.mirolab.teslable.port.ConnectOptions
+import dev.mirolab.teslable.port.CryptoPrimitives
+import dev.mirolab.teslable.port.ScanEvent
+import dev.mirolab.teslable.port.Transport
+import dev.mirolab.teslable.port.TransportFactory
+import dev.mirolab.teslable.port.VehicleAdvertisement
+import dev.mirolab.teslable.transport.LocalName
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
 
@@ -1033,18 +1033,18 @@ public class FakeTransportFactory(
 ```
 
 ```kotlin
-// testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/FakeVehicleKeyStore.kt
-package io.github.smallmiro.teslable.testing
+// testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/FakeVehicleKeyStore.kt
+package dev.mirolab.teslable.testing
 
-import io.github.smallmiro.teslable.model.PublicKeyBytes
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.toResult
-import io.github.smallmiro.teslable.port.EcdhPrivateKey
-import io.github.smallmiro.teslable.port.KeyPolicy
-import io.github.smallmiro.teslable.port.KeyProtection
-import io.github.smallmiro.teslable.port.VehicleKey
-import io.github.smallmiro.teslable.port.VehicleKeyStore
+import dev.mirolab.teslable.model.PublicKeyBytes
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.toResult
+import dev.mirolab.teslable.port.EcdhPrivateKey
+import dev.mirolab.teslable.port.KeyPolicy
+import dev.mirolab.teslable.port.KeyProtection
+import dev.mirolab.teslable.port.VehicleKey
+import dev.mirolab.teslable.port.VehicleKeyStore
 
 /** 메모리 [VehicleKeyStore] 가짜. 모든 별칭이 같은 [key]를 감싼다(파사드 테스트용). 단일 스레드 전용. */
 public class FakeVehicleKeyStore(
@@ -1103,7 +1103,7 @@ public class FakeVehicleKeyStore(
 
 `toResult()`가 `VehicleError`의 확장(`mayHaveSucceeded` → `Uncertain`, 아니면 `Failure`)인지 `domain/…/model/VehicleResult.kt`에서 확인하고 그대로 쓴다. 반환 타입이 `VehicleResult<Nothing>`이라 `VehicleResult<VehicleKey>`에 대입된다.
 
-`tools/ci/ported-files.txt`에 `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/port/TransportFactory.kt`를 추가한다.
+`tools/ci/ported-files.txt`에 `domain/src/commonMain/kotlin/dev/mirolab/teslable/port/TransportFactory.kt`를 추가한다.
 
 - [ ] **Step 4: 통과 확인**
 
@@ -1132,10 +1132,10 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 참고: `{{MANUAL_DIR}}02-ble-transport.md` §6(프레이밍·재조립), §13; `10-porting-guide.md` §3; 설계 구체화 5. Go 원본: `pkg/connector/ble/ble.go:67-87`(`flush`), `:89-92`(`Close`), `:94-96`·`:59-61`(`AllowedLatency` 4s, `RetryInterval` 1s), `:98-106`(`rx`), `:108-127`(`Send`), `:330`(`inbox` 5), `:76`·`:113`(RX/TX 디버그 로그); `pkg/connector/connector.go:48-52`(`Close` 멱등 계약).
 
 **Files:**
-- Create: `adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/GattLink.kt`
-- Create: `adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BleTransport.kt`
-- Create: `adapter-ble/src/commonTest/kotlin/io/github/smallmiro/teslable/ble/FakeGattLink.kt`
-- Create: `adapter-ble/src/commonTest/kotlin/io/github/smallmiro/teslable/ble/BleTransportTest.kt`
+- Create: `adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/GattLink.kt`
+- Create: `adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/BleTransport.kt`
+- Create: `adapter-ble/src/commonTest/kotlin/dev/mirolab/teslable/ble/FakeGattLink.kt`
+- Create: `adapter-ble/src/commonTest/kotlin/dev/mirolab/teslable/ble/BleTransportTest.kt`
 - Modify: `tools/ci/ported-files.txt`
 
 **Interfaces:**
@@ -1157,10 +1157,10 @@ internal companion: BleTransport.INBOX_CAPACITY = 64, RETRY_INTERVAL = 1.seconds
 - [ ] **Step 1: 테스트용 가짜 링크와 실패 테스트 작성**
 
 ```kotlin
-// adapter-ble/src/commonTest/kotlin/io/github/smallmiro/teslable/ble/FakeGattLink.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/commonTest/kotlin/dev/mirolab/teslable/ble/FakeGattLink.kt
+package dev.mirolab.teslable.ble
 
-import io.github.smallmiro.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleError
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -1215,15 +1215,15 @@ internal class FakeGattLink(
 ```
 
 ```kotlin
-// adapter-ble/src/commonTest/kotlin/io/github/smallmiro/teslable/ble/BleTransportTest.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/commonTest/kotlin/dev/mirolab/teslable/ble/BleTransportTest.kt
+package dev.mirolab.teslable.ble
 
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.port.LogLevel
-import io.github.smallmiro.teslable.port.TransportState
-import io.github.smallmiro.teslable.testing.RecordingLogger
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.LogLevel
+import dev.mirolab.teslable.port.TransportState
+import dev.mirolab.teslable.testing.RecordingLogger
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
@@ -1459,12 +1459,12 @@ Expected: 컴파일 실패 (`GattLink`, `BleTransport` 없음)
 - [ ] **Step 3: 구현**
 
 ```kotlin
-// adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/GattLink.kt
+// adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/GattLink.kt
 // Ported from vehicle-command@a4b43c1 pkg/connector/ble/ble.go (Apache-2.0)
 // Connection.txChar/rxChar/blockLength/client as an internal port (Kable binding in KableGattLink)
-package io.github.smallmiro.teslable.ble
+package dev.mirolab.teslable.ble
 
-import io.github.smallmiro.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleError
 import kotlinx.coroutines.flow.Flow
 
 /** 연결된 GATT 링크 하나(서비스 0211, TX 0212, RX 0213). Kable 없이 [BleTransport]를 시험하기 위한 내부 포트. */
@@ -1484,22 +1484,22 @@ internal interface GattLink {
 ```
 
 ```kotlin
-// adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BleTransport.kt
+// adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/BleTransport.kt
 // Ported from vehicle-command@a4b43c1 pkg/connector/ble/ble.go (Apache-2.0)
 // Connection.Send, rx, flush, Close, Receive, RetryInterval, AllowedLatency
-package io.github.smallmiro.teslable.ble
+package dev.mirolab.teslable.ble
 
-import io.github.smallmiro.teslable.InternalTeslableApi
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.port.LogLevel
-import io.github.smallmiro.teslable.port.TeslaLogger
-import io.github.smallmiro.teslable.port.Transport
-import io.github.smallmiro.teslable.port.TransportState
-import io.github.smallmiro.teslable.transport.Framer
-import io.github.smallmiro.teslable.transport.Reassembler
-import io.github.smallmiro.teslable.util.toHex
+import dev.mirolab.teslable.InternalTeslableApi
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.LogLevel
+import dev.mirolab.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.Transport
+import dev.mirolab.teslable.port.TransportState
+import dev.mirolab.teslable.transport.Framer
+import dev.mirolab.teslable.transport.Reassembler
+import dev.mirolab.teslable.util.toHex
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -1657,11 +1657,11 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 참고: `{{MANUAL_DIR}}02-ble-transport.md` §3~§4.1, `08-errors.md` §4, `10-porting-guide.md` §1; 설계 구체화 1~3, 7. Go 원본: `pkg/connector/ble/ble.go:186-257`(`ScanVehicleBeacon`, 이름 정확 일치 필터), `:259-278`(`NewConnectionFromScanResult` 재시도 루프), `:280-360`(`tryToConnect` 재시도 여부 표), `:298-304`(이름 불일치·connectable=false는 재시도 없음); `cmd/tesla-control/main.go:120-121`(connect-timeout 기본 20s — 우리 기본은 `TeslaBleConfig.connectTimeout` 30s, SDD §2.3).
 
 **Files:**
-- Create: `adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/GattConnector.kt`
-- Create: `adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BleAvailability.kt`
-- Create: `adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BleTransportFactory.kt`
-- Create: `adapter-ble/src/commonTest/kotlin/io/github/smallmiro/teslable/ble/FakeGattConnector.kt`
-- Create: `adapter-ble/src/commonTest/kotlin/io/github/smallmiro/teslable/ble/BleTransportFactoryTest.kt`
+- Create: `adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/GattConnector.kt`
+- Create: `adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/BleAvailability.kt`
+- Create: `adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/BleTransportFactory.kt`
+- Create: `adapter-ble/src/commonTest/kotlin/dev/mirolab/teslable/ble/FakeGattConnector.kt`
+- Create: `adapter-ble/src/commonTest/kotlin/dev/mirolab/teslable/ble/BleTransportFactoryTest.kt`
 - Modify: `adapter-ble/api/*`, `tools/ci/ported-files.txt`
 
 **Interfaces:**
@@ -1682,11 +1682,11 @@ internal class BleTransportFactory(connector: GattConnector, availability: BleAv
 - [ ] **Step 1: 가짜 커넥터와 실패 테스트 작성**
 
 ```kotlin
-// adapter-ble/src/commonTest/kotlin/io/github/smallmiro/teslable/ble/FakeGattConnector.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/commonTest/kotlin/dev/mirolab/teslable/ble/FakeGattConnector.kt
+package dev.mirolab.teslable.ble
 
-import io.github.smallmiro.teslable.port.VehicleAdvertisement
-import io.github.smallmiro.teslable.transport.LocalName
+import dev.mirolab.teslable.port.VehicleAdvertisement
+import dev.mirolab.teslable.transport.LocalName
 import kotlinx.coroutines.awaitCancellation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flow
@@ -1723,18 +1723,18 @@ internal class FakeGattConnector(
 ```
 
 ```kotlin
-// adapter-ble/src/commonTest/kotlin/io/github/smallmiro/teslable/ble/BleTransportFactoryTest.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/commonTest/kotlin/dev/mirolab/teslable/ble/BleTransportFactoryTest.kt
+package dev.mirolab.teslable.ble
 
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.port.ConnectOptions
-import io.github.smallmiro.teslable.port.ScanEvent
-import io.github.smallmiro.teslable.port.VehicleAdvertisement
-import io.github.smallmiro.teslable.testing.RecordingLogger
-import io.github.smallmiro.teslable.testing.TestCrypto
-import io.github.smallmiro.teslable.transport.LocalName
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.ConnectOptions
+import dev.mirolab.teslable.port.ScanEvent
+import dev.mirolab.teslable.port.VehicleAdvertisement
+import dev.mirolab.teslable.testing.RecordingLogger
+import dev.mirolab.teslable.testing.TestCrypto
+import dev.mirolab.teslable.transport.LocalName
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.take
@@ -1911,13 +1911,13 @@ Expected: 컴파일 실패 (`GattConnector`, `BleAvailability`, `BleTransportFac
 - [ ] **Step 3: 구현**
 
 ```kotlin
-// adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/GattConnector.kt
+// adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/GattConnector.kt
 // Ported from vehicle-command@a4b43c1 pkg/connector/ble/ble.go (Apache-2.0) — ScanVehicleBeacon, tryToConnect (as an internal port)
-package io.github.smallmiro.teslable.ble
+package dev.mirolab.teslable.ble
 
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.port.VehicleAdvertisement
-import io.github.smallmiro.teslable.transport.LocalName
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.port.VehicleAdvertisement
+import dev.mirolab.teslable.transport.LocalName
 import kotlinx.coroutines.flow.Flow
 
 /** 스캔으로 찾은 광고와 플랫폼 객체(Kable `PlatformAdvertisement`; 가짜에서는 null). */
@@ -1951,10 +1951,10 @@ internal interface GattConnector {
 ```
 
 ```kotlin
-// adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BleAvailability.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/BleAvailability.kt
+package dev.mirolab.teslable.ble
 
-import io.github.smallmiro.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleError
 
 /** 스캔·연결 직전 검사(FR-006, 설계 구체화 7). 문제가 없으면 null. */
 public fun interface BleAvailability {
@@ -1970,23 +1970,23 @@ public fun interface BleAvailability {
 ```
 
 ```kotlin
-// adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BleTransportFactory.kt
+// adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/BleTransportFactory.kt
 // Ported from vehicle-command@a4b43c1 pkg/connector/ble/ble.go (Apache-2.0)
 // NewConnection, NewConnectionFromScanResult, ScanVehicleBeacon (retry loop and fail-fast rules)
-package io.github.smallmiro.teslable.ble
+package dev.mirolab.teslable.ble
 
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.port.ConnectOptions
-import io.github.smallmiro.teslable.port.CryptoPrimitives
-import io.github.smallmiro.teslable.port.LogLevel
-import io.github.smallmiro.teslable.port.ScanEvent
-import io.github.smallmiro.teslable.port.TeslaLogger
-import io.github.smallmiro.teslable.port.Transport
-import io.github.smallmiro.teslable.port.TransportFactory
-import io.github.smallmiro.teslable.port.VehicleAdvertisement
-import io.github.smallmiro.teslable.transport.LocalName
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.ConnectOptions
+import dev.mirolab.teslable.port.CryptoPrimitives
+import dev.mirolab.teslable.port.LogLevel
+import dev.mirolab.teslable.port.ScanEvent
+import dev.mirolab.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.Transport
+import dev.mirolab.teslable.port.TransportFactory
+import dev.mirolab.teslable.port.VehicleAdvertisement
+import dev.mirolab.teslable.transport.LocalName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -2145,17 +2145,17 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 참고: `{{MANUAL_DIR}}02-ble-transport.md` §4~§5, `10-porting-guide.md` §2, §12; SDD §2.4, §8.4; ADR-0003 "스파이크 결과"; 설계 구체화 4, 6, 7. Go 원본: `pkg/connector/ble/ble.go:280-360`(`tryToConnect`: dial → 서비스 → 특성 → 디스크립터 → 구독 → MTU), `:345`(indication 구독), `:349-354`(MTU), `device_darwin.go:9-12`(`IsAdapterError`는 macOS에서 항상 false).
 
 **Files:**
-- Create: `adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BlockLength.kt`
-- Create: `adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/KableErrors.kt`
-- Create: `adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/SubscriptionMode.kt`
-- Create: `adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/KableGattConnector.kt`
-- Create: `adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/KableGattLink.kt`
-- Create: `adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/MtuNegotiation.kt` (expect)
-- Create: `adapter-ble/src/androidMain/kotlin/io/github/smallmiro/teslable/ble/MtuNegotiation.android.kt`, `BleAvailability.android.kt`
-- Create: `adapter-ble/src/iosMain/kotlin/io/github/smallmiro/teslable/ble/MtuNegotiation.ios.kt`, `BleAvailability.ios.kt`
-- Create: `adapter-ble/src/jvmMain/kotlin/io/github/smallmiro/teslable/ble/MtuNegotiation.jvm.kt`
-- Create: `adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BleTransports.kt` (공개 팩토리)
-- Create: `adapter-ble/src/commonTest/kotlin/io/github/smallmiro/teslable/ble/BlockLengthTest.kt`, `KableErrorsTest.kt`
+- Create: `adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/BlockLength.kt`
+- Create: `adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/KableErrors.kt`
+- Create: `adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/SubscriptionMode.kt`
+- Create: `adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/KableGattConnector.kt`
+- Create: `adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/KableGattLink.kt`
+- Create: `adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/MtuNegotiation.kt` (expect)
+- Create: `adapter-ble/src/androidMain/kotlin/dev/mirolab/teslable/ble/MtuNegotiation.android.kt`, `BleAvailability.android.kt`
+- Create: `adapter-ble/src/iosMain/kotlin/dev/mirolab/teslable/ble/MtuNegotiation.ios.kt`, `BleAvailability.ios.kt`
+- Create: `adapter-ble/src/jvmMain/kotlin/dev/mirolab/teslable/ble/MtuNegotiation.jvm.kt`
+- Create: `adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/BleTransports.kt` (공개 팩토리)
+- Create: `adapter-ble/src/commonTest/kotlin/dev/mirolab/teslable/ble/BlockLengthTest.kt`, `KableErrorsTest.kt`
 - Modify: `adapter-ble/api/*`, `tools/ci/ported-files.txt`, `{{SDD_FILE}}` §2.4
 
 **Interfaces:**
@@ -2171,8 +2171,8 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 1: 실패 테스트 작성 (순수 부분)**
 
 ```kotlin
-// adapter-ble/src/commonTest/kotlin/io/github/smallmiro/teslable/ble/BlockLengthTest.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/commonTest/kotlin/dev/mirolab/teslable/ble/BlockLengthTest.kt
+package dev.mirolab.teslable.ble
 
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -2206,13 +2206,13 @@ class BlockLengthTest {
 ```
 
 ```kotlin
-// adapter-ble/src/commonTest/kotlin/io/github/smallmiro/teslable/ble/KableErrorsTest.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/commonTest/kotlin/dev/mirolab/teslable/ble/KableErrorsTest.kt
+package dev.mirolab.teslable.ble
 
 import com.juul.kable.NotConnectedException
 import com.juul.kable.UnmetRequirementException
 import com.juul.kable.UnmetRequirementReason
-import io.github.smallmiro.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleError
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -2261,11 +2261,11 @@ Expected: 컴파일 실패 (`BlockLength`, `KableErrors` 없음)
 - [ ] **Step 3: 순수 부분 구현**
 
 ```kotlin
-// adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BlockLength.kt
+// adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/BlockLength.kt
 // Ported from vehicle-command@a4b43c1 pkg/connector/ble/ble.go (Apache-2.0) — tryToConnect MTU → blockLength
-package io.github.smallmiro.teslable.ble
+package dev.mirolab.teslable.ble
 
-import io.github.smallmiro.teslable.transport.Framer
+import dev.mirolab.teslable.transport.Framer
 
 /** MTU에서 쓰기 블록 길이를 구한다(`ble.go:349-354`). */
 internal object BlockLength {
@@ -2284,12 +2284,12 @@ internal object BlockLength {
 ```
 
 ```kotlin
-// adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/KableErrors.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/KableErrors.kt
+package dev.mirolab.teslable.ble
 
 import com.juul.kable.UnmetRequirementException
 import com.juul.kable.UnmetRequirementReason
-import io.github.smallmiro.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleError
 
 /** Kable·플랫폼 예외 → [VehicleError.TransportError](설계 구체화 7). 문구 판정은 Kable 0.45.0 소스 기준. */
 internal object KableErrors {
@@ -2331,8 +2331,8 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 6: 바인딩 구현 (실차 확인은 Task 14)**
 
 ```kotlin
-// adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/SubscriptionMode.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/SubscriptionMode.kt
+package dev.mirolab.teslable.ble
 
 /** 0213 구독 방식(설계 구체화 4, ADR-0003 스파이크 결과). */
 internal enum class SubscriptionMode {
@@ -2348,11 +2348,11 @@ internal val DEFAULT_SUBSCRIPTION: SubscriptionMode = SubscriptionMode.KABLE_DEF
 ```
 
 ```kotlin
-// adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/MtuNegotiation.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/MtuNegotiation.kt
+package dev.mirolab.teslable.ble
 
 import com.juul.kable.Peripheral
-import io.github.smallmiro.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.TeslaLogger
 
 /** 연결된 [peripheral]의 블록 길이. 실패하면 [BlockLength.DEFAULT](Go `ble.go:350-352`, 재시도 없음). */
 internal expect suspend fun negotiateBlockLength(
@@ -2362,13 +2362,13 @@ internal expect suspend fun negotiateBlockLength(
 ```
 
 ```kotlin
-// adapter-ble/src/androidMain/kotlin/io/github/smallmiro/teslable/ble/MtuNegotiation.android.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/androidMain/kotlin/dev/mirolab/teslable/ble/MtuNegotiation.android.kt
+package dev.mirolab.teslable.ble
 
 import com.juul.kable.AndroidPeripheral
 import com.juul.kable.Peripheral
-import io.github.smallmiro.teslable.port.LogLevel
-import io.github.smallmiro.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.LogLevel
+import dev.mirolab.teslable.port.TeslaLogger
 import kotlin.coroutines.cancellation.CancellationException
 
 private const val REQUESTED_MTU = 517 // Android 상한(SDD §2.4). Go는 ble.MaxMTU를 요청한다(ble.go:349)
@@ -2388,12 +2388,12 @@ internal actual suspend fun negotiateBlockLength(
 ```
 
 ```kotlin
-// adapter-ble/src/iosMain/kotlin/io/github/smallmiro/teslable/ble/MtuNegotiation.ios.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/iosMain/kotlin/dev/mirolab/teslable/ble/MtuNegotiation.ios.kt
+package dev.mirolab.teslable.ble
 
 import com.juul.kable.Peripheral
 import com.juul.kable.WriteType
-import io.github.smallmiro.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.TeslaLogger
 
 /** iOS는 MTU 협상 API가 없다(ADR-0003). 시스템이 협상한 값에서 쓰기 최대 길이를 읽는다. */
 internal actual suspend fun negotiateBlockLength(
@@ -2403,11 +2403,11 @@ internal actual suspend fun negotiateBlockLength(
 ```
 
 ```kotlin
-// adapter-ble/src/jvmMain/kotlin/io/github/smallmiro/teslable/ble/MtuNegotiation.jvm.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/jvmMain/kotlin/dev/mirolab/teslable/ble/MtuNegotiation.jvm.kt
+package dev.mirolab.teslable.ble
 
 import com.juul.kable.Peripheral
-import io.github.smallmiro.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.TeslaLogger
 
 /** Kable JVM(btleplug)은 MTU가 23 고정이다. */
 internal actual suspend fun negotiateBlockLength(
@@ -2417,14 +2417,14 @@ internal actual suspend fun negotiateBlockLength(
 ```
 
 ```kotlin
-// adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/KableGattLink.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/KableGattLink.kt
+package dev.mirolab.teslable.ble
 
 import com.juul.kable.Peripheral
 import com.juul.kable.State
 import com.juul.kable.WriteType
 import com.juul.kable.characteristicOf
-import io.github.smallmiro.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleError
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -2492,9 +2492,9 @@ internal class KableGattLink(
 ```
 
 ```kotlin
-// adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/KableGattConnector.kt
+// adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/KableGattConnector.kt
 // Ported from vehicle-command@a4b43c1 pkg/connector/ble/ble.go (Apache-2.0) — ScanVehicleBeacon, tryToConnect (Kable binding)
-package io.github.smallmiro.teslable.ble
+package dev.mirolab.teslable.ble
 
 import com.juul.kable.Filter
 import com.juul.kable.Peripheral
@@ -2503,11 +2503,11 @@ import com.juul.kable.Scanner
 import com.juul.kable.WriteType
 import com.juul.kable.characteristicOf
 import com.juul.kable.descriptorOf
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.port.LogLevel
-import io.github.smallmiro.teslable.port.TeslaLogger
-import io.github.smallmiro.teslable.port.VehicleAdvertisement
-import io.github.smallmiro.teslable.transport.LocalName
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.port.LogLevel
+import dev.mirolab.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.VehicleAdvertisement
+import dev.mirolab.teslable.transport.LocalName
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
@@ -2612,13 +2612,13 @@ internal class KableGattConnector(
 `isAndroid`는 `internal expect val isAndroid: Boolean`(androidMain `true`, iosMain/jvmMain `false`)로 `MtuNegotiation.*.kt` 파일에 같이 둔다. `runCatching { peripheral.disconnect() }`는 `CancellationException`까지 삼키므로 `cleanup`은 항상 `NonCancellable` 안이나 이미 실패한 경로에서만 부른다(위 코드가 그렇다). detekt가 `runCatching`을 문제 삼으면 `try { … } catch (e: Exception) {}` + `@Suppress("SwallowedException") // 정리 중 이미 끊긴 연결`로 바꾼다.
 
 ```kotlin
-// adapter-ble/src/androidMain/kotlin/io/github/smallmiro/teslable/ble/BleAvailability.android.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/androidMain/kotlin/dev/mirolab/teslable/ble/BleAvailability.android.kt
+package dev.mirolab.teslable.ble
 
 import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
-import io.github.smallmiro.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleError
 
 /** Android 12+(API 31) BLE 런타임 권한 검사(SDD §8.4). 앱이 권한을 요청해야 한다. */
 public fun androidBleAvailability(context: Context): BleAvailability {
@@ -2633,10 +2633,10 @@ public fun androidBleAvailability(context: Context): BleAvailability {
 ```
 
 ```kotlin
-// adapter-ble/src/iosMain/kotlin/io/github/smallmiro/teslable/ble/BleAvailability.ios.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/iosMain/kotlin/dev/mirolab/teslable/ble/BleAvailability.ios.kt
+package dev.mirolab.teslable.ble
 
-import io.github.smallmiro.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleError
 import platform.CoreBluetooth.CBManager
 import platform.CoreBluetooth.CBManagerAuthorizationDenied
 import platform.CoreBluetooth.CBManagerAuthorizationRestricted
@@ -2652,12 +2652,12 @@ public fun appleBleAvailability(): BleAvailability =
 ```
 
 ```kotlin
-// adapter-ble/src/commonMain/kotlin/io/github/smallmiro/teslable/ble/BleTransports.kt
-package io.github.smallmiro.teslable.ble
+// adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/BleTransports.kt
+package dev.mirolab.teslable.ble
 
-import io.github.smallmiro.teslable.port.CryptoPrimitives
-import io.github.smallmiro.teslable.port.TeslaLogger
-import io.github.smallmiro.teslable.port.TransportFactory
+import dev.mirolab.teslable.port.CryptoPrimitives
+import dev.mirolab.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.TransportFactory
 import kotlinx.coroutines.CoroutineScope
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
@@ -2707,15 +2707,15 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 참고: `{{SDD_FILE}}` §2.5, §7.2, §8.2; D10, ADR-0008; 설계 구체화 8; `{{MANUAL_DIR}}10-porting-guide.md` §12, `00-agent-guide.md` §3.3-21. Go 원본: `pkg/protocol/key.go`(`NewECDHPrivateKey` — `ecdh.P256().GenerateKey`), `internal/authentication/native.go`(`NativeECDHKey`).
 
 **Files:**
-- Create: `adapter-crypto/src/commonMain/kotlin/io/github/smallmiro/teslable/crypto/KeyCreationChain.kt`
-- Create: `adapter-crypto/src/commonMain/kotlin/io/github/smallmiro/teslable/crypto/SoftwareKeyGenerator.kt` (expect)
-- Create: `adapter-crypto/src/jvmCommonMain/kotlin/io/github/smallmiro/teslable/crypto/SoftwareKeyGenerator.jvmCommon.kt`
-- Create: `adapter-crypto/src/jvmCommonMain/kotlin/io/github/smallmiro/teslable/crypto/EcPublicKeyEncoding.kt`
-- Create: `adapter-crypto/src/iosMain/kotlin/io/github/smallmiro/teslable/crypto/SoftwareKeyGenerator.ios.kt`
-- Create: `adapter-crypto/src/commonMain/kotlin/io/github/smallmiro/teslable/crypto/SoftwareVehicleKey.kt`
-- Create: `adapter-crypto/src/commonMain/kotlin/io/github/smallmiro/teslable/crypto/InMemoryVehicleKeyStore.kt`
-- Create: `adapter-crypto/src/commonTest/kotlin/io/github/smallmiro/teslable/crypto/KeyCreationChainTest.kt`, `SoftwareKeyGeneratorTest.kt`, `InMemoryVehicleKeyStoreTest.kt`
-- Create: `adapter-crypto/src/jvmCommonTest/kotlin/io/github/smallmiro/teslable/crypto/EcPublicKeyEncodingTest.kt`
+- Create: `adapter-crypto/src/commonMain/kotlin/dev/mirolab/teslable/crypto/KeyCreationChain.kt`
+- Create: `adapter-crypto/src/commonMain/kotlin/dev/mirolab/teslable/crypto/SoftwareKeyGenerator.kt` (expect)
+- Create: `adapter-crypto/src/jvmCommonMain/kotlin/dev/mirolab/teslable/crypto/SoftwareKeyGenerator.jvmCommon.kt`
+- Create: `adapter-crypto/src/jvmCommonMain/kotlin/dev/mirolab/teslable/crypto/EcPublicKeyEncoding.kt`
+- Create: `adapter-crypto/src/iosMain/kotlin/dev/mirolab/teslable/crypto/SoftwareKeyGenerator.ios.kt`
+- Create: `adapter-crypto/src/commonMain/kotlin/dev/mirolab/teslable/crypto/SoftwareVehicleKey.kt`
+- Create: `adapter-crypto/src/commonMain/kotlin/dev/mirolab/teslable/crypto/InMemoryVehicleKeyStore.kt`
+- Create: `adapter-crypto/src/commonTest/kotlin/dev/mirolab/teslable/crypto/KeyCreationChainTest.kt`, `SoftwareKeyGeneratorTest.kt`, `InMemoryVehicleKeyStoreTest.kt`
+- Create: `adapter-crypto/src/jvmCommonTest/kotlin/dev/mirolab/teslable/crypto/EcPublicKeyEncodingTest.kt`
 - Modify: `adapter-crypto/api/*`
 
 **Interfaces:**
@@ -2732,15 +2732,15 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 1: 실패 테스트 작성**
 
 ```kotlin
-// adapter-crypto/src/commonTest/kotlin/io/github/smallmiro/teslable/crypto/KeyCreationChainTest.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/commonTest/kotlin/dev/mirolab/teslable/crypto/KeyCreationChainTest.kt
+package dev.mirolab.teslable.crypto
 
-import io.github.smallmiro.teslable.model.PublicKeyBytes
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.port.KeyPolicy
-import io.github.smallmiro.teslable.port.KeyProtection
-import io.github.smallmiro.teslable.port.VehicleKey
+import dev.mirolab.teslable.model.PublicKeyBytes
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.KeyPolicy
+import dev.mirolab.teslable.port.KeyProtection
+import dev.mirolab.teslable.port.VehicleKey
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -2833,8 +2833,8 @@ class KeyCreationChainTest {
 ```
 
 ```kotlin
-// adapter-crypto/src/commonTest/kotlin/io/github/smallmiro/teslable/crypto/SoftwareKeyGeneratorTest.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/commonTest/kotlin/dev/mirolab/teslable/crypto/SoftwareKeyGeneratorTest.kt
+package dev.mirolab.teslable.crypto
 
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
@@ -2873,14 +2873,14 @@ class SoftwareKeyGeneratorTest {
 ```
 
 ```kotlin
-// adapter-crypto/src/commonTest/kotlin/io/github/smallmiro/teslable/crypto/InMemoryVehicleKeyStoreTest.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/commonTest/kotlin/dev/mirolab/teslable/crypto/InMemoryVehicleKeyStoreTest.kt
+package dev.mirolab.teslable.crypto
 
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.port.KeyPolicy
-import io.github.smallmiro.teslable.port.KeyProtection
-import io.github.smallmiro.teslable.port.VehicleKey
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.KeyPolicy
+import dev.mirolab.teslable.port.KeyProtection
+import dev.mirolab.teslable.port.VehicleKey
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -2931,8 +2931,8 @@ class InMemoryVehicleKeyStoreTest {
 ```
 
 ```kotlin
-// adapter-crypto/src/jvmCommonTest/kotlin/io/github/smallmiro/teslable/crypto/EcPublicKeyEncodingTest.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/jvmCommonTest/kotlin/dev/mirolab/teslable/crypto/EcPublicKeyEncodingTest.kt
+package dev.mirolab.teslable.crypto
 
 import java.math.BigInteger
 import kotlin.test.Test
@@ -2962,13 +2962,13 @@ Expected: 컴파일 실패
 - [ ] **Step 3: 구현**
 
 ```kotlin
-// adapter-crypto/src/commonMain/kotlin/io/github/smallmiro/teslable/crypto/KeyCreationChain.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/commonMain/kotlin/dev/mirolab/teslable/crypto/KeyCreationChain.kt
+package dev.mirolab.teslable.crypto
 
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.port.KeyPolicy
-import io.github.smallmiro.teslable.port.VehicleKey
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.KeyPolicy
+import dev.mirolab.teslable.port.VehicleKey
 import kotlinx.coroutines.CancellationException
 
 /** 보관 수준 하나에서 키를 만드는 시도. 이 수준을 쓸 수 없으면 null. */
@@ -3013,11 +3013,11 @@ internal object KeyCreationChain {
 ```
 
 ```kotlin
-// adapter-crypto/src/commonMain/kotlin/io/github/smallmiro/teslable/crypto/SoftwareKeyGenerator.kt
+// adapter-crypto/src/commonMain/kotlin/dev/mirolab/teslable/crypto/SoftwareKeyGenerator.kt
 // Ported from vehicle-command@a4b43c1 pkg/protocol/key.go (Apache-2.0) — NewECDHPrivateKey
-package io.github.smallmiro.teslable.crypto
+package dev.mirolab.teslable.crypto
 
-import io.github.smallmiro.teslable.model.PublicKeyBytes
+import dev.mirolab.teslable.model.PublicKeyBytes
 
 private const val SCALAR_SIZE = 32
 private const val EXTERNAL_SIZE = PublicKeyBytes.SIZE + SCALAR_SIZE
@@ -3051,10 +3051,10 @@ internal expect fun generateSoftwareKeyPair(): SoftwareKeyPair
 `SoftwareKeyPair.fromExternal(ByteArray(97))`이 null인지(첫 바이트 0)는 위 `bytes[0] != 4` 검사가 맡는다. `PublicKeyBytes` 생성자가 곡선 위의 점인지 검사하지 않으면, 잘못된 점은 첫 `sharedX` 호출에서 `IllegalArgumentException`이 된다(기존 `JcaSoftwareEcdhKey` 동작).
 
 ```kotlin
-// adapter-crypto/src/jvmCommonMain/kotlin/io/github/smallmiro/teslable/crypto/EcPublicKeyEncoding.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/jvmCommonMain/kotlin/dev/mirolab/teslable/crypto/EcPublicKeyEncoding.kt
+package dev.mirolab.teslable.crypto
 
-import io.github.smallmiro.teslable.model.PublicKeyBytes
+import dev.mirolab.teslable.model.PublicKeyBytes
 import java.math.BigInteger
 
 /** JCA 좌표 → 65바이트 비압축 공개키(SDD §8.2, 좌표 32바이트 0-패딩). */
@@ -3076,10 +3076,10 @@ internal object EcPublicKeyEncoding {
 ```
 
 ```kotlin
-// adapter-crypto/src/jvmCommonMain/kotlin/io/github/smallmiro/teslable/crypto/SoftwareKeyGenerator.jvmCommon.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/jvmCommonMain/kotlin/dev/mirolab/teslable/crypto/SoftwareKeyGenerator.jvmCommon.kt
+package dev.mirolab.teslable.crypto
 
-import io.github.smallmiro.teslable.crypto.EcPublicKeyEncoding.toFixed
+import dev.mirolab.teslable.crypto.EcPublicKeyEncoding.toFixed
 import java.security.KeyPairGenerator
 import java.security.interfaces.ECPrivateKey
 import java.security.interfaces.ECPublicKey
@@ -3095,8 +3095,8 @@ internal actual fun generateSoftwareKeyPair(): SoftwareKeyPair {
 ```
 
 ```kotlin
-// adapter-crypto/src/iosMain/kotlin/io/github/smallmiro/teslable/crypto/SoftwareKeyGenerator.ios.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/iosMain/kotlin/dev/mirolab/teslable/crypto/SoftwareKeyGenerator.ios.kt
+package dev.mirolab.teslable.crypto
 
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.IntVar
@@ -3157,13 +3157,13 @@ internal actual fun generateSoftwareKeyPair(): SoftwareKeyPair =
 `SoftwareKeyPair.fromExternal`은 `copyOfRange`로 사본을 만들므로 원본 `bytes`를 지워도 키쌍은 남는다. `SoftwareVehicleKey`는 `softwareEcdhKey(...)`에 넘길 때 **사본**을 넘긴다(iOS `createSecKey`가 넘겨받은 배열을 0으로 지우기 때문 — `AppleSoftwareEcdhKey.kt` KDoc).
 
 ```kotlin
-// adapter-crypto/src/commonMain/kotlin/io/github/smallmiro/teslable/crypto/SoftwareVehicleKey.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/commonMain/kotlin/dev/mirolab/teslable/crypto/SoftwareVehicleKey.kt
+package dev.mirolab.teslable.crypto
 
-import io.github.smallmiro.teslable.model.PublicKeyBytes
-import io.github.smallmiro.teslable.port.EcdhPrivateKey
-import io.github.smallmiro.teslable.port.KeyProtection
-import io.github.smallmiro.teslable.port.VehicleKey
+import dev.mirolab.teslable.model.PublicKeyBytes
+import dev.mirolab.teslable.port.EcdhPrivateKey
+import dev.mirolab.teslable.port.KeyProtection
+import dev.mirolab.teslable.port.VehicleKey
 
 /** 소프트웨어 키 핸들. ECDH는 기존 `softwareEcdhKey`(JCA/Security.framework)에 맡긴다. */
 internal class SoftwareVehicleKey(
@@ -3180,13 +3180,13 @@ internal class SoftwareVehicleKey(
 ```
 
 ```kotlin
-// adapter-crypto/src/commonMain/kotlin/io/github/smallmiro/teslable/crypto/InMemoryVehicleKeyStore.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/commonMain/kotlin/dev/mirolab/teslable/crypto/InMemoryVehicleKeyStore.kt
+package dev.mirolab.teslable.crypto
 
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.port.KeyPolicy
-import io.github.smallmiro.teslable.port.VehicleKey
-import io.github.smallmiro.teslable.port.VehicleKeyStore
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.KeyPolicy
+import dev.mirolab.teslable.port.VehicleKey
+import dev.mirolab.teslable.port.VehicleKeyStore
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -3247,12 +3247,12 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 참고: `{{SDD_FILE}}` §2.5, §7.2, §8.2(Android 열 전체); 설계 구체화 8, 10; ADR-0008. Go 원본: 없음(Go는 PEM 파일, `pkg/protocol/key.go` — 포팅하지 않음, SDD §1.3).
 
 **Files:**
-- Create: `adapter-crypto/src/jvmCommonMain/kotlin/io/github/smallmiro/teslable/crypto/KeyWrapper.kt`
-- Create: `adapter-crypto/src/jvmCommonMain/kotlin/io/github/smallmiro/teslable/crypto/WrappedKeyFiles.kt`
-- Create: `adapter-crypto/src/jvmCommonTest/kotlin/io/github/smallmiro/teslable/crypto/WrappedKeyFilesTest.kt`
-- Create: `adapter-crypto/src/androidMain/kotlin/io/github/smallmiro/teslable/crypto/AndroidKeystoreWrapper.kt`
-- Create: `adapter-crypto/src/androidMain/kotlin/io/github/smallmiro/teslable/crypto/AndroidKeystoreKey.kt`
-- Create: `adapter-crypto/src/androidMain/kotlin/io/github/smallmiro/teslable/crypto/AndroidVehicleKeyStore.kt`
+- Create: `adapter-crypto/src/jvmCommonMain/kotlin/dev/mirolab/teslable/crypto/KeyWrapper.kt`
+- Create: `adapter-crypto/src/jvmCommonMain/kotlin/dev/mirolab/teslable/crypto/WrappedKeyFiles.kt`
+- Create: `adapter-crypto/src/jvmCommonTest/kotlin/dev/mirolab/teslable/crypto/WrappedKeyFilesTest.kt`
+- Create: `adapter-crypto/src/androidMain/kotlin/dev/mirolab/teslable/crypto/AndroidKeystoreWrapper.kt`
+- Create: `adapter-crypto/src/androidMain/kotlin/dev/mirolab/teslable/crypto/AndroidKeystoreKey.kt`
+- Create: `adapter-crypto/src/androidMain/kotlin/dev/mirolab/teslable/crypto/AndroidVehicleKeyStore.kt`
 - Modify: `adapter-crypto/api/*`
 
 **Interfaces:**
@@ -3267,8 +3267,8 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 1: 실패 테스트 작성 (JVM에서 시험 가능한 파일 형식)**
 
 ```kotlin
-// adapter-crypto/src/jvmCommonTest/kotlin/io/github/smallmiro/teslable/crypto/WrappedKeyFilesTest.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/jvmCommonTest/kotlin/dev/mirolab/teslable/crypto/WrappedKeyFilesTest.kt
+package dev.mirolab.teslable.crypto
 
 import java.io.File
 import java.nio.file.Files
@@ -3377,8 +3377,8 @@ Expected: 컴파일 실패 (`KeyWrapper`, `WrappedKeyFiles` 없음)
 - [ ] **Step 3: 파일 형식 구현**
 
 ```kotlin
-// adapter-crypto/src/jvmCommonMain/kotlin/io/github/smallmiro/teslable/crypto/KeyWrapper.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/jvmCommonMain/kotlin/dev/mirolab/teslable/crypto/KeyWrapper.kt
+package dev.mirolab.teslable.crypto
 
 /** 소프트웨어 개인키를 감싸는 대칭 키(Android: Keystore AES-256-GCM `<alias>.wrap`). 결과는 `iv(12)‖ciphertext+tag`. */
 internal interface KeyWrapper {
@@ -3393,8 +3393,8 @@ internal interface KeyWrapper {
 ```
 
 ```kotlin
-// adapter-crypto/src/jvmCommonMain/kotlin/io/github/smallmiro/teslable/crypto/WrappedKeyFiles.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/jvmCommonMain/kotlin/dev/mirolab/teslable/crypto/WrappedKeyFiles.kt
+package dev.mirolab.teslable.crypto
 
 import java.io.File
 
@@ -3465,8 +3465,8 @@ Expected: PASS
 - [ ] **Step 5: Android Keystore 구현 (단위 테스트 불가 — 에뮬레이터 확인은 Task 14)**
 
 ```kotlin
-// adapter-crypto/src/androidMain/kotlin/io/github/smallmiro/teslable/crypto/AndroidKeystoreWrapper.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/androidMain/kotlin/dev/mirolab/teslable/crypto/AndroidKeystoreWrapper.kt
+package dev.mirolab.teslable.crypto
 
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyProperties
@@ -3525,13 +3525,13 @@ internal class AndroidKeystoreWrapper(
 ```
 
 ```kotlin
-// adapter-crypto/src/androidMain/kotlin/io/github/smallmiro/teslable/crypto/AndroidKeystoreKey.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/androidMain/kotlin/dev/mirolab/teslable/crypto/AndroidKeystoreKey.kt
+package dev.mirolab.teslable.crypto
 
-import io.github.smallmiro.teslable.crypto.EcPublicKeyEncoding.toFixed
-import io.github.smallmiro.teslable.model.PublicKeyBytes
-import io.github.smallmiro.teslable.port.KeyProtection
-import io.github.smallmiro.teslable.port.VehicleKey
+import dev.mirolab.teslable.crypto.EcPublicKeyEncoding.toFixed
+import dev.mirolab.teslable.model.PublicKeyBytes
+import dev.mirolab.teslable.port.KeyProtection
+import dev.mirolab.teslable.port.VehicleKey
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.math.BigInteger
@@ -3574,22 +3574,22 @@ internal class AndroidKeystoreKey(
 ```
 
 ```kotlin
-// adapter-crypto/src/androidMain/kotlin/io/github/smallmiro/teslable/crypto/AndroidVehicleKeyStore.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/androidMain/kotlin/dev/mirolab/teslable/crypto/AndroidVehicleKeyStore.kt
+package dev.mirolab.teslable.crypto
 
 import android.content.Context
 import android.security.keystore.KeyGenParameterSpec
 import android.security.keystore.KeyInfo
 import android.security.keystore.KeyProperties
 import android.security.keystore.StrongBoxUnavailableException
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.port.KeyPolicy
-import io.github.smallmiro.teslable.port.KeyProtection
-import io.github.smallmiro.teslable.port.LogLevel
-import io.github.smallmiro.teslable.port.TeslaLogger
-import io.github.smallmiro.teslable.port.VehicleKey
-import io.github.smallmiro.teslable.port.VehicleKeyStore
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.KeyPolicy
+import dev.mirolab.teslable.port.KeyProtection
+import dev.mirolab.teslable.port.LogLevel
+import dev.mirolab.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.VehicleKey
+import dev.mirolab.teslable.port.VehicleKeyStore
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
@@ -3766,12 +3766,12 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 참고: `{{SDD_FILE}}` §2.5, §7.2, §8.2(iOS 열); 설계 구체화 8, 10, 11; ADR-0008. 빌드 사실: 시뮬레이터에는 Secure Enclave가 없다.
 
 **Files:**
-- Create: `adapter-crypto/src/iosMain/kotlin/io/github/smallmiro/teslable/crypto/KeychainInterop.kt` (CF 딕셔너리·문자열 헬퍼)
-- Create: `adapter-crypto/src/iosMain/kotlin/io/github/smallmiro/teslable/crypto/KeychainItems.kt` (포트 + `AppleKeychainItems`)
-- Create: `adapter-crypto/src/iosMain/kotlin/io/github/smallmiro/teslable/crypto/SecureEnclaveKeys.kt` (포트 + `AppleSecureEnclaveKeys`, `SecureEnclaveKey`)
-- Create: `adapter-crypto/src/iosMain/kotlin/io/github/smallmiro/teslable/crypto/AppleVehicleKeyStore.kt`
-- Create: `adapter-crypto/src/iosTest/kotlin/io/github/smallmiro/teslable/crypto/AppleVehicleKeyStoreTest.kt`
-- Create: `adapter-crypto/src/iosTest/kotlin/io/github/smallmiro/teslable/crypto/AppleKeychainItemsTest.kt` (Step 1 결과에 따라)
+- Create: `adapter-crypto/src/iosMain/kotlin/dev/mirolab/teslable/crypto/KeychainInterop.kt` (CF 딕셔너리·문자열 헬퍼)
+- Create: `adapter-crypto/src/iosMain/kotlin/dev/mirolab/teslable/crypto/KeychainItems.kt` (포트 + `AppleKeychainItems`)
+- Create: `adapter-crypto/src/iosMain/kotlin/dev/mirolab/teslable/crypto/SecureEnclaveKeys.kt` (포트 + `AppleSecureEnclaveKeys`, `SecureEnclaveKey`)
+- Create: `adapter-crypto/src/iosMain/kotlin/dev/mirolab/teslable/crypto/AppleVehicleKeyStore.kt`
+- Create: `adapter-crypto/src/iosTest/kotlin/dev/mirolab/teslable/crypto/AppleVehicleKeyStoreTest.kt`
+- Create: `adapter-crypto/src/iosTest/kotlin/dev/mirolab/teslable/crypto/AppleKeychainItemsTest.kt` (Step 1 결과에 따라)
 - Modify: `adapter-crypto/api/*`
 
 **Interfaces:**
@@ -3785,8 +3785,8 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 1: 시뮬레이터 Keychain 가능 여부 먼저 확인 (설계 구체화 11)**
 
 ```kotlin
-// adapter-crypto/src/iosTest/kotlin/io/github/smallmiro/teslable/crypto/AppleKeychainItemsTest.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/iosTest/kotlin/dev/mirolab/teslable/crypto/AppleKeychainItemsTest.kt
+package dev.mirolab.teslable.crypto
 
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -3796,7 +3796,7 @@ import kotlin.test.assertIs
 class AppleKeychainItemsTest {
     @Test
     fun genericPasswordRoundTripsAndDeletes() {
-        val items = AppleKeychainItems("io.github.smallmiro.teslable.test")
+        val items = AppleKeychainItems("dev.mirolab.teslable.test")
         items.delete("probe")
         assertEquals(0, items.write("probe", byteArrayOf(1, 2, 3)))
         assertContentEquals(byteArrayOf(1, 2, 3), assertIs<KeychainRead.Found>(items.read("probe")).bytes)
@@ -3816,15 +3816,15 @@ Run: `./gradlew :adapter-crypto:iosSimulatorArm64Test --tests '*AppleKeychainIte
 - [ ] **Step 2: 로직 실패 테스트 작성 (가짜 Keychain·가짜 Secure Enclave)**
 
 ```kotlin
-// adapter-crypto/src/iosTest/kotlin/io/github/smallmiro/teslable/crypto/AppleVehicleKeyStoreTest.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/iosTest/kotlin/dev/mirolab/teslable/crypto/AppleVehicleKeyStoreTest.kt
+package dev.mirolab.teslable.crypto
 
-import io.github.smallmiro.teslable.model.PublicKeyBytes
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.port.KeyPolicy
-import io.github.smallmiro.teslable.port.KeyProtection
-import io.github.smallmiro.teslable.port.VehicleKey
+import dev.mirolab.teslable.model.PublicKeyBytes
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.KeyPolicy
+import dev.mirolab.teslable.port.KeyProtection
+import dev.mirolab.teslable.port.VehicleKey
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -3938,8 +3938,8 @@ class AppleVehicleKeyStoreTest {
 - [ ] **Step 3: 구현**
 
 ```kotlin
-// adapter-crypto/src/iosMain/kotlin/io/github/smallmiro/teslable/crypto/KeychainInterop.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/iosMain/kotlin/dev/mirolab/teslable/crypto/KeychainInterop.kt
+package dev.mirolab.teslable.crypto
 
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.ptr
@@ -3981,8 +3981,8 @@ internal inline fun <T> releasing(
 ```
 
 ```kotlin
-// adapter-crypto/src/iosMain/kotlin/io/github/smallmiro/teslable/crypto/KeychainItems.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/iosMain/kotlin/dev/mirolab/teslable/crypto/KeychainItems.kt
+package dev.mirolab.teslable.crypto
 
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.alloc
@@ -4099,12 +4099,12 @@ internal class AppleKeychainItems(
 cinterop 타입(`CFDataRef`/`CFTypeRef` 캐스트, `OSStatus` = `Int`)은 컴파일러가 알려 주는 대로 맞춘다. 같은 모양이 Task 9 `:adapter-storage`에 한 번 더 나온다(설계 구체화 11).
 
 ```kotlin
-// adapter-crypto/src/iosMain/kotlin/io/github/smallmiro/teslable/crypto/SecureEnclaveKeys.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/iosMain/kotlin/dev/mirolab/teslable/crypto/SecureEnclaveKeys.kt
+package dev.mirolab.teslable.crypto
 
-import io.github.smallmiro.teslable.model.PublicKeyBytes
-import io.github.smallmiro.teslable.port.KeyProtection
-import io.github.smallmiro.teslable.port.VehicleKey
+import dev.mirolab.teslable.model.PublicKeyBytes
+import dev.mirolab.teslable.port.KeyProtection
+import dev.mirolab.teslable.port.VehicleKey
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.IntVar
 import kotlinx.cinterop.alloc
@@ -4152,7 +4152,7 @@ internal interface SecureEnclaveKeys {
 }
 
 private const val P256 = 256
-private const val TAG_PREFIX = "io.github.smallmiro.teslable.key."
+private const val TAG_PREFIX = "dev.mirolab.teslable.key."
 
 @OptIn(ExperimentalForeignApi::class)
 internal class AppleSecureEnclaveKeys : SecureEnclaveKeys {
@@ -4248,16 +4248,16 @@ internal class SecureEnclaveKey(
 `SecureEnclaveKey`는 `SecKeyRef`를 소유한다(앱 수명 동안 유지; 별도 해제 없음 — 키 핸들이 GC될 때 누수는 키 하나 크기다). 이것이 문제가 되면 Task 13 파사드가 키를 캐시해 한 번만 만든다.
 
 ```kotlin
-// adapter-crypto/src/iosMain/kotlin/io/github/smallmiro/teslable/crypto/AppleVehicleKeyStore.kt
-package io.github.smallmiro.teslable.crypto
+// adapter-crypto/src/iosMain/kotlin/dev/mirolab/teslable/crypto/AppleVehicleKeyStore.kt
+package dev.mirolab.teslable.crypto
 
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.port.KeyPolicy
-import io.github.smallmiro.teslable.port.LogLevel
-import io.github.smallmiro.teslable.port.TeslaLogger
-import io.github.smallmiro.teslable.port.VehicleKey
-import io.github.smallmiro.teslable.port.VehicleKeyStore
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.KeyPolicy
+import dev.mirolab.teslable.port.LogLevel
+import dev.mirolab.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.VehicleKey
+import dev.mirolab.teslable.port.VehicleKeyStore
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
@@ -4265,7 +4265,7 @@ import kotlinx.coroutines.sync.withLock
 public fun appleVehicleKeyStore(logger: TeslaLogger = TeslaLogger.NoOp): VehicleKeyStore =
     AppleVehicleKeyStore(AppleKeychainItems(KEY_SERVICE), AppleSecureEnclaveKeys(), logger)
 
-private const val KEY_SERVICE = "io.github.smallmiro.teslable.key"
+private const val KEY_SERVICE = "dev.mirolab.teslable.key"
 
 internal class AppleVehicleKeyStore(
     private val keychain: KeychainItems,
@@ -4381,13 +4381,13 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 참고: `{{SDD_FILE}}` §2.6, §7.1; ADR-0007; 설계 구체화 9, 11; M2 Task 8(`InMemorySessionCache`, `SessionCacheCodec.encodeSnapshots/decodeSessions`). Go 원본: `pkg/cache/cache.go`(`Update`, `GetEntry` — 포맷은 다름, D26).
 
 **Files:**
-- Create: `adapter-storage/src/jvmCommonMain/kotlin/io/github/smallmiro/teslable/storage/FileSessionCache.kt`
-- Create: `adapter-storage/src/androidMain/kotlin/io/github/smallmiro/teslable/storage/AndroidSessionCache.kt`
-- Create: `adapter-storage/src/jvmCommonTest/kotlin/io/github/smallmiro/teslable/storage/FileSessionCacheTest.kt`
-- Create: `adapter-storage/src/iosMain/kotlin/io/github/smallmiro/teslable/storage/KeychainItems.kt` (Task 8과 같은 모양, 설계 구체화 11)
-- Create: `adapter-storage/src/iosMain/kotlin/io/github/smallmiro/teslable/storage/KeychainSessionCache.kt`
-- Create: `adapter-storage/src/iosTest/kotlin/io/github/smallmiro/teslable/storage/KeychainSessionCacheTest.kt`
-- Create: `adapter-storage/src/commonMain/kotlin/io/github/smallmiro/teslable/storage/CacheFileName.kt`
+- Create: `adapter-storage/src/jvmCommonMain/kotlin/dev/mirolab/teslable/storage/FileSessionCache.kt`
+- Create: `adapter-storage/src/androidMain/kotlin/dev/mirolab/teslable/storage/AndroidSessionCache.kt`
+- Create: `adapter-storage/src/jvmCommonTest/kotlin/dev/mirolab/teslable/storage/FileSessionCacheTest.kt`
+- Create: `adapter-storage/src/iosMain/kotlin/dev/mirolab/teslable/storage/KeychainItems.kt` (Task 8과 같은 모양, 설계 구체화 11)
+- Create: `adapter-storage/src/iosMain/kotlin/dev/mirolab/teslable/storage/KeychainSessionCache.kt`
+- Create: `adapter-storage/src/iosTest/kotlin/dev/mirolab/teslable/storage/KeychainSessionCacheTest.kt`
+- Create: `adapter-storage/src/commonMain/kotlin/dev/mirolab/teslable/storage/CacheFileName.kt`
 - Modify: `adapter-storage/api/*`
 
 **Interfaces:**
@@ -4396,20 +4396,20 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
   - `internal fun cacheFileName(vin: Vin, crypto: CryptoPrimitives): String` = `hex(SHA1(vin))`(VIN 원문을 파일명·account에 남기지 않는다, SDD §7.1)
   - `public class FileSessionCache(directory: java.io.File, crypto: CryptoPrimitives, logger: TeslaLogger = NoOp, wallClockMillis: () -> Long = …) : SessionCache` (jvmCommonMain)
   - `public fun androidSessionCache(context: Context, crypto: CryptoPrimitives, logger: TeslaLogger = NoOp): SessionCache` (`filesDir/teslable/sessions`)
-  - `public fun appleSessionCache(crypto: CryptoPrimitives, logger: TeslaLogger = NoOp): SessionCache` (service `io.github.smallmiro.teslable.session`, `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`)
+  - `public fun appleSessionCache(crypto: CryptoPrimitives, logger: TeslaLogger = NoOp): SessionCache` (service `dev.mirolab.teslable.session`, `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`)
 
 - [ ] **Step 1: 실패 테스트 작성**
 
 ```kotlin
-// adapter-storage/src/jvmCommonTest/kotlin/io/github/smallmiro/teslable/storage/FileSessionCacheTest.kt
-package io.github.smallmiro.teslable.storage
+// adapter-storage/src/jvmCommonTest/kotlin/dev/mirolab/teslable/storage/FileSessionCacheTest.kt
+package dev.mirolab.teslable.storage
 
 import com.tesla.generated.universalmessage.Domain
-import io.github.smallmiro.teslable.cache.SessionSnapshot
-import io.github.smallmiro.teslable.model.KeyId
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.testing.RecordingLogger
-import io.github.smallmiro.teslable.testing.TestCrypto
+import dev.mirolab.teslable.cache.SessionSnapshot
+import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.testing.RecordingLogger
+import dev.mirolab.teslable.testing.TestCrypto
 import kotlinx.coroutines.test.runTest
 import java.io.File
 import java.nio.file.Files
@@ -4495,15 +4495,15 @@ class FileSessionCacheTest {
 `CachedSession`의 `sessionInfo` 접근자 이름(`sessionInfo()` 또는 프로퍼티)은 `domain/…/cache/CachedSession.kt`를 확인해 맞춘다.
 
 ```kotlin
-// adapter-storage/src/iosTest/kotlin/io/github/smallmiro/teslable/storage/KeychainSessionCacheTest.kt
-package io.github.smallmiro.teslable.storage
+// adapter-storage/src/iosTest/kotlin/dev/mirolab/teslable/storage/KeychainSessionCacheTest.kt
+package dev.mirolab.teslable.storage
 
 import com.tesla.generated.universalmessage.Domain
-import io.github.smallmiro.teslable.cache.SessionSnapshot
-import io.github.smallmiro.teslable.model.KeyId
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.testing.RecordingLogger
-import io.github.smallmiro.teslable.testing.TestCrypto
+import dev.mirolab.teslable.cache.SessionSnapshot
+import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.testing.RecordingLogger
+import dev.mirolab.teslable.testing.TestCrypto
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -4577,13 +4577,13 @@ Expected: 컴파일 실패
 - [ ] **Step 3: 구현**
 
 ```kotlin
-// adapter-storage/src/commonMain/kotlin/io/github/smallmiro/teslable/storage/CacheFileName.kt
-package io.github.smallmiro.teslable.storage
+// adapter-storage/src/commonMain/kotlin/dev/mirolab/teslable/storage/CacheFileName.kt
+package dev.mirolab.teslable.storage
 
-import io.github.smallmiro.teslable.InternalTeslableApi
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.port.CryptoPrimitives
-import io.github.smallmiro.teslable.util.toHex
+import dev.mirolab.teslable.InternalTeslableApi
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.CryptoPrimitives
+import dev.mirolab.teslable.util.toHex
 
 /** VIN 원문 대신 `hex(SHA1(VIN))`을 파일 이름·Keychain account로 쓴다(SDD §7.1). */
 @OptIn(InternalTeslableApi::class)
@@ -4594,18 +4594,18 @@ internal fun cacheFileName(
 ```
 
 ```kotlin
-// adapter-storage/src/jvmCommonMain/kotlin/io/github/smallmiro/teslable/storage/FileSessionCache.kt
-package io.github.smallmiro.teslable.storage
+// adapter-storage/src/jvmCommonMain/kotlin/dev/mirolab/teslable/storage/FileSessionCache.kt
+package dev.mirolab.teslable.storage
 
-import io.github.smallmiro.teslable.cache.CachedSession
-import io.github.smallmiro.teslable.cache.SessionCacheCodec
-import io.github.smallmiro.teslable.cache.SessionSnapshot
-import io.github.smallmiro.teslable.model.KeyId
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.port.CryptoPrimitives
-import io.github.smallmiro.teslable.port.LogLevel
-import io.github.smallmiro.teslable.port.SessionCache
-import io.github.smallmiro.teslable.port.TeslaLogger
+import dev.mirolab.teslable.cache.CachedSession
+import dev.mirolab.teslable.cache.SessionCacheCodec
+import dev.mirolab.teslable.cache.SessionSnapshot
+import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.CryptoPrimitives
+import dev.mirolab.teslable.port.LogLevel
+import dev.mirolab.teslable.port.SessionCache
+import dev.mirolab.teslable.port.TeslaLogger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -4678,13 +4678,13 @@ public class FileSessionCache(
 `kotlinx.coroutines.Dispatchers.IO`는 JVM/Android에서만 있다(`jvmCommonMain`이므로 문제없음). `ioFailureIsLoggedNotThrown`에서 디렉터리 자리가 파일이면 `writeBytes`가 `FileNotFoundException`(=`IOException`)을 던진다.
 
 ```kotlin
-// adapter-storage/src/androidMain/kotlin/io/github/smallmiro/teslable/storage/AndroidSessionCache.kt
-package io.github.smallmiro.teslable.storage
+// adapter-storage/src/androidMain/kotlin/dev/mirolab/teslable/storage/AndroidSessionCache.kt
+package dev.mirolab.teslable.storage
 
 import android.content.Context
-import io.github.smallmiro.teslable.port.CryptoPrimitives
-import io.github.smallmiro.teslable.port.SessionCache
-import io.github.smallmiro.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.CryptoPrimitives
+import dev.mirolab.teslable.port.SessionCache
+import dev.mirolab.teslable.port.TeslaLogger
 import java.io.File
 
 /** Android 기본 세션 캐시: `filesDir/teslable/sessions`(MODE_PRIVATE 앱 전용 영역, SDD §2.6). */
@@ -4695,21 +4695,21 @@ public fun androidSessionCache(
 ): SessionCache = FileSessionCache(File(context.applicationContext.filesDir, "teslable/sessions"), crypto, logger)
 ```
 
-`adapter-storage/src/iosMain/…/KeychainItems.kt`는 Task 8의 `KeychainRead`/`KeychainItems`/`AppleKeychainItems`와 `cfDictionary`/`toCFString`/`releasing`/`toCFData`/`toByteArray`/`use` 헬퍼를 **같은 코드로** 이 패키지(`io.github.smallmiro.teslable.storage`)에 둔다(설계 구체화 11 — 모듈 경계 때문에 공유하지 않는다). 파일 머리 주석에 "`:adapter-crypto`의 같은 이름 파일과 의도적으로 같은 코드(ADR-0001 경계)"라고 적는다.
+`adapter-storage/src/iosMain/…/KeychainItems.kt`는 Task 8의 `KeychainRead`/`KeychainItems`/`AppleKeychainItems`와 `cfDictionary`/`toCFString`/`releasing`/`toCFData`/`toByteArray`/`use` 헬퍼를 **같은 코드로** 이 패키지(`dev.mirolab.teslable.storage`)에 둔다(설계 구체화 11 — 모듈 경계 때문에 공유하지 않는다). 파일 머리 주석에 "`:adapter-crypto`의 같은 이름 파일과 의도적으로 같은 코드(ADR-0001 경계)"라고 적는다.
 
 ```kotlin
-// adapter-storage/src/iosMain/kotlin/io/github/smallmiro/teslable/storage/KeychainSessionCache.kt
-package io.github.smallmiro.teslable.storage
+// adapter-storage/src/iosMain/kotlin/dev/mirolab/teslable/storage/KeychainSessionCache.kt
+package dev.mirolab.teslable.storage
 
-import io.github.smallmiro.teslable.cache.CachedSession
-import io.github.smallmiro.teslable.cache.SessionCacheCodec
-import io.github.smallmiro.teslable.cache.SessionSnapshot
-import io.github.smallmiro.teslable.model.KeyId
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.port.CryptoPrimitives
-import io.github.smallmiro.teslable.port.LogLevel
-import io.github.smallmiro.teslable.port.SessionCache
-import io.github.smallmiro.teslable.port.TeslaLogger
+import dev.mirolab.teslable.cache.CachedSession
+import dev.mirolab.teslable.cache.SessionCacheCodec
+import dev.mirolab.teslable.cache.SessionSnapshot
+import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.CryptoPrimitives
+import dev.mirolab.teslable.port.LogLevel
+import dev.mirolab.teslable.port.SessionCache
+import dev.mirolab.teslable.port.TeslaLogger
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -4726,7 +4726,7 @@ public fun appleSessionCache(
         Clock.System.now().toEpochMilliseconds()
     }
 
-private const val SESSION_SERVICE = "io.github.smallmiro.teslable.session"
+private const val SESSION_SERVICE = "dev.mirolab.teslable.session"
 
 internal class KeychainSessionCache(
     private val keychain: KeychainItems,
@@ -4801,13 +4801,13 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 참고: `{{MANUAL_DIR}}05-command-catalog.md` B(`body-controller-state`, `list-keys`), `03-protocol.md` §12, `09-recipes.md`(키 목록), SDD §7.3; 설계 구체화 12; FR-025, FR-031, FR-032. Go 원본: `pkg/vehicle/vcsec.go:107-130`(`getVCSECInfo`), `pkg/vehicle/state.go:13-19`(`BodyControllerState`), `pkg/vehicle/security.go:290-304`(`KeySummary`, `KeyInfoBySlot`), `cmd/tesla-control/commands.go:489-517`(`list-keys` 슬롯 순회), `vcsec.proto:47-74`, `:244-286`, `keys.proto:7-17`.
 
 **Files:**
-- Create: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/model/VehicleStatus.kt`
-- Create: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/model/Whitelist.kt`
-- Modify: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/Dispatcher.kt` (`internal val clock`) — `struct:` 커밋
-- Create: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vcsec/VcsecInfoMapping.kt`
-- Create: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries.kt`
-- Modify: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vehicle/VehicleSession.kt` (`val info`)
-- Create: `application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/vcsec/VehicleInfoQueriesTest.kt`
+- Create: `domain/src/commonMain/kotlin/dev/mirolab/teslable/model/VehicleStatus.kt`
+- Create: `domain/src/commonMain/kotlin/dev/mirolab/teslable/model/Whitelist.kt`
+- Modify: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/Dispatcher.kt` (`internal val clock`) — `struct:` 커밋
+- Create: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/VcsecInfoMapping.kt`
+- Create: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/VehicleInfoQueries.kt`
+- Modify: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/vehicle/VehicleSession.kt` (`val info`)
+- Create: `application/src/commonTest/kotlin/dev/mirolab/teslable/application/vcsec/VehicleInfoQueriesTest.kt`
 - Modify: `domain/api/*`, `application/api/*`, `tools/ci/ported-files.txt`
 
 **Interfaces:**
@@ -4840,8 +4840,8 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 2: 실패 테스트 작성**
 
 ```kotlin
-// application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/vcsec/VehicleInfoQueriesTest.kt
-package io.github.smallmiro.teslable.application.vcsec
+// application/src/commonTest/kotlin/dev/mirolab/teslable/application/vcsec/VehicleInfoQueriesTest.kt
+package dev.mirolab.teslable.application.vcsec
 
 import com.tesla.generated.errors.GenericError_E
 import com.tesla.generated.keys.Role
@@ -4860,19 +4860,19 @@ import com.tesla.generated.vcsec.VehicleSleepStatus_E
 import com.tesla.generated.vcsec.WhitelistEntryInfo
 import com.tesla.generated.vcsec.WhitelistInfo
 import com.tesla.generated.vcsec.VehicleStatus as WireVehicleStatus
-import io.github.smallmiro.teslable.application.dispatcher.dispatcherHarness
-import io.github.smallmiro.teslable.application.vehicle.VehicleSession
-import io.github.smallmiro.teslable.model.ClosureState
-import io.github.smallmiro.teslable.model.KeyFormFactor
-import io.github.smallmiro.teslable.model.KeyRole
-import io.github.smallmiro.teslable.model.LockState
-import io.github.smallmiro.teslable.model.SleepStatus
-import io.github.smallmiro.teslable.model.UserPresence
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.WhitelistSummary
-import io.github.smallmiro.teslable.testing.FakeVehicle
-import io.github.smallmiro.teslable.testing.TestCrypto
+import dev.mirolab.teslable.application.dispatcher.dispatcherHarness
+import dev.mirolab.teslable.application.vehicle.VehicleSession
+import dev.mirolab.teslable.model.ClosureState
+import dev.mirolab.teslable.model.KeyFormFactor
+import dev.mirolab.teslable.model.KeyRole
+import dev.mirolab.teslable.model.LockState
+import dev.mirolab.teslable.model.SleepStatus
+import dev.mirolab.teslable.model.UserPresence
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.WhitelistSummary
+import dev.mirolab.teslable.testing.FakeVehicle
+import dev.mirolab.teslable.testing.TestCrypto
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -4927,7 +4927,7 @@ class VehicleInfoQueriesTest {
                     ),
                 ),
             )
-            val status = assertIs<VehicleResult.Success<io.github.smallmiro.teslable.model.VehicleStatus>>(session.info.vehicleStatus()).value
+            val status = assertIs<VehicleResult.Success<dev.mirolab.teslable.model.VehicleStatus>>(session.info.vehicleStatus()).value
             assertEquals(LockState.LOCKED, status.lockState)
             assertEquals(ClosureState.OPEN, status.closures?.frontDriverDoor)
             assertEquals(ClosureState.CLOSED, status.closures?.rearTrunk)
@@ -4949,7 +4949,7 @@ class VehicleInfoQueriesTest {
             // FromVCSECMessage{vehicleStatus(1){vehicleLockState(2)=9, closureStatuses(1){frontDriverDoor(1)=42}}}
             val raw = byteArrayOf(0x0a, 0x06, 0x10, 0x09, 0x0a, 0x02, 0x08, 0x2a)
             h.fake.script(vcsec, listOf(FakeVehicle.ScriptedReply(payload = raw)))
-            val status = assertIs<VehicleResult.Success<io.github.smallmiro.teslable.model.VehicleStatus>>(VehicleSession(h.dispatcher).info.vehicleStatus()).value
+            val status = assertIs<VehicleResult.Success<dev.mirolab.teslable.model.VehicleStatus>>(VehicleSession(h.dispatcher).info.vehicleStatus()).value
             assertEquals(LockState.UNKNOWN, status.lockState)
             assertEquals(ClosureState.UNKNOWN, status.closures?.frontDriverDoor)
         }
@@ -4999,7 +4999,7 @@ class VehicleInfoQueriesTest {
                 ),
                 reply(FromVCSECMessage(whitelistEntryInfo = WhitelistEntryInfo(slot = 2, keyRole = Role.ROLE_DRIVER))),
             )
-            val entries = assertIs<VehicleResult.Success<List<io.github.smallmiro.teslable.model.WhitelistEntry>>>(VehicleSession(h.dispatcher).info.listKeys()).value
+            val entries = assertIs<VehicleResult.Success<List<dev.mirolab.teslable.model.WhitelistEntry>>>(VehicleSession(h.dispatcher).info.listKeys()).value
             assertEquals(listOf(0, 2), entries.map { it.slot })
             assertEquals(TestCrypto.clientPublicKey, entries[0].publicKey)
             assertEquals(KeyRole.OWNER, entries[0].role)
@@ -5057,7 +5057,7 @@ class VehicleInfoQueriesTest {
 }
 ```
 
-`listKeysSharesOneTimeoutAcrossAllRequests`: `dropNextReplies`가 요약 응답까지 지우지 않게, 대본 응답이 먼저 소비되는지 `FakeVehicle.dropNextReplies`의 의미(M2 `FakeVehicle.kt:133`)를 확인하고, 필요하면 `h.fake.sleep(setOf(vcsec))`를 요약 응답을 받은 **뒤**에 거는 방식으로 바꾼다 — 단언(전체가 정확히 3초에 끝남)은 그대로다. 테스트 이름의 값 객체 타입은 `io.github.smallmiro.teslable.model.*`와 Wire 이름이 겹치므로 완전한 이름 또는 import 별칭으로 쓴다.
+`listKeysSharesOneTimeoutAcrossAllRequests`: `dropNextReplies`가 요약 응답까지 지우지 않게, 대본 응답이 먼저 소비되는지 `FakeVehicle.dropNextReplies`의 의미(M2 `FakeVehicle.kt:133`)를 확인하고, 필요하면 `h.fake.sleep(setOf(vcsec))`를 요약 응답을 받은 **뒤**에 거는 방식으로 바꾼다 — 단언(전체가 정확히 3초에 끝남)은 그대로다. 테스트 이름의 값 객체 타입은 `dev.mirolab.teslable.model.*`와 Wire 이름이 겹치므로 완전한 이름 또는 import 별칭으로 쓴다.
 
 - [ ] **Step 3: 실패 확인**
 
@@ -5067,8 +5067,8 @@ Expected: 컴파일 실패
 - [ ] **Step 4: 값 객체 구현 (`:domain`)**
 
 ```kotlin
-// domain/src/commonMain/kotlin/io/github/smallmiro/teslable/model/VehicleStatus.kt
-package io.github.smallmiro.teslable.model
+// domain/src/commonMain/kotlin/dev/mirolab/teslable/model/VehicleStatus.kt
+package dev.mirolab.teslable.model
 
 /** 차량 잠금 상태(`VCSEC.VehicleLockState_E`). 모르는 값은 [UNKNOWN]. */
 public enum class LockState {
@@ -5172,8 +5172,8 @@ public data class VehicleStatus(
 ```
 
 ```kotlin
-// domain/src/commonMain/kotlin/io/github/smallmiro/teslable/model/Whitelist.kt
-package io.github.smallmiro.teslable.model
+// domain/src/commonMain/kotlin/dev/mirolab/teslable/model/Whitelist.kt
+package dev.mirolab.teslable.model
 
 /** 키 역할(`Keys.Role`). 모르는 값은 [UNKNOWN]. */
 public enum class KeyRole {
@@ -5252,8 +5252,8 @@ public data class WhitelistEntry(
 - [ ] **Step 5: 조회 구현 (`:application`)**
 
 ```kotlin
-// application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vcsec/VcsecInfoMapping.kt
-package io.github.smallmiro.teslable.application.vcsec
+// application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/VcsecInfoMapping.kt
+package dev.mirolab.teslable.application.vcsec
 
 import com.tesla.generated.keys.Role
 import com.tesla.generated.vcsec.ClosureState_E
@@ -5265,19 +5265,19 @@ import com.tesla.generated.vcsec.VehicleSleepStatus_E
 import com.tesla.generated.vcsec.WhitelistEntryInfo
 import com.tesla.generated.vcsec.WhitelistInfo
 import com.tesla.generated.vcsec.VehicleStatus as WireVehicleStatus
-import io.github.smallmiro.teslable.InternalTeslableApi
-import io.github.smallmiro.teslable.model.ClosureState
-import io.github.smallmiro.teslable.model.Closures
-import io.github.smallmiro.teslable.model.KeyFormFactor
-import io.github.smallmiro.teslable.model.KeyRole
-import io.github.smallmiro.teslable.model.LockState
-import io.github.smallmiro.teslable.model.PublicKeyBytes
-import io.github.smallmiro.teslable.model.SleepStatus
-import io.github.smallmiro.teslable.model.UserPresence
-import io.github.smallmiro.teslable.model.VehicleStatus
-import io.github.smallmiro.teslable.model.WhitelistEntry
-import io.github.smallmiro.teslable.model.WhitelistSummary
-import io.github.smallmiro.teslable.protocol.unknownVarint
+import dev.mirolab.teslable.InternalTeslableApi
+import dev.mirolab.teslable.model.ClosureState
+import dev.mirolab.teslable.model.Closures
+import dev.mirolab.teslable.model.KeyFormFactor
+import dev.mirolab.teslable.model.KeyRole
+import dev.mirolab.teslable.model.LockState
+import dev.mirolab.teslable.model.PublicKeyBytes
+import dev.mirolab.teslable.model.SleepStatus
+import dev.mirolab.teslable.model.UserPresence
+import dev.mirolab.teslable.model.VehicleStatus
+import dev.mirolab.teslable.model.WhitelistEntry
+import dev.mirolab.teslable.model.WhitelistSummary
+import dev.mirolab.teslable.protocol.unknownVarint
 
 /** Wire VCSEC 응답 → 공개 값 객체(SDD §7.3). 모르는 enum 값은 `unknownFields`로 찾아 `UNKNOWN`으로(Wire 기본값으로 보이지 않게). */
 @OptIn(InternalTeslableApi::class)
@@ -5379,22 +5379,22 @@ internal object VcsecInfoMapping {
 ```
 
 ```kotlin
-// application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vcsec/VehicleInfoQueries.kt
+// application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/VehicleInfoQueries.kt
 // Ported from vehicle-command@a4b43c1 pkg/vehicle/vcsec.go (Apache-2.0)
 // getVCSECInfo; state.go BodyControllerState; security.go KeySummary, KeyInfoBySlot; cmd/tesla-control/commands.go list-keys
-package io.github.smallmiro.teslable.application.vcsec
+package dev.mirolab.teslable.application.vcsec
 
 import com.tesla.generated.vcsec.FromVCSECMessage
 import com.tesla.generated.vcsec.InformationRequest
 import com.tesla.generated.vcsec.InformationRequestType
 import com.tesla.generated.vcsec.UnsignedMessage
-import io.github.smallmiro.teslable.application.vehicle.CommandTimeouts
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.VehicleStatus
-import io.github.smallmiro.teslable.model.WhitelistEntry
-import io.github.smallmiro.teslable.model.WhitelistSummary
-import io.github.smallmiro.teslable.port.AuthMethod
+import dev.mirolab.teslable.application.vehicle.CommandTimeouts
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.VehicleStatus
+import dev.mirolab.teslable.model.WhitelistEntry
+import dev.mirolab.teslable.model.WhitelistSummary
+import dev.mirolab.teslable.port.AuthMethod
 import kotlin.time.Duration
 import kotlin.time.TimeSource
 
@@ -5509,11 +5509,11 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 참고: `{{HANDOFF_DIR}}2026-09-27-m2-dispatcher.md` "막힌 점"(`storedOnDisconnect`, `SessionState` 영구 닫힘, `send`의 VCSEC 우회, 로거 예외, `FakeVehicle` 같은 키, `NonCancellable` 테스트); 설계 구체화 13, 15. Go 원본: `internal/dispatcher/dispatcher_test.go:126`(도메인마다 다른 차량 키), `pkg/vehicle/vehicle.go:116-118, 169-179`(`Connect`, `Disconnect`).
 
 **Files:**
-- Modify: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/SessionState.kt`
-- Modify: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vehicle/VehicleSession.kt`
-- Modify: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vehicle/SendWithRetry.kt`
-- Create: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/logging/SafeLogger.kt`
-- Modify: `testing/src/commonMain/kotlin/io/github/smallmiro/teslable/testing/FakeVehicle.kt` (도메인별 키)
+- Modify: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/SessionState.kt`
+- Modify: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/vehicle/VehicleSession.kt`
+- Modify: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/vehicle/SendWithRetry.kt`
+- Create: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/logging/SafeLogger.kt`
+- Modify: `testing/src/commonMain/kotlin/dev/mirolab/teslable/testing/FakeVehicle.kt` (도메인별 키)
 - Modify: `application/src/commonTest/…/dispatcher/SessionStateTest.kt`, `…/vehicle/VehicleSessionTest.kt`, `…/vehicle/SendWithRetryTest.kt`
 - Create: `application/src/commonTest/…/logging/SafeLoggerTest.kt`, `…/dispatcher/DistinctDomainKeysTest.kt`
 - Modify: `application/api/*`, `testing/api/*`(있으면)
@@ -5609,11 +5609,11 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 ```
 
 ```kotlin
-// application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/logging/SafeLoggerTest.kt
-package io.github.smallmiro.teslable.application.logging
+// application/src/commonTest/kotlin/dev/mirolab/teslable/application/logging/SafeLoggerTest.kt
+package dev.mirolab.teslable.application.logging
 
-import io.github.smallmiro.teslable.port.LogLevel
-import io.github.smallmiro.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.LogLevel
+import dev.mirolab.teslable.port.TeslaLogger
 import kotlin.test.Test
 import kotlin.test.assertEquals
 
@@ -5643,15 +5643,15 @@ class SafeLoggerTest {
 ```
 
 ```kotlin
-// application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/dispatcher/DistinctDomainKeysTest.kt
-package io.github.smallmiro.teslable.application.dispatcher
+// application/src/commonTest/kotlin/dev/mirolab/teslable/application/dispatcher/DistinctDomainKeysTest.kt
+package dev.mirolab.teslable.application.dispatcher
 
 import com.tesla.generated.universalmessage.Domain
-import io.github.smallmiro.teslable.application.vehicle.VehicleSession
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.port.AuthMethod
-import io.github.smallmiro.teslable.testing.FakeVehicle
-import io.github.smallmiro.teslable.testing.TestCrypto
+import dev.mirolab.teslable.application.vehicle.VehicleSession
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.AuthMethod
+import dev.mirolab.teslable.testing.FakeVehicle
+import dev.mirolab.teslable.testing.TestCrypto
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
@@ -5756,11 +5756,11 @@ KDoc의 "영구적이지 않다 … (단일 사용 강제는 M3 항목)" 문장�
 KDoc에 "VCSEC는 거부한다(FR-049 직렬화 우회 차단, 설계 구체화 13)"를 덧붙인다.
 
 ```kotlin
-// application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/logging/SafeLogger.kt
-package io.github.smallmiro.teslable.application.logging
+// application/src/commonMain/kotlin/dev/mirolab/teslable/application/logging/SafeLogger.kt
+package dev.mirolab.teslable.application.logging
 
-import io.github.smallmiro.teslable.port.LogLevel
-import io.github.smallmiro.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.LogLevel
+import dev.mirolab.teslable.port.TeslaLogger
 
 /**
  * 사용자 로거를 감싸 로거·메시지 람다가 던진 예외를 삼킨다(M2 인계). 로그 호출은 수신 코루틴 안에서도 일어나므로
@@ -5798,7 +5798,7 @@ Expected: `SafeLogger`, `SessionState.isClosed` 추가
 테스트 인프라(`FakeVehicle` 키 인자 + `DistinctDomainKeysTest`)는 `test:` 커밋, 나머지는 `feat:`/`fix:` 커밋으로 나눈다.
 
 ```bash
-git add testing application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/dispatcher/DistinctDomainKeysTest.kt
+git add testing application/src/commonTest/kotlin/dev/mirolab/teslable/application/dispatcher/DistinctDomainKeysTest.kt
 git commit -m "test(testing): FakeVehicle can use a distinct vehicle key per domain like dispatcher_test.go
 
 Refs: NFR-003
@@ -5816,12 +5816,12 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 참고: 설계 구체화 14; M2 판정 P7(세션정보 갱신 시 저장은 M3), 사용자 답 (a)(2026-09-27); `{{SDD_FILE}}` §3.4, §5(수신 코루틴에서 suspend 대기 금지), §7.1. M2 테스트 `SessionCacheSyncTest.staleCachedVehicleKeyLeavesSessionStuckLikeGo`(이 Task가 감지를 덧붙인다), `storingAfterCloseWipesThePreviouslySavedCacheHazard`. Go 원본: `internal/dispatcher/dispatcher.go`(`checkForSessionUpdate`), `pkg/vehicle/vehicle.go`(`UpdateCachedSessions`) — Go에는 감지·삭제가 없다(의도한 차이).
 
 **Files:**
-- Create: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/SessionEvent.kt`
-- Modify: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/SessionState.kt`
-- Modify: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/Dispatcher.kt`
-- Modify: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/cache/SessionCacheSync.kt`
-- Modify: `application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/vehicle/VehicleSession.kt`
-- Create: `application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/cache/SessionEventsTest.kt`
+- Create: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/SessionEvent.kt`
+- Modify: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/SessionState.kt`
+- Modify: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/Dispatcher.kt`
+- Modify: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/cache/SessionCacheSync.kt`
+- Modify: `application/src/commonMain/kotlin/dev/mirolab/teslable/application/vehicle/VehicleSession.kt`
+- Create: `application/src/commonTest/kotlin/dev/mirolab/teslable/application/cache/SessionEventsTest.kt`
 - Modify: `application/api/*`, `{{SDD_FILE}}` §3.4, §7.1, §12
 
 **Interfaces:**
@@ -5836,22 +5836,22 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 1: 실패 테스트 작성**
 
 ```kotlin
-// application/src/commonTest/kotlin/io/github/smallmiro/teslable/application/cache/SessionEventsTest.kt
-package io.github.smallmiro.teslable.application.cache
+// application/src/commonTest/kotlin/dev/mirolab/teslable/application/cache/SessionEventsTest.kt
+package dev.mirolab.teslable.application.cache
 
 import com.tesla.generated.universalmessage.Domain
-import io.github.smallmiro.teslable.application.dispatcher.HandshakeFlow
-import io.github.smallmiro.teslable.application.dispatcher.PendingRequest
-import io.github.smallmiro.teslable.application.dispatcher.SessionEvent
-import io.github.smallmiro.teslable.application.dispatcher.dispatcherHarness
-import io.github.smallmiro.teslable.application.dispatcher.testCommand
-import io.github.smallmiro.teslable.application.vehicle.VehicleSession
-import io.github.smallmiro.teslable.model.KeyId
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.port.AuthMethod
-import io.github.smallmiro.teslable.testing.FakeVehicle
-import io.github.smallmiro.teslable.testing.RecordingSessionCache
-import io.github.smallmiro.teslable.testing.TestCrypto
+import dev.mirolab.teslable.application.dispatcher.HandshakeFlow
+import dev.mirolab.teslable.application.dispatcher.PendingRequest
+import dev.mirolab.teslable.application.dispatcher.SessionEvent
+import dev.mirolab.teslable.application.dispatcher.dispatcherHarness
+import dev.mirolab.teslable.application.dispatcher.testCommand
+import dev.mirolab.teslable.application.vehicle.VehicleSession
+import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.AuthMethod
+import dev.mirolab.teslable.testing.FakeVehicle
+import dev.mirolab.teslable.testing.RecordingSessionCache
+import dev.mirolab.teslable.testing.TestCrypto
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -5949,7 +5949,7 @@ class SessionEventsTest {
             val session = VehicleSession(h.dispatcher, cacheSync = sync, eventScope = backgroundScope)
             assertEquals(setOf(vcsec, infotainment), session.connect())
             val storesBefore = cache.stores.size
-            session.vcsec.execute(byteArrayOf(1), AuthMethod.GCM, io.github.smallmiro.teslable.application.vcsec.VcsecResponses.COMMAND_STATUS_ABSENT, timeout = 1.seconds)
+            session.vcsec.execute(byteArrayOf(1), AuthMethod.GCM, dev.mirolab.teslable.application.vcsec.VcsecResponses.COMMAND_STATUS_ABSENT, timeout = 1.seconds)
             runCurrent()
             val afterStale = cache.stores.drop(storesBefore)
             assertTrue(afterStale.isNotEmpty())
@@ -5988,8 +5988,8 @@ Expected: 컴파일 실패
 - [ ] **Step 3: 구현**
 
 ```kotlin
-// application/src/commonMain/kotlin/io/github/smallmiro/teslable/application/dispatcher/SessionEvent.kt
-package io.github.smallmiro.teslable.application.dispatcher
+// application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/SessionEvent.kt
+package dev.mirolab.teslable.application.dispatcher
 
 import com.tesla.generated.universalmessage.Domain
 
@@ -6126,17 +6126,17 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 참고: `{{SDD_FILE}}` §2.3, §3.1, §5(스코프), §8.4; 설계 구체화 1, 9, 13~15; ADR-0005(SKIE), ADR-0006, ADR-0010; FR-001~FR-005, FR-025, FR-031, FR-032. Go 원본: `pkg/vehicle/vehicle.go:77-99`(`NewVehicle`), `:116-118`(`Connect`), `:169-179`(`Disconnect`), `pkg/cli/config.go:365-386, 473-488`(CLI 조립 순서: 연결 → `NewVehicle`(캐시) → `Connect` → `StartSession`).
 
 **Files:**
-- Create: `sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/PlatformContext.kt` (expect)
-- Create: `sdk/src/androidMain/kotlin/io/github/smallmiro/teslable/PlatformContext.android.kt`, `PlatformComponents.android.kt`
-- Create: `sdk/src/iosMain/kotlin/io/github/smallmiro/teslable/PlatformContext.ios.kt`, `PlatformComponents.ios.kt`
-- Create: `sdk/src/jvmMain/kotlin/io/github/smallmiro/teslable/PlatformContext.jvm.kt`, `PlatformComponents.jvm.kt`
-- Create: `sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/PlatformComponents.kt` (expect + `Components`)
-- Create: `sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/TeslaBleConfig.kt`
-- Create: `sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/SessionStatus.kt`
-- Create: `sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/Vehicle.kt`
-- Create: `sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/DefaultVehicle.kt`
-- Create: `sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/TeslaBle.kt`
-- Create: `sdk/src/commonTest/kotlin/io/github/smallmiro/teslable/TeslaBleTest.kt`
+- Create: `sdk/src/commonMain/kotlin/dev/mirolab/teslable/PlatformContext.kt` (expect)
+- Create: `sdk/src/androidMain/kotlin/dev/mirolab/teslable/PlatformContext.android.kt`, `PlatformComponents.android.kt`
+- Create: `sdk/src/iosMain/kotlin/dev/mirolab/teslable/PlatformContext.ios.kt`, `PlatformComponents.ios.kt`
+- Create: `sdk/src/jvmMain/kotlin/dev/mirolab/teslable/PlatformContext.jvm.kt`, `PlatformComponents.jvm.kt`
+- Create: `sdk/src/commonMain/kotlin/dev/mirolab/teslable/PlatformComponents.kt` (expect + `Components`)
+- Create: `sdk/src/commonMain/kotlin/dev/mirolab/teslable/TeslaBleConfig.kt`
+- Create: `sdk/src/commonMain/kotlin/dev/mirolab/teslable/SessionStatus.kt`
+- Create: `sdk/src/commonMain/kotlin/dev/mirolab/teslable/Vehicle.kt`
+- Create: `sdk/src/commonMain/kotlin/dev/mirolab/teslable/DefaultVehicle.kt`
+- Create: `sdk/src/commonMain/kotlin/dev/mirolab/teslable/TeslaBle.kt`
+- Create: `sdk/src/commonTest/kotlin/dev/mirolab/teslable/TeslaBleTest.kt`
 - Modify: `sdk/build.gradle.kts` (detekt 어댑터 설정), `sdk/api/*`
 
 **Interfaces:**
@@ -6168,30 +6168,30 @@ public class TeslaBle internal constructor(…) {
 - [ ] **Step 1: 실패 테스트 작성**
 
 ```kotlin
-// sdk/src/commonTest/kotlin/io/github/smallmiro/teslable/TeslaBleTest.kt
-package io.github.smallmiro.teslable
+// sdk/src/commonTest/kotlin/dev/mirolab/teslable/TeslaBleTest.kt
+package dev.mirolab.teslable
 
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.vcsec.FromVCSECMessage
 import com.tesla.generated.vcsec.VehicleLockState_E
 import com.tesla.generated.vcsec.WhitelistInfo
 import com.tesla.generated.vcsec.VehicleStatus as WireVehicleStatus
-import io.github.smallmiro.teslable.model.KeyId
-import io.github.smallmiro.teslable.model.LockState
-import io.github.smallmiro.teslable.model.VehicleDomain
-import io.github.smallmiro.teslable.model.VehicleError
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.port.ConnectOptions
-import io.github.smallmiro.teslable.port.ScanEvent
-import io.github.smallmiro.teslable.port.TeslaLogger
-import io.github.smallmiro.teslable.port.TransportState
-import io.github.smallmiro.teslable.port.VehicleKey
-import io.github.smallmiro.teslable.testing.FakeTransportFactory
-import io.github.smallmiro.teslable.testing.FakeVehicle
-import io.github.smallmiro.teslable.testing.FakeVehicleKeyStore
-import io.github.smallmiro.teslable.testing.RecordingSessionCache
-import io.github.smallmiro.teslable.testing.TestCrypto
-import io.github.smallmiro.teslable.transport.LocalName
+import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.model.LockState
+import dev.mirolab.teslable.model.VehicleDomain
+import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.ConnectOptions
+import dev.mirolab.teslable.port.ScanEvent
+import dev.mirolab.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.TransportState
+import dev.mirolab.teslable.port.VehicleKey
+import dev.mirolab.teslable.testing.FakeTransportFactory
+import dev.mirolab.teslable.testing.FakeVehicle
+import dev.mirolab.teslable.testing.FakeVehicleKeyStore
+import dev.mirolab.teslable.testing.RecordingSessionCache
+import dev.mirolab.teslable.testing.TestCrypto
+import dev.mirolab.teslable.transport.LocalName
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -6305,8 +6305,8 @@ class TeslaBleTest {
             r.fake.script(vcsec, listOf(FakeVehicle.vcsecPayload(FromVCSECMessage(whitelistInfo = WhitelistInfo(numberOfEntries = 1, slotMask = 1)))))
             val vehicle = r.connected(withKey = false)
             assertFalse(vehicle.hasKey)
-            assertEquals(LockState.LOCKED, assertIs<VehicleResult.Success<io.github.smallmiro.teslable.model.VehicleStatus>>(vehicle.vehicleStatus()).value.lockState)
-            assertEquals(listOf(0), assertIs<VehicleResult.Success<io.github.smallmiro.teslable.model.WhitelistSummary>>(vehicle.keySummary()).value.occupiedSlots)
+            assertEquals(LockState.LOCKED, assertIs<VehicleResult.Success<dev.mirolab.teslable.model.VehicleStatus>>(vehicle.vehicleStatus()).value.lockState)
+            assertEquals(listOf(0), assertIs<VehicleResult.Success<dev.mirolab.teslable.model.WhitelistSummary>>(vehicle.keySummary()).value.occupiedSlots)
             assertEquals(VehicleResult.Failure(VehicleError.RequiresKey), vehicle.startSession(timeout = 1.seconds))
         }
 
@@ -6381,16 +6381,16 @@ detekt { config.setFrom(files("$rootDir/config/detekt/detekt.yml", "$rootDir/con
 ```
 
 ```kotlin
-// sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/PlatformContext.kt
-package io.github.smallmiro.teslable
+// sdk/src/commonMain/kotlin/dev/mirolab/teslable/PlatformContext.kt
+package dev.mirolab.teslable
 
 /** 플랫폼 컨텍스트(SDD §2.3). Android: `PlatformContext(context)`, iOS·JVM: `PlatformContext()`. */
 public expect class PlatformContext
 ```
 
 ```kotlin
-// sdk/src/androidMain/kotlin/io/github/smallmiro/teslable/PlatformContext.android.kt
-package io.github.smallmiro.teslable
+// sdk/src/androidMain/kotlin/dev/mirolab/teslable/PlatformContext.android.kt
+package dev.mirolab.teslable
 
 import android.content.Context
 
@@ -6404,8 +6404,8 @@ public actual class PlatformContext(
 ```
 
 ```kotlin
-// sdk/src/iosMain/kotlin/io/github/smallmiro/teslable/PlatformContext.ios.kt
-package io.github.smallmiro.teslable
+// sdk/src/iosMain/kotlin/dev/mirolab/teslable/PlatformContext.ios.kt
+package dev.mirolab.teslable
 
 /** iOS에는 넘길 것이 없다. */
 public actual class PlatformContext
@@ -6414,11 +6414,11 @@ public actual class PlatformContext
 `jvmMain`도 iOS와 같은 한 줄 actual.
 
 ```kotlin
-// sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/TeslaBleConfig.kt
-package io.github.smallmiro.teslable
+// sdk/src/commonMain/kotlin/dev/mirolab/teslable/TeslaBleConfig.kt
+package dev.mirolab.teslable
 
-import io.github.smallmiro.teslable.port.SessionCache
-import io.github.smallmiro.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.SessionCache
+import dev.mirolab.teslable.port.TeslaLogger
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
 
@@ -6440,8 +6440,8 @@ public data class TeslaBleConfig(
 ```
 
 ```kotlin
-// sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/SessionStatus.kt
-package io.github.smallmiro.teslable
+// sdk/src/commonMain/kotlin/dev/mirolab/teslable/SessionStatus.kt
+package dev.mirolab.teslable
 
 /** 도메인 세션 상태(SDD §2.3 `Vehicle.sessions`). */
 public sealed interface SessionStatus {
@@ -6460,16 +6460,16 @@ public sealed interface SessionStatus {
 ```
 
 ```kotlin
-// sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/Vehicle.kt
-package io.github.smallmiro.teslable
+// sdk/src/commonMain/kotlin/dev/mirolab/teslable/Vehicle.kt
+package dev.mirolab.teslable
 
-import io.github.smallmiro.teslable.model.VehicleDomain
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.VehicleStatus
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.model.WhitelistEntry
-import io.github.smallmiro.teslable.model.WhitelistSummary
-import io.github.smallmiro.teslable.port.TransportState
+import dev.mirolab.teslable.model.VehicleDomain
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.VehicleStatus
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.model.WhitelistEntry
+import dev.mirolab.teslable.model.WhitelistSummary
+import dev.mirolab.teslable.port.TransportState
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.time.Duration
 
@@ -6511,17 +6511,17 @@ public interface Vehicle {
 ```
 
 ```kotlin
-// sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/DefaultVehicle.kt
-package io.github.smallmiro.teslable
+// sdk/src/commonMain/kotlin/dev/mirolab/teslable/DefaultVehicle.kt
+package dev.mirolab.teslable
 
-import io.github.smallmiro.teslable.application.vehicle.VehicleSession
-import io.github.smallmiro.teslable.model.VehicleDomain
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.VehicleStatus
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.model.WhitelistEntry
-import io.github.smallmiro.teslable.model.WhitelistSummary
-import io.github.smallmiro.teslable.port.TransportState
+import dev.mirolab.teslable.application.vehicle.VehicleSession
+import dev.mirolab.teslable.model.VehicleDomain
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.VehicleStatus
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.model.WhitelistEntry
+import dev.mirolab.teslable.model.WhitelistSummary
+import dev.mirolab.teslable.port.TransportState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -6584,13 +6584,13 @@ internal class DefaultVehicle(
 ```
 
 ```kotlin
-// sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/PlatformComponents.kt
-package io.github.smallmiro.teslable
+// sdk/src/commonMain/kotlin/dev/mirolab/teslable/PlatformComponents.kt
+package dev.mirolab.teslable
 
-import io.github.smallmiro.teslable.port.SessionCache
-import io.github.smallmiro.teslable.port.TeslaLogger
-import io.github.smallmiro.teslable.port.TransportFactory
-import io.github.smallmiro.teslable.port.VehicleKeyStore
+import dev.mirolab.teslable.port.SessionCache
+import dev.mirolab.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.TransportFactory
+import dev.mirolab.teslable.port.VehicleKeyStore
 import kotlinx.coroutines.CoroutineScope
 
 /** 플랫폼 기본 어댑터 묶음. */
@@ -6610,15 +6610,15 @@ internal expect fun platformComponents(
 ```
 
 ```kotlin
-// sdk/src/androidMain/kotlin/io/github/smallmiro/teslable/PlatformComponents.android.kt
-package io.github.smallmiro.teslable
+// sdk/src/androidMain/kotlin/dev/mirolab/teslable/PlatformComponents.android.kt
+package dev.mirolab.teslable
 
-import io.github.smallmiro.teslable.ble.androidBleAvailability
-import io.github.smallmiro.teslable.ble.kableTransportFactory
-import io.github.smallmiro.teslable.crypto.androidVehicleKeyStore
-import io.github.smallmiro.teslable.crypto.platformCryptoPrimitives
-import io.github.smallmiro.teslable.port.TeslaLogger
-import io.github.smallmiro.teslable.storage.androidSessionCache
+import dev.mirolab.teslable.ble.androidBleAvailability
+import dev.mirolab.teslable.ble.kableTransportFactory
+import dev.mirolab.teslable.crypto.androidVehicleKeyStore
+import dev.mirolab.teslable.crypto.platformCryptoPrimitives
+import dev.mirolab.teslable.port.TeslaLogger
+import dev.mirolab.teslable.storage.androidSessionCache
 import kotlinx.coroutines.CoroutineScope
 
 internal actual fun platformComponents(
@@ -6639,31 +6639,31 @@ internal actual fun platformComponents(
 iOS(`appleBleAvailability()`, `appleVehicleKeyStore(logger)`, `appleSessionCache(crypto, logger)`)와 JVM(`BleAvailability.ALWAYS`, `inMemoryVehicleKeyStore()`, `config.sessionCache ?: InMemorySessionCache()`)도 같은 모양으로 쓴다.
 
 ```kotlin
-// sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/TeslaBle.kt
-package io.github.smallmiro.teslable
+// sdk/src/commonMain/kotlin/dev/mirolab/teslable/TeslaBle.kt
+package dev.mirolab.teslable
 
-import io.github.smallmiro.teslable.application.cache.SessionCacheSync
-import io.github.smallmiro.teslable.application.dispatcher.Dispatcher
-import io.github.smallmiro.teslable.application.logging.SafeLogger
-import io.github.smallmiro.teslable.application.vehicle.CommandTimeouts
-import io.github.smallmiro.teslable.application.vehicle.VehicleSession
-import io.github.smallmiro.teslable.crypto.platformCryptoPrimitives
-import io.github.smallmiro.teslable.crypto.platformRandomSource
-import io.github.smallmiro.teslable.model.KeyId
-import io.github.smallmiro.teslable.model.VehicleDomain
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.port.ConnectOptions
-import io.github.smallmiro.teslable.port.CryptoPrimitives
-import io.github.smallmiro.teslable.port.LogLevel
-import io.github.smallmiro.teslable.port.RandomSource
-import io.github.smallmiro.teslable.port.ScanEvent
-import io.github.smallmiro.teslable.port.SessionCache
-import io.github.smallmiro.teslable.port.TransportFactory
-import io.github.smallmiro.teslable.port.VehicleAdvertisement
-import io.github.smallmiro.teslable.port.VehicleKey
-import io.github.smallmiro.teslable.port.VehicleKeyStore
-import io.github.smallmiro.teslable.transport.LocalName
+import dev.mirolab.teslable.application.cache.SessionCacheSync
+import dev.mirolab.teslable.application.dispatcher.Dispatcher
+import dev.mirolab.teslable.application.logging.SafeLogger
+import dev.mirolab.teslable.application.vehicle.CommandTimeouts
+import dev.mirolab.teslable.application.vehicle.VehicleSession
+import dev.mirolab.teslable.crypto.platformCryptoPrimitives
+import dev.mirolab.teslable.crypto.platformRandomSource
+import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.model.VehicleDomain
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.ConnectOptions
+import dev.mirolab.teslable.port.CryptoPrimitives
+import dev.mirolab.teslable.port.LogLevel
+import dev.mirolab.teslable.port.RandomSource
+import dev.mirolab.teslable.port.ScanEvent
+import dev.mirolab.teslable.port.SessionCache
+import dev.mirolab.teslable.port.TransportFactory
+import dev.mirolab.teslable.port.VehicleAdvertisement
+import dev.mirolab.teslable.port.VehicleKey
+import dev.mirolab.teslable.port.VehicleKeyStore
+import dev.mirolab.teslable.transport.LocalName
 import kotlinx.coroutines.CoroutineExceptionHandler
 import kotlinx.coroutines.CoroutineName
 import kotlinx.coroutines.CoroutineScope
@@ -6781,12 +6781,12 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 참고: SDD §8.4(권한 문구), §10(`DebugLogger`), §2.3(SKIE); 로드맵 M3 완료 기준; FR-001~FR-006, FR-020~FR-021, FR-025, FR-031, FR-112; 설계 구체화 17, 18.
 
 **Files:**
-- Create: `sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/DebugLogger.kt` (expect) + `androidMain`/`iosMain`/`jvmMain` actual
-- Modify: `sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/TeslaBleConfig.kt` (`companion object { fun default(logger) }`)
-- Modify: `domain/src/commonMain/kotlin/io/github/smallmiro/teslable/model/Vin.kt` (`Vin.parseOrNull`), `domain/src/commonTest/…/model/VinTest.kt`
-- Delete: `sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/Teslable.kt`, `TeslableDiagnostics.kt`, `sdk/src/commonTest/…/TeslableTest.kt`, `ProbeRequestTest.kt`, `adapter-ble/src/commonMain/…/ble/GattProbe.kt`, `samples/ios/Sources/DiagnosticsView.swift`
+- Create: `sdk/src/commonMain/kotlin/dev/mirolab/teslable/DebugLogger.kt` (expect) + `androidMain`/`iosMain`/`jvmMain` actual
+- Modify: `sdk/src/commonMain/kotlin/dev/mirolab/teslable/TeslaBleConfig.kt` (`companion object { fun default(logger) }`)
+- Modify: `domain/src/commonMain/kotlin/dev/mirolab/teslable/model/Vin.kt` (`Vin.parseOrNull`), `domain/src/commonTest/…/model/VinTest.kt`
+- Delete: `sdk/src/commonMain/kotlin/dev/mirolab/teslable/Teslable.kt`, `TeslableDiagnostics.kt`, `sdk/src/commonTest/…/TeslableTest.kt`, `ProbeRequestTest.kt`, `adapter-ble/src/commonMain/…/ble/GattProbe.kt`, `samples/ios/Sources/DiagnosticsView.swift`
 - Modify: `samples/ios/Sources/ContentView.swift`, `TeslableSampleApp.swift`; Create: `samples/ios/Sources/SampleModel.swift`
-- Modify: `samples/android/src/main/AndroidManifest.xml`, `samples/android/src/main/kotlin/io/github/smallmiro/teslable/sample/MainActivity.kt`; Create: `…/sample/SampleState.kt`
+- Modify: `samples/android/src/main/AndroidManifest.xml`, `samples/android/src/main/kotlin/dev/mirolab/teslable/sample/MainActivity.kt`; Create: `…/sample/SampleState.kt`
 - Modify: `sdk/api/*`, `adapter-ble/api/*`, `domain/api/*`, `samples/ios/README.md`
 
 **Interfaces:**
@@ -6806,12 +6806,12 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
     }
 ```
 
-`sdk/src/commonTest/kotlin/io/github/smallmiro/teslable/TeslaBleConfigTest.kt`:
+`sdk/src/commonTest/kotlin/dev/mirolab/teslable/TeslaBleConfigTest.kt`:
 
 ```kotlin
-package io.github.smallmiro.teslable
+package dev.mirolab.teslable
 
-import io.github.smallmiro.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.TeslaLogger
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertSame
@@ -6854,22 +6854,22 @@ Run: `./gradlew :domain:jvmTest :sdk:jvmTest --console=plain` → 컴파일 실�
 ```
 
 ```kotlin
-// sdk/src/commonMain/kotlin/io/github/smallmiro/teslable/DebugLogger.kt
-package io.github.smallmiro.teslable
+// sdk/src/commonMain/kotlin/dev/mirolab/teslable/DebugLogger.kt
+package dev.mirolab.teslable
 
-import io.github.smallmiro.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.TeslaLogger
 
 /** 플랫폼 로그(Android Logcat, iOS 통합 로그, JVM java.util.logging)로 보내는 개발용 로거(SDD §10). 릴리스 빌드에는 쓰지 않는다. */
 public expect class DebugLogger() : TeslaLogger
 ```
 
 ```kotlin
-// sdk/src/androidMain/kotlin/io/github/smallmiro/teslable/DebugLogger.android.kt
-package io.github.smallmiro.teslable
+// sdk/src/androidMain/kotlin/dev/mirolab/teslable/DebugLogger.android.kt
+package dev.mirolab.teslable
 
 import android.util.Log
-import io.github.smallmiro.teslable.port.LogLevel
-import io.github.smallmiro.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.LogLevel
+import dev.mirolab.teslable.port.TeslaLogger
 
 /** Logcat 로거. 태그는 `teslable/<tag>`. */
 public actual class DebugLogger actual constructor() : TeslaLogger {
@@ -6891,11 +6891,11 @@ public actual class DebugLogger actual constructor() : TeslaLogger {
 ```
 
 ```kotlin
-// sdk/src/iosMain/kotlin/io/github/smallmiro/teslable/DebugLogger.ios.kt
-package io.github.smallmiro.teslable
+// sdk/src/iosMain/kotlin/dev/mirolab/teslable/DebugLogger.ios.kt
+package dev.mirolab.teslable
 
-import io.github.smallmiro.teslable.port.LogLevel
-import io.github.smallmiro.teslable.port.TeslaLogger
+import dev.mirolab.teslable.port.LogLevel
+import dev.mirolab.teslable.port.TeslaLogger
 import platform.Foundation.NSLog
 
 /** NSLog 로거(Xcode 콘솔·Console.app). */
@@ -7072,17 +7072,17 @@ Run: `tools/ci/verify.sh` (d) 단계가 시뮬레이터 빌드로 Swift 코드�
 `MainActivity`는 `RequestMultiplePermissions`로 두 권한을 요청한 뒤 `SampleScreen`을 보여 준다. `SampleState`(Compose 상태 + `rememberCoroutineScope`)는 iOS `SampleModel`과 같은 다섯 동작(키, 스캔, 연결, VehicleStatus, 키 목록, 끊기)을 `when (result) { is VehicleResult.Success -> …; is VehicleResult.Uncertain -> …; is VehicleResult.Failure -> … }`로 처리한다. `TeslaBle.create(PlatformContext(applicationContext), TeslaBleConfig(logger = DebugLogger()))`는 `remember`로 한 번만 만든다. 권한을 거부한 채 스캔하면 화면에 `bluetooth permission not granted`가 나와야 한다(FR-006 — 크래시 금지).
 
 ```kotlin
-// samples/android/src/main/kotlin/io/github/smallmiro/teslable/sample/SampleState.kt
-package io.github.smallmiro.teslable.sample
+// samples/android/src/main/kotlin/dev/mirolab/teslable/sample/SampleState.kt
+package dev.mirolab.teslable.sample
 
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
-import io.github.smallmiro.teslable.TeslaBle
-import io.github.smallmiro.teslable.Vehicle
-import io.github.smallmiro.teslable.model.VehicleResult
-import io.github.smallmiro.teslable.model.Vin
-import io.github.smallmiro.teslable.port.ScanEvent
-import io.github.smallmiro.teslable.port.VehicleKey
+import dev.mirolab.teslable.TeslaBle
+import dev.mirolab.teslable.Vehicle
+import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.ScanEvent
+import dev.mirolab.teslable.port.VehicleKey
 import kotlinx.coroutines.flow.first
 
 /** 샘플 화면 상태(iOS SampleModel과 같은 동작). */

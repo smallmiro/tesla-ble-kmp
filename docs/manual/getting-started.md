@@ -13,9 +13,9 @@
 ## Kotlin (Android)
 
 ```kotlin
-import io.github.smallmiro.teslable.*
-import io.github.smallmiro.teslable.model.*
-import io.github.smallmiro.teslable.port.*
+import dev.mirolab.teslable.*
+import dev.mirolab.teslable.model.*
+import dev.mirolab.teslable.port.*
 import kotlinx.coroutines.flow.first
 
 suspend fun demo(context: android.content.Context, vinText: String) {
