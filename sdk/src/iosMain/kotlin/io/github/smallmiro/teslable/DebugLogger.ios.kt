@@ -6,7 +6,7 @@ import platform.Foundation.NSLog
 
 /** NSLog 로거(Xcode 콘솔·Console.app). */
 public actual class DebugLogger actual constructor() : TeslaLogger {
-    override fun log(
+    actual override fun log(
         level: LogLevel,
         tag: String,
         message: () -> String,

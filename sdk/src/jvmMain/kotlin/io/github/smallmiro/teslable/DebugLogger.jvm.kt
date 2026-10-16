@@ -7,7 +7,7 @@ import java.util.logging.Logger
 
 /** java.util.logging 로거. 로거 이름은 `teslable.<tag>`. */
 public actual class DebugLogger actual constructor() : TeslaLogger {
-    override fun log(
+    actual override fun log(
         level: LogLevel,
         tag: String,
         message: () -> String,
