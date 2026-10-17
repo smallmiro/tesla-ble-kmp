@@ -30,8 +30,21 @@ struct ContentView: View {
                 Section("진단") {
                     NavigationLink("BLE 진단 (스파이크)") { DiagnosticsView() }
                 }
+                Section("앱 정보") {
+                    LabeledContent("번들 ID", value: AppInfo.bundleID)
+                    LabeledContent("버전", value: AppInfo.version)
+                    LabeledContent("빌드", value: AppInfo.build)
+                }
+                .font(.footnote.monospaced())
             }
             .navigationTitle("Teslable Sample")
         }
     }
+}
+
+/// 실행 중인 앱의 번들 정보(실차 확인 기록에 어떤 빌드인지 남기기 위해 화면에 표시).
+enum AppInfo {
+    static let bundleID = Bundle.main.bundleIdentifier ?? "?"
+    static let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "?"
+    static let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? "?"
 }
