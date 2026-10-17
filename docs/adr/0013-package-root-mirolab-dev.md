@@ -16,6 +16,7 @@ PRD D14(Phase 1 Q5-b)는 소유 도메인이 없어서 패키지 루트를 `io.g
 - iOS Keychain 서비스 이름과 Secure Enclave 태그 접두사 → `dev.mirolab.teslable.key`, `dev.mirolab.teslable.session`, `dev.mirolab.teslable.key.`
 
 저장소 URL(`{{REPO_URL}}`)과 GitHub Packages 주소(`{{PACKAGES_MAVEN_URL}}`)는 GitHub 계정 기준이라 그대로 둔다.
+Android Keystore 별칭(`teslable.key:` / `teslable.wrap:`)과 Android 세션 캐시 경로(`filesDir/teslable/sessions`)는 패키지 이름과 무관한 값이라 바꾸지 않는다.
 
 ## 결과
 - 배포 전 변경이므로 하위 호환 조치는 하지 않는다. 예전 Keychain 서비스 이름에 저장된 키와 세션 캐시는 새 버전에서 보이지 않는다. 실차 확인을 하던 기기에서는 키를 다시 등록한다. 예전 항목을 옮기는 코드는 넣지 않는다(사용자 결정).

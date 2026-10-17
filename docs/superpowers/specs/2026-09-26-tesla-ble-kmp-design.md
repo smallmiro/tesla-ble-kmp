@@ -18,7 +18,7 @@
 | Q3 기본 역할 | Owner (권장) · Driver · 명시 필수 | **Owner** | `03-protocol §3` |
 | Q4 API 스타일 | suspend+Flow+SKIE (권장) · suspend+Flow만 · 수기 Swift | **SKIE** | `04-go-api-reference` |
 | Q5 배포 | 오픈소스+Maven Central+SPM (권장) · GitHub Release만 · 비공개 → 이후 세 차례 재논의 | **처음부터 공개(Apache-2.0), GitHub Packages + SPM, Maven Central 안 씀** | – |
-| Q5-b 패키지 | io.github.<계정> (권장) · 도메인 역순 | **`dev.mirolab.teslable`** | – |
+| Q5-b 패키지 | io.github.<계정> (권장) · 도메인 역순 | **`io.github.smallmiro.teslable`** → ADR-0013에서 `dev.mirolab.teslable` 로 변경 | – |
 | Q6 샘플 UI | Compose+SwiftUI (권장) · Compose Multiplatform · Android 먼저 | **Compose + SwiftUI** | – |
 | Q7 동시 연결 | 차량 단위 설계, v1 1대 (권장) · 1대 강제 · 다중 포함 | **차량 단위, v1 검증 1대** | `01-architecture §5`, `02-ble-transport §11` |
 | Q8 v1 범위 | P0+P1 (권장) · 전체 · P0만 | **P0 + P1** | `05-command-catalog` |
