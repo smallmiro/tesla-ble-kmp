@@ -211,6 +211,8 @@ main.content :not(pre) > code { overflow-wrap: anywhere; }
 
 table { border-collapse: collapse; width: 100%; margin: 0 0 22px; font-size: 14px; }
 th, td { padding: 9px 12px 9px 0; text-align: left; vertical-align: top; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+/* Headers and first-column labels are short names: wrap between words, never inside one (the column widens instead) */
+th, td:first-child, main.content :is(th, td:first-child) code { overflow-wrap: break-word; word-break: keep-all; }
 th { color: var(--muted); font-weight: 500; font-size: 13px; border-bottom-color: var(--line-2); }
 @media (max-width: 760px) { table { display: block; overflow-x: auto; } }
 
