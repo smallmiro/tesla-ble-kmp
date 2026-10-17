@@ -9,6 +9,7 @@ import pathlib, re, sys
 
 html_dir = pathlib.Path(sys.argv[1]) / "documents/html"
 
+# check-manual-i18n.sh 의 to_root 와 같아야 한다.
 def to_root(h):
     if h.startswith("../"):
         return h[3:]

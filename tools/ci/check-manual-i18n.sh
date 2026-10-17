@@ -7,7 +7,7 @@
 #   - 페이지마다 태그 이름별 개수가 ko/ 와 같다 (문단·목록·표 행 누락 탐지. 어순 때문에 순서는 비교하지 않는다)
 #   - en/, ja/ 에는 언어 전환 링크의 "한국어" 라벨 말고는 한글이 없다
 #   - documents/html/index.html 은 en/index.html 을 한 단계 위 경로로 옮긴 영어 홈이다
-#     (태그 개수와 id가 같고, href는 en/ 기준 경로를 루트 기준으로 바꾼 것과 같다)
+#     (en/index.html 의 href를 루트 기준으로 바꾼 결과와 바이트 단위로 같다)
 # 인자로 저장소 루트를 넘기면 그 경로를 검사한다(검사 스크립트 자체를 시험할 때).
 set -euo pipefail
 ROOT="${1:-$(cd "$(dirname "$0")/../.." && pwd)}"
@@ -72,6 +72,7 @@ for name in pages["ko"]:
             if hangul.search(line.replace("한국어", "")):
                 errors.append(f"{rel}:{n}: Hangul outside the language switcher")
 
+# sync-manual-root-index.sh 의 to_root 와 같아야 한다.
 def to_root(h):
     if h.startswith("../"):
         return h[3:]
@@ -83,16 +84,10 @@ root_index = html_dir / "index.html"
 if not root_index.exists():
     errors.append("documents/html/index.html: missing (English home)")
 else:
-    text = root_index.read_text(encoding="utf-8")
-    ids, hrefs, tags = shape(text)
-    en_ids, en_hrefs, en_tags = shape((html_dir / "en/index.html").read_text(encoding="utf-8"))
-    if '<html lang="en">' not in text:
-        errors.append('documents/html/index.html: <html lang> must be "en"')
-    if ids != en_ids or tags != en_tags or hrefs != [to_root(h) for h in en_hrefs]:
-        errors.append("documents/html/index.html: must mirror en/index.html with paths one level up")
-    for n, line in enumerate(text.splitlines(), 1):
-        if hangul.search(line.replace("한국어", "")):
-            errors.append(f"documents/html/index.html:{n}: Hangul outside the language switcher")
+    en = (html_dir / "en/index.html").read_text(encoding="utf-8")
+    expected = re.sub(r'\bhref="([^"]+)"', lambda m: f'href="{to_root(m.group(1))}"', en)
+    if root_index.read_text(encoding="utf-8") != expected:
+        errors.append("documents/html/index.html: out of sync with en/index.html (run tools/ci/sync-manual-root-index.sh)")
 
 for e in errors:
     print(e)

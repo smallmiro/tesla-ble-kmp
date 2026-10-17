@@ -13,7 +13,7 @@
   --text: #f3f4f6;
   --text-2: #c9ccd3;
   --muted: #9ca3af;
-  --dim: #767a8c;
+  --dim: #8b90a3;
   --green: #1bd96a;
   --green-2: #4de38a;
   --violet: #c4a6ff;
@@ -38,7 +38,8 @@
 }
 
 * { box-sizing: border-box; }
-html { scroll-behavior: smooth; scroll-padding-top: calc(var(--top-h) + 16px); }
+html { scroll-padding-top: calc(var(--top-h) + 16px); }
+@media (prefers-reduced-motion: no-preference) { html { scroll-behavior: smooth; } }
 body {
   margin: 0; background: var(--bg); color: var(--text);
   font: 400 16px/1.7 var(--sans); -webkit-font-smoothing: antialiased;
@@ -223,7 +224,7 @@ html[lang="ko"] body.home main h1, html[lang="ja"] body.home main h1 { line-heig
 body.home main h1 + p.lead { max-width: 640px; font-size: 18px; }
 
 /* Narrow screens: the TOC rail goes back inline, the nav stacks above the content */
-@media (max-width: 1180px) {
+@media (max-width: 1280px) {
   main.content:has(> .toc) { display: block; max-width: 860px; }
   main.content > .toc { position: static; max-height: none; margin: 18px 0 30px; padding: 14px 18px; border: 1px solid var(--line); border-radius: 8px; background: var(--card-2); }
 }
