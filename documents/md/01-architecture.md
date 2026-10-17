@@ -1,208 +1,208 @@
-# 01. 아키텍처
+# 01. Architecture
 
-`vehicle-command` 저장소의 패키지 계층, 각 계층의 책임, 명령 하나가 지나가는 전체 경로, 동시성 모델, 캐시 구조, 빌드/CI/테스트 구성.
+Package layers of the `vehicle-command` repository, responsibilities of each layer, the full path of a single command, the concurrency model, cache structure, and build/CI/test setup.
 
-관련 파일: `pkg/connector/connector.go`, `internal/dispatcher/dispatcher.go`, `internal/dispatcher/session.go`, `internal/dispatcher/receiver.go`, `internal/authentication/*.go`, `pkg/vehicle/vehicle.go`, `pkg/vehicle/vcsec.go`, `pkg/vehicle/infotainment.go`, `pkg/cache/cache.go`, `go.mod`, `Makefile`, `Dockerfile`, `.github/workflows/build.yml`
+Related files: `pkg/connector/connector.go`, `internal/dispatcher/dispatcher.go`, `internal/dispatcher/session.go`, `internal/dispatcher/receiver.go`, `internal/authentication/*.go`, `pkg/vehicle/vehicle.go`, `pkg/vehicle/vcsec.go`, `pkg/vehicle/infotainment.go`, `pkg/cache/cache.go`, `go.mod`, `Makefile`, `Dockerfile`, `.github/workflows/build.yml`
 
 ---
 
-## 1. 디렉터리 트리
+## 1. Directory Tree
 
 ```
 vehicle-command/
-├── README.md                     설치, 프록시 설정, 키 배포 절차 (권위 있는 사용자 문서)
-├── SECURITY.md                   취약점 신고: https://www.tesla.com/legal/security
+├── README.md                     Installation, proxy setup, key distribution procedure (authoritative user docs)
+├── SECURITY.md                   Vulnerability reporting: https://www.tesla.com/legal/security
 ├── PULL_REQUEST_TEMPLATE.md
 ├── LICENSE
-├── go.mod / go.sum               모듈 github.com/teslamotors/vehicle-command, go 1.23
+├── go.mod / go.sum               Module github.com/teslamotors/vehicle-command, go 1.23
 ├── Makefile                      build/test/linters/format/install/proto-gen/doc-images/set-version
-├── check-all.sh                  build+test+vet+gofmt 검사+shellcheck
-├── .golangci.yml                 린터 설정 (00-agent-guide.md 2.3절)
-├── Dockerfile                    golang:1.23.0 빌드 → distroless nonroot, ENTRYPOINT tesla-http-proxy
-├── docker-compose.yml            프록시 예시 (env 기반 설정, ./config 볼륨)
+├── check-all.sh                  build+test+vet+gofmt check+shellcheck
+├── .golangci.yml                 Linter config (00-agent-guide.md section 2.3)
+├── Dockerfile                    golang:1.23.0 build → distroless nonroot, ENTRYPOINT tesla-http-proxy
+├── docker-compose.yml            Proxy example (env-based config, ./config volume)
 ├── .dockerignore / .gitignore
 ├── .github/
 │   ├── ISSUE_TEMPLATE/{config.yml,issue.md}
-│   └── workflows/{build.yml,publish.yml}   CI: format diff 검사, golangci-lint v1.61.0, make test
+│   └── workflows/{build.yml,publish.yml}   CI: format diff check, golangci-lint v1.61.0, make test
 ├── doc/
-│   ├── authorization.puml/.png   OAuth 토큰 획득 흐름 (PlantUML)
-│   └── request_diagram.puml/.png 프록시를 통한 명령 흐름
-├── cmd/                          바이너리 (go install ./cmd/... 로 설치)
-│   ├── tesla-keygen/{main.go,doc.go}          키 생성/삭제/내보내기/이관, 키링 저장
+│   ├── authorization.puml/.png   OAuth token acquisition flow (PlantUML)
+│   └── request_diagram.puml/.png Command flow through the proxy
+├── cmd/                          Binaries (install with go install ./cmd/...)
+│   ├── tesla-keygen/{main.go,doc.go}          Key create/delete/export/migrate, keyring storage
 │   ├── tesla-control/{main.go,commands.go,commands_test.go,doc.go,README.md,.gitignore}
-│   │                                            CLI (BLE/인터넷), commands.go에 전체 명령 표
-│   ├── tesla-auth-token/{main.go,doc.go,README.md}   OAuth 토큰을 키링에 저장
+│   │                                            CLI (BLE/internet), full command table in commands.go
+│   ├── tesla-auth-token/{main.go,doc.go,README.md}   Stores OAuth token in keyring
 │   ├── tesla-http-proxy/{main.go,server.go,main_test.go,doc.go}
-│   │                                            REST → 서명 명령 프록시 (server.go는 자체 서명 인증서 헬퍼)
-│   └── tesla-jws/{main.go,README.md}          Schnorr/P256 JWS 서명/검증 (fleet telemetry 설정용)
+│   │                                            REST → signed command proxy (server.go is a self-signed certificate helper)
+│   └── tesla-jws/{main.go,README.md}          Schnorr/P256 JWS sign/verify (for fleet telemetry config)
 ├── examples/
-│   ├── ble/{main.go,doc.go}      BLE 스캔 → 연결 → 세션 → Unlock → ClimateOn
-│   └── unlock/{unlock.go,doc.go} 인터넷(account) → Unlock
-├── pkg/                          공개 API
+│   ├── ble/{main.go,doc.go}      BLE scan → connect → session → Unlock → ClimateOn
+│   └── unlock/{unlock.go,doc.go} Internet (account) → Unlock
+├── pkg/                          Public API
 │   ├── protocol/
-│   │   ├── doc.go, domains.go    Domain 별칭/상수 (DomainNone/VCSEC/Infotainment)
-│   │   ├── error.go              Error 인터페이스, CommandError, RoutableMessageError, NominalError, GetError, ShouldRetry
-│   │   ├── key.go                ECDHPrivateKey/Session 재수출, Load/SavePrivateKey, LoadPublicKey, PublicKeyBytesFromHex
-│   │   ├── receiver.go           Receiver 인터페이스
-│   │   ├── protocol.md           프로토콜 사양 원문 (테스트 벡터)
-│   │   ├── *_test.go, test/*.pem 키 로딩 테스트 자료
-│   │   └── protobuf/             *.proto + 생성 코드 (carserver/, vcsec/, signatures/, universalmessage/, keys/, errors/, managedcharging/)
+│   │   ├── doc.go, domains.go    Domain aliases/constants (DomainNone/VCSEC/Infotainment)
+│   │   ├── error.go              Error interface, CommandError, RoutableMessageError, NominalError, GetError, ShouldRetry
+│   │   ├── key.go                Re-exports ECDHPrivateKey/Session, Load/SavePrivateKey, LoadPublicKey, PublicKeyBytesFromHex
+│   │   ├── receiver.go           Receiver interface
+│   │   ├── protocol.md           Original protocol specification (test vectors)
+│   │   ├── *_test.go, test/*.pem Key loading test data
+│   │   └── protobuf/             *.proto + generated code (carserver/, vcsec/, signatures/, universalmessage/, keys/, errors/, managedcharging/)
 │   ├── connector/
-│   │   ├── connector.go, doc.go  Connector / FleetAPIConnector 인터페이스, AuthMethod, BufferSize, MaxResponseLength
-│   │   ├── ble/{ble.go,doc.go,device_darwin.go,device_linux.go,device_windows.go}   BLE 구현 (go-ble/ble)
-│   │   └── inet/{inet.go,doc.go,inet_test.go}                                        Fleet API HTTPS 구현
+│   │   ├── connector.go, doc.go  Connector / FleetAPIConnector interfaces, AuthMethod, BufferSize, MaxResponseLength
+│   │   ├── ble/{ble.go,doc.go,device_darwin.go,device_linux.go,device_windows.go}   BLE implementation (go-ble/ble)
+│   │   └── inet/{inet.go,doc.go,inet_test.go}                                        Fleet API HTTPS implementation
 │   ├── vehicle/
-│   │   ├── vehicle.go            Vehicle 타입, NewVehicle, Connect, StartSession, Send, SendMessage, Wakeup, 캐시 연동
-│   │   ├── vcsec.go              VCSEC 응답 파싱, readUntil, getVCSECResult, RKE/closure/whitelist 헬퍼
-│   │   ├── infotainment.go       CarServer Action 실행, Ping, 미디어, 소프트웨어 업데이트, SeatPosition
-│   │   ├── security.go           잠금/키 관리/PIN/발렛/센트리/게스트/패렌탈 컨트롤/Homelink
-│   │   ├── actions.go            트렁크/프렁크/토노/경적/라이트/선루프/창문/충전 포트
-│   │   ├── charge.go             충전 제한/전류/시작·정지/스케줄/출발 예약/저전력/액세서리 전원
-│   │   ├── climate.go            공조/시트 히터·쿨러/스티어링 휠 히터/프리컨디셔닝/COP/클라이밋 키퍼
-│   │   ├── state.go              BodyControllerState(VCSEC), GetState(Infotainment, StateCategory)
-│   │   └── *_test.go             mock connector 기반 재시도/타임아웃 테스트
+│   │   ├── vehicle.go            Vehicle type, NewVehicle, Connect, StartSession, Send, SendMessage, Wakeup, cache integration
+│   │   ├── vcsec.go              VCSEC response parsing, readUntil, getVCSECResult, RKE/closure/whitelist helpers
+│   │   ├── infotainment.go       CarServer Action execution, Ping, media, software update, SeatPosition
+│   │   ├── security.go           Lock/key management/PIN/valet/sentry/guest/parental controls/Homelink
+│   │   ├── actions.go            Trunk/frunk/tonneau/horn/lights/sunroof/windows/charge port
+│   │   ├── charge.go             Charge limit/current/start·stop/schedule/scheduled departure/low power/accessory power
+│   │   ├── climate.go            Climate/seat heater·cooler/steering wheel heater/preconditioning/COP/climate keeper
+│   │   ├── state.go              BodyControllerState (VCSEC), GetState (Infotainment, StateCategory)
+│   │   └── *_test.go             Retry/timeout tests based on a mock connector
 │   ├── cache/{cache.go,doc.go,cache_test.go,example_test.go}   SessionCache (LRU, JSON import/export)
 │   ├── cli/{config.go,keyring.go,config_darwin.go,config_linux.go,config_windows.go,config_test.go}
-│   │                             플래그/환경 변수/키링/연결 헬퍼
-│   ├── account/{account.go,doc.go,version.txt,account_test.go}   OAuth 토큰 → Fleet API 호스트, GetVehicle, Get/Post, UpdateKey
-│   ├── proxy/{proxy.go,command.go,doc.go,*_test.go}   HTTP 프록시 핸들러, 엔드포인트 → Vehicle 메서드 매핑
+│   │                             Flags/environment variables/keyring/connection helpers
+│   ├── account/{account.go,doc.go,version.txt,account_test.go}   OAuth token → Fleet API host, GetVehicle, Get/Post, UpdateKey
+│   ├── proxy/{proxy.go,command.go,doc.go,*_test.go}   HTTP proxy handler, endpoint → Vehicle method mapping
 │   └── sign/{sign.go,doc.go}     SignMessageForVehicle / SignMessageForFleet (JWS)
-└── internal/                     모듈 외부 임포트 불가
-    ├── authentication/           암호 프로토콜 구현
-    │   ├── ecdh.go               ECDHPrivateKey 인터페이스, SharedKeySizeBytes
-    │   ├── crypto.go             Session 인터페이스, 상수(labels, epochIDLength, windowSize), epochStartTime
-    │   ├── native.go             NativeSession(AES-GCM/HMAC), NativeECDHKey, NewECDHPrivateKey, LoadExternalECDHKey, UnmarshalECDHPrivateKey
-    │   ├── metadata.go           TLV 메타데이터 해시 빌더
-    │   ├── peer.go               Peer(공통 상태), extractMetadata, hmacTag, RequestID, responseMetadata
-    │   ├── signer.go             Signer(클라이언트 측): Encrypt, AuthorizeHMAC, Decrypt, 세션 정보 import/export/update
-    │   ├── verifier.go           Verifier(차량 측 시뮬레이션, 테스트/참조 구현)
-    │   ├── window.go             SlidingWindow 안티리플레이
-    │   ├── dispatcher.go         authentication.Dispatcher (여러 차량에 같은 키로 Signer 생성 헬퍼)
-    │   ├── jwt.go                Tesla.SS256 JWT 서명 메서드, SignMessage
-    │   ├── error.go              authentication.Error (MessageFault 코드 + 설명)
-    │   ├── *_test.go, protocol_doc_test.go   protocol.md 예시 검증
-    │   └── test_data/            PEM 픽스처
+└── internal/                     Not importable from outside the module
+    ├── authentication/           Cryptographic protocol implementation
+    │   ├── ecdh.go               ECDHPrivateKey interface, SharedKeySizeBytes
+    │   ├── crypto.go             Session interface, constants (labels, epochIDLength, windowSize), epochStartTime
+    │   ├── native.go             NativeSession (AES-GCM/HMAC), NativeECDHKey, NewECDHPrivateKey, LoadExternalECDHKey, UnmarshalECDHPrivateKey
+    │   ├── metadata.go           TLV metadata hash builder
+    │   ├── peer.go               Peer (shared state), extractMetadata, hmacTag, RequestID, responseMetadata
+    │   ├── signer.go             Signer (client side): Encrypt, AuthorizeHMAC, Decrypt, session info import/export/update
+    │   ├── verifier.go           Verifier (vehicle-side simulation, test/reference implementation)
+    │   ├── window.go             SlidingWindow anti-replay
+    │   ├── dispatcher.go         authentication.Dispatcher (helper creating Signers for multiple vehicles with the same key)
+    │   ├── jwt.go                Tesla.SS256 JWT signing method, SignMessage
+    │   ├── error.go              authentication.Error (MessageFault code + description)
+    │   ├── *_test.go, protocol_doc_test.go   Verifies protocol.md examples
+    │   └── test_data/            PEM fixtures
     ├── dispatcher/
-    │   ├── dispatcher.go         Dispatcher: 세션 관리, Send, listen/process, 캐시 import/export
+    │   ├── dispatcher.go         Dispatcher: session management, Send, listen/process, cache import/export
     │   ├── session.go            session, CacheEntry, authorize/decrypt/processHello
-    │   ├── receiver.go           receiverKey, receiver (응답 채널 + SlidingWindow)
+    │   ├── receiver.go           receiverKey, receiver (response channel + SlidingWindow)
     │   └── dispatcher_test.go
-    ├── schnorr/{schnorr.go,sign.go,*_test.go}   RFC 8235 Schnorr/P256 + RFC 6979 결정적 nonce
-    └── log/logger.go             전역 레벨 로거 (stderr, RFC3339 타임스탬프)
+    ├── schnorr/{schnorr.go,sign.go,*_test.go}   RFC 8235 Schnorr/P256 + RFC 6979 deterministic nonce
+    └── log/logger.go             Global level logger (stderr, RFC3339 timestamps)
 ```
 
 ---
 
-## 2. 계층 다이어그램
+## 2. Layer Diagram
 
 ```
-┌──────────────────────────────────────────────────────────────────────────┐
-│ 애플리케이션: cmd/tesla-control, cmd/tesla-http-proxy, examples/*, 사용자 코드 │
-└───────────────┬───────────────────────────────┬──────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────────────┐
+│ Applications: cmd/tesla-control, cmd/tesla-http-proxy, examples/*, user code │
+└───────────────┬───────────────────────────────┬──────────────────────────────┘
                 │                               │
       ┌─────────▼─────────┐            ┌────────▼────────┐
-      │ pkg/cli (Config)  │            │ pkg/proxy       │  REST → Vehicle 메서드
-      │ 플래그/env/키링    │            │ VIN 락, 캐시     │
+      │ pkg/cli (Config)  │            │ pkg/proxy       │  REST → Vehicle methods
+      │ flags/env/keyring │            │ VIN lock, cache │
       └─────────┬─────────┘            └────────┬────────┘
                 │                               │
-      ┌─────────▼───────────────────────────────▼────────┐
-      │ pkg/vehicle.Vehicle                              │  명령 API (Lock, ClimateOn, GetState ...)
-      │  - VCSEC: vcsec.UnsignedMessage → readUntil      │
-      │  - Infotainment: carserver.Action → Response     │
-      │  - 재시도 루프 (protocol.ShouldRetry)             │
-      └─────────┬────────────────────────────────────────┘
-                │ sender 인터페이스
-      ┌─────────▼────────────────────────────────────────┐
-      │ internal/dispatcher.Dispatcher                    │  RoutableMessage 계층
-      │  - 도메인별 session (핸드셰이크, 캐시)              │
-      │  - receiverKey ↔ receiver 매칭                     │
-      │  - listen goroutine: Unmarshal → process           │
-      │  - 세션 정보 갱신, 응답 복호화, 안티리플레이         │
-      └─────────┬───────────────────────┬─────────────────┘
+      ┌─────────▼───────────────────────────────▼─────────────┐
+      │ pkg/vehicle.Vehicle                                   │  Command API (Lock, ClimateOn, GetState ...)
+      │  - VCSEC: vcsec.UnsignedMessage → readUntil           │
+      │  - Infotainment: carserver.Action → Response          │
+      │  - Retry loop (protocol.ShouldRetry)                  │
+      └─────────┬─────────────────────────────────────────────┘
+                │ sender interface
+      ┌─────────▼─────────────────────────────────────────────┐
+      │ internal/dispatcher.Dispatcher                        │  RoutableMessage layer
+      │  - Per-domain session (handshake, cache)              │
+      │  - receiverKey ↔ receiver matching                    │
+      │  - listen goroutine: Unmarshal → process              │
+      │  - Session info update, response decrypt, anti-replay │
+      └─────────┬───────────────────────┬─────────────────────┘
                 │                       │ authentication.Signer
-                │              ┌────────▼─────────────────────┐
-                │              │ internal/authentication       │  암호 계층
-                │              │  ECDH → K, metadata TLV,      │
+                │              ┌────────▼───────────────────────┐
+                │              │ internal/authentication        │  Crypto layer
+                │              │  ECDH → K, metadata TLV,       │
                 │              │  AES-GCM / HMAC, SlidingWindow │
-                │              └──────────────────────────────┘
-      ┌─────────▼────────────────────────────────────────┐
-      │ pkg/connector.Connector ([]byte 데이터그램)        │  전송 계층
-      │  ble.Connection (GATT, 2바이트 길이 프레이밍)       │
-      │  inet.Connection (POST signed_command, JSON/base64)│
-      └──────────────────────────────────────────────────┘
+                │              └────────────────────────────────┘
+      ┌─────────▼─────────────────────────────────────────────┐
+      │ pkg/connector.Connector ([]byte datagrams)            │  Transport layer
+      │  ble.Connection (GATT, 2-byte length framing)         │
+      │  inet.Connection (POST signed_command, JSON/base64)   │
+      └───────────────────────────────────────────────────────┘
 ```
 
-`pkg/account`는 OAuth 토큰에서 Fleet API 호스트를 결정하고 `inet.Connection`을 만들어 `vehicle.NewVehicle`에 넘긴다. `pkg/cache`는 `dispatcher.CacheEntry` 목록을 VIN별로 보관/직렬화한다. `pkg/sign`과 `internal/schnorr`는 명령 경로와 무관한 JWS 서명(fleet telemetry 설정)용이다.
+`pkg/account` determines the Fleet API host from the OAuth token, creates an `inet.Connection`, and passes it to `vehicle.NewVehicle`. `pkg/cache` stores/serializes lists of `dispatcher.CacheEntry` per VIN. `pkg/sign` and `internal/schnorr` are for JWS signing (fleet telemetry config) and are unrelated to the command path.
 
 ---
 
-## 3. 계층별 책임
+## 3. Responsibilities by Layer
 
-### 3.1 `pkg/connector` (전송)
+### 3.1 `pkg/connector` (Transport)
 
-| 메서드 | 계약 |
+| Method | Contract |
 |---|---|
-| `Receive() <-chan []byte` | 차량이 보낸 데이터그램(RoutableMessage 직렬화 바이트). 스레드 안전. |
-| `Send(ctx, []byte) error` | 데이터그램 전송. 오류가 `protocol.Error`를 구현하면 `MayHaveSucceeded`로 수신 여부 판단 가능. |
-| `VIN() string` | 17자 VIN. 메타데이터 `TAG_PERSONALIZATION`에 그대로 쓰인다. |
-| `Close()` | 멱등. 이후 동작은 정의되지 않음. |
-| `PreferredAuthMethod()` | `AuthMethodGCM`(BLE) / `AuthMethodHMAC`(inet). `Vehicle.authMethod`의 초기값. |
-| `RetryInterval()` | 재전송 간격 (둘 다 1s). |
-| `AllowedLatency()` | 세션 정보 갱신 허용 지연 (BLE 4s, inet 10s). |
+| `Receive() <-chan []byte` | Datagrams sent by the vehicle (serialized RoutableMessage bytes). Thread-safe. |
+| `Send(ctx, []byte) error` | Sends a datagram. If the error implements `protocol.Error`, `MayHaveSucceeded` indicates whether it may have been received. |
+| `VIN() string` | 17-character VIN. Used as-is in metadata `TAG_PERSONALIZATION`. |
+| `Close()` | Idempotent. Subsequent behavior is undefined. |
+| `PreferredAuthMethod()` | `AuthMethodGCM` (BLE) / `AuthMethodHMAC` (inet). Initial value of `Vehicle.authMethod`. |
+| `RetryInterval()` | Retransmission interval (1s for both). |
+| `AllowedLatency()` | Allowed latency for session info updates (BLE 4s, inet 10s). |
 
-`FleetAPIConnector`는 여기에 `SendFleetAPICommand(ctx, endpoint, cmd)`와 `Wakeup(ctx)`를 더한다. `inet.Connection`만 구현한다. `vehicle.Wakeup`, `vehicle.SetPINToDrive`, `vehicle.SendAddKeyRequest`는 타입 단언으로 이 인터페이스 여부를 검사해 동작을 바꾼다.
+`FleetAPIConnector` adds `SendFleetAPICommand(ctx, endpoint, cmd)` and `Wakeup(ctx)`. Only `inet.Connection` implements it. `vehicle.Wakeup`, `vehicle.SetPINToDrive`, and `vehicle.SendAddKeyRequest` use a type assertion to check for this interface and change behavior accordingly.
 
-### 3.2 `internal/dispatcher` (라우팅/세션)
+### 3.2 `internal/dispatcher` (Routing/Sessions)
 
-- `Dispatcher.New(conn, privateKey)`: 16바이트 랜덤 `address`(Infotainment용 고정 routing address) 생성. `privateKey`는 nil 허용(비인증 연결).
-- `Start(ctx)`: `listen` goroutine 시작, `ready` 신호를 ctx 만료 전에 받아야 함. `Stop()`: `terminate` 채널 닫고 `done` 대기.
-- `StartSessions(ctx, domains)`: 도메인별 `StartSession`을 goroutine으로 병렬 실행. `domains == nil`이면 `[VCSEC, INFOTAINMENT]`. 하나라도 실패하면 첫 오류 반환(단, `context.Canceled`는 무시하고 다음 결과를 본다).
-- `StartSession(ctx, domain)`: 세션이 캐시에서 로드되어 `s.ctx != nil`이면 즉시 반환(`Session for %s loaded from cache`). 아니면 `tryStartSession` 루프: `RequestSessionInfo` 전송 → `readySignal`/응답/`RetryInterval` 타임아웃 중 먼저 오는 것 처리. 타임아웃이면 재전송.
-- `Send(ctx, msg, auth)`: 아래 4절 참조.
-- `Cache()`/`LoadCache(entries)`: 세션 export/import. `LoadCache`는 `ready=true`, `readySignal` 닫힌 상태의 세션을 만든다.
-- `SetMaxLatency(d)`: `d > 0`일 때만 갱신.
+- `Dispatcher.New(conn, privateKey)`: generates a 16-byte random `address` (fixed routing address for Infotainment). `privateKey` may be nil (unauthenticated connection).
+- `Start(ctx)`: starts the `listen` goroutine; the `ready` signal must be received before ctx expires. `Stop()`: closes the `terminate` channel and waits on `done`.
+- `StartSessions(ctx, domains)`: runs `StartSession` per domain in parallel goroutines. If `domains == nil`, `[VCSEC, INFOTAINMENT]`. If any fails, returns the first error (but `context.Canceled` is ignored and the next result is examined).
+- `StartSession(ctx, domain)`: if the session was loaded from cache and `s.ctx != nil`, returns immediately (`Session for %s loaded from cache`). Otherwise runs the `tryStartSession` loop: send `RequestSessionInfo` → handle whichever comes first of `readySignal`/response/`RetryInterval` timeout. On timeout, retransmit.
+- `Send(ctx, msg, auth)`: see section 4 below.
+- `Cache()`/`LoadCache(entries)`: session export/import. `LoadCache` creates sessions with `ready=true` and `readySignal` closed.
+- `SetMaxLatency(d)`: updates only when `d > 0`.
 
-### 3.3 `internal/authentication` (암호)
+### 3.3 `internal/authentication` (Cryptography)
 
-| 타입/함수 | 역할 |
+| Type/function | Role |
 |---|---|
-| `ECDHPrivateKey` (인터페이스) | `Exchange(remotePub) (Session, error)`, `PublicBytes() []byte`, `SchnorrSignature(msg)`. HSM 구현 가능하도록 인터페이스. |
-| `Session` (인터페이스) | `SessionInfoHMAC`, `Encrypt`, `Decrypt`, `LocalPublicBytes`, `NewHMAC(label)`. |
-| `NativeECDHKey{*ecdsa.PrivateKey}` | 순수 Go 구현. `Exchange`: `elliptic.P256().ScalarMult` → x좌표 32바이트 → `sha1[:16]` → AES-GCM. |
-| `NativeSession` | `gcm cipher.AEAD`, `key []byte`(K), `localPublic`. `subkey(label) = HMAC-SHA256(K, label)`. |
-| `Peer` | `domain`, `verifierName`(=VIN 바이트), `counter`, `epoch[16]`, `timeZero`, `session`. `timestamp()` = `time.Since(timeZero)` 초. |
-| `Signer` | 클라이언트. `NewSigner`, `NewAuthenticatedSigner`(태그 검증), `ImportSessionInfo`, `ExportSessionInfo`, `UpdateSessionInfo`, `UpdateSignedSessionInfo`, `Encrypt`, `AuthorizeHMAC`, `Decrypt`. |
-| `Verifier` | 차량 측 참조 구현. 테스트와 `dispatcher_test.go`의 가짜 차량에 쓰인다. 실제 클라이언트 경로에서는 사용되지 않는다. |
-| `metadata` | 태그 순서 강제 TLV 해시 빌더. `Checksum(msg)`는 `0xFF || msg`를 추가 후 Sum. |
-| `SlidingWindow` | 첫 `Update`는 무조건 true(기준 카운터 설정), 이후 `updateSlidingWindow`(윈도우 32). |
-| `RequestID(msg)` | 요청 해시 계산. |
-| `SignMessage` / `SigningMethodSchnorrP256` | JWT `alg = "Tesla.SS256"`. `iss`는 base64(PublicBytes), `aud`는 인자. |
-| `Error{Code, Info}` | `MessageFault_E` 기반 오류. 문자열은 `IncorrectEpoch: ...` 형태(`errCodeString`). |
-| `Dispatcher{ECDHPrivateKey}` | `Connect`/`ConnectAuthenticated` 헬퍼. `internal/dispatcher`와 이름만 같고 다른 것. |
+| `ECDHPrivateKey` (interface) | `Exchange(remotePub) (Session, error)`, `PublicBytes() []byte`, `SchnorrSignature(msg)`. An interface so that HSM implementations are possible. |
+| `Session` (interface) | `SessionInfoHMAC`, `Encrypt`, `Decrypt`, `LocalPublicBytes`, `NewHMAC(label)`. |
+| `NativeECDHKey{*ecdsa.PrivateKey}` | Pure Go implementation. `Exchange`: `elliptic.P256().ScalarMult` → 32-byte x-coordinate → `sha1[:16]` → AES-GCM. |
+| `NativeSession` | `gcm cipher.AEAD`, `key []byte` (K), `localPublic`. `subkey(label) = HMAC-SHA256(K, label)`. |
+| `Peer` | `domain`, `verifierName` (= VIN bytes), `counter`, `epoch[16]`, `timeZero`, `session`. `timestamp()` = `time.Since(timeZero)` in seconds. |
+| `Signer` | Client. `NewSigner`, `NewAuthenticatedSigner` (tag verification), `ImportSessionInfo`, `ExportSessionInfo`, `UpdateSessionInfo`, `UpdateSignedSessionInfo`, `Encrypt`, `AuthorizeHMAC`, `Decrypt`. |
+| `Verifier` | Vehicle-side reference implementation. Used in tests and the fake vehicle in `dispatcher_test.go`. Not used in the real client path. |
+| `metadata` | TLV hash builder enforcing tag order. `Checksum(msg)` appends `0xFF || msg` then calls Sum. |
+| `SlidingWindow` | The first `Update` is always true (sets the baseline counter); afterwards `updateSlidingWindow` (window 32). |
+| `RequestID(msg)` | Computes the request hash. |
+| `SignMessage` / `SigningMethodSchnorrP256` | JWT `alg = "Tesla.SS256"`. `iss` is base64(PublicBytes), `aud` is an argument. |
+| `Error{Code, Info}` | Error based on `MessageFault_E`. String form is `IncorrectEpoch: ...` (`errCodeString`). |
+| `Dispatcher{ECDHPrivateKey}` | `Connect`/`ConnectAuthenticated` helpers. Shares only the name with `internal/dispatcher`; it is a different thing. |
 
-### 3.4 `pkg/vehicle` (명령 API)
+### 3.4 `pkg/vehicle` (Command API)
 
 - `Vehicle{Flags, dispatcher sender, vin, conn, authMethod, keyAvailable}`.
-- Infotainment 명령: `executeCarServerAction` → `getCarServerResponse` → `proto.Marshal(carserver.Action{ActionMsg: action})` → `v.Send(ctx, DomainInfotainment, payload, v.authMethod)` → `carserver.Response` 파싱 → `actionStatus.result == ERROR`면 `NominalError`.
-- VCSEC 명령: `getVCSECResult(ctx, payload, auth, done)` → `getReceiver` → `readUntil(recv, done)` → `unmarshalVCSECResponse`. `done`은 명령 종류별 종료 판정 함수 (`isWhitelistOperationComplete`, `commandStatus == nil`, 정보 요청은 첫 응답).
-- `SessionInfo(ctx, pub, domain)`: 임의 공개 키로 핸드셰이크 요청을 보내고 응답 `SessionInfo`를 반환 (키 등록 확인용).
-- `SendMessage(ctx, msg)`: 인증 없이 RoutableMessage를 그대로 전송(프록시/카드리스 페어링 용도).
+- Infotainment commands: `executeCarServerAction` → `getCarServerResponse` → `proto.Marshal(carserver.Action{ActionMsg: action})` → `v.Send(ctx, DomainInfotainment, payload, v.authMethod)` → parse `carserver.Response` → `NominalError` if `actionStatus.result == ERROR`.
+- VCSEC commands: `getVCSECResult(ctx, payload, auth, done)` → `getReceiver` → `readUntil(recv, done)` → `unmarshalVCSECResponse`. `done` is a per-command termination function (`isWhitelistOperationComplete`, `commandStatus == nil`, first response for information requests).
+- `SessionInfo(ctx, pub, domain)`: sends a handshake request with an arbitrary public key and returns the response `SessionInfo` (for confirming key enrollment).
+- `SendMessage(ctx, msg)`: sends a RoutableMessage as-is without authentication (for the proxy/cardless pairing).
 
-### 3.5 나머지
+### 3.5 Others
 
-| 패키지 | 책임 |
+| Package | Responsibility |
 |---|---|
-| `pkg/cache` | `SessionCache{MaxEntries, Vehicles map[vin][]CacheEntry}`. LRU 근사(가장 오래된 `CreatedAt` 제거). JSON `Import/Export(File)`. |
-| `pkg/cli` | `Config`: `Flag` 마스크(VIN/OAuth/PrivateKey/BLE), `RegisterCommandLineFlags`, `ReadFromEnvironment`, `LoadCredentials`, `Connect`/`ConnectRemote`/`ConnectLocal`, 키링 저장/로드/삭제, `DomainList` 플래그 타입. |
-| `pkg/account` | `Account{UserAgent, Host, Subject}`. `New(token, ua)`는 JWT payload의 `aud`/`ou_code`에서 `fleet-api.*.tesla.com|tesla.cn|teslamotors.com` 호스트 결정. `GetVehicle`은 `inet.NewConnection` + `vehicle.NewVehicle`. |
-| `pkg/proxy` | `Proxy.ServeHTTP`: `/health`, `/api/1/vehicles/<VIN>/command/<cmd>` (7세그먼트), `/api/1/vehicles/fleet_telemetry_config`, 나머지는 Fleet API로 포워딩. [07-http-proxy.md](07-http-proxy.md). |
+| `pkg/cache` | `SessionCache{MaxEntries, Vehicles map[vin][]CacheEntry}`. Approximate LRU (removes the oldest `CreatedAt`). JSON `Import/Export(File)`. |
+| `pkg/cli` | `Config`: `Flag` mask (VIN/OAuth/PrivateKey/BLE), `RegisterCommandLineFlags`, `ReadFromEnvironment`, `LoadCredentials`, `Connect`/`ConnectRemote`/`ConnectLocal`, keyring save/load/delete, `DomainList` flag type. |
+| `pkg/account` | `Account{UserAgent, Host, Subject}`. `New(token, ua)` determines the `fleet-api.*.tesla.com|tesla.cn|teslamotors.com` host from `aud`/`ou_code` in the JWT payload. `GetVehicle` is `inet.NewConnection` + `vehicle.NewVehicle`. |
+| `pkg/proxy` | `Proxy.ServeHTTP`: `/health`, `/api/1/vehicles/<VIN>/command/<cmd>` (7 segments), `/api/1/vehicles/fleet_telemetry_config`; everything else is forwarded to Fleet API. [07-http-proxy.md](07-http-proxy.md). |
 | `pkg/sign` | `SignMessageForVehicle(key, vin, app, claims)` aud=`com.tesla.vehicle.<vin>.<app>`, `SignMessageForFleet(key, app, claims)` aud=`com.tesla.fleet.<app>`. |
-| `internal/schnorr` | `Sign(*ecdh.PrivateKey, msg)`, `Verify(pubBytes, msg, sig)`. SHA-256, 결정적 nonce. |
-| `internal/log` | `SetLevel(LevelNone/Error/Warning/Info/Debug)`, stderr 출력 `2006-01-02T15:04:05Z07:00 [debug] ...`. |
+| `internal/schnorr` | `Sign(*ecdh.PrivateKey, msg)`, `Verify(pubBytes, msg, sig)`. SHA-256, deterministic nonce. |
+| `internal/log` | `SetLevel(LevelNone/Error/Warning/Info/Debug)`, stderr output `2006-01-02T15:04:05Z07:00 [debug] ...`. |
 
 ---
 
-## 4. 명령 하나의 전체 경로 (BLE, `car.Lock(ctx)`)
+## 4. Full Path of a Single Command (BLE, `car.Lock(ctx)`)
 
 ```
 pkg/vehicle/security.go      Lock(ctx)
@@ -213,96 +213,96 @@ pkg/vehicle/vcsec.go         └ executeRKEAction(ctx, RKE_ACTION_LOCK)
                                    ├ getReceiver(ctx, DOMAIN_VEHICLE_SECURITY, payload, auth)
 pkg/vehicle/vehicle.go         │   └ RoutableMessage{ToDestination: Domain(2), Payload: bytes, Flags: v.Flags(2)}
 internal/dispatcher/dispatcher.go  └ Dispatcher.Send(ctx, msg, AuthMethodGCM)
-                                       ├ listening 확인 (아니면 ErrNotConnected)
-                                       ├ key.domain=VCSEC → addr = 16바이트 랜덤, key.uuid = 0 (VCSEC은 uuid 매칭 안 함)
-                                       ├ msg.Uuid = 16바이트 랜덤, msg.FromDestination = RoutingAddress(addr)
-                                       ├ session 조회 (없거나 !ready → ErrNoSession)
+                                       ├ check listening (otherwise ErrNotConnected)
+                                       ├ key.domain=VCSEC → addr = 16-byte random, key.uuid = 0 (VCSEC does not match on uuid)
+                                       ├ msg.Uuid = 16-byte random, msg.FromDestination = RoutingAddress(addr)
+                                       ├ look up session (missing or !ready → ErrNoSession)
 internal/dispatcher/session.go         ├ session.authorize(ctx, msg, GCM)
-                                       │   ├ lifetime = ctx deadline까지 or defaultExpiration 5s
-                                       │   ├ <-readySignal 대기
+                                       │   ├ lifetime = until ctx deadline or defaultExpiration 5s
+                                       │   ├ wait on <-readySignal
 internal/authentication/signer.go      │   └ Signer.Encrypt(msg, lifetime)
-                                       │       ├ counter++ (0xFFFFFFFF면 오류)
+                                       │       ├ counter++ (error at 0xFFFFFFFF)
                                        │       ├ gcmData{Epoch, Counter, ExpiresAt = now+lifetime - timeZero}
-internal/authentication/peer.go        │       ├ extractMetadata: SIGNATURE_TYPE(5), DOMAIN, PERSONALIZATION(VIN), EPOCH, EXPIRES_AT, COUNTER, FLAGS(≠0일 때)
+internal/authentication/peer.go        │       ├ extractMetadata: SIGNATURE_TYPE(5), DOMAIN, PERSONALIZATION(VIN), EPOCH, EXPIRES_AT, COUNTER, FLAGS(when ≠0)
 internal/authentication/metadata.go    │       ├ aad = SHA256(TLV... || 0xFF)
-internal/authentication/native.go      │       ├ nonce(12B 랜덤), ciphertext, tag = AES-GCM(K).Seal
+internal/authentication/native.go      │       ├ nonce(12B random), ciphertext, tag = AES-GCM(K).Seal
                                        │       └ msg.Payload = ciphertext; msg.SignatureData = {signer_identity.public_key, AES_GCM_Personalized_data}
-                                       ├ resp = createHandler(key, RequestID(msg))   // requestSentAt = now, SlidingWindow 초기화
+                                       ├ resp = createHandler(key, RequestID(msg))   // requestSentAt = now, initialize SlidingWindow
                                        ├ encoded = proto.Marshal(msg)
 pkg/connector/ble/ble.go               └ loop: conn.Send(ctx, encoded)
                                            ├ out = [len>>8, len&0xff] || encoded
-                                           └ blockLength 단위로 WriteCharacteristic(txChar, chunk, false)
-                                           (오류가 ShouldRetry면 RetryInterval 후 재시도)
---- 차량 ---
-pkg/connector/ble/ble.go     Subscribe 콜백 rx(p): inputBuffer append → flush() → inbox <- payload
+                                           └ WriteCharacteristic(txChar, chunk, false) per blockLength
+                                           (if the error is ShouldRetry, retry after RetryInterval)
+--- vehicle ---
+pkg/connector/ble/ble.go     Subscribe callback rx(p): inputBuffer append → flush() → inbox <- payload
 internal/dispatcher/dispatcher.go  listen(): <-conn.Receive() → proto.Unmarshal → process(msg)
-                                       ├ key.domain = FromDestination.Domain (VCSEC이면 uuid 무시)
+                                       ├ key.domain = FromDestination.Domain (uuid ignored for VCSEC)
                                        ├ ToDestination.RoutingAddress(16B) → key.address
-                                       ├ handlers[key] 조회 (없으면 드롭 로그)
-                                       ├ checkForSessionUpdate(msg, handler)   // session_info 있으면 processHello (태그/지연 검사)
-                                       ├ decrypt(msg, handler)                 // AES_GCM_Response_data 있으면 Signer.Decrypt + SlidingWindow
-                                       └ handler.ch <- msg (가득 차면 드롭)
+                                       ├ look up handlers[key] (log and drop if missing)
+                                       ├ checkForSessionUpdate(msg, handler)   // processHello if session_info is present (tag/latency checks)
+                                       ├ decrypt(msg, handler)                 // Signer.Decrypt + SlidingWindow if AES_GCM_Response_data is present
+                                       └ handler.ch <- msg (dropped if full)
 pkg/vehicle/vcsec.go         readUntil(ctx, recv, done)
                                 ├ unmarshalVCSECResponse(reply)
                                 │   ├ protocol.GetError(reply)  // signed_message_fault, session_info status, operation_status
-                                │   ├ payload nil → 빈 FromVCSECMessage (성공)
+                                │   ├ payload nil → empty FromVCSECMessage (success)
                                 │   ├ nominalError → NominalError{NominalVCSECError}
                                 │   └ commandStatus: WAIT→ErrBusy, ERROR+whitelist code→KeychainError
-                                └ done(fromVCSEC): RKE는 commandStatus == nil 이면 종료
-                             recv.Close() → handlers에서 제거
-                             err가 ShouldRetry면 RetryInterval 후 loop 재시도, 아니면 반환
+                                └ done(fromVCSEC): for RKE, finishes when commandStatus == nil
+                             recv.Close() → removed from handlers
+                             if err is ShouldRetry, retry loop after RetryInterval; otherwise return
 ```
 
-Infotainment(`car.ClimateOn`)는 `executeCarServerAction` → `v.Send(ctx, DOMAIN_INFOTAINMENT, ...)` → `trySend`(단일 응답, `recv.Recv()` 한 번) → `carserver.Response` 파싱으로 갈라지며, dispatcher 이하 경로는 같다. 차이: `key.address = d.address`(고정), `key.uuid = msg.Uuid`, 응답의 `request_uuid`로 매칭.
+Infotainment (`car.ClimateOn`) branches as `executeCarServerAction` → `v.Send(ctx, DOMAIN_INFOTAINMENT, ...)` → `trySend` (single response, `recv.Recv()` once) → `carserver.Response` parsing; the path from the dispatcher down is the same. Differences: `key.address = d.address` (fixed), `key.uuid = msg.Uuid`, matched by the response's `request_uuid`.
 
-### 4.1 receiverKey 매칭 규칙
+### 4.1 receiverKey Matching Rules
 
-| 도메인 | `from_destination.routing_address` | `uuid` / `request_uuid` | 이유 |
+| Domain | `from_destination.routing_address` | `uuid` / `request_uuid` | Reason |
 |---|---|---|---|
-| VCSEC (2) | 요청마다 새 16바이트 랜덤 | 요청에는 넣지만 응답 매칭에 사용 안 함 (`key.uuid` = 0) | VCSEC 메모리 제약으로 `request_uuid` 미회신 |
-| INFOTAINMENT (3) | dispatcher 생성 시 만든 고정 `d.address` | 요청 uuid 16바이트 = 응답 `request_uuid` | 여러 요청을 동시에 구분 |
+| VCSEC (2) | New 16-byte random per request | Included in the request but not used for response matching (`key.uuid` = 0) | VCSEC does not echo `request_uuid` due to memory constraints |
+| INFOTAINMENT (3) | Fixed `d.address` created when the dispatcher is created | Request uuid 16 bytes = response `request_uuid` | Distinguishes multiple concurrent requests |
 
-`process`는 `request_uuid` 길이가 0 또는 16이 아니면 드롭, `to_destination`이 `Domain`이면(차량→다른 도메인) 드롭, `routing_address` 길이가 16이 아니면 드롭.
+`process` drops a message if the `request_uuid` length is neither 0 nor 16, if `to_destination` is a `Domain` (vehicle → another domain), or if the `routing_address` length is not 16.
 
 ---
 
-## 5. 동시성 모델
+## 5. Concurrency Model
 
-| 락/채널 | 위치 | 보호 대상 | 주의 |
+| Lock/channel | Location | Protects | Notes |
 |---|---|---|---|
-| `ble.mu` (전역 `sync.Mutex`) | `pkg/connector/ble/ble.go` | 전역 `device` 생성/재사용, 스캔, `tryToConnect` 전체 | 연결 시도 동안 잡고 있음 → 동시에 두 차량 연결 시도는 직렬화됨 |
-| `Connection.lock` | 〃 | `Send` (블록 쓰기 순서) | `rx` 콜백은 락 없음 (go-ble가 단일 goroutine에서 호출한다고 가정) |
-| `Dispatcher.doneLock` | `internal/dispatcher/dispatcher.go` | `terminate`/`done` 채널 | `Stop`은 `<-d.done`으로 listen 종료 대기 |
-| `Dispatcher.sessionLock` | 〃 | `sessions` 맵 | `checkForSessionUpdate`/`decrypt`는 sessionLock 잡은 채 `session.lock`을 잡음 (순서: sessionLock → session.lock) |
-| `Dispatcher.handlerLock` | 〃 | `handlers` 맵 | `process`는 짧게만 잡고 채널 send는 락 밖 |
+| `ble.mu` (global `sync.Mutex`) | `pkg/connector/ble/ble.go` | Global `device` creation/reuse, scanning, all of `tryToConnect` | Held during the connection attempt → concurrent connection attempts to two vehicles are serialized |
+| `Connection.lock` | 〃 | `Send` (block write order) | The `rx` callback takes no lock (assumes go-ble calls it from a single goroutine) |
+| `Dispatcher.doneLock` | `internal/dispatcher/dispatcher.go` | `terminate`/`done` channels | `Stop` waits for listen to end via `<-d.done` |
+| `Dispatcher.sessionLock` | 〃 | `sessions` map | `checkForSessionUpdate`/`decrypt` take `session.lock` while holding sessionLock (order: sessionLock → session.lock) |
+| `Dispatcher.handlerLock` | 〃 | `handlers` map | `process` holds it only briefly; the channel send is outside the lock |
 | `Dispatcher.latencyLock` | 〃 | `maxLatency` | |
-| `session.lock` | `session.go` | `ctx`(Signer), `ready` | 장시간 작업 중 보유 금지 (주석). `authorize`는 `readySignal` 수신 후에만 잡음 |
-| `session.readySignal` (chan, cap 1) | 〃 | 세션 준비 알림 | `processHello` 성공 시 `close`; `LoadCache`도 `close`. 닫힌 채널이므로 여러 goroutine이 반복 수신 가능 |
-| `receiver.ch` (cap 10) | `receiver.go` | 응답 큐 | 가득 차면 드롭 |
-| `inet.Connection.lock` | `pkg/connector/inet/inet.go` | `inbox`, `lastPoke` | `Close` 후 `inbox = nil` |
-| `Proxy.vinLock` (`sync.Map` of chan) | `pkg/proxy/proxy.go` | VIN별 명령 직렬화 | 소유자가 `Delete` 후 `close`로 대기자 깨움 |
+| `session.lock` | `session.go` | `ctx` (Signer), `ready` | Do not hold during long operations (per comment). `authorize` takes it only after receiving `readySignal` |
+| `session.readySignal` (chan, cap 1) | 〃 | Session-ready notification | `close`d on `processHello` success; `LoadCache` also `close`s it. Since it is a closed channel, multiple goroutines can receive from it repeatedly |
+| `receiver.ch` (cap 10) | `receiver.go` | Response queue | Dropped when full |
+| `inet.Connection.lock` | `pkg/connector/inet/inet.go` | `inbox`, `lastPoke` | `inbox = nil` after `Close` |
+| `Proxy.vinLock` (`sync.Map` of chan) | `pkg/proxy/proxy.go` | Per-VIN command serialization | The owner wakes waiters by `Delete` then `close` |
 
-goroutine:
+Goroutines:
 
-- `Dispatcher.listen` 1개 (Connect 시). 모든 수신 처리와 세션 갱신, 복호화가 이 goroutine에서 순차 실행된다. 여기서 블로킹하면 모든 응답이 멈춘다.
-- `StartSessions`: 도메인 수만큼 goroutine, `results` 채널로 수집.
-- BLE 스캔 콜백: go-ble 내부 goroutine → `scanVehicleBeacon`의 `ch`(cap 1)로 전달, 첫 매치에서 `cancel()`.
+- One `Dispatcher.listen` (on Connect). All receive processing, session updates, and decryption run sequentially in this goroutine. Blocking here stalls all responses.
+- `StartSessions`: one goroutine per domain, collected via the `results` channel.
+- BLE scan callback: go-ble internal goroutine → delivered to `ch` (cap 1) in `scanVehicleBeacon`, `cancel()` on the first match.
 
 ---
 
-## 6. 세션 캐시 데이터 구조
+## 6. Session Cache Data Structure
 
 `internal/dispatcher/session.go`:
 
 ```go
 type CacheEntry struct {
-    CreatedAt   time.Time `json:"created_at"`  // Cache() 호출 시각. 로드 시 timeZero = created_at - clock_time 로 시계 복원
-    Domain      int       `json:"domain"`      // 2 또는 3
+    CreatedAt   time.Time `json:"created_at"`  // Time Cache() was called. On load, the clock is restored as timeZero = created_at - clock_time
+    Domain      int       `json:"domain"`      // 2 or 3
     SessionInfo []byte    `json:"data"`        // signatures.SessionInfo protobuf (counter, publicKey, epoch, clock_time)
 }
 ```
 
-`pkg/cache/cache.go` JSON (`MaxEntries`는 Go 필드 이름 그대로 직렬화됨):
+`pkg/cache/cache.go` JSON (`MaxEntries` is serialized with its Go field name as-is):
 
 ```json
 {
@@ -316,88 +316,88 @@ type CacheEntry struct {
 }
 ```
 
-- `Export`는 `SessionInfo.ClockTime`을 `s.timestamp()`(현재 추정 차량 시계)로 채운다. 따라서 `created_at`과 짝을 이뤄야 시계가 맞는다.
-- `LoadCache`는 `authentication.ImportSessionInfo(privateKey, VIN, data, created_at)`로 Signer를 만들고 `ready=true`로 표시한다. 개인 키가 다르면 `Exchange`는 성공하지만 이후 명령이 `INVALID_SIGNATURE` 등으로 실패하고 차량이 보내는 세션 정보로 재동기화된다.
-- `SessionCache.Update(vin, entries)`는 `MaxEntries > 0`이고 초과 시 "가장 최근 `CreatedAt`이 가장 오래된 VIN"을 제거한다.
-- `pkg/cli`는 `TESLA_CACHE_FILE` 또는 `~/.tesla-cache.json`을 `cache.New(0)`(무제한)으로 관리, 프록시는 `cache.New(10000)`.
+- `Export` fills `SessionInfo.ClockTime` with `s.timestamp()` (current estimated vehicle clock). It must therefore be paired with `created_at` for the clock to be correct.
+- `LoadCache` creates a Signer with `authentication.ImportSessionInfo(privateKey, VIN, data, created_at)` and marks it `ready=true`. If the private key differs, `Exchange` succeeds, but subsequent commands fail with `INVALID_SIGNATURE` etc., and resynchronization happens with the session info the vehicle sends.
+- `SessionCache.Update(vin, entries)`, when `MaxEntries > 0` and it is exceeded, removes "the VIN whose most recent `CreatedAt` is the oldest".
+- `pkg/cli` manages `TESLA_CACHE_FILE` or `~/.tesla-cache.json` with `cache.New(0)` (unlimited); the proxy uses `cache.New(10000)`.
 
 ---
 
-## 7. 재시도 정책 위치
+## 7. Where Retry Policies Live
 
-| 위치 | 재시도 조건 | 간격 | 종료 |
+| Location | Retry condition | Interval | Termination |
 |---|---|---|---|
-| `Dispatcher.Send` (전송 자체) | `conn.Send` 오류가 `ShouldRetry` | `conn.RetryInterval()` 1s | ctx 만료 → `CommandError{ctx.Err(), PossibleSuccess:false, PossibleTemporary:true}` |
-| `Dispatcher.tryStartSession` | 응답/ready 없이 `RetryInterval` 경과 | 1s | ctx 만료 |
-| `Vehicle.StartSession` | `StartSessions` 오류가 `ShouldRetry` | `RetryInterval` | ctx 만료 |
-| `Vehicle.Send` (Infotainment) | `trySend` 오류가 `ShouldRetry` | `RetryInterval` | ctx 만료 → `ctx.Err()` |
-| `Vehicle.getVCSECResult` (VCSEC) | `readUntil` 오류가 `ShouldRetry` (예: `ErrBusy`) | `RetryInterval` | ctx 만료 |
-| `inet.Connection.Wakeup` | `protocol.Temporary(err)` 또는 `state != "online"` | **10s** | ctx 만료 |
-| `ble.NewConnectionFromScanResult` | `tryToConnect`가 `retry=true` 이고 `!IsAdapterError` | 즉시 (스캔이 자체 대기) | ctx 만료 → 마지막 오류 반환 |
+| `Dispatcher.Send` (transmission itself) | `conn.Send` error is `ShouldRetry` | `conn.RetryInterval()` 1s | ctx expiry → `CommandError{ctx.Err(), PossibleSuccess:false, PossibleTemporary:true}` |
+| `Dispatcher.tryStartSession` | `RetryInterval` elapsed without response/ready | 1s | ctx expiry |
+| `Vehicle.StartSession` | `StartSessions` error is `ShouldRetry` | `RetryInterval` | ctx expiry |
+| `Vehicle.Send` (Infotainment) | `trySend` error is `ShouldRetry` | `RetryInterval` | ctx expiry → `ctx.Err()` |
+| `Vehicle.getVCSECResult` (VCSEC) | `readUntil` error is `ShouldRetry` (e.g. `ErrBusy`) | `RetryInterval` | ctx expiry |
+| `inet.Connection.Wakeup` | `protocol.Temporary(err)` or `state != "online"` | **10s** | ctx expiry |
+| `ble.NewConnectionFromScanResult` | `tryToConnect` returns `retry=true` and `!IsAdapterError` | Immediate (the scan waits on its own) | ctx expiry → returns the last error |
 | `Proxy.forwardRequest` | HTTP 421 + `Alt-Svc: h2=https://...` | 1s | `MaxAttempts = 2` |
 
-`ShouldRetry(err)`: `err`가 `protocol.Error`이고 `!MayHaveSucceeded() && Temporary()`일 때만 true. `RoutableMessageError.Temporary()`가 true인 코드: `BUSY, TIMEOUT, INVALID_SIGNATURE, INVALID_TOKEN_OR_COUNTER, INTERNAL, INCORRECT_EPOCH, TIME_EXPIRED, TIME_TO_LIVE_TOO_LONG`. `MayHaveSucceeded()`가 true인 코드: `ERROR_NONE`, `RESPONSE_MTU_EXCEEDED`. 자세한 표는 [08-errors.md](08-errors.md).
+`ShouldRetry(err)`: true only when `err` is a `protocol.Error` and `!MayHaveSucceeded() && Temporary()`. Codes for which `RoutableMessageError.Temporary()` is true: `BUSY, TIMEOUT, INVALID_SIGNATURE, INVALID_TOKEN_OR_COUNTER, INTERNAL, INCORRECT_EPOCH, TIME_EXPIRED, TIME_TO_LIVE_TOO_LONG`. Codes for which `MayHaveSucceeded()` is true: `ERROR_NONE`, `RESPONSE_MTU_EXCEEDED`. Full table in [08-errors.md](08-errors.md).
 
 ---
 
-## 8. 의존성 (`go.mod`)
+## 8. Dependencies (`go.mod`)
 
-| 모듈 | 버전 | 용도 |
+| Module | Version | Purpose |
 |---|---|---|
-| `github.com/go-ble/ble` | `v0.0.0-20240122180141-8c5522f54333` | BLE (darwin: CoreBluetooth via cbgo, linux: HCI 소켓) |
-| `github.com/JuulLabs-OSS/cbgo` → replace `github.com/tinygo-org/cbgo v0.0.4` | | macOS CoreBluetooth 바인딩 (cgo) |
-| `github.com/99designs/keyring` | `v1.2.2` | OS 키링 (macOS keychain, Linux secret-service/kwallet/pass/file, Windows wincred) |
-| `github.com/cronokirby/saferith` | `v0.33.0` | 상수 시간 big-int (schnorr) |
+| `github.com/go-ble/ble` | `v0.0.0-20240122180141-8c5522f54333` | BLE (darwin: CoreBluetooth via cbgo, linux: HCI socket) |
+| `github.com/JuulLabs-OSS/cbgo` → replace `github.com/tinygo-org/cbgo v0.0.4` | | macOS CoreBluetooth bindings (cgo) |
+| `github.com/99designs/keyring` | `v1.2.2` | OS keyring (macOS keychain, Linux secret-service/kwallet/pass/file, Windows wincred) |
+| `github.com/cronokirby/saferith` | `v0.33.0` | Constant-time big-int (schnorr) |
 | `github.com/golang-jwt/jwt/v5` | `v5.2.2` | JWS/JWT |
-| `github.com/google/shlex` | `v0.0.0-20191202100458-e7afc7fbc510` | `tesla-control` 대화형 셸 파싱 |
-| `golang.org/x/term` | `v0.5.0` | 키링 비밀번호 프롬프트 |
-| `google.golang.org/protobuf` | `v1.34.2` | protobuf 런타임 |
+| `github.com/google/shlex` | `v0.0.0-20191202100458-e7afc7fbc510` | `tesla-control` interactive shell parsing |
+| `golang.org/x/term` | `v0.5.0` | Keyring password prompt |
+| `google.golang.org/protobuf` | `v1.34.2` | protobuf runtime |
 
 ---
 
-## 9. 빌드 산출물, Docker, CI
+## 9. Build Artifacts, Docker, CI
 
-- `go install ./cmd/...` → `tesla-keygen`, `tesla-control`, `tesla-auth-token`, `tesla-http-proxy`, `tesla-jws` (GOBIN). `go build ./...`는 `examples/ble`, `examples/unlock`도 컴파일한다.
-- `Dockerfile`: 2단계. `golang:1.23.0`에서 `go build -o ./build ./...` → `gcr.io/distroless/base-debian12:nonroot`의 `/usr/local/bin`에 복사, `ENTRYPOINT ["tesla-http-proxy"]`. 다른 도구는 `docker run --entrypoint tesla-control ...`. distroless라 BLE(cgo/HCI)는 컨테이너에서 실질적으로 사용 불가.
-- `docker-compose.yml`: 이미지 `tesla/vehicle-command:latest`, 포트 4443, env로 TLS 경로/호스트/포트/타임아웃/`TESLA_KEY_FILE`/`TESLA_VERBOSE`, `./config:/config` 볼륨, `no-new-privileges:true`.
-- CI `build.yml` (push/PR to main): checkout → setup-go 1.23.0 → `make format && git diff --exit-code` → golangci-lint v1.61.0 → `make linters` → `make test`. `publish.yml`은 Docker Hub 배포(내용 미확인, 수정 시 직접 읽을 것).
+- `go install ./cmd/...` → `tesla-keygen`, `tesla-control`, `tesla-auth-token`, `tesla-http-proxy`, `tesla-jws` (GOBIN). `go build ./...` also compiles `examples/ble` and `examples/unlock`.
+- `Dockerfile`: two stages. `go build -o ./build ./...` in `golang:1.23.0` → copied to `/usr/local/bin` in `gcr.io/distroless/base-debian12:nonroot`, `ENTRYPOINT ["tesla-http-proxy"]`. Other tools via `docker run --entrypoint tesla-control ...`. Because it is distroless, BLE (cgo/HCI) is effectively unusable in the container.
+- `docker-compose.yml`: image `tesla/vehicle-command:latest`, port 4443, TLS paths/host/port/timeout/`TESLA_KEY_FILE`/`TESLA_VERBOSE` via env, `./config:/config` volume, `no-new-privileges:true`.
+- CI `build.yml` (push/PR to main): checkout → setup-go 1.23.0 → `make format && git diff --exit-code` → golangci-lint v1.61.0 → `make linters` → `make test`. `publish.yml` deploys to Docker Hub (contents not verified; read it directly before modifying).
 
 ---
 
-## 10. 테스트 지도
+## 10. Test Map
 
-| 파일 | 검증 대상 |
+| File | What it verifies |
 |---|---|
-| `internal/authentication/protocol_doc_test.go` | `protocol.md`의 AES-GCM 예시(테스트 키, K, 메타데이터, 평문 `120452020801`)가 구현과 일치 |
-| `internal/authentication/signer_test.go` | 세션 정보 갱신 규칙(잘못된 태그/challenge/카운터/epoch/공개 키 거부), 카운터 롤오버, export/import, 만료 시간 범위 |
-| `internal/authentication/verifier_test.go` | GCM/HMAC 검증, 플래그, epoch 회전, 순서 뒤바뀜(윈도우), 변조 탐지, 만료, 핸들 |
+| `internal/authentication/protocol_doc_test.go` | The AES-GCM example in `protocol.md` (test keys, K, metadata, plaintext `120452020801`) matches the implementation |
+| `internal/authentication/signer_test.go` | Session info update rules (rejecting bad tag/challenge/counter/epoch/public key), counter rollover, export/import, expiration time range |
+| `internal/authentication/verifier_test.go` | GCM/HMAC verification, flags, epoch rotation, reordering (window), tamper detection, expiration, handles |
 | `internal/authentication/window_test.go` | `SlidingWindow` |
-| `internal/authentication/metadata_test.go` | 태그 순서 강제, 255바이트 제한, 체크섬 |
-| `internal/authentication/ecdh_test.go`, `native_test.go` | 키 로딩(PEM 변형), 공유 키, 0 처리, 공개 키 인코딩, 공유 비밀 패딩 |
-| `internal/authentication/peer_test.go` | `RequestID` (VCSEC 17바이트 절단 포함) |
-| `internal/authentication/jwt_test.go`, `internal/schnorr/*_test.go` | Tesla.SS256, Schnorr 서명/검증, 결정적 nonce |
-| `internal/dispatcher/dispatcher_test.go` | 세션 없는 전송 거부, 핸드셰이크, 타임아웃, 잘못된 메시지 드롭, 비요청 세션 정보, 손상/비인증 세션 정보 폐기, 재시도, Stop, 응답 큐 비블로킹, 키 없는 핸드셰이크, 캐시 |
-| `pkg/vehicle/vehicle_test.go` (+ `vehicle_mock_test.go`) | mock connector로 세션 실패, 연결 재시도/타임아웃, 전송 오류/타임아웃, 재시도 실패 |
-| `pkg/vehicle/vcsec_test.go` | `NominalVCSECError`, 파싱 불가 응답, whitelist 오류 |
+| `internal/authentication/metadata_test.go` | Tag order enforcement, 255-byte limit, checksum |
+| `internal/authentication/ecdh_test.go`, `native_test.go` | Key loading (PEM variants), shared key, zero handling, public key encoding, shared secret padding |
+| `internal/authentication/peer_test.go` | `RequestID` (including VCSEC 17-byte truncation) |
+| `internal/authentication/jwt_test.go`, `internal/schnorr/*_test.go` | Tesla.SS256, Schnorr sign/verify, deterministic nonce |
+| `internal/dispatcher/dispatcher_test.go` | Rejecting sends without a session, handshake, timeout, dropping bad messages, unsolicited session info, discarding corrupted/unauthenticated session info, retries, Stop, non-blocking response queue, keyless handshake, cache |
+| `pkg/vehicle/vehicle_test.go` (+ `vehicle_mock_test.go`) | With a mock connector: session failure, connection retry/timeout, send error/timeout, retry failure |
+| `pkg/vehicle/vcsec_test.go` | `NominalVCSECError`, unparseable responses, whitelist errors |
 | `pkg/vehicle/security_test.go` | `IsValidPIN` |
-| `pkg/protocol/error_test.go` | 래핑된 오류 분류(`errors.As`), 재시도 가능 코드 |
-| `pkg/protocol/key_test.go`, `external_impl_test.go` | `LoadPublicKey` 형식들, 외부 `ECDHPrivateKey` 구현 가능성 |
+| `pkg/protocol/error_test.go` | Classification of wrapped errors (`errors.As`), retryable codes |
+| `pkg/protocol/key_test.go`, `external_impl_test.go` | `LoadPublicKey` formats, feasibility of external `ECDHPrivateKey` implementations |
 | `pkg/cache/cache_test.go` | import/export, eviction |
-| `pkg/account/account_test.go` | 토큰 파싱, 도메인 결정 |
-| `pkg/connector/inet/inet_test.go` | `Close` 후 `Send` → `ErrNotConnected` |
-| `pkg/cli/config_test.go` | `DomainList` 플래그 |
-| `pkg/proxy/proxy_test.go`, `command_test.go`, `status_test.go` | 라우팅, 인증 헤더, VIN 검사, 포워딩(XFF, Alt-Svc 421 재시도, 재시도 소진, 본문 크기), 명령 성공/실패/폴백, VIN 직렬화, telemetry config 서명, 상태 코드 매핑 |
+| `pkg/account/account_test.go` | Token parsing, domain determination |
+| `pkg/connector/inet/inet_test.go` | `Send` after `Close` → `ErrNotConnected` |
+| `pkg/cli/config_test.go` | `DomainList` flag |
+| `pkg/proxy/proxy_test.go`, `command_test.go`, `status_test.go` | Routing, auth headers, VIN checks, forwarding (XFF, Alt-Svc 421 retry, retry exhaustion, body size), command success/failure/fallback, VIN serialization, telemetry config signing, status code mapping |
 | `cmd/tesla-control/commands_test.go` | `MinutesAfterMidnight`, `GetDays` |
-| `cmd/tesla-http-proxy/main_test.go` | 환경 변수 파싱 |
+| `cmd/tesla-http-proxy/main_test.go` | Environment variable parsing |
 
 ---
 
-## 검증 체크리스트
+## Verification Checklist
 
-- [ ] 새 파일/패키지를 추가했다면 1절 트리와 2절 다이어그램에 반영했는가?
-- [ ] `Connector` 인터페이스를 바꿨다면 `ble`, `inet`, `pkg/vehicle/vehicle_mock_test.go`, `internal/dispatcher/dispatcher_test.go`의 구현을 모두 갱신했는가?
-- [ ] dispatcher의 락 순서(`sessionLock` → `session.lock`)를 뒤집거나 `listen` goroutine에서 블로킹 호출을 추가하지 않았는가?
-- [ ] `receiverKey` 매칭 규칙(VCSEC uuid 무시)을 바꾸지 않았는가? 바꿨다면 `dispatcher_test.go`의 가짜 차량도 함께 바꿨는가?
-- [ ] `CacheEntry` JSON 필드 이름(`created_at`, `domain`, `data`)을 바꾸지 않았는가? 바꾸면 기존 `~/.tesla-cache.json`과 호환이 깨진다.
-- [ ] 재시도 루프를 추가/수정했다면 `ShouldRetry` 규칙과 ctx 만료 시 반환 오류 타입(`MayHaveSucceeded` 여부)을 확인했는가?
-- [ ] 10절 테스트가 사용자 환경에서 통과했는가?
+- [ ] If you added a new file/package, did you reflect it in the section 1 tree and the section 2 diagram?
+- [ ] If you changed the `Connector` interface, did you update all implementations in `ble`, `inet`, `pkg/vehicle/vehicle_mock_test.go`, and `internal/dispatcher/dispatcher_test.go`?
+- [ ] Did you avoid reversing the dispatcher lock order (`sessionLock` → `session.lock`) or adding blocking calls in the `listen` goroutine?
+- [ ] Did you leave the `receiverKey` matching rules (uuid ignored for VCSEC) unchanged? If you changed them, did you also change the fake vehicle in `dispatcher_test.go`?
+- [ ] Did you leave the `CacheEntry` JSON field names (`created_at`, `domain`, `data`) unchanged? Changing them breaks compatibility with existing `~/.tesla-cache.json` files.
+- [ ] If you added/modified a retry loop, did you check the `ShouldRetry` rules and the error type returned on ctx expiry (whether `MayHaveSucceeded`)?
+- [ ] Did the section 10 tests pass in the user's environment?

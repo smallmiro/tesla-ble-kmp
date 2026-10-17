@@ -1,48 +1,48 @@
-# 07. HTTP 프록시 (tesla-http-proxy / pkg/proxy)
+# 07. HTTP Proxy (tesla-http-proxy / pkg/proxy)
 
-REST 요청을 받아 종단 간 인증 차량 명령으로 변환해 Fleet API 로 보내는 프록시의 라우팅, 응답 규약, 상태 코드, 배포, 확장 방법을 코드 기준으로 정리한다. 이 프록시는 **인터넷 경로 전용**이며 BLE 를 사용하지 않는다.
+Documents, based on the code, the routing, response conventions, status codes, deployment, and extension of the proxy that receives REST requests, converts them into end-to-end authenticated vehicle commands, and sends them to the Fleet API. This proxy is **internet-path only** and does not use BLE.
 
-관련 파일 (저장소 루트 기준):
-- `cmd/tesla-http-proxy/main.go` — 실행 파일 (TLS, 플래그, 환경 변수)
-- `cmd/tesla-http-proxy/server.go` — 자체 서명 인증서 생성 헬퍼 (`NewServer`, 현재 main 에서 사용하지 않음)
-- `pkg/proxy/proxy.go` — `Proxy`, `ServeHTTP`, 라우팅, 포워딩, 텔레메트리 서명
-- `pkg/proxy/command.go` — 엔드포인트 → `vehicle.Vehicle` 메서드 매핑
+Related files (relative to the repository root):
+- `cmd/tesla-http-proxy/main.go` — executable (TLS, flags, environment variables)
+- `cmd/tesla-http-proxy/server.go` — self-signed certificate generation helper (`NewServer`, currently unused by main)
+- `pkg/proxy/proxy.go` — `Proxy`, `ServeHTTP`, routing, forwarding, telemetry signing
+- `pkg/proxy/command.go` — endpoint → `vehicle.Vehicle` method mapping
 - `pkg/proxy/{proxy_test.go,command_test.go,status_test.go}`, `cmd/tesla-http-proxy/main_test.go`
 - `Dockerfile`, `docker-compose.yml`, `.dockerignore`
 
-관련 문서: [05-command-catalog.md](05-command-catalog.md) (엔드포인트 표), [04-go-api-reference.md](04-go-api-reference.md), [08-errors.md](08-errors.md)
+Related documents: [05-command-catalog.md](05-command-catalog.md) (endpoint table), [04-go-api-reference.md](04-go-api-reference.md), [08-errors.md](08-errors.md)
 
 ---
 
-## 실행
+## Running
 
 ```bash
 tesla-http-proxy -tls-key config/tls-key.pem -cert config/tls-cert.pem -key-file config/fleet-key.pem -port 4443
 ```
 
-| 플래그 | 환경 변수 | 기본값 | 의미 |
+| Flag | Environment variable | Default | Meaning |
 |---|---|---|---|
-| `-cert FILE` | `TESLA_HTTP_PROXY_TLS_CERT` | "" | TLS 인증서 체인 (서버 + 중간 CA + 루트 CA 연결) |
-| `-tls-key FILE` | `TESLA_HTTP_PROXY_TLS_KEY` | "" | TLS 서버 개인 키 |
-| `-host HOST` | `TESLA_HTTP_PROXY_HOST` | `localhost` | 바인드 호스트. `localhost` 가 아니면 경고문 출력 |
-| `-port N` | `TESLA_HTTP_PROXY_PORT` | 443 | 포트. 환경 변수가 정수가 아니면 "invalid port" |
-| `-timeout D` | `TESLA_HTTP_PROXY_TIMEOUT` | `10s` (`proxy.DefaultTimeout`) | 명령/포워딩 ctx 타임아웃. `time.ParseDuration` 형식 |
-| `-verbose` | `TESLA_VERBOSE` | false | debug 로그 |
-| `-key-name` / `-key-file` 등 | `TESLA_KEY_NAME` / `TESLA_KEY_FILE`, 키링 변수 | | 명령 인증 개인 키 (`cli.FlagPrivateKey`). `-session-cache` 플래그도 등록되지만 프록시는 자체 메모리 캐시를 쓴다 |
+| `-cert FILE` | `TESLA_HTTP_PROXY_TLS_CERT` | "" | TLS certificate chain (server + intermediate CA + root CA concatenated) |
+| `-tls-key FILE` | `TESLA_HTTP_PROXY_TLS_KEY` | "" | TLS server private key |
+| `-host HOST` | `TESLA_HTTP_PROXY_HOST` | `localhost` | Bind host. Prints a warning if not `localhost` |
+| `-port N` | `TESLA_HTTP_PROXY_PORT` | 443 | Port. "invalid port" if the environment variable is not an integer |
+| `-timeout D` | `TESLA_HTTP_PROXY_TIMEOUT` | `10s` (`proxy.DefaultTimeout`) | Command/forwarding ctx timeout. `time.ParseDuration` format |
+| `-verbose` | `TESLA_VERBOSE` | false | debug logging |
+| `-key-name` / `-key-file` etc. | `TESLA_KEY_NAME` / `TESLA_KEY_FILE`, keyring variables | | Private key for command authentication (`cli.FlagPrivateKey`). The `-session-cache` flag is also registered, but the proxy uses its own in-memory cache |
 
-환경 변수는 플래그가 기본값일 때만 적용된다(`readFromEnvironment`). 순서: 플래그 파싱 → `readFromEnvironment()` → `config.ReadFromEnvironment()`.
+Environment variables apply only when the flag is at its default (`readFromEnvironment`). Order: flag parsing → `readFromEnvironment()` → `config.ReadFromEnvironment()`.
 
-시작 시 검사:
-1. `config.PrivateKey()` 실패 → 종료 1.
-2. **TLS 키 재사용 검사**: `protocol.LoadPublicKey(tls-key)` 가 성공하고(즉 P-256 키) 그 공개 키가 명령 키의 `PublicBytes()` 와 같으면 "It is unsafe to use the same private key for TLS and command authentication." 출력 후 종료. P-256 이 아니면(예: P-384, RSA) 검사 통과.
+Startup checks:
+1. `config.PrivateKey()` fails → exit 1.
+2. **TLS key reuse check**: if `protocol.LoadPublicKey(tls-key)` succeeds (i.e. a P-256 key) and its public key equals the command key's `PublicBytes()`, prints "It is unsafe to use the same private key for TLS and command authentication." and exits. If not P-256 (e.g. P-384, RSA), the check passes.
 3. `proxy.New(ctx, skey, cacheSize=10000)`, `p.Timeout = -timeout`.
-4. `http.ListenAndServeTLS(addr, cert, key, p)`. 반환 시 "Server stopped" 로그.
+4. `http.ListenAndServeTLS(addr, cert, key, p)`. On return, logs "Server stopped".
 
 ### TLS
 
-TLS 를 끄는 옵션은 **의도적으로 없다** (`main.go` 주석: DIY 사용자가 차량을 인터넷에 노출하는 사고 방지). 비-TLS 가 꼭 필요하면 `pkg/proxy` 를 직접 임포트해 `http.ListenAndServe` 로 감싼다(아래 "라이브러리로 사용").
+There is **intentionally no** option to disable TLS (`main.go` comment: prevents DIY users from accidentally exposing vehicles to the internet). If non-TLS is truly required, import `pkg/proxy` directly and wrap it with `http.ListenAndServe` (see "Using as a Library" below).
 
-개발용 자체 서명 인증서 (README 와 동일, P-384 이라 재사용 검사도 통과):
+Self-signed certificate for development (same as README; P-384, so it also passes the reuse check):
 
 ```bash
 mkdir -p config
@@ -55,11 +55,11 @@ openssl req -x509 -nodes -newkey ec \
     -addext "keyUsage = digitalSignature, keyCertSign, keyAgreement"
 ```
 
-클라이언트는 `curl --cacert config/tls-cert.pem` 으로 신뢰.
+Clients trust it with `curl --cacert config/tls-cert.pem`.
 
 ### Docker
 
-`Dockerfile`: 1단계 `golang:1.23.0` 에서 `go mod download` → `go build -o ./build ./...`; 2단계 `gcr.io/distroless/base-debian12:nonroot` 에 `/usr/local/bin` 으로 복사. `ENTRYPOINT ["tesla-http-proxy"]` (인자는 그대로 플래그로 전달).
+`Dockerfile`: stage 1 on `golang:1.23.0` runs `go mod download` → `go build -o ./build ./...`; stage 2 copies into `/usr/local/bin` on `gcr.io/distroless/base-debian12:nonroot`. `ENTRYPOINT ["tesla-http-proxy"]` (arguments are passed through as flags).
 
 ```bash
 docker pull tesla/vehicle-command:latest
@@ -68,160 +68,160 @@ docker run --security-opt=no-new-privileges:true -v ./config:/config -p 127.0.0.
   -key-file /config/fleet-key.pem -host 0.0.0.0 -port 4443
 ```
 
-`docker-compose.yml` 은 환경 변수만으로 설정한다:
+`docker-compose.yml` configures everything via environment variables only:
 
-| 변수 | 값 |
+| Variable | Value |
 |---|---|
 | `TESLA_HTTP_PROXY_TLS_CERT` | `/config/tls-cert.pem` |
 | `TESLA_HTTP_PROXY_TLS_KEY` | `/config/tls-key.pem` |
-| `TESLA_HTTP_PROXY_HOST` | `0.0.0.0` (컨테이너 안이므로 필수; 포트 매핑으로 노출 범위 제어) |
+| `TESLA_HTTP_PROXY_HOST` | `0.0.0.0` (required inside a container; port mapping controls exposure) |
 | `TESLA_HTTP_PROXY_PORT` | `4443` |
 | `TESLA_HTTP_PROXY_TIMEOUT` | `10s` |
 | `TESLA_KEY_FILE` | `/config/fleet-key.pem` |
 | `TESLA_VERBOSE` | `true` |
 
-볼륨 `./config:/config`, `security_opt: no-new-privileges:true`. distroless 이미지에는 셸이 없다.
+Volume `./config:/config`, `security_opt: no-new-privileges:true`. The distroless image has no shell.
 
 ---
 
-## 요청 처리 (`Proxy.ServeHTTP`)
+## Request Handling (`Proxy.ServeHTTP`)
 
 ```
-req.Body = MaxBytesReader(1 MiB)                       # 초과 시 읽는 쪽에서 413
-if path == "/health":  GET → 200 "OK" (text) / 그 외 → 405
-acct = getAccount(req)                                  # "Authorization: Bearer <jwt>" 없으면 403
-acct.Host = domainForSubject[acct.Subject] 가 있으면 그 값  # 이전 421 리다이렉트 결과 재사용
-if path 가 "/api/1/vehicles/" 로 시작:
+req.Body = MaxBytesReader(1 MiB)                       # 413 on the reading side if exceeded
+if path == "/health":  GET → 200 "OK" (text) / otherwise → 405
+acct = getAccount(req)                                  # 403 if no "Authorization: Bearer <jwt>"
+acct.Host = domainForSubject[acct.Subject] if present  # reuse result of a previous 421 redirect
+if path starts with "/api/1/vehicles/":
     seg = split(path, "/")
     if len(seg)==7 && seg[5]=="command":                # /api/1/vehicles/{VIN}/command/{cmd}
-        VIN 길이 != 17 → 404 "expected 17-character VIN in path (do not user Fleet API ID)"
-        VIN 이 unsupported 로 표시됨 → forwardRequest (+ Host 변경 시 domainForSubject 갱신)
-        else handleVehicleCommand; 반환값이 ErrCommandUseRESTAPI 면 forwardRequest
+        VIN length != 17 → 404 "expected 17-character VIN in path (do not user Fleet API ID)"
+        VIN marked unsupported → forwardRequest (+ update domainForSubject if Host changed)
+        else handleVehicleCommand; if it returns ErrCommandUseRESTAPI, forwardRequest
         return
     if len(seg)==5 && seg[4]=="fleet_telemetry_config": # /api/1/vehicles/fleet_telemetry_config
         handleFleetTelemetryConfig; return
-forwardRequest(acct, w, req)                            # 그 외 모든 /api/1/* (vehicle_data, wake_up 등)
+forwardRequest(acct, w, req)                            # all other /api/1/* (vehicle_data, wake_up, etc.)
 ```
 
-`getAccount` 는 요청마다 `account.New(token, "tesla-http-proxy/1.1.0")` 를 호출한다. 토큰의 `aud`/`ou_code` 로 지역 Fleet API 호스트를 정한다(기본 `fleet-api.prd.na.vn.cloud.tesla.com`, 규칙은 [04-go-api-reference.md](04-go-api-reference.md) `pkg/account`).
+`getAccount` calls `account.New(token, "tesla-http-proxy/1.1.0")` on every request. The token's `aud`/`ou_code` determines the regional Fleet API host (default `fleet-api.prd.na.vn.cloud.tesla.com`; rules in [04-go-api-reference.md](04-go-api-reference.md) `pkg/account`).
 
-### handleVehicleCommand 흐름
+### handleVehicleCommand Flow
 
 ```
 ctx = WithTimeout(p.Timeout)
-lockVIN(ctx, vin)                          # 실패(ctx 만료) → 503
+lockVIN(ctx, vin)                          # failure (ctx expired) → 503
   ↓ defer unlockVIN
 loadVehicleAndCommandFromRequest
   ├ method != POST                         → 405 {"error":"Method Not Allowed"}
-  ├ extractCommandAction(req, command)     # body 읽고 JSON → RequestParameters, body 복원
-  │   ├ 1 MiB 초과                          → 413 (HTTPError, 본문은 err 문자열)
-  │   ├ 읽기 실패                           → 400 "could not read request body"
-  │   ├ JSON 파싱 실패                      → 400 "error occurred while parsing request parameters"
-  │   ├ ErrCommandUseRESTAPI               → 반환 → ServeHTTP 가 forwardRequest
+  ├ extractCommandAction(req, command)     # read body, JSON → RequestParameters, restore body
+  │   ├ over 1 MiB                          → 413 (HTTPError, body is the err string)
+  │   ├ read failure                        → 400 "could not read request body"
+  │   ├ JSON parse failure                  → 400 "error occurred while parsing request parameters"
+  │   ├ ErrCommandUseRESTAPI               → returned → ServeHTTP calls forwardRequest
   │   ├ ErrCommandNotImplemented           → 400 {"error":"command not implemented"}
-  │   ├ 알 수 없는 명령                     → 400 {"response":null,"error":"invalid_command","error_description":""}
-  │   └ 파라미터 NominalError               → 400 {"response":{"result":false,"reason":"missing volume param"},...}
-  └ fetchVehicle(acct, vin)                → 실패/nil → 500
-car.Connect(ctx)                           → 실패 → httpStatusCode(err)
-car.StartSession(ctx)  (양 도메인)
-  ├ ErrProtocolNotSupported (Fleet API 422) → markUnsupportedVIN(vin); forwardRequest (이후 이 VIN 은 항상 포워딩)
-  └ 기타                                   → httpStatusCode(err)
+  │   ├ unknown command                     → 400 {"response":null,"error":"invalid_command","error_description":""}
+  │   └ parameter NominalError              → 400 {"response":{"result":false,"reason":"missing volume param"},...}
+  └ fetchVehicle(acct, vin)                → failure/nil → 500
+car.Connect(ctx)                           → failure → httpStatusCode(err)
+car.StartSession(ctx)  (both domains)
+  ├ ErrProtocolNotSupported (Fleet API 422) → markUnsupportedVIN(vin); forwardRequest (this VIN is always forwarded afterwards)
+  └ other                                  → httpStatusCode(err)
 defer car.UpdateCachedSessions(p.sessions)
 car.Execute(fn)
-  ├ ErrCommandUseRESTAPI                   → 반환 → forwardRequest
+  ├ ErrCommandUseRESTAPI                   → returned → forwardRequest
   ├ protocol.IsNominalError(err)           → 200 {"response":{"result":false,"reason":"<err>"},"error":"","error_description":""}
-  ├ 기타                                   → httpStatusCode(err) (inet.HTTPError 면 그 코드와 본문 그대로)
+  ├ other                                  → httpStatusCode(err) (if inet.HTTPError, its code and body as-is)
   └ nil                                    → 200 {"response":{"result":true,"reason":""}}
 ```
 
 `httpStatusCode(err)`:
 
-| 조건 (`errors.Is`) | 코드 | 이유 |
+| Condition (`errors.Is`) | Code | Reason |
 |---|---|---|
-| `inet.ErrVehicleNotAwake` | 408 Request Timeout | Fleet API 가 오프라인/수면 차량에 쓰는 코드와 동일 |
-| `protocol.ErrKeyNotPaired` | 412 Precondition Failed | OAuth 는 통과했지만 차량 키 페어링 전제조건 실패 (401 아님) |
-| 그 외 | 500 | |
+| `inet.ErrVehicleNotAwake` | 408 Request Timeout | Same code the Fleet API uses for offline/asleep vehicles |
+| `protocol.ErrKeyNotPaired` | 412 Precondition Failed | OAuth passed, but the vehicle key pairing precondition failed (not 401) |
+| Otherwise | 500 | |
 
 `writeJSONError(w, code, err)`:
-- `err` 가 `*inet.HTTPError` 면 **코드를 `httpErr.Code` 로 덮어쓰고 본문은 `err.Error()` 그대로** (Fleet API 가 준 JSON 본문이 그대로 전달됨; Content-Type 은 항상 `application/json`).
+- If `err` is `*inet.HTTPError`, **the code is overwritten with `httpErr.Code` and the body is `err.Error()` as-is** (the JSON body from the Fleet API is passed through; Content-Type is always `application/json`).
 - `err == nil` → `{"error": http.StatusText(code)}`.
-- `IsNominalError(err)` → `{"response":{"result":false,"reason":"<err>"},"error":"","error_description":""}` (`Response` 구조체에 `omitempty` 없음).
-- 그 외 → `{"response":null,"error":"<err>","error_description":""}`.
-- 본문 끝에 `\n`. 200 이 아니면 `log.Error("Returning error ...")`.
+- `IsNominalError(err)` → `{"response":{"result":false,"reason":"<err>"},"error":"","error_description":""}` (the `Response` struct has no `omitempty`).
+- Otherwise → `{"response":null,"error":"<err>","error_description":""}`.
+- Body ends with `\n`. If not 200, `log.Error("Returning error ...")`.
 
-### 상태 코드 요약
+### Status Code Summary
 
-| 코드 | 상황 |
+| Code | Situation |
 |---|---|
-| 200 | 명령 성공 `{"response":{"result":true,"reason":""}}` / 차량이 거부(NominalError) `{"response":{"result":false,"reason":"..."}}` / 포워딩된 업스트림 200 |
-| 400 | 잘못된 JSON, 파라미터 누락/타입 오류(NominalError 형식), 알 수 없는 명령(`invalid_command`), `remote_boombox`, `window_control` command 값 오류, `forwardRequest` 요청 생성 실패/RemoteAddr 파싱 실패 |
-| 403 | `Authorization: Bearer` 헤더 없음 |
-| 404 | VIN 이 17자가 아님 (Fleet API 숫자 ID 사용 금지) |
-| 405 | `/health` 에 GET 이외, 명령 엔드포인트에 POST 이외 |
-| 408 | 차량 오프라인/수면 (`ErrVehicleNotAwake`, Fleet API 503 또는 408+"vehicle is offline") |
-| 412 | 공개 키가 차량에 등록되지 않음 (`ErrKeyNotPaired`, `UNKNOWN_KEY_ID` 또는 `KEY_NOT_ON_WHITELIST`) |
-| 413 | 요청 본문 1 MiB 초과 |
-| 421 | 업스트림 421 에 `Alt-Svc` 헤더가 없으면 그대로 전달; `Alt-Svc` 는 있으나 `h2=https://` 항목이 없으면 `{"error":"Misdirected Request"}` |
-| 500 | 기타 오류, `fetchVehicle` 실패, 텔레메트리 서명 실패, JSON 직렬화 실패 |
-| 502 | 업스트림 HTTP 오류(비-타임아웃), 응답 본문 읽기 실패, 응답 10 MB 초과, 421 재시도 소진("max retry exhausted") |
-| 503 | `lockVIN` 대기 중 ctx 만료 (같은 VIN 에 동시 명령 폭주) |
-| 504 | 업스트림 타임아웃(`url.Error.Timeout()`), 421 재시도 대기 중 ctx 만료 |
-| 그 외 | Fleet API 가 반환한 코드 그대로 (`inet.HTTPError`, 예: 401, 429) |
+| 200 | Command success `{"response":{"result":true,"reason":""}}` / rejected by vehicle (NominalError) `{"response":{"result":false,"reason":"..."}}` / forwarded upstream 200 |
+| 400 | Invalid JSON, missing/mistyped parameter (NominalError format), unknown command (`invalid_command`), `remote_boombox`, invalid `window_control` command value, `forwardRequest` request creation failure/RemoteAddr parse failure |
+| 403 | No `Authorization: Bearer` header |
+| 404 | VIN is not 17 characters (do not use the Fleet API numeric ID) |
+| 405 | Non-GET on `/health`, non-POST on command endpoints |
+| 408 | Vehicle offline/asleep (`ErrVehicleNotAwake`, Fleet API 503 or 408+"vehicle is offline") |
+| 412 | Public key not enrolled on the vehicle (`ErrKeyNotPaired`, `UNKNOWN_KEY_ID` or `KEY_NOT_ON_WHITELIST`) |
+| 413 | Request body over 1 MiB |
+| 421 | If upstream 421 has no `Alt-Svc` header, passed through as-is; if `Alt-Svc` exists but has no `h2=https://` entry, `{"error":"Misdirected Request"}` |
+| 500 | Other errors, `fetchVehicle` failure, telemetry signing failure, JSON serialization failure |
+| 502 | Upstream HTTP error (non-timeout), response body read failure, response over 10 MB, 421 retries exhausted ("max retry exhausted") |
+| 503 | ctx expired while waiting in `lockVIN` (burst of concurrent commands to the same VIN) |
+| 504 | Upstream timeout (`url.Error.Timeout()`), ctx expired while waiting for a 421 retry |
+| Other | Code returned by the Fleet API as-is (`inet.HTTPError`, e.g. 401, 429) |
 
-주의 1: `/command/wake_up` 은 `handleVehicleCommand` 를 타므로 `Execute` 전에 `Connect`+`StartSession` 을 먼저 수행한다. 차량이 잠들어 있으면 핸드셰이크 단계에서 `ErrVehicleNotAwake` → **408** 이 되어 깨우지 못한다. 수면 차량은 포워딩 경로 `POST /api/1/vehicles/{VIN}/wake_up` 으로 깨운 뒤 명령을 보낸다.
+Note 1: `/command/wake_up` goes through `handleVehicleCommand`, so `Connect`+`StartSession` run before `Execute`. If the vehicle is asleep, the handshake step yields `ErrVehicleNotAwake` → **408**, so it cannot wake the vehicle. Wake an asleep vehicle via the forwarding path `POST /api/1/vehicles/{VIN}/wake_up`, then send the command.
 
-주의 2: 세션 핸드셰이크(`StartSession`) 중 Fleet API 가 **422** 를 주면 `ErrProtocolNotSupported` → 그 VIN 을 `unsupported` 로 기억하고 원 요청을 Fleet API 로 포워딩한다(프로토콜 미지원 구형 차량). 프로세스 재시작 전까지 유지된다.
+Note 2: If the Fleet API returns **422** during the session handshake (`StartSession`), `ErrProtocolNotSupported` → that VIN is remembered as `unsupported` and the original request is forwarded to the Fleet API (older vehicles that do not support the protocol). This persists until the process restarts.
 
-### forwardRequest (범용 포워딩)
+### forwardRequest (Generic Forwarding)
 
-1. 새 요청 `http.NewRequestWithContext(ctx(p.Timeout), req.Method, req.URL, req.Body)`, 헤더 복제.
-2. per-hop 헤더 제거: `Proxy-Connection`, `Keep-Alive`, `Transfer-Encoding`, `Te`, `Upgrade` (요청·응답 모두).
-3. `X-Forwarded-For`: 기존 값이 없으면 클라이언트 IP 추가, 있으면 뒤에 붙이고 하나로 평탄화.
-4. `URL.Scheme = "https"`, `URL.Host = acct.Host`. 본문은 메모리에 읽어 재시도용으로 보관.
-5. 응답 본문은 `MaxResponseLength(10,000,000)+1` 까지 읽고 초과 시 502.
-6. **421 Misdirected Request + `Alt-Svc: h2=https://<host>`** → `acct.Host = <host>`, `domainForSubject[sub] = host` 저장, 1초 후 재시도. `MaxAttempts = 2` 번째 실패 시 502 "max retry exhausted". (`inet.Connection` 은 별도로 본문의 `use base URL:` 문구로 갱신한다.)
-7. 성공 시 업스트림 상태 코드·헤더·본문을 그대로 전달.
+1. New request `http.NewRequestWithContext(ctx(p.Timeout), req.Method, req.URL, req.Body)`, headers copied.
+2. Remove per-hop headers: `Proxy-Connection`, `Keep-Alive`, `Transfer-Encoding`, `Te`, `Upgrade` (on both request and response).
+3. `X-Forwarded-For`: if no existing value, add the client IP; if present, append and flatten into one.
+4. `URL.Scheme = "https"`, `URL.Host = acct.Host`. The body is read into memory and kept for retries.
+5. The response body is read up to `MaxResponseLength(10,000,000)+1`; 502 if exceeded.
+6. **421 Misdirected Request + `Alt-Svc: h2=https://<host>`** → `acct.Host = <host>`, store `domainForSubject[sub] = host`, retry after 1 second. On failure of attempt `MaxAttempts = 2`, 502 "max retry exhausted". (`inet.Connection` separately updates from the `use base URL:` phrase in the body.)
+7. On success, the upstream status code, headers, and body are passed through as-is.
 
 ### fleet_telemetry_config
 
-`POST /api/1/vehicles/fleet_telemetry_config` 본문 `{"vins":[...], "config":{...}}`:
-1. 본문 읽기(1 MiB 제한 → 413, 그 외 → 400), JSON 파싱 실패 → 400.
-2. `config.aud`/`config.iss` 가 있으면 경고 로그 후 덮어씀.
-3. `sign.SignMessageForFleet(p.commandKey, "TelemetryClient", config)` → JWS. 실패 → 500.
-4. 본문을 `{"vins":[...], "token":"<jws>"}` 로 바꾸고 URL 을 `/api/1/vehicles/fleet_telemetry_config_jws` 로 변경해 `forwardRequest`.
+`POST /api/1/vehicles/fleet_telemetry_config` with body `{"vins":[...], "config":{...}}`:
+1. Read body (1 MiB limit → 413, otherwise → 400); JSON parse failure → 400.
+2. If `config.aud`/`config.iss` are present, log a warning and overwrite.
+3. `sign.SignMessageForFleet(p.commandKey, "TelemetryClient", config)` → JWS. Failure → 500.
+4. Replace the body with `{"vins":[...], "token":"<jws>"}`, change the URL to `/api/1/vehicles/fleet_telemetry_config_jws`, and call `forwardRequest`.
 
-VIN/설정 유효성 검증은 Tesla 서버에 위임한다.
+VIN/config validation is delegated to Tesla's servers.
 
 ---
 
-## 내부 상태와 동시성
+## Internal State and Concurrency
 
-| 필드 | 타입 | 역할 |
+| Field | Type | Role |
 |---|---|---|
-| `commandKey` | `protocol.ECDHPrivateKey` | 모든 차량 명령 서명에 쓰는 단일 키 (Fleet 키). 공개 키가 각 차량에 등록되어 있어야 함 |
-| `sessions` | `*cache.SessionCache` (`cache.New(10000)`) | VIN 별 도메인 세션. **메모리 전용**, 재시작 시 소실. 명령마다 `GetVehicle(..., p.sessions)` 로 로드하고 끝에 `UpdateCachedSessions` |
-| `vinLock` | `sync.Map[vin]chan bool` | VIN 별 뮤텍스. 같은 VIN 의 명령은 직렬화(VCSEC 는 카운터 순서 필수). 소유자가 `Delete` 후 `close(ch)` 로 대기자 깨움; 맵 크기는 동시 명령 수로 제한 |
-| `unsupported` | `sync.Map[vin]bool` | 422 를 받은 VIN. 이후 항상 포워딩 |
-| `domainForSubject` | `sync.Map[sub]host` | OAuth `sub` 별 421 리다이렉트 결과 |
-| `client` | `httpDoer` (`*http.Client{}`) | 포워딩용. 테스트에서 교체 |
-| `fetchVehicle` | `func(ctx, acct, vin) (vehicleSession, error)` | 기본 `acct.GetVehicle(ctx, vin, commandKey, sessions)`. 테스트에서 교체 |
+| `commandKey` | `protocol.ECDHPrivateKey` | Single key used to sign all vehicle commands (Fleet key). Its public key must be enrolled on each vehicle |
+| `sessions` | `*cache.SessionCache` (`cache.New(10000)`) | Per-VIN domain sessions. **In-memory only**, lost on restart. Loaded per command via `GetVehicle(..., p.sessions)` and `UpdateCachedSessions` at the end |
+| `vinLock` | `sync.Map[vin]chan bool` | Per-VIN mutex. Commands for the same VIN are serialized (VCSEC requires counter ordering). The owner wakes waiters with `close(ch)` after `Delete`; map size is bounded by the number of concurrent commands |
+| `unsupported` | `sync.Map[vin]bool` | VINs that received 422. Always forwarded afterwards |
+| `domainForSubject` | `sync.Map[sub]host` | 421 redirect result per OAuth `sub` |
+| `client` | `httpDoer` (`*http.Client{}`) | For forwarding. Replaced in tests |
+| `fetchVehicle` | `func(ctx, acct, vin) (vehicleSession, error)` | Default `acct.GetVehicle(ctx, vin, commandKey, sessions)`. Replaced in tests |
 
-명령마다 새 `inet.Connection` + `vehicle.Vehicle` 을 만들고 `Disconnect` 한다. 세션 캐시 덕분에 두 번째 명령부터는 핸드셰이크가 생략된다(카운터/epoch 가 유효한 동안).
+A new `inet.Connection` + `vehicle.Vehicle` is created and `Disconnect`ed for each command. Thanks to the session cache, the handshake is skipped from the second command on (while the counter/epoch remain valid).
 
 ---
 
-## 보안 고려사항
+## Security Considerations
 
-- `-host` 가 `localhost` 가 아니면 시작 시 경고: 인증 없는 클라이언트가 프록시를 통해 Tesla 서버로 과도한 트래픽을 보내면 IP 가 차단될 수 있다. 프록시 자체에는 클라이언트 인증이 없고, Bearer 토큰은 **그대로 Fleet API 로 전달**된다(토큰 검증은 Tesla 가 함).
-- 명령 키 하나로 모든 VIN 을 서명하므로 키 파일/키링 보호가 핵심. TLS 키와 명령 키 재사용 금지(시작 시 검사).
-- 요청 본문 1 MiB, 응답 10 MB 상한. `X-Forwarded-For` 를 붙이므로 업스트림에 클라이언트 IP 가 노출된다.
-- 클라이언트 인증을 추가하려면 `Proxy` 를 `http.Handler` 로 감싼다 (`main.go` 주석의 권장 방식):
+- If `-host` is not `localhost`, a warning is shown at startup: if unauthenticated clients send excessive traffic to Tesla's servers through the proxy, the IP may be blocked. The proxy itself has no client authentication, and the Bearer token is **passed through to the Fleet API as-is** (Tesla validates the token).
+- A single command key signs for all VINs, so protecting the key file/keyring is critical. Reusing the TLS key as the command key is prohibited (checked at startup).
+- Request body capped at 1 MiB, response at 10 MB. Because `X-Forwarded-For` is added, the client IP is exposed upstream.
+- To add client authentication, wrap `Proxy` in an `http.Handler` (the approach recommended in the `main.go` comment):
 
 ```go
 type authed struct{ next http.Handler }
 
 func (a authed) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-    if r.Header.Get("X-Client-Token") != os.Getenv("MY_CLIENT_TOKEN") { // 예시: 실제로는 mTLS 등 사용
+    if r.Header.Get("X-Client-Token") != os.Getenv("MY_CLIENT_TOKEN") { // example: use mTLS etc. in practice
         http.Error(w, `{"error":"unauthorized"}`, http.StatusUnauthorized)
         return
     }
@@ -233,7 +233,7 @@ func (a authed) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 ---
 
-## curl 예시
+## curl Examples
 
 ```bash
 export TESLA_AUTH_TOKEN=<access-token>
@@ -243,7 +243,7 @@ BASE=https://localhost:4443
 
 curl --cacert $CA $BASE/health                                              # OK
 
-# 종단 간 인증 명령 (프록시가 서명)
+# End-to-end authenticated commands (signed by the proxy)
 curl --cacert $CA -H "Authorization: Bearer $TESLA_AUTH_TOKEN" -H 'Content-Type: application/json' \
      --data '{}' $BASE/api/1/vehicles/$VIN/command/flash_lights
 curl --cacert $CA -H "Authorization: Bearer $TESLA_AUTH_TOKEN" -H 'Content-Type: application/json' \
@@ -254,16 +254,16 @@ curl --cacert $CA -H "Authorization: Bearer $TESLA_AUTH_TOKEN" -H 'Content-Type:
      --data '{"days_of_week":"Mon,Tues,Wed","lat":37.4,"lon":-122.1,"start_time":1320,"start_enabled":true,"end_enabled":false,"enabled":true}' \
      $BASE/api/1/vehicles/$VIN/command/add_charge_schedule
 
-# 포워딩되는 엔드포인트 (프록시가 서명하지 않음)
+# Forwarded endpoints (not signed by the proxy)
 curl --cacert $CA -H "Authorization: Bearer $TESLA_AUTH_TOKEN" $BASE/api/1/vehicles/$VIN/vehicle_data | jq .
-curl --cacert $CA -H "Authorization: Bearer $TESLA_AUTH_TOKEN" -X POST $BASE/api/1/vehicles/$VIN/wake_up   # 수면 차량은 이 경로로 깨울 것
+curl --cacert $CA -H "Authorization: Bearer $TESLA_AUTH_TOKEN" -X POST $BASE/api/1/vehicles/$VIN/wake_up   # wake asleep vehicles via this path
 
-# 텔레메트리 설정 서명+제출
+# Sign + submit telemetry config
 curl --cacert $CA -H "Authorization: Bearer $TESLA_AUTH_TOKEN" -H 'Content-Type: application/json' \
      -X POST --data-binary @telemetry.json $BASE/api/1/vehicles/fleet_telemetry_config
 ```
 
-응답 예:
+Example responses:
 
 ```json
 {"response":{"result":true,"reason":""}}
@@ -273,7 +273,7 @@ curl --cacert $CA -H "Authorization: Bearer $TESLA_AUTH_TOKEN" -H 'Content-Type:
 
 ---
 
-## 라이브러리로 사용 (`pkg/proxy`)
+## Using as a Library (`pkg/proxy`)
 
 ```go
 import (
@@ -287,22 +287,22 @@ import (
 skey, err := protocol.LoadPrivateKey("fleet-key.pem")
 p, err := proxy.New(context.Background(), skey, 10000)
 p.Timeout = 15 * time.Second
-// TLS 종료를 리버스 프록시가 담당하는 내부망이라면:
+// On an internal network where a reverse proxy handles TLS termination:
 http.ListenAndServe("127.0.0.1:8080", p)
 ```
 
-`proxy.ExtractCommandAction(ctx, command, params)` 는 HTTP 없이도 엔드포인트 이름과 JSON 파라미터를 `func(*vehicle.Vehicle) error` 로 바꿔 주므로, 다른 서버 프레임워크나 메시지 큐에서 재사용할 수 있다.
+`proxy.ExtractCommandAction(ctx, command, params)` converts an endpoint name and JSON parameters into a `func(*vehicle.Vehicle) error` without HTTP, so it can be reused in other server frameworks or message queues.
 
 ---
 
-## 테스트
+## Tests
 
-| 파일 | 내용 |
+| File | Contents |
 |---|---|
-| `pkg/proxy/proxy_test.go` | `httpDoer`/`fetchVehicle` 를 가짜로 바꿔 라우팅·포워딩·421 재시도·VIN 직렬화·422 폴백·텔레메트리 서명 등 40여 케이스 (`TestServeHTTP*`, `TestForwardRequest*`, `TestVehicleCommand*`, `TestHandleFleetTelemetryConfig*`) |
-| `pkg/proxy/command_test.go` | `TestExtractCommandAction` — 엔드포인트별 파라미터 파싱 |
-| `pkg/proxy/status_test.go` | `TestHTTPStatusCode`(408/412/500 매핑, 래핑된 오류 포함), `TestWriteJSONErrorStatus` |
-| `cmd/tesla-http-proxy/main_test.go` | `TestParseConfig` — 환경 변수/플래그 우선순위 |
+| `pkg/proxy/proxy_test.go` | About 40 cases with fake `httpDoer`/`fetchVehicle`: routing, forwarding, 421 retry, VIN serialization, 422 fallback, telemetry signing, etc. (`TestServeHTTP*`, `TestForwardRequest*`, `TestVehicleCommand*`, `TestHandleFleetTelemetryConfig*`) |
+| `pkg/proxy/command_test.go` | `TestExtractCommandAction` — per-endpoint parameter parsing |
+| `pkg/proxy/status_test.go` | `TestHTTPStatusCode` (408/412/500 mapping, including wrapped errors), `TestWriteJSONErrorStatus` |
+| `cmd/tesla-http-proxy/main_test.go` | `TestParseConfig` — environment variable/flag precedence |
 
 ```bash
 go test ./pkg/proxy/... ./cmd/tesla-http-proxy/...
@@ -310,11 +310,11 @@ go test ./pkg/proxy/... ./cmd/tesla-http-proxy/...
 
 ---
 
-## 검증 체크리스트
+## Verification Checklist
 
-- [ ] 엔드포인트를 추가했다면 `pkg/proxy/command.go` 의 `switch` 와 `command_test.go`, [05-command-catalog.md](05-command-catalog.md) 를 함께 갱신했다.
-- [ ] 새 오류 → HTTP 코드 매핑은 `httpStatusCode` 에 `errors.Is` 로 추가하고 `status_test.go` 에 케이스(래핑된 오류 포함)를 넣었다.
-- [ ] 응답 JSON 형식(`Response` 구조체, `carResponse`)을 바꾸면 Fleet API 클라이언트 호환성이 깨진다 — 바꾸지 않는다.
-- [ ] `forwardRequest` 를 수정했다면 per-hop 헤더 제거, XFF, 421 재시도, 본문 상한이 유지되는지 `TestForwardRequest*` 로 확인했다.
-- [ ] `-host` 기본값 `localhost`, TLS 필수, TLS 키 재사용 검사를 제거하지 않았다.
-- [ ] `go test ./pkg/proxy/... ./cmd/tesla-http-proxy/...` 통과.
+- [ ] If an endpoint was added, the `switch` in `pkg/proxy/command.go`, `command_test.go`, and [05-command-catalog.md](05-command-catalog.md) were updated together.
+- [ ] New error → HTTP code mappings are added to `httpStatusCode` with `errors.Is`, with cases (including wrapped errors) in `status_test.go`.
+- [ ] Changing the response JSON format (`Response` struct, `carResponse`) breaks Fleet API client compatibility — do not change it.
+- [ ] If `forwardRequest` was modified, `TestForwardRequest*` confirms that per-hop header removal, XFF, 421 retry, and body caps are preserved.
+- [ ] The `-host` default `localhost`, mandatory TLS, and the TLS key reuse check were not removed.
+- [ ] `go test ./pkg/proxy/... ./cmd/tesla-http-proxy/...` passes.
