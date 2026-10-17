@@ -17,6 +17,7 @@ GitHub Actions CI(`.github/workflows/ci.yml`)를 삭제한다. `tools/ci/verify.
 - 강제는 인프라가 아니라 규칙 + PR 템플릿 체크리스트로 한다(`{{AGENTS_FILE}}` §3 규칙 3, `.github/pull_request_template.md`).
 - M6 배포(GitHub Packages, SPM 릴리스)를 위한 릴리스 전용 워크플로는 필요하면 M6에서 별도로 추가할 수 있다(이 ADR의 범위 밖).
 - 자체 호스팅 러너 시도(PR #37, CLOSED·병합 안 됨)를 대체한다 — 이 ADR이 그 자리를 대신한다.
+- **2026-10-17 추가:** 게이트에 7번째 단계 `tools/ci/check-manual-i18n.sh`를 더했다(사용자 결정). 예전 CI에는 없던 검사로, `{{AGENTS_FILE}}` §3 규칙 12(매뉴얼 언어)를 체크리스트가 아니라 게이트로 강제한다.
 
 ## 대안
 - **자체 호스팅 러너(PR #37, 실제로 시도함)**: Docker 러너 2대 + macOS 호스트 러너로 과금 문제는 풀 수 있었지만, amd64/Rosetta 에뮬레이션 때문에 GitHub-hosted보다 약 10배 느렸고 `android` 잡이 컨테이너 OOM으로 실패했다. 러너와 저장소 설정을 되돌리고 기각(2026-09-27).
