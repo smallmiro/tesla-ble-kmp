@@ -143,23 +143,36 @@
 
 <h2 id="sec-layers">レイヤーアーキテクチャ</h2>
 <div class="diagram">
-<div class="layers">
-  <div class="layer app"><div class="layer-name">アプリケーション</div><p class="sig">cmd/tesla-control · cmd/tesla-http-proxy · examples/* · ユーザーコード</p></div>
-  <div class="layer-row">
-    <div class="layer pkg"><div class="layer-name">pkg/cli</div><p>フラグ/env/キーリング</p></div>
-    <div class="layer pkg"><div class="layer-name">pkg/account</div><p>OAuth → Fleet API</p></div>
-    <div class="layer pkg"><div class="layer-name">pkg/proxy</div><p>REST → Vehicle メソッド</p></div>
-  </div>
-  <div class="layer pkg"><div class="layer-name">pkg/vehicle.Vehicle</div><p class="sig">Connect / StartSession / Lock / ClimateOn / GetState / AddKey ...</p><p>VCSEC.UnsignedMessage または CarServer.Action ペイロード生成、応答解析</p></div>
-  <div class="layer internal"><div class="layer-name">internal/dispatcher.Dispatcher</div><p>RoutableMessage 組立(uuid, routing_address)、ドメインごとの session、StartSessions(並列ハンドシェイク)、応答ルーティング(receiver)、キャッシュ import/export</p></div>
-  <div class="layer internal"><div class="layer-name">internal/authentication</div><p>ECDH → K、メタデータ TLV、HMAC/AES-GCM Signer、応答復号、アンチリプレイ</p></div>
-  <div class="layer transport"><div class="layer-name">pkg/connector.Connector</div><p class="sig">Send([]byte) / Receive() &lt;-chan []byte / VIN() / PreferredAuthMethod</p>
-    <div class="layer-row">
-      <div class="layer impl"><div class="layer-name">connector/ble</div><p class="sig">GATT 212 write / 213 ind</p><p>2 バイト長フレーミング</p></div>
-      <div class="layer impl"><div class="layer-name">connector/inet</div><p class="sig">POST .../signed_command (JSON)</p><p>OAuth Bearer、421 リダイレクト処理</p></div>
-    </div>
-  </div>
-</div>
+<svg viewBox="0 0 900 486" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="currentColor">
+  <rect fill="var(--bg-alt)" stroke="var(--border)" x="20" y="10" width="860" height="50" rx="6"/>
+  <rect fill="var(--blue)" fill-opacity=".1" stroke="var(--blue)" x="20" y="68" width="280" height="50" rx="6"/><rect fill="var(--blue)" fill-opacity=".1" stroke="var(--blue)" x="310" y="68" width="280" height="50" rx="6"/><rect fill="var(--blue)" fill-opacity=".1" stroke="var(--blue)" x="600" y="68" width="280" height="50" rx="6"/>
+  <rect fill="var(--blue)" fill-opacity=".1" stroke="var(--blue)" x="20" y="126" width="860" height="68" rx="6"/>
+  <rect fill="var(--violet)" fill-opacity=".1" stroke="var(--violet)" x="20" y="202" width="860" height="68" rx="6"/>
+  <rect fill="var(--violet)" fill-opacity=".1" stroke="var(--violet)" x="20" y="278" width="860" height="50" rx="6"/>
+  <rect fill="var(--accent-soft)" stroke="var(--accent)" x="20" y="336" width="860" height="140" rx="6"/>
+  <rect fill="var(--bg-alt)" stroke="var(--accent)" x="36" y="390" width="414" height="74" rx="6"/><rect fill="var(--bg-alt)" stroke="var(--accent)" x="462" y="390" width="402" height="74" rx="6"/>
+  <g font-weight="700">
+    <text x="34" y="30">アプリケーション</text>
+    <text x="34" y="88">pkg/cli</text><text x="324" y="88">pkg/account</text><text x="614" y="88">pkg/proxy</text>
+    <text x="34" y="146">pkg/vehicle.Vehicle</text>
+    <text x="34" y="222">internal/dispatcher.Dispatcher</text>
+    <text x="34" y="298">internal/authentication</text>
+    <text x="34" y="356">pkg/connector.Connector</text>
+    <text x="50" y="410">connector/ble</text><text x="476" y="410">connector/inet</text>
+  </g>
+  <g fill="var(--fg-muted)">
+    <text x="34" y="48">cmd/tesla-control · cmd/tesla-http-proxy · examples/* · ユーザーコード</text>
+    <text x="34" y="106">フラグ/env/キーリング</text><text x="324" y="106">OAuth → Fleet API</text><text x="614" y="106">REST → Vehicle メソッド</text>
+    <text x="34" y="164">Connect / StartSession / Lock / ClimateOn / GetState / AddKey ...</text>
+    <text x="34" y="182">VCSEC.UnsignedMessage または CarServer.Action ペイロード生成、応答解析</text>
+    <text x="34" y="240">RoutableMessage 組立(uuid, routing_address)、ドメインごとの session、</text>
+    <text x="34" y="258">StartSessions(並列ハンドシェイク)、応答ルーティング(receiver)、キャッシュ import/export</text>
+    <text x="34" y="316">ECDH → K、メタデータ TLV、HMAC/AES-GCM Signer、応答復号、アンチリプレイ</text>
+    <text x="34" y="374">Send([]byte) / Receive() &lt;-chan []byte / VIN() / PreferredAuthMethod</text>
+    <text x="50" y="428">GATT 212 write / 213 ind</text><text x="50" y="446">2 バイト長フレーミング</text>
+    <text x="476" y="428">POST .../signed_command (JSON)</text><text x="476" y="446">OAuth Bearer、421 リダイレクト処理</text>
+  </g>
+</svg>
 </div>
 <ul>
   <li><strong>Connector</strong> はバイト配列だけをやり取りするデータグラム伝送です。認証や protobuf についてはまったく関知しません。自前で実装すれば、他の伝送(例: シリアル、テスト用のメモリパイプ)を接続できます。</li>

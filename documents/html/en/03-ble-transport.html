@@ -104,29 +104,29 @@ printf '5YJS0000000000000' | shasum | cut -c1-16 | sed 's/^/S/; s/$/C/'
 <svg viewBox="0 0 860 372" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="currentColor">
   <defs><marker id="arr-frame" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
   <text x="20" y="22" font-weight="700">Transmit (Send):</text>
-  <rect class="box accent" x="20" y="36" width="130" height="36" rx="6"/><text x="85" y="59" text-anchor="middle">len (2B BE)</text>
-  <rect class="box blue" x="150" y="36" width="520" height="36" rx="6"/><text x="410" y="59" text-anchor="middle">RoutableMessage (protobuf, ≤ 1024 B)</text>
-  <path class="guide" d="M20 80v8h650v-8M345 88v8" fill="none"/>
-  <text x="345" y="114" text-anchor="middle" class="muted">split into blockLength-byte chunks, write-with-response to 0212</text>
+  <rect fill="var(--accent-soft)" stroke="var(--accent)" x="20" y="36" width="130" height="36" rx="6"/><text x="85" y="59" text-anchor="middle">len (2B BE)</text>
+  <rect fill="var(--blue)" fill-opacity=".14" stroke="var(--blue)" x="150" y="36" width="520" height="36" rx="6"/><text x="410" y="59" text-anchor="middle">RoutableMessage (protobuf, ≤ 1024 B)</text>
+  <path stroke="var(--border)" d="M20 80v8h650v-8M345 88v8" fill="none"/>
+  <text x="345" y="114" text-anchor="middle" fill="var(--fg-muted)">split into blockLength-byte chunks, write-with-response to 0212</text>
   <g stroke="currentColor" stroke-width="1.3" marker-end="url(#arr-frame)">
     <line x1="130" y1="122" x2="130" y2="144"/><line x1="360" y1="122" x2="360" y2="144"/><line x1="575" y1="122" x2="575" y2="144"/>
     <line x1="670" y1="170" x2="726" y2="170"/>
   </g>
-  <rect class="box" x="20" y="148" width="220" height="44" rx="6"/><text x="130" y="166" text-anchor="middle" font-weight="700">chunk#1</text><text x="130" y="183" text-anchor="middle">[len_hi len_lo msg[0..]]</text>
-  <rect class="box" x="260" y="148" width="200" height="44" rx="6"/><text x="360" y="166" text-anchor="middle" font-weight="700">chunk#2</text><text x="360" y="183" text-anchor="middle">[msg[..]]</text>
-  <rect class="box" x="480" y="148" width="190" height="44" rx="6"/><text x="575" y="166" text-anchor="middle" font-weight="700">chunk#3</text><text x="575" y="183" text-anchor="middle">[...]</text>
-  <rect class="box accent" x="730" y="148" width="110" height="44" rx="6"/><text x="785" y="175" text-anchor="middle" font-weight="700">0212</text>
-  <line class="guide" x1="20" y1="214" x2="840" y2="214" stroke-dasharray="4 4"/>
+  <rect fill="var(--bg-alt)" stroke="var(--border)" x="20" y="148" width="220" height="44" rx="6"/><text x="130" y="166" text-anchor="middle" font-weight="700">chunk#1</text><text x="130" y="183" text-anchor="middle">[len_hi len_lo msg[0..]]</text>
+  <rect fill="var(--bg-alt)" stroke="var(--border)" x="260" y="148" width="200" height="44" rx="6"/><text x="360" y="166" text-anchor="middle" font-weight="700">chunk#2</text><text x="360" y="183" text-anchor="middle">[msg[..]]</text>
+  <rect fill="var(--bg-alt)" stroke="var(--border)" x="480" y="148" width="190" height="44" rx="6"/><text x="575" y="166" text-anchor="middle" font-weight="700">chunk#3</text><text x="575" y="183" text-anchor="middle">[...]</text>
+  <rect fill="var(--accent-soft)" stroke="var(--accent)" x="730" y="148" width="110" height="44" rx="6"/><text x="785" y="175" text-anchor="middle" font-weight="700">0212</text>
+  <line stroke="var(--border)" x1="20" y1="214" x2="840" y2="214" stroke-dasharray="4 4"/>
   <text x="20" y="240" font-weight="700">Receive (rx callback, 0213 indication):</text>
   <g stroke="currentColor" stroke-width="1.3" fill="none" marker-end="url(#arr-frame)">
     <line x1="110" y1="278" x2="126" y2="278"/><line x1="360" y1="278" x2="386" y2="278"/>
     <line x1="530" y1="300" x2="530" y2="312"/>
     <path d="M790 338H812V278H676"/>
   </g>
-  <rect class="box accent" x="20" y="256" width="90" height="44" rx="6"/><text x="65" y="283" text-anchor="middle" font-weight="700">0213</text>
-  <rect class="box" x="130" y="256" width="230" height="44" rx="6"/><text x="245" y="283" text-anchor="middle">inputBuffer ← append(chunk)</text>
-  <rect class="box blue" x="390" y="256" width="280" height="44" rx="6"/><text x="530" y="274" text-anchor="middle" font-weight="700">flush():</text><text x="530" y="291" text-anchor="middle">read length from the first 2 bytes</text>
-  <rect class="box violet" x="390" y="316" width="400" height="44" rx="6"/><text x="590" y="334" text-anchor="middle">once enough has arrived,</text><text x="590" y="351" text-anchor="middle">deliver 1 message to the inbox channel; repeat</text>
+  <rect fill="var(--accent-soft)" stroke="var(--accent)" x="20" y="256" width="90" height="44" rx="6"/><text x="65" y="283" text-anchor="middle" font-weight="700">0213</text>
+  <rect fill="var(--bg-alt)" stroke="var(--border)" x="130" y="256" width="230" height="44" rx="6"/><text x="245" y="283" text-anchor="middle">inputBuffer ← append(chunk)</text>
+  <rect fill="var(--blue)" fill-opacity=".14" stroke="var(--blue)" x="390" y="256" width="280" height="44" rx="6"/><text x="530" y="274" text-anchor="middle" font-weight="700">flush():</text><text x="530" y="291" text-anchor="middle">read length from the first 2 bytes</text>
+  <rect fill="var(--violet)" fill-opacity=".14" stroke="var(--violet)" x="390" y="316" width="400" height="44" rx="6"/><text x="590" y="334" text-anchor="middle">once enough has arrived,</text><text x="590" y="351" text-anchor="middle">deliver 1 message to the inbox channel; repeat</text>
 </svg>
 </div>
 <table>

@@ -143,23 +143,36 @@
 
 <h2 id="sec-layers">Layered architecture</h2>
 <div class="diagram">
-<div class="layers">
-  <div class="layer app"><div class="layer-name">Application</div><p class="sig">cmd/tesla-control · cmd/tesla-http-proxy · examples/* · user code</p></div>
-  <div class="layer-row">
-    <div class="layer pkg"><div class="layer-name">pkg/cli</div><p>flags/env/keyring</p></div>
-    <div class="layer pkg"><div class="layer-name">pkg/account</div><p>OAuth → Fleet API</p></div>
-    <div class="layer pkg"><div class="layer-name">pkg/proxy</div><p>REST → Vehicle methods</p></div>
-  </div>
-  <div class="layer pkg"><div class="layer-name">pkg/vehicle.Vehicle</div><p class="sig">Connect / StartSession / Lock / ClimateOn / GetState / AddKey ...</p><p>builds VCSEC.UnsignedMessage or CarServer.Action payloads, parses responses</p></div>
-  <div class="layer internal"><div class="layer-name">internal/dispatcher.Dispatcher</div><p>assembles RoutableMessage (uuid, routing_address), per-domain session, StartSessions (parallel handshakes), response routing (receiver), cache import/export</p></div>
-  <div class="layer internal"><div class="layer-name">internal/authentication</div><p>ECDH → K, metadata TLV, HMAC/AES-GCM Signer, response decryption, anti-replay</p></div>
-  <div class="layer transport"><div class="layer-name">pkg/connector.Connector</div><p class="sig">Send([]byte) / Receive() &lt;-chan []byte / VIN() / PreferredAuthMethod</p>
-    <div class="layer-row">
-      <div class="layer impl"><div class="layer-name">connector/ble</div><p class="sig">GATT 212 write / 213 ind</p><p>2-byte length framing</p></div>
-      <div class="layer impl"><div class="layer-name">connector/inet</div><p class="sig">POST .../signed_command (JSON)</p><p>OAuth Bearer, 421 redirect</p></div>
-    </div>
-  </div>
-</div>
+<svg viewBox="0 0 900 486" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="currentColor">
+  <rect fill="var(--bg-alt)" stroke="var(--border)" x="20" y="10" width="860" height="50" rx="6"/>
+  <rect fill="var(--blue)" fill-opacity=".1" stroke="var(--blue)" x="20" y="68" width="280" height="50" rx="6"/><rect fill="var(--blue)" fill-opacity=".1" stroke="var(--blue)" x="310" y="68" width="280" height="50" rx="6"/><rect fill="var(--blue)" fill-opacity=".1" stroke="var(--blue)" x="600" y="68" width="280" height="50" rx="6"/>
+  <rect fill="var(--blue)" fill-opacity=".1" stroke="var(--blue)" x="20" y="126" width="860" height="68" rx="6"/>
+  <rect fill="var(--violet)" fill-opacity=".1" stroke="var(--violet)" x="20" y="202" width="860" height="68" rx="6"/>
+  <rect fill="var(--violet)" fill-opacity=".1" stroke="var(--violet)" x="20" y="278" width="860" height="50" rx="6"/>
+  <rect fill="var(--accent-soft)" stroke="var(--accent)" x="20" y="336" width="860" height="140" rx="6"/>
+  <rect fill="var(--bg-alt)" stroke="var(--accent)" x="36" y="390" width="414" height="74" rx="6"/><rect fill="var(--bg-alt)" stroke="var(--accent)" x="462" y="390" width="402" height="74" rx="6"/>
+  <g font-weight="700">
+    <text x="34" y="30">Application</text>
+    <text x="34" y="88">pkg/cli</text><text x="324" y="88">pkg/account</text><text x="614" y="88">pkg/proxy</text>
+    <text x="34" y="146">pkg/vehicle.Vehicle</text>
+    <text x="34" y="222">internal/dispatcher.Dispatcher</text>
+    <text x="34" y="298">internal/authentication</text>
+    <text x="34" y="356">pkg/connector.Connector</text>
+    <text x="50" y="410">connector/ble</text><text x="476" y="410">connector/inet</text>
+  </g>
+  <g fill="var(--fg-muted)">
+    <text x="34" y="48">cmd/tesla-control · cmd/tesla-http-proxy · examples/* · user code</text>
+    <text x="34" y="106">flags/env/keyring</text><text x="324" y="106">OAuth → Fleet API</text><text x="614" y="106">REST → Vehicle methods</text>
+    <text x="34" y="164">Connect / StartSession / Lock / ClimateOn / GetState / AddKey ...</text>
+    <text x="34" y="182">builds VCSEC.UnsignedMessage or CarServer.Action payloads, parses responses</text>
+    <text x="34" y="240">assembles RoutableMessage (uuid, routing_address), per-domain session,</text>
+    <text x="34" y="258">StartSessions (parallel handshakes), response routing (receiver), cache import/export</text>
+    <text x="34" y="316">ECDH → K, metadata TLV, HMAC/AES-GCM Signer, response decryption, anti-replay</text>
+    <text x="34" y="374">Send([]byte) / Receive() &lt;-chan []byte / VIN() / PreferredAuthMethod</text>
+    <text x="50" y="428">GATT 212 write / 213 ind</text><text x="50" y="446">2-byte length framing</text>
+    <text x="476" y="428">POST .../signed_command (JSON)</text><text x="476" y="446">OAuth Bearer, 421 redirect</text>
+  </g>
+</svg>
 </div>
 <ul>
   <li><strong>Connector</strong> is a datagram transport that only exchanges byte arrays. It knows nothing about authentication or protobuf. By implementing it yourself you can plug in other transports (for example, a serial link or an in-memory pipe for tests).</li>
