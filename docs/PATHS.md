@@ -13,7 +13,7 @@
 | `WORKFLOW_FILE` | `docs/workflow.md` | 개발 표준·워크플로 전문 |
 | `MANUAL_DIR` | `documents/md/` | **개발 매뉴얼 (사용자 작성, 참조용, AI 에이전트용, 영어).** 실제 `vehicle-command` 저장소를 기준으로 정리한 문서. 포팅 작업의 1차 가이드. 사용자 승인 없이 수정 금지 |
 | `MANUAL_INDEX` | `{{MANUAL_DIR}}README.md` | 개발 매뉴얼 목차 (진입점). 읽기 순서, 작업별 참조 파일 표, 파일 목록. 규칙·불변 조건·상수 카드는 `{{MANUAL_DIR}}00-agent-guide.md` |
-| `MANUAL_HTML_DIR` | `documents/html/` | **사람용 개발 매뉴얼 (HTML).** `{{MANUAL_DIR}}` 와 같은 사실을 사람이 읽기 좋게 정리. 언어별 폴더 `ko/`, `en/`, `ja/` 세 벌을 같은 내용으로 유지하고 `assets/` 를 공유. 진입점은 언어 선택 페이지 `index.html` |
+| `MANUAL_HTML_DIR` | `documents/html/` | **사람용 개발 매뉴얼 (HTML).** `{{MANUAL_DIR}}` 와 같은 사실을 사람이 읽기 좋게 정리. 언어별 폴더 `ko/`, `en/`, `ja/` 세 벌을 같은 내용으로 유지하고 `assets/` 를 공유. 진입점 `index.html` 은 영어 홈(`en/index.html` 을 한 단계 위 경로로 옮긴 사본, `tools/ci/sync-manual-root-index.sh` 로 다시 만듦)이고, 언어는 페이지 오른쪽 위 메뉴에서 바꿈 |
 | `LIB_DOCS_DIR` | `docs/manual/` | **이 라이브러리의 사용 문서 (에이전트 작성).** 공개 API, 페어링, 에러 처리 등 |
 | `LIB_DOCS_INDEX` | `{{LIB_DOCS_DIR}}README.md` | 라이브러리 사용 문서 목차 |
 | `PRD_FILE` | `docs/prd/PRD.md` | 제품 요구사항 문서 (FR-xxx / NFR-xxx) |

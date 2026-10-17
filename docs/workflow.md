@@ -203,7 +203,7 @@ Refs: FR-012
 | 샘플 빌드 (iOS) | `xcodegen generate` + `xcodebuild` (`CODE_SIGNING_ALLOWED=NO`) | 4/7 |
 | 라이선스 | NOTICE 존재 확인, 포팅 파일 헤더 확인 (`tools/ci/check-license.sh`) | 5/7 |
 | 비밀 스캔 | VIN 패턴(`[A-HJ-NPR-Z0-9]{17}`)과 PEM 개인키 탐지 (테스트 벡터 허용 목록 제외, `tools/ci/scan-secrets.sh`) | 6/7 |
-| 매뉴얼 언어 | `{{MANUAL_DIR}}` 에 한글 없음, `{{MANUAL_HTML_DIR}}` 의 `ko/`·`en/`·`ja/` 페이지 목록·`lang`·id·href 일치 (`{{AGENTS_FILE}}` 규칙 12, `tools/ci/check-manual-i18n.sh`) | 7/7 |
+| 매뉴얼 언어 | `{{MANUAL_DIR}}` 에 한글 없음, `{{MANUAL_HTML_DIR}}` 의 `ko/`·`en/`·`ja/` 페이지 목록·`lang`·id·href 일치, 루트 `index.html` 이 `en/index.html` 과 일치 (`{{AGENTS_FILE}}` 규칙 12, `tools/ci/check-manual-i18n.sh`) | 7/7 |
 
 > **"Red를 트렁크에 올리지 않는다"** 가 Trunk-based의 생명줄입니다. 푸시·병합 전에 로컬에서 `tools/ci/verify.sh` 를 돌립니다.
 > `tools/ci/verify.sh`는 M0에서 작성한 `.github/workflows/ci.yml`이 하던 일을 그대로 재현하며, ADR-0012(2026-09-27)로
@@ -226,7 +226,7 @@ Refs: FR-012
 
 ### 8.1 프로토콜 정확성
 - 작업을 시작하기 전에 해당 주제의 `{{MANUAL_DIR}}` 매뉴얼 문서를 먼저 읽습니다. 계획과 PR에 참고한 매뉴얼 문서를 표기합니다.
-- 매뉴얼 언어 규칙(`{{AGENTS_FILE}}` 절대 규칙 12): `{{MANUAL_DIR}}` 는 영어로만 씁니다. `{{MANUAL_HTML_DIR}}` 는 `ko/`, `en/`, `ja/` 세 벌을 같은 내용으로 유지하며, 한 언어를 고치면 같은 PR에서 세 언어를 모두 갱신합니다.
+- 매뉴얼 언어 규칙(`{{AGENTS_FILE}}` 절대 규칙 12): `{{MANUAL_DIR}}` 는 영어로만 씁니다. `{{MANUAL_HTML_DIR}}` 는 `ko/`, `en/`, `ja/` 세 벌을 같은 내용으로 유지하며, 한 언어를 고치면 같은 PR에서 세 언어를 모두 갱신합니다. `en/index.html` 을 고쳤다면 `tools/ci/sync-manual-root-index.sh` 로 루트 `index.html` 을 다시 만듭니다.
 - 바이트 수준 동작(TLV 순서, 플래그 포함 규칙, 요청 해시 절단, counter 규칙)은 **원본 코드 줄을 인용**해 테스트로 고정합니다.
 - VCSEC는 **요청을 직렬화**합니다(동시 요청 금지). Infotainment는 uuid로 매칭합니다.
 - 응답이 유실되면 결과를 **불확실(PossibleSuccess)** 로 반환합니다. 실패로 단정하지 않습니다.
