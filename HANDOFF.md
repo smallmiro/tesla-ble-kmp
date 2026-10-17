@@ -476,8 +476,9 @@
 | `WORKFLOW_FILE` | `docs/workflow.md` | 개발 표준·워크플로 전문 |
 | `MANUAL_DIR` | `documents/md/` | **개발 매뉴얼 (사용자 작성, 참조용).** 실제 `vehicle-command` 저장소를 기준으로 정리한 문서. 포팅 작업의 1차 가이드. 사용자 승인 없이 수정 금지 |
 | `MANUAL_INDEX` | `{{MANUAL_DIR}}` 의 목차 파일 (Phase 0에서 확인해 이 칸에 기록) | 개발 매뉴얼 목차 |
-| `LIB_DOCS_DIR` | `docs/manual/` | **이 라이브러리의 사용 문서 (에이전트 작성).** 공개 API, 페어링, 에러 처리 등 |
-| `LIB_DOCS_INDEX` | `{{LIB_DOCS_DIR}}README.md` | 라이브러리 사용 문서 목차 |
+| `LIB_DOCS_DIR` | `{{MANUAL_DIR}}` | **이 라이브러리의 사용 문서 (에이전트 작성, 영어).** 파일 `11-lib-*.md`~`19-lib-*.md`. 공개 API, 페어링, 에러 처리 등 (2026-10-18 `docs/manual/` 에서 이동, 정본은 `{{PATHS_FILE}}`) |
+| `LIB_DOCS_INDEX` | `{{LIB_DOCS_DIR}}11-lib-overview.md` | 라이브러리 사용 문서 목차 |
+| `LIB_DOCS_HTML_DIR` | `{{MANUAL_HTML_DIR}}` | 라이브러리 사용 문서의 사람용 HTML (`ko/`·`en/`·`ja/` 의 `11-lib-*.html`~`19-lib-*.html`) |
 | `PRD_FILE` | `docs/prd/PRD.md` | 제품 요구사항 문서 (FR-xxx / NFR-xxx) |
 | `SDD_FILE` | `docs/sdd/SDD.md` | 소프트웨어 설계 문서 |
 | `SPECS_DIR` | `docs/superpowers/specs/` | 설계 브레인스토밍 산출물 |

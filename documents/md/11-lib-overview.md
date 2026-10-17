@@ -7,7 +7,7 @@ reference for porting. The human-readable version of these pages is `../html/<la
 
 These pages describe the code on `main`. They are maintained by agents: every PR that changes library behaviour,
 public API or milestone status updates the affected `1x-lib-*.md` page **and** the matching HTML page in `ko/`, `en/`
-and `ja/` in the same PR (AGENTS.md §3 rule 11 and §7).
+and `ja/` in the same PR (AGENTS.md §3 rule 13).
 
 ## Status (M3)
 
