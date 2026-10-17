@@ -20,6 +20,7 @@ Refs: FR-___ / NFR-___ / ADR-____
 - [ ] 로그와 픽스처에 키, VIN 원문 없음
 - [ ] 공개 API 변경 시 `apiDump`, KDoc, 라이브러리 사용 문서(`{{LIB_DOCS_DIR}}`) 갱신
 - [ ] 요구사항·설계 변경 시 PRD, SDD, ADR 갱신
+- [ ] 개발 매뉴얼 변경 시 MD는 영어, HTML은 ko/en/ja 세 언어 모두 갱신 (AGENTS.md 절대 규칙 12)
 - [ ] 의존성 변경 시 `architecture` 라벨, 암호·키·로그 변경 시 `security` 라벨
 
 ## AI 코드 리뷰

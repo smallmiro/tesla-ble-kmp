@@ -30,7 +30,7 @@ M0 골격이 `main`에 있습니다 — 라이브러리 모듈 7개 + 샘플 앱
 | [`docs/superpowers/plans/`](docs/superpowers/plans/) | 로드맵 · 마일스톤 구현 계획 |
 | [`AGENTS.md`](AGENTS.md) · [`CLAUDE.md`](CLAUDE.md) | 코딩 에이전트 공통 지침 / Claude Code 전용 지침 |
 | [`docs/workflow.md`](docs/workflow.md) | 개발 표준: TDD, Tidy First, 헥사고날 아키텍처, 브랜치·검증 게이트·DoD |
-| [`documents/md/`](documents/md/README.md) · [`documents/html/`](documents/html/index.html) | `vehicle-command` 개발 매뉴얼 (에이전트용 MD / 사람용 HTML, 한국어, 읽기 전용) |
+| [`documents/md/`](documents/md/README.md) · [`documents/html/`](documents/html/index.html) | `vehicle-command` 개발 매뉴얼 (에이전트용 MD는 영어 / 사람용 HTML은 한국어·영어·일본어, 읽기 전용) |
 | `docs/handoff/` | 세션 인계 노트 |
 | [`docs/manual/README.md`](docs/manual/README.md) | 라이브러리 사용 문서 (앱 개발자용) |
 
