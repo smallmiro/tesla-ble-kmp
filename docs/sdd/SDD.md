@@ -719,13 +719,14 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 | # | 매뉴얼 위치 | 원본 위치 | 내용 | 처리 |
 |---|---|---|---|---|
 | 1 | `03-protocol.md` §9.2 "응답 메타데이터 (AAD)" 첫 문장 | `internal/authentication/peer.go` `responseMetadata` (`newMetadata()` = SHA-256 컨텍스트, `Checksum(nil)` 반환) | 매뉴얼은 "AAD는 SHA-256 해시가 아니라 직렬화 바이트 자체"라고 굵게 적었으나, 같은 문단 괄호와 원본 코드는 `SHA256(TLV‖0xFF)`를 AAD로 사용 | **원본을 따름**(SHA-256 다이제스트). §3.3, PoC `decryptResponse`도 동일. 사용자에게 보고. 2026-10-17 사용자 승인으로 매뉴얼 수정 완료(MD §9.2, HTML `04-protocol` ko/en/ja) |
-
 | 2 | `10-porting-guide.md:88` | `pkg/connector/ble/ble.go:20, 349` | 매뉴얼은 `ble.MaxMTU = 517`. Go는 go-ble `ble.MaxMTU`를 요청(go-ble 소스는 이 저장소에 없어 값 미확인; 517은 Android 상한). 우리는 Android `requestMtu(517)` | **원본을 따름**. 매뉴얼은 승인 전 수정하지 않음 |
 | 3 | `10-porting-guide.md:92` | `ble.go:314-352` | 매뉴얼은 "서비스·특성·구독·MTU 실패 시 연결을 끊고 재시도". Go는 끊지 않고(누수), MTU 실패는 재시도 없이 블록 20 | 원본의 재시도 구조를 따르되 실패한 시도의 연결은 닫는다(아래 "의도" 절). 매뉴얼은 승인 전 수정하지 않음 |
 | 4 | `10-porting-guide.md:72` | `ble.go:234-250, 270-275` | 매뉴얼 "timeout → retry". Go 스캔은 ctx 만료까지 하나이고, 다른 스캔 오류일 때만 재시도 | **원본을 따름**. 매뉴얼은 승인 전 수정하지 않음 |
 | 5 | `02-ble-transport.md` §13.7(351행) | `ble.go:89-92`, `connector.go:48-52` | 매뉴얼 "Close 멱등". Go BLE `Close`에는 멱등 장치가 없음(계약은 멱등 요구) | 계약(멱등)을 따름. 매뉴얼은 승인 전 수정하지 않음 |
 | 6 | `02-ble-transport.md`:182 | `ble.go:98-109` | "청크는 락으로 직렬화"는 송신에만 해당. `rx`는 락 없이 버퍼를 만진다 | **원본을 따름**(수신 코루틴 1개). 매뉴얼은 승인 전 수정하지 않음 |
 | 7 | `00-agent-guide.md`:142 | `ble.go:345` | 표 머리 "Read/notify" — 원본은 indication 구독 | **원본을 따름**(ADR-0003 스파이크로 실기기 확인). 매뉴얼은 승인 전 수정하지 않음 |
+| 8 | `10-porting-guide.md` §12 보안 체크리스트 | `pkg/connector/ble/ble.go` `-debug` 로그(TX/RX 암호문 헥사) | 매뉴얼은 "복호화 전 페이로드를 로그에 남기지 말 것" — 복호화 전은 암호문이라 같은 줄 설명과 충돌. 뜻은 평문 | 평문 페이로드를 어떤 레벨에서도 로그에 쓰지 않음(FR-112). 2026-10-17 사용자 승인으로 매뉴얼 수정 완료(PRD FR-112, 이 문서 §보안도 같은 표현으로 정정) |
+| 9 | `03-ble-transport.html` `#sec-ids` (ko/en/ja) | `pkg/connector/ble/ble.go:291-300` | 매뉴얼은 "이름이 일치하지만 다른 값을 가진 광고"에서 `unexpected local name` 오류가 난다고 설명. 원본은 호출자가 넘긴 `ScanResult`의 이름이 VIN에서 계산한 이름과 다를 때 재시도 불가 오류 | **원본을 따름**. 2026-10-17 사용자 승인으로 HTML 세 언어 수정 완료(MD `02-ble-transport.md`는 원래 맞음) |
 
 HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 나머지 내용은 이번 설계에서 인용한 범위(`01`, `02`, `03`, `05`, `08`, `10`)에서 원본과 일치했다.
 
