@@ -8,6 +8,7 @@
 #   - en/, ja/ 에는 언어 전환 링크의 "한국어" 라벨 말고는 한글이 없다
 #   - documents/html/index.html 은 en/index.html 을 한 단계 위 경로로 옮긴 영어 홈이다
 #     (en/index.html 의 href·src를 루트 기준으로 바꾼 결과와 바이트 단위로 같다)
+#   - style.css 의 라이트 테마 토큰 두 벌(시스템 설정용, 직접 선택용)이 같다
 #   - 코드 블록 문법 색이 최신이다 (highlight-manual-code.sh --check)
 # 인자로 저장소 루트를 넘기면 그 경로를 검사한다(검사 스크립트 자체를 시험할 때).
 set -euo pipefail
@@ -72,6 +73,15 @@ for name in pages["ko"]:
         for n, line in enumerate(text.splitlines(), 1):
             if hangul.search(line.replace("한국어", "")):
                 errors.append(f"{rel}:{n}: Hangul outside the language switcher")
+
+# 라이트 토큰: @media (prefers-color-scheme: light) 안의 블록과 :root[data-theme="light"] 블록
+css = (html_dir / "assets/style.css").read_text(encoding="utf-8")
+m_sys = re.search(r'@media \(prefers-color-scheme: light\) \{\n  :root:not\(\[data-theme="dark"\]\) \{\n(.*?)\n  \}\n\}', css, re.S)
+m_pick = re.search(r':root\[data-theme="light"\] \{\n(.*?)\n\}', css, re.S)
+if not (m_sys and m_pick):
+    errors.append("documents/html/assets/style.css: light theme token blocks not found")
+elif [l.strip() for l in m_sys.group(1).splitlines()] != [l.strip() for l in m_pick.group(1).splitlines()]:
+    errors.append("documents/html/assets/style.css: the two light theme token blocks differ")
 
 # sync-manual-root-index.sh 의 to_root 와 같아야 한다.
 def to_root(h):

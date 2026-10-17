@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tools/ci/highlight-manual-code.sh — HTML 매뉴얼 코드 블록에 문법 색을 입힌다
-#   매뉴얼은 스크립트와 외부 리소스를 쓰지 않으므로, 색은 미리 <span class="..."> 로 넣어 둔다.
+#   매뉴얼은 외부 리소스를 쓰지 않고 스크립트도 테마 전환(assets/theme.js)뿐이므로, 색은 미리 <span class="..."> 로 넣어 둔다.
 #   대상: documents/html/{ko,en,ja}/*.html 와 index.html 의 <pre><code class="language-X"> (bash, go, json, kotlin, python, swift, xml, yaml)
 #   다시 돌려도 결과가 같다(기존 span을 지우고 다시 칠한다). 코드 블록을 고친 뒤 돌리고 함께 커밋한다.
 #   --check: 파일을 바꾸지 않고, 칠하지 않은 블록이 있으면 실패한다(check-manual-i18n.sh 가 부른다).

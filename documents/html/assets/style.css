@@ -1,6 +1,7 @@
 /* Shared stylesheet for the Tesla vehicle-command BLE manual (ko / en / ja)
    Layout: top header + left nav + content + right "on this page" rail; home pages use a bento grid.
-   Theme: Tokyo Night (dark) and Tokyo Night Light, chosen by the system setting. Colours come from
+   Theme: Tokyo Night (dark) and Tokyo Night Light, chosen in the header (light / dark / system, assets/theme.js);
+   "system" follows the OS setting. Colours come from
    github.com/tokyo-night/tokyo-night-vscode-theme (MIT); a few greys and accents are a step darker (light)
    or lighter (dark) than the editor theme so small text keeps 4.5:1 contrast. No external resources. */
 :root {
@@ -53,8 +54,10 @@
   --bg-alt: var(--surface-2);
   --fg-muted: var(--muted);
 }
+/* Light tokens apply when the system is light and no theme is forced, or when Light is chosen in the header
+   (assets/theme.js sets data-theme). The two blocks must stay identical. */
 @media (prefers-color-scheme: light) {
-  :root {
+  :root:not([data-theme="dark"]) {
     color-scheme: light;
     /* Tokyo Night Light */
     --bg: #e6e7ed;
@@ -92,6 +95,43 @@
     --tk-operator: #005a70;
   }
 }
+:root[data-theme="light"] {
+  color-scheme: light;
+  /* Tokyo Night Light */
+  --bg: #e6e7ed;
+  --surface: #dcdee3;
+  --surface-2: #d6d8df;
+  --line: #c1c2c7;
+  --line-2: #b0b2bb;
+  --text: #343b58;
+  --text-2: #363c4d;
+  --muted: #4c505e;
+  --dim: #5a5c66;
+  --accent: #234d93;
+  --accent-soft: rgba(35, 77, 147, .12);
+  --on-accent: #ffffff;
+  --blue: #005a70;
+  --violet: #65359d;
+  --green: #385f0d;
+  --amber: #774d0e;
+  --red: #7a3946;
+  --code-bg: #dcdee3;
+  --code-fg: #343b59;
+  --hero-bg: #d0d9ec;
+  --hero-line: #2959aa;
+  --hero-fg: #343b58;
+  --hero-lead: #363c4d;
+  --shadow: rgba(52, 59, 88, .18);
+  --tk-comment: #5a5c66;
+  --tk-keyword: #65359d;
+  --tk-string: #385f0d;
+  --tk-number: #844520;
+  --tk-function: #234d93;
+  --tk-type: #005a70;
+  --tk-variable: #0f4b6e;
+  --tk-property: #33635c;
+  --tk-operator: #005a70;
+}
 
 * { box-sizing: border-box; }
 html { scroll-padding-top: calc(var(--top-h) + 16px); }
@@ -122,8 +162,22 @@ header.top .brand b { font-weight: 600; color: var(--text-2); }
 .logo path { fill: none; stroke: var(--text); stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
 header.top .top-sub { padding-left: 14px; border-left: 1px solid var(--line-2); font-size: 13px; color: var(--muted); white-space: nowrap; }
 
+/* Theme switch: three icon buttons; shown only when assets/theme.js runs (it adds html.js) */
+.theme-switch {
+  display: none; margin-left: auto; padding: 2px; gap: 2px;
+  border: 1px solid var(--line-2); border-radius: 7px;
+}
+.js .theme-switch { display: inline-flex; }
+.theme-switch button {
+  display: grid; place-items: center; width: 28px; height: 26px; padding: 0; cursor: pointer;
+  border: 0; border-radius: 5px; background: none; color: var(--muted);
+}
+.theme-switch button:hover { color: var(--text); }
+.theme-switch button[aria-checked="true"] { background: var(--surface-2); color: var(--text); }
+
 /* Language menu (no script: <details>) */
 .lang-menu { position: relative; margin-left: auto; }
+.js .lang-menu { margin-left: 0; }
 .lang-menu summary {
   display: flex; align-items: center; gap: 7px; cursor: pointer; list-style: none; user-select: none;
   font-size: 13px; color: var(--text-2); padding: 6px 10px; border: 1px solid var(--line-2); border-radius: 6px;
@@ -333,8 +387,10 @@ body.home main.content { max-width: 1120px; }
   .bento .card, .bento .card[href] { grid-column: span 12; }
 }
 @media (max-width: 640px) {
-  header.top { padding: 0 16px; }
+  header.top { padding: 0 16px; gap: 8px; }
   header.top .top-sub { display: none; }
+  .lang-menu summary > span { display: none; }   /* globe icon only; the menu still names each language */
+  .lang-menu summary { padding: 6px 8px; }
   pre { font-size: 12px; padding: 12px; }
   .tile, .tile.hero { padding: 20px; }
   .tile.hero { min-height: 0; }
