@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>16. エラー処理 · vehicle-command BLE マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE 開発マニュアル · v0.4.1 基準</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>日本語</span></summary>
+    <ul>
+      <li><a href="../ko/16-lib-errors.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/16-lib-errors.html" hreflang="en" lang="en">English</a></li>
+      <li><a class="active" aria-current="true" href="../ja/16-lib-errors.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+    <li class="group">tesla-ble-kmp ライブラリ</li>
+    <li><a href="11-lib-overview.html">11. ライブラリ概要</a></li>
+    <li><a href="12-lib-getting-started.html">12. ライブラリ入門</a></li>
+    <li><a href="13-lib-pairing.html">13. キーとペアリング</a></li>
+    <li><a href="14-lib-reading-state.html">14. 車両状態の取得</a></li>
+    <li><a href="15-lib-commands.html">15. コマンド</a></li>
+    <li><a class="active" href="16-lib-errors.html">16. エラー処理</a></li>
+    <li><a href="17-lib-platform-notes.html">17. プラットフォームノート</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. トラブルシューティング</a></li>
+    <li><a href="19-lib-architecture.html">19. アーキテクチャ</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>16. エラー処理</h1>
+<p class="lead">すべての呼び出しは 3 つの結果のいずれかを返し、すべてのエラーは車両が動作した可能性があるか、もう一度試せば解決しうるかを示します。ライブラリは安全にリトライできるものをすでにリトライしているため、ほとんどのアプリは結果で分岐するだけで済みます。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-outcomes">3 つの結果</a></li>
+<li><a href="#sec-hierarchy">エラーの種類</a></li>
+<li><a href="#sec-transport">Bluetooth とキーストアのエラー</a></li>
+<li><a href="#sec-retry">リトライとタイムアウト</a></li>
+</ol></div>
+
+<h2 id="sec-outcomes">3 つの結果</h2>
+<table>
+<thead><tr><th>結果</th><th>意味</th><th>アプリがすること</th></tr></thead>
+<tbody>
+<tr><td><span class="badge ok">成功</span></td><td>車両が確認した</td><td>値を使います</td></tr>
+<tr><td><span class="badge warn">不確実</span></td><td>車両が実行した可能性があるが、確認が届かなかった</td><td>再送 <strong>しないでください</strong>。代わりに状態を読み取ります (<code>vehicleStatus()</code>、M5 以降は <code>getState()</code>)</td></tr>
+<tr><td><span class="badge vcsec">失敗</span></td><td>実行されなかった</td><td><code>error</code> を確認します</td></tr>
+</tbody>
+</table>
+<p>Swift では <code>switch onEnum(of: result)</code> で <code>.success</code>、<code>.uncertain</code>、<code>.failure</code> を網羅します。<a href="12-lib-getting-started.html#sec-swift">12. ライブラリ入門</a> を参照してください。自分のコルーチンや Task のキャンセルは結果に変換されず、通常どおりキャンセルが伝播します。</p>
+
+<h2 id="sec-hierarchy">エラーの種類</h2>
+<p>すべての <code>VehicleError</code> は <code>message</code> (英語)、<code>mayHaveSucceeded</code>、<code>temporary</code> を持ちます。<code>shouldRetry()</code> は、エラーが一時的で、かつ車両が動作した可能性がない場合に true です。ライブラリはそれらをすでにリトライしているため、リトライループは不要です。</p>
+<table>
+<thead><tr><th>型</th><th>発生する場面</th><th>一時的</th><th>成功した可能性</th></tr></thead>
+<tbody>
+<tr><td><code>ProtocolFault</code></td><td>車両がプロトコルのフォールトコードを送った</td><td>busy、timeout、署名、カウンター、内部、エポック、有効期限のフォールトのみ</td><td><code>NONE</code> と <code>RESPONSE_MTU_EXCEEDED</code> のみ</td></tr>
+<tr><td><code>KeyNotPaired</code></td><td>車両がこのキーを知らない</td><td>いいえ</td><td>いいえ</td></tr>
+<tr><td><code>Busy</code></td><td>車両が待つよう求めた</td><td>はい</td><td>いいえ</td></tr>
+<tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UnknownResponse</code></td><td>新しいファームウェアがこのライブラリの知らないコードを送った。アップデートを確認してください</td><td>いいえ</td><td>いいえ</td></tr>
+<tr><td><code>NotConnected</code>, <code>NoSession</code>, <code>RequiresKey</code></td><td>呼び出し順が誤っているか、キーなしで呼び出した</td><td>いいえ</td><td>いいえ</td></tr>
+<tr><td><code>BadResponse</code></td><td>応答を読み取れなかった</td><td>いいえ</td><td>VCSEC と Infotainment の応答でははい</td></tr>
+<tr><td><code>KeychainRejected</code>, <code>VcsecRejected</code>, <code>InfotainmentRejected</code></td><td>車両は理解したが拒否した</td><td>いいえ</td><td>いいえ</td></tr>
+<tr><td><code>TransportError</code></td><td>Bluetooth のスキャン、接続、書き込み</td><td>スキャンのタイムアウト、接続失敗、書き込み失敗のみ</td><td>いいえ</td></tr>
+<tr><td><code>KeyStoreError</code></td><td>プラットフォームのキーストア</td><td>いいえ</td><td>いいえ</td></tr>
+<tr><td><code>Timeout</code></td><td>コマンドが時間切れになった</td><td>はい</td><td>すでに送信済みだった場合</td></tr>
+<tr><td><code>InvalidArgument</code></td><td>不正な引数</td><td>いいえ</td><td>いいえ</td></tr>
+</tbody>
+</table>
+<p>各プロトコルフォールトコードの意味は <a href="09-errors-troubleshooting.html#sec-fault">9. エラーとトラブルシューティング</a> にあります。</p>
+
+<h2 id="sec-transport">Bluetooth とキーストアのエラー</h2>
+<p>接続は接続タイムアウトまで 1 秒ごとにすでにリトライされます。最後の列はアプリがすべきことです。</p>
+<table>
+<thead><tr><th>エラー</th><th>意味</th><th>対処</th></tr></thead>
+<tbody>
+<tr><td><code>ScanTimeout</code></td><td>時間内に車両が見つからなかった</td><td>車両が範囲内にあるか確認し、もう一度試します</td></tr>
+<tr><td><code>MaxConnectionsExceeded</code></td><td>車両にすでに 3 つの Bluetooth 接続がある</td><td>別のスマートフォンやアプリを切断し、もう一度試します</td></tr>
+<tr><td><code>ConnectFailed</code></td><td>接続、サービスの検出、または購読に失敗した</td><td>少し待ってからもう一度試します</td></tr>
+<tr><td><code>Disconnected</code></td><td>リンクが切れた</td><td><code>disconnect()</code> を呼んでから再接続します</td></tr>
+<tr><td><code>BluetoothOff</code></td><td>Bluetooth がオフ</td><td>オンにするようユーザーに依頼します</td></tr>
+<tr><td><code>PermissionDenied</code></td><td>Bluetooth の権限がない</td><td>権限を要求するか、設定を開きます</td></tr>
+<tr><td><code>WriteFailed</code></td><td>送信に失敗した</td><td>自動でリトライされます。繰り返し起きる場合は再接続します</td></tr>
+<tr><td><code>HardwareUnavailable</code></td><td>ハードウェアが必須だが使えない</td><td><code>PREFER_HARDWARE</code> を使います</td></tr>
+<tr><td><code>KeyNotFound</code></td><td>そのエイリアスのキーがない</td><td><code>getOrCreate</code> で作成します</td></tr>
+<tr><td><code>PlatformFailure</code></td><td>プラットフォームのキーストアが失敗した。<code>stored key is corrupted</code> は保存されたキーが破損していることを示す</td><td>破損したキーは自動で置き換えられません。削除して作成し、新しいキーを再度登録します</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-retry">リトライとタイムアウト</h2>
+<p>ライブラリは Go の原本と同じルールでリトライします。</p>
+<table>
+<thead><tr><th>状況</th><th>ライブラリの動作</th></tr></thead>
+<tbody>
+<tr><td>車両が動作した可能性のない一時的なエラー (busy、待機、期限切れ、不正なカウンター…)</td><td>1 秒待ち、新しいカウンターと有効期限でコマンドに署名し直して再送します。エラーと一緒に届いたセッション情報を先に適用します</td></tr>
+<tr><td>車両が動作した可能性のあるエラー (応答なし、読み取れない応答)</td><td>トグルが 2 回実行されないよう、決して再送しません。<code>Uncertain</code> を返します</td></tr>
+<tr><td>送信前に時間切れになった</td><td><code>Failure(Timeout)</code></td></tr>
+<tr><td>応答を待つ間に時間切れになった</td><td><code>Uncertain(Timeout)</code></td></tr>
+<tr><td>ハンドシェイクが時間切れになった</td><td><code>Failure(Timeout)</code>。セッションは作られず、何も変わっていません</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th><code>TeslaBleConfig</code></th><th>デフォルト</th><th>用途</th></tr></thead>
+<tbody>
+<tr><td><code>commandTimeout</code></td><td>5 秒</td><td>各クエリまたはコマンド</td></tr>
+<tr><td><code>commandLifetime</code></td><td>5 秒</td><td>車両が署名済みコマンドを受け付ける期間</td></tr>
+<tr><td><code>handshakeTimeout</code></td><td>20 秒</td><td><code>startSession()</code></td></tr>
+<tr><td><code>connectTimeout</code></td><td>30 秒</td><td>スキャンと接続</td></tr>
+</tbody>
+</table>
+
+<footer class="page-nav">
+  <a href="15-lib-commands.html"><span>前へ</span>15. コマンド</a>
+  <a class="next" href="17-lib-platform-notes.html"><span>次へ</span>17. プラットフォームノート</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

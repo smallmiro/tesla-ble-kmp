@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>13. Keys and Pairing · vehicle-command BLE Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE Developer Manual · based on v0.4.1</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>English</span></summary>
+    <ul>
+      <li><a href="../ko/13-lib-pairing.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a class="active" aria-current="true" href="../en/13-lib-pairing.html" hreflang="en" lang="en">English</a></li>
+      <li><a href="../ja/13-lib-pairing.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">Home</a></li>
+    <li class="group">Getting Started</li>
+    <li><a href="01-overview.html">1. System Overview</a></li>
+    <li><a href="02-getting-started.html">2. Getting Started</a></li>
+    <li class="group">Protocol</li>
+    <li><a href="03-ble-transport.html">3. BLE Transport Layer</a></li>
+    <li><a href="04-protocol.html">4. Protocol Specification</a></li>
+    <li class="group">Development</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI Tools</a></li>
+    <li><a href="07-command-reference.html">7. Command Reference</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP Proxy</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. Errors and Troubleshooting</a></li>
+    <li class="group">tesla-ble-kmp Library</li>
+    <li><a href="11-lib-overview.html">11. Library Overview</a></li>
+    <li><a href="12-lib-getting-started.html">12. Getting Started with the Library</a></li>
+    <li><a class="active" href="13-lib-pairing.html">13. Keys and Pairing</a></li>
+    <li><a href="14-lib-reading-state.html">14. Reading Vehicle State</a></li>
+    <li><a href="15-lib-commands.html">15. Commands</a></li>
+    <li><a href="16-lib-errors.html">16. Error Handling</a></li>
+    <li><a href="17-lib-platform-notes.html">17. Platform Notes</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. Troubleshooting</a></li>
+    <li><a href="19-lib-architecture.html">19. Architecture</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>13. Keys and Pairing</h1>
+<p class="lead">The phone needs its own key pair, and the car must list the public key before it accepts commands from it. Today the library creates and stores the key and reads the car's key list. Enrolling the key on the car (add-key-request) arrives in M4.</p>
+
+<div class="toc"><strong>On this page</strong><ol>
+<li><a href="#sec-store">The key store</a></li>
+<li><a href="#sec-protection">Where the key lives</a></li>
+<li><a href="#sec-check">Is my key enrolled?</a></li>
+<li><a href="#sec-delete">Deleting or replacing a key</a></li>
+<li><a href="#sec-planned">Coming in M4: enrolling a key</a></li>
+</ol></div>
+
+<h2 id="sec-store">The key store</h2>
+<p><code>TeslaBle.keys</code> is a <code>VehicleKeyStore</code>. Keys are found by an alias; most apps only need the default one.</p>
+<table>
+<thead><tr><th>Call</th><th>Returns</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td><code>getOrCreate(alias, policy)</code></td><td><code>VehicleResult&lt;VehicleKey&gt;</code></td><td>Returns the stored key, or creates a NIST P-256 key pair under the alias</td></tr>
+<tr><td><code>get(alias)</code></td><td><code>VehicleResult&lt;VehicleKey?&gt;</code></td><td><code>Success(null)</code> when there is no key</td></tr>
+<tr><td><code>delete(alias)</code></td><td><code>VehicleResult&lt;Unit&gt;</code></td><td>Also succeeds when there is no key</td></tr>
+</tbody>
+</table>
+<ul>
+<li>The default alias is <code>"teslable-default"</code> (<code>VehicleKeyStore.DEFAULT_ALIAS</code>; in Swift <code>VehicleKeyStoreCompanion.shared.DEFAULT_ALIAS</code>).</li>
+<li>An alias may use letters, digits, <code>.</code>, <code>_</code> and <code>-</code>, up to 64 characters, and may not be <code>.</code> or <code>..</code>.</li>
+<li>A <code>VehicleKey</code> is a handle. It exposes <code>alias</code>, <code>protection</code> and <code>publicKey</code> (65 bytes, <code>0x04 ‖ X ‖ Y</code>). The private key never leaves the platform key store, and there is no export API.</li>
+</ul>
+
+<h2 id="sec-protection">Where the key lives</h2>
+<p>The <code>policy</code> argument decides whether software keys are acceptable. <code>VehicleKey.protection</code> tells you where the key actually ended up.</p>
+<table>
+<thead><tr><th><code>KeyPolicy</code></th><th>Behaviour</th></tr></thead>
+<tbody>
+<tr><td><code>PREFER_HARDWARE</code> (default)</td><td>Hardware first, software if hardware fails</td></tr>
+<tr><td><code>REQUIRE_HARDWARE</code></td><td>Hardware only; otherwise <code>KeyStoreError.HardwareUnavailable</code></td></tr>
+<tr><td><code>SOFTWARE_ONLY</code></td><td>Software only, for tests and emulators</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th><code>KeyProtection</code></th><th>Hardware</th><th>Where</th></tr></thead>
+<tbody>
+<tr><td><code>SECURE_ENCLAVE</code></td><td><span class="badge ok">yes</span></td><td>iOS Secure Enclave</td></tr>
+<tr><td><code>STRONGBOX</code></td><td><span class="badge ok">yes</span></td><td>Android StrongBox</td></tr>
+<tr><td><code>TEE</code></td><td><span class="badge ok">yes</span></td><td>Android Trusted Execution Environment</td></tr>
+<tr><td><code>SOFTWARE</code></td><td><span class="badge warn">no</span></td><td>Wrapped by Android Keystore or kept in the iOS Keychain; in memory on the JVM</td></tr>
+</tbody>
+</table>
+<p>If a real device reports <code>SOFTWARE</code>, consider telling the user: the key is weaker than a hardware key.</p>
+
+<h2 id="sec-check">Is my key enrolled?</h2>
+<p><code>vehicle.listKeys()</code> works without a key and without waking the car. Compare the car's list with your public key:</p>
+<pre><code class="language-kotlin"><span class="k">val</span> mine = key.publicKey.<span class="f">toByteArray</span>()
+<span class="k">val</span> enrolled = <span class="k">when</span> (<span class="k">val</span> r = vehicle.<span class="f">listKeys</span>()) {
+    <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> r.value.<span class="f">firstOrNull</span> { it.publicKey<span class="o">?.</span><span class="f">toByteArray</span>()<span class="o">?.</span><span class="f">contentEquals</span>(mine) <span class="o">==</span> <span class="n">true</span> }
+    <span class="k">else</span> <span class="o">-&gt;</span> <span class="n">null</span>                                   <span class="c">// Uncertain or Failure: unknown, ask again later</span>
+}
+<span class="c">// enrolled?.role is the KeyRole, enrolled?.slot the whitelist slot</span></code></pre>
+<p>A key that is not enrolled can still connect and read. Starting a session with it fails with <code>KeyNotPaired</code>.</p>
+
+<h2 id="sec-delete">Deleting or replacing a key</h2>
+<ul>
+<li><code>keys.delete(alias)</code> removes the key from the phone only. The car keeps listing the public key until it is removed on the car.</li>
+<li>Saved sessions belong to one key. After the key changes, the next connection throws away the old sessions and starts a new handshake.</li>
+<li>A <strong>corrupted</strong> stored key (<code>KeyStoreError.PlatformFailure</code>, <code>stored key is corrupted</code>) is never replaced on its own. Tell the user, call <code>delete</code> then <code>getOrCreate</code>, and enroll the new key on the car again. See <a href="17-lib-platform-notes.html#sec-keys">Platform Notes</a>.</li>
+</ul>
+
+<h2 id="sec-planned">Coming in M4: enrolling a key</h2>
+<div class="callout warn">
+<strong>Not available yet</strong>
+<p>The names below are from the requirements document and may change when M4 lands.</p>
+</div>
+<table>
+<thead><tr><th>Requirement</th><th>Planned API</th><th>What it will do</th></tr></thead>
+<tbody>
+<tr><td>FR-022</td><td><code>addKeyRequest(role = OWNER, …)</code></td><td>Asks the car to add the phone key. The user confirms by tapping an NFC key card on the center console</td></tr>
+<tr><td>FR-023</td><td>Progress <code>Flow</code></td><td>Reports the car's waiting and final answers while the user confirms</td></tr>
+<tr><td>FR-024</td><td><code>sessionInfo(publicKey, domain)</code></td><td>Checks enrollment per domain, used to wait until Infotainment has caught up</td></tr>
+<tr><td>FR-026</td><td><code>removeKey(publicKey)</code></td><td>Removes a key from the car</td></tr>
+<tr><td>FR-027</td><td><code>addKeyWithRole(publicKey, role, formFactor)</code></td><td>An enrolled owner key adds another key without the NFC card</td></tr>
+</tbody>
+</table>
+<p>Roles (<code>KeyRole</code>) are <code>OWNER</code>, <code>DRIVER</code>, <code>FLEET_MANAGER</code>, <code>VEHICLE_MONITOR</code>, <code>CHARGING_MANAGER</code>, <code>GUEST</code> and <code>SERVICE</code>. Which commands each role may send is listed in <a href="07-command-reference.html">7. Command Reference</a>.</p>
+
+<footer class="page-nav">
+  <a href="12-lib-getting-started.html"><span>Previous</span>12. Getting Started with the Library</a>
+  <a class="next" href="14-lib-reading-state.html"><span>Next</span>14. Reading Vehicle State</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

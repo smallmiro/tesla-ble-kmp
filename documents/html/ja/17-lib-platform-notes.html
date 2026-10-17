@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>17. プラットフォームノート · vehicle-command BLE マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE 開発マニュアル · v0.4.1 基準</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>日本語</span></summary>
+    <ul>
+      <li><a href="../ko/17-lib-platform-notes.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/17-lib-platform-notes.html" hreflang="en" lang="en">English</a></li>
+      <li><a class="active" aria-current="true" href="../ja/17-lib-platform-notes.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+    <li class="group">tesla-ble-kmp ライブラリ</li>
+    <li><a href="11-lib-overview.html">11. ライブラリ概要</a></li>
+    <li><a href="12-lib-getting-started.html">12. ライブラリ入門</a></li>
+    <li><a href="13-lib-pairing.html">13. キーとペアリング</a></li>
+    <li><a href="14-lib-reading-state.html">14. 車両状態の取得</a></li>
+    <li><a href="15-lib-commands.html">15. コマンド</a></li>
+    <li><a href="16-lib-errors.html">16. エラー処理</a></li>
+    <li><a class="active" href="17-lib-platform-notes.html">17. プラットフォームノート</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. トラブルシューティング</a></li>
+    <li><a href="19-lib-architecture.html">19. アーキテクチャ</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>17. プラットフォームノート</h1>
+<p class="lead">Android や iOS のアプリで設定すべきこと、ライブラリがキーとセッションを保存する場所、知っておくべきいくつかのプラットフォーム固有の動作をまとめます。実機でまだ確認していない項目はその旨を記載しています。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-support">サポート範囲</a></li>
+<li><a href="#sec-android">Android</a></li>
+<li><a href="#sec-ios">iOS</a></li>
+<li><a href="#sec-keys">キーの保存</a></li>
+<li><a href="#sec-cache">セッションキャッシュ</a></li>
+<li><a href="#sec-clock">クロック</a></li>
+<li><a href="#sec-slots">接続スロットとリンク切断</a></li>
+</ol></div>
+
+<h2 id="sec-support">サポート範囲</h2>
+<ul>
+<li>Android 12 (API 31) 以降、iOS 16 以降で、アプリが <strong>フォアグラウンド</strong> にある場合に対応します。バックグラウンドでの Bluetooth は対象外です。</li>
+<li>JVM ターゲットはテストと実験用です。キーはメモリ上にあり、プロセスの終了とともに消えます。</li>
+</ul>
+
+<h2 id="sec-android">Android</h2>
+<p>2 つの Bluetooth 権限を宣言し、<strong>実行時に要求してください</strong>。権限がないと、スキャンと接続は <code>PermissionDenied</code> を返します。ライブラリはサーバーを呼び出さないため、インターネット権限は不要です。</p>
+<pre><code class="language-xml"><span class="k">&lt;uses-permission</span> <span class="p">android:name</span>=<span class="s">"android.permission.BLUETOOTH_SCAN"</span> <span class="p">android:usesPermissionFlags</span>=<span class="s">"neverForLocation"</span> <span class="k">/&gt;</span>
+<span class="k">&lt;uses-permission</span> <span class="p">android:name</span>=<span class="s">"android.permission.BLUETOOTH_CONNECT"</span> <span class="k">/&gt;</span>
+<span class="k">&lt;uses-feature</span> <span class="p">android:name</span>=<span class="s">"android.hardware.bluetooth_le"</span> <span class="p">android:required</span>=<span class="s">"true"</span> <span class="k">/&gt;</span></code></pre>
+<ul>
+<li>ライブラリは <code>PlatformContext(context)</code> で作成します。アプリケーションコンテキストを保持します。</li>
+<li>接続時、ライブラリは 517 の MTU を要求し、失敗した場合は 20 バイトのブロックにフォールバックします。</li>
+<li>Keystore のエントリ名は <code>teslable.key:&lt;alias&gt;</code> と <code>teslable.wrap:&lt;alias&gt;</code> なので、アプリ自身のエントリと衝突しません。</li>
+</ul>
+<div class="callout warn">
+<strong>キーファイルを自動バックアップから除外してください</strong>
+<p>ソフトウェアキーは <code>files/teslable/keys/&lt;alias&gt;.enc</code> として保存され、バックアップされることのない Keystore キーでラップされています。自動バックアップがラップ用のキーなしでこのファイルを復元すると、キーは破損していると判定されます。<code>dataExtractionRules</code> または <code>fullBackupContent</code> で <code>files/teslable/keys/</code> を除外してください。サンプルアプリは単に <code>android:allowBackup="false"</code> を設定しています。<code>files/teslable/sessions</code> の保存済みセッションは失われても害はありませんが、除外しておく方がすっきりします。</p>
+</div>
+
+<h2 id="sec-ios">iOS</h2>
+<ul>
+<li><code>Info.plist</code> に <code>NSBluetoothAlwaysUsageDescription</code> を追加します。<strong>最初のスキャンで権限ダイアログが表示されます</strong>。ユーザーが拒否すると、呼び出しは <code>PermissionDenied</code> を返します。</li>
+<li>ライブラリは <code>PlatformContext()</code> で作成します。</li>
+<li>シミュレーターには Bluetooth がありません。スキャンと接続は実機の iPhone でのみ試せます。</li>
+<li>iOS には MTU ネゴシエーションの API がないため、ライブラリはシステムが選んだ書き込み長を使います。応答キャラクタリスティックが通知 (notification) と指示 (indication) のどちらを使うかは、実車で確認中です (ADR-0003)。</li>
+<li>Swift は SKIE を通して Kotlin を呼び出します。<code>suspend</code> 関数は <code>async throws</code> に、<code>Flow</code> は <code>AsyncSequence</code> になり、sealed 型は <code>switch onEnum(of:)</code> で扱えます。companion メンバーには <code>.companion</code> を通してアクセスします。</li>
+</ul>
+
+<h2 id="sec-keys">キーの保存</h2>
+<table>
+<thead><tr><th><code>protection</code></th><th>意味</th></tr></thead>
+<tbody>
+<tr><td><code>SECURE_ENCLAVE</code></td><td>iOS Secure Enclave。秘密鍵がチップの外に出ることはありません</td></tr>
+<tr><td><code>STRONGBOX</code></td><td>Android StrongBox セキュリティチップ</td></tr>
+<tr><td><code>TEE</code></td><td>Android Trusted Execution Environment</td></tr>
+<tr><td><code>SOFTWARE</code></td><td>エミュレーター、シミュレーター、またはハードウェアの試行がすべて失敗したデバイス</td></tr>
+</tbody>
+</table>
+<ul>
+<li>ソフトウェアキーは Android Keystore の AES キーでラップされるか、デバイスのロック解除中のみ読み取り可能でデバイスの外に出ない iOS キーチェーン項目として保存されます。</li>
+<li>iOS では、Secure Enclave の検索失敗は「キーなし」ではなくエラーとして報告されるため、正常なキーが誤って上書きされることはありません。</li>
+<li>秘密鍵をエクスポートする API はありません。</li>
+</ul>
+<div class="callout danger">
+<strong>破損したキーが自動で置き換えられることはありません</strong>
+<p><code>getOrCreate</code> または <code>get</code> が <code>stored key is corrupted</code> 付きの <code>PlatformFailure</code> を返した場合は、ユーザーに知らせてから <code>delete</code> と <code>getOrCreate</code> を呼んでください。新しいキーは公開鍵が異なるため、<strong>車両に登録し直す</strong> 必要があります。黙って置き換えると、ユーザーは理由もわからないまま車両を制御できなくなります。</p>
+</div>
+
+<h2 id="sec-cache">セッションキャッシュ</h2>
+<ul>
+<li>保存済みセッションを使うと、次の接続でハンドシェイクを省略できます。保存先は Android では <code>files/teslable/sessions/</code>、iOS ではキーチェーン、JVM ではメモリです。<code>TeslaBleConfig.sessionCache</code> で独自の実装を渡すこともできます。</li>
+<li>名前は VIN のハッシュなので、VIN そのものは保存されません。</li>
+<li>セッションは 1 つのキーに属します。キーが変わった後や、車両側の状態が進んでいる場合、古いセッションは次の接続で破棄されます。</li>
+<li>キャッシュがない、または古くなっていてもエラーではありません。ライブラリは単に新しいセッションを開始します。</li>
+</ul>
+
+<h2 id="sec-clock">クロック</h2>
+<p>セッションの時間管理には単調クロックを使いますが、一部のプラットフォームではスマートフォンのスリープ中にこのクロックが止まります。長いスリープの後、保存済みセッションからの最初のコマンドが有効期限のフォールトで失敗することがあります。その場合、ライブラリは車両が返す新しいセッション情報を取り込んでリトライするため、アプリ側には何も見えません。</p>
+
+<h2 id="sec-slots">接続スロットとリンク切断</h2>
+<ul>
+<li>車両が受け付ける Bluetooth 接続は <strong>最大 3 つ</strong> です。スロットを空けるため、使い終わったら <code>disconnect()</code> を呼んでください。3 つすべてが使われていると、接続は <code>MaxConnectionsExceeded</code> を返します。</li>
+<li>リンクが切れて <code>connection</code> が <code>Disconnected</code> になった場合でも、セッションキーを消去するため <strong>必ず <code>disconnect()</code> を呼んでください</strong>。もう一度呼んでも害はありません。</li>
+<li>切断された <code>Vehicle</code> は再利用できません。<code>TeslaBle.connect</code> で接続し直してください。</li>
+</ul>
+
+<footer class="page-nav">
+  <a href="16-lib-errors.html"><span>前へ</span>16. エラー処理</a>
+  <a class="next" href="18-lib-troubleshooting.html"><span>次へ</span>18. トラブルシューティング</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

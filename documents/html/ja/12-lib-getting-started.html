@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>12. ライブラリ入門 · vehicle-command BLE マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE 開発マニュアル · v0.4.1 基準</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>日本語</span></summary>
+    <ul>
+      <li><a href="../ko/12-lib-getting-started.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/12-lib-getting-started.html" hreflang="en" lang="en">English</a></li>
+      <li><a class="active" aria-current="true" href="../ja/12-lib-getting-started.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+    <li class="group">tesla-ble-kmp ライブラリ</li>
+    <li><a href="11-lib-overview.html">11. ライブラリ概要</a></li>
+    <li><a class="active" href="12-lib-getting-started.html">12. ライブラリ入門</a></li>
+    <li><a href="13-lib-pairing.html">13. キーとペアリング</a></li>
+    <li><a href="14-lib-reading-state.html">14. 車両状態の取得</a></li>
+    <li><a href="15-lib-commands.html">15. コマンド</a></li>
+    <li><a href="16-lib-errors.html">16. エラー処理</a></li>
+    <li><a href="17-lib-platform-notes.html">17. プラットフォームノート</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. トラブルシューティング</a></li>
+    <li><a href="19-lib-architecture.html">19. アーキテクチャ</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>12. ライブラリ入門</h1>
+<p class="lead">M3 の流れ全体を順に説明します。ライブラリを作成し、キーを取得し、車両を見つけて接続し、状態を読み取って切断します。キーの登録は M4 で追加されるため、現時点の例では登録済みキーを必要としないクエリだけを使います。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-flow">全体の流れ</a></li>
+<li><a href="#sec-rules">5 つのルール</a></li>
+<li><a href="#sec-kotlin">Kotlin (Android)</a></li>
+<li><a href="#sec-swift">Swift (iOS)</a></li>
+<li><a href="#sec-next">次のステップ</a></li>
+</ol></div>
+
+<h2 id="sec-flow">全体の流れ</h2>
+<ol class="steps">
+<li><strong>ライブラリを作成します。</strong> <code>TeslaBle.create(platform, config)</code> をアプリごとに 1 回呼びます。</li>
+<li><strong>キーを取得します。</strong> <code>ble.keys.getOrCreate()</code> はスマートフォンの P-256 キーを返し、初回はセキュアハードウェア内に作成します。</li>
+<li><strong>車両を見つけます。</strong> <code>ble.scan(vin)</code> は車両のアドバタイズを流します。最初の 1 件を使います。</li>
+<li><strong>接続します。</strong> <code>ble.connect(vin, key, advertisement)</code> は <code>Vehicle</code> を返します。</li>
+<li><strong>読み取ります。</strong> <code>vehicleStatus()</code>、<code>keySummary()</code>、<code>listKeys()</code> を使います。</li>
+<li><strong>後片付けをします。</strong> <code>vehicle.disconnect()</code> を呼び、アプリの終了時に <code>ble.close()</code> を呼びます。</li>
+</ol>
+
+<h2 id="sec-rules">5 つのルール</h2>
+<ul>
+<li><strong>結果は値です。</strong> 車両やキーストアへの呼び出しはすべて <code>VehicleResult</code> (<code>Success</code>、<code>Uncertain</code>、<code>Failure</code>) を返します。自分のコルーチンがキャンセルされた場合を除き、例外は投げられません。</li>
+<li><strong><code>TeslaBle</code> はアプリに 1 つです。</strong> 使い終わったら <code>close()</code> を呼びます。まだ接続中の車両があれば、それも切断されます。</li>
+<li><strong>必ず切断します。</strong> リンクがすでに切れていても <code>vehicle.disconnect()</code> を呼びます。セッションキャッシュを保存し、セッションキーを消去し、車両の BLE スロットを解放します。2 回呼んでも問題ありません。</li>
+<li><strong>読み取りにキーは必須ではありません。</strong> 3 つのクエリには <code>connect(vin, key = null)</code> で十分です。セッションの開始にはキーが必要です。</li>
+<li><strong>デバッグログは開発時のみ使います。</strong> <code>DebugLogger()</code> はプラットフォームのログに出力します。リリースビルドには含めないでください。</li>
+</ul>
+
+<h2 id="sec-kotlin">Kotlin (Android)</h2>
+<pre><code class="language-kotlin"><span class="k">import</span> dev.mirolab.teslable.*
+<span class="k">import</span> dev.mirolab.teslable.model.*
+<span class="k">import</span> dev.mirolab.teslable.port.*
+<span class="k">import</span> kotlinx.coroutines.flow.first
+
+<span class="k">suspend</span> <span class="k">fun</span> <span class="f">demo</span>(context: android.content.<span class="t">Context</span>, vinText: <span class="t">String</span>) {
+    <span class="k">val</span> vin = <span class="t">Vin</span>.<span class="f">parseOrNull</span>(vinText) <span class="o">?:</span> <span class="k">return</span>              <span class="c">// 17 文字の形式チェック</span>
+    <span class="k">val</span> ble = <span class="t">TeslaBle</span>.<span class="f">create</span>(
+        <span class="t">PlatformContext</span>(context),
+        <span class="t">TeslaBleConfig</span>.<span class="f">default</span>(logger = <span class="t">DebugLogger</span>()),         <span class="c">// 開発用ロガー、リリースビルドでは使わない</span>
+    )
+    <span class="k">try</span> {
+        <span class="k">val</span> key = <span class="k">when</span> (<span class="k">val</span> r = ble.keys.<span class="f">getOrCreate</span>()) {       <span class="c">// デフォルトのエイリアス、ハードウェア優先</span>
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> r.value
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Uncertain</span> <span class="o">-&gt;</span> <span class="k">return</span>
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span> <span class="k">return</span>                  <span class="c">// r.error: KeyStoreError</span>
+        }
+
+        <span class="c">// 最初のアドバタイズを使う。制限時間は呼び出し側で設定する (例: withTimeoutOrNull)。</span>
+        <span class="k">val</span> event = ble.<span class="f">scan</span>(vin).<span class="f">first</span>()
+        <span class="k">val</span> target = (event <span class="k">as</span>? <span class="t">ScanEvent</span>.<span class="t">Found</span>)<span class="o">?.</span>advertisement <span class="o">?:</span> <span class="k">return</span>   <span class="c">// Failed の場合は event.error を参照</span>
+
+        <span class="k">val</span> vehicle = <span class="k">when</span> (<span class="k">val</span> r = ble.<span class="f">connect</span>(vin, key, target)) {
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> r.value
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Uncertain</span> <span class="o">-&gt;</span> <span class="k">return</span>
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span> <span class="k">return</span>                  <span class="c">// r.error: TransportError など</span>
+        }
+        <span class="k">try</span> {
+            <span class="f">println</span>(vehicle.<span class="f">vehicleStatus</span>())                    <span class="c">// println ではなく UI に表示する</span>
+            <span class="f">println</span>(vehicle.<span class="f">listKeys</span>())
+        } <span class="k">finally</span> {
+            vehicle.<span class="f">disconnect</span>()                                <span class="c">// スロットを解放する。リンクが切れた後でも呼ぶ</span>
+        }
+    } <span class="k">finally</span> {
+        ble.<span class="f">close</span>()                                             <span class="c">// suspend。まだ接続中の車両があれば切断する</span>
+    }
+}</code></pre>
+<p>これらの呼び出しの前に、実行時に <code>BLUETOOTH_SCAN</code> と <code>BLUETOOTH_CONNECT</code> を要求してください。<a href="17-lib-platform-notes.html#sec-android">プラットフォームノート</a> を参照してください。</p>
+
+<h2 id="sec-swift">Swift (iOS)</h2>
+<p>SKIE は <code>suspend</code> 関数を <code>async throws</code> に、<code>Flow</code> を <code>AsyncSequence</code> に変換し、<code>switch onEnum(of:)</code> で結果のすべてのケースを網羅できるようにします。コードは <code>samples/ios/Sources/SampleModel.swift</code> と同じ形です。</p>
+<pre><code class="language-swift"><span class="k">import</span> <span class="t">Teslable</span>
+
+<span class="k">let</span> ble = <span class="t">TeslaBle</span>.companion.<span class="f">create</span>(
+    platform: <span class="t">PlatformContext</span>(),
+    config: <span class="t">TeslaBleConfig</span>.companion.<span class="k">default</span>(logger: <span class="t">DebugLogger</span>())
+)
+
+<span class="k">func</span> <span class="f">run</span>(vinText: <span class="t">String</span>) <span class="k">async</span> {
+    <span class="k">guard</span> <span class="k">let</span> vin = <span class="t">Vin</span>.companion.<span class="f">parseOrNull</span>(value: vinText) <span class="k">else</span> { <span class="k">return</span> }   <span class="c">// 形式が不正</span>
+
+    <span class="c">// 1) キー</span>
+    <span class="k">var</span> key: <span class="t">VehicleKey</span>?
+    <span class="k">do</span> {
+        <span class="k">let</span> result = <span class="k">try</span> <span class="k">await</span> ble.keys.<span class="f">getOrCreate</span>(alias: <span class="t">VehicleKeyStoreCompanion</span>.shared.<span class="t">DEFAULT_ALIAS</span>, policy: .preferHardware)
+        <span class="k">switch</span> <span class="f">onEnum</span>(of: result) {
+        <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s): key = s.value <span class="k">as</span>? <span class="t">VehicleKey</span>
+        <span class="k">case</span> .<span class="f">uncertain</span>(<span class="k">let</span> u): <span class="f">print</span>(<span class="s">"不確実: \(u.error.message)"</span>)
+        <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f): <span class="f">print</span>(<span class="s">"失敗: \(f.error.message)"</span>)
+        }
+    } <span class="k">catch</span> { <span class="f">print</span>(<span class="s">"エラー: \(error)"</span>) }
+
+    <span class="c">// 2) スキャン (最初のアドバタイズで止める。制限時間は Task のキャンセルで設定する)</span>
+    <span class="k">for</span> <span class="k">await</span> event <span class="k">in</span> ble.<span class="f">scan</span>(vin: vin) {
+        <span class="k">switch</span> <span class="f">onEnum</span>(of: event) {
+        <span class="k">case</span> .<span class="f">found</span>(<span class="k">let</span> f): <span class="f">print</span>(<span class="s">"\(f.advertisement.localName.value) rssi=\(f.advertisement.rssi)"</span>)
+        <span class="k">case</span> .<span class="f">failed</span>(<span class="k">let</span> e): <span class="f">print</span>(<span class="s">"スキャン失敗: \(e.error.message)"</span>)
+        }
+        <span class="k">break</span>
+    }
+
+    <span class="c">// 3) 接続とクエリ</span>
+    <span class="k">do</span> {
+        <span class="k">let</span> connected = <span class="k">try</span> <span class="k">await</span> ble.<span class="f">connect</span>(vin: vin, key: key, target: <span class="n">nil</span>, options: <span class="t">ConnectOptions</span>(timeout: <span class="n">nil</span>))
+        <span class="k">switch</span> <span class="f">onEnum</span>(of: connected) {
+        <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s):
+            <span class="k">guard</span> <span class="k">let</span> vehicle = s.value <span class="k">as</span>? <span class="t">Vehicle</span> <span class="k">else</span> { <span class="k">return</span> }
+            <span class="k">let</span> status = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">vehicleStatus</span>(timeout: <span class="n">nil</span>)
+            <span class="k">switch</span> <span class="f">onEnum</span>(of: status) {
+            <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> v): <span class="f">print</span>(<span class="s">"状態: \(String(describing: v.value))"</span>)
+            <span class="k">case</span> .<span class="f">uncertain</span>(<span class="k">let</span> u): <span class="f">print</span>(<span class="s">"不確実: \(u.error.message)"</span>)   <span class="c">// 再送せず、もう一度クエリする</span>
+            <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f): <span class="f">print</span>(<span class="s">"失敗: \(f.error.message)"</span>)
+            }
+            <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">disconnect</span>()
+        <span class="k">case</span> .<span class="f">uncertain</span>(<span class="k">let</span> u): <span class="f">print</span>(<span class="s">"不確実: \(u.error.message)"</span>)
+        <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f): <span class="f">print</span>(<span class="s">"失敗: \(f.error.message)"</span>)
+        }
+    } <span class="k">catch</span> { <span class="f">print</span>(<span class="s">"エラー: \(error)"</span>) }
+}</code></pre>
+<p><code>target: nil</code> の場合、<code>connect</code> は自分でスキャンします。<code>Info.plist</code> に <code>NSBluetoothAlwaysUsageDescription</code> を追加してください。<a href="17-lib-platform-notes.html#sec-ios">プラットフォームノート</a> を参照してください。</p>
+
+<h2 id="sec-next">次のステップ</h2>
+<ul>
+<li>車両へのキーの登録は M4 で追加されます (<a href="13-lib-pairing.html">13. キーとペアリング</a>)。それまでは <code>vehicleStatus()</code>、<code>keySummary()</code>、<code>listKeys()</code> には <code>connect(vin, key = null)</code> で十分です。</li>
+<li>リンクは <code>vehicle.connection</code>、セッションは <code>vehicle.sessions</code> で監視します。どちらも <code>StateFlow</code> です。リンクが <code>Disconnected</code> を報告した場合でも、<code>disconnect()</code> は自分で呼んでください。</li>
+</ul>
+
+<footer class="page-nav">
+  <a href="11-lib-overview.html"><span>前へ</span>11. ライブラリ概要</a>
+  <a class="next" href="13-lib-pairing.html"><span>次へ</span>13. キーとペアリング</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>18. 문제 해결 · vehicle-command BLE 매뉴얼</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE 개발 매뉴얼 · v0.4.1 기준</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>한국어</span></summary>
+    <ul>
+      <li><a class="active" aria-current="true" href="../ko/18-lib-troubleshooting.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/18-lib-troubleshooting.html" hreflang="en" lang="en">English</a></li>
+      <li><a href="../ja/18-lib-troubleshooting.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">홈</a></li>
+    <li class="group">시작하기</li>
+    <li><a href="01-overview.html">1. 시스템 개요</a></li>
+    <li><a href="02-getting-started.html">2. 시작하기</a></li>
+    <li class="group">프로토콜</li>
+    <li><a href="03-ble-transport.html">3. BLE 전송 계층</a></li>
+    <li><a href="04-protocol.html">4. 프로토콜 사양</a></li>
+    <li class="group">개발</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI 도구</a></li>
+    <li><a href="07-command-reference.html">7. 명령 레퍼런스</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP 프록시</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. 오류와 문제 해결</a></li>
+    <li class="group">tesla-ble-kmp 라이브러리</li>
+    <li><a href="11-lib-overview.html">11. 라이브러리 개요</a></li>
+    <li><a href="12-lib-getting-started.html">12. 라이브러리 시작하기</a></li>
+    <li><a href="13-lib-pairing.html">13. 키와 페어링</a></li>
+    <li><a href="14-lib-reading-state.html">14. 차량 상태 조회</a></li>
+    <li><a href="15-lib-commands.html">15. 명령</a></li>
+    <li><a href="16-lib-errors.html">16. 에러 처리</a></li>
+    <li><a href="17-lib-platform-notes.html">17. 플랫폼 노트</a></li>
+    <li><a class="active" href="18-lib-troubleshooting.html">18. 문제 해결</a></li>
+    <li><a href="19-lib-architecture.html">19. 아키텍처</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>18. 문제 해결</h1>
+<p class="lead">스캔, 연결, 키에서 자주 생기는 문제와 흔한 원인, 대처법을 정리합니다. 페어링과 명령에 관한 문제는 M4와 M5에서 추가됩니다.</p>
+
+<div class="toc"><strong>이 페이지의 내용</strong><ol>
+<li><a href="#sec-scan">스캔과 연결</a></li>
+<li><a href="#sec-keys">키와 세션</a></li>
+<li><a href="#sec-other">기타 메시지</a></li>
+<li><a href="#sec-logs">디버그 로깅</a></li>
+</ol></div>
+
+<h2 id="sec-scan">스캔과 연결</h2>
+<table>
+<thead><tr><th>증상</th><th>가능한 원인</th><th>대처</th></tr></thead>
+<tbody>
+<tr><td><code>PermissionDenied</code></td><td>블루투스 권한이 없거나 거부됨</td><td>Android: 런타임에 <code>BLUETOOTH_SCAN</code>과 <code>BLUETOOTH_CONNECT</code>를 요청. iOS: <code>NSBluetoothAlwaysUsageDescription</code>을 추가하고, 거부되었으면 사용자를 설정으로 안내</td></tr>
+<tr><td><code>BluetoothOff</code></td><td>블루투스가 꺼져 있음</td><td>사용자에게 켜 달라고 요청</td></tr>
+<tr><td>스캔에서 아무것도 찾지 못하고, 연결이 <code>ScanTimeout</code>으로 끝남</td><td>범위 밖, 잘못된 VIN, 또는 iOS 시뮬레이터</td><td>가까이 가고, VIN을 확인하고(차량은 VIN에서 만든 이름으로 찾음), 실기기를 사용</td></tr>
+<tr><td><code>MaxConnectionsExceeded</code></td><td>차량에 이미 블루투스 연결이 세 개 있음</td><td>다른 휴대폰이나 앱의 연결을 끊고, 내 앱에서는 항상 <code>disconnect()</code>를 호출</td></tr>
+<tr><td><code>ConnectFailed</code>가 계속 발생</td><td>약한 신호 또는 바쁜 차량</td><td>라이브러리가 이미 30초 동안 재시도함. 나중에 다시 시도</td></tr>
+<tr><td><code>connection</code>이 <code>Disconnected</code>로 바뀜</td><td>링크가 끊김</td><td><code>disconnect()</code>를 호출한 뒤 다시 연결</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-keys">키와 세션</h2>
+<table>
+<thead><tr><th>증상</th><th>가능한 원인</th><th>대처</th></tr></thead>
+<tbody>
+<tr><td><code>startSession()</code>이 <code>RequiresKey</code>를 반환</td><td>키 없이 연결함</td><td><code>VehicleKey</code>로 연결</td></tr>
+<tr><td><code>startSession()</code>이 <code>KeyNotPaired</code>를 반환</td><td>차량이 이 키를 모름</td><td>키를 등록(M4). <code>listKeys()</code>로 확인. <a href="13-lib-pairing.html#sec-check">13. 키와 페어링</a> 참고</td></tr>
+<tr><td><code>stored key is corrupted</code></td><td>Android 백업이 래핑 키 없이 키 파일만 복원했거나, 저장소가 손상됨</td><td>삭제하고 새 키를 생성, 등록. 키 파일을 백업에서 제외(<a href="17-lib-platform-notes.html#sec-android">플랫폼 노트</a>)</td></tr>
+<tr><td><code>HardwareUnavailable</code></td><td>StrongBox, TEE, Secure Enclave가 없는 기기에서 하드웨어를 요구함</td><td><code>PREFER_HARDWARE</code> 사용</td></tr>
+<tr><td>오래 잠든 뒤 첫 명령이 실패하고 재시도는 성공</td><td>휴대폰이 잠든 동안 시계가 멈춤</td><td>할 일 없음. 라이브러리가 알아서 다시 동기화함</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-other">기타 메시지</h2>
+<table>
+<thead><tr><th>증상</th><th>가능한 원인</th><th>대처</th></tr></thead>
+<tbody>
+<tr><td>시간 초과와 함께 <code>Uncertain</code></td><td>전송 후 응답이 유실됨</td><td>상태를 다시 읽고, 재전송하지 않음</td></tr>
+<tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UNKNOWN</code>으로 읽히는 값</td><td>새 차량 펌웨어</td><td>라이브러리 업데이트 확인</td></tr>
+<tr><td>시뮬레이터에서 키체인 테스트가 -25291로 실패</td><td>일반 Kotlin/Native 테스트 바이너리는 키체인을 쓸 수 없음</td><td>키체인 동작은 샘플 앱에서 확인</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-logs">디버그 로깅</h2>
+<ul>
+<li><code>TeslaBleConfig</code>에 로거를 전달하세요. 기본값은 아무것도 기록하지 않습니다.</li>
+<li><code>DebugLogger()</code>는 Android에서는 Logcat, iOS에서는 통합 로그, JVM에서는 <code>java.util.logging</code>에 기록합니다. 개발 빌드에서만 사용하세요.</li>
+<li>로그를 다른 곳으로 보내려면 <code>TeslaLogger</code>를 구현하세요. 레벨, 태그, 지연 생성되는 메시지를 받는 함수 하나입니다. 로거가 예외를 던져도 라이브러리는 멈추지 않습니다.</li>
+<li>레벨: <code>DEBUG</code>(송수신 원시 바이트), <code>INFO</code>(연결과 세션), <code>WARN</code>(누락되거나 버려진 메시지), <code>ERROR</code>(라이브러리가 복구할 수 없는 상황).</li>
+</ul>
+<div class="callout">
+<strong>로그에 절대 나오지 않는 것</strong>
+<p>라이브러리는 VIN을 마스킹하며 개인키, 세션 키, nonce, 복호화된 내용을 기록하지 않습니다. 앱 자체의 로그도 그렇게 유지하세요. <code>vin.value</code>를 출력하지 말고, 로그를 공유하기 전에 VIN을 마스킹하세요.</p>
+</div>
+<p><code>TeslableDiagnostics.probe</code>는 실차 스파이크(ADR-0003)를 위한 임시 도구이며 M3가 끝나면 제거됩니다. 앱에서 사용하지 마세요.</p>
+
+<footer class="page-nav">
+  <a href="17-lib-platform-notes.html"><span>이전</span>17. 플랫폼 노트</a>
+  <a class="next" href="19-lib-architecture.html"><span>다음</span>19. 아키텍처</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

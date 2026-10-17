@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>18. Troubleshooting · vehicle-command BLE Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE Developer Manual · based on v0.4.1</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>English</span></summary>
+    <ul>
+      <li><a href="../ko/18-lib-troubleshooting.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a class="active" aria-current="true" href="../en/18-lib-troubleshooting.html" hreflang="en" lang="en">English</a></li>
+      <li><a href="../ja/18-lib-troubleshooting.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">Home</a></li>
+    <li class="group">Getting Started</li>
+    <li><a href="01-overview.html">1. System Overview</a></li>
+    <li><a href="02-getting-started.html">2. Getting Started</a></li>
+    <li class="group">Protocol</li>
+    <li><a href="03-ble-transport.html">3. BLE Transport Layer</a></li>
+    <li><a href="04-protocol.html">4. Protocol Specification</a></li>
+    <li class="group">Development</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI Tools</a></li>
+    <li><a href="07-command-reference.html">7. Command Reference</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP Proxy</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. Errors and Troubleshooting</a></li>
+    <li class="group">tesla-ble-kmp Library</li>
+    <li><a href="11-lib-overview.html">11. Library Overview</a></li>
+    <li><a href="12-lib-getting-started.html">12. Getting Started with the Library</a></li>
+    <li><a href="13-lib-pairing.html">13. Keys and Pairing</a></li>
+    <li><a href="14-lib-reading-state.html">14. Reading Vehicle State</a></li>
+    <li><a href="15-lib-commands.html">15. Commands</a></li>
+    <li><a href="16-lib-errors.html">16. Error Handling</a></li>
+    <li><a href="17-lib-platform-notes.html">17. Platform Notes</a></li>
+    <li><a class="active" href="18-lib-troubleshooting.html">18. Troubleshooting</a></li>
+    <li><a href="19-lib-architecture.html">19. Architecture</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>18. Troubleshooting</h1>
+<p class="lead">Common problems with scanning, connecting and keys, what usually causes them, and what to do. Problems specific to pairing and commands are added with M4 and M5.</p>
+
+<div class="toc"><strong>On this page</strong><ol>
+<li><a href="#sec-scan">Scanning and connecting</a></li>
+<li><a href="#sec-keys">Keys and sessions</a></li>
+<li><a href="#sec-other">Other messages</a></li>
+<li><a href="#sec-logs">Debug logging</a></li>
+</ol></div>
+
+<h2 id="sec-scan">Scanning and connecting</h2>
+<table>
+<thead><tr><th>Symptom</th><th>Likely cause</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td><code>PermissionDenied</code></td><td>Bluetooth permission missing or declined</td><td>Android: request <code>BLUETOOTH_SCAN</code> and <code>BLUETOOTH_CONNECT</code> at runtime. iOS: add <code>NSBluetoothAlwaysUsageDescription</code>; if declined, send the user to Settings</td></tr>
+<tr><td><code>BluetoothOff</code></td><td>Bluetooth is off</td><td>Ask the user to turn it on</td></tr>
+<tr><td>The scan finds nothing, connecting ends with <code>ScanTimeout</code></td><td>Out of range, wrong VIN, or the iOS simulator</td><td>Move closer, check the VIN (the car is matched by a name derived from it), use a real device</td></tr>
+<tr><td><code>MaxConnectionsExceeded</code></td><td>The car already has three Bluetooth connections</td><td>Disconnect another phone or app, and always call <code>disconnect()</code> in yours</td></tr>
+<tr><td><code>ConnectFailed</code> keeps coming back</td><td>Weak signal or a busy car</td><td>The library already retries for 30 seconds; try again later</td></tr>
+<tr><td><code>connection</code> turns <code>Disconnected</code></td><td>The link was lost</td><td>Call <code>disconnect()</code>, then connect again</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-keys">Keys and sessions</h2>
+<table>
+<thead><tr><th>Symptom</th><th>Likely cause</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td><code>startSession()</code> returns <code>RequiresKey</code></td><td>Connected without a key</td><td>Connect with a <code>VehicleKey</code></td></tr>
+<tr><td><code>startSession()</code> returns <code>KeyNotPaired</code></td><td>The car does not know this key</td><td>Enroll it (M4). Check with <code>listKeys()</code>; see <a href="13-lib-pairing.html#sec-check">13. Keys and Pairing</a></td></tr>
+<tr><td><code>stored key is corrupted</code></td><td>Android backup restored the key file without its wrapping key, or storage damage</td><td>Delete, create and enroll a new key; exclude the key files from backup (<a href="17-lib-platform-notes.html#sec-android">Platform Notes</a>)</td></tr>
+<tr><td><code>HardwareUnavailable</code></td><td>Hardware required on a device without StrongBox, TEE or Secure Enclave</td><td>Use <code>PREFER_HARDWARE</code></td></tr>
+<tr><td>First command after a long sleep fails, the retry succeeds</td><td>The phone's clock paused while it slept</td><td>Nothing; the library resynchronizes on its own</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-other">Other messages</h2>
+<table>
+<thead><tr><th>Symptom</th><th>Likely cause</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td><code>Uncertain</code> with a timeout</td><td>The answer was lost after sending</td><td>Read the state again; do not resend</td></tr>
+<tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, values read as <code>UNKNOWN</code></td><td>Newer car firmware</td><td>Check for a library update</td></tr>
+<tr><td>A Keychain test fails with -25291 on the simulator</td><td>Plain Kotlin/Native test binaries cannot use the Keychain</td><td>Check Keychain behaviour in the sample app instead</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-logs">Debug logging</h2>
+<ul>
+<li>Pass a logger in <code>TeslaBleConfig</code>. The default logs nothing.</li>
+<li><code>DebugLogger()</code> writes to Logcat on Android, the unified log on iOS and <code>java.util.logging</code> on the JVM. Use it in development builds only.</li>
+<li>To send logs elsewhere, implement <code>TeslaLogger</code>: one function receiving a level, a tag and a lazily built message. A logger that throws does not stop the library.</li>
+<li>Levels: <code>DEBUG</code> (raw bytes sent and received), <code>INFO</code> (connections and sessions), <code>WARN</code> (dropped or discarded messages), <code>ERROR</code> (situations the library cannot recover from).</li>
+</ul>
+<div class="callout">
+<strong>What never appears in logs</strong>
+<p>The library masks VINs and never logs private keys, session keys, nonces or decrypted content. Keep it that way in your own logs: do not print <code>vin.value</code>, and mask VINs before sharing logs.</p>
+</div>
+<p><code>TeslableDiagnostics.probe</code> is a temporary tool for the real-car spike (ADR-0003) and will be removed when M3 is closed. Do not use it in an app.</p>
+
+<footer class="page-nav">
+  <a href="17-lib-platform-notes.html"><span>Previous</span>17. Platform Notes</a>
+  <a class="next" href="19-lib-architecture.html"><span>Next</span>19. Architecture</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

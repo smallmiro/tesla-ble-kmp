@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>19. アーキテクチャ · vehicle-command BLE マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE 開発マニュアル · v0.4.1 基準</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>日本語</span></summary>
+    <ul>
+      <li><a href="../ko/19-lib-architecture.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/19-lib-architecture.html" hreflang="en" lang="en">English</a></li>
+      <li><a class="active" aria-current="true" href="../ja/19-lib-architecture.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+    <li class="group">tesla-ble-kmp ライブラリ</li>
+    <li><a href="11-lib-overview.html">11. ライブラリ概要</a></li>
+    <li><a href="12-lib-getting-started.html">12. ライブラリ入門</a></li>
+    <li><a href="13-lib-pairing.html">13. キーとペアリング</a></li>
+    <li><a href="14-lib-reading-state.html">14. 車両状態の取得</a></li>
+    <li><a href="15-lib-commands.html">15. コマンド</a></li>
+    <li><a href="16-lib-errors.html">16. エラー処理</a></li>
+    <li><a href="17-lib-platform-notes.html">17. プラットフォームノート</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. トラブルシューティング</a></li>
+    <li><a class="active" href="19-lib-architecture.html">19. アーキテクチャ</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>19. アーキテクチャ</h1>
+<p class="lead">コントリビューター向けの要約です。モジュール間の依存関係、コマンドがたどる経路、並行処理のルール、セッションのキャッシュ方法を説明します。設計の全体は <code>docs/sdd/SDD.md</code> にあります。このページは M0 から M3 までを扱い、制御コマンドの実装時に拡張します。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-modules">モジュール</a></li>
+<li><a href="#sec-path">コマンドの経路</a></li>
+<li><a href="#sec-concurrency">並行処理</a></li>
+<li><a href="#sec-ble">Bluetooth アダプター</a></li>
+<li><a href="#sec-facade">ファサード</a></li>
+<li><a href="#sec-cache">セッションキャッシュ</a></li>
+</ol></div>
+
+<h2 id="sec-modules">モジュール</h2>
+<div class="diagram">
+<svg viewBox="0 0 900 360" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, Menlo, monospace" font-size="13" fill="currentColor">
+  <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <rect fill="var(--bg-alt)" stroke="var(--border)" x="250" y="10" width="400" height="44" rx="6"/>
+  <text x="450" y="37" text-anchor="middle">アプリ (Android Compose / iOS SwiftUI)</text>
+  <rect fill="var(--green)" fill-opacity=".12" stroke="var(--green)" x="250" y="84" width="400" height="44" rx="6"/>
+  <text x="450" y="111" text-anchor="middle">:sdk  公開ファサード: TeslaBle, Vehicle</text>
+  <rect fill="var(--blue)" fill-opacity=".1" stroke="var(--blue)" x="250" y="158" width="400" height="44" rx="6"/>
+  <text x="450" y="185" text-anchor="middle">:application  Dispatcher、セッション、コマンド</text>
+  <rect fill="var(--violet)" fill-opacity=".12" stroke="var(--violet)" x="250" y="232" width="400" height="44" rx="6"/>
+  <text x="450" y="259" text-anchor="middle">:domain  プロトコルモデルとポート、純粋 Kotlin</text>
+  <rect fill="var(--bg-alt)" stroke="var(--border)" x="20" y="306" width="270" height="44" rx="6"/>
+  <text x="155" y="332" text-anchor="middle" font-size="11.5">:adapter-ble (Kable)</text>
+  <rect fill="var(--bg-alt)" stroke="var(--border)" x="315" y="306" width="270" height="44" rx="6"/>
+  <text x="450" y="332" text-anchor="middle" font-size="11.5">:adapter-crypto (Keystore, Security)</text>
+  <rect fill="var(--bg-alt)" stroke="var(--border)" x="610" y="306" width="270" height="44" rx="6"/>
+  <text x="745" y="332" text-anchor="middle" font-size="11.5">:adapter-storage (ファイル, Keychain)</text>
+  <line x1="450" y1="54" x2="450" y2="82" stroke="currentColor" marker-end="url(#arr)"/>
+  <line x1="450" y1="128" x2="450" y2="156" stroke="currentColor" marker-end="url(#arr)"/>
+  <line x1="450" y1="202" x2="450" y2="230" stroke="currentColor" marker-end="url(#arr)"/>
+  <line x1="155" y1="306" x2="300" y2="278" stroke="currentColor" marker-end="url(#arr)"/>
+  <line x1="450" y1="306" x2="450" y2="278" stroke="currentColor" marker-end="url(#arr)"/>
+  <line x1="745" y1="306" x2="600" y2="278" stroke="currentColor" marker-end="url(#arr)"/>
+</svg>
+</div>
+<ul>
+<li>すべての依存関係は <code>:domain</code> の方向を向いており、Gradle のコンベンションプラグインがこれを強制します。</li>
+<li>アダプターはプラットフォームごとに <code>:domain</code> のポートを実装し、<code>:sdk</code> がそれらを結び付けます。</li>
+<li><code>:testing</code> は <code>FakeVehicle</code> や <code>FakeTransport</code> などのフェイクを持ち、テストでのみ使われます。</li>
+</ul>
+
+<h2 id="sec-path">コマンドの経路</h2>
+<p>予定中の <code>lock()</code> のようなセキュリティコントローラーのコマンドを例にします:</p>
+<ol class="steps">
+<li><strong>直列化します。</strong> <code>VcsecCommands</code> が接続ごとのロックを取得するため、処理中の VCSEC コマンドは常に 1 つだけです。</li>
+<li><strong>リトライループ。</strong> リトライ可能なエラーで失敗した試行は、トランスポートのリトライ間隔の後に再び始まります。</li>
+<li><strong>署名と暗号化。</strong> <code>Dispatcher.send</code> が <code>SessionState</code> にメッセージの認可を依頼します。カウンターが増え、メタデータが結び付けられ、ノンスが生成されます。</li>
+<li><strong>送信。</strong> バイト列は <code>:adapter-ble</code> が実装する <code>Transport</code> ポートに送られます。</li>
+<li><strong>待機。</strong> リクエストは応答が最終と判断されるまで待ちます。</li>
+</ol>
+<p>インフォテインメントのコマンドは、ロックなしでリトライループ以降の同じ手順をたどります。戻りの経路では、接続ごとに 1 つの受信コルーチンが <code>Transport.incoming</code> を読み、各メッセージを解析し、待機中のリクエストと照合し、付属するセッション情報を適用し、復号してリプレイを検査したうえで引き渡します。</p>
+
+<h2 id="sec-concurrency">並行処理</h2>
+<ul>
+<li><strong>受信コルーチンは接続ごとにちょうど 1 つです。</strong> 他のコルーチンを待つことはなく、ノンブロッキングの <code>trySend</code> でデータを引き渡します。唯一の待機は、新しい受信コルーチンが前のコルーチンの終了を待つことです。</li>
+<li><strong>VCSEC コマンドは接続ごとに 1 つずつです。</strong> 前のコマンドを待つ時間はタイムアウトに含まれます。インフォテインメントのコマンドは並行して実行できます。</li>
+<li>各ドメインはセッション状態を 1 つ持ちます。そのロックは暗号化、復号、セッションの更新だけを対象とするため、待ち時間は短くなります。</li>
+<li>両ドメインのハンドシェイクは並行して実行され、一方が失敗するともう一方はキャンセルされます。</li>
+<li>コマンド、ハンドシェイク、接続はそれぞれ独自のタイムアウトを持ちます。<a href="16-lib-errors.html#sec-retry">16. エラー処理</a> を参照してください。</li>
+</ul>
+
+<h2 id="sec-ble">Bluetooth アダプター</h2>
+<p>Kable を知っているのは 2 つのクラスだけです。<code>KableGattConnector</code> (スキャン、オープン) と <code>KableGattLink</code> (書き込み、購読、切断の検知) です。<code>BleTransportFactory</code> と <code>BleTransport</code> は Kable を使わずにフレーミング、再組み立て、リトライ、エラーの変換を行うため、JVM 上でテストされます。リンクが切れると受信フローが閉じ、状態は <code>Disconnected</code> になります。スキャンはアドバタイズされたローカル名と完全一致で照合します。</p>
+
+<h2 id="sec-facade">ファサード</h2>
+<p><code>TeslaBle.create</code> はプラットフォームのアダプター (Bluetooth トランスポート、キーストア、セッションキャッシュ、暗号プリミティブ) を組み立てます。<code>connect</code> はトランスポートを開き、その接続用のコルーチンスコープを作成し、<code>Dispatcher</code> と <code>VehicleSession</code> を取り付けて、保存済みセッションを復元します。途中で何かが失敗またはキャンセルされても、トランスポートとスコープは必ず解放されます。1 つの <code>Vehicle</code> は 1 つの接続を表し、<code>disconnect()</code> の後の呼び出しは <code>NotConnected</code> で失敗します。</p>
+
+<h2 id="sec-cache">セッションキャッシュ</h2>
+<p>次の接続で新しいハンドシェイクなしにコマンドを送れるよう、セッションは小さなバイナリ形式 (バージョン 1) で保存されます。セッションはクライアントキー (その公開鍵の SHA-1) に結び付けられ、他のキーのセッションは無視されて削除されます。保存のタイミングは、ハンドシェイクの完了時、セッション情報の変更時、切断時です。秘密鍵、セッション暗号鍵、生の VIN は決して保存されません。破損したエントリや認識できないエントリはスキップされ、残りが復元されます。</p>
+
+<footer class="page-nav">
+  <a href="18-lib-troubleshooting.html"><span>前へ</span>18. トラブルシューティング</a>
+  <a class="next" href="index.html"><span>ホームへ</span>ドキュメントホーム</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

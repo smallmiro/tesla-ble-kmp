@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11. 라이브러리 개요 · vehicle-command BLE 매뉴얼</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE 개발 매뉴얼 · v0.4.1 기준</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>한국어</span></summary>
+    <ul>
+      <li><a class="active" aria-current="true" href="../ko/11-lib-overview.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/11-lib-overview.html" hreflang="en" lang="en">English</a></li>
+      <li><a href="../ja/11-lib-overview.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">홈</a></li>
+    <li class="group">시작하기</li>
+    <li><a href="01-overview.html">1. 시스템 개요</a></li>
+    <li><a href="02-getting-started.html">2. 시작하기</a></li>
+    <li class="group">프로토콜</li>
+    <li><a href="03-ble-transport.html">3. BLE 전송 계층</a></li>
+    <li><a href="04-protocol.html">4. 프로토콜 사양</a></li>
+    <li class="group">개발</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI 도구</a></li>
+    <li><a href="07-command-reference.html">7. 명령 레퍼런스</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP 프록시</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. 오류와 문제 해결</a></li>
+    <li class="group">tesla-ble-kmp 라이브러리</li>
+    <li><a class="active" href="11-lib-overview.html">11. 라이브러리 개요</a></li>
+    <li><a href="12-lib-getting-started.html">12. 라이브러리 시작하기</a></li>
+    <li><a href="13-lib-pairing.html">13. 키와 페어링</a></li>
+    <li><a href="14-lib-reading-state.html">14. 차량 상태 조회</a></li>
+    <li><a href="15-lib-commands.html">15. 명령</a></li>
+    <li><a href="16-lib-errors.html">16. 에러 처리</a></li>
+    <li><a href="17-lib-platform-notes.html">17. 플랫폼 노트</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. 문제 해결</a></li>
+    <li><a href="19-lib-architecture.html">19. 아키텍처</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>11. 라이브러리 개요</h1>
+<p class="lead">tesla-ble-kmp는 이 저장소에서 만드는 라이브러리로, <code>vehicle-command</code>의 BLE 경로를 Kotlin Multiplatform으로 포팅해 Android나 iOS 앱이 서버 없이 테슬라 차량과 직접 통신하게 합니다. 11장부터 19장까지는 이 라이브러리의 사용법을 설명합니다. 1장부터 9장까지는 Go 원본을 설명합니다.</p>
+
+<div class="toc"><strong>이 페이지의 내용</strong><ol>
+<li><a href="#sec-status">현재 동작하는 기능</a></li>
+<li><a href="#sec-platforms">플랫폼과 패키지</a></li>
+<li><a href="#sec-install">설치</a></li>
+<li><a href="#sec-map">어떤 페이지를 읽을지</a></li>
+<li><a href="#sec-upkeep">이 페이지들을 최신으로 유지하는 방법</a></li>
+</ol></div>
+
+<h2 id="sec-status">현재 동작하는 기능</h2>
+<p>라이브러리는 마일스톤 단위로 만들어집니다. 이 페이지들은 <code>main</code>의 코드를 설명하며, 현재 <strong>M3</strong> 단계입니다.</p>
+<table>
+<thead><tr><th>영역</th><th>마일스톤</th><th>상태</th><th>페이지</th></tr></thead>
+<tbody>
+<tr><td>프로토콜 코어, 디스패처, 세션, 재시도, 세션 캐시</td><td>M0–M2</td><td><span class="badge ok">완료</span></td><td><a href="16-lib-errors.html">16</a>, <a href="19-lib-architecture.html">19</a></td></tr>
+<tr><td>BLE 스캔과 연결(Kable), 키 보관소, 세션 캐시 저장소, <code>TeslaBle</code> / <code>Vehicle</code></td><td>M3</td><td><span class="badge ok">완료</span> 실차 확인 진행 중</td><td><a href="12-lib-getting-started.html">12</a>, <a href="17-lib-platform-notes.html">17</a></td></tr>
+<tr><td>키 없이 하는 읽기 전용 조회: <code>vehicleStatus()</code>, <code>keySummary()</code>, <code>listKeys()</code></td><td>M3</td><td><span class="badge ok">완료</span></td><td><a href="14-lib-reading-state.html">14</a></td></tr>
+<tr><td>키 등록(add-key-request), VCSEC 제어(잠금, 잠금 해제, 트렁크…)</td><td>M4</td><td><span class="badge warn">예정</span></td><td><a href="13-lib-pairing.html">13</a>, <a href="15-lib-commands.html">15</a></td></tr>
+<tr><td>Infotainment 제어와 <code>getState()</code></td><td>M5</td><td><span class="badge warn">예정</span></td><td><a href="14-lib-reading-state.html">14</a>, <a href="15-lib-commands.html">15</a></td></tr>
+<tr><td>패키지: GitHub Packages와 Swift Package Manager</td><td>M6</td><td><span class="badge warn">예정</span></td><td><a href="#sec-install">설치</a></td></tr>
+</tbody>
+</table>
+<div class="callout warn">
+<strong>예정된 API는 아직 사용할 수 없습니다</strong>
+<p>예정된 메서드 이름은 요구사항 문서(<code>docs/prd/PRD.md</code>)에서 가져온 것이며, 해당 마일스톤이 완료될 때 바뀔 수 있습니다. 그때까지 앱은 스캔, 연결, 상태 읽기는 할 수 있지만 키 등록이나 제어 명령 전송은 할 수 없습니다.</p>
+</div>
+
+<h2 id="sec-platforms">플랫폼과 패키지</h2>
+<ul>
+<li>Android 12(API 31) 이상, iOS 16 이상을 지원합니다. 앱은 포그라운드에 있다고 가정합니다.</li>
+<li>테스트와 실험용 JVM 타깃이 있습니다. 이 타깃의 키와 세션 캐시는 메모리에만 존재합니다.</li>
+<li>패키지 루트는 <code>dev.mirolab.teslable</code>입니다. 파사드는 <code>dev.mirolab.teslable</code>, 값과 결과는 <code>dev.mirolab.teslable.model</code>, 키 보관소와 스캔, 로깅은 <code>dev.mirolab.teslable.port</code>에 있습니다.</li>
+<li>iOS 프레임워크 이름은 <code>Teslable</code>입니다. Swift는 SKIE를 통해 Kotlin을 봅니다(<code>async</code> 함수, <code>AsyncSequence</code>, <code>onEnum(of:)</code>).</li>
+</ul>
+
+<h2 id="sec-install">설치</h2>
+<p>라이브러리는 아직 배포되지 않았습니다. M6에서 GitHub Packages와 Swift Package Manager 배포가 추가됩니다. 지금은 소스에서 빌드하세요.</p>
+<table>
+<thead><tr><th>대상</th><th>명령</th></tr></thead>
+<tbody>
+<tr><td>Android / JVM</td><td><code>./gradlew :sdk:assemble</code></td></tr>
+<tr><td>iOS 시뮬레이터 프레임워크</td><td><code>./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64</code></td></tr>
+<tr><td>샘플 앱</td><td><code>samples/android</code>(Gradle 모듈), <code>samples/ios</code>(<code>xcodegen generate</code>, <code>samples/ios/README.md</code> 참고)</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-map">어떤 페이지를 읽을지</h2>
+<table>
+<thead><tr><th>하려는 일</th><th>읽을 페이지</th></tr></thead>
+<tbody>
+<tr><td>앱에서 스캔, 연결하고 차량 상태 표시하기</td><td><a href="12-lib-getting-started.html">12. 라이브러리 시작하기</a>, <a href="14-lib-reading-state.html">14. 차량 상태 조회</a></td></tr>
+<tr><td>휴대폰 키 생성, 조회, 삭제와 등록 여부 확인</td><td><a href="13-lib-pairing.html">13. 키와 페어링</a></td></tr>
+<tr><td>어떤 명령이 있고 어떤 명령이 추가될지 확인</td><td><a href="15-lib-commands.html">15. 명령</a></td></tr>
+<tr><td>오류를 어떻게 처리할지 결정</td><td><a href="16-lib-errors.html">16. 에러 처리</a></td></tr>
+<tr><td>권한, <code>Info.plist</code>, 백업 규칙 설정</td><td><a href="17-lib-platform-notes.html">17. 플랫폼 노트</a></td></tr>
+<tr><td>스캔, 연결, 키가 실패하는 이유 찾기</td><td><a href="18-lib-troubleshooting.html">18. 문제 해결</a></td></tr>
+<tr><td>라이브러리 자체 수정</td><td><a href="19-lib-architecture.html">19. 아키텍처</a></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-upkeep">이 페이지들을 최신으로 유지하는 방법</h2>
+<p>라이브러리의 동작, 공개 API, 마일스톤 상태를 바꾸는 모든 풀 리퀘스트는 병합 전에 이 페이지들을 갱신합니다. 에이전트용 Markdown 페이지(<code>documents/md/1x-lib-*.md</code>, 영어)와 사람용 한국어, 영어, 일본어 HTML 페이지가 그 대상입니다. Go 레퍼런스인 1장부터 9장까지는 메인테이너의 승인이 있을 때만 수정합니다.</p>
+
+<footer class="page-nav">
+  <a href="09-errors-troubleshooting.html"><span>이전</span>9. 오류와 문제 해결</a>
+  <a class="next" href="12-lib-getting-started.html"><span>다음</span>12. 라이브러리 시작하기</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

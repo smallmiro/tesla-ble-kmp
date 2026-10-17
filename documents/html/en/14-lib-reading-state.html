@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>14. Reading Vehicle State · vehicle-command BLE Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE Developer Manual · based on v0.4.1</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>English</span></summary>
+    <ul>
+      <li><a href="../ko/14-lib-reading-state.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a class="active" aria-current="true" href="../en/14-lib-reading-state.html" hreflang="en" lang="en">English</a></li>
+      <li><a href="../ja/14-lib-reading-state.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">Home</a></li>
+    <li class="group">Getting Started</li>
+    <li><a href="01-overview.html">1. System Overview</a></li>
+    <li><a href="02-getting-started.html">2. Getting Started</a></li>
+    <li class="group">Protocol</li>
+    <li><a href="03-ble-transport.html">3. BLE Transport Layer</a></li>
+    <li><a href="04-protocol.html">4. Protocol Specification</a></li>
+    <li class="group">Development</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI Tools</a></li>
+    <li><a href="07-command-reference.html">7. Command Reference</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP Proxy</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. Errors and Troubleshooting</a></li>
+    <li class="group">tesla-ble-kmp Library</li>
+    <li><a href="11-lib-overview.html">11. Library Overview</a></li>
+    <li><a href="12-lib-getting-started.html">12. Getting Started with the Library</a></li>
+    <li><a href="13-lib-pairing.html">13. Keys and Pairing</a></li>
+    <li><a class="active" href="14-lib-reading-state.html">14. Reading Vehicle State</a></li>
+    <li><a href="15-lib-commands.html">15. Commands</a></li>
+    <li><a href="16-lib-errors.html">16. Error Handling</a></li>
+    <li><a href="17-lib-platform-notes.html">17. Platform Notes</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. Troubleshooting</a></li>
+    <li><a href="19-lib-architecture.html">19. Architecture</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>14. Reading Vehicle State</h1>
+<p class="lead">Three queries read the car's security controller (VCSEC) over BLE. They need no key, no session and no wake-up, because VCSEC answers even while the infotainment computer sleeps.</p>
+
+<div class="toc"><strong>On this page</strong><ol>
+<li><a href="#sec-calls">The three queries</a></li>
+<li><a href="#sec-status">What vehicleStatus() returns</a></li>
+<li><a href="#sec-keys">What the key queries return</a></li>
+<li><a href="#sec-flows">Connection and session state</a></li>
+<li><a href="#sec-wake">Sleep and wake-up</a></li>
+</ol></div>
+
+<h2 id="sec-calls">The three queries</h2>
+<table>
+<thead><tr><th>Call</th><th>Returns</th><th>Go original</th></tr></thead>
+<tbody>
+<tr><td><code>vehicleStatus()</code></td><td>Lock, doors, trunks, charge port, sleep state, presence</td><td><code>BodyControllerState</code></td></tr>
+<tr><td><code>keySummary()</code></td><td>Number of enrolled keys and which slots are used</td><td><code>KeySummary</code></td></tr>
+<tr><td><code>listKeys()</code></td><td>Every enrolled key with its public key, role and form factor</td><td><code>KeySummary</code> + <code>KeyInfoBySlot</code></td></tr>
+</tbody>
+</table>
+<ul>
+<li>Each takes an optional <code>timeout</code>; without it the default command timeout (5 seconds) applies. For <code>listKeys()</code> the timeout covers all of its requests together.</li>
+<li>The car handles one VCSEC request at a time per connection. A query that has to wait for another one spends part of its timeout waiting.</li>
+<li>These are queries, so an <code>Uncertain</code> result can simply be asked again.</li>
+</ul>
+
+<h2 id="sec-status">What vehicleStatus() returns</h2>
+<table>
+<thead><tr><th>Field</th><th>Values</th></tr></thead>
+<tbody>
+<tr><td><code>lockState</code></td><td><code>UNLOCKED</code>, <code>LOCKED</code>, <code>INTERNAL_LOCKED</code>, <code>SELECTIVE_UNLOCKED</code>, <code>UNKNOWN</code></td></tr>
+<tr><td><code>closures</code></td><td>Eight openings, each a <code>ClosureState</code>; <code>null</code> if the car did not send them</td></tr>
+<tr><td><code>sleepStatus</code></td><td><code>AWAKE</code>, <code>ASLEEP</code>, <code>UNKNOWN</code></td></tr>
+<tr><td><code>userPresence</code></td><td><code>PRESENT</code>, <code>NOT_PRESENT</code>, <code>UNKNOWN</code></td></tr>
+<tr><td><code>tonneauPercentOpen</code></td><td>Cybertruck only; <code>null</code> otherwise</td></tr>
+</tbody>
+</table>
+<p>The eight openings are <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code> and <code>tonneau</code>. Each is <code>CLOSED</code>, <code>OPEN</code>, <code>AJAR</code>, <code>OPENING</code>, <code>CLOSING</code>, <code>FAILED_UNLATCH</code> or <code>UNKNOWN</code>.</p>
+<div class="callout">
+<strong>Unknown values do not fail</strong>
+<p>When newer car firmware sends a value the library does not know yet, the field reads <code>UNKNOWN</code> instead of failing the query.</p>
+</div>
+
+<h2 id="sec-keys">What the key queries return</h2>
+<table>
+<thead><tr><th>Type</th><th>Field</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>WhitelistSummary</code></td><td><code>numberOfEntries</code></td><td>How many keys are enrolled</td></tr>
+<tr><td></td><td><code>slotMask</code>, <code>occupiedSlots</code></td><td>Which slots are used, as a bit mask and as a sorted list</td></tr>
+<tr><td><code>WhitelistEntry</code></td><td><code>slot</code></td><td>Slot number</td></tr>
+<tr><td></td><td><code>publicKey</code></td><td>65-byte public key, or <code>null</code> if missing or malformed</td></tr>
+<tr><td></td><td><code>keyIdSha1Hex</code></td><td>SHA-1 of the public key in hex, or <code>null</code></td></tr>
+<tr><td></td><td><code>role</code>, <code>formFactor</code></td><td>For example <code>OWNER</code> and <code>IOS_DEVICE</code>; see <a href="13-lib-pairing.html">13. Keys and Pairing</a></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-flows">Connection and session state</h2>
+<p>These are properties of <code>Vehicle</code> that you observe, not questions sent to the car:</p>
+<table>
+<thead><tr><th>Property</th><th>Values</th></tr></thead>
+<tbody>
+<tr><td><code>connection</code></td><td><code>Connected</code>, or <code>Disconnected</code> with the reason if known</td></tr>
+<tr><td><code>sessions</code></td><td>For <code>VCSEC</code> and <code>INFOTAINMENT</code>: <code>None</code>, <code>Handshaking</code> or <code>Ready</code> (with <code>fromCache</code>)</td></tr>
+<tr><td><code>hasKey</code></td><td>Whether the connection was made with a key</td></tr>
+<tr><td><code>vin</code></td><td>The VIN. Printing it shows a masked form; <code>vin.value</code> is the raw VIN, which should not go into logs</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-wake">Sleep and wake-up</h2>
+<ul>
+<li>None of the three queries wakes the car. Use <code>sleepStatus</code> to show whether it is asleep.</li>
+<li>Coming in M5: <code>getState(category)</code> reads the twelve infotainment categories (charge, climate, drive, location, closures, charge schedule, preconditioning schedule, tire pressure, media, media detail, software update, parental controls). It needs an enrolled key and an awake car.</li>
+<li>Coming in M4: <code>wakeUp()</code>, which needs only the VCSEC session.</li>
+<li>When a lock or trunk command (M4) comes back <code>Uncertain</code>, read <code>vehicleStatus()</code> again instead of sending the command a second time.</li>
+</ul>
+
+<footer class="page-nav">
+  <a href="13-lib-pairing.html"><span>Previous</span>13. Keys and Pairing</a>
+  <a class="next" href="15-lib-commands.html"><span>Next</span>15. Commands</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

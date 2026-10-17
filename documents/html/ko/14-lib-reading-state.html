@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>14. 차량 상태 조회 · vehicle-command BLE 매뉴얼</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE 개발 매뉴얼 · v0.4.1 기준</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>한국어</span></summary>
+    <ul>
+      <li><a class="active" aria-current="true" href="../ko/14-lib-reading-state.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/14-lib-reading-state.html" hreflang="en" lang="en">English</a></li>
+      <li><a href="../ja/14-lib-reading-state.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">홈</a></li>
+    <li class="group">시작하기</li>
+    <li><a href="01-overview.html">1. 시스템 개요</a></li>
+    <li><a href="02-getting-started.html">2. 시작하기</a></li>
+    <li class="group">프로토콜</li>
+    <li><a href="03-ble-transport.html">3. BLE 전송 계층</a></li>
+    <li><a href="04-protocol.html">4. 프로토콜 사양</a></li>
+    <li class="group">개발</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI 도구</a></li>
+    <li><a href="07-command-reference.html">7. 명령 레퍼런스</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP 프록시</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. 오류와 문제 해결</a></li>
+    <li class="group">tesla-ble-kmp 라이브러리</li>
+    <li><a href="11-lib-overview.html">11. 라이브러리 개요</a></li>
+    <li><a href="12-lib-getting-started.html">12. 라이브러리 시작하기</a></li>
+    <li><a href="13-lib-pairing.html">13. 키와 페어링</a></li>
+    <li><a class="active" href="14-lib-reading-state.html">14. 차량 상태 조회</a></li>
+    <li><a href="15-lib-commands.html">15. 명령</a></li>
+    <li><a href="16-lib-errors.html">16. 에러 처리</a></li>
+    <li><a href="17-lib-platform-notes.html">17. 플랫폼 노트</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. 문제 해결</a></li>
+    <li><a href="19-lib-architecture.html">19. 아키텍처</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>14. 차량 상태 조회</h1>
+<p class="lead">세 가지 조회는 BLE로 차량의 보안 컨트롤러(VCSEC)를 읽습니다. 인포테인먼트 컴퓨터가 잠들어 있어도 VCSEC는 응답하므로, 키도 세션도 깨우기도 필요 없습니다.</p>
+
+<div class="toc"><strong>이 페이지의 내용</strong><ol>
+<li><a href="#sec-calls">세 가지 조회</a></li>
+<li><a href="#sec-status">vehicleStatus()가 반환하는 값</a></li>
+<li><a href="#sec-keys">키 조회가 반환하는 값</a></li>
+<li><a href="#sec-flows">연결 상태와 세션 상태</a></li>
+<li><a href="#sec-wake">절전과 깨우기</a></li>
+</ol></div>
+
+<h2 id="sec-calls">세 가지 조회</h2>
+<table>
+<thead><tr><th>호출</th><th>반환</th><th>Go 원본</th></tr></thead>
+<tbody>
+<tr><td><code>vehicleStatus()</code></td><td>잠금, 문, 트렁크, 충전 포트, 절전 상태, 탑승자 감지</td><td><code>BodyControllerState</code></td></tr>
+<tr><td><code>keySummary()</code></td><td>등록된 키 개수와 사용 중인 슬롯</td><td><code>KeySummary</code></td></tr>
+<tr><td><code>listKeys()</code></td><td>등록된 모든 키와 각 키의 공개키, 역할, 폼 팩터</td><td><code>KeySummary</code> + <code>KeyInfoBySlot</code></td></tr>
+</tbody>
+</table>
+<ul>
+<li>각 조회는 선택 인자 <code>timeout</code>을 받습니다. 지정하지 않으면 기본 명령 시간 제한(5초)이 적용됩니다. <code>listKeys()</code>의 시간 제한은 내부 요청 전체에 함께 적용됩니다.</li>
+<li>차량은 연결마다 VCSEC 요청을 한 번에 하나씩 처리합니다. 다른 조회를 기다려야 하는 조회는 시간 제한의 일부를 대기에 씁니다.</li>
+<li>이들은 조회이므로 <code>Uncertain</code> 결과가 나오면 그냥 다시 조회하면 됩니다.</li>
+</ul>
+
+<h2 id="sec-status">vehicleStatus()가 반환하는 값</h2>
+<table>
+<thead><tr><th>필드</th><th>값</th></tr></thead>
+<tbody>
+<tr><td><code>lockState</code></td><td><code>UNLOCKED</code>, <code>LOCKED</code>, <code>INTERNAL_LOCKED</code>, <code>SELECTIVE_UNLOCKED</code>, <code>UNKNOWN</code></td></tr>
+<tr><td><code>closures</code></td><td>여덟 개 개폐부, 각각 <code>ClosureState</code>. 차량이 보내지 않으면 <code>null</code></td></tr>
+<tr><td><code>sleepStatus</code></td><td><code>AWAKE</code>, <code>ASLEEP</code>, <code>UNKNOWN</code></td></tr>
+<tr><td><code>userPresence</code></td><td><code>PRESENT</code>, <code>NOT_PRESENT</code>, <code>UNKNOWN</code></td></tr>
+<tr><td><code>tonneauPercentOpen</code></td><td>Cybertruck 전용, 그 외에는 <code>null</code></td></tr>
+</tbody>
+</table>
+<p>여덟 개 개폐부는 <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code>, <code>tonneau</code>입니다. 각각 <code>CLOSED</code>, <code>OPEN</code>, <code>AJAR</code>, <code>OPENING</code>, <code>CLOSING</code>, <code>FAILED_UNLATCH</code>, <code>UNKNOWN</code> 중 하나입니다.</p>
+<div class="callout">
+<strong>알 수 없는 값은 실패로 처리하지 않습니다</strong>
+<p>새 차량 펌웨어가 라이브러리가 아직 모르는 값을 보내면, 조회를 실패시키지 않고 해당 필드를 <code>UNKNOWN</code>으로 읽습니다.</p>
+</div>
+
+<h2 id="sec-keys">키 조회가 반환하는 값</h2>
+<table>
+<thead><tr><th>타입</th><th>필드</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td><code>WhitelistSummary</code></td><td><code>numberOfEntries</code></td><td>등록된 키 개수</td></tr>
+<tr><td></td><td><code>slotMask</code>, <code>occupiedSlots</code></td><td>사용 중인 슬롯, 비트 마스크와 정렬된 목록</td></tr>
+<tr><td><code>WhitelistEntry</code></td><td><code>slot</code></td><td>슬롯 번호</td></tr>
+<tr><td></td><td><code>publicKey</code></td><td>65바이트 공개키, 없거나 형식이 잘못되면 <code>null</code></td></tr>
+<tr><td></td><td><code>keyIdSha1Hex</code></td><td>공개키의 SHA-1 16진수 값, 또는 <code>null</code></td></tr>
+<tr><td></td><td><code>role</code>, <code>formFactor</code></td><td>예: <code>OWNER</code>, <code>IOS_DEVICE</code>. <a href="13-lib-pairing.html">13. 키와 페어링</a> 참고</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-flows">연결 상태와 세션 상태</h2>
+<p>다음은 차량에 보내는 질의가 아니라 관찰하는 <code>Vehicle</code>의 속성입니다.</p>
+<table>
+<thead><tr><th>속성</th><th>값</th></tr></thead>
+<tbody>
+<tr><td><code>connection</code></td><td><code>Connected</code>, 또는 <code>Disconnected</code>(알려진 경우 이유 포함)</td></tr>
+<tr><td><code>sessions</code></td><td><code>VCSEC</code>와 <code>INFOTAINMENT</code> 각각: <code>None</code>, <code>Handshaking</code>, <code>Ready</code>(<code>fromCache</code> 포함)</td></tr>
+<tr><td><code>hasKey</code></td><td>키를 사용해 연결했는지 여부</td></tr>
+<tr><td><code>vin</code></td><td>VIN. 출력하면 마스킹된 형태가 나옵니다. <code>vin.value</code>는 원본 VIN이므로 로그에 남기면 안 됩니다</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-wake">절전과 깨우기</h2>
+<ul>
+<li>세 가지 조회 모두 차량을 깨우지 않습니다. 잠들어 있는지 보여 주려면 <code>sleepStatus</code>를 사용하세요.</li>
+<li>M5 예정: <code>getState(category)</code>는 인포테인먼트의 12개 카테고리(충전, 공조, 주행, 위치, 개폐부, 충전 일정, 사전 공조 일정, 타이어 공기압, 미디어, 미디어 상세, 소프트웨어 업데이트, 자녀 보호)를 읽습니다. 등록된 키와 깨어 있는 차량이 필요합니다.</li>
+<li>M4 예정: <code>wakeUp()</code>. VCSEC 세션만 있으면 됩니다.</li>
+<li>잠금이나 트렁크 명령(M4)이 <code>Uncertain</code>으로 돌아오면, 명령을 다시 보내지 말고 <code>vehicleStatus()</code>를 다시 읽으세요.</li>
+</ul>
+
+<footer class="page-nav">
+  <a href="13-lib-pairing.html"><span>이전</span>13. 키와 페어링</a>
+  <a class="next" href="15-lib-commands.html"><span>다음</span>15. 명령</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

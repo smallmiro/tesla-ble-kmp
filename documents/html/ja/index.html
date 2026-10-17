@@ -35,6 +35,16 @@
     <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
     <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
     <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+    <li class="group">tesla-ble-kmp ライブラリ</li>
+    <li><a href="11-lib-overview.html">11. ライブラリ概要</a></li>
+    <li><a href="12-lib-getting-started.html">12. ライブラリ入門</a></li>
+    <li><a href="13-lib-pairing.html">13. キーとペアリング</a></li>
+    <li><a href="14-lib-reading-state.html">14. 車両状態の取得</a></li>
+    <li><a href="15-lib-commands.html">15. コマンド</a></li>
+    <li><a href="16-lib-errors.html">16. エラー処理</a></li>
+    <li><a href="17-lib-platform-notes.html">17. プラットフォームノート</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. トラブルシューティング</a></li>
+    <li><a href="19-lib-architecture.html">19. アーキテクチャ</a></li>
   </ol>
 </nav>
 <main class="content">
@@ -87,6 +97,19 @@
   <dt>セッションキャッシュ</dt><dd>セッション状態をディスクに保存すると、次回の実行時にハンドシェイクなしですぐにコマンドを送れます。キャッシュが古い場合は車両が新しいセッション情報をエラーと一緒に返すため、自動的に復旧します。</dd>
 </dl>
 </section>
+<h2 class="bento-label">tesla-ble-kmp ライブラリ (このリポジトリ)</h2>
+<p class="bento-note">このリポジトリで開発している Kotlin Multiplatform ライブラリの使い方です。<code>vehicle-command</code> の BLE 経路を Android と iOS に移植したものです。次の見出し以降の章は Go のオリジナルを説明します。</p>
+<div class="cards">
+  <a class="card" href="11-lib-overview.html"><div class="num">11</div><h3>ライブラリ概要</h3><p>現在使える機能と予定の機能、対応プラットフォーム、ソースからのビルド、作業ごとに読むページ。</p></a>
+  <a class="card" href="12-lib-getting-started.html"><div class="num">12</div><h3>ライブラリ入門</h3><p><code>TeslaBle.create</code> からスキャン、接続、車両状態の取得、切断まで。Kotlin と Swift の例。</p></a>
+  <a class="card" href="13-lib-pairing.html"><div class="num">13</div><h3>キーとペアリング</h3><p>キーストア、ハードウェア保護レベル、登録の確認、予定の add-key-request。</p></a>
+  <a class="card" href="14-lib-reading-state.html"><div class="num">14</div><h3>車両状態の取得</h3><p>キーもウェイクアップもなしに、ロック、開閉部、スリープ状態、キー一覧を読みます。</p></a>
+  <a class="card" href="15-lib-commands.html"><div class="num">15</div><h3>コマンド</h3><p>現在使えるセッション呼び出しと、マイルストーンごとの予定の制御コマンド。</p></a>
+  <a class="card" href="16-lib-errors.html"><div class="num">16</div><h3>エラー処理</h3><p>成功・不確実・失敗の三分類、エラー階層、組み込みのリトライとタイムアウト。</p></a>
+  <a class="card" href="17-lib-platform-notes.html"><div class="num">17</div><h3>プラットフォームノート</h3><p>Android の権限とバックアップ、iOS の Info.plist、キーとセッションの保存場所。</p></a>
+  <a class="card" href="18-lib-troubleshooting.html"><div class="num">18</div><h3>トラブルシューティング</h3><p>スキャン、接続、キーの問題の症状、原因、対処とデバッグログ。</p></a>
+  <a class="card" href="19-lib-architecture.html"><div class="num">19</div><h3>アーキテクチャ</h3><p>コントリビューター向け: モジュール、コマンドの経路、並行性のルール、セッションキャッシュ。</p></a>
+</div>
 <h2 class="bento-label">ドキュメント構成</h2>
 <div class="cards">
   <a class="card" href="01-overview.html"><div class="num">01</div><h3>システム概要</h3><p>2 段階の認証モデル、VCSEC/Infotainment ドメイン、リポジトリ構造とレイヤーアーキテクチャ。</p></a>

@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>18. トラブルシューティング · vehicle-command BLE マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE 開発マニュアル · v0.4.1 基準</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>日本語</span></summary>
+    <ul>
+      <li><a href="../ko/18-lib-troubleshooting.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/18-lib-troubleshooting.html" hreflang="en" lang="en">English</a></li>
+      <li><a class="active" aria-current="true" href="../ja/18-lib-troubleshooting.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+    <li class="group">tesla-ble-kmp ライブラリ</li>
+    <li><a href="11-lib-overview.html">11. ライブラリ概要</a></li>
+    <li><a href="12-lib-getting-started.html">12. ライブラリ入門</a></li>
+    <li><a href="13-lib-pairing.html">13. キーとペアリング</a></li>
+    <li><a href="14-lib-reading-state.html">14. 車両状態の取得</a></li>
+    <li><a href="15-lib-commands.html">15. コマンド</a></li>
+    <li><a href="16-lib-errors.html">16. エラー処理</a></li>
+    <li><a href="17-lib-platform-notes.html">17. プラットフォームノート</a></li>
+    <li><a class="active" href="18-lib-troubleshooting.html">18. トラブルシューティング</a></li>
+    <li><a href="19-lib-architecture.html">19. アーキテクチャ</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>18. トラブルシューティング</h1>
+<p class="lead">スキャン、接続、キーでよくある問題と、その主な原因および対処法をまとめます。ペアリングとコマンドに固有の問題は M4 と M5 で追加します。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-scan">スキャンと接続</a></li>
+<li><a href="#sec-keys">キーとセッション</a></li>
+<li><a href="#sec-other">その他のメッセージ</a></li>
+<li><a href="#sec-logs">デバッグログ</a></li>
+</ol></div>
+
+<h2 id="sec-scan">スキャンと接続</h2>
+<table>
+<thead><tr><th>症状</th><th>考えられる原因</th><th>対処</th></tr></thead>
+<tbody>
+<tr><td><code>PermissionDenied</code></td><td>Bluetooth 権限がない、または拒否された</td><td>Android: 実行時に <code>BLUETOOTH_SCAN</code> と <code>BLUETOOTH_CONNECT</code> を要求します。iOS: <code>NSBluetoothAlwaysUsageDescription</code> を追加します。拒否された場合はユーザーを設定に誘導します</td></tr>
+<tr><td><code>BluetoothOff</code></td><td>Bluetooth がオフ</td><td>オンにするようユーザーに依頼します</td></tr>
+<tr><td>スキャンで何も見つからず、接続が <code>ScanTimeout</code> で終わる</td><td>範囲外、VIN の誤り、または iOS シミュレーター</td><td>車両に近づく、VIN を確認する (車両は VIN から導出した名前で照合されます)、実機を使う</td></tr>
+<tr><td><code>MaxConnectionsExceeded</code></td><td>車両にすでに 3 つの Bluetooth 接続がある</td><td>別のスマートフォンやアプリを切断し、自分のアプリでは必ず <code>disconnect()</code> を呼びます</td></tr>
+<tr><td><code>ConnectFailed</code> が繰り返し返る</td><td>電波が弱い、または車両がビジー</td><td>ライブラリはすでに 30 秒間リトライしています。時間をおいてもう一度試します</td></tr>
+<tr><td><code>connection</code> が <code>Disconnected</code> になる</td><td>リンクが失われた</td><td><code>disconnect()</code> を呼んでから再接続します</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-keys">キーとセッション</h2>
+<table>
+<thead><tr><th>症状</th><th>考えられる原因</th><th>対処</th></tr></thead>
+<tbody>
+<tr><td><code>startSession()</code> が <code>RequiresKey</code> を返す</td><td>キーなしで接続した</td><td><code>VehicleKey</code> を指定して接続します</td></tr>
+<tr><td><code>startSession()</code> が <code>KeyNotPaired</code> を返す</td><td>車両がこのキーを知らない</td><td>キーを登録します (M4)。<code>listKeys()</code> で確認します。<a href="13-lib-pairing.html#sec-check">13. キーとペアリング</a> を参照してください</td></tr>
+<tr><td><code>stored key is corrupted</code></td><td>Android のバックアップがラップ用のキーなしでキーファイルを復元した、またはストレージの破損</td><td>削除して新しいキーを作成し、登録します。キーファイルをバックアップから除外します (<a href="17-lib-platform-notes.html#sec-android">プラットフォームノート</a>)</td></tr>
+<tr><td><code>HardwareUnavailable</code></td><td>StrongBox、TEE、Secure Enclave のいずれもないデバイスでハードウェアを必須にした</td><td><code>PREFER_HARDWARE</code> を使います</td></tr>
+<tr><td>長いスリープ後の最初のコマンドが失敗し、リトライで成功する</td><td>スリープ中にスマートフォンのクロックが止まっていた</td><td>対処不要です。ライブラリが自動で再同期します</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-other">その他のメッセージ</h2>
+<table>
+<thead><tr><th>症状</th><th>考えられる原因</th><th>対処</th></tr></thead>
+<tbody>
+<tr><td>タイムアウトを伴う <code>Uncertain</code></td><td>送信後に応答が失われた</td><td>状態をもう一度読み取ります。再送はしません</td></tr>
+<tr><td><code>UnknownFault</code>、<code>UnknownKeychainCode</code>、<code>UNKNOWN</code> として読まれる値</td><td>新しい車両ファームウェア</td><td>ライブラリのアップデートを確認します</td></tr>
+<tr><td>シミュレーターでキーチェーンのテストが -25291 で失敗する</td><td>素の Kotlin/Native テストバイナリはキーチェーンを使えない</td><td>代わりにサンプルアプリでキーチェーンの動作を確認します</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-logs">デバッグログ</h2>
+<ul>
+<li><code>TeslaBleConfig</code> にロガーを渡します。デフォルトでは何もログに出しません。</li>
+<li><code>DebugLogger()</code> は Android では Logcat、iOS では統合ログ、JVM では <code>java.util.logging</code> に出力します。開発ビルドでのみ使ってください。</li>
+<li>ログを別の場所に送るには <code>TeslaLogger</code> を実装します。レベル、タグ、遅延生成されるメッセージを受け取る関数が 1 つあるだけです。ロガーが例外を投げてもライブラリは止まりません。</li>
+<li>レベル: <code>DEBUG</code> (送受信した生のバイト)、<code>INFO</code> (接続とセッション)、<code>WARN</code> (破棄または無視されたメッセージ)、<code>ERROR</code> (ライブラリが回復できない状況)。</li>
+</ul>
+<div class="callout">
+<strong>ログに決して出ないもの</strong>
+<p>ライブラリは VIN をマスクし、秘密鍵、セッションキー、ノンス、復号した内容を決してログに出しません。自分のログでもこれを守ってください。<code>vin.value</code> を出力せず、ログを共有する前に VIN をマスクしてください。</p>
+</div>
+<p><code>TeslableDiagnostics.probe</code> は実車スパイク (ADR-0003) 用の一時的なツールで、M3 の完了時に削除されます。アプリでは使わないでください。</p>
+
+<footer class="page-nav">
+  <a href="17-lib-platform-notes.html"><span>前へ</span>17. プラットフォームノート</a>
+  <a class="next" href="19-lib-architecture.html"><span>次へ</span>19. アーキテクチャ</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

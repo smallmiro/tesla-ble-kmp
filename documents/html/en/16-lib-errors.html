@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>16. Error Handling · vehicle-command BLE Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE Developer Manual · based on v0.4.1</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>English</span></summary>
+    <ul>
+      <li><a href="../ko/16-lib-errors.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a class="active" aria-current="true" href="../en/16-lib-errors.html" hreflang="en" lang="en">English</a></li>
+      <li><a href="../ja/16-lib-errors.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">Home</a></li>
+    <li class="group">Getting Started</li>
+    <li><a href="01-overview.html">1. System Overview</a></li>
+    <li><a href="02-getting-started.html">2. Getting Started</a></li>
+    <li class="group">Protocol</li>
+    <li><a href="03-ble-transport.html">3. BLE Transport Layer</a></li>
+    <li><a href="04-protocol.html">4. Protocol Specification</a></li>
+    <li class="group">Development</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI Tools</a></li>
+    <li><a href="07-command-reference.html">7. Command Reference</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP Proxy</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. Errors and Troubleshooting</a></li>
+    <li class="group">tesla-ble-kmp Library</li>
+    <li><a href="11-lib-overview.html">11. Library Overview</a></li>
+    <li><a href="12-lib-getting-started.html">12. Getting Started with the Library</a></li>
+    <li><a href="13-lib-pairing.html">13. Keys and Pairing</a></li>
+    <li><a href="14-lib-reading-state.html">14. Reading Vehicle State</a></li>
+    <li><a href="15-lib-commands.html">15. Commands</a></li>
+    <li><a class="active" href="16-lib-errors.html">16. Error Handling</a></li>
+    <li><a href="17-lib-platform-notes.html">17. Platform Notes</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. Troubleshooting</a></li>
+    <li><a href="19-lib-architecture.html">19. Architecture</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>16. Error Handling</h1>
+<p class="lead">Every call returns one of three outcomes, and every error says whether the car may have acted and whether trying again could help. The library already retries what is safe to retry, so most apps only need to branch on the outcome.</p>
+
+<div class="toc"><strong>On this page</strong><ol>
+<li><a href="#sec-outcomes">Three outcomes</a></li>
+<li><a href="#sec-hierarchy">Error types</a></li>
+<li><a href="#sec-transport">Bluetooth and key store errors</a></li>
+<li><a href="#sec-retry">Retries and timeouts</a></li>
+</ol></div>
+
+<h2 id="sec-outcomes">Three outcomes</h2>
+<table>
+<thead><tr><th>Outcome</th><th>Meaning</th><th>What your app does</th></tr></thead>
+<tbody>
+<tr><td><span class="badge ok">Success</span></td><td>The car confirmed</td><td>Use the value</td></tr>
+<tr><td><span class="badge warn">Uncertain</span></td><td>The car may have done it, but no confirmation arrived</td><td>Do <strong>not</strong> send it again. Read the state instead (<code>vehicleStatus()</code>; <code>getState()</code> once M5 lands)</td></tr>
+<tr><td><span class="badge vcsec">Failure</span></td><td>It did not happen</td><td>Look at <code>error</code></td></tr>
+</tbody>
+</table>
+<p>In Swift, <code>switch onEnum(of: result)</code> covers <code>.success</code>, <code>.uncertain</code> and <code>.failure</code>; see <a href="12-lib-getting-started.html#sec-swift">12. Getting Started</a>. Cancelling your own coroutine or Task is not turned into an outcome; the cancellation propagates as usual.</p>
+
+<h2 id="sec-hierarchy">Error types</h2>
+<p>Every <code>VehicleError</code> carries a <code>message</code> (English), <code>mayHaveSucceeded</code> and <code>temporary</code>. <code>shouldRetry()</code> is true when the error is temporary and the car cannot have acted. The library already retries those, so you do not need a retry loop.</p>
+<table>
+<thead><tr><th>Type</th><th>When</th><th>Temporary</th><th>May have succeeded</th></tr></thead>
+<tbody>
+<tr><td><code>ProtocolFault</code></td><td>The car sent a protocol fault code</td><td>Only for busy, timeout, signature, counter, internal, epoch and expiry faults</td><td>Only for <code>NONE</code> and <code>RESPONSE_MTU_EXCEEDED</code></td></tr>
+<tr><td><code>KeyNotPaired</code></td><td>The car does not know this key</td><td>no</td><td>no</td></tr>
+<tr><td><code>Busy</code></td><td>The car asked to wait</td><td>yes</td><td>no</td></tr>
+<tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UnknownResponse</code></td><td>Newer firmware sent a code this library does not know; check for an update</td><td>no</td><td>no</td></tr>
+<tr><td><code>NotConnected</code>, <code>NoSession</code>, <code>RequiresKey</code></td><td>Called in the wrong order or without a key</td><td>no</td><td>no</td></tr>
+<tr><td><code>BadResponse</code></td><td>The answer could not be read</td><td>no</td><td>yes for VCSEC and Infotainment answers</td></tr>
+<tr><td><code>KeychainRejected</code>, <code>VcsecRejected</code>, <code>InfotainmentRejected</code></td><td>The car understood but refused</td><td>no</td><td>no</td></tr>
+<tr><td><code>TransportError</code></td><td>Bluetooth scan, connect or write</td><td>Only scan timeout, connect failed, write failed</td><td>no</td></tr>
+<tr><td><code>KeyStoreError</code></td><td>Platform key store</td><td>no</td><td>no</td></tr>
+<tr><td><code>Timeout</code></td><td>The command ran out of time</td><td>yes</td><td>If it had already been sent</td></tr>
+<tr><td><code>InvalidArgument</code></td><td>A bad argument</td><td>no</td><td>no</td></tr>
+</tbody>
+</table>
+<p>The meaning of every protocol fault code is in <a href="09-errors-troubleshooting.html#sec-fault">9. Errors and Troubleshooting</a>.</p>
+
+<h2 id="sec-transport">Bluetooth and key store errors</h2>
+<p>Connecting is already retried every second until the connect timeout. The last column is what the app should do.</p>
+<table>
+<thead><tr><th>Error</th><th>Meaning</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td><code>ScanTimeout</code></td><td>The car was not found in time</td><td>Check the car is in range, try again</td></tr>
+<tr><td><code>MaxConnectionsExceeded</code></td><td>The car already has three Bluetooth connections</td><td>Disconnect another phone or app, try again</td></tr>
+<tr><td><code>ConnectFailed</code></td><td>Connecting, discovering services or subscribing failed</td><td>Try again in a moment</td></tr>
+<tr><td><code>Disconnected</code></td><td>The link dropped</td><td>Call <code>disconnect()</code>, then connect again</td></tr>
+<tr><td><code>BluetoothOff</code></td><td>Bluetooth is off</td><td>Ask the user to turn it on</td></tr>
+<tr><td><code>PermissionDenied</code></td><td>No Bluetooth permission</td><td>Ask for permission or open Settings</td></tr>
+<tr><td><code>WriteFailed</code></td><td>Sending failed</td><td>Retried automatically; reconnect if it keeps happening</td></tr>
+<tr><td><code>HardwareUnavailable</code></td><td>Hardware was required but is not available</td><td>Use <code>PREFER_HARDWARE</code></td></tr>
+<tr><td><code>KeyNotFound</code></td><td>No key under that alias</td><td>Create one with <code>getOrCreate</code></td></tr>
+<tr><td><code>PlatformFailure</code></td><td>The platform key store failed; <code>stored key is corrupted</code> means the saved key is damaged</td><td>Damaged keys are not replaced automatically: delete, create, and enroll the new key again</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-retry">Retries and timeouts</h2>
+<p>The library retries with the same rules as the Go original.</p>
+<table>
+<thead><tr><th>Situation</th><th>What the library does</th></tr></thead>
+<tbody>
+<tr><td>A temporary error the car cannot have acted on (busy, wait, expired, bad counter…)</td><td>Waits one second, signs the command again with a fresh counter and expiry, and resends it. Session information that came with the error is applied first</td></tr>
+<tr><td>An error after which the car may have acted (no answer, unreadable answer)</td><td>Never resends, so a toggle cannot run twice. Returns <code>Uncertain</code></td></tr>
+<tr><td>Time runs out before sending</td><td><code>Failure(Timeout)</code></td></tr>
+<tr><td>Time runs out while waiting for the answer</td><td><code>Uncertain(Timeout)</code></td></tr>
+<tr><td>The handshake runs out of time</td><td><code>Failure(Timeout)</code>; no session was made and nothing changed</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th><code>TeslaBleConfig</code></th><th>Default</th><th>Used for</th></tr></thead>
+<tbody>
+<tr><td><code>commandTimeout</code></td><td>5 s</td><td>Each query or command</td></tr>
+<tr><td><code>commandLifetime</code></td><td>5 s</td><td>How long the car accepts a signed command</td></tr>
+<tr><td><code>handshakeTimeout</code></td><td>20 s</td><td><code>startSession()</code></td></tr>
+<tr><td><code>connectTimeout</code></td><td>30 s</td><td>Scan and connect</td></tr>
+</tbody>
+</table>
+
+<footer class="page-nav">
+  <a href="15-lib-commands.html"><span>Previous</span>15. Commands</a>
+  <a class="next" href="17-lib-platform-notes.html"><span>Next</span>17. Platform Notes</a>
+</footer>
+</main>
+</div>
+</body>
+</html>
