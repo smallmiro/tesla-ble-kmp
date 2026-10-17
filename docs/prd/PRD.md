@@ -370,19 +370,19 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 
 ## 10. 라이브러리 사용 문서 요구사항 (`{{HANDOFF_FILE}}` §13)
 
-위치는 `{{LIB_DOCS_DIR}}`, 목차는 `{{LIB_DOCS_INDEX}}`. 내부 링크는 상대경로만. 공개 API를 바꾸는 PR은 해당 페이지를 함께 갱신한다(리뷰 체크 항목).
+위치는 `{{LIB_DOCS_DIR}}`(에이전트용 MD, 영어)와 `{{LIB_DOCS_HTML_DIR}}`(사람용 HTML, `ko/`·`en/`·`ja/`), 목차는 `{{LIB_DOCS_INDEX}}`. 같은 폴더의 Go 참고 문서(`00`~`10`)와 구분하려고 파일 이름에 `11-lib-`~`19-lib-` 를 붙인다. 내부 링크는 상대경로만. 라이브러리 동작·공개 API·마일스톤 상태를 바꾸는 PR은 해당 MD 페이지와 세 언어 HTML 페이지를 머지 전에 함께 갱신한다(`{{AGENTS_FILE}}` §7, 리뷰 체크 항목).
 
 | 페이지 | 내용 | 갱신 시점 |
 |---|---|---|
-| `README.md` | 목차, 지원 플랫폼(D9), 한 줄 설치 | M0 |
-| `getting-started.md` | 의존성 추가(mavenLocal/XCFramework, M6 이후 GitHub Packages + PAT 설정 / SPM), 권한 설정(Android 12+ BLE, iOS Info.plist), 첫 페어링 코드 | M3, M4 |
-| `pairing.md` | 키 생성·보관 수준(D10), add-key-request 흐름과 NFC 안내, 역할(D11), 등록 확인, 키 목록·삭제 | M4 |
-| `reading-state.md` | `vehicleStatus`(인증 불필요) vs `getState`(깨우기 필요), 12개 카테고리 필드 표, 깨우기 정책 | M3, M5 |
-| `commands.md` | 제어 API 전체 표: 메서드 ↔ FR ↔ 도메인 ↔ 인증 ↔ 우선순위 | M4, M5 |
-| `errors.md` | 성공/실패/불확실 3분류, sealed 에러 계층, 코드 표, 재시도 정책, 재조회 안내 | M2, M5 |
-| `platform-notes.md` | iOS(Security.framework, GCM 공급자, 백그라운드 제한, SKIE 사용법), Android(Keystore, 권한), 세션 캐시 저장 위치(D18) | M3 |
-| `troubleshooting.md` | 슬롯 초과, 세션 오류, 페어링 직후 동기화, 디버그 로그 수집, 골든 픽스처 재수집 | M5 |
-| `architecture.md` | 기여자용 SDD 요약, 모듈 의존 방향, Go 원본 대응표 | M2, M6 |
+| `11-lib-overview` | 목차, 상태, 지원 플랫폼(D9), 한 줄 설치 | M0 |
+| `12-lib-getting-started` | 의존성 추가(mavenLocal/XCFramework, M6 이후 GitHub Packages + PAT 설정 / SPM), 권한 설정(Android 12+ BLE, iOS Info.plist), 첫 페어링 코드 | M3, M4 |
+| `13-lib-pairing` | 키 생성·보관 수준(D10), add-key-request 흐름과 NFC 안내, 역할(D11), 등록 확인, 키 목록·삭제 | M4 |
+| `14-lib-reading-state` | `vehicleStatus`(인증 불필요) vs `getState`(깨우기 필요), 12개 카테고리 필드 표, 깨우기 정책 | M3, M5 |
+| `15-lib-commands` | 제어 API 전체 표: 메서드 ↔ FR ↔ 도메인 ↔ 인증 ↔ 우선순위 | M4, M5 |
+| `16-lib-errors` | 성공/실패/불확실 3분류, sealed 에러 계층, 코드 표, 재시도 정책, 재조회 안내 | M2, M5 |
+| `17-lib-platform-notes` | iOS(Security.framework, GCM 공급자, 백그라운드 제한, SKIE 사용법), Android(Keystore, 권한), 세션 캐시 저장 위치(D18) | M3 |
+| `18-lib-troubleshooting` | 슬롯 초과, 세션 오류, 페어링 직후 동기화, 디버그 로그 수집, 골든 픽스처 재수집 | M5 |
+| `19-lib-architecture` | 기여자용 SDD 요약, 모듈 의존 방향, Go 원본 대응표 | M2, M6 |
 
 ---
 

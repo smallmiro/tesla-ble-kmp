@@ -11,11 +11,12 @@
 | `CLAUDE_FILE` | `CLAUDE.md` | Claude Code 전용 추가 지침 |
 | `HANDOFF_FILE` | `HANDOFF.md` | 프로젝트 착수 메타 프롬프트 |
 | `WORKFLOW_FILE` | `docs/workflow.md` | 개발 표준·워크플로 전문 |
-| `MANUAL_DIR` | `documents/md/` | **개발 매뉴얼 (사용자 작성, 참조용, AI 에이전트용, 영어).** 실제 `vehicle-command` 저장소를 기준으로 정리한 문서. 포팅 작업의 1차 가이드. 사용자 승인 없이 수정 금지 |
+| `MANUAL_DIR` | `documents/md/` | **개발 매뉴얼 (AI 에이전트용, 영어).** 두 부분으로 나뉨. `00`~`10` 은 실제 `vehicle-command` 저장소를 기준으로 정리한 **Go 참고 문서**(사용자 작성, 포팅 작업의 1차 가이드, 사용자 승인 없이 수정 금지). `11-lib-*`~`19-lib-*` 는 **이 라이브러리의 사용 문서**(`{{LIB_DOCS_DIR}}`, 에이전트 작성) |
 | `MANUAL_INDEX` | `{{MANUAL_DIR}}README.md` | 개발 매뉴얼 목차 (진입점). 읽기 순서, 작업별 참조 파일 표, 파일 목록. 규칙·불변 조건·상수 카드는 `{{MANUAL_DIR}}00-agent-guide.md` |
-| `MANUAL_HTML_DIR` | `documents/html/` | **사람용 개발 매뉴얼 (HTML).** `{{MANUAL_DIR}}` 와 같은 사실을 사람이 읽기 좋게 정리. 언어별 폴더 `ko/`, `en/`, `ja/` 세 벌을 같은 내용으로 유지하고 `assets/` 를 공유. 진입점 `index.html` 은 영어 홈(`en/index.html` 을 한 단계 위 경로로 옮긴 사본, `tools/ci/sync-manual-root-index.sh` 로 다시 만듦)이고, 언어는 페이지 오른쪽 위 메뉴에서 바꿈 |
-| `LIB_DOCS_DIR` | `docs/manual/` | **이 라이브러리의 사용 문서 (에이전트 작성).** 공개 API, 페어링, 에러 처리 등 |
-| `LIB_DOCS_INDEX` | `{{LIB_DOCS_DIR}}README.md` | 라이브러리 사용 문서 목차 |
+| `MANUAL_HTML_DIR` | `documents/html/` | **사람용 개발 매뉴얼 (HTML).** Go 참고 문서(`01`~`09`)와 라이브러리 사용 문서(`11-lib-*`~`19-lib-*`, `{{LIB_DOCS_HTML_DIR}}`)로 나뉨. `{{MANUAL_DIR}}` 와 같은 사실을 사람이 읽기 좋게 정리. 언어별 폴더 `ko/`, `en/`, `ja/` 세 벌을 같은 내용으로 유지하고 `assets/` 를 공유. 진입점 `index.html` 은 영어 홈(`en/index.html` 을 한 단계 위 경로로 옮긴 사본, `tools/ci/sync-manual-root-index.sh` 로 다시 만듦)이고, 언어는 페이지 오른쪽 위 메뉴에서 바꿈 |
+| `LIB_DOCS_DIR` | `{{MANUAL_DIR}}` | **이 라이브러리의 사용 문서 (에이전트 작성, 에이전트용 MD, 영어).** 파일 `11-lib-*.md`~`19-lib-*.md`. 공개 API, 페어링, 에러 처리 등 |
+| `LIB_DOCS_INDEX` | `{{LIB_DOCS_DIR}}11-lib-overview.md` | 라이브러리 사용 문서 목차 (진입점). 상태, 지원 플랫폼, 설치, 작업별 참조 파일 표 |
+| `LIB_DOCS_HTML_DIR` | `{{MANUAL_HTML_DIR}}` | **라이브러리 사용 문서의 사람용 HTML.** `ko/`·`en/`·`ja/` 의 `11-lib-*.html`~`19-lib-*.html`. `{{LIB_DOCS_DIR}}` 와 같은 내용, 같은 PR에서 갱신 |
 | `PRD_FILE` | `docs/prd/PRD.md` | 제품 요구사항 문서 (FR-xxx / NFR-xxx) |
 | `SDD_FILE` | `docs/sdd/SDD.md` | 소프트웨어 설계 문서 |
 | `SPECS_DIR` | `docs/superpowers/specs/` | 설계 브레인스토밍 산출물 |
@@ -34,6 +35,6 @@
 
 ## 규칙
 1. 문서와 지침에서는 `{{MANUAL_DIR}}` 처럼 **키로 참조**합니다. 링크가 꼭 필요하면 이 파일로 링크합니다.
-2. 라이브러리 사용 문서의 내부 링크는 `{{LIB_DOCS_INDEX}}` 기준 **상대경로만** 사용합니다. 폴더를 통째로 옮겨도 링크가 유지됩니다.
-3. `{{MANUAL_DIR}}`(개발 매뉴얼)과 `{{LIB_DOCS_DIR}}`(라이브러리 사용 문서)은 **다른 문서**입니다. 앞의 것은 읽기 전용 참조, 뒤의 것은 산출물입니다.
+2. 라이브러리 사용 문서의 내부 링크는 **상대경로만** 사용합니다. 폴더를 통째로 옮겨도 링크가 유지됩니다.
+3. Go 참고 문서(`{{MANUAL_DIR}}` 의 `00`~`10`, `{{MANUAL_HTML_DIR}}` 의 `01`~`09`)와 라이브러리 사용 문서(`11-lib-*`~`19-lib-*`)는 같은 폴더에 있지만 **다른 문서**입니다. 앞의 것은 읽기 전용 참조(사용자 승인 후에만 수정), 뒤의 것은 에이전트가 갱신하는 산출물입니다.
 4. 키를 추가하거나 바꿀 때는 `docs:` 커밋으로 이 파일만 수정합니다.
