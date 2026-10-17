@@ -92,9 +92,9 @@ uuid: 05514f57616bcc81a8ce0f9d7b483229</code></pre>
 
 <h2 id="sec-decode">protoc によるメッセージのデコード</h2>
 <p><code>tesla-control -ble -debug list-keys</code> の <code>TX:</code> ログに出力された hex は、<code>pkg/protocol</code> ディレクトリで次のようにデコードできます。</p>
-<pre><code class="language-bash">echo 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805 \
-    | xxd -r -p \
-    | protoc --decode=UniversalMessage.RoutableMessage -I protobuf protobuf/*.proto</code></pre>
+<pre><code class="language-bash"><span class="f">echo</span> 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805 \
+    <span class="o">|</span> <span class="f">xxd</span> <span class="p">-r</span> <span class="p">-p</span> \
+    <span class="o">|</span> <span class="f">protoc</span> <span class="p">--decode</span>=UniversalMessage.RoutableMessage <span class="p">-I</span> protobuf protobuf/*.proto</code></pre>
 <pre><code>to_destination {
   domain: DOMAIN_VEHICLE_SECURITY
 }
@@ -104,10 +104,10 @@ from_destination {
 protobuf_message_as_bytes: "\n\002\010\005"
 uuid: "\005QOWak\314\201\250\316\017\235{H2)"</code></pre>
 <p>VCSEC 宛てのメッセージなので、<code>protobuf_message_as_bytes</code> は <code>VCSEC.UnsignedMessage</code> です。</p>
-<pre><code class="language-bash">printf "\n\002\010\005" | protoc --decode=VCSEC.UnsignedMessage -I protobuf protobuf/*.proto
-# InformationRequest {
-#   informationRequestType: INFORMATION_REQUEST_TYPE_GET_WHITELIST_INFO
-# }</code></pre>
+<pre><code class="language-bash"><span class="f">printf</span> <span class="s">"\n\002\010\005"</span> <span class="o">|</span> <span class="f">protoc</span> <span class="p">--decode</span>=VCSEC.UnsignedMessage <span class="p">-I</span> protobuf protobuf/*.proto
+<span class="c"># InformationRequest {</span>
+<span class="c">#   informationRequestType: INFORMATION_REQUEST_TYPE_GET_WHITELIST_INFO</span>
+<span class="c"># }</span></code></pre>
 <p>逆に <code>protoc --encode</code> でペイロードを作ることもできます(後述の AES-GCM の例)。<code>*.proto</code> から他言語のバインディングも生成できます。</p>
 
 <h2 id="sec-concepts">プロトコルの概念: ドメイン、時刻、ロール</h2>
@@ -215,11 +215,11 @@ request_uuid: 1588d5a30eabc6f8fc9a951b11f6fd11</code></pre>
 <h3>鍵合意 (ECDH)</h3>
 <pre><code>S = (Sx, Sy) = ECDH(c, V) = ECDH(v, C)
 K = SHA1(BIG_ENDIAN(Sx, 32))[:16]</code></pre>
-<pre><code class="language-bash"># client.key と vehicle.pem から K を計算
-export K=$(openssl pkeyutl -derive -inkey client.key -peerkey vehicle.pem \
-    | openssl dgst -sha1 -binary | head -c 16 | xxd -p)
-echo $K
-# 1b2fce19967b79db696f909cff89ea9a</code></pre>
+<pre><code class="language-bash"><span class="c"># client.key と vehicle.pem から K を計算</span>
+<span class="k">export</span> <span class="v">K</span>=$(<span class="f">openssl</span> pkeyutl <span class="p">-derive</span> <span class="p">-inkey</span> client.key <span class="p">-peerkey</span> vehicle.pem \
+    <span class="o">|</span> <span class="f">openssl</span> dgst <span class="p">-sha1</span> <span class="p">-binary</span> <span class="o">|</span> <span class="f">head</span> <span class="p">-c</span> 16 <span class="o">|</span> <span class="f">xxd</span> <span class="p">-p</span>)
+<span class="f">echo</span> <span class="v">$K</span>
+<span class="c"># 1b2fce19967b79db696f909cff89ea9a</span></code></pre>
 <div class="callout warn">
   <strong>自前で実装しないこと</strong>
   <p>ECDH と AES-GCM には OpenSSL や Go の <code>crypto</code> のような検証済みライブラリを使ってください。プロトコルは常に <code>K</code> のバイナリ値を使用し、上記の hex は表示用です。</p>
@@ -228,8 +228,8 @@ echo $K
 <p>MITM 攻撃者が有効期限のより長いコマンドを入手できないよう、クライアントはセッション情報レスポンスを認証しなければなりません。攻撃者が公開鍵を差し替えると車両がコマンドを拒否し、公開鍵をそのままにして残りを変更するとクライアントがタグ検証で拒否します。</p>
 <ol class="steps">
   <li><strong>セッション情報認証鍵の導出。</strong> <code>SESSION_INFO_KEY = HMAC-SHA256(K, "session info")</code>。文字列は ASCII リテラル。
-<pre><code class="language-bash">export SESSION_INFO_KEY=$(echo -n "session info" | openssl dgst -sha256 -mac hmac -macopt hexkey:"$K")
-# fceb679ee7bca756fcd441bf238bf2f338629b41d9eb9c67be1b32c9672ce300</code></pre></li>
+<pre><code class="language-bash"><span class="k">export</span> <span class="v">SESSION_INFO_KEY</span>=$(<span class="f">echo</span> <span class="p">-n</span> <span class="s">"session info"</span> <span class="o">|</span> <span class="f">openssl</span> dgst <span class="p">-sha256</span> <span class="p">-mac</span> hmac <span class="p">-macopt</span> hexkey:<span class="s">"$K"</span>)
+<span class="c"># fceb679ee7bca756fcd441bf238bf2f338629b41d9eb9c67be1b32c9672ce300</span></code></pre></li>
   <li><strong>メタデータのシリアライズ。</strong> <code>TAG_SIGNATURE_TYPE = SIGNATURE_TYPE_HMAC(6)</code>、<code>TAG_PERSONALIZATION = VIN</code>、<code>TAG_CHALLENGE = リクエストの uuid</code>。
 <pre><code>VIN = 5YJ30123456789ABC
 METADATA = 00 01 06
@@ -238,8 +238,8 @@ METADATA = 00 01 06
         || ff
        = 000106021135594a333031323334353637383941424306101588d5a30eabc6f8fc9a951b11f6fd11ff</code></pre></li>
   <li><strong>タグの計算。</strong> <code>HMAC-SHA256(SESSION_INFO_KEY, METADATA || session_info)</code>
-<pre><code class="language-bash">echo "$METADATA$SESSION_INFO" | xxd -r -p | openssl dgst -sha256 -mac hmac -macopt hexkey:"$SESSION_INFO_KEY"
-# 996c1fe38331be138f8039c194b14db2198846ed7d8251e6749284d7b32ea002</code></pre></li>
+<pre><code class="language-bash"><span class="f">echo</span> <span class="s">"$METADATA$SESSION_INFO"</span> <span class="o">|</span> <span class="f">xxd</span> <span class="p">-r</span> <span class="p">-p</span> <span class="o">|</span> <span class="f">openssl</span> dgst <span class="p">-sha256</span> <span class="p">-mac</span> hmac <span class="p">-macopt</span> hexkey:<span class="s">"$SESSION_INFO_KEY"</span>
+<span class="c"># 996c1fe38331be138f8039c194b14db2198846ed7d8251e6749284d7b32ea002</span></code></pre></li>
   <li><strong>比較。</strong> レスポンスの <code>signature_data.session_info_tag.tag</code> と<strong>定数時間で比較</strong>(Go: <code>hmac.Equal</code>)。一致しなければレスポンスを破棄。</li>
 </ol>
 <p>Go では <code>internal/authentication.NewAuthenticatedSigner</code> がこの検証を行い、<code>NativeSession.SessionInfoHMAC</code> がタグを計算します。SDK は、<code>uuid</code> が最近のリクエストのものでない、または <code>AllowedLatency</code> を超えて到着したセッション情報を、タグ検証の前に破棄します。</p>
@@ -299,13 +299,13 @@ METADATA = 00 01 06
 </ol>
 <h3>完全な例: 「HVAC をオン」</h3>
 <p><code>VIN = 5YJ30123456789ABC</code>、<code>K = 1b2fce19967b79db696f909cff89ea9a</code>、<code>FLAG_ENCRYPT_RESPONSE</code> を設定(flags = 2)。</p>
-<pre><code class="language-bash"># 1) コマンドの protobuf P
-echo 'vehicleAction {
-  hvacAutoAction {
-    power_on: true
+<pre><code class="language-bash"><span class="c"># 1) コマンドの protobuf P</span>
+<span class="f">echo</span> 'vehicleAction {
+  <span class="f">hvacAutoAction</span> {
+    <span class="f">power_on</span>: true
   }
-}' | protoc --encode=CarServer.Action -I protobuf protobuf/*.proto | xxd -p
-# 120452020801</code></pre>
+}' <span class="o">|</span> <span class="f">protoc</span> <span class="p">--encode</span>=CarServer.Action <span class="p">-I</span> protobuf protobuf/*.proto <span class="o">|</span> <span class="f">xxd</span> <span class="p">-p</span>
+<span class="c"># 120452020801</span></code></pre>
 <table>
   <thead><tr><th>Tag</th><th>値</th><th>エンコード (hex)</th></tr></thead>
   <tbody>
@@ -320,19 +320,19 @@ echo 'vehicleAction {
 </table>
 <pre><code># 2) M = 上記項目を連結 + ff
 000105010103021135594a333031323334353637383941424303104c463f9cc0d3d26906e982ed224adde6040400000a5f050400000007070400000002ff</code></pre>
-<pre><code class="language-python"># 3) AES-GCM (Python cryptography)
-import os
-from cryptography.hazmat.primitives.ciphers.aead import AESGCM
-from cryptography.hazmat.primitives import hashes
+<pre><code class="language-python"><span class="c"># 3) AES-GCM (Python cryptography)</span>
+<span class="k">import</span> os
+<span class="k">from</span> cryptography.hazmat.primitives.ciphers.aead <span class="k">import</span> AESGCM
+<span class="k">from</span> cryptography.hazmat.primitives <span class="k">import</span> hashes
 
-plaintext = bytes.fromhex("120452020801")
-metadata = bytes.fromhex("000105010103021135594a333031323334353637383941424303104c463f9cc0d3d26906e982ed224adde6040400000a5f050400000007070400000002ff")
-aad = hashes.Hash(hashes.SHA256()); aad.update(metadata)
-key = bytes.fromhex("1b2fce19967b79db696f909cff89ea9a")
-nonce = os.urandom(12)
-ct = AESGCM(key).encrypt(nonce, plaintext, aad.finalize())
-print(f"Nonce: {nonce.hex()}, Ciphertext: {ct[:-16].hex()}, Tag: {ct[-16:].hex()}")
-# Nonce: dbf79447fa156674dae1caed, Ciphertext: 38038e8c0f2e, Tag: c228e0ff64991481db3a7bbc133696c5  (nonce ごとに変わる)</code></pre>
+plaintext = bytes.<span class="f">fromhex</span>("<span class="n">120452020801</span>")
+metadata = bytes.<span class="f">fromhex</span>("000105010103021135594a333031323334353637383941424303104c463f9cc0d3d26906e982ed224adde6040400000a5f050400000007070400000002ff")
+aad = hashes.<span class="f">Hash</span>(hashes.<span class="f">SHA256</span>()); aad.<span class="f">update</span>(metadata)
+key = bytes.<span class="f">fromhex</span>("1b2fce19967b79db696f909cff89ea9a")
+nonce = os.<span class="f">urandom</span>(<span class="n">12</span>)
+ct = <span class="f">AESGCM</span>(key).<span class="f">encrypt</span>(nonce, plaintext, aad.<span class="f">finalize</span>())
+<span class="f">print</span>(<span class="s">f"Nonce: {nonce.hex()}, Ciphertext: {ct[:-16].hex()}, Tag: {ct[-16:].hex()}"</span>)
+<span class="c"># Nonce: dbf79447fa156674dae1caed, Ciphertext: 38038e8c0f2e, Tag: c228e0ff64991481db3a7bbc133696c5  (nonce ごとに変わる)</span></code></pre>
 <pre><code># 4) 完成した RoutableMessage
 to_destination { domain: DOMAIN_INFOTAINMENT }
 from_destination { routing_address: 2c907bd76c640d360b3027dc7404efde }

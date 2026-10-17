@@ -98,7 +98,7 @@
 <p>OAuth 토큰을 얻는 절차(파트너 토큰 → 사용자 인가 → 코드 교환)는 <code>doc/authorization.puml</code>과 <a href="https://developer.tesla.com/docs/fleet-api/authentication/third-party-tokens">Fleet API 문서</a>를 따르세요. 프록시는 토큰을 발급하거나 갱신하지 않습니다.</p>
 
 <h2 id="sec-run">실행</h2>
-<pre><code class="language-bash">tesla-http-proxy -tls-key config/tls-key.pem -cert config/tls-cert.pem -key-file config/fleet-key.pem -port 4443</code></pre>
+<pre><code class="language-bash"><span class="f">tesla-http-proxy</span> <span class="p">-tls-key</span> config/tls-key.pem <span class="p">-cert</span> config/tls-cert.pem <span class="p">-key-file</span> config/fleet-key.pem <span class="p">-port</span> 4443</code></pre>
 <table>
 <thead><tr><th>옵션</th><th>환경 변수</th><th>기본값</th><th>설명</th></tr></thead>
 <tbody>
@@ -117,14 +117,14 @@
 
 <h2 id="sec-tls">TLS 인증서</h2>
 <p>프록시는 TLS를 끌 수 없습니다. 개발용 자체 서명 인증서는 OpenSSL로 만듭니다.</p>
-<pre><code class="language-bash">mkdir config
-openssl req -x509 -nodes -newkey ec \
-    -pkeyopt ec_paramgen_curve:secp384r1 \
-    -pkeyopt ec_param_enc:named_curve  \
-    -subj '/CN=localhost' \
-    -keyout config/tls-key.pem -out config/tls-cert.pem -sha256 -days 3650 \
-    -addext "extendedKeyUsage = serverAuth" \
-    -addext "keyUsage = digitalSignature, keyCertSign, keyAgreement"</code></pre>
+<pre><code class="language-bash"><span class="f">mkdir</span> config
+<span class="f">openssl</span> req <span class="p">-x509</span> <span class="p">-nodes</span> <span class="p">-newkey</span> ec \
+    <span class="p">-pkeyopt</span> ec_paramgen_curve:secp384r1 \
+    <span class="p">-pkeyopt</span> ec_param_enc:named_curve  \
+    <span class="p">-subj</span> <span class="s">'/CN=localhost'</span> \
+    <span class="p">-keyout</span> config/tls-key.pem <span class="p">-out</span> config/tls-cert.pem <span class="p">-sha256</span> <span class="p">-days</span> 3650 \
+    <span class="p">-addext</span> <span class="s">"extendedKeyUsage = serverAuth"</span> \
+    <span class="p">-addext</span> <span class="s">"keyUsage = digitalSignature, keyCertSign, keyAgreement"</span></code></pre>
 <p>클라이언트는 <code>--cacert config/tls-cert.pem</code>으로 이 인증서를 신뢰하게 합니다. 운영 환경에서는 공인 CA 인증서를 쓰고 <code>-cert</code>에 전체 체인을 넣으세요.</p>
 <div class="callout danger">
 <strong>TLS 키와 명령 인증 키를 같은 키로 쓰면 기동이 거부됩니다</strong>
@@ -133,31 +133,31 @@ openssl req -x509 -nodes -newkey ec \
 
 <h2 id="sec-docker">Docker 배포</h2>
 <p>이미지 <code>tesla/vehicle-command</code>는 distroless 런타임 위에 다섯 도구를 담고 있고 기본 엔트리포인트가 <code>tesla-http-proxy</code>입니다. 개인 키는 파일로 마운트합니다(컨테이너에는 시스템 키링이 없습니다).</p>
-<pre><code class="language-bash"># docker run
-docker pull tesla/vehicle-command:latest
-docker run --security-opt=no-new-privileges:true -v ./config:/config -p 127.0.0.1:4443:4443 \
-    tesla/vehicle-command:latest \
-    -tls-key /config/tls-key.pem -cert /config/tls-cert.pem -key-file /config/fleet-key.pem -host 0.0.0.0 -port 4443
+<pre><code class="language-bash"><span class="c"># docker run</span>
+<span class="f">docker</span> pull tesla/vehicle-command:latest
+<span class="f">docker</span> run <span class="p">--security-opt</span>=no-new-privileges:true <span class="p">-v</span> ./config:/config <span class="p">-p</span> 127.0.0.1:4443:4443 \
+    <span class="f">tesla</span>/vehicle-command:latest \
+    <span class="p">-tls-key</span> /config/tls-key.pem <span class="p">-cert</span> /config/tls-cert.pem <span class="p">-key-file</span> /config/fleet-key.pem <span class="p">-host</span> 0.0.0.0 <span class="p">-port</span> 4443
 
-# docker compose (저장소의 docker-compose.yml)
-docker compose up</code></pre>
+<span class="c"># docker compose (저장소의 docker-compose.yml)</span>
+<span class="f">docker</span> compose up</code></pre>
 <p>저장소의 <code>docker-compose.yml</code>은 환경 변수로 같은 설정을 합니다.</p>
-<pre><code class="language-yaml">services:
-  tesla_http_proxy:
-    image: tesla/vehicle-command:latest
-    ports:
-      - "4443:4443"
-    environment:
+<pre><code class="language-yaml"><span class="p">services</span>:
+  <span class="p">tesla_http_proxy</span>:
+    <span class="p">image</span>: tesla/vehicle-command:latest
+    <span class="p">ports</span>:
+      - <span class="s">"4443:4443"</span>
+    <span class="p">environment</span>:
       - TESLA_HTTP_PROXY_TLS_CERT=/config/tls-cert.pem
       - TESLA_HTTP_PROXY_TLS_KEY=/config/tls-key.pem
       - TESLA_HTTP_PROXY_HOST=0.0.0.0
       - TESLA_HTTP_PROXY_PORT=4443
       - TESLA_HTTP_PROXY_TIMEOUT=10s
       - TESLA_KEY_FILE=/config/fleet-key.pem
-      - TESLA_VERBOSE=true
-    security_opt:
-      - no-new-privileges:true
-    volumes:
+      - TESLA_VERBOSE=<span class="n">true</span>
+    <span class="p">security_opt</span>:
+      - no-new-privileges:<span class="n">true</span>
+    <span class="p">volumes</span>:
       - ./config:/config</code></pre>
 <p>컨테이너 안에서 <code>-host 0.0.0.0</code>은 불가피하지만, 호스트 포트 매핑을 <code>127.0.0.1:4443:4443</code>처럼 루프백에 묶거나 앞단에 인증 프록시를 두어 외부 노출을 막으세요.</p>
 
@@ -181,12 +181,12 @@ docker compose up</code></pre>
 
 <h2 id="sec-response">응답 형식과 상태 코드</h2>
 <h3>명령 성공</h3>
-<pre><code class="language-json">{"response":{"result":true,"reason":""}}</code></pre>
+<pre><code class="language-json">{<span class="p">"response"</span>:{<span class="p">"result"</span>:<span class="n">true</span>,<span class="p">"reason"</span>:<span class="s">""</span>}}</code></pre>
 <h3>차량이 명령을 거부 (NominalError)</h3>
 <p>차량이 명령을 인증했지만 실행할 수 없는 경우(예: 이미 켜져 있음, 주차 상태 아님)는 Fleet API 관례대로 <strong>HTTP 200</strong>이고 <code>result</code>가 false, <code>reason</code>에 사유가 들어갑니다.</p>
-<pre><code class="language-json">{"response":{"result":false,"reason":"car could not execute command: already_on"},"error":"","error_description":""}</code></pre>
+<pre><code class="language-json">{<span class="p">"response"</span>:{<span class="p">"result"</span>:<span class="n">false</span>,<span class="p">"reason"</span>:<span class="s">"car could not execute command: already_on"</span>},<span class="p">"error"</span>:<span class="s">""</span>,<span class="p">"error_description"</span>:<span class="s">""</span>}</code></pre>
 <h3>그 외 오류</h3>
-<pre><code class="language-json">{"response":null,"error":"vehicle unavailable: vehicle is offline or asleep","error_description":""}</code></pre>
+<pre><code class="language-json">{<span class="p">"response"</span>:<span class="n">null</span>,<span class="p">"error"</span>:<span class="s">"vehicle unavailable: vehicle is offline or asleep"</span>,<span class="p">"error_description"</span>:<span class="s">""</span>}</code></pre>
 <table>
 <thead><tr><th>HTTP</th><th>상황</th><th>출처</th></tr></thead>
 <tbody>
@@ -209,11 +209,11 @@ docker compose up</code></pre>
 
 <h2 id="sec-telemetry">Fleet Telemetry 설정 서명</h2>
 <p><code>POST /api/1/vehicles/fleet_telemetry_config</code>에 서명되지 않은 설정을 보내면 프록시가 <code>sign.SignMessageForFleet(key, "TelemetryClient", config)</code>로 JWS를 만들어 <code>/api/1/vehicles/fleet_telemetry_config_jws</code>에 <code>{"vins": [...], "token": "&lt;jws&gt;"}</code>로 포워딩합니다. 설정에 <code>aud</code>나 <code>iss</code>가 있으면 덮어쓰고 경고를 로그에 남깁니다. <code>tesla-jws -fleet sign TelemetryClient</code>와 같은 결과입니다.</p>
-<pre><code class="language-bash">curl --cacert config/tls-cert.pem \
-    --header 'Content-Type: application/json' \
-    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
-    -X POST --data-binary "@telemetry.json" \
-    "https://localhost:4443/api/1/vehicles/fleet_telemetry_config"</code></pre>
+<pre><code class="language-bash"><span class="f">curl</span> <span class="p">--cacert</span> config/tls-cert.pem \
+    <span class="p">--header</span> <span class="s">'Content-Type: application/json'</span> \
+    <span class="p">--header</span> <span class="s">"Authorization: Bearer $TESLA_AUTH_TOKEN"</span> \
+    <span class="p">-X</span> POST <span class="p">--data-binary</span> <span class="s">"@telemetry.json"</span> \
+    <span class="s">"https://localhost:4443/api/1/vehicles/fleet_telemetry_config"</span></code></pre>
 
 <h2 id="sec-internals">내부 동작</h2>
 <dl class="kv">
@@ -235,92 +235,92 @@ docker compose up</code></pre>
 </ul>
 
 <h2 id="sec-curl">curl 예시</h2>
-<pre><code class="language-bash">export TESLA_AUTH_TOKEN=&lt;access-token&gt;
-export VIN=&lt;17자 VIN&gt;
-export CACERT=config/tls-cert.pem
+<pre><code class="language-bash"><span class="k">export</span> <span class="v">TESLA_AUTH_TOKEN</span>=<span class="o">&lt;</span>access-token<span class="o">&gt;</span>
+<span class="k">export</span> <span class="v">VIN</span>=<span class="o">&lt;</span>17자 VIN<span class="o">&gt;</span>
+<span class="k">export</span> <span class="v">CACERT</span>=config/tls-cert.pem
 
-# 헬스 체크 (인증 불필요)
-curl --cacert $CACERT https://localhost:4443/health
+<span class="c"># 헬스 체크 (인증 불필요)</span>
+<span class="f">curl</span> <span class="p">--cacert</span> <span class="v">$CACERT</span> https://localhost:4443/health
 
-# 포워딩 엔드포인트: 차량 데이터
-curl --cacert $CACERT \
-    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
-    "https://localhost:4443/api/1/vehicles/$VIN/vehicle_data" | jq .
+<span class="c"># 포워딩 엔드포인트: 차량 데이터</span>
+<span class="f">curl</span> <span class="p">--cacert</span> <span class="v">$CACERT</span> \
+    <span class="p">--header</span> <span class="s">"Authorization: Bearer $TESLA_AUTH_TOKEN"</span> \
+    <span class="s">"https://localhost:4443/api/1/vehicles/$VIN/vehicle_data"</span> <span class="o">|</span> <span class="f">jq</span> .
 
-# 깨우기 (종단 간 명령 경로. online까지 폴링)
-curl --cacert $CACERT -X POST --data '{}' \
-    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
-    "https://localhost:4443/api/1/vehicles/$VIN/command/wake_up"
+<span class="c"># 깨우기 (종단 간 명령 경로. online까지 폴링)</span>
+<span class="f">curl</span> <span class="p">--cacert</span> <span class="v">$CACERT</span> <span class="p">-X</span> POST <span class="p">--data</span> <span class="s">'{}'</span> \
+    <span class="p">--header</span> <span class="s">"Authorization: Bearer $TESLA_AUTH_TOKEN"</span> \
+    <span class="s">"https://localhost:4443/api/1/vehicles/$VIN/command/wake_up"</span>
 
-# 인자 없는 명령
-curl --cacert $CACERT \
-    --header 'Content-Type: application/json' \
-    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
-    --data '{}' \
-    "https://localhost:4443/api/1/vehicles/$VIN/command/flash_lights"
+<span class="c"># 인자 없는 명령</span>
+<span class="f">curl</span> <span class="p">--cacert</span> <span class="v">$CACERT</span> \
+    <span class="p">--header</span> <span class="s">'Content-Type: application/json'</span> \
+    <span class="p">--header</span> <span class="s">"Authorization: Bearer $TESLA_AUTH_TOKEN"</span> \
+    <span class="p">--data</span> <span class="s">'{}'</span> \
+    <span class="s">"https://localhost:4443/api/1/vehicles/$VIN/command/flash_lights"</span>
 
-# 인자 있는 명령
-curl --cacert $CACERT \
-    --header 'Content-Type: application/json' \
-    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
-    --data '{"percent": 80}' \
-    "https://localhost:4443/api/1/vehicles/$VIN/command/set_charge_limit"
+<span class="c"># 인자 있는 명령</span>
+<span class="f">curl</span> <span class="p">--cacert</span> <span class="v">$CACERT</span> \
+    <span class="p">--header</span> <span class="s">'Content-Type: application/json'</span> \
+    <span class="p">--header</span> <span class="s">"Authorization: Bearer $TESLA_AUTH_TOKEN"</span> \
+    <span class="p">--data</span> <span class="s">'{"percent": 80}'</span> \
+    <span class="s">"https://localhost:4443/api/1/vehicles/$VIN/command/set_charge_limit"</span>
 
-curl --cacert $CACERT \
-    --header 'Content-Type: application/json' \
-    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
-    --data '{"driver_temp": 21.5, "passenger_temp": 21.5}' \
-    "https://localhost:4443/api/1/vehicles/$VIN/command/set_temps"
+<span class="f">curl</span> <span class="p">--cacert</span> <span class="v">$CACERT</span> \
+    <span class="p">--header</span> <span class="s">'Content-Type: application/json'</span> \
+    <span class="p">--header</span> <span class="s">"Authorization: Bearer $TESLA_AUTH_TOKEN"</span> \
+    <span class="p">--data</span> <span class="s">'{"driver_temp": 21.5, "passenger_temp": 21.5}'</span> \
+    <span class="s">"https://localhost:4443/api/1/vehicles/$VIN/command/set_temps"</span>
 
-curl --cacert $CACERT \
-    --header 'Content-Type: application/json' \
-    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
-    --data '{"days_of_week":"weekdays","start_time":1320,"start_enabled":true,"end_time":360,"end_enabled":true,"lat":37.4,"lon":-122.1,"enabled":true}' \
-    "https://localhost:4443/api/1/vehicles/$VIN/command/add_charge_schedule"</code></pre>
+<span class="f">curl</span> <span class="p">--cacert</span> <span class="v">$CACERT</span> \
+    <span class="p">--header</span> <span class="s">'Content-Type: application/json'</span> \
+    <span class="p">--header</span> <span class="s">"Authorization: Bearer $TESLA_AUTH_TOKEN"</span> \
+    <span class="p">--data</span> <span class="s">'{"days_of_week":"weekdays","start_time":1320,"start_enabled":true,"end_time":360,"end_enabled":true,"lat":37.4,"lon":-122.1,"enabled":true}'</span> \
+    <span class="s">"https://localhost:4443/api/1/vehicles/$VIN/command/add_charge_schedule"</span></code></pre>
 <p>JSON 파라미터의 타입은 엄격합니다. 숫자는 JSON 숫자, 불리언은 <code>true</code>/<code>false</code>, 문자열은 문자열이어야 하며 다른 타입이면 <code>invalid X param</code>(400)입니다. 각 엔드포인트의 파라미터는 <a href="07-command-reference.html">7. 명령 레퍼런스</a>를 보세요.</p>
 
 <h2 id="sec-embed">pkg/proxy 임베드와 인증 미들웨어</h2>
 <p><code>cmd/tesla-http-proxy/main.go</code>는 <code>pkg/proxy</code>를 감싼 얇은 래퍼입니다. 클라이언트 인증, 별도 TLS 종단, 요청 로깅 등을 추가하려면 <code>proxy.Proxy</code>(<code>http.Handler</code>)를 자체 핸들러로 감싸면 됩니다.</p>
-<pre><code class="language-go">package main
+<pre><code class="language-go"><span class="k">package</span> main
 
-import (
-    "context"
-    "crypto/subtle"
-    "net/http"
-    "time"
+<span class="k">import</span> (
+    <span class="s">"context"</span>
+    <span class="s">"crypto/subtle"</span>
+    <span class="s">"net/http"</span>
+    <span class="s">"time"</span>
 
-    "github.com/teslamotors/vehicle-command/pkg/protocol"
-    "github.com/teslamotors/vehicle-command/pkg/proxy"
+    <span class="s">"github.com/teslamotors/vehicle-command/pkg/protocol"</span>
+    <span class="s">"github.com/teslamotors/vehicle-command/pkg/proxy"</span>
 )
 
-type authenticated struct {
+<span class="k">type</span> authenticated <span class="k">struct</span> {
     next   http.Handler
-    apiKey string
+    apiKey <span class="t">string</span>
 }
 
-func (a *authenticated) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-    if r.URL.Path == "/health" {
-        a.next.ServeHTTP(w, r)
-        return
+<span class="k">func</span> (a *authenticated) <span class="f">ServeHTTP</span>(w http.ResponseWriter, r *http.Request) {
+    <span class="k">if</span> r.URL.Path <span class="o">==</span> <span class="s">"/health"</span> {
+        a.next.<span class="f">ServeHTTP</span>(w, r)
+        <span class="k">return</span>
     }
-    if subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Api-Key")), []byte(a.apiKey)) != 1 {
-        http.Error(w, "unauthorized", http.StatusUnauthorized)
-        return
+    <span class="k">if</span> subtle.<span class="f">ConstantTimeCompare</span>([]<span class="t">byte</span>(r.Header.<span class="f">Get</span>(<span class="s">"X-Api-Key"</span>)), []<span class="t">byte</span>(a.apiKey)) <span class="o">!=</span> <span class="n">1</span> {
+        http.<span class="f">Error</span>(w, <span class="s">"unauthorized"</span>, http.StatusUnauthorized)
+        <span class="k">return</span>
     }
-    a.next.ServeHTTP(w, r) // Authorization: Bearer 헤더는 그대로 프록시로 전달
+    a.next.<span class="f">ServeHTTP</span>(w, r) <span class="c">// Authorization: Bearer 헤더는 그대로 프록시로 전달</span>
 }
 
-func main() {
-    skey, err := protocol.LoadPrivateKey("config/fleet-key.pem")
-    if err != nil { panic(err) }
+<span class="k">func</span> <span class="f">main</span>() {
+    skey, err <span class="o">:=</span> protocol.<span class="f">LoadPrivateKey</span>(<span class="s">"config/fleet-key.pem"</span>)
+    <span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> { <span class="f">panic</span>(err) }
 
-    p, err := proxy.New(context.Background(), skey, 10000)
-    if err != nil { panic(err) }
-    p.Timeout = 10 * time.Second
+    p, err <span class="o">:=</span> proxy.<span class="f">New</span>(context.<span class="f">Background</span>(), skey, <span class="n">10000</span>)
+    <span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> { <span class="f">panic</span>(err) }
+    p.Timeout = <span class="n">10</span> * time.Second
 
-    handler := &amp;authenticated{next: p, apiKey: "..."}
-    // TLS는 여기서 종단하거나, 앞단 리버스 프록시에 맡길 수 있다 (pkg/proxy는 TLS에 무관).
-    panic(http.ListenAndServeTLS("localhost:4443", "config/tls-cert.pem", "config/tls-key.pem", handler))
+    handler <span class="o">:=</span> &amp;authenticated{next: p, apiKey: <span class="s">"..."</span>}
+    <span class="c">// TLS는 여기서 종단하거나, 앞단 리버스 프록시에 맡길 수 있다 (pkg/proxy는 TLS에 무관).</span>
+    <span class="f">panic</span>(http.<span class="f">ListenAndServeTLS</span>(<span class="s">"localhost:4443"</span>, <span class="s">"config/tls-cert.pem"</span>, <span class="s">"config/tls-key.pem"</span>, handler))
 }</code></pre>
 <p><code>proxy.ExtractCommandAction(ctx, command, params)</code>를 직접 호출하면 HTTP 없이도 Fleet API 명령 이름 + JSON 파라미터를 <code>func(*vehicle.Vehicle) error</code>로 변환할 수 있어, 다른 RPC 프레임워크에 같은 명령 매핑을 재사용할 수 있습니다.</p>
 

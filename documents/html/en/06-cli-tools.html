@@ -53,12 +53,12 @@
 </ol></div>
 
 <h2 id="sec-install">Installation</h2>
-<pre><code class="language-bash">cd vehicle-command
-go get ./...
-go build ./...
-go install ./...          # Installs the five tools into $GOBIN (default ~/go/bin). Same as make install (which installs only ./cmd/...)</code></pre>
+<pre><code class="language-bash"><span class="f">cd</span> vehicle-command
+<span class="f">go</span> get ./...
+<span class="f">go</span> build ./...
+<span class="f">go</span> install ./...          <span class="c"># Installs the five tools into $GOBIN (default ~/go/bin). Same as make install (which installs only ./cmd/...)</span></code></pre>
 <p>The Docker image <code>tesla/vehicle-command</code> also contains all five tools, and its default entrypoint is <code>tesla-http-proxy</code>. Select other tools with <code>--entrypoint</code>. However, the host BLE adapter is not accessible from inside the container, so run BLE commands with a local build.</p>
-<pre><code class="language-bash">docker run --entrypoint tesla-keygen tesla/vehicle-command:latest -h</code></pre>
+<pre><code class="language-bash"><span class="f">docker</span> run <span class="p">--entrypoint</span> tesla-keygen tesla/vehicle-command:latest <span class="p">-h</span></code></pre>
 
 <div class="callout warn">
 <strong>Platforms</strong>
@@ -89,10 +89,10 @@ go install ./...          # Installs the five tools into $GOBIN (default ~/go/bi
 </tbody>
 </table>
 <p>A typical initial setup:</p>
-<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)
-export TESLA_TOKEN_NAME=$(whoami)
-export TESLA_VIN=5YJ30123456789ABC
-export TESLA_CACHE_FILE=~/.tesla-cache.json</code></pre>
+<pre><code class="language-bash"><span class="k">export</span> <span class="v">TESLA_KEY_NAME</span>=$(<span class="f">whoami</span>)
+<span class="k">export</span> <span class="v">TESLA_TOKEN_NAME</span>=$(<span class="f">whoami</span>)
+<span class="k">export</span> <span class="v">TESLA_VIN</span>=5YJ30123456789ABC
+<span class="k">export</span> <span class="v">TESLA_CACHE_FILE</span>=~/.tesla-cache.json</code></pre>
 
 <h2 id="sec-keyring">Keyring behavior</h2>
 <p>Private keys and OAuth tokens are kept in the OS credential store via <a href="https://github.com/99designs/keyring">99designs/keyring</a>.</p>
@@ -128,21 +128,21 @@ export TESLA_CACHE_FILE=~/.tesla-cache.json</code></pre>
 <tr><td><code>-token-name</code>, <code>-token-file</code>, <code>-session-cache</code>, <code>-disable-session-cache</code>, <code>-domain</code></td><td>Registered via <code>cli.FlagOAuth | cli.FlagPrivateKey</code>, so the flags exist but have no effect on keygen's behavior</td></tr>
 </tbody>
 </table>
-<pre><code class="language-bash"># Create in the keyring and save the public key
-export TESLA_KEY_NAME=$(whoami)
-tesla-keygen create &gt; public_key.pem
+<pre><code class="language-bash"><span class="c"># Create in the keyring and save the public key</span>
+<span class="k">export</span> <span class="v">TESLA_KEY_NAME</span>=$(<span class="f">whoami</span>)
+<span class="f">tesla-keygen</span> create <span class="o">&gt;</span> public_key.pem
 
-# Create a file-based key (no keyring)
-tesla-keygen -key-file ~/.tesla/private.pem create &gt; public_key.pem
+<span class="c"># Create a file-based key (no keyring)</span>
+<span class="f">tesla-keygen</span> <span class="p">-key-file</span> ~/.tesla/private.pem create <span class="o">&gt;</span> public_key.pem
 
-# Migrate a key created with OpenSSL into the keyring
-tesla-keygen -key-file private.pem -key-name $(whoami) migrate
+<span class="c"># Migrate a key created with OpenSSL into the keyring</span>
+<span class="f">tesla-keygen</span> <span class="p">-key-file</span> private.pem <span class="p">-key-name</span> $(<span class="f">whoami</span>) migrate
 
-# Export for backup (the output is secret; store it securely)
-tesla-keygen export &gt; private_backup.pem
+<span class="c"># Export for backup (the output is secret; store it securely)</span>
+<span class="f">tesla-keygen</span> export <span class="o">&gt;</span> private_backup.pem
 
-# Force the file backend + unattended run
-TESLA_KEYRING_TYPE=file TESLA_KEYRING_PASSWORD=... tesla-keygen create</code></pre>
+<span class="c"># Force the file backend + unattended run</span>
+<span class="v">TESLA_KEYRING_TYPE</span>=file TESLA_KEYRING_PASSWORD=... tesla-keygen create</code></pre>
 <p>The public key printed is PKIX PEM (<code>-----BEGIN PUBLIC KEY-----</code>). It can be used as-is both for Fleet API partner registration (<code>/.well-known/appspecific/com.tesla.3p.public-key.pem</code>) and for <code>tesla-control add-key-request</code>.</p>
 
 <h2 id="sec-control">tesla-control</h2>
@@ -186,12 +186,12 @@ TESLA_KEYRING_TYPE=file TESLA_KEYRING_PASSWORD=... tesla-keygen create</code></p
 
 <h3>Interactive shell</h3>
 <p>Running without COMMAND establishes the connection once and lets you send multiple commands in a row at the <code>&gt; </code> prompt. Because the handshake is not repeated each time, this is useful when trying out several commands. Arguments are parsed with <code>shlex</code>, so quotes can be used; exit with <code>exit</code>. <code>-command-timeout</code> applies to each command.</p>
-<pre><code class="language-bash">$ tesla-control -ble
-&gt; body-controller-state
-{ "vehicleLockState": "VEHICLELOCKSTATE_LOCKED", ... }
-&gt; unlock
-&gt; climate-set-temp 21C
-&gt; exit</code></pre>
+<pre><code class="language-bash">$ tesla-control <span class="p">-ble</span>
+<span class="o">&gt;</span> body-controller-state
+{ <span class="s">"vehicleLockState"</span>: <span class="s">"VEHICLELOCKSTATE_LOCKED"</span>, ... }
+<span class="o">&gt;</span> unlock
+<span class="o">&gt;</span> climate-set-temp 21C
+<span class="o">&gt;</span> exit</code></pre>
 
 <h3>Output and exit codes</h3>
 <ul>
@@ -203,31 +203,31 @@ TESLA_KEYRING_TYPE=file TESLA_KEYRING_PASSWORD=... tesla-keygen create</code></p
 </ul>
 
 <h3>Examples</h3>
-<pre><code class="language-bash"># Key pairing (inside the car, with an NFC card ready)
-tesla-control -ble add-key-request public_key.pem owner cloud_key
+<pre><code class="language-bash"><span class="c"># Key pairing (inside the car, with an NFC card ready)</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> add-key-request public_key.pem owner cloud_key
 
-# Confirm enrollment
-tesla-control -ble list-keys
-tesla-control -ble session-info public_key.pem infotainment
+<span class="c"># Confirm enrollment</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> list-keys
+<span class="f">tesla-control</span> <span class="p">-ble</span> session-info public_key.pem infotainment
 
-# Basic commands
-tesla-control -ble lock
-tesla-control -ble -domain vcsec unlock           # Does not wake infotainment
-tesla-control -ble climate-set-temp 72F
-tesla-control -ble seat-heater front-left high
-tesla-control -ble charging-set-limit 80
-tesla-control -ble state climate
-tesla-control -ble -debug ping                    # Inspect the TX/RX dump
+<span class="c"># Basic commands</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> lock
+<span class="f">tesla-control</span> <span class="p">-ble</span> <span class="p">-domain</span> vcsec unlock           <span class="c"># Does not wake infotainment</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> climate-set-temp 72F
+<span class="f">tesla-control</span> <span class="p">-ble</span> seat-heater front-left high
+<span class="f">tesla-control</span> <span class="p">-ble</span> charging-set-limit 80
+<span class="f">tesla-control</span> <span class="p">-ble</span> state climate
+<span class="f">tesla-control</span> <span class="p">-ble</span> <span class="p">-debug</span> ping                    <span class="c"># Inspect the TX/RX dump</span>
 
-# Internet path (when an OAuth token is in the keyring)
-tesla-control wake
-tesla-control lock
-tesla-control product-info
-tesla-control get "api/1/vehicles/$TESLA_VIN/vehicle_data"
+<span class="c"># Internet path (when an OAuth token is in the keyring)</span>
+<span class="f">tesla-control</span> wake
+<span class="f">tesla-control</span> lock
+<span class="f">tesla-control</span> product-info
+<span class="f">tesla-control</span> get <span class="s">"api/1/vehicles/$TESLA_VIN/vehicle_data"</span>
 
-# Charging schedules
-tesla-control -ble charging-schedule-add weekdays 22:00-06:00 37.4 -122.1
-tesla-control -ble charging-schedule-remove home</code></pre>
+<span class="c"># Charging schedules</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> charging-schedule-add weekdays 22:00-06:00 37.4 -122.1
+<span class="f">tesla-control</span> <span class="p">-ble</span> charging-schedule-remove home</code></pre>
 <p>For all commands and their arguments, see <a href="07-command-reference.html">7. Command Reference</a>.</p>
 
 <h2 id="sec-auth-token">tesla-auth-token</h2>
@@ -240,10 +240,10 @@ tesla-control -ble charging-schedule-remove home</code></pre>
 <tr><td><code>file</code> (positional argument)</td><td>File containing the token. If omitted, reads stdin until EOF. Passing more than one is an error.</td></tr>
 </tbody>
 </table>
-<pre><code class="language-bash">export TESLA_TOKEN_NAME=$(whoami)
-echo -n "$ACCESS_TOKEN" | tesla-auth-token
-tesla-auth-token token.txt
-# After saving, tesla-control uses the internet path by default because OAuth is available. Use -ble for BLE.</code></pre>
+<pre><code class="language-bash"><span class="k">export</span> <span class="v">TESLA_TOKEN_NAME</span>=$(<span class="f">whoami</span>)
+<span class="f">echo</span> <span class="p">-n</span> <span class="s">"$ACCESS_TOKEN"</span> <span class="o">|</span> <span class="f">tesla-auth-token</span>
+<span class="f">tesla-auth-token</span> token.txt
+<span class="c"># After saving, tesla-control uses the internet path by default because OAuth is available. Use -ble for BLE.</span></code></pre>
 <div class="callout">
 <strong>The token string is stored as-is</strong>
 <p>The bytes read are stored without processing, so a trailing newline may be included. <code>account.New</code> cleans it up with <code>strings.TrimSpace</code>, so this causes no problems in practice. An expired token must be refreshed and stored again.</p>
@@ -262,17 +262,17 @@ tesla-auth-token token.txt
 <tr><td><code>-vin</code>, <code>-key-name</code>, <code>-key-file</code>, <code>-keyring-*</code>, <code>-session-cache</code>, <code>-domain</code></td><td>Common flags from <code>cli.FlagPrivateKey | cli.FlagVIN</code></td></tr>
 </tbody>
 </table>
-<pre><code class="language-bash"># Sign a Fleet Telemetry config → POST to Fleet API /api/1/vehicles/fleet_telemetry_config_jws
-tesla-jws -fleet sign TelemetryClient telemetry_config.json &gt; signed-config.jws
-tesla-jws verify signed-config.jws
+<pre><code class="language-bash"><span class="c"># Sign a Fleet Telemetry config → POST to Fleet API /api/1/vehicles/fleet_telemetry_config_jws</span>
+<span class="f">tesla-jws</span> <span class="p">-fleet</span> sign TelemetryClient telemetry_config.json <span class="o">&gt;</span> signed-config.jws
+<span class="f">tesla-jws</span> verify signed-config.jws
 
-# Signature for a specific vehicle only
-tesla-jws -vin $TESLA_VIN sign TelemetryClient telemetry_config.json</code></pre>
+<span class="c"># Signature for a specific vehicle only</span>
+<span class="f">tesla-jws</span> <span class="p">-vin</span> <span class="v">$TESLA_VIN</span> sign TelemetryClient telemetry_config.json</code></pre>
 <p>The generated <code>.jws</code> file is not secret (it uses the same syntax as a JWT, but it is not a bearer token). The proxy's <code>/api/1/vehicles/fleet_telemetry_config</code> endpoint performs the same signing automatically on the server side (<a href="08-http-proxy.html#sec-telemetry">8. HTTP Proxy</a>).</p>
 
 <h2 id="sec-proxy">tesla-http-proxy</h2>
 <p>An HTTPS server that translates REST requests into end-to-end authenticated commands. Options, routing, response formats and deployment are covered in detail in <a href="08-http-proxy.html">8. HTTP Proxy</a>. Summary:</p>
-<pre><code class="language-bash">tesla-http-proxy -tls-key config/tls-key.pem -cert config/tls-cert.pem -key-file config/fleet-key.pem -port 4443</code></pre>
+<pre><code class="language-bash"><span class="f">tesla-http-proxy</span> <span class="p">-tls-key</span> config/tls-key.pem <span class="p">-cert</span> config/tls-cert.pem <span class="p">-key-file</span> config/fleet-key.pem <span class="p">-port</span> 4443</code></pre>
 <table>
 <thead><tr><th>Option</th><th>Default</th><th>Description</th></tr></thead>
 <tbody>

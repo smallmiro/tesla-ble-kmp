@@ -65,10 +65,10 @@
 
 <h2 id="sec-install">Installation</h2>
 <h3>Building from source</h3>
-<pre><code class="language-bash">cd vehicle-command
-go get ./...        # download dependencies
-go build ./...      # compile everything (tools + examples)
-go install ./...    # install tools into $GOBIN (default ~/go/bin)</code></pre>
+<pre><code class="language-bash"><span class="f">cd</span> vehicle-command
+<span class="f">go</span> get ./...        <span class="c"># download dependencies</span>
+<span class="f">go</span> build ./...      <span class="c"># compile everything (tools + examples)</span>
+<span class="f">go</span> install ./...    <span class="c"># install tools into $GOBIN (default ~/go/bin)</span></code></pre>
 <p>After <code>go install</code>, the following executables are placed on your PATH.</p>
 <table>
   <thead><tr><th>Executable</th><th>Role</th></tr></thead>
@@ -85,17 +85,17 @@ go install ./...    # install tools into $GOBIN (default ~/go/bin)</code></pre>
 
 <h3>Docker</h3>
 <p>Because BLE is hard to use from a container, the Docker image is mainly for the HTTP proxy. The default entrypoint is <code>tesla-http-proxy</code>, which you can change with <code>--entrypoint</code>.</p>
-<pre><code class="language-bash">docker pull tesla/vehicle-command:latest
-docker run tesla/vehicle-command:latest --help
-docker run --entrypoint tesla-keygen tesla/vehicle-command:latest --help</code></pre>
+<pre><code class="language-bash"><span class="f">docker</span> pull tesla/vehicle-command:latest
+<span class="f">docker</span> run tesla/vehicle-command:latest <span class="p">--help</span>
+<span class="f">docker</span> run <span class="p">--entrypoint</span> tesla-keygen tesla/vehicle-command:latest <span class="p">--help</span></code></pre>
 
 <h2 id="sec-env">Environment variables</h2>
 <p>All CLI tools share <code>pkg/cli</code> and read environment variables in place of command-line flags. Flags take precedence; only empty values are filled from environment variables.</p>
-<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)            # name used to find the private key in the keyring
-export TESLA_VIN=5YJ30123456789ABC          # target vehicle VIN
-export TESLA_CACHE_FILE=~/.tesla-cache.json # session cache (defaults to ~/.tesla-cache.json if omitted)
-# Only when using the internet path:
-export TESLA_TOKEN_NAME=$(whoami)           # name used to find the OAuth token in the keyring</code></pre>
+<pre><code class="language-bash"><span class="k">export</span> <span class="v">TESLA_KEY_NAME</span>=$(<span class="f">whoami</span>)            <span class="c"># name used to find the private key in the keyring</span>
+<span class="k">export</span> <span class="v">TESLA_VIN</span>=5YJ30123456789ABC          <span class="c"># target vehicle VIN</span>
+<span class="k">export</span> <span class="v">TESLA_CACHE_FILE</span>=~/.tesla-cache.json <span class="c"># session cache (defaults to ~/.tesla-cache.json if omitted)</span>
+<span class="c"># Only when using the internet path:</span>
+<span class="k">export</span> <span class="v">TESLA_TOKEN_NAME</span>=$(<span class="f">whoami</span>)           <span class="c"># name used to find the OAuth token in the keyring</span></code></pre>
 <table>
   <thead><tr><th>Variable</th><th>Corresponding flag</th><th>Meaning</th></tr></thead>
   <tbody>
@@ -115,12 +115,12 @@ export TESLA_TOKEN_NAME=$(whoami)           # name used to find the OAuth token 
 
 <h2 id="sec-keygen">Generating a private key</h2>
 <h3>Method A: tesla-keygen (recommended)</h3>
-<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)
-tesla-keygen create &gt; public_key.pem
-cat public_key.pem
-# -----BEGIN PUBLIC KEY-----
-# MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...
-# -----END PUBLIC KEY-----</code></pre>
+<pre><code class="language-bash"><span class="k">export</span> <span class="v">TESLA_KEY_NAME</span>=$(<span class="f">whoami</span>)
+<span class="f">tesla-keygen</span> create <span class="o">&gt;</span> public_key.pem
+<span class="f">cat</span> public_key.pem
+<span class="c"># -----BEGIN PUBLIC KEY-----</span>
+<span class="c"># MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...</span>
+<span class="c"># -----END PUBLIC KEY-----</span></code></pre>
 <ul>
   <li>Generates a NIST P-256 private key, stores it in the OS keyring (the login keychain on macOS), and prints the <strong>public key to stdout</strong> in PKIX PEM format. You can also write it to a file with <code>-output file</code>.</li>
   <li>If a key with the same name already exists, it is not overwritten; the existing public key is printed again. Use <code>-f</code> to force creation of a new one.</li>
@@ -138,9 +138,9 @@ cat public_key.pem
 
 <h3>Method B: OpenSSL</h3>
 <p>To manage keys only as files without a keyring, create them as described in <code>examples/ble/doc.go</code>.</p>
-<pre><code class="language-bash">openssl ecparam -genkey -name prime256v1 -noout &gt; private.pem
-openssl ec -in private.pem -pubout &gt; public.pem
-export TESLA_KEY_FILE=$PWD/private.pem   # or pass -key-file private.pem every time</code></pre>
+<pre><code class="language-bash"><span class="f">openssl</span> ecparam <span class="p">-genkey</span> <span class="p">-name</span> prime256v1 <span class="p">-noout</span> <span class="o">&gt;</span> private.pem
+<span class="f">openssl</span> ec <span class="p">-in</span> private.pem <span class="p">-pubout</span> <span class="o">&gt;</span> public.pem
+<span class="k">export</span> <span class="v">TESLA_KEY_FILE</span>=<span class="v">$PWD</span>/private.pem   <span class="c"># or pass -key-file private.pem every time</span></code></pre>
 <div class="callout warn">
   <strong>Protecting the private key</strong>
   <p>Anyone who obtains the private key can unlock and drive the vehicle. If you keep it in a file, keep its permissions at 0600 and do not commit it to a repository. <code>protocol.LoadPrivateKey</code> reads only unencrypted PKCS#8/SEC1 PEM. If the TLS server key and the command authentication key are the same key, <code>tesla-http-proxy</code> refuses to start.</p>
@@ -151,9 +151,9 @@ export TESLA_KEY_FILE=$PWD/private.pem   # or pass -key-file private.pem every t
 <ol class="steps">
   <li><strong>Sit inside the car.</strong> Turn on your laptop's Bluetooth and have the NFC card (or key fob) ready. The vehicle maintains at most 3 BLE connections at a time, so if many other phone keys are connected, the scan result may show <code>Connectable=false</code>.</li>
   <li><strong>Send the request.</strong>
-<pre><code class="language-bash">export TESLA_VIN=&lt;VIN&gt;
-tesla-control -ble add-key-request public_key.pem owner cloud_key
-# Sent add-key request to &lt;VIN&gt;. Confirm by tapping NFC card on center console.</code></pre>
+<pre><code class="language-bash"><span class="k">export</span> <span class="v">TESLA_VIN</span>=<span class="o">&lt;</span>VIN<span class="o">&gt;</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> add-key-request public_key.pem owner cloud_key
+<span class="c"># Sent add-key request to &lt;VIN&gt;. Confirm by tapping NFC card on center console.</span></code></pre>
   The program exits as soon as the request is sent. Exiting does not mean that approval is complete.</li>
   <li><strong>Tap the NFC card on the center console (where the card reader is).</strong> A confirmation dialog for approving the new key appears on the vehicle screen.</li>
   <li><strong>Press Confirm on the screen.</strong> The new key appears on the Locks screen.</li>
@@ -184,13 +184,13 @@ tesla-control -ble add-key-request public_key.pem owner cloud_key
 </div>
 
 <h2 id="sec-first">Your first BLE command</h2>
-<pre><code class="language-bash">tesla-control -ble lock
-tesla-control -ble unlock
-tesla-control -ble body-controller-state   # lock/door/trunk/sleep state as JSON. Works even while Infotainment is asleep
-tesla-control -ble list-keys               # list of registered keys
-tesla-control -ble climate-on              # Infotainment command. If the vehicle is asleep, wake it first
-tesla-control -ble wake                    # wake-up request to VCSEC
-tesla-control -ble state charge            # charging state as JSON (requires Infotainment)</code></pre>
+<pre><code class="language-bash"><span class="f">tesla-control</span> <span class="p">-ble</span> lock
+<span class="f">tesla-control</span> <span class="p">-ble</span> unlock
+<span class="f">tesla-control</span> <span class="p">-ble</span> body-controller-state   <span class="c"># lock/door/trunk/sleep state as JSON. Works even while Infotainment is asleep</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> list-keys               <span class="c"># list of registered keys</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> climate-on              <span class="c"># Infotainment command. If the vehicle is asleep, wake it first</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> wake                    <span class="c"># wake-up request to VCSEC</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> state charge            <span class="c"># charging state as JSON (requires Infotainment)</span></code></pre>
 <ul>
   <li><code>-ble</code> forces a BLE connection even if OAuth environment variables are set. If no OAuth variables are set, BLE is selected automatically from the VIN alone, so you can omit it.</li>
   <li>The connection timeout is <code>-connect-timeout</code> (default 20s) and the command timeout is <code>-command-timeout</code> (default 5s). In environments where scanning is slow, increase it, e.g. <code>-connect-timeout 60s</code>.</li>
@@ -204,13 +204,13 @@ tesla-control -ble state charge            # charging state as JSON (requires In
 
 <h2 id="sec-debug">Debug output and the session cache</h2>
 <h3>Viewing sent/received bytes with -debug</h3>
-<pre><code class="language-bash">tesla-control -ble -debug list-keys
-# 2023-12-13T14:41:13-08:00 [debug] Creating new BLE adapter
-# 2023-12-13T14:41:13-08:00 [debug] Dialing to xx:xx:xx:xx:xx:xx (S1a87a5a75f3df858C)...
-# 2023-12-13T14:41:13-08:00 [debug] MTU size: 517
-# 2023-12-13T14:41:13-08:00 [info ] Connected to vehicle BLE
-# 2023-12-13T14:41:13-08:00 [debug] TX: 320208023a1212100a7962c1...
-# 2023-12-13T14:41:13-08:00 [debug] RX: ...</code></pre>
+<pre><code class="language-bash"><span class="f">tesla-control</span> <span class="p">-ble</span> <span class="p">-debug</span> list-keys
+<span class="c"># 2023-12-13T14:41:13-08:00 [debug] Creating new BLE adapter</span>
+<span class="c"># 2023-12-13T14:41:13-08:00 [debug] Dialing to xx:xx:xx:xx:xx:xx (S1a87a5a75f3df858C)...</span>
+<span class="c"># 2023-12-13T14:41:13-08:00 [debug] MTU size: 517</span>
+<span class="c"># 2023-12-13T14:41:13-08:00 [info ] Connected to vehicle BLE</span>
+<span class="c"># 2023-12-13T14:41:13-08:00 [debug] TX: 320208023a1212100a7962c1...</span>
+<span class="c"># 2023-12-13T14:41:13-08:00 [debug] RX: ...</span></code></pre>
 <p>The hex after <code>TX:</code>/<code>RX:</code> is the <code>RoutableMessage</code> without the length prefix. You can <a href="04-protocol.html#sec-decode">decode it with protoc</a>. Logs go to stderr and can also be enabled with <code>TESLA_VERBOSE=1</code>.</p>
 
 <h3>Session cache</h3>
@@ -222,7 +222,7 @@ tesla-control -ble state charge            # charging state as JSON (requires In
         ...operation not permitted
 Try again after granting this application CAP_NET_ADMIN or running with root:
 
-        sudo setcap 'cap_net_admin=eip' "$(which tesla-control)"</code></pre>
+        <span class="k">sudo</span> <span class="f">setcap</span> <span class="s">'cap_net_admin=eip'</span> <span class="s">"$(which tesla-control)"</span></code></pre>
 <ul>
   <li><code>setcap</code> applies per executable, so you must set it again whenever you rebuild the binary with <code>go install</code>.</li>
   <li>If you have several adapters, specify one, e.g. <code>-bt-adapter hci1</code> (<code>hci0</code>–<code>hci15</code>). The default is <code>hci0</code>. An invalid format yields <code>ErrAdapterInvalidID</code>.</li>
@@ -234,13 +234,13 @@ Try again after granting this application CAP_NET_ADMIN or running with root:
 <ol class="steps">
   <li><strong>Obtain an OAuth token.</strong> Follow the third-party token procedure in the Fleet API documentation. This repository has no tool for issuing tokens.</li>
   <li><strong>Store the token in the keyring.</strong>
-<pre><code class="language-bash">export TESLA_TOKEN_NAME=$(whoami)
-tesla-auth-token &lt; token.txt          # or tesla-auth-token token.txt</code></pre></li>
+<pre><code class="language-bash"><span class="k">export</span> <span class="v">TESLA_TOKEN_NAME</span>=$(<span class="f">whoami</span>)
+<span class="f">tesla-auth-token</span> <span class="o">&lt;</span> token.txt          <span class="c"># or tesla-auth-token token.txt</span></code></pre></li>
   <li><strong>Register the public key with your domain and have the vehicle owner approve it.</strong> The owner approves by opening the <code>https://tesla.com/_ak/&lt;your_domain&gt;</code> link in the Tesla app (4.27.3+). For a personal vehicle, you can simply use the key registered through BLE pairing above.</li>
   <li><strong>Send a command.</strong> If you omit <code>-ble</code> and OAuth is configured, the internet path is selected automatically.
-<pre><code class="language-bash">tesla-control lock
-tesla-control product-info          # account command (no VIN needed)
-tesla-control get api/1/vehicles/$TESLA_VIN/vehicle_data</code></pre></li>
+<pre><code class="language-bash"><span class="f">tesla-control</span> lock
+<span class="f">tesla-control</span> product-info          <span class="c"># account command (no VIN needed)</span>
+<span class="f">tesla-control</span> get api/1/vehicles/<span class="v">$TESLA_VIN</span>/vehicle_data</code></pre></li>
 </ol>
 <p>If the vehicle is asleep, the Fleet API returns <code>408</code>/<code>503</code> and the SDK returns <code>ErrVehicleNotAwake</code>. <code>tesla-control wake</code> calls <code>api/1/vehicles/&lt;vin&gt;/wake_up</code> and polls every 10 seconds until <code>state == "online"</code>.</p>
 

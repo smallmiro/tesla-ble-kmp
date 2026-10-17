@@ -57,10 +57,10 @@
 
 <h2 id="sec-model">Error model</h2>
 <p>Errors returned by the SDK implement the <code>protocol.Error</code> interface wherever possible. Two methods determine what the caller should do.</p>
-<pre><code class="language-go">type Error interface {
-    error
-    MayHaveSucceeded() bool // The vehicle may have received and executed the command (cannot be confirmed)
-    Temporary() bool        // May be resolved by retrying without user intervention
+<pre><code class="language-go"><span class="k">type</span> Error <span class="k">interface</span> {
+    <span class="t">error</span>
+    <span class="f">MayHaveSucceeded</span>() <span class="t">bool</span> <span class="c">// The vehicle may have received and executed the command (cannot be confirmed)</span>
+    <span class="f">Temporary</span>() <span class="t">bool</span>        <span class="c">// May be resolved by retrying without user intervention</span>
 }</code></pre>
 <table>
 <thead><tr><th>Type</th><th>Layer</th><th>MayHaveSucceeded</th><th>Temporary</th><th>Description</th></tr></thead>
@@ -76,8 +76,8 @@
 <p>The helper functions <code>protocol.MayHaveSucceeded(err)</code>, <code>protocol.Temporary(err)</code>, <code>protocol.ShouldRetry(err)</code>, and <code>protocol.IsNominalError(err)</code> use <code>errors.As</code> to see through wrapping. Commit <code>a4b43c1</code> fixed the classification of wrapped protocol errors, so errors wrapped with <code>fmt.Errorf("%w")</code> are also classified correctly.</p>
 
 <h2 id="sec-retry">Retry policy</h2>
-<pre><code class="language-go">func ShouldRetry(err error) bool {
-    // true only if err implements the Error interface, MayHaveSucceeded() is false, and Temporary() is true
+<pre><code class="language-go"><span class="k">func</span> <span class="f">ShouldRetry</span>(err <span class="t">error</span>) <span class="t">bool</span> {
+    <span class="c">// true only if err implements the Error interface, MayHaveSucceeded() is false, and Temporary() is true</span>
 }</code></pre>
 <p>At the following points, the SDK retries while <code>ShouldRetry</code> is true, at the connector's <code>RetryInterval()</code> (1 second for both BLE and inet), until the context expires.</p>
 <table>
@@ -253,16 +253,16 @@
 <p><code>tesla-control -debug</code> (or <code>TESLA_VERBOSE=1</code>) prints sent and received RoutableMessages in hexadecimal.</p>
 <pre><code>2023-12-13T14:41:13-08:00 [debug] TX: 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805</code></pre>
 <p>Decode it with <code>protoc</code> (run from the repository root).</p>
-<pre><code class="language-bash">cd vehicle-command/pkg/protocol
-echo 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805 \
-    | xxd -r -p \
-    | protoc --decode=UniversalMessage.RoutableMessage -I protobuf protobuf/*.proto
+<pre><code class="language-bash"><span class="f">cd</span> vehicle-command/pkg/protocol
+<span class="f">echo</span> 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805 \
+    <span class="o">|</span> <span class="f">xxd</span> <span class="p">-r</span> <span class="p">-p</span> \
+    <span class="o">|</span> <span class="f">protoc</span> <span class="p">--decode</span>=UniversalMessage.RoutableMessage <span class="p">-I</span> protobuf protobuf/*.proto
 
-# Decode protobuf_message_as_bytes from the output again, using the type that matches the domain
-printf "\n\002\010\005" | protoc --decode=VCSEC.UnsignedMessage -I protobuf protobuf/*.proto      # VCSEC request
-printf "..." | protoc --decode=VCSEC.FromVCSECMessage -I protobuf protobuf/*.proto              # VCSEC response
-printf "..." | protoc --decode=CarServer.Action -I protobuf protobuf/*.proto                    # Infotainment request
-printf "..." | protoc --decode=CarServer.Response -I protobuf protobuf/*.proto                  # Infotainment response</code></pre>
+<span class="c"># Decode protobuf_message_as_bytes from the output again, using the type that matches the domain</span>
+<span class="f">printf</span> <span class="s">"\n\002\010\005"</span> <span class="o">|</span> <span class="f">protoc</span> <span class="p">--decode</span>=VCSEC.UnsignedMessage <span class="p">-I</span> protobuf protobuf/*.proto      <span class="c"># VCSEC request</span>
+<span class="f">printf</span> <span class="s">"..."</span> <span class="o">|</span> <span class="f">protoc</span> <span class="p">--decode</span>=VCSEC.FromVCSECMessage <span class="p">-I</span> protobuf protobuf/*.proto              <span class="c"># VCSEC response</span>
+<span class="f">printf</span> <span class="s">"..."</span> <span class="o">|</span> <span class="f">protoc</span> <span class="p">--decode</span>=CarServer.Action <span class="p">-I</span> protobuf protobuf/*.proto                    <span class="c"># Infotainment request</span>
+<span class="f">printf</span> <span class="s">"..."</span> <span class="o">|</span> <span class="f">protoc</span> <span class="p">--decode</span>=CarServer.Response <span class="p">-I</span> protobuf protobuf/*.proto                  <span class="c"># Infotainment response</span></code></pre>
 <p>Over BLE, messages are encrypted with AES-GCM, so <code>protobuf_message_as_bytes</code> is ciphertext. To see the plaintext, you need the <code>-debug</code> log entries from when the request was built, or the session key. Handshake messages and the error fields of responses (<code>signedMessageStatus</code>) are plaintext.</p>
 
 <h3>Other</h3>

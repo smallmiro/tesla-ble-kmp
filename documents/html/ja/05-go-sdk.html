@@ -60,7 +60,7 @@
 
 <h2 id="sec-1">モジュールとパッケージの全体像</h2>
 <p>モジュールパスは <code>github.com/teslamotors/vehicle-command</code> で、<code>go.mod</code> は Go 1.23 を要求します。v0.x リリースは API の安定性を保証しないため、<code>go.mod</code> でバージョンを固定してください。</p>
-<pre><code class="language-bash">go get github.com/teslamotors/vehicle-command@v0.4.1</code></pre>
+<pre><code class="language-bash"><span class="f">go</span> get github.com/teslamotors/vehicle-command@v0.4.1</code></pre>
 
 <table>
 <thead><tr><th>パッケージ</th><th>役割</th><th>主要シンボル</th></tr></thead>
@@ -85,78 +85,78 @@
 
 <h2 id="sec-2">基本フロー: BLE でアンロック</h2>
 <p>リポジトリの <code>examples/ble/main.go</code> を要約した最小限のプログラムです。呼び出し順序と <code>defer</code> の順序が重要です。</p>
-<pre><code class="language-go">package main
+<pre><code class="language-go"><span class="k">package</span> main
 
-import (
-    "context"
-    "fmt"
-    "log"
-    "time"
+<span class="k">import</span> (
+    <span class="s">"context"</span>
+    <span class="s">"fmt"</span>
+    <span class="s">"log"</span>
+    <span class="s">"time"</span>
 
-    "github.com/teslamotors/vehicle-command/pkg/connector/ble"
-    "github.com/teslamotors/vehicle-command/pkg/protocol"
-    "github.com/teslamotors/vehicle-command/pkg/vehicle"
+    <span class="s">"github.com/teslamotors/vehicle-command/pkg/connector/ble"</span>
+    <span class="s">"github.com/teslamotors/vehicle-command/pkg/protocol"</span>
+    <span class="s">"github.com/teslamotors/vehicle-command/pkg/vehicle"</span>
 )
 
-func main() {
-    vin := "5YJ30123456789ABC"
+<span class="k">func</span> <span class="f">main</span>() {
+    vin <span class="o">:=</span> <span class="s">"5YJ30123456789ABC"</span>
 
-    // 1. BLE アダプターの初期化。空文字列ならデフォルトアダプター。"hci0" のような ID 指定は Linux のみ可能。
-    if err := ble.InitAdapterWithID(""); err != nil {
-        if ble.IsAdapterError(err) {
-            log.Fatal(ble.AdapterErrorHelpMessage(err)) // Linux: setcap の案内を出力
+    <span class="c">// 1. BLE アダプターの初期化。空文字列ならデフォルトアダプター。"hci0" のような ID 指定は Linux のみ可能。</span>
+    <span class="k">if</span> err <span class="o">:=</span> ble.<span class="f">InitAdapterWithID</span>(<span class="s">""</span>); err <span class="o">!=</span> <span class="n">nil</span> {
+        <span class="k">if</span> ble.<span class="f">IsAdapterError</span>(err) {
+            log.<span class="f">Fatal</span>(ble.<span class="f">AdapterErrorHelpMessage</span>(err)) <span class="c">// Linux: setcap の案内を出力</span>
         }
-        log.Fatalf("BLE アダプターの初期化に失敗: %s", err)
+        log.<span class="f">Fatalf</span>(<span class="s">"BLE アダプターの初期化に失敗: %s"</span>, err)
     }
 
-    // 2. 秘密鍵の読み込み (PEM, NIST P-256)。nil でもよいが、認証が必要なコマンドは失敗する。
-    privateKey, err := protocol.LoadPrivateKey("private.pem")
-    if err != nil {
-        log.Fatalf("秘密鍵の読み込みに失敗: %s", err)
+    <span class="c">// 2. 秘密鍵の読み込み (PEM, NIST P-256)。nil でもよいが、認証が必要なコマンドは失敗する。</span>
+    privateKey, err <span class="o">:=</span> protocol.<span class="f">LoadPrivateKey</span>(<span class="s">"private.pem"</span>)
+    <span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> {
+        log.<span class="f">Fatalf</span>(<span class="s">"秘密鍵の読み込みに失敗: %s"</span>, err)
     }
 
-    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-    defer cancel()
+    ctx, cancel <span class="o">:=</span> context.<span class="f">WithTimeout</span>(context.<span class="f">Background</span>(), <span class="n">30</span>*time.Second)
+    <span class="k">defer</span> <span class="f">cancel</span>()
 
-    // 3. アドバタイズのスキャン。VIN から計算した Local Name("S...C")と一致するビーコンを探す。
-    scan, err := ble.ScanVehicleBeacon(ctx, vin)
-    if err != nil {
-        log.Fatalf("スキャンに失敗: %s", err)
+    <span class="c">// 3. アドバタイズのスキャン。VIN から計算した Local Name("S...C")と一致するビーコンを探す。</span>
+    scan, err <span class="o">:=</span> ble.<span class="f">ScanVehicleBeacon</span>(ctx, vin)
+    <span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> {
+        log.<span class="f">Fatalf</span>(<span class="s">"スキャンに失敗: %s"</span>, err)
     }
-    fmt.Printf("検出: %s (%s) %ddBm\n", scan.LocalName, scan.Address, scan.RSSI)
+    fmt.<span class="f">Printf</span>(<span class="s">"検出: %s (%s) %ddBm\n"</span>, scan.LocalName, scan.Address, scan.RSSI)
 
-    // 4. GATT 接続。target が nil なら内部で再度スキャンする。
-    conn, err := ble.NewConnectionFromScanResult(ctx, vin, scan)
-    if err != nil {
-        log.Fatalf("接続に失敗: %s", err)
+    <span class="c">// 4. GATT 接続。target が nil なら内部で再度スキャンする。</span>
+    conn, err <span class="o">:=</span> ble.<span class="f">NewConnectionFromScanResult</span>(ctx, vin, scan)
+    <span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> {
+        log.<span class="f">Fatalf</span>(<span class="s">"接続に失敗: %s"</span>, err)
     }
-    defer conn.Close() // (b) 2 番目に実行
+    <span class="k">defer</span> conn.<span class="f">Close</span>() <span class="c">// (b) 2 番目に実行</span>
 
-    // 5. Vehicle オブジェクトの生成。3 番目の引数はセッションキャッシュ(なければ nil)。
-    car, err := vehicle.NewVehicle(conn, privateKey, nil)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // 6. 受信ゴルーチンの開始。
-    if err := car.Connect(ctx); err != nil {
-        log.Fatalf("Connect に失敗: %s", err)
-    }
-    defer car.Disconnect() // (a) 最初に実行。必ず conn.Close() より先に。
-
-    // 7. ドメインごとのハンドシェイク。nil なら VCSEC と INFOTAINMENT の両方。
-    if err := car.StartSession(ctx, nil); err != nil {
-        log.Fatalf("ハンドシェイクに失敗: %s", err)
+    <span class="c">// 5. Vehicle オブジェクトの生成。3 番目の引数はセッションキャッシュ(なければ nil)。</span>
+    car, err <span class="o">:=</span> vehicle.<span class="f">NewVehicle</span>(conn, privateKey, <span class="n">nil</span>)
+    <span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> {
+        log.<span class="f">Fatal</span>(err)
     }
 
-    // 8. コマンドの送信。各コマンドはコンテキストの期限まで自動でリトライする。
-    if err := car.Unlock(ctx); err != nil {
-        log.Fatalf("アンロックに失敗: %s", err)
+    <span class="c">// 6. 受信ゴルーチンの開始。</span>
+    <span class="k">if</span> err <span class="o">:=</span> car.<span class="f">Connect</span>(ctx); err <span class="o">!=</span> <span class="n">nil</span> {
+        log.<span class="f">Fatalf</span>(<span class="s">"Connect に失敗: %s"</span>, err)
     }
-    if err := car.ClimateOn(ctx); err != nil {
-        log.Fatalf("空調のオンに失敗: %s", err)
+    <span class="k">defer</span> car.<span class="f">Disconnect</span>() <span class="c">// (a) 最初に実行。必ず conn.Close() より先に。</span>
+
+    <span class="c">// 7. ドメインごとのハンドシェイク。nil なら VCSEC と INFOTAINMENT の両方。</span>
+    <span class="k">if</span> err <span class="o">:=</span> car.<span class="f">StartSession</span>(ctx, <span class="n">nil</span>); err <span class="o">!=</span> <span class="n">nil</span> {
+        log.<span class="f">Fatalf</span>(<span class="s">"ハンドシェイクに失敗: %s"</span>, err)
     }
-    fmt.Println("完了")
+
+    <span class="c">// 8. コマンドの送信。各コマンドはコンテキストの期限まで自動でリトライする。</span>
+    <span class="k">if</span> err <span class="o">:=</span> car.<span class="f">Unlock</span>(ctx); err <span class="o">!=</span> <span class="n">nil</span> {
+        log.<span class="f">Fatalf</span>(<span class="s">"アンロックに失敗: %s"</span>, err)
+    }
+    <span class="k">if</span> err <span class="o">:=</span> car.<span class="f">ClimateOn</span>(ctx); err <span class="o">!=</span> <span class="n">nil</span> {
+        log.<span class="f">Fatalf</span>(<span class="s">"空調のオンに失敗: %s"</span>, err)
+    }
+    fmt.<span class="f">Println</span>(<span class="s">"完了"</span>)
 }</code></pre>
 
 <ol class="steps">
@@ -180,8 +180,8 @@ func main() {
 </table>
 
 <p>OpenSSL で鍵ペアを作る方法(<code>tesla-keygen</code> の代わりにファイルベースの鍵を使いたい場合):</p>
-<pre><code class="language-bash">openssl ecparam -genkey -name prime256v1 -noout &gt; private.pem
-openssl ec -in private.pem -pubout &gt; public.pem</code></pre>
+<pre><code class="language-bash"><span class="f">openssl</span> ecparam <span class="p">-genkey</span> <span class="p">-name</span> prime256v1 <span class="p">-noout</span> <span class="o">&gt;</span> private.pem
+<span class="f">openssl</span> ec <span class="p">-in</span> private.pem <span class="p">-pubout</span> <span class="o">&gt;</span> public.pem</code></pre>
 
 <div class="callout danger">
 <strong>protocol.md のテスト鍵を実際の車両に登録しないでください</strong>
@@ -209,11 +209,11 @@ openssl ec -in private.pem -pubout &gt; public.pem</code></pre>
 
 <h2 id="sec-5">ドメインの選択と Infotainment を起こさない方法</h2>
 <p>VCSEC のコマンド(ロック、トランク、ウェイク、鍵管理、<code>BodyControllerState</code>)だけを使う場合は、INFOTAINMENT とハンドシェイクする必要はありません。INFOTAINMENT とのハンドシェイクはスリープ中のインフォテインメントを起こし、時間がかかります。</p>
-<pre><code class="language-go">import universal "github.com/teslamotors/vehicle-command/pkg/protocol/protobuf/universalmessage"
+<pre><code class="language-go"><span class="k">import</span> universal <span class="s">"github.com/teslamotors/vehicle-command/pkg/protocol/protobuf/universalmessage"</span>
 
-// VCSEC のみハンドシェイク
-if err := car.StartSession(ctx, []universal.Domain{protocol.DomainVCSEC}); err != nil { ... }
-if err := car.Lock(ctx); err != nil { ... }</code></pre>
+<span class="c">// VCSEC のみハンドシェイク</span>
+<span class="k">if</span> err <span class="o">:=</span> car.<span class="f">StartSession</span>(ctx, []universal.Domain{protocol.DomainVCSEC}); err <span class="o">!=</span> <span class="n">nil</span> { ... }
+<span class="k">if</span> err <span class="o">:=</span> car.<span class="f">Lock</span>(ctx); err <span class="o">!=</span> <span class="n">nil</span> { ... }</code></pre>
 <p><code>tesla-control</code> は、<code>-domain vcsec</code> フラグ(繰り返し指定可)、<code>body-controller-state</code> コマンドでの <code>domain: protocol.DomainVCSEC</code> の指定、そして <code>-ble wake</code> のときに VCSEC だけとハンドシェイクする特別な処理によって、同じことを行います。</p>
 
 <div class="callout">
@@ -223,18 +223,18 @@ if err := car.Lock(ctx); err != nil { ... }</code></pre>
 
 <h2 id="sec-6">セッションキャッシュ</h2>
 <p>ハンドシェイクは往復を 1 回追加し、Fleet API ではリクエスト数を増やします。<code>pkg/cache</code> でセッション状態(ドメインごとの SessionInfo と生成時刻)をディスクに保存すると、次回の実行時に最初のコマンドをすぐに送れます。キャッシュが古い場合は、最初のコマンドが失敗すると同時に車両が最新のセッション情報を送ってくるため、SDK が自動で更新してリトライします。つまり、古いキャッシュを使っても損はありません。</p>
-<pre><code class="language-go">const cacheFile = "/var/lib/myapp/tesla-cache.json"
+<pre><code class="language-go"><span class="k">const</span> cacheFile = <span class="s">"/var/lib/myapp/tesla-cache.json"</span>
 
-myCache, err := cache.ImportFromFile(cacheFile)
-if err != nil {
-    myCache = cache.New(5) // 最大 5 台分。0 なら無制限。LRU で追い出し。
+myCache, err <span class="o">:=</span> cache.<span class="f">ImportFromFile</span>(cacheFile)
+<span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> {
+    myCache = cache.<span class="f">New</span>(<span class="n">5</span>) <span class="c">// 最大 5 台分。0 なら無制限。LRU で追い出し。</span>
 }
 
-car, err := vehicle.NewVehicle(conn, privateKey, myCache) // 生成時にキャッシュから読み込む
+car, err <span class="o">:=</span> vehicle.<span class="f">NewVehicle</span>(conn, privateKey, myCache) <span class="c">// 生成時にキャッシュから読み込む</span>
 ...
-defer func() {
-    if err := car.UpdateCachedSessions(myCache); err != nil { log.Println(err) }
-    if err := myCache.ExportToFile(cacheFile); err != nil { log.Println(err) }
+<span class="k">defer</span> <span class="k">func</span>() {
+    <span class="k">if</span> err <span class="o">:=</span> car.<span class="f">UpdateCachedSessions</span>(myCache); err <span class="o">!=</span> <span class="n">nil</span> { log.<span class="f">Println</span>(err) }
+    <span class="k">if</span> err <span class="o">:=</span> myCache.<span class="f">ExportToFile</span>(cacheFile); err <span class="o">!=</span> <span class="n">nil</span> { log.<span class="f">Println</span>(err) }
 }()</code></pre>
 <ul>
 <li><strong>キャッシュはクライアントの秘密鍵に紐づきます。</strong> 別の鍵でキャッシュを使うと最初の認証が失敗し、車両が新しいセッション情報を送ってくることで正常に復旧します。</li>
@@ -246,25 +246,25 @@ defer func() {
 
 <h2 id="sec-7">pkg/cli で CLI アプリケーションを作る</h2>
 <p><code>pkg/cli.Config</code> は、5 つの CLI ツールが共有するフラグ/環境変数/キーリングのロジックを提供します。独自の CLI を作るときにそのまま再利用できます。</p>
-<pre><code class="language-go">import (
-    "flag"
-    "github.com/teslamotors/vehicle-command/pkg/cli"
+<pre><code class="language-go"><span class="k">import</span> (
+    <span class="s">"flag"</span>
+    <span class="s">"github.com/teslamotors/vehicle-command/pkg/cli"</span>
 )
 
-config, err := cli.NewConfig(cli.FlagAll) // FlagVIN | FlagOAuth | FlagPrivateKey | FlagBLE
-if err != nil { panic(err) }
-config.RegisterCommandLineFlags()   // -vin, -key-name, -key-file, -token-name, -token-file, -session-cache, -domain, -keyring-type ...
-flag.Parse()
-config.ReadFromEnvironment()        // 空の値だけを TESLA_* 環境変数で埋める
-if err := config.LoadCredentials(); err != nil { ... } // キーリングのパスワードプロンプトをタイムアウト前に処理
+config, err <span class="o">:=</span> cli.<span class="f">NewConfig</span>(cli.FlagAll) <span class="c">// FlagVIN | FlagOAuth | FlagPrivateKey | FlagBLE</span>
+<span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> { <span class="f">panic</span>(err) }
+config.<span class="f">RegisterCommandLineFlags</span>()   <span class="c">// -vin, -key-name, -key-file, -token-name, -token-file, -session-cache, -domain, -keyring-type ...</span>
+flag.<span class="f">Parse</span>()
+config.<span class="f">ReadFromEnvironment</span>()        <span class="c">// 空の値だけを TESLA_* 環境変数で埋める</span>
+<span class="k">if</span> err <span class="o">:=</span> config.<span class="f">LoadCredentials</span>(); err <span class="o">!=</span> <span class="n">nil</span> { ... } <span class="c">// キーリングのパスワードプロンプトをタイムアウト前に処理</span>
 
-ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-defer cancel()
-acct, car, err := config.Connect(ctx) // OAuth があればインターネット、なければ BLE。Connect + StartSession(config.Domains) まで実行
-if err != nil { ... }
-if car != nil {
-    defer car.Disconnect()
-    defer config.UpdateCachedSessions(car) // キャッシュファイルを更新
+ctx, cancel <span class="o">:=</span> context.<span class="f">WithTimeout</span>(context.<span class="f">Background</span>(), <span class="n">20</span>*time.Second)
+<span class="k">defer</span> <span class="f">cancel</span>()
+acct, car, err <span class="o">:=</span> config.<span class="f">Connect</span>(ctx) <span class="c">// OAuth があればインターネット、なければ BLE。Connect + StartSession(config.Domains) まで実行</span>
+<span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> { ... }
+<span class="k">if</span> car <span class="o">!=</span> <span class="n">nil</span> {
+    <span class="k">defer</span> car.<span class="f">Disconnect</span>()
+    <span class="k">defer</span> config.<span class="f">UpdateCachedSessions</span>(car) <span class="c">// キャッシュファイルを更新</span>
 }</code></pre>
 <table>
 <thead><tr><th>Flag マスク</th><th>登録されるオプション</th></tr></thead>
@@ -284,15 +284,15 @@ if car != nil {
 </ul>
 
 <h2 id="sec-8">インターネット経路: pkg/account</h2>
-<pre><code class="language-go">acct, err := account.New(oauthToken, "myapp/1.0.0") // userAgent が "" ならビルド情報から生成
-if err != nil { ... }
-car, err := acct.GetVehicle(ctx, vin, privateKey, sessionCache) // inet.Connection を生成
-if err != nil { ... }
-if err := car.Connect(ctx); err != nil { ... }
-defer car.Disconnect()
-if err := car.Wakeup(ctx); err != nil { ... }          // Fleet API wake_up のポーリング (任意)
-if err := car.StartSession(ctx, nil); err != nil { ... }
-if err := car.Unlock(ctx); err != nil { ... }</code></pre>
+<pre><code class="language-go">acct, err <span class="o">:=</span> account.<span class="f">New</span>(oauthToken, <span class="s">"myapp/1.0.0"</span>) <span class="c">// userAgent が "" ならビルド情報から生成</span>
+<span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> { ... }
+car, err <span class="o">:=</span> acct.<span class="f">GetVehicle</span>(ctx, vin, privateKey, sessionCache) <span class="c">// inet.Connection を生成</span>
+<span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> { ... }
+<span class="k">if</span> err <span class="o">:=</span> car.<span class="f">Connect</span>(ctx); err <span class="o">!=</span> <span class="n">nil</span> { ... }
+<span class="k">defer</span> car.<span class="f">Disconnect</span>()
+<span class="k">if</span> err <span class="o">:=</span> car.<span class="f">Wakeup</span>(ctx); err <span class="o">!=</span> <span class="n">nil</span> { ... }          <span class="c">// Fleet API wake_up のポーリング (任意)</span>
+<span class="k">if</span> err <span class="o">:=</span> car.<span class="f">StartSession</span>(ctx, <span class="n">nil</span>); err <span class="o">!=</span> <span class="n">nil</span> { ... }
+<span class="k">if</span> err <span class="o">:=</span> car.<span class="f">Unlock</span>(ctx); err <span class="o">!=</span> <span class="n">nil</span> { ... }</code></pre>
 <ul>
 <li><code>account.New</code> は JWT を署名検証なしでデコードし、<code>aud</code> と <code>ou_code</code> から Fleet API のホストを選びます。デフォルトは <code>fleet-api.prd.na.vn.cloud.tesla.com</code>。サーバーが 421 と <code>use base URL: https://…</code> という本文を返すと、<code>inet.Connection</code> がホストを更新します。</li>
 <li>インターネット経路は <strong>HMAC-SHA256</strong> 認証(平文)を使います。Fleet API が OAuth スコープを検査する必要があるためです。AES-GCM で暗号化されたコマンドは Fleet API が拒否します。</li>
@@ -303,22 +303,22 @@ if err := car.Unlock(ctx); err != nil { ... }</code></pre>
 
 <h2 id="sec-9">エラー処理のパターン</h2>
 <p>SDK のエラーは可能な限り <code>protocol.Error</code> インターフェースを実装しています。2 つのメソッドがリトライとユーザーへの案内を決定します。</p>
-<pre><code class="language-go">err := car.Unlock(ctx)
-switch {
-case err == nil:
-    // 成功
-case protocol.MayHaveSucceeded(err):
-    // コマンドは届いた可能性があるが確認が取れていない (例: タイムアウト)。再送すると 2 回実行される可能性があるので、状態を照会して判断。
-case errors.Is(err, protocol.ErrKeyNotPaired):
-    // 公開鍵が車両に登録されていない。ペアリングを案内。
-case errors.Is(err, protocol.ErrNoSession):
-    // StartSession を行っていないか、該当ドメインを除いて行った。
-case protocol.IsNominalError(err):
-    // 車両はコマンドを認証したが実行できない (例: パーキング状態でない、すでにオン)。ユーザーに理由を表示。
-case protocol.Temporary(err):
-    // 一時的なエラー。SDK がすでにコンテキストの期限までリトライしたので、コンテキストを延ばして再試行。
-default:
-    // その他
+<pre><code class="language-go">err <span class="o">:=</span> car.<span class="f">Unlock</span>(ctx)
+<span class="k">switch</span> {
+<span class="k">case</span> err <span class="o">==</span> <span class="n">nil</span>:
+    <span class="c">// 成功</span>
+<span class="k">case</span> protocol.<span class="f">MayHaveSucceeded</span>(err):
+    <span class="c">// コマンドは届いた可能性があるが確認が取れていない (例: タイムアウト)。再送すると 2 回実行される可能性があるので、状態を照会して判断。</span>
+<span class="k">case</span> errors.<span class="f">Is</span>(err, protocol.ErrKeyNotPaired):
+    <span class="c">// 公開鍵が車両に登録されていない。ペアリングを案内。</span>
+<span class="k">case</span> errors.<span class="f">Is</span>(err, protocol.ErrNoSession):
+    <span class="c">// StartSession を行っていないか、該当ドメインを除いて行った。</span>
+<span class="k">case</span> protocol.<span class="f">IsNominalError</span>(err):
+    <span class="c">// 車両はコマンドを認証したが実行できない (例: パーキング状態でない、すでにオン)。ユーザーに理由を表示。</span>
+<span class="k">case</span> protocol.<span class="f">Temporary</span>(err):
+    <span class="c">// 一時的なエラー。SDK がすでにコンテキストの期限までリトライしたので、コンテキストを延ばして再試行。</span>
+<span class="k">default</span>:
+    <span class="c">// その他</span>
 }</code></pre>
 <table>
 <thead><tr><th>ヘルパー</th><th>意味</th></tr></thead>
@@ -344,10 +344,10 @@ default:
 </tbody>
 </table>
 <p><code>StateCategory</code> の値: <code>StateCategoryCharge</code>, <code>Climate</code>, <code>Drive</code>, <code>Location</code>, <code>Closures</code>, <code>ChargeSchedule</code>, <code>PreconditioningSchedule</code>, <code>TirePressure</code>, <code>Media</code>, <code>MediaDetail</code>, <code>SoftwareUpdate</code>, <code>ParentalControls</code>。返された <code>carserver.VehicleData</code> は <code>protojson.Format</code> で出力すると読みやすくなります。</p>
-<pre><code class="language-go">data, err := car.GetState(ctx, vehicle.StateCategoryCharge)
-if err != nil { ... }
-fmt.Println(protojson.Format(data))
-pct := data.GetChargeState().GetBatteryLevel()</code></pre>
+<pre><code class="language-go">data, err <span class="o">:=</span> car.<span class="f">GetState</span>(ctx, vehicle.StateCategoryCharge)
+<span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> { ... }
+fmt.<span class="f">Println</span>(protojson.<span class="f">Format</span>(data))
+pct <span class="o">:=</span> data.<span class="f">GetChargeState</span>().<span class="f">GetBatteryLevel</span>()</code></pre>
 
 <h2 id="sec-11">鍵管理 API</h2>
 <table>
@@ -363,20 +363,20 @@ pct := data.GetChargeState().GetBatteryLevel()</code></pre>
 
 <h2 id="sec-12">カスタム Connector の実装</h2>
 <p>別の BLE スタック(例: TinyGo、モバイルブリッジ、シリアルゲートウェイ)やテスト用のモックトランスポートをつなぐには、<code>connector.Connector</code> を実装して <code>vehicle.NewVehicle</code> に渡せば済みます。ディスパッチャーはコネクターを純粋なデータグラムの通り道としてのみ扱います。</p>
-<pre><code class="language-go">type Connector interface {
-    Receive() &lt;-chan []byte                     // 車両が送った RoutableMessage のバイト列。スレッドセーフ。
-    Send(ctx context.Context, buffer []byte) error // RoutableMessage のバイト列を送信。スレッドセーフ。
-    VIN() string
-    Close()                                     // 複数回呼んでも安全でなければならない
-    PreferredAuthMethod() AuthMethod            // BLE: AuthMethodGCM, HTTP: AuthMethodHMAC
-    RetryInterval() time.Duration               // 再送間隔 (BLE/inet とも 1 秒)
-    AllowedLatency() time.Duration              // セッション情報レスポンスの最大許容遅延 (BLE 4 秒, inet 10 秒)
+<pre><code class="language-go"><span class="k">type</span> Connector <span class="k">interface</span> {
+    <span class="f">Receive</span>() <span class="o">&lt;-</span><span class="k">chan</span> []<span class="t">byte</span>                     <span class="c">// 車両が送った RoutableMessage のバイト列。スレッドセーフ。</span>
+    <span class="f">Send</span>(ctx context.Context, buffer []<span class="t">byte</span>) <span class="t">error</span> <span class="c">// RoutableMessage のバイト列を送信。スレッドセーフ。</span>
+    <span class="f">VIN</span>() <span class="t">string</span>
+    <span class="f">Close</span>()                                     <span class="c">// 複数回呼んでも安全でなければならない</span>
+    <span class="f">PreferredAuthMethod</span>() AuthMethod            <span class="c">// BLE: AuthMethodGCM, HTTP: AuthMethodHMAC</span>
+    <span class="f">RetryInterval</span>() time.Duration               <span class="c">// 再送間隔 (BLE/inet とも 1 秒)</span>
+    <span class="f">AllowedLatency</span>() time.Duration              <span class="c">// セッション情報レスポンスの最大許容遅延 (BLE 4 秒, inet 10 秒)</span>
 }
 
-type FleetAPIConnector interface {             // インターネットコネクターのみ追加で実装
+<span class="k">type</span> FleetAPIConnector <span class="k">interface</span> {             <span class="c">// インターネットコネクターのみ追加で実装</span>
     Connector
-    SendFleetAPICommand(ctx context.Context, endpoint string, command interface{}) ([]byte, error)
-    Wakeup(ctx context.Context) error
+    <span class="f">SendFleetAPICommand</span>(ctx context.Context, endpoint <span class="t">string</span>, command <span class="k">interface</span>{}) ([]<span class="t">byte</span>, <span class="t">error</span>)
+    <span class="f">Wakeup</span>(ctx context.Context) <span class="t">error</span>
 }</code></pre>
 <ul>
 <li><code>Receive()</code> チャネルのバッファは <code>connector.BufferSize</code>(5) 程度を推奨します。BLE 実装は 5、inet も 5 を使います。満杯になると、BLE はチャンクを捨て、inet は <code>dropped response because inbox is full</code> エラーを出します。</li>

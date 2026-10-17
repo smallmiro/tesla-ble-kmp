@@ -98,7 +98,7 @@
 <p>For the procedure to obtain an OAuth token (partner token → user authorization → code exchange), follow <code>doc/authorization.puml</code> and the <a href="https://developer.tesla.com/docs/fleet-api/authentication/third-party-tokens">Fleet API documentation</a>. The proxy does not issue or refresh tokens.</p>
 
 <h2 id="sec-run">Running</h2>
-<pre><code class="language-bash">tesla-http-proxy -tls-key config/tls-key.pem -cert config/tls-cert.pem -key-file config/fleet-key.pem -port 4443</code></pre>
+<pre><code class="language-bash"><span class="f">tesla-http-proxy</span> <span class="p">-tls-key</span> config/tls-key.pem <span class="p">-cert</span> config/tls-cert.pem <span class="p">-key-file</span> config/fleet-key.pem <span class="p">-port</span> 4443</code></pre>
 <table>
 <thead><tr><th>Option</th><th>Environment variable</th><th>Default</th><th>Description</th></tr></thead>
 <tbody>
@@ -117,14 +117,14 @@
 
 <h2 id="sec-tls">TLS certificates</h2>
 <p>TLS cannot be disabled on the proxy. Create a self-signed certificate for development with OpenSSL.</p>
-<pre><code class="language-bash">mkdir config
-openssl req -x509 -nodes -newkey ec \
-    -pkeyopt ec_paramgen_curve:secp384r1 \
-    -pkeyopt ec_param_enc:named_curve  \
-    -subj '/CN=localhost' \
-    -keyout config/tls-key.pem -out config/tls-cert.pem -sha256 -days 3650 \
-    -addext "extendedKeyUsage = serverAuth" \
-    -addext "keyUsage = digitalSignature, keyCertSign, keyAgreement"</code></pre>
+<pre><code class="language-bash"><span class="f">mkdir</span> config
+<span class="f">openssl</span> req <span class="p">-x509</span> <span class="p">-nodes</span> <span class="p">-newkey</span> ec \
+    <span class="p">-pkeyopt</span> ec_paramgen_curve:secp384r1 \
+    <span class="p">-pkeyopt</span> ec_param_enc:named_curve  \
+    <span class="p">-subj</span> <span class="s">'/CN=localhost'</span> \
+    <span class="p">-keyout</span> config/tls-key.pem <span class="p">-out</span> config/tls-cert.pem <span class="p">-sha256</span> <span class="p">-days</span> 3650 \
+    <span class="p">-addext</span> <span class="s">"extendedKeyUsage = serverAuth"</span> \
+    <span class="p">-addext</span> <span class="s">"keyUsage = digitalSignature, keyCertSign, keyAgreement"</span></code></pre>
 <p>Make clients trust this certificate with <code>--cacert config/tls-cert.pem</code>. In production, use a certificate from a public CA and put the full chain in <code>-cert</code>.</p>
 <div class="callout danger">
 <strong>Startup is refused if the TLS key and the command authentication key are the same key</strong>
@@ -133,31 +133,31 @@ openssl req -x509 -nodes -newkey ec \
 
 <h2 id="sec-docker">Docker deployment</h2>
 <p>The image <code>tesla/vehicle-command</code> contains the five tools on a distroless runtime, and its default entrypoint is <code>tesla-http-proxy</code>. Mount the private key as a file (the container has no system keyring).</p>
-<pre><code class="language-bash"># docker run
-docker pull tesla/vehicle-command:latest
-docker run --security-opt=no-new-privileges:true -v ./config:/config -p 127.0.0.1:4443:4443 \
-    tesla/vehicle-command:latest \
-    -tls-key /config/tls-key.pem -cert /config/tls-cert.pem -key-file /config/fleet-key.pem -host 0.0.0.0 -port 4443
+<pre><code class="language-bash"><span class="c"># docker run</span>
+<span class="f">docker</span> pull tesla/vehicle-command:latest
+<span class="f">docker</span> run <span class="p">--security-opt</span>=no-new-privileges:true <span class="p">-v</span> ./config:/config <span class="p">-p</span> 127.0.0.1:4443:4443 \
+    <span class="f">tesla</span>/vehicle-command:latest \
+    <span class="p">-tls-key</span> /config/tls-key.pem <span class="p">-cert</span> /config/tls-cert.pem <span class="p">-key-file</span> /config/fleet-key.pem <span class="p">-host</span> 0.0.0.0 <span class="p">-port</span> 4443
 
-# docker compose (docker-compose.yml in the repository)
-docker compose up</code></pre>
+<span class="c"># docker compose (docker-compose.yml in the repository)</span>
+<span class="f">docker</span> compose up</code></pre>
 <p>The repository's <code>docker-compose.yml</code> applies the same settings through environment variables.</p>
-<pre><code class="language-yaml">services:
-  tesla_http_proxy:
-    image: tesla/vehicle-command:latest
-    ports:
-      - "4443:4443"
-    environment:
+<pre><code class="language-yaml"><span class="p">services</span>:
+  <span class="p">tesla_http_proxy</span>:
+    <span class="p">image</span>: tesla/vehicle-command:latest
+    <span class="p">ports</span>:
+      - <span class="s">"4443:4443"</span>
+    <span class="p">environment</span>:
       - TESLA_HTTP_PROXY_TLS_CERT=/config/tls-cert.pem
       - TESLA_HTTP_PROXY_TLS_KEY=/config/tls-key.pem
       - TESLA_HTTP_PROXY_HOST=0.0.0.0
       - TESLA_HTTP_PROXY_PORT=4443
       - TESLA_HTTP_PROXY_TIMEOUT=10s
       - TESLA_KEY_FILE=/config/fleet-key.pem
-      - TESLA_VERBOSE=true
-    security_opt:
-      - no-new-privileges:true
-    volumes:
+      - TESLA_VERBOSE=<span class="n">true</span>
+    <span class="p">security_opt</span>:
+      - no-new-privileges:<span class="n">true</span>
+    <span class="p">volumes</span>:
       - ./config:/config</code></pre>
 <p><code>-host 0.0.0.0</code> is unavoidable inside a container, but prevent external exposure by binding the host port mapping to loopback, as in <code>127.0.0.1:4443:4443</code>, or by placing an authenticating proxy in front.</p>
 
@@ -181,12 +181,12 @@ docker compose up</code></pre>
 
 <h2 id="sec-response">Response format and status codes</h2>
 <h3>Command succeeded</h3>
-<pre><code class="language-json">{"response":{"result":true,"reason":""}}</code></pre>
+<pre><code class="language-json">{<span class="p">"response"</span>:{<span class="p">"result"</span>:<span class="n">true</span>,<span class="p">"reason"</span>:<span class="s">""</span>}}</code></pre>
 <h3>Vehicle rejects the command (NominalError)</h3>
 <p>When the vehicle authenticates the command but cannot execute it (for example, already on, or not in park), the response follows Fleet API convention: <strong>HTTP 200</strong> with <code>result</code> set to false and the cause in <code>reason</code>.</p>
-<pre><code class="language-json">{"response":{"result":false,"reason":"car could not execute command: already_on"},"error":"","error_description":""}</code></pre>
+<pre><code class="language-json">{<span class="p">"response"</span>:{<span class="p">"result"</span>:<span class="n">false</span>,<span class="p">"reason"</span>:<span class="s">"car could not execute command: already_on"</span>},<span class="p">"error"</span>:<span class="s">""</span>,<span class="p">"error_description"</span>:<span class="s">""</span>}</code></pre>
 <h3>Other errors</h3>
-<pre><code class="language-json">{"response":null,"error":"vehicle unavailable: vehicle is offline or asleep","error_description":""}</code></pre>
+<pre><code class="language-json">{<span class="p">"response"</span>:<span class="n">null</span>,<span class="p">"error"</span>:<span class="s">"vehicle unavailable: vehicle is offline or asleep"</span>,<span class="p">"error_description"</span>:<span class="s">""</span>}</code></pre>
 <table>
 <thead><tr><th>HTTP</th><th>Situation</th><th>Source</th></tr></thead>
 <tbody>
@@ -209,11 +209,11 @@ docker compose up</code></pre>
 
 <h2 id="sec-telemetry">Signing Fleet Telemetry configuration</h2>
 <p>If you send an unsigned configuration to <code>POST /api/1/vehicles/fleet_telemetry_config</code>, the proxy creates a JWS with <code>sign.SignMessageForFleet(key, "TelemetryClient", config)</code> and forwards it to <code>/api/1/vehicles/fleet_telemetry_config_jws</code> as <code>{"vins": [...], "token": "&lt;jws&gt;"}</code>. If the configuration contains <code>aud</code> or <code>iss</code>, they are overwritten and a warning is logged. The result is the same as <code>tesla-jws -fleet sign TelemetryClient</code>.</p>
-<pre><code class="language-bash">curl --cacert config/tls-cert.pem \
-    --header 'Content-Type: application/json' \
-    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
-    -X POST --data-binary "@telemetry.json" \
-    "https://localhost:4443/api/1/vehicles/fleet_telemetry_config"</code></pre>
+<pre><code class="language-bash"><span class="f">curl</span> <span class="p">--cacert</span> config/tls-cert.pem \
+    <span class="p">--header</span> <span class="s">'Content-Type: application/json'</span> \
+    <span class="p">--header</span> <span class="s">"Authorization: Bearer $TESLA_AUTH_TOKEN"</span> \
+    <span class="p">-X</span> POST <span class="p">--data-binary</span> <span class="s">"@telemetry.json"</span> \
+    <span class="s">"https://localhost:4443/api/1/vehicles/fleet_telemetry_config"</span></code></pre>
 
 <h2 id="sec-internals">Internals</h2>
 <dl class="kv">
@@ -235,92 +235,92 @@ docker compose up</code></pre>
 </ul>
 
 <h2 id="sec-curl">curl examples</h2>
-<pre><code class="language-bash">export TESLA_AUTH_TOKEN=&lt;access-token&gt;
-export VIN=&lt;17-character VIN&gt;
-export CACERT=config/tls-cert.pem
+<pre><code class="language-bash"><span class="k">export</span> <span class="v">TESLA_AUTH_TOKEN</span>=<span class="o">&lt;</span>access-token<span class="o">&gt;</span>
+<span class="k">export</span> <span class="v">VIN</span>=<span class="o">&lt;</span>17-character VIN<span class="o">&gt;</span>
+<span class="k">export</span> <span class="v">CACERT</span>=config/tls-cert.pem
 
-# Health check (no authentication required)
-curl --cacert $CACERT https://localhost:4443/health
+<span class="c"># Health check (no authentication required)</span>
+<span class="f">curl</span> <span class="p">--cacert</span> <span class="v">$CACERT</span> https://localhost:4443/health
 
-# Forwarded endpoint: vehicle data
-curl --cacert $CACERT \
-    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
-    "https://localhost:4443/api/1/vehicles/$VIN/vehicle_data" | jq .
+<span class="c"># Forwarded endpoint: vehicle data</span>
+<span class="f">curl</span> <span class="p">--cacert</span> <span class="v">$CACERT</span> \
+    <span class="p">--header</span> <span class="s">"Authorization: Bearer $TESLA_AUTH_TOKEN"</span> \
+    <span class="s">"https://localhost:4443/api/1/vehicles/$VIN/vehicle_data"</span> <span class="o">|</span> <span class="f">jq</span> .
 
-# Wake up (end-to-end command path; polls until online)
-curl --cacert $CACERT -X POST --data '{}' \
-    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
-    "https://localhost:4443/api/1/vehicles/$VIN/command/wake_up"
+<span class="c"># Wake up (end-to-end command path; polls until online)</span>
+<span class="f">curl</span> <span class="p">--cacert</span> <span class="v">$CACERT</span> <span class="p">-X</span> POST <span class="p">--data</span> <span class="s">'{}'</span> \
+    <span class="p">--header</span> <span class="s">"Authorization: Bearer $TESLA_AUTH_TOKEN"</span> \
+    <span class="s">"https://localhost:4443/api/1/vehicles/$VIN/command/wake_up"</span>
 
-# Command without arguments
-curl --cacert $CACERT \
-    --header 'Content-Type: application/json' \
-    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
-    --data '{}' \
-    "https://localhost:4443/api/1/vehicles/$VIN/command/flash_lights"
+<span class="c"># Command without arguments</span>
+<span class="f">curl</span> <span class="p">--cacert</span> <span class="v">$CACERT</span> \
+    <span class="p">--header</span> <span class="s">'Content-Type: application/json'</span> \
+    <span class="p">--header</span> <span class="s">"Authorization: Bearer $TESLA_AUTH_TOKEN"</span> \
+    <span class="p">--data</span> <span class="s">'{}'</span> \
+    <span class="s">"https://localhost:4443/api/1/vehicles/$VIN/command/flash_lights"</span>
 
-# Commands with arguments
-curl --cacert $CACERT \
-    --header 'Content-Type: application/json' \
-    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
-    --data '{"percent": 80}' \
-    "https://localhost:4443/api/1/vehicles/$VIN/command/set_charge_limit"
+<span class="c"># Commands with arguments</span>
+<span class="f">curl</span> <span class="p">--cacert</span> <span class="v">$CACERT</span> \
+    <span class="p">--header</span> <span class="s">'Content-Type: application/json'</span> \
+    <span class="p">--header</span> <span class="s">"Authorization: Bearer $TESLA_AUTH_TOKEN"</span> \
+    <span class="p">--data</span> <span class="s">'{"percent": 80}'</span> \
+    <span class="s">"https://localhost:4443/api/1/vehicles/$VIN/command/set_charge_limit"</span>
 
-curl --cacert $CACERT \
-    --header 'Content-Type: application/json' \
-    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
-    --data '{"driver_temp": 21.5, "passenger_temp": 21.5}' \
-    "https://localhost:4443/api/1/vehicles/$VIN/command/set_temps"
+<span class="f">curl</span> <span class="p">--cacert</span> <span class="v">$CACERT</span> \
+    <span class="p">--header</span> <span class="s">'Content-Type: application/json'</span> \
+    <span class="p">--header</span> <span class="s">"Authorization: Bearer $TESLA_AUTH_TOKEN"</span> \
+    <span class="p">--data</span> <span class="s">'{"driver_temp": 21.5, "passenger_temp": 21.5}'</span> \
+    <span class="s">"https://localhost:4443/api/1/vehicles/$VIN/command/set_temps"</span>
 
-curl --cacert $CACERT \
-    --header 'Content-Type: application/json' \
-    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
-    --data '{"days_of_week":"weekdays","start_time":1320,"start_enabled":true,"end_time":360,"end_enabled":true,"lat":37.4,"lon":-122.1,"enabled":true}' \
-    "https://localhost:4443/api/1/vehicles/$VIN/command/add_charge_schedule"</code></pre>
+<span class="f">curl</span> <span class="p">--cacert</span> <span class="v">$CACERT</span> \
+    <span class="p">--header</span> <span class="s">'Content-Type: application/json'</span> \
+    <span class="p">--header</span> <span class="s">"Authorization: Bearer $TESLA_AUTH_TOKEN"</span> \
+    <span class="p">--data</span> <span class="s">'{"days_of_week":"weekdays","start_time":1320,"start_enabled":true,"end_time":360,"end_enabled":true,"lat":37.4,"lon":-122.1,"enabled":true}'</span> \
+    <span class="s">"https://localhost:4443/api/1/vehicles/$VIN/command/add_charge_schedule"</span></code></pre>
 <p>JSON parameter types are strict. Numbers must be JSON numbers, booleans must be <code>true</code>/<code>false</code>, and strings must be strings; any other type yields <code>invalid X param</code> (400). For each endpoint's parameters, see <a href="07-command-reference.html">7. Command Reference</a>.</p>
 
 <h2 id="sec-embed">Embedding pkg/proxy and authentication middleware</h2>
 <p><code>cmd/tesla-http-proxy/main.go</code> is a thin wrapper around <code>pkg/proxy</code>. To add client authentication, separate TLS termination, request logging, and so on, wrap <code>proxy.Proxy</code> (an <code>http.Handler</code>) in your own handler.</p>
-<pre><code class="language-go">package main
+<pre><code class="language-go"><span class="k">package</span> main
 
-import (
-    "context"
-    "crypto/subtle"
-    "net/http"
-    "time"
+<span class="k">import</span> (
+    <span class="s">"context"</span>
+    <span class="s">"crypto/subtle"</span>
+    <span class="s">"net/http"</span>
+    <span class="s">"time"</span>
 
-    "github.com/teslamotors/vehicle-command/pkg/protocol"
-    "github.com/teslamotors/vehicle-command/pkg/proxy"
+    <span class="s">"github.com/teslamotors/vehicle-command/pkg/protocol"</span>
+    <span class="s">"github.com/teslamotors/vehicle-command/pkg/proxy"</span>
 )
 
-type authenticated struct {
+<span class="k">type</span> authenticated <span class="k">struct</span> {
     next   http.Handler
-    apiKey string
+    apiKey <span class="t">string</span>
 }
 
-func (a *authenticated) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-    if r.URL.Path == "/health" {
-        a.next.ServeHTTP(w, r)
-        return
+<span class="k">func</span> (a *authenticated) <span class="f">ServeHTTP</span>(w http.ResponseWriter, r *http.Request) {
+    <span class="k">if</span> r.URL.Path <span class="o">==</span> <span class="s">"/health"</span> {
+        a.next.<span class="f">ServeHTTP</span>(w, r)
+        <span class="k">return</span>
     }
-    if subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Api-Key")), []byte(a.apiKey)) != 1 {
-        http.Error(w, "unauthorized", http.StatusUnauthorized)
-        return
+    <span class="k">if</span> subtle.<span class="f">ConstantTimeCompare</span>([]<span class="t">byte</span>(r.Header.<span class="f">Get</span>(<span class="s">"X-Api-Key"</span>)), []<span class="t">byte</span>(a.apiKey)) <span class="o">!=</span> <span class="n">1</span> {
+        http.<span class="f">Error</span>(w, <span class="s">"unauthorized"</span>, http.StatusUnauthorized)
+        <span class="k">return</span>
     }
-    a.next.ServeHTTP(w, r) // The Authorization: Bearer header is passed through to the proxy unchanged
+    a.next.<span class="f">ServeHTTP</span>(w, r) <span class="c">// The Authorization: Bearer header is passed through to the proxy unchanged</span>
 }
 
-func main() {
-    skey, err := protocol.LoadPrivateKey("config/fleet-key.pem")
-    if err != nil { panic(err) }
+<span class="k">func</span> <span class="f">main</span>() {
+    skey, err <span class="o">:=</span> protocol.<span class="f">LoadPrivateKey</span>(<span class="s">"config/fleet-key.pem"</span>)
+    <span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> { <span class="f">panic</span>(err) }
 
-    p, err := proxy.New(context.Background(), skey, 10000)
-    if err != nil { panic(err) }
-    p.Timeout = 10 * time.Second
+    p, err <span class="o">:=</span> proxy.<span class="f">New</span>(context.<span class="f">Background</span>(), skey, <span class="n">10000</span>)
+    <span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> { <span class="f">panic</span>(err) }
+    p.Timeout = <span class="n">10</span> * time.Second
 
-    handler := &amp;authenticated{next: p, apiKey: "..."}
-    // TLS can be terminated here or delegated to a reverse proxy in front (pkg/proxy is TLS-agnostic).
-    panic(http.ListenAndServeTLS("localhost:4443", "config/tls-cert.pem", "config/tls-key.pem", handler))
+    handler <span class="o">:=</span> &amp;authenticated{next: p, apiKey: <span class="s">"..."</span>}
+    <span class="c">// TLS can be terminated here or delegated to a reverse proxy in front (pkg/proxy is TLS-agnostic).</span>
+    <span class="f">panic</span>(http.<span class="f">ListenAndServeTLS</span>(<span class="s">"localhost:4443"</span>, <span class="s">"config/tls-cert.pem"</span>, <span class="s">"config/tls-key.pem"</span>, handler))
 }</code></pre>
 <p>Calling <code>proxy.ExtractCommandAction(ctx, command, params)</code> directly converts a Fleet API command name + JSON parameters into a <code>func(*vehicle.Vehicle) error</code> without HTTP, so you can reuse the same command mapping in another RPC framework.</p>
 

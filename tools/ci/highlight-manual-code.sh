@@ -1,0 +1,118 @@
+#!/usr/bin/env bash
+# tools/ci/highlight-manual-code.sh — HTML 매뉴얼 코드 블록에 문법 색을 입힌다
+#   매뉴얼은 스크립트와 외부 리소스를 쓰지 않으므로, 색은 미리 <span class="..."> 로 넣어 둔다.
+#   대상: documents/html/{ko,en,ja}/*.html 와 index.html 의 <pre><code class="language-X"> (bash, go, json, python, yaml)
+#   다시 돌려도 결과가 같다(기존 span을 지우고 다시 칠한다). 코드 블록을 고친 뒤 돌리고 함께 커밋한다.
+#   --check: 파일을 바꾸지 않고, 칠하지 않은 블록이 있으면 실패한다(check-manual-i18n.sh 가 부른다).
+#   클래스: c 주석, k 키워드, s 문자열, n 숫자·상수, f 함수·명령, t 타입, v 변수, p 키·플래그, o 연산자
+set -euo pipefail
+MODE=write
+if [ "${1:-}" = "--check" ]; then MODE=check; shift; fi
+ROOT="${1:-$(cd "$(dirname "$0")/../.." && pwd)}"
+python3 -I - "$ROOT" "$MODE" <<'PY'
+import html, pathlib, re, sys
+
+root = pathlib.Path(sys.argv[1])
+mode = sys.argv[2]
+html_dir = root / "documents/html"
+
+def words(*ws):
+    return r"\b(?:" + "|".join(ws) + r")\b"
+
+STR_DQ = r'"(?:\\.|[^"\\\n])*"'
+STR_SQ = r"'(?:\\.|[^'\\\n])*'"
+
+GO = re.compile("|".join([
+    r"(?P<c>//[^\n]*|/\*.*?\*/)",
+    rf"(?P<s>{STR_DQ}|`[^`]*`|'(?:\\.|[^'\\\n])+')",
+    "(?P<k>" + words("break", "case", "chan", "const", "continue", "default", "defer", "else", "fallthrough", "for",
+                     "func", "go", "goto", "if", "import", "interface", "map", "package", "range", "return", "select",
+                     "struct", "switch", "type", "var") + ")",
+    "(?P<t>" + words("any", "bool", "byte", "complex64", "complex128", "error", "float32", "float64", "int", "int8",
+                     "int16", "int32", "int64", "rune", "string", "uint", "uint8", "uint16", "uint32", "uint64",
+                     "uintptr") + ")",
+    r"(?P<n>" + words("true", "false", "nil", "iota") + r"|\b0[xX][0-9a-fA-F_]+\b|\b\d[\d_]*(?:\.\d+)?\b)",
+    r"(?P<f>\b[A-Za-z_]\w*(?=\())",
+    r"(?P<o>:=|<-|&&|\|\||==|!=)",
+]), re.S)
+
+BASH_KW = {"if", "then", "else", "elif", "fi", "for", "do", "done", "while", "case", "esac", "in", "export",
+           "function", "return", "sudo"}
+BASH = re.compile("|".join([
+    r"(?P<c>(?<![^\s])#[^\n]*)",
+    rf"(?P<s>'[^'\n]*'|{STR_DQ})",
+    r"(?P<v>\$\{[^}\n]*\}|\$[A-Za-z_]\w*|\$[0-9#?@*$]|(?<=export )[A-Za-z_]\w*(?==)|^[ \t]*[A-Za-z_]\w*(?==))",
+    r"(?P<f>^[ \t]*[a-z][\w.+-]*|(?<=\| )[a-z][\w.+-]*|(?<=&& )[a-z][\w.+-]*|(?<=; )[a-z][\w.+-]*|(?<=\$\()[a-z][\w.+-]*|(?<=sudo )[a-z][\w.+-]*)",
+    r"(?P<p>(?<![\w-])--?[A-Za-z][\w-]*)",
+    r"(?P<o>&&|\|\||[|<>;])",
+]), re.M)
+
+JSON = re.compile("|".join([
+    rf"(?P<p>{STR_DQ}(?=\s*:))",
+    rf"(?P<s>{STR_DQ})",
+    r"(?P<n>" + words("true", "false", "null") + r"|-?\b\d+(?:\.\d+)?(?:[eE][-+]?\d+)?\b)",
+]))
+
+PYTHON = re.compile("|".join([
+    r"(?P<c>#[^\n]*)",
+    rf"(?P<s>\b[bBrRfFuU]{{0,2}}(?:\"\"\".*?\"\"\"|'''.*?'''|{STR_DQ}|{STR_SQ}))",
+    "(?P<k>" + words("and", "as", "assert", "async", "await", "break", "class", "continue", "def", "del", "elif",
+                     "else", "except", "finally", "for", "from", "global", "if", "import", "in", "is", "lambda",
+                     "nonlocal", "not", "or", "pass", "raise", "return", "try", "while", "with", "yield") + ")",
+    r"(?P<n>" + words("True", "False", "None") + r"|\b0[xX][0-9a-fA-F]+\b|\b\d+(?:\.\d+)?\b)",
+    r"(?P<f>\b[A-Za-z_]\w*(?=\())",
+]), re.S)
+
+YAML = re.compile("|".join([
+    r"(?P<c>(?<![^\s])#[^\n]*)",
+    r"(?P<p>^[ \t]*[\w.-]+(?=:(?:[ \t]|$)))",
+    rf"(?P<s>{STR_DQ}|{STR_SQ})",
+    r"(?P<n>" + words("true", "false", "null") + r")",
+]), re.M)
+
+LEXERS = {"bash": BASH, "go": GO, "json": JSON, "python": PYTHON, "yaml": YAML}
+
+def paint(lang, code):
+    lexer = LEXERS[lang]
+    out, pos = [], 0
+    for m in lexer.finditer(code):
+        kind = m.lastgroup
+        text = m.group()
+        if lang == "bash" and kind == "f" and text.strip() in BASH_KW:
+            kind = "k"
+        lead = len(text) - len(text.lstrip(" \t")) if kind in ("f", "k", "v", "p") else 0
+        out.append(html.escape(code[pos:m.start() + lead], quote=False))
+        out.append(f'<span class="{kind}">{html.escape(text[lead:], quote=False)}</span>')
+        pos = m.end()
+    out.append(html.escape(code[pos:], quote=False))
+    return "".join(out)
+
+BLOCK = re.compile(r'(<pre><code class="language-(\w+)">)(.*?)(</code></pre>)', re.S)
+
+def highlight(text):
+    def one(m):
+        lang = m.group(2)
+        if lang not in LEXERS:
+            return m.group(0)
+        code = html.unescape(re.sub(r"</?span[^>]*>", "", m.group(3)))
+        return m.group(1) + paint(lang, code) + m.group(4)
+    return BLOCK.sub(one, text)
+
+files = sorted(html_dir.glob("*/*.html")) + sorted(html_dir.glob("index.html"))
+stale = []
+for p in files:
+    text = p.read_text(encoding="utf-8")
+    new = highlight(text)
+    if new != text:
+        stale.append(p.relative_to(root))
+        if mode == "write":
+            p.write_text(new, encoding="utf-8")
+if mode == "check":
+    for s in stale:
+        print(f"{s}: code blocks not highlighted (run tools/ci/highlight-manual-code.sh)")
+    if stale:
+        sys.exit(1)
+    print(f"manual code highlighting OK: {len(files)} pages")
+else:
+    print(f"highlighted {len(stale)} of {len(files)} pages")
+PY

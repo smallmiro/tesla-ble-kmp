@@ -8,6 +8,7 @@
 #   - en/, ja/ 에는 언어 전환 링크의 "한국어" 라벨 말고는 한글이 없다
 #   - documents/html/index.html 은 en/index.html 을 한 단계 위 경로로 옮긴 영어 홈이다
 #     (en/index.html 의 href를 루트 기준으로 바꾼 결과와 바이트 단위로 같다)
+#   - 코드 블록 문법 색이 최신이다 (highlight-manual-code.sh --check)
 # 인자로 저장소 루트를 넘기면 그 경로를 검사한다(검사 스크립트 자체를 시험할 때).
 set -euo pipefail
 ROOT="${1:-$(cd "$(dirname "$0")/../.." && pwd)}"
@@ -96,3 +97,4 @@ if errors:
     sys.exit(1)
 print(f"manual i18n OK: md English-only, {len(pages['ko'])} HTML pages in ko/en/ja match, root index mirrors en/")
 PY
+"$(dirname "$0")/highlight-manual-code.sh" --check "$ROOT"

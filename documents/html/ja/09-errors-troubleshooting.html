@@ -57,10 +57,10 @@
 
 <h2 id="sec-model">エラーモデル</h2>
 <p>SDK が返すエラーは、可能な限り <code>protocol.Error</code> インターフェースを実装しています。2 つのメソッドが、呼び出し側が取るべき対応を決めます。</p>
-<pre><code class="language-go">type Error interface {
-    error
-    MayHaveSucceeded() bool // 車両がコマンドを受け取って実行した可能性がある (確認不可)
-    Temporary() bool        // ユーザーの介入なしにリトライで解決できる可能性がある
+<pre><code class="language-go"><span class="k">type</span> Error <span class="k">interface</span> {
+    <span class="t">error</span>
+    <span class="f">MayHaveSucceeded</span>() <span class="t">bool</span> <span class="c">// 車両がコマンドを受け取って実行した可能性がある (確認不可)</span>
+    <span class="f">Temporary</span>() <span class="t">bool</span>        <span class="c">// ユーザーの介入なしにリトライで解決できる可能性がある</span>
 }</code></pre>
 <table>
 <thead><tr><th>型</th><th>層</th><th>MayHaveSucceeded</th><th>Temporary</th><th>説明</th></tr></thead>
@@ -76,8 +76,8 @@
 <p>ヘルパー関数 <code>protocol.MayHaveSucceeded(err)</code>、<code>protocol.Temporary(err)</code>、<code>protocol.ShouldRetry(err)</code>、<code>protocol.IsNominalError(err)</code> は、<code>errors.As</code> でラップを辿って検査します。コミット <code>a4b43c1</code> でラップされたプロトコルエラーの分類が修正されたため、<code>fmt.Errorf("%w")</code> でラップしたエラーも正しく分類されます。</p>
 
 <h2 id="sec-retry">リトライポリシー</h2>
-<pre><code class="language-go">func ShouldRetry(err error) bool {
-    // Error インターフェースを実装し、MayHaveSucceeded() が false で、Temporary() が true のときのみ true
+<pre><code class="language-go"><span class="k">func</span> <span class="f">ShouldRetry</span>(err <span class="t">error</span>) <span class="t">bool</span> {
+    <span class="c">// Error インターフェースを実装し、MayHaveSucceeded() が false で、Temporary() が true のときのみ true</span>
 }</code></pre>
 <p>SDK は次の箇所で、<code>ShouldRetry</code> が真である間、コネクターの <code>RetryInterval()</code>（BLE、inet ともに 1 秒）間隔で、コンテキストが期限切れになるまでリトライします。</p>
 <table>
@@ -253,16 +253,16 @@
 <p><code>tesla-control -debug</code>（または <code>TESLA_VERBOSE=1</code>）は、送受信した RoutableMessage を 16 進数で出力します。</p>
 <pre><code>2023-12-13T14:41:13-08:00 [debug] TX: 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805</code></pre>
 <p><code>protoc</code> でデコードします（リポジトリのルートで実行）。</p>
-<pre><code class="language-bash">cd vehicle-command/pkg/protocol
-echo 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805 \
-    | xxd -r -p \
-    | protoc --decode=UniversalMessage.RoutableMessage -I protobuf protobuf/*.proto
+<pre><code class="language-bash"><span class="f">cd</span> vehicle-command/pkg/protocol
+<span class="f">echo</span> 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805 \
+    <span class="o">|</span> <span class="f">xxd</span> <span class="p">-r</span> <span class="p">-p</span> \
+    <span class="o">|</span> <span class="f">protoc</span> <span class="p">--decode</span>=UniversalMessage.RoutableMessage <span class="p">-I</span> protobuf protobuf/*.proto
 
-# 出力の protobuf_message_as_bytes を、ドメインに合った型で再度デコード
-printf "\n\002\010\005" | protoc --decode=VCSEC.UnsignedMessage -I protobuf protobuf/*.proto      # VCSEC リクエスト
-printf "..." | protoc --decode=VCSEC.FromVCSECMessage -I protobuf protobuf/*.proto              # VCSEC レスポンス
-printf "..." | protoc --decode=CarServer.Action -I protobuf protobuf/*.proto                    # Infotainment リクエスト
-printf "..." | protoc --decode=CarServer.Response -I protobuf protobuf/*.proto                  # Infotainment レスポンス</code></pre>
+<span class="c"># 出力の protobuf_message_as_bytes を、ドメインに合った型で再度デコード</span>
+<span class="f">printf</span> <span class="s">"\n\002\010\005"</span> <span class="o">|</span> <span class="f">protoc</span> <span class="p">--decode</span>=VCSEC.UnsignedMessage <span class="p">-I</span> protobuf protobuf/*.proto      <span class="c"># VCSEC リクエスト</span>
+<span class="f">printf</span> <span class="s">"..."</span> <span class="o">|</span> <span class="f">protoc</span> <span class="p">--decode</span>=VCSEC.FromVCSECMessage <span class="p">-I</span> protobuf protobuf/*.proto              <span class="c"># VCSEC レスポンス</span>
+<span class="f">printf</span> <span class="s">"..."</span> <span class="o">|</span> <span class="f">protoc</span> <span class="p">--decode</span>=CarServer.Action <span class="p">-I</span> protobuf protobuf/*.proto                    <span class="c"># Infotainment リクエスト</span>
+<span class="f">printf</span> <span class="s">"..."</span> <span class="o">|</span> <span class="f">protoc</span> <span class="p">--decode</span>=CarServer.Response <span class="p">-I</span> protobuf protobuf/*.proto                  <span class="c"># Infotainment レスポンス</span></code></pre>
 <p>BLE では AES-GCM で暗号化されるため、<code>protobuf_message_as_bytes</code> は暗号文です。平文を見るには、<code>-debug</code> ログのうちリクエスト組み立て時点のログか、セッション鍵が必要です。ハンドシェイクメッセージとレスポンスのエラーフィールド（<code>signedMessageStatus</code>）は平文です。</p>
 
 <h3>その他</h3>

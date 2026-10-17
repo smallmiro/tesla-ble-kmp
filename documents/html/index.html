@@ -58,14 +58,14 @@
   <li><strong>Send a command.</strong> <code>tesla-control -ble lock</code>. The SDK handles advertisement scanning → GATT connection → per-domain handshake → sending the AES-GCM encrypted command.</li>
 </ol>
 
-<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)
-export TESLA_VIN=5YJ30123456789ABC
-export TESLA_CACHE_FILE=~/.tesla-cache.json
+<pre><code class="language-bash"><span class="k">export</span> <span class="v">TESLA_KEY_NAME</span>=$(<span class="f">whoami</span>)
+<span class="k">export</span> <span class="v">TESLA_VIN</span>=5YJ30123456789ABC
+<span class="k">export</span> <span class="v">TESLA_CACHE_FILE</span>=~/.tesla-cache.json
 
-tesla-keygen create &gt; public_key.pem
-tesla-control -ble add-key-request public_key.pem owner cloud_key   # inside the car, with an NFC card ready
-tesla-control -ble lock
-tesla-control -ble -debug body-controller-state                     # lock/door/sleep state (works even while Infotainment is asleep)</code></pre>
+<span class="f">tesla-keygen</span> create <span class="o">&gt;</span> public_key.pem
+<span class="f">tesla-control</span> <span class="p">-ble</span> add-key-request public_key.pem owner cloud_key   <span class="c"># inside the car, with an NFC card ready</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> lock
+<span class="f">tesla-control</span> <span class="p">-ble</span> <span class="p">-debug</span> body-controller-state                     <span class="c"># lock/door/sleep state (works even while Infotainment is asleep)</span></code></pre>
 </section>
 <section class="tile sources">
 <h2>Original repository documents</h2>
