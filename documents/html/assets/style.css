@@ -28,7 +28,6 @@
   /* Names used by the inline SVG diagrams in the pages */
   --border: var(--line-2);
   --bg-alt: var(--surface-2);
-  --fg: var(--text);
   --fg-muted: var(--muted);
 }
 
@@ -158,7 +157,6 @@ th { color: var(--muted); font-weight: 500; font-size: 13px; border-bottom-color
 .badge.warn { --c: var(--amber); }
 
 /* Cards, steps, diagrams, key-value lists */
-.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 12px; margin: 16px 0 32px; }
 .card { display: flex; flex-direction: column; padding: 18px 20px; border-radius: 10px; color: inherit; background: var(--surface); border: 1px solid var(--line); transition: border-color .15s, background .15s; }
 .card:hover { background: var(--surface-2); border-color: var(--line-2); text-decoration: none; }
 .card .num { font-size: 12.5px; color: var(--dim); font-variant-numeric: tabular-nums; }
@@ -187,7 +185,8 @@ footer.page-nav a span { display: block; font-size: 12.5px; font-weight: 400; co
 
 /* Home pages: bento grid. Tiles keep the page's own text; only placement and size vary. */
 body.home main.content { max-width: 1120px; }
-.bento { display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; }
+/* Breakpoints follow the grid's own width (the sidebar takes part of the viewport). */
+.bento { container-type: inline-size; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); gap: 12px; }
 .bento > * { grid-column: span 12; min-width: 0; }
 .tile { padding: 24px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
 .tile > :last-child { margin-bottom: 0; }
@@ -209,13 +208,12 @@ body.home main.content { max-width: 1120px; }
 .tile.concepts .kv dd { margin: 2px 0 16px; break-inside: avoid; }
 .bento > .bento-label { margin: 28px 0 0; font-size: 1.05rem; font-weight: 600; }
 .bento .cards { display: contents; }
-.bento .card { grid-column: span 3; margin: 0; padding: 20px; }
+.bento .card { grid-column: span 3; padding: 20px; }
 .bento .card:is([href$="01-overview.html"], [href$="04-protocol.html"]) { grid-column: span 6; }
 .bento .card:is([href$="07-command-reference.html"], [href$="08-http-proxy.html"], [href$="09-errors-troubleshooting.html"]) { grid-column: span 4; }
-.tile.readers { margin-top: 16px; }
 .tile.readers :is(th, td) { overflow-wrap: normal; }
 .tile.readers td:first-child { white-space: nowrap; }
-@media (max-width: 1100px) {
+@container (max-width: 860px) {
   .tile.hero, .tile.version, .tile.quick, .tile.sources { grid-column: span 12; }
   .bento .card, .bento .card[href] { grid-column: span 6; }
 }
@@ -235,11 +233,13 @@ body.home main.content { max-width: 1120px; }
   .kv { grid-template-columns: 1fr; gap: 2px 0; }
   .kv dd { margin-bottom: 10px; }
 }
+@container (max-width: 520px) {
+  .bento .card, .bento .card[href] { grid-column: span 12; }
+}
 @media (max-width: 640px) {
   header.top { padding: 0 16px; }
   header.top .top-sub { display: none; }
   pre { font-size: 12px; padding: 12px; }
-  .bento .card, .bento .card[href] { grid-column: span 12; }
   .tile, .tile.hero { padding: 20px; }
   .tile.hero { min-height: 0; }
 }
