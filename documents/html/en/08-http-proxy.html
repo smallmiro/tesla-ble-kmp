@@ -57,26 +57,44 @@
 
 <h2 id="sec-flow">How it works</h2>
 <p>The proxy handles two credentials: the OAuth token sent by the client (authenticates to Tesla's servers) and the private key the proxy loads at startup (authenticates to the vehicle). The public key of that private key must already be enrolled on the user's vehicle.</p>
-<div class="diagram"><pre>Your Backend            Vehicle Commands Proxy              Fleet API                 Vehicle
-     |                           |                              |                        |
-     |  POST /api/1/vehicles/    |                              |                        |
-     |   $VIN/command/flash_lights                              |                        |
-     |  Authorization: Bearer .. |                              |                        |
-     |--------------------------&gt;|                              |                        |
-     |                           | (1) check cache / handshake  |                        |
-     |                           | (2) sign HMAC w/ private key |                        |
-     |                           |  POST .../signed_command     |                        |
-     |                           |  {"routable_message": b64}   |                        |
-     |                           |-----------------------------&gt;|                        |
-     |                           |                              |  Signed command        |
-     |                           |                              |-----------------------&gt;|
-     |                           |                              |   (3) verify w/ pub key|
-     |                           |                              |   (4) Flash Lights     |
-     |                           |                              |&lt;-----------------------|
-     |                           |  {"response": b64}           |                        |
-     |                           |&lt;-----------------------------|                        |
-     |  {"response":{"result":true,"reason":""}}                |                        |
-     |&lt;--------------------------|                              |                        |</pre></div>
+<div class="diagram">
+<svg viewBox="0 0 940 480" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="currentColor">
+  <defs><marker id="arr-proxy" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <g stroke="var(--border)" stroke-dasharray="4 4">
+    <line x1="90" y1="50" x2="90" y2="470"/><line x1="400" y1="50" x2="400" y2="470"/><line x1="650" y1="50" x2="650" y2="470"/><line x1="850" y1="50" x2="850" y2="470"/>
+  </g>
+  <g font-weight="700" text-anchor="middle">
+    <rect class="box" x="20" y="18" width="140" height="26" rx="6"/><text x="90" y="36">Your Backend</text>
+    <rect class="box blue" x="300" y="18" width="200" height="26" rx="6"/><text x="400" y="36">Vehicle Commands Proxy</text>
+    <rect class="box" x="580" y="18" width="140" height="26" rx="6"/><text x="650" y="36">Fleet API</text>
+    <rect class="box accent" x="780" y="18" width="140" height="26" rx="6"/><text x="850" y="36">Vehicle</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3" marker-end="url(#arr-proxy)">
+    <line x1="90" y1="124" x2="395" y2="124"/>
+    <line x1="400" y1="240" x2="645" y2="240"/>
+    <line x1="650" y1="280" x2="845" y2="280"/>
+    <line x1="850" y1="368" x2="655" y2="368"/>
+    <line x1="650" y1="410" x2="405" y2="410"/>
+    <line x1="400" y1="454" x2="95" y2="454"/>
+  </g>
+  <rect class="box blue" x="280" y="140" width="240" height="48" rx="6"/>
+  <rect class="box accent" x="760" y="298" width="170" height="48" rx="6"/>
+  <g>
+    <text x="100" y="80">POST /api/1/vehicles/</text>
+    <text x="100" y="96">$VIN/command/flash_lights</text>
+    <text x="100" y="112" class="muted">Authorization: Bearer ..</text>
+    <text x="292" y="160">(1) check cache / handshake</text>
+    <text x="292" y="178">(2) sign HMAC w/ private key</text>
+    <text x="410" y="212">POST .../signed_command</text>
+    <text x="410" y="228" class="muted">{"routable_message": b64}</text>
+    <text x="660" y="270">Signed command</text>
+    <text x="772" y="318">(3) verify w/ pub key</text>
+    <text x="772" y="336">(4) Flash Lights</text>
+    <text x="410" y="400">{"response": b64}</text>
+    <text x="100" y="444">{"response":{"result":true,"reason":""}}</text>
+  </g>
+</svg>
+</div>
 <p>For the procedure to obtain an OAuth token (partner token → user authorization → code exchange), follow <code>doc/authorization.puml</code> and the <a href="https://developer.tesla.com/docs/fleet-api/authentication/third-party-tokens">Fleet API documentation</a>. The proxy does not issue or refresh tokens.</p>
 
 <h2 id="sec-run">Running</h2>

@@ -142,37 +142,25 @@
 </table>
 
 <h2 id="sec-layers">Layered architecture</h2>
-<div class="diagram"><pre>
- ┌──────────────────────────────────────────────────────────────────────┐
- │  Application                                                         │
- │  cmd/tesla-control · cmd/tesla-http-proxy · examples/* · user code   │
- ├──────────────────────┬──────────────────────┬────────────────────────┤
- │  pkg/cli             │  pkg/account         │  pkg/proxy             │
- │  flags/env/keyring   │  OAuth → Fleet API   │  REST → Vehicle methods│
- ├──────────────────────┴──────────────────────┴────────────────────────┤
- │  pkg/vehicle.Vehicle                                                 │
- │  Connect / StartSession / Lock / ClimateOn / GetState / AddKey ...   │
- │  builds VCSEC.UnsignedMessage or CarServer.Action payloads, parses   │
- │  responses                                                           │
- ├──────────────────────────────────────────────────────────────────────┤
- │  internal/dispatcher.Dispatcher                                      │
- │  assembles RoutableMessage (uuid, routing_address), per-domain       │
- │  session, StartSessions (parallel handshakes), response routing      │
- │  (receiver), cache import/export                                     │
- ├──────────────────────────────────────────────────────────────────────┤
- │  internal/authentication                                             │
- │  ECDH → K, metadata TLV, HMAC/AES-GCM Signer, response decryption,   │
- │  anti-replay                                                         │
- ├──────────────────────────────────────────────────────────────────────┤
- │  pkg/connector.Connector                                             │
- │  Send([]byte) / Receive() &lt;-chan []byte / VIN() / PreferredAuthMethod │
- │  ┌──────────────────────────┐   ┌──────────────────────────────────┐ │
- │  │ connector/ble            │   │ connector/inet                   │ │
- │  │ GATT 212 write / 213 ind │   │ POST .../signed_command (JSON)   │ │
- │  │ 2-byte length framing    │   │ OAuth Bearer, 421 redirect       │ │
- │  └──────────────────────────┘   └──────────────────────────────────┘ │
- └──────────────────────────────────────────────────────────────────────┘
-</pre></div>
+<div class="diagram">
+<div class="layers">
+  <div class="layer app"><div class="layer-name">Application</div><p class="sig">cmd/tesla-control · cmd/tesla-http-proxy · examples/* · user code</p></div>
+  <div class="layer-row">
+    <div class="layer pkg"><div class="layer-name">pkg/cli</div><p>flags/env/keyring</p></div>
+    <div class="layer pkg"><div class="layer-name">pkg/account</div><p>OAuth → Fleet API</p></div>
+    <div class="layer pkg"><div class="layer-name">pkg/proxy</div><p>REST → Vehicle methods</p></div>
+  </div>
+  <div class="layer pkg"><div class="layer-name">pkg/vehicle.Vehicle</div><p class="sig">Connect / StartSession / Lock / ClimateOn / GetState / AddKey ...</p><p>builds VCSEC.UnsignedMessage or CarServer.Action payloads, parses responses</p></div>
+  <div class="layer internal"><div class="layer-name">internal/dispatcher.Dispatcher</div><p>assembles RoutableMessage (uuid, routing_address), per-domain session, StartSessions (parallel handshakes), response routing (receiver), cache import/export</p></div>
+  <div class="layer internal"><div class="layer-name">internal/authentication</div><p>ECDH → K, metadata TLV, HMAC/AES-GCM Signer, response decryption, anti-replay</p></div>
+  <div class="layer transport"><div class="layer-name">pkg/connector.Connector</div><p class="sig">Send([]byte) / Receive() &lt;-chan []byte / VIN() / PreferredAuthMethod</p>
+    <div class="layer-row">
+      <div class="layer impl"><div class="layer-name">connector/ble</div><p class="sig">GATT 212 write / 213 ind</p><p>2-byte length framing</p></div>
+      <div class="layer impl"><div class="layer-name">connector/inet</div><p class="sig">POST .../signed_command (JSON)</p><p>OAuth Bearer, 421 redirect</p></div>
+    </div>
+  </div>
+</div>
+</div>
 <ul>
   <li><strong>Connector</strong> is a datagram transport that only exchanges byte arrays. It knows nothing about authentication or protobuf. By implementing it yourself you can plug in other transports (for example, a serial link or an in-memory pipe for tests).</li>
   <li><strong>Dispatcher</strong> wraps the <code>Connector</code>, encodes/decodes <code>RoutableMessage</code>, maintains per-domain sessions (<code>session</code>), and delivers incoming messages to the waiting <code>receiver</code> by <code>routing_address</code> (plus <code>request_uuid</code> for Infotainment). When the vehicle sends a new <code>session_info</code> along with an error, it updates the session automatically.</li>
@@ -190,7 +178,7 @@
   </g>
   <g font-weight="700" text-anchor="middle">
     <rect x="40" y="18" width="140" height="26" rx="6" fill="var(--bg-alt)" stroke="var(--border)"/><text x="110" y="36">Application</text>
-    <rect x="260" y="18" width="140" height="26" rx="6" fill="var(--bg-alt)" stroke="var(--border)"/><text x="330" y="36">vehicle / dispatcher</text>
+    <rect x="250" y="18" width="160" height="26" rx="6" fill="var(--bg-alt)" stroke="var(--border)"/><text x="330" y="36">vehicle / dispatcher</text>
     <rect x="490" y="18" width="140" height="26" rx="6" fill="var(--bg-alt)" stroke="var(--border)"/><text x="560" y="36">connector/ble</text>
     <rect x="720" y="18" width="140" height="26" rx="6" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="790" y="36">Vehicle (VCSEC)</text>
   </g>
