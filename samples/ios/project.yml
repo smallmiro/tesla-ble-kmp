@@ -1,6 +1,11 @@
 name: TeslableSample
 options:
   bundleIdPrefix: dev.mirolab
+settings:
+  base:
+    # 샘플 앱 버전(앱 정보 화면에 표시). 실차 확인 빌드마다 CURRENT_PROJECT_VERSION을 올린다.
+    MARKETING_VERSION: "0.3.0"
+    CURRENT_PROJECT_VERSION: "2"
   deploymentTarget:
     iOS: "16.0"
 targets:
@@ -13,12 +18,15 @@ targets:
       path: Sources/Info.plist
       properties:
         CFBundleDisplayName: Teslable Sample
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         NSBluetoothAlwaysUsageDescription: 차량과 BLE로 통신하기 위해 블루투스가 필요합니다.
     settings:
       base:
         FRAMEWORK_SEARCH_PATHS: "$(inherited) $(SRCROOT)/../../sdk/build/bin/iosSimulatorArm64/debugFramework"
         SWIFT_VERSION: "6.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
         CODE_SIGN_IDENTITY: ""
         CODE_SIGNING_REQUIRED: "NO"
         # Teslable.framework은 iosSimulatorArm64 전용으로만 링크된다(Apple Silicon 시뮬레이터).
@@ -42,12 +50,15 @@ targets:
       path: Sources/Info.plist
       properties:
         CFBundleDisplayName: Teslable Sample
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         NSBluetoothAlwaysUsageDescription: 차량과 BLE로 통신하기 위해 블루투스가 필요합니다.
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.mirolab.TeslableSampleDevice
         SWIFT_VERSION: "6.0"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     dependencies:
       - framework: ../../sdk/build/bin/iosArm64/debugFramework/Teslable.framework
         embed: false
