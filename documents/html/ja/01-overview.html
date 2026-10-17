@@ -142,34 +142,25 @@
 </table>
 
 <h2 id="sec-layers">レイヤーアーキテクチャ</h2>
-<div class="diagram"><pre>
- ┌──────────────────────────────────────────────────────────────────────┐
- │  アプリケーション                                                      │
- │  cmd/tesla-control · cmd/tesla-http-proxy · examples/* · ユーザーコード│
- ├──────────────────────┬──────────────────────┬────────────────────────┤
- │  pkg/cli             │  pkg/account         │  pkg/proxy             │
- │ フラグ/env/キーリング│  OAuth → Fleet API   │  REST → Vehicle メソッド│
- ├──────────────────────┴──────────────────────┴────────────────────────┤
- │  pkg/vehicle.Vehicle                                                 │
- │  Connect / StartSession / Lock / ClimateOn / GetState / AddKey ...   │
- │  VCSEC.UnsignedMessage または CarServer.Action ペイロード生成、応答解析│
- ├──────────────────────────────────────────────────────────────────────┤
- │  internal/dispatcher.Dispatcher                                      │
- │  RoutableMessage 組立(uuid, routing_address)、ドメインごとの session、 │
- │  StartSessions(並列ハンドシェイク)、応答ルーティング(receiver)、キャッシュ import/export│
- ├──────────────────────────────────────────────────────────────────────┤
- │  internal/authentication                                             │
- │  ECDH → K、メタデータ TLV、HMAC/AES-GCM Signer、応答復号、アンチリプレイ│
- ├──────────────────────────────────────────────────────────────────────┤
- │  pkg/connector.Connector                                             │
- │  Send([]byte) / Receive() &lt;-chan []byte / VIN() / PreferredAuthMethod │
- │  ┌──────────────────────────┐   ┌──────────────────────────────────┐ │
- │  │ connector/ble            │   │ connector/inet                   │ │
- │  │ GATT 212 write / 213 ind │   │ POST .../signed_command (JSON)   │ │
- │  │ 2 バイト長フレーミング   │   │ OAuth Bearer、421 リダイレクト処理│ │
- │  └──────────────────────────┘   └──────────────────────────────────┘ │
- └──────────────────────────────────────────────────────────────────────┘
-</pre></div>
+<div class="diagram">
+<div class="layers">
+  <div class="layer app"><div class="layer-name">アプリケーション</div><p class="sig">cmd/tesla-control · cmd/tesla-http-proxy · examples/* · ユーザーコード</p></div>
+  <div class="layer-row">
+    <div class="layer pkg"><div class="layer-name">pkg/cli</div><p>フラグ/env/キーリング</p></div>
+    <div class="layer pkg"><div class="layer-name">pkg/account</div><p>OAuth → Fleet API</p></div>
+    <div class="layer pkg"><div class="layer-name">pkg/proxy</div><p>REST → Vehicle メソッド</p></div>
+  </div>
+  <div class="layer pkg"><div class="layer-name">pkg/vehicle.Vehicle</div><p class="sig">Connect / StartSession / Lock / ClimateOn / GetState / AddKey ...</p><p>VCSEC.UnsignedMessage または CarServer.Action ペイロード生成、応答解析</p></div>
+  <div class="layer internal"><div class="layer-name">internal/dispatcher.Dispatcher</div><p>RoutableMessage 組立(uuid, routing_address)、ドメインごとの session、StartSessions(並列ハンドシェイク)、応答ルーティング(receiver)、キャッシュ import/export</p></div>
+  <div class="layer internal"><div class="layer-name">internal/authentication</div><p>ECDH → K、メタデータ TLV、HMAC/AES-GCM Signer、応答復号、アンチリプレイ</p></div>
+  <div class="layer transport"><div class="layer-name">pkg/connector.Connector</div><p class="sig">Send([]byte) / Receive() &lt;-chan []byte / VIN() / PreferredAuthMethod</p>
+    <div class="layer-row">
+      <div class="layer impl"><div class="layer-name">connector/ble</div><p class="sig">GATT 212 write / 213 ind</p><p>2 バイト長フレーミング</p></div>
+      <div class="layer impl"><div class="layer-name">connector/inet</div><p class="sig">POST .../signed_command (JSON)</p><p>OAuth Bearer、421 リダイレクト処理</p></div>
+    </div>
+  </div>
+</div>
+</div>
 <ul>
   <li><strong>Connector</strong> はバイト配列だけをやり取りするデータグラム伝送です。認証や protobuf についてはまったく関知しません。自前で実装すれば、他の伝送(例: シリアル、テスト用のメモリパイプ)を接続できます。</li>
   <li><strong>Dispatcher</strong> は <code>Connector</code> をラップして <code>RoutableMessage</code> をエンコード/デコードし、ドメインごとのセッション(<code>session</code>)を維持し、受信メッセージを <code>routing_address</code>(+ Infotainment の場合は <code>request_uuid</code>)によって待機中の <code>receiver</code> に配送します。車両がエラーとともに新しい <code>session_info</code> を送ってきた場合は、自動的にセッションを更新します。</li>
@@ -187,7 +178,7 @@
   </g>
   <g font-weight="700" text-anchor="middle">
     <rect x="40" y="18" width="140" height="26" rx="6" fill="var(--bg-alt)" stroke="var(--border)"/><text x="110" y="36">アプリケーション</text>
-    <rect x="260" y="18" width="140" height="26" rx="6" fill="var(--bg-alt)" stroke="var(--border)"/><text x="330" y="36">vehicle / dispatcher</text>
+    <rect x="250" y="18" width="160" height="26" rx="6" fill="var(--bg-alt)" stroke="var(--border)"/><text x="330" y="36">vehicle / dispatcher</text>
     <rect x="490" y="18" width="140" height="26" rx="6" fill="var(--bg-alt)" stroke="var(--border)"/><text x="560" y="36">connector/ble</text>
     <rect x="720" y="18" width="140" height="26" rx="6" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="790" y="36">車両 (VCSEC)</text>
   </g>
