@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4. Protocol Specification · vehicle-command BLE Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE Developer Manual · based on v0.4.1</div>
+  <div class="lang-switch" aria-label="Language"><a href="../ko/04-protocol.html" hreflang="ko" lang="ko">한국어</a><a class="active" href="../en/04-protocol.html" hreflang="en" lang="en">English</a><a href="../ja/04-protocol.html" hreflang="ja" lang="ja">日本語</a></div>
+  <ol>
+    <li><a href="index.html">Home</a></li>
+    <li class="group">Getting Started</li>
+    <li><a href="01-overview.html">1. System Overview</a></li>
+    <li><a href="02-getting-started.html">2. Getting Started</a></li>
+    <li class="group">Protocol</li>
+    <li><a href="03-ble-transport.html">3. BLE Transport Layer</a></li>
+    <li><a class="active" href="04-protocol.html">4. Protocol Specification</a></li>
+    <li class="group">Development</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI Tools</a></li>
+    <li><a href="07-command-reference.html">7. Command Reference</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP Proxy</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. Errors and Troubleshooting</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>4. Protocol Specification</h1>
+<p class="lead">The session management and cryptographic protocol that the mobile app and this SDK use to send commands to the vehicle. This page restructures <code>pkg/protocol/protocol.md</code> and adds where each part is implemented in Go.</p>
+
+<div class="toc"><strong>On this page</strong><ol>
+<li><a href="#sec-msg">Message encoding: RoutableMessage</a></li>
+<li><a href="#sec-decode">Decoding messages with protoc</a></li>
+<li><a href="#sec-concepts">Protocol concepts: domains, time, roles</a></li>
+<li><a href="#sec-tlv">Metadata serialization (TLV)</a></li>
+<li><a href="#sec-notation">Notation and test keys</a></li>
+<li><a href="#sec-handshake">Handshake</a></li>
+<li><a href="#sec-authz">Command authorization</a></li>
+<li><a href="#sec-hmac">HMAC-SHA256 authentication</a></li>
+<li><a href="#sec-gcm">AES-GCM encryption</a></li>
+<li><a href="#sec-cache">Session cache and desync recovery</a></li>
+<li><a href="#sec-response">Response handling</a></li>
+<li><a href="#sec-decrypt">Response decryption</a></li>
+<li><a href="#sec-app">Application-layer responses</a></li>
+<li><a href="#sec-impl">Go implementation locations</a></li>
+</ol></div>
+
+<div class="callout warn">
+  <strong>The original takes precedence</strong>
+  <p>If this page and <code>vehicle-command/pkg/protocol/protocol.md</code> disagree, the original is correct. The authoritative source for field numbers and enum values is <code>pkg/protocol/protobuf/*.proto</code>. Application-layer payloads (which command uses which protobuf) are outside the scope of this specification; see <a href="07-command-reference.html">7. Command Reference</a> and the <code>pkg/vehicle</code> source.</p>
+</div>
+
+<h2 id="sec-msg">Message encoding: RoutableMessage</h2>
+<p>All messages are encoded with Protocol Buffers, and the top-level type is <code>UniversalMessage.RoutableMessage</code> (<code>protobuf/universal_message.proto</code>). A typical request looks like this (binary fields shown in hex).</p>
+<pre><code>to_destination {
+  domain: DOMAIN_VEHICLE_SECURITY
+}
+from_destination {
+  routing_address: 0a7962c10d38b61dd2a7722780a4f096
+}
+protobuf_message_as_bytes: 0a020805
+uuid: 05514f57616bcc81a8ce0f9d7b483229</code></pre>
+<table>
+  <thead><tr><th>Field (number)</th><th>Type</th><th>In requests</th><th>In responses</th></tr></thead>
+  <tbody>
+    <tr><td><code>to_destination</code> (6)</td><td><code>Destination</code> oneof {<code>domain</code>, <code>routing_address</code>}</td><td>The <a href="#sec-concepts">domain</a> that will handle the command</td><td>Copied from the request's <code>from_destination</code> (routing_address)</td></tr>
+    <tr><td><code>from_destination</code> (7)</td><td><code>Destination</code></td><td>A <strong>random 16-byte</strong> <code>routing_address</code> that identifies the connection. The vehicle uses it to route responses back to the transport-layer address</td><td>The domain that responded</td></tr>
+    <tr><td><code>payload</code> oneof: <code>protobuf_message_as_bytes</code> (10)</td><td><code>bytes</code></td><td>Application payload. VCSEC → <code>VCSEC.UnsignedMessage</code>, Infotainment → <code>CarServer.Action</code>. Ciphertext when AES-GCM is used</td><td>VCSEC → <code>VCSEC.FromVCSECMessage</code>, Infotainment → <code>CarServer.Response</code>. Ciphertext when the response is encrypted</td></tr>
+    <tr><td><code>payload</code>: <code>session_info_request</code> (14)</td><td><code>SessionInfoRequest{public_key, challenge}</code></td><td>Handshake request. The client public key</td><td>-</td></tr>
+    <tr><td><code>payload</code>: <code>session_info</code> (15)</td><td><code>bytes</code> (encoded <code>Signatures.SessionInfo</code>)</td><td>-</td><td>Handshake response, or attached alongside an error on desync</td></tr>
+    <tr><td><code>signature_data</code> (13)</td><td><code>Signatures.SignatureData</code></td><td><code>signer_identity.public_key</code> + <code>HMAC_Personalized_data</code> or <code>AES_GCM_Personalized_data</code></td><td><code>session_info_tag</code> (handshake HMAC) or <code>AES_GCM_Response_data</code> (encrypted response)</td></tr>
+    <tr><td><code>signedMessageStatus</code> (12)</td><td><code>MessageStatus{operation_status, signed_message_fault}</code></td><td>-</td><td>Protocol-layer errors. For <code>MessageFault_E</code> values see <a href="09-errors-troubleshooting.html">Chapter 9</a></td></tr>
+    <tr><td><code>uuid</code> (51)</td><td><code>bytes</code> ≤ 16</td><td>An <strong>unpredictable</strong> value that uniquely identifies the command. Must be random because it is used to prevent replay of handshake responses</td><td>-</td></tr>
+    <tr><td><code>request_uuid</code> (50)</td><td><code>bytes</code></td><td>-</td><td>A copy of the request <code>uuid</code>. VCSEC usually does not populate it due to memory constraints</td></tr>
+    <tr><td><code>flags</code> (52)</td><td><code>uint32</code> bitmask</td><td><code>Flags</code> enum bits. Always setting <code>1 &lt;&lt; FLAG_ENCRYPT_RESPONSE</code> (= 2) is recommended. The vehicle authenticates them and ignores unknown bits</td><td>The response flags. Included in the response metadata</td></tr>
+  </tbody>
+</table>
+<p><code>Flags</code> enum: <code>FLAG_USER_COMMAND = 0</code>, <code>FLAG_ENCRYPT_RESPONSE = 1</code>. The SDK's <code>vehicle.DefaultFlags = 1 &lt;&lt; FLAG_ENCRYPT_RESPONSE</code>, and it can be changed through the <code>Vehicle.Flags</code> field.</p>
+
+<h2 id="sec-decode">Decoding messages with protoc</h2>
+<p>You can decode the hex printed in the <code>TX:</code> log of <code>tesla-control -ble -debug list-keys</code> from the <code>pkg/protocol</code> directory as follows.</p>
+<pre><code class="language-bash">echo 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805 \
+    | xxd -r -p \
+    | protoc --decode=UniversalMessage.RoutableMessage -I protobuf protobuf/*.proto</code></pre>
+<pre><code>to_destination {
+  domain: DOMAIN_VEHICLE_SECURITY
+}
+from_destination {
+  routing_address: "\nyb\301\r8\266\035\322\247r\'\200\244\360\226"
+}
+protobuf_message_as_bytes: "\n\002\010\005"
+uuid: "\005QOWak\314\201\250\316\017\235{H2)"</code></pre>
+<p>Because the message is addressed to VCSEC, <code>protobuf_message_as_bytes</code> is a <code>VCSEC.UnsignedMessage</code>.</p>
+<pre><code class="language-bash">printf "\n\002\010\005" | protoc --decode=VCSEC.UnsignedMessage -I protobuf protobuf/*.proto
+# InformationRequest {
+#   informationRequestType: INFORMATION_REQUEST_TYPE_GET_WHITELIST_INFO
+# }</code></pre>
+<p>Conversely, you can build payloads with <code>protoc --encode</code> (see the AES-GCM example below). You can also generate bindings for other languages from the <code>*.proto</code> files.</p>
+
+<h2 id="sec-concepts">Protocol concepts: domains, time, roles</h2>
+<h3>Domains</h3>
+<p>Vehicle subsystems have different public keys, so <strong>handshakes and session state are managed separately per domain</strong>. VCSEC (<code>DOMAIN_VEHICLE_SECURITY = 2</code>) handles locking, remote start, the trunk and the keychain, while Infotainment (<code>DOMAIN_INFOTAINMENT = 3</code>) handles everything else. VCSEC is reachable over BLE even while Infotainment is asleep.</p>
+<h3>Time</h3>
+<p>Each domain has its own clock and represents time as an <code>(epoch_id, timestamp)</code> pair. <code>epoch_id</code> is a random 16-byte value generated at boot, and <code>timestamp</code> is an integer number of seconds since the epoch began. The client tracks the difference between the domain clock and its local clock to compute command expiration times (<code>expires_at</code>). The SDK sets <code>timeZero</code> from <code>SessionInfo.clock_time</code> and the time of receipt, and does not use session info for clock correction if it arrives more than <code>AllowedLatency</code> (4 seconds for BLE, 10 seconds for the internet) after the request.</p>
+<h3>Roles</h3>
+<p>Each public key has a role (Owner, Driver, Fleet Manager, Vehicle Monitor, Charging Manager, Guest, Service); see the <a href="01-overview.html#sec-role">role table in Chapter 1</a>. Per-role permissions can change with firmware updates.</p>
+
+<h2 id="sec-tlv">Metadata serialization (TLV)</h2>
+<p>Authentication must bind a message to metadata such as the VIN, so a canonical serialization of the metadata that can be used as hash input is required. Each item is encoded as <strong>tag(1B) || length(1B) || value</strong>, and tag values are defined in <code>Signatures.Tag</code>.</p>
+<table>
+  <thead><tr><th>Tag</th><th>Value</th><th>Contents</th></tr></thead>
+  <tbody>
+    <tr><td><code>TAG_SIGNATURE_TYPE</code></td><td>0</td><td><code>SignatureType</code>, 1 byte</td></tr>
+    <tr><td><code>TAG_DOMAIN</code></td><td>1</td><td><code>Domain</code>, 1 byte</td></tr>
+    <tr><td><code>TAG_PERSONALIZATION</code></td><td>2</td><td>VIN (17 ASCII characters)</td></tr>
+    <tr><td><code>TAG_EPOCH</code></td><td>3</td><td>16-byte epoch_id</td></tr>
+    <tr><td><code>TAG_EXPIRES_AT</code></td><td>4</td><td>uint32 big-endian</td></tr>
+    <tr><td><code>TAG_COUNTER</code></td><td>5</td><td>uint32 big-endian</td></tr>
+    <tr><td><code>TAG_CHALLENGE</code></td><td>6</td><td>16 bytes (handshake request uuid)</td></tr>
+    <tr><td><code>TAG_FLAGS</code></td><td>7</td><td>uint32 big-endian</td></tr>
+    <tr><td><code>TAG_REQUEST_HASH</code></td><td>8</td><td>Request hash for response decryption</td></tr>
+    <tr><td><code>TAG_FAULT</code></td><td>9</td><td>uint32 big-endian <code>MessageFault_E</code></td></tr>
+    <tr><td><code>TAG_END</code></td><td>255</td><td>Terminator <code>0xFF</code></td></tr>
+  </tbody>
+</table>
+<pre><code>TLV(VIN: "abc")   = TAG_PERSONALIZATION || LEN("abc") || "abc"
+                  = 0x02 || 0x03 || 0x61 0x62 0x63
+                  = 0x0203616263
+
+TLV(COUNTER: 100) = TAG_COUNTER || LEN(uint32) || 0x00000064    (integers are 4-byte big-endian)
+                  = 0x05 || 0x04 || 0x00000064
+                  = 0x050400000064
+
+SERIALIZE({COUNTER: 100, VIN: "abc"})
+                  = TLV(VIN) || TLV(COUNTER) || 0xFF               (sorted by tag ascending, concatenated, 0xFF appended)
+                  = 0x0203616263050400000064FF</code></pre>
+<p>In the Go implementation (<code>internal/authentication/metadata.go</code>), items must be added in ascending tag order (<code>errOutOfOrderMetadata</code>), value length must be 255 bytes or less (<code>ErrMetadataFieldTooLong</code>), and nil values are skipped. <code>Checksum(message)</code> appends <code>0xFF</code> and then hashes the message bytes after it.</p>
+
+<h2 id="sec-notation">Notation and test keys</h2>
+<dl class="kv">
+  <dt><code>c</code>, <code>C = (Cx, Cy)</code></dt><dd>Client private key and public key (a point on NIST P-256)</dd>
+  <dt><code>v</code>, <code>V = (Vx, Vy)</code></dt><dd>Vehicle (domain) private key and public key</dd>
+  <dt><code>s[:n]</code></dt><dd>The first n bytes of string s</dd>
+  <dt><code>BIG_ENDIAN(m, n)</code></dt><dd>n-byte big-endian encoding of m (0x00 padded)</dd>
+  <dt><code>K</code></dt><dd>128-bit AES-GCM key shared by the client and the vehicle</dd>
+  <dt><code>ENCODE_PUBLIC(P)</code></dt><dd><code>0x04 || BIG_ENDIAN(x, 32) || BIG_ENDIAN(y, 32)</code>. Uncompressed curve point encoding, 65 bytes</dd>
+</dl>
+<div class="callout danger">
+  <strong>Use the test keys only to verify test vectors</strong>
+  <p>The private keys below are public. If you enroll these public keys on a real vehicle, anyone can access that vehicle.</p>
+</div>
+<h3>Vehicle key</h3>
+<pre><code>vehicle.key (EC PRIVATE KEY PEM):
+MHcCAQEEIDRO5bRmp88e6xK29QMx2y5exYNO9fS+/P2MvlXCUo1woAoGCCqGSM49
+AwEHoUQDQgAEx6H0cThIaqRymXFJSHjTOxok45Vx90im4WxZVbPYd9OmqqDpVRZk
+dK9dMsQQ9DmiI0E3rRuwhf1OiBPJWPEdlw==
+
+v  = 0x344EE5B466A7CF1EEB12B6F50331DB2E5EC5834EF5F4BEFCFD8CBE55C2528D70
+Vx = 0xC7A1F47138486AA4729971494878D33B1A24E39571F748A6E16C5955B3D877D3
+Vy = 0xA6AAA0E955166474AF5D32C410F439A2234137AD1BB085FD4E8813C958F11D97
+HEX(ENCODE_PUBLIC(V)) = 04c7a1f47138486aa4729971494878d33b1a24e39571f748a6e16c5955b3d877d3a6aaa0e955166474af5d32c410f439a2234137ad1bb085fd4e8813c958f11d97</code></pre>
+<h3>Client key</h3>
+<pre><code>client.key (EC PRIVATE KEY PEM):
+MHcCAQEEICU4zcKal8GcHpmmN9bPT4yXDBGLVu3h5jI+bRYsSzDboAoGCCqGSM49
+AwEHoUQDQgAEsra8aMLaBmXOZWgVWUmWxiOU7di+qQX+eBp1T+aoRacUMwkC8iXp
+Jp1GbgWzSZgf2p2FzCPG+0RKpztikQXcbg==
+
+c  = 0x2538CDC29A97C19C1E99A637D6CF4F8C970C118B56EDE1E6323E6D162C4B30DB
+Cx = 0xB2B6BC68C2DA0665CE656815594996C62394EDD8BEA905FE781A754FE6A845A7
+Cy = 0x14330902F225E9269D466E05B349981FDA9D85CC23C6FB444AA73B629105DC6E
+HEX(ENCODE_PUBLIC(C)) = 04b2b6bc68c2da0665ce656815594996c62394edd8bea905fe781a754fe6a845a714330902f225e9269d466e05b349981fda9d85cc23c6fb444aa73b629105dc6e</code></pre>
+<p>The full PEM files (including the public keys <code>vehicle.pem</code> and <code>client.pem</code>) are in the "Test keys" section of <code>protocol.md</code>.</p>
+
+<h2 id="sec-handshake">Handshake</h2>
+<p>This assumes the client public key <code>C</code> is already enrolled on the vehicle. Key enrollment (bootstrapping) is done with an existing key or an NFC card, and the Tesla Service key is the root of trust (<a href="02-getting-started.html#sec-pair">Chapter 2, pairing</a>).</p>
+<h3>Request</h3>
+<p>Send a <code>RoutableMessage</code> with <code>session_info_request.public_key = ENCODE_PUBLIC(C)</code> to the domain you will send commands to.</p>
+<pre><code>to_destination { domain: DOMAIN_INFOTAINMENT }
+from_destination { routing_address: 2c907bd76c640d360b3027dc7404efde }
+session_info_request {
+  public_key: 04b2b6bc68c2da0665ce656815594996c62394edd8bea905fe781a754fe6a845a714330902f225e9269d466e05b349981fda9d85cc23c6fb444aa73b629105dc6e
+}
+uuid: 1588d5a30eabc6f8fc9a951b11f6fd11</code></pre>
+<h3>Response</h3>
+<p>The vehicle responds with <code>session_info</code> populated. Parse it as <code>Signatures.SessionInfo</code>. <code>signature_data.session_info_tag</code> is used to verify the integrity (not the authenticity) of the response.</p>
+<pre><code>to_destination { routing_address: 2c907bd76c640d360b3027dc7404efde }
+from_destination { domain: DOMAIN_INFOTAINMENT }
+signature_data {
+  session_info_tag {
+    tag: 996c1fe38331be138f8039c194b14db2198846ed7d8251e6749284d7b32ea002
+  }
+}
+session_info: 0806124104c7a1f471...(omitted)...1a104c463f9cc0d3d26906e982ed224adde6255a0a0000
+request_uuid: 1588d5a30eabc6f8fc9a951b11f6fd11</code></pre>
+<pre><code>SessionInfo {
+  counter: 6
+  publicKey: 04c7a1f47138486aa4729971494878d33b1a24e39571f748a6e16c5955b3d877d3a6aaa0e955166474af5d32c410f439a2234137ad1bb085fd4e8813c958f11d97
+  epoch: 4c463f9cc0d3d26906e982ed224adde6
+  clock_time: 2650
+  status: SESSION_INFO_STATUS_OK      // KEY_NOT_ON_WHITELIST(1) means protocol.ErrKeyNotPaired
+}</code></pre>
+<h3>Key agreement (ECDH)</h3>
+<pre><code>S = (Sx, Sy) = ECDH(c, V) = ECDH(v, C)
+K = SHA1(BIG_ENDIAN(Sx, 32))[:16]</code></pre>
+<pre><code class="language-bash"># Compute K from client.key and vehicle.pem
+export K=$(openssl pkeyutl -derive -inkey client.key -peerkey vehicle.pem \
+    | openssl dgst -sha1 -binary | head -c 16 | xxd -p)
+echo $K
+# 1b2fce19967b79db696f909cff89ea9a</code></pre>
+<div class="callout warn">
+  <strong>Do not implement it yourself</strong>
+  <p>Use vetted libraries such as OpenSSL or Go <code>crypto</code> for ECDH and AES-GCM. The protocol always uses the binary value of <code>K</code>; the hex above is for display only.</p>
+</div>
+<h3>Response authentication (verifying session_info_tag)</h3>
+<p>The client must authenticate the session info response so that a MITM attacker cannot obtain commands with a longer expiration time. If the attacker changes the public key, the vehicle rejects the commands; if the attacker keeps the public key and changes anything else, the client rejects the response during tag verification.</p>
+<ol class="steps">
+  <li><strong>Derive the session info authentication key.</strong> <code>SESSION_INFO_KEY = HMAC-SHA256(K, "session info")</code>. The string is an ASCII literal.
+<pre><code class="language-bash">export SESSION_INFO_KEY=$(echo -n "session info" | openssl dgst -sha256 -mac hmac -macopt hexkey:"$K")
+# fceb679ee7bca756fcd441bf238bf2f338629b41d9eb9c67be1b32c9672ce300</code></pre></li>
+  <li><strong>Serialize the metadata.</strong> <code>TAG_SIGNATURE_TYPE = SIGNATURE_TYPE_HMAC(6)</code>, <code>TAG_PERSONALIZATION = VIN</code>, <code>TAG_CHALLENGE = request uuid</code>.
+<pre><code>VIN = 5YJ30123456789ABC
+METADATA = 00 01 06
+        || 02 11 35594a3330313233343536373839414243
+        || 06 10 1588d5a30eabc6f8fc9a951b11f6fd11
+        || ff
+       = 000106021135594a333031323334353637383941424306101588d5a30eabc6f8fc9a951b11f6fd11ff</code></pre></li>
+  <li><strong>Compute the tag.</strong> <code>HMAC-SHA256(SESSION_INFO_KEY, METADATA || session_info)</code>
+<pre><code class="language-bash">echo "$METADATA$SESSION_INFO" | xxd -r -p | openssl dgst -sha256 -mac hmac -macopt hexkey:"$SESSION_INFO_KEY"
+# 996c1fe38331be138f8039c194b14db2198846ed7d8251e6749284d7b32ea002</code></pre></li>
+  <li><strong>Compare.</strong> Compare it with the response's <code>signature_data.session_info_tag.tag</code> using a <strong>constant-time comparison</strong> (Go: <code>hmac.Equal</code>). Discard the response if they do not match.</li>
+</ol>
+<p>In Go, <code>internal/authentication.NewAuthenticatedSigner</code> performs this verification and <code>NativeSession.SessionInfoHMAC</code> computes the tag. Before tag verification, the SDK discards session info whose <code>uuid</code> does not belong to a recent request or that arrived after <code>AllowedLatency</code>.</p>
+
+<h2 id="sec-authz">Command authorization</h2>
+<p>After the handshake, the client has the domain clock (epoch, timestamp), an anti-replay counter and the shared key <code>K</code>. It builds the command protobuf <code>P</code> (<code>VCSEC.UnsignedMessage</code> or <code>CarServer.Action</code>) and then serializes the metadata <code>M</code> below.</p>
+<table>
+  <thead><tr><th>Value</th><th>Tag</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>Signature type</td><td><code>TAG_SIGNATURE_TYPE</code></td><td><code>SIGNATURE_TYPE_HMAC_PERSONALIZED</code> (8) or <code>SIGNATURE_TYPE_AES_GCM_PERSONALIZED</code> (5)</td></tr>
+    <tr><td>Domain</td><td><code>TAG_DOMAIN</code></td><td><code>DOMAIN_VEHICLE_SECURITY</code> (2) or <code>DOMAIN_INFOTAINMENT</code> (3)</td></tr>
+    <tr><td>VIN</td><td><code>TAG_PERSONALIZATION</code></td><td>17-character VIN</td></tr>
+    <tr><td>Epoch</td><td><code>TAG_EPOCH</code></td><td>Copied from <code>session_info.epoch</code></td></tr>
+    <tr><td>Expiration time</td><td><code>TAG_EXPIRES_AT</code></td><td>Seconds on the domain clock. The SDK sets it to the ctx deadline (5 seconds if there is none)</td></tr>
+    <tr><td>Counter</td><td><code>TAG_COUNTER</code></td><td>Monotonically increasing. Starts at <code>session_info.counter</code>, +1 per command</td></tr>
+    <tr><td>Flags</td><td><code>TAG_FLAGS</code></td><td>Request flags. <strong>Included only when nonzero</strong></td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>The counter must increase with every command within the same epoch. Infotainment keeps a sliding window that tolerates out-of-order arrival, but <strong>VCSEC requires commands to arrive in counter order</strong>.</li>
+  <li>An expiration time too far in the future is rejected with <code>MESSAGEFAULT_ERROR_TIME_TO_LIVE_TOO_LONG</code>.</li>
+</ul>
+<h3>Two authentication methods</h3>
+<table>
+  <thead><tr><th></th><th>HMAC-SHA256</th><th>AES-GCM</th></tr></thead>
+  <tbody>
+    <tr><td>Payload</td><td>Plaintext</td><td>Ciphertext</td></tr>
+    <tr><td>Used by</td><td>Fleet API (so the server can reject commands based on OAuth scopes and filter out discarded VCSEC messages)</td><td>BLE (Fleet API cannot check scopes, so it blocks GCM commands)</td></tr>
+    <tr><td>Go</td><td><code>Signer.AuthorizeHMAC</code>, <code>connector.AuthMethodHMAC</code></td><td><code>Signer.Encrypt</code>, <code>connector.AuthMethodGCM</code></td></tr>
+    <tr><td>SignatureData field</td><td><code>HMAC_Personalized_data</code> (8)</td><td><code>AES_GCM_Personalized_data</code> (5)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sec-hmac">HMAC-SHA256 authentication</h2>
+<ol>
+  <li>Derive the key: <code>K' = HMAC-SHA256(K, "authenticated command")</code>.</li>
+  <li>Build a <code>RoutableMessage</code> with <code>payload.protobuf_message_as_bytes = P</code>.</li>
+  <li><code>signature_data.signer_identity.public_key = ENCODE_PUBLIC(C)</code>.</li>
+  <li><code>tag = HMAC-SHA256(K', M || P)</code>.</li>
+  <li>Populate <code>signature_data.HMAC_Personalized_data</code> with <code>epoch</code>, <code>counter</code>, <code>expires_at</code> and <code>tag</code>.</li>
+</ol>
+<pre><code>message HMAC_Personalized_Signature_Data {
+    bytes   epoch       = 1;
+    uint32  counter     = 2;
+    fixed32 expires_at  = 3;
+    bytes   tag         = 4;
+}</code></pre>
+
+<h2 id="sec-gcm">AES-GCM encryption</h2>
+<ol>
+  <li>Use the 128-bit key <code>K</code> directly as the AES-GCM key.</li>
+  <li>A random <strong>12-byte nonce</strong> (IV). Any other length yields <code>MESSAGEFAULT_ERROR_IV_INCORRECT_LENGTH</code>.</li>
+  <li>AAD (Associated Authenticated Data) = <code>SHA256(M)</code>.</li>
+  <li>Encrypt <code>P</code> to obtain the ciphertext <code>x</code> and a 16-byte <code>tag</code>.</li>
+  <li><code>payload.protobuf_message_as_bytes = x</code>, <code>signer_identity.public_key = ENCODE_PUBLIC(C)</code>.</li>
+  <li>Populate <code>signature_data.AES_GCM_Personalized_data</code> with <code>epoch</code>, <code>nonce</code>, <code>counter</code>, <code>expires_at</code> and <code>tag</code>. The epoch may be omitted, but including it gets you a more specific error on a mismatch.</li>
+</ol>
+<h3>Full example: "Turn on HVAC"</h3>
+<p><code>VIN = 5YJ30123456789ABC</code>, <code>K = 1b2fce19967b79db696f909cff89ea9a</code>, <code>FLAG_ENCRYPT_RESPONSE</code> set (flags = 2).</p>
+<pre><code class="language-bash"># 1) Command protobuf P
+echo 'vehicleAction {
+  hvacAutoAction {
+    power_on: true
+  }
+}' | protoc --encode=CarServer.Action -I protobuf protobuf/*.proto | xxd -p
+# 120452020801</code></pre>
+<table>
+  <thead><tr><th>Tag</th><th>Value</th><th>Encoding (hex)</th></tr></thead>
+  <tbody>
+    <tr><td><code>TAG_SIGNATURE_TYPE</code></td><td><code>SIGNATURE_TYPE_AES_GCM_PERSONALIZED = 0x05</code></td><td><code>00 01 05</code></td></tr>
+    <tr><td><code>TAG_DOMAIN</code></td><td><code>DOMAIN_INFOTAINMENT = 0x03</code></td><td><code>01 01 03</code></td></tr>
+    <tr><td><code>TAG_PERSONALIZATION</code></td><td><code>5YJ30123456789ABC</code></td><td><code>02 11 35594a3330313233343536373839414243</code></td></tr>
+    <tr><td><code>TAG_EPOCH</code></td><td><code>session_info.epoch</code></td><td><code>03 10 4c463f9cc0d3d26906e982ed224adde6</code></td></tr>
+    <tr><td><code>TAG_EXPIRES_AT</code></td><td>t = 2655</td><td><code>04 04 00000a5f</code></td></tr>
+    <tr><td><code>TAG_COUNTER</code></td><td>7</td><td><code>05 04 00000007</code></td></tr>
+    <tr><td><code>TAG_FLAGS</code></td><td><code>1 &lt;&lt; FLAG_ENCRYPT_RESPONSE = 0x02</code></td><td><code>07 04 00000002</code></td></tr>
+  </tbody>
+</table>
+<pre><code># 2) M = the items above concatenated + ff
+000105010103021135594a333031323334353637383941424303104c463f9cc0d3d26906e982ed224adde6040400000a5f050400000007070400000002ff</code></pre>
+<pre><code class="language-python"># 3) AES-GCM (Python cryptography)
+import os
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives import hashes
+
+plaintext = bytes.fromhex("120452020801")
+metadata = bytes.fromhex("000105010103021135594a333031323334353637383941424303104c463f9cc0d3d26906e982ed224adde6040400000a5f050400000007070400000002ff")
+aad = hashes.Hash(hashes.SHA256()); aad.update(metadata)
+key = bytes.fromhex("1b2fce19967b79db696f909cff89ea9a")
+nonce = os.urandom(12)
+ct = AESGCM(key).encrypt(nonce, plaintext, aad.finalize())
+print(f"Nonce: {nonce.hex()}, Ciphertext: {ct[:-16].hex()}, Tag: {ct[-16:].hex()}")
+# Nonce: dbf79447fa156674dae1caed, Ciphertext: 38038e8c0f2e, Tag: c228e0ff64991481db3a7bbc133696c5  (varies with each nonce)</code></pre>
+<pre><code># 4) Completed RoutableMessage
+to_destination { domain: DOMAIN_INFOTAINMENT }
+from_destination { routing_address: 2c907bd76c640d360b3027dc7404efde }
+protobuf_message_as_bytes: 38038e8c0f2e
+signature_data {
+  signer_identity {
+    public_key: 04b2b6bc68c2da0665ce656815594996c62394edd8bea905fe781a754fe6a845a714330902f225e9269d466e05b349981fda9d85cc23c6fb444aa73b629105dc6e
+  }
+  AES_GCM_Personalized_data {
+    epoch: 4c463f9cc0d3d26906e982ed224adde6
+    nonce: dbf79447fa156674dae1caed
+    counter: 7
+    expires_at: 2655
+    tag: c228e0ff64991481db3a7bbc133696c5
+  }
+}
+flags: 2
+uuid: 58406580528b6a5301391800b4fe9b99</code></pre>
+<div class="callout">
+  <strong>FLAG_ENCRYPT_RESPONSE</strong>
+  <p>When this bit is set, firmware 2024.38 and later encrypts the response payload. Older firmware ignores the flag, so always set it without needing to check the firmware version. The flag is included in the metadata and authenticated, so an attacker cannot clear it.</p>
+</div>
+
+<h2 id="sec-cache">Session cache and desync recovery</h2>
+<h3>Session cache</h3>
+<p>Clients that do not run continuously should store session state and the local/vehicle clock offset on disk. A cache reduces the latency of the first command and also reduces the number of Fleet API calls. Even if the cache is stale, the recovery procedure below costs the same as a single handshake, so <strong>trusting the cache optimistically has no downside</strong>. SDK: <code>pkg/cache.SessionCache</code>, <code>Vehicle.UpdateCachedSessions</code>/<code>LoadCachedSessions</code>, and <code>TESLA_CACHE_FILE</code> in the CLI.</p>
+<h3>Desync recovery</h3>
+<p>When an authentication error may be caused by a synchronization problem (for example, the epoch changed because Infotainment rebooted), the vehicle attaches up-to-date session info to the error message. The client <strong>MUST discard the session info</strong> if any of the following is true.</p>
+<ul>
+  <li>It has not sent a request with that <code>request_uuid</code> in the last few seconds.</li>
+  <li>The session info HMAC tag is incorrect.</li>
+  <li>Its <code>clock_time</code> is earlier than that of previously authenticated session info in the same epoch.</li>
+</ul>
+<p>If all of these are false, the client <strong>MUST update its session state</strong>. When updating, it <strong>MUST NOT roll back the anti-replay counter unless the epoch has changed</strong>. This rule exists less as a security requirement (rejecting replays is the vehicle's responsibility) than to tolerate unreliable connections and out-of-order delivery. Go: <code>Dispatcher.checkForSessionUpdate</code> → <code>session.processHello</code> → <code>Signer.UpdateSignedSessionInfo</code>. After updating the session, the dispatcher still forwards the error response to the receiver, and <code>Vehicle.Send</code> resends with the updated session if the error is one for which <code>ShouldRetry</code> holds (<code>INVALID_SIGNATURE</code>, <code>INVALID_TOKEN_OR_COUNTER</code>, <code>INCORRECT_EPOCH</code>, <code>TIME_EXPIRED</code>, etc.).</p>
+
+<h2 id="sec-response">Response handling</h2>
+<div class="callout warn">
+  <strong>No response does not mean it did not execute</strong>
+  <p>If you sent a command but received no response, the vehicle may already have received and executed it. This is especially common on unreliable networks. In such cases the SDK returns an error for which <code>protocol.MayHaveSucceeded(err) == true</code>, and does not retry automatically.</p>
+</div>
+<h3>Protocol-layer errors</h3>
+<p>Responses are also <code>RoutableMessage</code>s. When there is a protocol-layer error, <code>signedMessageStatus.signed_message_fault</code> is set. The codes and how to handle them are in the <code>MessageFault_E</code> comments in <code>universal_message.proto</code> and in <a href="09-errors-troubleshooting.html#sec-fault">Chapter 9</a>. Go's <code>protocol.GetError</code> converts this into a <code>*RoutableMessageError</code> (or <code>ErrKeyNotPaired</code> for <code>UNKNOWN_KEY_ID</code>), and also maps <code>session_info.status == KEY_NOT_ON_WHITELIST</code> to <code>ErrKeyNotPaired</code> and <code>operation_status == WAIT</code> to <code>ErrBusy</code>.</p>
+
+<h2 id="sec-decrypt">Response decryption</h2>
+<p>If the response contains <code>signature_data.AES_GCM_Response_data</code>, <code>protobuf_message_as_bytes</code> is ciphertext; otherwise it is plaintext.</p>
+<pre><code>message AES_GCM_Response_Signature_Data {
+    bytes  nonce   = 1;
+    uint32 counter = 2;
+    bytes  tag     = 3;
+}</code></pre>
+<h3>Request hash</h3>
+<p>The client must compute and keep a "request hash" for each request it sends. It is <strong>1 byte for the authentication method || the request's authentication tag</strong>.</p>
+<ul>
+  <li>AES-GCM requests: <code>0x05 || AES_GCM_Personalized_data.tag</code> (16-byte tag → 17 bytes total)</li>
+  <li>HMAC requests: <code>0x08 || HMAC_Personalized_data.tag</code> (32-byte tag → 33 bytes total)</li>
+  <li><strong>Requests sent to VCSEC are truncated to 17 bytes</strong>: 1 method byte + the first 16 bytes of the MAC. AES-GCM tags are 16 bytes to begin with, so this affects only HMAC requests</li>
+</ul>
+<p>Go: <code>internal/authentication.RequestID(message)</code>. The dispatcher stores it on the receiver as <code>requestID</code> during <code>Send</code>.</p>
+<h3>Counter verification</h3>
+<p>The client must verify that the response's <code>counter</code> <strong>has not already been used by a previous response to the same request</strong>. A single request can trigger multiple responses, and they can arrive out of order. Omitting this check leaves the client vulnerable to replay attacks. Go: each receiver has an <code>authentication.SlidingWindow</code>, and in <code>session.decrypt</code> the response is discarded with <code>ErrReplayedResponse</code> if <code>antireplay.Update(counter)</code> returns false (<code>internal/authentication/window.go</code>).</p>
+<h3>Response metadata</h3>
+<p>Decrypt with AES-GCM using key <code>K</code>, the response's nonce and tag, and the serialization of the metadata below as AAD. Unlike requests, <strong>flags are always included, even when 0</strong>, and the fault is encoded as a 32-bit big-endian value.</p>
+<table>
+  <thead><tr><th>Value</th><th>Tag</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td>Signature type</td><td><code>TAG_SIGNATURE_TYPE</code></td><td><code>SIGNATURE_TYPE_AES_GCM_RESPONSE</code> (9)</td></tr>
+    <tr><td>Domain</td><td><code>TAG_DOMAIN</code></td><td>The response's <code>from_destination.domain</code></td></tr>
+    <tr><td>VIN</td><td><code>TAG_PERSONALIZATION</code></td><td>17-character VIN</td></tr>
+    <tr><td>Counter</td><td><code>TAG_COUNTER</code></td><td><code>AES_GCM_Response_data.counter</code></td></tr>
+    <tr><td>Flags</td><td><code>TAG_FLAGS</code></td><td>The response's flags (not the request flags). Always included</td></tr>
+    <tr><td>Request hash</td><td><code>TAG_REQUEST_HASH</code></td><td>The request hash computed above</td></tr>
+    <tr><td>Fault</td><td><code>TAG_FAULT</code></td><td>The response's <code>signed_message_fault</code>, uint32 big-endian</td></tr>
+  </tbody>
+</table>
+<p>Go: <code>Peer.responseMetadata</code> → <code>Signer.Decrypt</code> replaces the payload with the plaintext and sets <code>SubSigData</code> to nil. Without a session it returns <code>ErrNoDecryptionContext</code>.</p>
+
+<h2 id="sec-app">Application-layer responses</h2>
+<h3>Infotainment</h3>
+<p>Parse <code>protobuf_message_as_bytes</code> as <code>CarServer.Response</code>. The status code is <code>Response.actionStatus.result</code>; if it is <code>OPERATIONSTATUS_ERROR</code>, the reason is in <code>result_reason.plain_text</code>. Go: <code>Vehicle.getCarServerResponse</code> converts it to <code>NominalError{"car could not execute command: &lt;reason&gt;"}</code>. The result of a state query is <code>Response.vehicleData</code>.</p>
+<h3>VCSEC</h3>
+<p>Parse it as <code>VCSEC.FromVCSECMessage</code>. VCSEC sends <strong>up to three responses</strong> per request. Fleet API clients receive only the final response, but BLE clients must determine for themselves which response is final.</p>
+<table>
+  <thead><tr><th>Situation</th><th>Rule</th><th>Go implementation</th></tr></thead>
+  <tbody>
+    <tr><td>Key pairing request with an NFC card</td><td><code>commandStatus.operationStatus = OPERATIONSTATUS_WAIT</code> means it is waiting for the card tap</td><td>-</td></tr>
+    <tr><td><code>OPERATIONSTATUS_WAIT</code> for any other request</td><td>VCSEC is busy processing another request. Retry shortly</td><td><code>protocol.ErrBusy</code> (Temporary) → <code>getVCSECResult</code> resends after <code>RetryInterval</code></td></tr>
+    <tr><td><code>OPERATIONSTATUS_ERROR</code></td><td>For legacy clients. Ignore it and wait for the specific error code in the next message</td><td><code>KeychainError</code> if <code>whitelistOperationInformation != NONE</code>; <code>ErrUnknown</code> if there is no <code>signedMessageStatus</code></td></tr>
+    <tr><td>Whitelist operations (add/remove key)</td><td>The message with <code>commandStatus.whitelistOperationStatus</code> populated is the final one. Discard empty messages</td><td><code>isWhitelistOperationComplete</code>: success if information is NONE, otherwise <code>KeychainError{Code}</code></td></tr>
+    <tr><td>Other operations (lock, trunk, etc.)</td><td>Empty message (no <code>commandStatus</code>) = success, <code>nominalError</code> = failure</td><td>done in <code>executeRKEAction</code>/<code>executeClosureAction</code>: <code>GetCommandStatus() == nil</code>; <code>nominalError</code> becomes <code>NominalVCSECError</code></td></tr>
+    <tr><td>Information requests (status, key list)</td><td>The first response is the result</td><td>done in <code>getVCSECInfo</code> is always true</td></tr>
+  </tbody>
+</table>
+<pre><code>enum GenericError_E {            // Errors.NominalError.genericError
+    GENERICERROR_NONE = 0;
+    GENERICERROR_UNKNOWN = 1;
+    GENERICERROR_CLOSURES_OPEN = 2;
+    GENERICERROR_ALREADY_ON = 3;
+    GENERICERROR_DISABLED_FOR_USER_COMMAND = 4;
+    GENERICERROR_VEHICLE_NOT_IN_PARK = 5;
+    GENERICERROR_UNAUTHORIZED = 6;
+    GENERICERROR_NOT_ALLOWED_OVER_TRANSPORT = 7;
+}</code></pre>
+
+<h2 id="sec-impl">Go implementation locations</h2>
+<table>
+  <thead><tr><th>Spec item</th><th>File</th><th>Key symbols</th></tr></thead>
+  <tbody>
+    <tr><td>ECDH, K derivation, subkey KDF, AES-GCM primitives</td><td><code>internal/authentication/native.go</code>, <code>ecdh.go</code></td><td><code>NativeECDHKey.Exchange</code>, <code>NativeSession.subkey/NewHMAC/Encrypt/Decrypt/SessionInfoHMAC</code>, <code>ECDHPrivateKey</code> interface</td></tr>
+    <tr><td>Metadata TLV</td><td><code>internal/authentication/metadata.go</code></td><td><code>metadata.Add/AddUint32/Checksum</code>, <code>ErrMetadataFieldTooLong</code></td></tr>
+    <tr><td>Request metadata extraction, request hash, response metadata</td><td><code>internal/authentication/peer.go</code></td><td><code>Peer.extractMetadata</code>, <code>RequestID</code>, <code>Peer.responseMetadata</code>, <code>Peer.hmacTag</code></td></tr>
+    <tr><td>Command authorization (HMAC/GCM), session info verification/update/caching, response decryption</td><td><code>internal/authentication/signer.go</code></td><td><code>NewAuthenticatedSigner</code>, <code>ImportSessionInfo</code>, <code>ExportSessionInfo</code>, <code>UpdateSignedSessionInfo</code>, <code>Encrypt</code>, <code>AuthorizeHMAC</code>, <code>Decrypt</code></td></tr>
+    <tr><td>Vehicle-side verification (for testing/reference)</td><td><code>internal/authentication/verifier.go</code></td><td><code>Verifier.Verify</code>, <code>SignedSessionInfo</code>, <code>Encrypt</code> (response encryption)</td></tr>
+    <tr><td>Response counter sliding window</td><td><code>internal/authentication/window.go</code></td><td><code>SlidingWindow.Update</code></td></tr>
+    <tr><td>Per-domain session state, waiting for authorization, calling response decryption</td><td><code>internal/dispatcher/session.go</code></td><td><code>session.processHello/authorize/decrypt/export</code>, <code>CacheEntry</code>, <code>defaultExpiration</code> (5s)</td></tr>
+    <tr><td>RoutableMessage assembly, uuid/routing_address, handshake, response routing, session updates</td><td><code>internal/dispatcher/dispatcher.go</code>, <code>receiver.go</code></td><td><code>Dispatcher.Send/StartSessions/process/checkForSessionUpdate</code>, <code>SessionInfoRequest</code>, <code>receiverKey</code></td></tr>
+    <tr><td>Error classification</td><td><code>pkg/protocol/error.go</code></td><td><code>GetError</code>, <code>RoutableMessageError</code>, <code>ShouldRetry</code>, <code>MayHaveSucceeded</code></td></tr>
+    <tr><td>Message definitions</td><td><code>pkg/protocol/protobuf/universal_message.proto</code>, <code>signatures.proto</code>, <code>vcsec.proto</code>, <code>car_server.proto</code>, <code>keys.proto</code>, <code>errors.proto</code></td><td>-</td></tr>
+    <tr><td>Specification tests</td><td><code>internal/authentication/protocol_doc_test.go</code>, <code>example_test.go</code></td><td>Verify the test vectors in the document</td></tr>
+  </tbody>
+</table>
+
+<footer class="page-nav">
+  <a href="03-ble-transport.html"><span>Previous</span>3. BLE Transport Layer</a>
+  <a class="next" href="05-go-sdk.html"><span>Next</span>5. Go SDK</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

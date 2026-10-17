@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1. System Overview · vehicle-command BLE Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE Developer Manual · based on v0.4.1</div>
+  <div class="lang-switch" aria-label="Language"><a href="../ko/01-overview.html" hreflang="ko" lang="ko">한국어</a><a class="active" href="../en/01-overview.html" hreflang="en" lang="en">English</a><a href="../ja/01-overview.html" hreflang="ja" lang="ja">日本語</a></div>
+  <ol>
+    <li><a href="index.html">Home</a></li>
+    <li class="group">Getting Started</li>
+    <li><a class="active" href="01-overview.html">1. System Overview</a></li>
+    <li><a href="02-getting-started.html">2. Getting Started</a></li>
+    <li class="group">Protocol</li>
+    <li><a href="03-ble-transport.html">3. BLE Transport Layer</a></li>
+    <li><a href="04-protocol.html">4. Protocol Specification</a></li>
+    <li class="group">Development</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI Tools</a></li>
+    <li><a href="07-command-reference.html">7. Command Reference</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP Proxy</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. Errors and Troubleshooting</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>1. System Overview</h1>
+<p class="lead">Explains what problem the Tesla Vehicle Command SDK solves, which components it consists of, and how a single command travels to the vehicle.</p>
+
+<div class="toc"><strong>On this page</strong><ol>
+<li><a href="#sec-why">Why a new protocol</a></li>
+<li><a href="#sec-auth">Two-stage authentication model</a></li>
+<li><a href="#sec-transport">Transport path comparison</a></li>
+<li><a href="#sec-domain">Domains: VCSEC and Infotainment</a></li>
+<li><a href="#sec-role">Key roles</a></li>
+<li><a href="#sec-repo">Repository layout</a></li>
+<li><a href="#sec-layers">Layered architecture</a></li>
+<li><a href="#sec-lifecycle">Lifecycle of a single command</a></li>
+<li><a href="#sec-deps">Dependencies and platform support</a></li>
+</ol></div>
+
+<h2 id="sec-why">Why a new protocol</h2>
+<p>Tesla vehicles support a protocol that provides <strong>end-to-end command authentication</strong>. Commands are authenticated (or encrypted) with the client's private key all the way to the vehicle, and the vehicle verifies commands only against public keys registered in its keychain. Not even Tesla's servers can forge a command.</p>
+<ul>
+  <li>The legacy <strong>Owner API</strong> stops working once vehicles start requiring end-to-end authentication. Applications built on the Owner API can be ported directly to this SDK, or can keep their REST calls unchanged by placing this repository's <a href="08-http-proxy.html">HTTP proxy</a> in front.</li>
+  <li><strong>Pre-2021 Model S/X</strong> vehicles do not support this protocol. The Fleet API continues to work for these vehicles; when the proxy receives <code>ErrProtocolNotSupported</code> (HTTP 422), it remembers that VIN and forwards subsequent requests to the REST API as-is.</li>
+  <li>This SDK is the official implementation, written in Go. Because the protocol specification (<code>pkg/protocol/protocol.md</code>) and protobuf definitions are public, it can also be implemented in other languages (see <code>../md/10-porting-guide.md</code>).</li>
+</ul>
+
+<h2 id="sec-auth">Two-stage authentication model</h2>
+<p>To send a command over the internet path, you must pass two mutually independent authentications. The BLE path requires only the second stage.</p>
+<ol class="steps">
+  <li><strong>Tesla server authentication (OAuth).</strong> Tesla's servers forward messages to the vehicle only when the client presents a valid <a href="https://developer.tesla.com/docs/fleet-api/authentication/third-party-tokens">OAuth access token</a>. The regional Fleet API host is determined from the token's <code>aud</code>/<code>ou_code</code> claims (<code>pkg/account</code>). This stage does not exist on BLE.</li>
+  <li><strong>Vehicle authentication (private key).</strong> The vehicle executes a command only when it is authenticated with a public key registered in its keychain. Keys are NIST P-256 ECDH keys, registered either by the user approving with an NFC card (BLE) or through a <code>https://tesla.com/_ak/&lt;domain&gt;</code> link in the Tesla app.</li>
+</ol>
+<div class="callout">
+  <strong>BLE does not require OAuth</strong>
+  <p>A direct BLE connection does not go through Tesla's servers, so you can send commands with only the VIN and a private key, without an OAuth token. However, the vehicle may reject some commands with <code>MESSAGEFAULT_ERROR_COMMAND_REQUIRES_ACCOUNT_CREDENTIALS</code>, and keys with the Fleet Manager role cannot send commands over BLE as of 2023.38.</p>
+</div>
+
+<h2 id="sec-transport">Transport path comparison</h2>
+<table>
+  <thead><tr><th>Path</th><th>Required credentials</th><th>Authentication method</th><th>Connector implementation</th><th>Characteristics</th></tr></thead>
+  <tbody>
+    <tr><td><strong>Direct BLE connection</strong></td><td>VIN, private key</td><td>AES-GCM (encryption + authentication)</td><td><code>pkg/connector/ble</code></td><td>Only possible near the vehicle. Can talk to VCSEC even while Infotainment is asleep. macOS/Linux only.</td></tr>
+    <tr><td><strong>Fleet API (internet)</strong></td><td>OAuth token, VIN, private key</td><td>HMAC-SHA256 (plaintext + authentication)</td><td><code>pkg/connector/inet</code></td><td>Sent via <code>POST api/1/vehicles/&lt;vin&gt;/signed_command</code>. Uses plaintext so the server can check OAuth scopes. Messages may be dropped or reordered.</td></tr>
+    <tr><td><strong>HTTP proxy</strong></td><td>Client: OAuth token / Proxy: private key</td><td>HMAC-SHA256 (signed by the proxy)</td><td><code>pkg/proxy</code> + <code>inet</code></td><td>Accepts Fleet API–style REST calls and converts them into end-to-end authenticated commands. Unsupported endpoints are forwarded to Tesla as-is.</td></tr>
+  </tbody>
+</table>
+<p>Inside the SDK, the same <code>vehicle.Vehicle</code> API is used regardless of the path. The <code>PreferredAuthMethod()</code> of the <code>connector.Connector</code> interface determines the authentication method.</p>
+
+<h2 id="sec-domain">Domains: VCSEC and Infotainment</h2>
+<p>A vehicle contains independent subsystems called <strong>domains</strong>. Each domain has its own public key, clock (epoch + timestamp), and anti-replay counter, so every domain requires <strong>its own handshake and session</strong>.</p>
+<table>
+  <thead><tr><th>Domain</th><th>protobuf value</th><th>Go constant</th><th>Commands handled</th><th>Payload type</th></tr></thead>
+  <tbody>
+    <tr><td><span class="badge vcsec">VCSEC</span> Vehicle Security Controller</td><td><code>DOMAIN_VEHICLE_SECURITY = 2</code></td><td><code>protocol.DomainVCSEC</code></td><td>Lock/unlock, remote start (<code>RemoteDrive</code>), wake-up, trunk/frunk/tonneau, adding/removing/listing keys, body state (<code>BodyControllerState</code>)</td><td><code>VCSEC.UnsignedMessage</code> / response <code>VCSEC.FromVCSECMessage</code></td></tr>
+    <tr><td><span class="badge info">INFOTAINMENT</span></td><td><code>DOMAIN_INFOTAINMENT = 3</code></td><td><code>protocol.DomainInfotainment</code></td><td>Everything else, including climate, charging, media, security settings (valet/Sentry/PIN), schedules, and state queries (<code>GetState</code>)</td><td><code>CarServer.Action</code> / response <code>CarServer.Response</code></td></tr>
+    <tr><td>BROADCAST</td><td><code>DOMAIN_BROADCAST = 0</code></td><td><code>protocol.DomainNone</code></td><td>Not used. <code>Dispatcher.Send</code> rejects this value</td><td>-</td></tr>
+  </tbody>
+</table>
+<div class="callout">
+  <strong>VCSEC does not sleep</strong>
+  <p>VCSEC responds over BLE even while Infotainment is in power-saving mode. VCSEC commands such as <code>body-controller-state</code>, <code>wake</code>, and <code>lock</code> can therefore run without waking the vehicle. Restricting the domains, as in <code>StartSession(ctx, []Domain{DomainVCSEC})</code>, avoids waking Infotainment unnecessarily. On the other hand, due to memory constraints VCSEC does not include <code>request_uuid</code> in responses, counters must arrive in order, and concurrent requests should be avoided.</p>
+</div>
+
+<h2 id="sec-role">Key roles</h2>
+<p>The vehicle assigns a role to each registered public key, and the commands it can authorize depend on that role. The values are defined in <code>pkg/protocol/protobuf/keys.proto</code>.</p>
+<table>
+  <thead><tr><th>Role</th><th>protobuf</th><th>CLI argument</th><th>Permissions</th></tr></thead>
+  <tbody>
+    <tr><td>Owner</td><td><code>ROLE_OWNER = 2</code></td><td><code>owner</code></td><td>All commands, including adding/removing other keys.</td></tr>
+    <tr><td>Driver</td><td><code>ROLE_DRIVER = 3</code></td><td><code>driver</code></td><td>Most commands. Cannot change access-control settings such as key management or PIN changes.</td></tr>
+    <tr><td>Fleet Manager</td><td><code>ROLE_FM = 4</code></td><td><code>fm</code></td><td>A cloud-based Owner key. As of 2023.38 it cannot add/remove other keys or send commands over BLE. Use the Fleet API for account-level management.</td></tr>
+    <tr><td>Vehicle Monitor</td><td><code>ROLE_VEHICLE_MONITOR = 5</code></td><td><code>vehicle_monitor</code></td><td>Can only read data such as location. Cannot issue state-changing commands.</td></tr>
+    <tr><td>Charging Manager</td><td><code>ROLE_CHARGING_MANAGER = 6</code></td><td><code>charging_manager</code></td><td>Reading data + charging-related commands.</td></tr>
+    <tr><td>Guest</td><td><code>ROLE_GUEST = 8</code></td><td>(not supported by CLI)</td><td>A temporary Driver key with an automatic lifecycle for rentals. See Guest Mode in the Fleet API.</td></tr>
+    <tr><td>Service</td><td><code>ROLE_SERVICE = 1</code></td><td>(cannot be added)</td><td>Bootstrapping the pairing of other keys, remote lock/unlock for roadside assistance, and remote removal of Driver/Guest/FM keys. By default it cannot authorize other commands over the internet.</td></tr>
+    <tr><td>None</td><td><code>ROLE_NONE = 0</code></td><td>-</td><td>Adding a key without a role yields the <code>WHITELISTOPERATION_INFORMATION_ATTEMPTING_TO_ADD_KEY_WITHOUT_ROLE</code> error.</td></tr>
+  </tbody>
+</table>
+<p>In addition to the role, keys carry <strong>form factor</strong> metadata (<code>vcsec.proto</code>): <code>KEY_FORM_FACTOR_NFC_CARD = 1</code>, <code>IOS_DEVICE = 6</code>, <code>ANDROID_DEVICE = 7</code>, <code>CLOUD_KEY = 9</code>, <code>UNKNOWN = 0</code>. It is shown as an icon in the Locks list on the vehicle's screen.</p>
+
+<h2 id="sec-repo">Repository layout</h2>
+<table>
+  <thead><tr><th>Path</th><th>Contents</th></tr></thead>
+  <tbody>
+    <tr><td><code>cmd/tesla-keygen/</code></td><td>Tool for creating/deleting/exporting private keys and migrating keyrings</td></tr>
+    <tr><td><code>cmd/tesla-control/</code></td><td>CLI that sends commands over BLE or the internet. The command table is in <code>commands.go</code></td></tr>
+    <tr><td><code>cmd/tesla-auth-token/</code></td><td>Stores OAuth tokens in the system keyring</td></tr>
+    <tr><td><code>cmd/tesla-jws/</code></td><td>JWS (Schnorr/P256) signing and verification for Fleet Telemetry configuration</td></tr>
+    <tr><td><code>cmd/tesla-http-proxy/</code></td><td>Proxy server for REST API → end-to-end authenticated commands (TLS required)</td></tr>
+    <tr><td><code>pkg/vehicle/</code></td><td>Core public API. The <code>Vehicle</code> type and all command methods (<code>actions.go</code>, <code>charge.go</code>, <code>climate.go</code>, <code>security.go</code>, <code>vcsec.go</code>, <code>infotainment.go</code>, <code>state.go</code>)</td></tr>
+    <tr><td><code>pkg/connector/</code></td><td>The <code>Connector</code> interface. Subdirectories <code>ble/</code> (BLE implementation) and <code>inet/</code> (Fleet API implementation)</td></tr>
+    <tr><td><code>pkg/protocol/</code></td><td>Key loading (<code>key.go</code>), error types (<code>error.go</code>), domain constants, the <code>protocol.md</code> specification, and <code>protobuf/</code> definitions and generated code</td></tr>
+    <tr><td><code>pkg/cache/</code></td><td>Saving/restoring the session cache (<code>SessionCache</code>) as JSON</td></tr>
+    <tr><td><code>pkg/cli/</code></td><td>Common CLI flags, environment variables, keyring, <code>Config.Connect()</code></td></tr>
+    <tr><td><code>pkg/account/</code></td><td>Determining the Fleet API host from an OAuth token, <code>GetVehicle</code>, <code>Get</code>/<code>Post</code>, <code>UpdateKey</code></td></tr>
+    <tr><td><code>pkg/proxy/</code></td><td>HTTP proxy library. The endpoint ↔ method mapping is in <code>command.go</code></td></tr>
+    <tr><td><code>pkg/sign/</code></td><td>JWS signing helpers for Fleet/vehicle use</td></tr>
+    <tr><td><code>internal/authentication/</code></td><td>ECDH, metadata hashing, Signer/Verifier, sliding window, Schnorr JWT. Cannot be imported externally</td></tr>
+    <tr><td><code>internal/dispatcher/</code></td><td>Sending/receiving RoutableMessage, per-domain sessions, response routing, cache entries</td></tr>
+    <tr><td><code>internal/schnorr/</code>, <code>internal/log/</code></td><td>Schnorr signatures, global logger (<code>SetLevel</code>)</td></tr>
+    <tr><td><code>examples/ble/</code>, <code>examples/unlock/</code></td><td>Example that unlocks and turns on climate over BLE; example that unlocks over the internet</td></tr>
+    <tr><td><code>doc/</code></td><td>PlantUML diagrams (authorization flow, proxy request flow) and PNGs</td></tr>
+    <tr><td><code>Makefile</code>, <code>check-all.sh</code>, <code>Dockerfile</code>, <code>docker-compose.yml</code></td><td>Build/test/lint, protobuf regeneration (<code>make proto-gen</code>), Docker image</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sec-layers">Layered architecture</h2>
+<div class="diagram"><pre>
+ ┌──────────────────────────────────────────────────────────────────────┐
+ │  Application                                                         │
+ │  cmd/tesla-control · cmd/tesla-http-proxy · examples/* · user code   │
+ ├──────────────────────┬──────────────────────┬────────────────────────┤
+ │  pkg/cli             │  pkg/account         │  pkg/proxy             │
+ │  flags/env/keyring   │  OAuth → Fleet API   │  REST → Vehicle methods│
+ ├──────────────────────┴──────────────────────┴────────────────────────┤
+ │  pkg/vehicle.Vehicle                                                 │
+ │  Connect / StartSession / Lock / ClimateOn / GetState / AddKey ...   │
+ │  builds VCSEC.UnsignedMessage or CarServer.Action payloads, parses   │
+ │  responses                                                           │
+ ├──────────────────────────────────────────────────────────────────────┤
+ │  internal/dispatcher.Dispatcher                                      │
+ │  assembles RoutableMessage (uuid, routing_address), per-domain       │
+ │  session, StartSessions (parallel handshakes), response routing      │
+ │  (receiver), cache import/export                                     │
+ ├──────────────────────────────────────────────────────────────────────┤
+ │  internal/authentication                                             │
+ │  ECDH → K, metadata TLV, HMAC/AES-GCM Signer, response decryption,   │
+ │  anti-replay                                                         │
+ ├──────────────────────────────────────────────────────────────────────┤
+ │  pkg/connector.Connector                                             │
+ │  Send([]byte) / Receive() &lt;-chan []byte / VIN() / PreferredAuthMethod │
+ │  ┌──────────────────────────┐   ┌──────────────────────────────────┐ │
+ │  │ connector/ble            │   │ connector/inet                   │ │
+ │  │ GATT 212 write / 213 ind │   │ POST .../signed_command (JSON)   │ │
+ │  │ 2-byte length framing    │   │ OAuth Bearer, 421 redirect       │ │
+ │  └──────────────────────────┘   └──────────────────────────────────┘ │
+ └──────────────────────────────────────────────────────────────────────┘
+</pre></div>
+<ul>
+  <li><strong>Connector</strong> is a datagram transport that only exchanges byte arrays. It knows nothing about authentication or protobuf. By implementing it yourself you can plug in other transports (for example, a serial link or an in-memory pipe for tests).</li>
+  <li><strong>Dispatcher</strong> wraps the <code>Connector</code>, encodes/decodes <code>RoutableMessage</code>, maintains per-domain sessions (<code>session</code>), and delivers incoming messages to the waiting <code>receiver</code> by <code>routing_address</code> (plus <code>request_uuid</code> for Infotainment). When the vehicle sends a new <code>session_info</code> along with an error, it updates the session automatically.</li>
+  <li><strong>Vehicle</strong> is the set of methods visible to the user. Each method builds the protobuf appropriate for its domain, sends it with <code>Send</code> (including retries), and converts the response into a <code>protocol.Error</code>.</li>
+</ul>
+
+<h2 id="sec-lifecycle">Lifecycle of a single command</h2>
+<p>This is what happens when <code>tesla-control -ble lock</code> runs. On the internet path, steps 1–2 are replaced by <code>account.GetVehicle</code>.</p>
+<div class="diagram">
+<svg viewBox="0 0 900 560" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="currentColor">
+  <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <!-- lanes -->
+  <g stroke="var(--border)" stroke-dasharray="4 4">
+    <line x1="110" y1="50" x2="110" y2="540"/><line x1="330" y1="50" x2="330" y2="540"/><line x1="560" y1="50" x2="560" y2="540"/><line x1="790" y1="50" x2="790" y2="540"/>
+  </g>
+  <g font-weight="700" text-anchor="middle">
+    <rect x="40" y="18" width="140" height="26" rx="6" fill="var(--bg-alt)" stroke="var(--border)"/><text x="110" y="36">Application</text>
+    <rect x="260" y="18" width="140" height="26" rx="6" fill="var(--bg-alt)" stroke="var(--border)"/><text x="330" y="36">vehicle / dispatcher</text>
+    <rect x="490" y="18" width="140" height="26" rx="6" fill="var(--bg-alt)" stroke="var(--border)"/><text x="560" y="36">connector/ble</text>
+    <rect x="720" y="18" width="140" height="26" rx="6" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="790" y="36">Vehicle (VCSEC)</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3" marker-end="url(#arr)">
+    <line x1="110" y1="80" x2="555" y2="80"/>
+    <line x1="560" y1="110" x2="785" y2="110"/>
+    <line x1="790" y1="135" x2="565" y2="135"/>
+    <line x1="560" y1="165" x2="785" y2="165"/>
+    <line x1="560" y1="195" x2="785" y2="195"/>
+    <line x1="110" y1="240" x2="325" y2="240"/>
+    <line x1="330" y1="270" x2="785" y2="270"/>
+    <line x1="790" y1="300" x2="335" y2="300"/>
+    <line x1="110" y1="360" x2="325" y2="360"/>
+    <line x1="330" y1="420" x2="785" y2="420"/>
+    <line x1="790" y1="460" x2="335" y2="460"/>
+    <line x1="330" y1="510" x2="115" y2="510"/>
+  </g>
+  <g>
+    <text x="120" y="74">① ble.ScanVehicleBeacon(ctx, vin)</text>
+    <text x="570" y="104">② scan: LocalName == "S"+SHA1(VIN)[:8]+"C"</text>
+    <text x="580" y="129">advertisement (RSSI, Connectable)</text>
+    <text x="570" y="159">③ Dial → Services(0211) → Chars(0212/0213)</text>
+    <text x="570" y="189">④ Subscribe(0213, indication) · ExchangeMTU</text>
+    <text x="120" y="234">⑤ NewVehicle(conn, key, cache) · car.Connect(ctx)</text>
+    <text x="340" y="264">⑥ StartSession: SessionInfoRequest{public_key} (per domain, in parallel)</text>
+    <text x="345" y="294">session_info + session_info_tag(HMAC) → ECDH → K, epoch, counter, clock</text>
+    <text x="120" y="354">⑦ car.Lock(ctx)</text>
+    <text x="340" y="384">   UnsignedMessage{RKEAction: LOCK} → AES-GCM encryption</text>
+    <text x="340" y="400">   metadata: VIN, epoch, expires_at, counter+1, flags</text>
+    <text x="340" y="414">⑧ RoutableMessage (2-byte length prefix, split into MTU blocks)</text>
+    <text x="345" y="454">⑨ FromVCSECMessage (up to 3; empty message without commandStatus = success)</text>
+    <text x="120" y="504">⑩ nil / protocol.Error · UpdateCachedSessions · Disconnect</text>
+  </g>
+</svg>
+</div>
+<ol>
+  <li><strong>Scan</strong>: computes the advertised name from the first 8 bytes of the VIN's SHA1 and looks for a matching advertisement.</li>
+  <li><strong>GATT connection</strong>: finds service <code>00000211-…</code>, subscribes to the write characteristic (<code>0212</code>) and the notification characteristic (<code>0213</code>), then negotiates the MTU.</li>
+  <li><strong>Connect</strong>: <code>Dispatcher.Start</code> launches the receive goroutine. If a session cache exists, per-domain sessions are restored at this point.</li>
+  <li><strong>StartSession</strong>: for each domain without a cache entry, sends a <code>SessionInfoRequest</code>, verifies the HMAC tag of the response, and derives the shared key <code>K</code> via ECDH. If a cache entry exists, this round trip is skipped.</li>
+  <li><strong>Send</strong>: authorizes the command protobuf together with metadata using AES-GCM (BLE) or HMAC (internet) and transmits it. Errors for which <code>protocol.ShouldRetry</code> is true (Busy, counter/epoch mismatch, etc.) are retried automatically after <code>RetryInterval</code>.</li>
+  <li><strong>Response</strong>: if the vehicle sends new session information along with an error, the dispatcher updates the session; if the response is encrypted, it goes through decryption and counter verification, and the <code>Vehicle</code> method returns the final result as an error type.</li>
+</ol>
+
+<h2 id="sec-deps">Dependencies and platform support</h2>
+<table>
+  <thead><tr><th>Module</th><th>Version</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td><code>github.com/go-ble/ble</code></td><td>v0.0.0-20240122180141</td><td>BLE stack. Implementations for macOS (<code>darwin</code>, CoreBluetooth via cbgo) and Linux (<code>linux</code>, HCI socket). Uses <code>tinygo-org/cbgo v0.0.4</code> via <code>replace</code>.</td></tr>
+    <tr><td><code>github.com/99designs/keyring</code></td><td>v1.2.2</td><td>Stores private keys and OAuth tokens in the OS keyring (macOS Keychain, Linux secret-service/keyctl/pass/file, Windows wincred)</td></tr>
+    <tr><td><code>google.golang.org/protobuf</code></td><td>v1.34.2</td><td>Message serialization. State output via <code>protojson</code></td></tr>
+    <tr><td><code>github.com/golang-jwt/jwt/v5</code></td><td>v5.2.2</td><td>JWS for Fleet Telemetry configuration (registers the Schnorr signing method)</td></tr>
+    <tr><td><code>github.com/cronokirby/saferith</code></td><td>v0.33.0</td><td>Constant-time big-number arithmetic (Schnorr signatures)</td></tr>
+    <tr><td><code>github.com/google/shlex</code></td><td>-</td><td>Argument splitting for the <code>tesla-control</code> interactive shell</td></tr>
+    <tr><td><code>golang.org/x/term</code></td><td>v0.5.0</td><td>Keyring password prompt</td></tr>
+  </tbody>
+</table>
+<table>
+  <thead><tr><th>Platform</th><th>BLE</th><th>Internet/proxy</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td>macOS</td><td><span class="badge ok">Supported</span></td><td><span class="badge ok">Supported</span></td><td>Uses the default login keychain. Adapter ID cannot be specified (<code>ErrAdapterInvalidID</code>). Bluetooth permission is requested on first run.</td></tr>
+    <tr><td>Linux</td><td><span class="badge ok">Supported</span></td><td><span class="badge ok">Supported</span></td><td>Uses HCI sockets directly. Requires <code>CAP_NET_ADMIN</code> or root. Select the adapter with <code>-bt-adapter hciX</code>.</td></tr>
+    <tr><td>Windows</td><td><span class="badge warn">Unsupported</span></td><td><span class="badge">Unofficial</span></td><td><code>device_windows.go</code> returns <code>"not supported on Windows"</code>. Non-BLE features build, but are not officially supported.</td></tr>
+    <tr><td>Docker</td><td>-</td><td><span class="badge ok">Supported</span></td><td><code>tesla/vehicle-command</code> image, default entrypoint <code>tesla-http-proxy</code>. distroless nonroot.</td></tr>
+  </tbody>
+</table>
+
+<footer class="page-nav">
+  <a href="index.html"><span>Previous</span>Home</a>
+  <a class="next" href="02-getting-started.html"><span>Next</span>2. Getting Started</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

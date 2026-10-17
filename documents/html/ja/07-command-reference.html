@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>7. コマンドリファレンス · vehicle-command BLE マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE 開発マニュアル · v0.4.1 基準</div>
+  <div class="lang-switch" aria-label="Language"><a href="../ko/07-command-reference.html" hreflang="ko" lang="ko">한국어</a><a href="../en/07-command-reference.html" hreflang="en" lang="en">English</a><a class="active" href="../ja/07-command-reference.html" hreflang="ja" lang="ja">日本語</a></div>
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a class="active" href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>7. コマンドリファレンス</h1>
+<p class="lead">すべての車両コマンドを、<code>tesla-control</code> コマンド、<code>pkg/vehicle</code> の Go メソッド、HTTP プロキシのエンドポイント、ドメイン、認証要件の観点から一つの表にまとめます。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-read">表の読み方</a></li>
+<li><a href="#sec-args">引数の形式</a></li>
+<li><a href="#sec-lock">セキュリティ / ロック / リモートスタート</a></li>
+<li><a href="#sec-keys">キー管理</a></li>
+<li><a href="#sec-climate">空調</a></li>
+<li><a href="#sec-charge">充電</a></li>
+<li><a href="#sec-schedule">充電 / プリコンディションのスケジュール</a></li>
+<li><a href="#sec-media">メディア</a></li>
+<li><a href="#sec-body">車体 / ウィンドウ / トランク / ライト</a></li>
+<li><a href="#sec-power">電源管理</a></li>
+<li><a href="#sec-update">ソフトウェアアップデート</a></li>
+<li><a href="#sec-modes">バレー / ゲスト / PIN / 速度制限 / ペアレンタルコントロール</a></li>
+<li><a href="#sec-state">状態の取得</a></li>
+<li><a href="#sec-account">アカウント / Fleet API 専用</a></li>
+<li><a href="#sec-rest">プロキシが REST に転送するエンドポイント</a></li>
+</ol></div>
+
+<h2 id="sec-read">表の読み方</h2>
+<table>
+<thead><tr><th>列</th><th>意味</th></tr></thead>
+<tbody>
+<tr><td>CLI</td><td><code>tesla-control</code> のコマンドと位置引数。角括弧はオプション引数。「—」は CLI コマンドがないことを示します</td></tr>
+<tr><td>Go</td><td><code>(*vehicle.Vehicle)</code> のメソッド。第 1 引数の <code>ctx</code> は省略</td></tr>
+<tr><td>プロキシ</td><td><code>POST /api/1/vehicles/{VIN}/command/&lt;名前&gt;</code> の <code>&lt;名前&gt;</code> と JSON ボディのキー。<code>pkg/proxy/command.go</code> 基準。「—」はプロキシのエンドポイントがないことを示します（REST にも転送されず <code>invalid_command</code>）</td></tr>
+<tr><td>ドメイン</td><td><span class="badge vcsec">VCSEC</span> セキュリティコントローラー。Infotainment がスリープ中でも BLE で応答します。<span class="badge info">INFO</span> Infotainment。スリープ中は先に起こす必要があります</td></tr>
+<tr><td>認証</td><td><span class="badge ok">必要</span> 秘密鍵とセッションが必要（<code>requiresAuth</code>）。<span class="badge">不要</span> セッションなしで送信可能</td></tr>
+<tr><td>備考</td><td><span class="badge warn">BLE 専用</span>、<span class="badge warn">Fleet API 専用</span>、車種の制限など</td></tr>
+</tbody>
+</table>
+<div class="callout">
+<strong>ロールによる制限</strong>
+<p>同じコマンドでも、キーのロールによっては拒否されることがあります（<code>MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES</code>）。例：Driver はキー管理と PIN 変更ができず、Vehicle Monitor は状態の取得のみ、Charging Manager は充電関連のみ、Fleet Manager は 2023.38 以降で BLE コマンドと他のキーの追加/削除ができません。ロールの詳しい説明は <a href="04-protocol.html">4. プロトコル仕様</a> を参照してください。</p>
+</div>
+
+<h2 id="sec-args">引数の形式</h2>
+<table>
+<thead><tr><th>引数</th><th>形式</th></tr></thead>
+<tbody>
+<tr><td><code>STATE</code></td><td><code>on</code> または <code>off</code></td></tr>
+<tr><td><code>TEMP</code></td><td>数値 + 単位。<code>21C</code>、<code>72F</code>、<code>21c</code>。単位は省略不可（<code>C</code>/<code>F</code> のみ許可）。華氏は摂氏に変換され、運転席/助手席に同じ温度が設定されます</td></tr>
+<tr><td><code>SEAT</code></td><td><code>front-left</code>, <code>front-right</code>, <code>2nd-row-left</code>, <code>2nd-row-center</code>, <code>2nd-row-right</code>, <code>3rd-row-left</code>, <code>3rd-row-right</code></td></tr>
+<tr><td><code>LEVEL</code></td><td><code>off</code>, <code>low</code>, <code>medium</code>, <code>high</code></td></tr>
+<tr><td><code>POSITIONS</code></td><td><code>L</code>, <code>R</code>, <code>LR</code>（前席の左/右）</td></tr>
+<tr><td><code>PIN</code></td><td>4 桁の数字。Go 側の <code>vehicle.IsValidPIN</code> が検証（バレー、ペアレンタルコントロール）</td></tr>
+<tr><td><code>DAYS</code></td><td>カンマ区切り：<code>Sun, Mon, Tues, Wed, Thurs, Fri, Sat</code>（フルネームも可）または <code>all</code>、<code>weekdays</code>。大文字小文字は区別しません。ビットマスクは Sun=1 … Sat=64</td></tr>
+<tr><td><code>TIME</code>（充電スケジュール）</td><td><code>HH:MM-HH:MM</code> の 24 時間制。片側は省略可：<code>-6:00</code>（終了のみ）、<code>20:32-</code>（開始のみ）。終了が翌日でも構いません</td></tr>
+<tr><td><code>TIME</code>（プリコンディション）</td><td><code>HH:MM</code></td></tr>
+<tr><td><code>LATITUDE</code>, <code>LONGITUDE</code></td><td>-180 ～ 180 の実数</td></tr>
+<tr><td><code>REPEAT</code></td><td><code>once</code> なら 1 回限り、省略すると毎週繰り返し</td></tr>
+<tr><td><code>ID</code></td><td>スケジュール ID（整数）。新しいスケジュールで省略すると現在の Unix 時刻を ID として使用し、stdout に出力</td></tr>
+<tr><td><code>ENABLED</code></td><td><code>true</code> / <code>false</code>。デフォルトは true</td></tr>
+<tr><td><code>TYPE</code>（スケジュール削除）</td><td><code>home</code>、<code>work</code>、<code>other</code>（一括削除）または <code>id</code>（<code>ID</code> が必要）</td></tr>
+<tr><td><code>DELAY</code></td><td>Go の duration：<code>2h</code>、<code>10m</code>、<code>90s</code>、<code>1.5h</code></td></tr>
+<tr><td><code>CATEGORY</code></td><td><code>charge</code>, <code>climate</code>, <code>drive</code>, <code>location</code>, <code>closures</code>, <code>charge-schedule</code>, <code>precondition-schedule</code>, <code>tire-pressure</code>, <code>media</code>, <code>media-detail</code>, <code>software-update</code>, <code>parental-controls</code></td></tr>
+<tr><td><code>PUBLIC_KEY</code></td><td>公開鍵ファイル（PEM、または秘密鍵ファイル、65 バイトのバイナリ、130 文字の hex）。<code>protocol.LoadPublicKey</code> がサポートする形式</td></tr>
+<tr><td><code>ROLE</code></td><td><code>owner</code>, <code>driver</code>, <code>fm</code>, <code>vehicle_monitor</code>, <code>charging_manager</code>（内部的には <code>ROLE_</code> 接頭辞 + 大文字で <code>keys.Role</code> を検索。<code>guest</code>、<code>service</code> も enum にはありますが、一般のクライアントは使用しません）</td></tr>
+<tr><td><code>FORM_FACTOR</code></td><td><code>nfc_card</code>, <code>ios_device</code>, <code>android_device</code>, <code>cloud_key</code></td></tr>
+<tr><td><code>DOMAIN</code></td><td><code>vcsec</code> または <code>infotainment</code></td></tr>
+<tr><td><code>SETTING</code>（ペアレンタルコントロール）</td><td><code>speed-limit</code>, <code>acceleration</code>, <code>safety-features</code>, <code>curfew</code>, <code>browser-blocked</code>, <code>theater-blocked</code>, <code>arcade-blocked</code></td></tr>
+<tr><td><code>ENDPOINT</code></td><td>Fleet API のパス（ホストを除く）。例：<code>api/1/products</code></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-lock">セキュリティ / ロック / リモートスタート</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>プロキシ</th><th>ドメイン</th><th>認証</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>unlock</code></td><td><code>Unlock()</code></td><td><code>door_unlock</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">必要</span></td><td>RKE_ACTION_UNLOCK</td></tr>
+<tr><td><code>lock</code></td><td><code>Lock()</code></td><td><code>door_lock</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">必要</span></td><td>RKE_ACTION_LOCK</td></tr>
+<tr><td><code>drive</code></td><td><code>RemoteDrive()</code></td><td><code>remote_start_drive</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">必要</span></td><td>キーなしで走行可能な状態にします。RKE_ACTION_REMOTE_DRIVE</td></tr>
+<tr><td><code>autosecure-modelx</code></td><td><code>AutoSecureVehicle()</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">必要</span></td><td>ファルコンウィングドアを閉じてロック。Model X 専用</td></tr>
+<tr><td><code>wake</code></td><td><code>Wakeup()</code></td><td><code>wake_up</code></td><td><span class="badge vcsec">VCSEC</span> (BLE)</td><td>BLE：<span class="badge ok">必要</span><br>インターネット：<span class="badge">不要</span></td><td>BLE は RKE_ACTION_WAKE_VEHICLE（VCSEC とのみハンドシェイク）。インターネットは Fleet API の <code>wake_up</code> を online になるまでポーリング</td></tr>
+<tr><td><code>sentry-mode STATE</code></td><td><code>SetSentryMode(on bool)</code></td><td><code>set_sentry_mode</code> {<code>on</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td>—</td><td><code>TriggerHomelink(lat, lon float32)</code></td><td><code>trigger_homelink</code> {<code>lat</code>, <code>lon</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-keys">キー管理</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>プロキシ</th><th>ドメイン</th><th>認証</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>add-key-request PUBLIC_KEY ROLE FORM_FACTOR</code></td><td><code>SendAddKeyRequest(pk, isOwner, ff)</code><br><code>SendAddKeyRequestWithRole(pk, role, ff)</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge">不要</span></td><td><span class="badge warn">BLE 専用</span> NFC カードのタップ + 画面での確認で承認。送信後すぐに戻ります。インターネット経路では <code>ErrRequiresBLE</code></td></tr>
+<tr><td><code>add-key PUBLIC_KEY ROLE FORM_FACTOR</code></td><td><code>AddKey(pk, isOwner, ff)</code><br><code>AddKeyWithRole(pk, role, ff)</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">必要</span></td><td>既存の Owner キーで別のキーを追加。Fleet Manager キーは 2023.38 以降では不可</td></tr>
+<tr><td><code>remove-key PUBLIC_KEY</code></td><td><code>RemoveKey(pk)</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">必要</span></td><td>自分自身は削除不可</td></tr>
+<tr><td><code>list-keys</code></td><td><code>KeySummary()</code> + <code>KeyInfoBySlot(slot)</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge">不要</span></td><td>公開鍵の hex、ロール、フォームファクターをタブ区切りで出力</td></tr>
+<tr><td><code>session-info PUBLIC_KEY DOMAIN</code></td><td><code>SessionInfo(pk, domain)</code></td><td>—</td><td>指定</td><td><span class="badge">不要</span></td><td>キーが登録済みかどうかを確認。未登録なら <code>ErrKeyNotPaired</code></td></tr>
+<tr><td><code>rename-key PUBLIC_KEY NAME</code></td><td><code>(*account.Account).UpdateKey(pk, name)</code></td><td>—</td><td>サーバー</td><td>OAuth</td><td><span class="badge warn">Fleet API 専用</span> <code>api/1/users/keys</code>。最初に登録したアカウントのみ変更可能</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-climate">空調</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>プロキシ</th><th>ドメイン</th><th>認証</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>climate-on</code></td><td><code>ClimateOn()</code></td><td><code>auto_conditioning_start</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>HvacAutoAction power_on=true</td></tr>
+<tr><td><code>climate-off</code></td><td><code>ClimateOff()</code></td><td><code>auto_conditioning_stop</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>climate-set-temp TEMP</code></td><td><code>ChangeClimateTemp(driverC, passengerC float32)</code></td><td><code>set_temps</code> {<code>driver_temp</code>, <code>passenger_temp</code>}（摂氏）</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>CLI は両側に同じ温度</td></tr>
+<tr><td><code>seat-heater SEAT LEVEL</code></td><td><code>SetSeatHeater(map[SeatPosition]Level)</code></td><td><code>remote_seat_heater_request</code> {<code>seat_position</code> 0～8, <code>level</code> 0～3}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>プロキシの seat_position インデックス：0 FL、1 FR、2 2 列目 L、3 2 列目 L 背もたれ、4 2 列目 C、5 2 列目 R、6 2 列目 R 背もたれ、7 3 列目 L、8 3 列目 R。背もたれは一部の Model S のみ</td></tr>
+<tr><td>—</td><td><code>SetSeatCooler(level Level, seat SeatPosition)</code></td><td><code>remote_seat_cooler_request</code> {<code>seat_position</code> 1=FL/2=FR, <code>seat_cooler_level</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>前席のみ。プロキシは <code>seat_cooler_level - 1</code> を Level として渡します</td></tr>
+<tr><td><code>steering-wheel-heater STATE</code></td><td><code>SetSteeringWheelHeater(on bool)</code></td><td><code>remote_steering_wheel_heater_request</code> {<code>on</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>auto-seat-and-climate POSITIONS [STATE]</code></td><td><code>AutoSeatAndClimate(positions []SeatPosition, enabled bool)</code></td><td><code>remote_auto_seat_climate_request</code> {<code>auto_seat_position</code> 1=FL/2=FR, <code>auto_climate_on</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>STATE のデフォルトは on</td></tr>
+<tr><td>—</td><td><code>SetPreconditioningMax(on, manualOverride bool)</code></td><td><code>set_preconditioning_max</code> {<code>on</code>, <code>manual_override</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td>—</td><td><code>SetBioweaponDefenseMode(on, manualOverride bool)</code></td><td><code>set_bioweapon_mode</code> {<code>on</code>, <code>manual_override</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>プロキシでは <code>manual_override</code> が必須</td></tr>
+<tr><td>—</td><td><code>SetCabinOverheatProtection(on, fanOnly bool)</code></td><td><code>set_cabin_overheat_protection</code> {<code>on</code>, <code>fan_only</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td>—</td><td><code>SetCabinOverheatProtectionTemperature(level Level)</code></td><td><code>set_cop_temp</code> {<code>cop_temp</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>0 未指定、1 Low、2 Medium、3 High（<code>ClimateState_CopActivationTemp</code>）</td></tr>
+<tr><td>—</td><td><code>SetClimateKeeperMode(mode ClimateKeeperMode, override bool)</code></td><td><code>set_climate_keeper_mode</code> {<code>climate_keeper_mode</code>, <code>manual_override</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>0 Off、1 On、2 Dog、3 Camp</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-charge">充電</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>プロキシ</th><th>ドメイン</th><th>認証</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>charging-start</code></td><td><code>ChargeStart()</code></td><td><code>charge_start</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>charging-stop</code></td><td><code>ChargeStop()</code></td><td><code>charge_stop</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td>—</td><td><code>ChargeMaxRange()</code></td><td><code>charge_max_range</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>ChargingStartStopAction start_max_range</td></tr>
+<tr><td>—</td><td><code>ChargeStandardRange()</code></td><td><code>charge_standard</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>ChargingStartStopAction start_standard</td></tr>
+<tr><td><code>charging-set-limit PERCENT</code></td><td><code>ChangeChargeLimit(percent int32)</code></td><td><code>set_charge_limit</code> {<code>percent</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>charging-set-amps AMPS</code></td><td><code>SetChargingAmps(amps int32)</code></td><td><code>set_charging_amps</code> {<code>charging_amps</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>charge-port-open</code></td><td><code>ChargePortOpen()</code> / <code>OpenChargePort()</code></td><td><code>charge_port_door_open</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>2 つのメソッドは同じ動作</td></tr>
+<tr><td><code>charge-port-close</code></td><td><code>ChargePortClose()</code> / <code>CloseChargePort()</code></td><td><code>charge_port_door_close</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>charging-schedule MINS</code></td><td><code>ScheduleCharging(enabled bool, timeAfterMidnight time.Duration)</code></td><td><code>set_scheduled_charging</code> {<code>enable</code>, <code>time</code>（分）}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>毎日、午前 0 時から MINS 分後に充電を開始</td></tr>
+<tr><td><code>charging-schedule-cancel</code></td><td><code>ScheduleCharging(false, 0)</code></td><td><code>set_scheduled_charging</code> {<code>enable</code>: false}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td>—</td><td><code>ScheduleDeparture(departAt, offPeakEnd time.Duration, precondition, offpeak ChargingPolicy)</code></td><td><code>set_scheduled_departure</code> {<code>enable</code>, <code>departure_time</code>, <code>end_off_peak_time</code>, <code>off_peak_charging_enabled</code>, <code>off_peak_charging_weekdays_only</code>, <code>preconditioning_enabled</code>, <code>preconditioning_weekdays_only</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>時刻は午前 0 時からの分数。<code>ChargingPolicyOff/AllDays/Weekdays</code></td></tr>
+<tr><td>—</td><td><code>ClearScheduledDeparture()</code></td><td><code>set_scheduled_departure</code> {<code>enable</code>: false}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-schedule">充電 / プリコンディションのスケジュール</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>プロキシ</th><th>ドメイン</th><th>認証</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>charging-schedule-add DAYS TIME LATITUDE LONGITUDE [REPEAT ID ENABLED]</code></td><td><code>AddChargeSchedule(*ChargeSchedule)</code></td><td><code>add_charge_schedule</code> {<code>days_of_week</code>（文字列）, <code>start_time</code>, <code>start_enabled</code>, <code>end_time</code>, <code>end_enabled</code>, <code>lat</code>, <code>lon</code>, <code>id</code>, <code>enabled</code>, <code>one_time</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>生成された ID を stdout に出力。<code>ChargeSchedule</code> は <code>carserver.ChargeSchedule</code> のエイリアス</td></tr>
+<tr><td><code>charging-schedule-remove TYPE [ID]</code></td><td><code>RemoveChargeSchedule(id uint64)</code><br><code>BatchRemoveChargeSchedules(home, work, other bool)</code></td><td><code>remove_charge_schedule</code> {<code>id</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>一括削除（home/work/other）にはプロキシのエンドポイントがありません</td></tr>
+<tr><td><code>precondition-schedule-add DAYS TIME LATITUDE LONGITUDE [REPEAT ID ENABLED]</code></td><td><code>AddPreconditionSchedule(*PreconditionSchedule)</code></td><td><code>add_precondition_schedule</code> {<code>days_of_week</code>, <code>precondition_time</code>, <code>lat</code>, <code>lon</code>, <code>id</code>, <code>enabled</code>, <code>one_time</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>precondition-schedule-remove TYPE [ID]</code></td><td><code>RemovePreconditionSchedule(id uint64)</code><br><code>BatchRemovePreconditionSchedules(home, work, other bool)</code></td><td><code>remove_precondition_schedule</code> {<code>id</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-media">メディア</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>プロキシ</th><th>ドメイン</th><th>認証</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>media-set-volume VOLUME</code></td><td><code>SetVolume(volume float32)</code></td><td><code>adjust_volume</code> {<code>volume</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>0.0 ～ 10.0</td></tr>
+<tr><td><code>media-volume-up</code></td><td><code>VolumeUp()</code></td><td><code>media_volume_up</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>media-volume-down</code></td><td><code>VolumeDown()</code></td><td><code>media_volume_down</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>media-next-track</code></td><td><code>MediaNextTrack()</code></td><td><code>media_next_track</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>media-previous-track</code></td><td><code>MediaPreviousTrack()</code></td><td><code>media_prev_track</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>media-next-favorite</code></td><td><code>MediaNextFavorite()</code></td><td><code>media_next_fav</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>media-previous-favorite</code></td><td><code>MediaPreviousFavorite()</code></td><td><code>media_prev_fav</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>media-toggle-playback</code></td><td><code>ToggleMediaPlayback()</code></td><td><code>media_toggle_playback</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td>—</td><td>—</td><td><code>remote_boombox</code></td><td></td><td></td><td>未実装。<code>ErrCommandNotImplemented</code>（HTTP 400）</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-body">車体 / ウィンドウ / トランク / ライト</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>プロキシ</th><th>ドメイン</th><th>認証</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>honk</code></td><td><code>HonkHorn()</code></td><td><code>honk_horn</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>flash-lights</code></td><td><code>FlashLights()</code></td><td><code>flash_lights</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>trunk-open</code></td><td><code>OpenTrunk()</code></td><td><code>actuate_trunk</code> {<code>which_trunk</code>: "rear"}</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">必要</span></td><td>CLOSURE_MOVE_TYPE_MOVE。<code>which_trunk</code> を省略すると rear</td></tr>
+<tr><td><code>trunk-move</code></td><td><code>ActuateTrunk()</code></td><td>（上と同じ）</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">必要</span></td><td>開/閉のトグル。閉じる動作は一部の車種のみ</td></tr>
+<tr><td><code>trunk-close</code></td><td><code>CloseTrunk()</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">必要</span></td><td>電動トランク搭載車種のみ</td></tr>
+<tr><td><code>frunk-open</code></td><td><code>OpenFrunk()</code></td><td><code>actuate_trunk</code> {<code>which_trunk</code>: "front"}</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">必要</span></td><td>リモートで閉じるコマンドはありません</td></tr>
+<tr><td><code>tonneau-open</code></td><td><code>OpenTonneau()</code></td><td><code>open_tonneau</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">必要</span></td><td>Cybertruck 専用。他の車種では無効</td></tr>
+<tr><td><code>tonneau-close</code></td><td><code>CloseTonneau()</code></td><td><code>close_tonneau</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">必要</span></td><td>Cybertruck 専用</td></tr>
+<tr><td><code>tonneau-stop</code></td><td><code>StopTonneau()</code></td><td><code>stop_tonneau</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">必要</span></td><td>Cybertruck 専用</td></tr>
+<tr><td><code>windows-vent</code></td><td><code>VentWindows()</code></td><td><code>window_control</code> {<code>command</code>: "vent"}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>このプロトコルでは lat/lon は不要</td></tr>
+<tr><td><code>windows-close</code></td><td><code>CloseWindows()</code></td><td><code>window_control</code> {<code>command</code>: "close"}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td>—</td><td><code>ChangeSunroofState(level int32)</code></td><td>—</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>絶対開度レベル</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-power">電源管理</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>プロキシ</th><th>ドメイン</th><th>認証</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>low-power-mode STATE</code></td><td><code>SetLowPowerMode(enable bool)</code></td><td><code>set_low_power_mode</code> {<code>enable</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>バッテリー不足で強制されている状態なら <code>low_power_mode_enforced</code> エラー</td></tr>
+<tr><td><code>keep-accessory-power STATE</code></td><td><code>SetKeepAccessoryPowerMode(enable bool)</code></td><td><code>keep_accessory_power_mode</code> {<code>enable</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>降車後も USB/12V を維持。追加の電力を消費</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-update">ソフトウェアアップデート</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>プロキシ</th><th>ドメイン</th><th>認証</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>software-update-start DELAY</code></td><td><code>ScheduleSoftwareUpdate(delay time.Duration)</code></td><td><code>schedule_software_update</code> {<code>offset_sec</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>秒単位に変換して送信</td></tr>
+<tr><td><code>software-update-cancel</code></td><td><code>CancelSoftwareUpdate()</code></td><td><code>cancel_software_update</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-modes">バレー / ゲスト / PIN / 速度制限 / ペアレンタルコントロール</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>プロキシ</th><th>ドメイン</th><th>認証</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>valet-mode-on PIN</code></td><td><code>EnableValetMode(pin string)</code></td><td><code>set_valet_mode</code> {<code>on</code>: true, <code>password</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>4 桁の PIN。PIN to Drive がオフになります。<code>SetValetMode</code> は deprecated</td></tr>
+<tr><td><code>valet-mode-off</code></td><td><code>DisableValetMode()</code></td><td><code>set_valet_mode</code> {<code>on</code>: false}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>すでにオフの場合（<code>already off</code>）は成功として扱います</td></tr>
+<tr><td>—</td><td><code>ResetValetPin()</code></td><td><code>reset_valet_pin</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>guest-mode-on</code> / <code>guest-mode-off</code></td><td><code>SetGuestMode(enabled bool)</code></td><td><code>guest_mode</code> {<code>enable</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>フリート運用者向け。意味を理解したうえで使用</td></tr>
+<tr><td><code>erase-guest-data</code></td><td><code>EraseGuestData()</code></td><td><code>erase_user_data</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>ゲストモード中のみ有効</td></tr>
+<tr><td>—</td><td><code>SetPINToDrive(enabled bool, pin string)</code></td><td><code>set_pin_to_drive</code> {<code>on</code>, <code>password</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td><span class="badge warn">Fleet API 専用</span> BLE では <code>ErrRequiresEncryption</code>。すでに PIN がある場合、新しい PIN は無視されます</td></tr>
+<tr><td>—</td><td><code>ClearPINToDrive()</code></td><td><code>clear_pin_to_drive_admin</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>PIN to Drive をオフにして PIN を削除（admin）</td></tr>
+<tr><td>—</td><td><code>ResetPIN()</code> (deprecated)</td><td><code>reset_pin_to_drive_pin</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>先に PIN to Drive をオフにする必要があります。<code>ClearPINToDrive</code> を推奨</td></tr>
+<tr><td>—</td><td><code>ActivateSpeedLimit(pin string)</code></td><td><code>speed_limit_activate</code> {<code>pin</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td>—</td><td><code>DeactivateSpeedLimit(pin string)</code></td><td><code>speed_limit_deactivate</code> {<code>pin</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td>—</td><td><code>SpeedLimitSetLimitMPH(mph float64)</code></td><td><code>speed_limit_set_limit</code> {<code>limit_mph</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td>—</td><td><code>ClearSpeedLimitPIN(pin string)</code></td><td><code>speed_limit_clear_pin</code> {<code>pin</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td>—</td><td><code>ClearSpeedLimitPINAdminAction()</code></td><td><code>speed_limit_clear_pin_admin</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>parental-controls-on PIN</code></td><td><code>ParentalControlsActivate(pin string)</code></td><td><code>parental_controls_activate</code> {<code>pin</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>以前の PIN がある場合は同じ PIN を使用</td></tr>
+<tr><td><code>parental-controls-off PIN</code></td><td><code>ParentalControlsDeactivate(pin string)</code></td><td><code>parental_controls_deactivate</code> {<code>pin</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td><code>parental-controls-set-speed-limit MPH</code></td><td><code>ParentalControlsSetSpeedLimit(mph float64)</code></td><td><code>parental_controls_set_speed_limit</code> {<code>limit_mph</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>有効な状態なら <code>parental_controls_active</code> で失敗</td></tr>
+<tr><td><code>parental-controls-enable-setting SETTING STATE</code></td><td><code>ParentalControlsEnableSetting(setting ParentalControlsSetting, enable bool)</code></td><td><code>parental_controls_enable_setting</code> {<code>setting</code>, <code>enable</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>プロキシの <code>setting</code> は enum 名：<code>SpeedLimit</code>, <code>Acceleration</code>, <code>SafetyFeatures</code>, <code>Curfew</code>, <code>BrowserBlocked</code>, <code>TheaterBlocked</code>, <code>ArcadeBlocked</code></td></tr>
+<tr><td><code>parental-controls-clear-pin-admin</code></td><td><code>ParentalControlsClearPIN()</code></td><td><code>parental_controls_clear_pin_admin</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+<tr><td>—</td><td><code>SetVehicleName(name string)</code></td><td><code>set_vehicle_name</code> {<code>vehicle_name</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-state">状態の取得</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>プロキシ</th><th>ドメイン</th><th>認証</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>body-controller-state</code></td><td><code>BodyControllerState() (*vcsec.VehicleStatus, error)</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge">不要</span></td><td>開閉/ロック/スリープ/乗員の状態。Infotainment がスリープ中でも動作。VCSEC とのみハンドシェイク</td></tr>
+<tr><td><code>state CATEGORY</code></td><td><code>GetState(category StateCategory) (*carserver.VehicleData, error)</code></td><td>—</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>BLE 用。インターネットでは Fleet API の <code>vehicle_data</code>（プロキシがそのまま転送）を推奨</td></tr>
+<tr><td><code>ping</code></td><td><code>Ping()</code></td><td>—</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>認証付きの no-op。キーが認識されているか、オンラインかを確認</td></tr>
+<tr><td>—</td><td><code>GetNearbyCharging()</code></td><td>—</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">必要</span></td><td>レスポンスボディは返さない（エラーのみ）</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-account">アカウント / Fleet API 専用</h2>
+<p>これらのコマンドは車両ではなく Tesla のサーバーで完結し、OAuth トークンが必要です。<code>-ble</code> と一緒に使うと <code>command requires a FleetAPI OAuth token</code> エラーになります。</p>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>説明</th></tr></thead>
+<tbody>
+<tr><td><code>product-info</code></td><td><code>(*account.Account).Get(ctx, "api/1/products")</code></td><td>アカウントの製品一覧を JSON で出力</td></tr>
+<tr><td><code>get ENDPOINT</code></td><td><code>Account.Get(ctx, endpoint)</code></td><td>任意の Fleet API GET。例：<code>get api/1/vehicles/$TESLA_VIN/vehicle_data</code></td></tr>
+<tr><td><code>post ENDPOINT [FILE]</code></td><td><code>Account.Post(ctx, endpoint, body)</code></td><td>FILE（なければ stdin）の JSON を POST。エラーでもレスポンスボディがあれば出力</td></tr>
+<tr><td><code>rename-key PUBLIC_KEY NAME</code></td><td><code>Account.UpdateKey(ctx, pk, name)</code></td><td>キーの表示名を登録（<code>api/1/users/keys</code>）</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-rest">プロキシが REST に転送するエンドポイント</h2>
+<p>次の <code>command/</code> エンドポイントはサーバー側の処理が必要なため、エンドツーエンド認証では実装できません。プロキシは <code>ErrCommandUseRESTAPI</code> を受け取ると、元のリクエストをそのまま Fleet API に転送します。</p>
+<ul>
+<li><code>navigation_request</code></li>
+<li><code>set_managed_charge_current_request</code></li>
+<li><code>set_managed_charger_location</code></li>
+<li><code>set_managed_scheduled_charging_time</code></li>
+</ul>
+<p><code>command/</code> 以外のすべてのパス（<code>vehicle_data</code>、<code>wake_up</code> 以外の取得エンドポイントなど）は常にフォワーディングされます。車両がこのプロトコルをサポートしておらず Fleet API が 422 を返した場合、その VIN は以後常にフォワーディングされます（<a href="08-http-proxy.html#sec-routing">8. HTTP プロキシ</a>）。</p>
+
+<footer class="page-nav">
+  <a href="06-cli-tools.html"><span>前へ</span>6. CLI ツール</a>
+  <a class="next" href="08-http-proxy.html"><span>次へ</span>8. HTTP プロキシ</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

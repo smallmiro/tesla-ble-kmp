@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>7. Command Reference · vehicle-command BLE Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE Developer Manual · based on v0.4.1</div>
+  <div class="lang-switch" aria-label="Language"><a href="../ko/07-command-reference.html" hreflang="ko" lang="ko">한국어</a><a class="active" href="../en/07-command-reference.html" hreflang="en" lang="en">English</a><a href="../ja/07-command-reference.html" hreflang="ja" lang="ja">日本語</a></div>
+  <ol>
+    <li><a href="index.html">Home</a></li>
+    <li class="group">Getting Started</li>
+    <li><a href="01-overview.html">1. System Overview</a></li>
+    <li><a href="02-getting-started.html">2. Getting Started</a></li>
+    <li class="group">Protocol</li>
+    <li><a href="03-ble-transport.html">3. BLE Transport Layer</a></li>
+    <li><a href="04-protocol.html">4. Protocol Specification</a></li>
+    <li class="group">Development</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI Tools</a></li>
+    <li><a class="active" href="07-command-reference.html">7. Command Reference</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP Proxy</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. Errors and Troubleshooting</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>7. Command Reference</h1>
+<p class="lead">Every vehicle command in one table, listed by <code>tesla-control</code> command, <code>pkg/vehicle</code> Go method, HTTP proxy endpoint, domain, and authentication requirement.</p>
+
+<div class="toc"><strong>On this page</strong><ol>
+<li><a href="#sec-read">How to read the tables</a></li>
+<li><a href="#sec-args">Argument formats</a></li>
+<li><a href="#sec-lock">Security / locking / remote start</a></li>
+<li><a href="#sec-keys">Key management</a></li>
+<li><a href="#sec-climate">Climate</a></li>
+<li><a href="#sec-charge">Charging</a></li>
+<li><a href="#sec-schedule">Charge / precondition schedules</a></li>
+<li><a href="#sec-media">Media</a></li>
+<li><a href="#sec-body">Body / windows / trunk / lights</a></li>
+<li><a href="#sec-power">Power management</a></li>
+<li><a href="#sec-update">Software update</a></li>
+<li><a href="#sec-modes">Valet / guest / PIN / speed limit / parental controls</a></li>
+<li><a href="#sec-state">State queries</a></li>
+<li><a href="#sec-account">Account / Fleet API only</a></li>
+<li><a href="#sec-rest">Endpoints the proxy passes to REST</a></li>
+</ol></div>
+
+<h2 id="sec-read">How to read the tables</h2>
+<table>
+<thead><tr><th>Column</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>CLI</td><td><code>tesla-control</code> command and positional arguments. Square brackets denote optional arguments. "—" means there is no CLI command</td></tr>
+<tr><td>Go</td><td><code>(*vehicle.Vehicle)</code> method. The first argument, <code>ctx</code>, is omitted</td></tr>
+<tr><td>Proxy</td><td>The <code>&lt;name&gt;</code> in <code>POST /api/1/vehicles/{VIN}/command/&lt;name&gt;</code> and the JSON body keys. Based on <code>pkg/proxy/command.go</code>. "—" means there is no proxy endpoint (it is not forwarded to REST either and yields <code>invalid_command</code>)</td></tr>
+<tr><td>Domain</td><td><span class="badge vcsec">VCSEC</span> Security controller. Responds over BLE even while Infotainment is asleep. <span class="badge info">INFO</span> Infotainment. Must be woken first if asleep</td></tr>
+<tr><td>Auth</td><td><span class="badge ok">Required</span> Requires a private key and a session (<code>requiresAuth</code>). <span class="badge">Not required</span> Can be sent without a session</td></tr>
+<tr><td>Notes</td><td><span class="badge warn">BLE only</span>, <span class="badge warn">Fleet API only</span>, model restrictions, etc.</td></tr>
+</tbody>
+</table>
+<div class="callout">
+<strong>Role restrictions</strong>
+<p>Even the same command may be rejected depending on the key's role (<code>MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES</code>). For example: Driver cannot manage keys or change PINs, Vehicle Monitor can only query state, Charging Manager can only use charging-related commands, and Fleet Manager on 2023.38+ cannot send BLE commands or add/remove other keys. For details on roles, see <a href="04-protocol.html">4. Protocol Specification</a>.</p>
+</div>
+
+<h2 id="sec-args">Argument formats</h2>
+<table>
+<thead><tr><th>Argument</th><th>Format</th></tr></thead>
+<tbody>
+<tr><td><code>STATE</code></td><td><code>on</code> or <code>off</code></td></tr>
+<tr><td><code>TEMP</code></td><td>Number + unit. <code>21C</code>, <code>72F</code>, <code>21c</code>. The unit cannot be omitted (only <code>C</code>/<code>F</code> allowed). Fahrenheit is converted to Celsius, and the driver and passenger sides are set to the same temperature</td></tr>
+<tr><td><code>SEAT</code></td><td><code>front-left</code>, <code>front-right</code>, <code>2nd-row-left</code>, <code>2nd-row-center</code>, <code>2nd-row-right</code>, <code>3rd-row-left</code>, <code>3rd-row-right</code></td></tr>
+<tr><td><code>LEVEL</code></td><td><code>off</code>, <code>low</code>, <code>medium</code>, <code>high</code></td></tr>
+<tr><td><code>POSITIONS</code></td><td><code>L</code>, <code>R</code>, <code>LR</code> (front seats, left/right)</td></tr>
+<tr><td><code>PIN</code></td><td>Four digits. Validated on the Go side by <code>vehicle.IsValidPIN</code> (valet, parental controls)</td></tr>
+<tr><td><code>DAYS</code></td><td>Comma-separated: <code>Sun, Mon, Tues, Wed, Thurs, Fri, Sat</code> (full names also accepted), or <code>all</code>, <code>weekdays</code>. Case-insensitive. Bitmask Sun=1 … Sat=64</td></tr>
+<tr><td><code>TIME</code> (charge schedule)</td><td><code>HH:MM-HH:MM</code>, 24-hour clock. Either side may be omitted: <code>-6:00</code> (end only), <code>20:32-</code> (start only). The end may fall on the next day</td></tr>
+<tr><td><code>TIME</code> (precondition)</td><td><code>HH:MM</code></td></tr>
+<tr><td><code>LATITUDE</code>, <code>LONGITUDE</code></td><td>Floating-point number from -180 to 180</td></tr>
+<tr><td><code>REPEAT</code></td><td><code>once</code> for a one-time schedule; omit to repeat weekly</td></tr>
+<tr><td><code>ID</code></td><td>Schedule ID (integer). If omitted for a new schedule, the current Unix time is used as the ID and printed to stdout</td></tr>
+<tr><td><code>ENABLED</code></td><td><code>true</code> / <code>false</code>. Default true</td></tr>
+<tr><td><code>TYPE</code> (schedule removal)</td><td><code>home</code>, <code>work</code>, <code>other</code> (batch removal), or <code>id</code> (requires <code>ID</code>)</td></tr>
+<tr><td><code>DELAY</code></td><td>Go duration: <code>2h</code>, <code>10m</code>, <code>90s</code>, <code>1.5h</code></td></tr>
+<tr><td><code>CATEGORY</code></td><td><code>charge</code>, <code>climate</code>, <code>drive</code>, <code>location</code>, <code>closures</code>, <code>charge-schedule</code>, <code>precondition-schedule</code>, <code>tire-pressure</code>, <code>media</code>, <code>media-detail</code>, <code>software-update</code>, <code>parental-controls</code></td></tr>
+<tr><td><code>PUBLIC_KEY</code></td><td>Public key file (PEM, or a private key file, 65-byte binary, or 130-character hex). The formats supported by <code>protocol.LoadPublicKey</code></td></tr>
+<tr><td><code>ROLE</code></td><td><code>owner</code>, <code>driver</code>, <code>fm</code>, <code>vehicle_monitor</code>, <code>charging_manager</code> (internally looked up in <code>keys.Role</code> with a <code>ROLE_</code> prefix and upper case. <code>guest</code> and <code>service</code> also exist in the enum but are not used by ordinary clients)</td></tr>
+<tr><td><code>FORM_FACTOR</code></td><td><code>nfc_card</code>, <code>ios_device</code>, <code>android_device</code>, <code>cloud_key</code></td></tr>
+<tr><td><code>DOMAIN</code></td><td><code>vcsec</code> or <code>infotainment</code></td></tr>
+<tr><td><code>SETTING</code> (parental controls)</td><td><code>speed-limit</code>, <code>acceleration</code>, <code>safety-features</code>, <code>curfew</code>, <code>browser-blocked</code>, <code>theater-blocked</code>, <code>arcade-blocked</code></td></tr>
+<tr><td><code>ENDPOINT</code></td><td>Fleet API path (without host). Example: <code>api/1/products</code></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-lock">Security / locking / remote start</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>Proxy</th><th>Domain</th><th>Auth</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>unlock</code></td><td><code>Unlock()</code></td><td><code>door_unlock</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">Required</span></td><td>RKE_ACTION_UNLOCK</td></tr>
+<tr><td><code>lock</code></td><td><code>Lock()</code></td><td><code>door_lock</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">Required</span></td><td>RKE_ACTION_LOCK</td></tr>
+<tr><td><code>drive</code></td><td><code>RemoteDrive()</code></td><td><code>remote_start_drive</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">Required</span></td><td>Puts the vehicle in a drivable state without a key. RKE_ACTION_REMOTE_DRIVE</td></tr>
+<tr><td><code>autosecure-modelx</code></td><td><code>AutoSecureVehicle()</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">Required</span></td><td>Closes the falcon-wing doors and locks. Model X only</td></tr>
+<tr><td><code>wake</code></td><td><code>Wakeup()</code></td><td><code>wake_up</code></td><td><span class="badge vcsec">VCSEC</span> (BLE)</td><td>BLE: <span class="badge ok">Required</span><br>Internet: <span class="badge">Not required</span></td><td>BLE uses RKE_ACTION_WAKE_VEHICLE (handshake with VCSEC only). Internet calls Fleet API <code>wake_up</code> and polls until online</td></tr>
+<tr><td><code>sentry-mode STATE</code></td><td><code>SetSentryMode(on bool)</code></td><td><code>set_sentry_mode</code> {<code>on</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td>—</td><td><code>TriggerHomelink(lat, lon float32)</code></td><td><code>trigger_homelink</code> {<code>lat</code>, <code>lon</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-keys">Key management</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>Proxy</th><th>Domain</th><th>Auth</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>add-key-request PUBLIC_KEY ROLE FORM_FACTOR</code></td><td><code>SendAddKeyRequest(pk, isOwner, ff)</code><br><code>SendAddKeyRequestWithRole(pk, role, ff)</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge">Not required</span></td><td><span class="badge warn">BLE only</span> Approved by tapping an NFC card and confirming on screen. Returns immediately after sending. Over the internet path: <code>ErrRequiresBLE</code></td></tr>
+<tr><td><code>add-key PUBLIC_KEY ROLE FORM_FACTOR</code></td><td><code>AddKey(pk, isOwner, ff)</code><br><code>AddKeyWithRole(pk, role, ff)</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">Required</span></td><td>Adds another key using an existing Owner key. Not allowed for Fleet Manager keys on 2023.38+</td></tr>
+<tr><td><code>remove-key PUBLIC_KEY</code></td><td><code>RemoveKey(pk)</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">Required</span></td><td>A key cannot remove itself</td></tr>
+<tr><td><code>list-keys</code></td><td><code>KeySummary()</code> + <code>KeyInfoBySlot(slot)</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge">Not required</span></td><td>Prints public key hex, role, and form factor, tab-separated</td></tr>
+<tr><td><code>session-info PUBLIC_KEY DOMAIN</code></td><td><code>SessionInfo(pk, domain)</code></td><td>—</td><td>Specified</td><td><span class="badge">Not required</span></td><td>Checks whether a key is enrolled. <code>ErrKeyNotPaired</code> if not enrolled</td></tr>
+<tr><td><code>rename-key PUBLIC_KEY NAME</code></td><td><code>(*account.Account).UpdateKey(pk, name)</code></td><td>—</td><td>Server</td><td>OAuth</td><td><span class="badge warn">Fleet API only</span> <code>api/1/users/keys</code>. Only the account that originally enrolled the key can modify it</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-climate">Climate</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>Proxy</th><th>Domain</th><th>Auth</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>climate-on</code></td><td><code>ClimateOn()</code></td><td><code>auto_conditioning_start</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>HvacAutoAction power_on=true</td></tr>
+<tr><td><code>climate-off</code></td><td><code>ClimateOff()</code></td><td><code>auto_conditioning_stop</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>climate-set-temp TEMP</code></td><td><code>ChangeClimateTemp(driverC, passengerC float32)</code></td><td><code>set_temps</code> {<code>driver_temp</code>, <code>passenger_temp</code>} (Celsius)</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>The CLI sets the same temperature on both sides</td></tr>
+<tr><td><code>seat-heater SEAT LEVEL</code></td><td><code>SetSeatHeater(map[SeatPosition]Level)</code></td><td><code>remote_seat_heater_request</code> {<code>seat_position</code> 0–8, <code>level</code> 0–3}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>Proxy seat_position indexes: 0 FL, 1 FR, 2 2nd-row L, 3 2nd-row L backrest, 4 2nd-row C, 5 2nd-row R, 6 2nd-row R backrest, 7 3rd-row L, 8 3rd-row R. Backrests on some Model S only</td></tr>
+<tr><td>—</td><td><code>SetSeatCooler(level Level, seat SeatPosition)</code></td><td><code>remote_seat_cooler_request</code> {<code>seat_position</code> 1=FL/2=FR, <code>seat_cooler_level</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>Front seats only. The proxy passes <code>seat_cooler_level - 1</code> as the Level</td></tr>
+<tr><td><code>steering-wheel-heater STATE</code></td><td><code>SetSteeringWheelHeater(on bool)</code></td><td><code>remote_steering_wheel_heater_request</code> {<code>on</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>auto-seat-and-climate POSITIONS [STATE]</code></td><td><code>AutoSeatAndClimate(positions []SeatPosition, enabled bool)</code></td><td><code>remote_auto_seat_climate_request</code> {<code>auto_seat_position</code> 1=FL/2=FR, <code>auto_climate_on</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>STATE defaults to on</td></tr>
+<tr><td>—</td><td><code>SetPreconditioningMax(on, manualOverride bool)</code></td><td><code>set_preconditioning_max</code> {<code>on</code>, <code>manual_override</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td>—</td><td><code>SetBioweaponDefenseMode(on, manualOverride bool)</code></td><td><code>set_bioweapon_mode</code> {<code>on</code>, <code>manual_override</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>The proxy requires <code>manual_override</code></td></tr>
+<tr><td>—</td><td><code>SetCabinOverheatProtection(on, fanOnly bool)</code></td><td><code>set_cabin_overheat_protection</code> {<code>on</code>, <code>fan_only</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td>—</td><td><code>SetCabinOverheatProtectionTemperature(level Level)</code></td><td><code>set_cop_temp</code> {<code>cop_temp</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>0 unspecified, 1 Low, 2 Medium, 3 High (<code>ClimateState_CopActivationTemp</code>)</td></tr>
+<tr><td>—</td><td><code>SetClimateKeeperMode(mode ClimateKeeperMode, override bool)</code></td><td><code>set_climate_keeper_mode</code> {<code>climate_keeper_mode</code>, <code>manual_override</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>0 Off, 1 On, 2 Dog, 3 Camp</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-charge">Charging</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>Proxy</th><th>Domain</th><th>Auth</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>charging-start</code></td><td><code>ChargeStart()</code></td><td><code>charge_start</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>charging-stop</code></td><td><code>ChargeStop()</code></td><td><code>charge_stop</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td>—</td><td><code>ChargeMaxRange()</code></td><td><code>charge_max_range</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>ChargingStartStopAction start_max_range</td></tr>
+<tr><td>—</td><td><code>ChargeStandardRange()</code></td><td><code>charge_standard</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>ChargingStartStopAction start_standard</td></tr>
+<tr><td><code>charging-set-limit PERCENT</code></td><td><code>ChangeChargeLimit(percent int32)</code></td><td><code>set_charge_limit</code> {<code>percent</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>charging-set-amps AMPS</code></td><td><code>SetChargingAmps(amps int32)</code></td><td><code>set_charging_amps</code> {<code>charging_amps</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>charge-port-open</code></td><td><code>ChargePortOpen()</code> / <code>OpenChargePort()</code></td><td><code>charge_port_door_open</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>The two methods behave identically</td></tr>
+<tr><td><code>charge-port-close</code></td><td><code>ChargePortClose()</code> / <code>CloseChargePort()</code></td><td><code>charge_port_door_close</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>charging-schedule MINS</code></td><td><code>ScheduleCharging(enabled bool, timeAfterMidnight time.Duration)</code></td><td><code>set_scheduled_charging</code> {<code>enable</code>, <code>time</code> (minutes)}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>Starts charging every day MINS minutes after midnight</td></tr>
+<tr><td><code>charging-schedule-cancel</code></td><td><code>ScheduleCharging(false, 0)</code></td><td><code>set_scheduled_charging</code> {<code>enable</code>: false}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td>—</td><td><code>ScheduleDeparture(departAt, offPeakEnd time.Duration, precondition, offpeak ChargingPolicy)</code></td><td><code>set_scheduled_departure</code> {<code>enable</code>, <code>departure_time</code>, <code>end_off_peak_time</code>, <code>off_peak_charging_enabled</code>, <code>off_peak_charging_weekdays_only</code>, <code>preconditioning_enabled</code>, <code>preconditioning_weekdays_only</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>Times are minutes after midnight. <code>ChargingPolicyOff/AllDays/Weekdays</code></td></tr>
+<tr><td>—</td><td><code>ClearScheduledDeparture()</code></td><td><code>set_scheduled_departure</code> {<code>enable</code>: false}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-schedule">Charge / precondition schedules</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>Proxy</th><th>Domain</th><th>Auth</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>charging-schedule-add DAYS TIME LATITUDE LONGITUDE [REPEAT ID ENABLED]</code></td><td><code>AddChargeSchedule(*ChargeSchedule)</code></td><td><code>add_charge_schedule</code> {<code>days_of_week</code> (string), <code>start_time</code>, <code>start_enabled</code>, <code>end_time</code>, <code>end_enabled</code>, <code>lat</code>, <code>lon</code>, <code>id</code>, <code>enabled</code>, <code>one_time</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>Prints the generated ID to stdout. <code>ChargeSchedule</code> is an alias of <code>carserver.ChargeSchedule</code></td></tr>
+<tr><td><code>charging-schedule-remove TYPE [ID]</code></td><td><code>RemoveChargeSchedule(id uint64)</code><br><code>BatchRemoveChargeSchedules(home, work, other bool)</code></td><td><code>remove_charge_schedule</code> {<code>id</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>Batch removal (home/work/other) has no proxy endpoint</td></tr>
+<tr><td><code>precondition-schedule-add DAYS TIME LATITUDE LONGITUDE [REPEAT ID ENABLED]</code></td><td><code>AddPreconditionSchedule(*PreconditionSchedule)</code></td><td><code>add_precondition_schedule</code> {<code>days_of_week</code>, <code>precondition_time</code>, <code>lat</code>, <code>lon</code>, <code>id</code>, <code>enabled</code>, <code>one_time</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>precondition-schedule-remove TYPE [ID]</code></td><td><code>RemovePreconditionSchedule(id uint64)</code><br><code>BatchRemovePreconditionSchedules(home, work, other bool)</code></td><td><code>remove_precondition_schedule</code> {<code>id</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-media">Media</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>Proxy</th><th>Domain</th><th>Auth</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>media-set-volume VOLUME</code></td><td><code>SetVolume(volume float32)</code></td><td><code>adjust_volume</code> {<code>volume</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>0.0 to 10.0</td></tr>
+<tr><td><code>media-volume-up</code></td><td><code>VolumeUp()</code></td><td><code>media_volume_up</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>media-volume-down</code></td><td><code>VolumeDown()</code></td><td><code>media_volume_down</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>media-next-track</code></td><td><code>MediaNextTrack()</code></td><td><code>media_next_track</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>media-previous-track</code></td><td><code>MediaPreviousTrack()</code></td><td><code>media_prev_track</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>media-next-favorite</code></td><td><code>MediaNextFavorite()</code></td><td><code>media_next_fav</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>media-previous-favorite</code></td><td><code>MediaPreviousFavorite()</code></td><td><code>media_prev_fav</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>media-toggle-playback</code></td><td><code>ToggleMediaPlayback()</code></td><td><code>media_toggle_playback</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td>—</td><td>—</td><td><code>remote_boombox</code></td><td></td><td></td><td>Not implemented. <code>ErrCommandNotImplemented</code> (HTTP 400)</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-body">Body / windows / trunk / lights</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>Proxy</th><th>Domain</th><th>Auth</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>honk</code></td><td><code>HonkHorn()</code></td><td><code>honk_horn</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>flash-lights</code></td><td><code>FlashLights()</code></td><td><code>flash_lights</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>trunk-open</code></td><td><code>OpenTrunk()</code></td><td><code>actuate_trunk</code> {<code>which_trunk</code>: "rear"}</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">Required</span></td><td>CLOSURE_MOVE_TYPE_MOVE. Defaults to rear if <code>which_trunk</code> is omitted</td></tr>
+<tr><td><code>trunk-move</code></td><td><code>ActuateTrunk()</code></td><td>(same as above)</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">Required</span></td><td>Toggles open/closed. Closing only on some models</td></tr>
+<tr><td><code>trunk-close</code></td><td><code>CloseTrunk()</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">Required</span></td><td>Models with a powered trunk only</td></tr>
+<tr><td><code>frunk-open</code></td><td><code>OpenFrunk()</code></td><td><code>actuate_trunk</code> {<code>which_trunk</code>: "front"}</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">Required</span></td><td>There is no command to close it remotely</td></tr>
+<tr><td><code>tonneau-open</code></td><td><code>OpenTonneau()</code></td><td><code>open_tonneau</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">Required</span></td><td>Cybertruck only. No effect on other models</td></tr>
+<tr><td><code>tonneau-close</code></td><td><code>CloseTonneau()</code></td><td><code>close_tonneau</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">Required</span></td><td>Cybertruck only</td></tr>
+<tr><td><code>tonneau-stop</code></td><td><code>StopTonneau()</code></td><td><code>stop_tonneau</code></td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge ok">Required</span></td><td>Cybertruck only</td></tr>
+<tr><td><code>windows-vent</code></td><td><code>VentWindows()</code></td><td><code>window_control</code> {<code>command</code>: "vent"}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>lat/lon are not needed with this protocol</td></tr>
+<tr><td><code>windows-close</code></td><td><code>CloseWindows()</code></td><td><code>window_control</code> {<code>command</code>: "close"}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td>—</td><td><code>ChangeSunroofState(level int32)</code></td><td>—</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>Absolute opening level</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-power">Power management</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>Proxy</th><th>Domain</th><th>Auth</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>low-power-mode STATE</code></td><td><code>SetLowPowerMode(enable bool)</code></td><td><code>set_low_power_mode</code> {<code>enable</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td><code>low_power_mode_enforced</code> error if the mode is enforced due to low battery</td></tr>
+<tr><td><code>keep-accessory-power STATE</code></td><td><code>SetKeepAccessoryPowerMode(enable bool)</code></td><td><code>keep_accessory_power_mode</code> {<code>enable</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>Keeps USB/12V powered after you exit the vehicle. Consumes extra power</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-update">Software update</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>Proxy</th><th>Domain</th><th>Auth</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>software-update-start DELAY</code></td><td><code>ScheduleSoftwareUpdate(delay time.Duration)</code></td><td><code>schedule_software_update</code> {<code>offset_sec</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>Converted to seconds before sending</td></tr>
+<tr><td><code>software-update-cancel</code></td><td><code>CancelSoftwareUpdate()</code></td><td><code>cancel_software_update</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-modes">Valet / guest / PIN / speed limit / parental controls</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>Proxy</th><th>Domain</th><th>Auth</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>valet-mode-on PIN</code></td><td><code>EnableValetMode(pin string)</code></td><td><code>set_valet_mode</code> {<code>on</code>: true, <code>password</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>Four-digit PIN. Turns off PIN to Drive. <code>SetValetMode</code> is deprecated</td></tr>
+<tr><td><code>valet-mode-off</code></td><td><code>DisableValetMode()</code></td><td><code>set_valet_mode</code> {<code>on</code>: false}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>Treated as success if already off (<code>already off</code>)</td></tr>
+<tr><td>—</td><td><code>ResetValetPin()</code></td><td><code>reset_valet_pin</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>guest-mode-on</code> / <code>guest-mode-off</code></td><td><code>SetGuestMode(enabled bool)</code></td><td><code>guest_mode</code> {<code>enable</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>For fleet operators. Use only if you understand what it does</td></tr>
+<tr><td><code>erase-guest-data</code></td><td><code>EraseGuestData()</code></td><td><code>erase_user_data</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>Only takes effect while in guest mode</td></tr>
+<tr><td>—</td><td><code>SetPINToDrive(enabled bool, pin string)</code></td><td><code>set_pin_to_drive</code> {<code>on</code>, <code>password</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td><span class="badge warn">Fleet API only</span> <code>ErrRequiresEncryption</code> over BLE. If a PIN already exists, the new PIN is ignored</td></tr>
+<tr><td>—</td><td><code>ClearPINToDrive()</code></td><td><code>clear_pin_to_drive_admin</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>Turns off PIN to Drive and deletes the PIN (admin)</td></tr>
+<tr><td>—</td><td><code>ResetPIN()</code> (deprecated)</td><td><code>reset_pin_to_drive_pin</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>PIN to Drive must be turned off first. <code>ClearPINToDrive</code> recommended</td></tr>
+<tr><td>—</td><td><code>ActivateSpeedLimit(pin string)</code></td><td><code>speed_limit_activate</code> {<code>pin</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td>—</td><td><code>DeactivateSpeedLimit(pin string)</code></td><td><code>speed_limit_deactivate</code> {<code>pin</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td>—</td><td><code>SpeedLimitSetLimitMPH(mph float64)</code></td><td><code>speed_limit_set_limit</code> {<code>limit_mph</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td>—</td><td><code>ClearSpeedLimitPIN(pin string)</code></td><td><code>speed_limit_clear_pin</code> {<code>pin</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td>—</td><td><code>ClearSpeedLimitPINAdminAction()</code></td><td><code>speed_limit_clear_pin_admin</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>parental-controls-on PIN</code></td><td><code>ParentalControlsActivate(pin string)</code></td><td><code>parental_controls_activate</code> {<code>pin</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>If a previous PIN exists, the same PIN must be used</td></tr>
+<tr><td><code>parental-controls-off PIN</code></td><td><code>ParentalControlsDeactivate(pin string)</code></td><td><code>parental_controls_deactivate</code> {<code>pin</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td><code>parental-controls-set-speed-limit MPH</code></td><td><code>ParentalControlsSetSpeedLimit(mph float64)</code></td><td><code>parental_controls_set_speed_limit</code> {<code>limit_mph</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>Fails with <code>parental_controls_active</code> while active</td></tr>
+<tr><td><code>parental-controls-enable-setting SETTING STATE</code></td><td><code>ParentalControlsEnableSetting(setting ParentalControlsSetting, enable bool)</code></td><td><code>parental_controls_enable_setting</code> {<code>setting</code>, <code>enable</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>The proxy <code>setting</code> is the enum name: <code>SpeedLimit</code>, <code>Acceleration</code>, <code>SafetyFeatures</code>, <code>Curfew</code>, <code>BrowserBlocked</code>, <code>TheaterBlocked</code>, <code>ArcadeBlocked</code></td></tr>
+<tr><td><code>parental-controls-clear-pin-admin</code></td><td><code>ParentalControlsClearPIN()</code></td><td><code>parental_controls_clear_pin_admin</code></td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+<tr><td>—</td><td><code>SetVehicleName(name string)</code></td><td><code>set_vehicle_name</code> {<code>vehicle_name</code>}</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-state">State queries</h2>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>Proxy</th><th>Domain</th><th>Auth</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>body-controller-state</code></td><td><code>BodyControllerState() (*vcsec.VehicleStatus, error)</code></td><td>—</td><td><span class="badge vcsec">VCSEC</span></td><td><span class="badge">Not required</span></td><td>Closure/lock/sleep/occupant status. Works even while Infotainment is asleep. Handshakes with VCSEC only</td></tr>
+<tr><td><code>state CATEGORY</code></td><td><code>GetState(category StateCategory) (*carserver.VehicleData, error)</code></td><td>—</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>For BLE. Over the internet, Fleet API <code>vehicle_data</code> (forwarded as-is by the proxy) is recommended</td></tr>
+<tr><td><code>ping</code></td><td><code>Ping()</code></td><td>—</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>Authenticated no-op. Checks that the key is recognized and the vehicle is online</td></tr>
+<tr><td>—</td><td><code>GetNearbyCharging()</code></td><td>—</td><td><span class="badge info">INFO</span></td><td><span class="badge ok">Required</span></td><td>Does not return the response body (errors only)</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-account">Account / Fleet API only</h2>
+<p>These commands terminate at Tesla's servers rather than at the vehicle and require an OAuth token. Using them with <code>-ble</code> produces the error <code>command requires a FleetAPI OAuth token</code>.</p>
+<table>
+<thead><tr><th>CLI</th><th>Go</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>product-info</code></td><td><code>(*account.Account).Get(ctx, "api/1/products")</code></td><td>Prints the account's product list as JSON</td></tr>
+<tr><td><code>get ENDPOINT</code></td><td><code>Account.Get(ctx, endpoint)</code></td><td>Arbitrary Fleet API GET. Example: <code>get api/1/vehicles/$TESLA_VIN/vehicle_data</code></td></tr>
+<tr><td><code>post ENDPOINT [FILE]</code></td><td><code>Account.Post(ctx, endpoint, body)</code></td><td>POSTs the JSON from FILE (stdin if omitted). Prints the response body if there is one, even on error</td></tr>
+<tr><td><code>rename-key PUBLIC_KEY NAME</code></td><td><code>Account.UpdateKey(ctx, pk, name)</code></td><td>Registers a display name for a key (<code>api/1/users/keys</code>)</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-rest">Endpoints the proxy passes to REST</h2>
+<p>The following <code>command/</code> endpoints require server-side processing and cannot be implemented with end-to-end authentication. When the proxy encounters <code>ErrCommandUseRESTAPI</code>, it forwards the original request to the Fleet API unchanged.</p>
+<ul>
+<li><code>navigation_request</code></li>
+<li><code>set_managed_charge_current_request</code></li>
+<li><code>set_managed_charger_location</code></li>
+<li><code>set_managed_scheduled_charging_time</code></li>
+</ul>
+<p>All paths other than <code>command/</code> (query endpoints such as <code>vehicle_data</code>, other than <code>wake_up</code>, etc.) are always forwarded. If the vehicle does not support this protocol and the Fleet API returns 422, that VIN is always forwarded from then on (<a href="08-http-proxy.html#sec-routing">8. HTTP Proxy</a>).</p>
+
+<footer class="page-nav">
+  <a href="06-cli-tools.html"><span>Previous</span>6. CLI Tools</a>
+  <a class="next" href="08-http-proxy.html"><span>Next</span>8. HTTP Proxy</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

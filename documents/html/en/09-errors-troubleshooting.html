@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>9. Errors and Troubleshooting · vehicle-command BLE Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE Developer Manual · based on v0.4.1</div>
+  <div class="lang-switch" aria-label="Language"><a href="../ko/09-errors-troubleshooting.html" hreflang="ko" lang="ko">한국어</a><a class="active" href="../en/09-errors-troubleshooting.html" hreflang="en" lang="en">English</a><a href="../ja/09-errors-troubleshooting.html" hreflang="ja" lang="ja">日本語</a></div>
+  <ol>
+    <li><a href="index.html">Home</a></li>
+    <li class="group">Getting Started</li>
+    <li><a href="01-overview.html">1. System Overview</a></li>
+    <li><a href="02-getting-started.html">2. Getting Started</a></li>
+    <li class="group">Protocol</li>
+    <li><a href="03-ble-transport.html">3. BLE Transport Layer</a></li>
+    <li><a href="04-protocol.html">4. Protocol Specification</a></li>
+    <li class="group">Development</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI Tools</a></li>
+    <li><a href="07-command-reference.html">7. Command Reference</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP Proxy</a></li>
+    <li><a class="active" href="09-errors-troubleshooting.html">9. Errors and Troubleshooting</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>9. Errors and Troubleshooting</h1>
+<p class="lead">Covers the SDK's error model, the complete set of protocol- and application-layer error codes, the retry policy, and the causes of and fixes for problems commonly encountered in BLE development.</p>
+
+<div class="toc"><strong>On this page</strong><ol>
+<li><a href="#sec-model">Error model</a></li>
+<li><a href="#sec-retry">Retry policy</a></li>
+<li><a href="#sec-sentinel">Sentinel errors in pkg/protocol</a></li>
+<li><a href="#sec-fault">Protocol layer: MessageFault_E</a></li>
+<li><a href="#sec-generic">VCSEC application layer: GenericError_E</a></li>
+<li><a href="#sec-whitelist">Keychain operation errors: WhitelistOperation_information_E</a></li>
+<li><a href="#sec-info">Infotainment application-layer errors</a></li>
+<li><a href="#sec-http">HTTP layer: inet.HTTPError</a></li>
+<li><a href="#sec-scenarios">Troubleshooting scenarios</a></li>
+<li><a href="#sec-debug">Debugging tools</a></li>
+<li><a href="#sec-security">Security notes</a></li>
+</ol></div>
+
+<h2 id="sec-model">Error model</h2>
+<p>Errors returned by the SDK implement the <code>protocol.Error</code> interface wherever possible. Two methods determine what the caller should do.</p>
+<pre><code class="language-go">type Error interface {
+    error
+    MayHaveSucceeded() bool // The vehicle may have received and executed the command (cannot be confirmed)
+    Temporary() bool        // May be resolved by retrying without user intervention
+}</code></pre>
+<table>
+<thead><tr><th>Type</th><th>Layer</th><th>MayHaveSucceeded</th><th>Temporary</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>*protocol.CommandError</code></td><td>General</td><td>Field <code>PossibleSuccess</code></td><td>Field <code>PossibleTemporary</code></td><td>Created with <code>protocol.NewError(msg, mayHaveSucceeded, temporary)</code>. On context expiry, wrapped as <code>{ctx.Err(), true, true}</code>. Supports <code>Unwrap()</code></td></tr>
+<tr><td><code>*protocol.RoutableMessageError</code></td><td>Protocol</td><td>true only for <code>ERROR_NONE</code>, <code>RESPONSE_MTU_EXCEEDED</code></td><td>true only for the retryable codes in the <a href="#sec-fault">table</a></td><td>The vehicle's <code>signedMessageStatus.signed_message_fault</code>. <code>.Code</code> is a <code>universal.MessageFault_E</code>. <code>Error()</code> is the enum name</td></tr>
+<tr><td><code>*protocol.NominalError</code></td><td>Application</td><td>Delegated to <code>Details</code></td><td>Delegated to <code>Details</code></td><td>The vehicle authenticated the command but cannot execute it. Infotainment produces <code>car could not execute command: &lt;reason&gt;</code>; for VCSEC it wraps a <code>NominalVCSECError</code>. The proxy converts it to HTTP 200 + <code>reason</code></td></tr>
+<tr><td><code>*protocol.NominalVCSECError</code></td><td>Application</td><td>false</td><td>false</td><td><code>FromVCSECMessage.nominalError</code>. <code>.Details.GetGenericError()</code> is a <a href="#sec-generic">GenericError_E</a></td></tr>
+<tr><td><code>*protocol.KeychainError</code></td><td>Application</td><td>false</td><td>false</td><td>Key add/remove failure. <code>.Code</code> is a <a href="#sec-whitelist">WhitelistOperation_information_E</a>. Message <code>keychain operation failed: &lt;code&gt;</code></td></tr>
+<tr><td><code>*inet.HTTPError</code></td><td>Transport (HTTP)</td><td>false for 4xx and 503, true otherwise</td><td>503, 504, 408, 421</td><td>The Fleet API returned something other than 200. <code>.Code</code>, <code>.Message</code> (body)</td></tr>
+</tbody>
+</table>
+<p>The helper functions <code>protocol.MayHaveSucceeded(err)</code>, <code>protocol.Temporary(err)</code>, <code>protocol.ShouldRetry(err)</code>, and <code>protocol.IsNominalError(err)</code> use <code>errors.As</code> to see through wrapping. Commit <code>a4b43c1</code> fixed the classification of wrapped protocol errors, so errors wrapped with <code>fmt.Errorf("%w")</code> are also classified correctly.</p>
+
+<h2 id="sec-retry">Retry policy</h2>
+<pre><code class="language-go">func ShouldRetry(err error) bool {
+    // true only if err implements the Error interface, MayHaveSucceeded() is false, and Temporary() is true
+}</code></pre>
+<p>At the following points, the SDK retries while <code>ShouldRetry</code> is true, at the connector's <code>RetryInterval()</code> (1 second for both BLE and inet), until the context expires.</p>
+<table>
+<thead><tr><th>Point</th><th>What is retried</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td><code>Vehicle.StartSession</code></td><td>The entire handshake</td><td>The dispatcher resends the request if no response arrives within <code>RetryInterval</code></td></tr>
+<tr><td><code>Vehicle.Send</code> (Infotainment commands)</td><td>Send + wait for response</td><td>Each retry builds a new message with a newly incremented counter</td></tr>
+<tr><td><code>getVCSECResult</code> (VCSEC commands)</td><td>Send + wait for final response</td><td><code>OPERATIONSTATUS_WAIT</code> is converted to <code>ErrBusy</code> and retried</td></tr>
+<tr><td><code>Dispatcher.Send</code></td><td>The connector's <code>Send</code> itself</td><td>Resends the same bytes (counter unchanged). Only when the connector returns a <code>protocol.Error</code></td></tr>
+<tr><td><code>inet.Connection.Wakeup</code></td><td><code>wake_up</code> polling</td><td>Every 10 seconds, until <code>state == "online"</code>. Continues only on <code>Temporary</code> errors</td></tr>
+<tr><td><code>ble.NewConnectionFromScanResult</code></td><td>Scan/dial/service discovery</td><td>Adapter errors (<code>IsAdapterError</code>), a wrong Local Name, and non-connectable beacons fail immediately. Everything else repeats until the context expires</td></tr>
+</tbody>
+</table>
+<div class="callout warn">
+<strong>Errors where MayHaveSucceeded is true are not retried automatically</strong>
+<p>For context timeouts, response parsing failures, and similar errors, the vehicle may already have executed the command, so the SDK does not resend it. For commands that are problematic if executed twice, such as unlocking or opening the trunk, check the state with <code>BodyControllerState</code> or <code>GetState</code> before deciding. In this case <code>tesla-control</code> prints <code>Couldn't verify success: …</code>.</p>
+</div>
+
+<h2 id="sec-sentinel">Sentinel errors in pkg/protocol</h2>
+<table>
+<thead><tr><th>Variable</th><th>Message</th><th>Temporary</th><th>Cause and remedy</th></tr></thead>
+<tbody>
+<tr><td><code>ErrBusy</code></td><td>vehicle busy or finishing wake-up</td><td>true</td><td>VCSEC <code>OPERATIONSTATUS_WAIT</code> or RoutableMessage <code>OPERATIONSTATUS_WAIT</code>. Retried automatically. Common during boot/wake-up</td></tr>
+<tr><td><code>ErrUnknown</code></td><td>vehicle responded with an unrecognized status code</td><td>false</td><td>A status code the SDK does not know. Check for a package update</td></tr>
+<tr><td><code>ErrNotConnected</code></td><td>vehicle not connected</td><td>false</td><td>Sent without calling <code>Connect()</code>, or after <code>Disconnect()</code>. The inet connector is closed</td></tr>
+<tr><td><code>ErrNoSession</code></td><td>cannot send authenticated command before establishing a vehicle session</td><td>false</td><td><code>StartSession</code> was not called, or that domain was excluded. A session cannot be created if the private key is nil</td></tr>
+<tr><td><code>ErrRequiresKey</code></td><td>no private key available</td><td>false</td><td>Handshake requested without a private key</td></tr>
+<tr><td><code>ErrInvalidPublicKey</code></td><td>(internal/authentication)</td><td>false</td><td>A public key that is not P-256 or not in uncompressed encoding</td></tr>
+<tr><td><code>ErrKeyNotPaired</code></td><td>vehicle rejected request: your public key has not been paired with the vehicle</td><td>false</td><td><code>MESSAGEFAULT_ERROR_UNKNOWN_KEY_ID</code> or <code>SESSION_INFO_STATUS_KEY_NOT_ON_WHITELIST</code>. Key pairing required. The proxy returns 412</td></tr>
+<tr><td><code>ErrUnpexpectedPublicKey</code></td><td>remote public key changed unexpectedly</td><td>—</td><td>The vehicle's public key changed during a session refresh (the typo in the name is as in the original)</td></tr>
+<tr><td><code>ErrBadResponse</code></td><td>invalid response</td><td>—</td><td>Failed to parse the response protobuf, or session info missing</td></tr>
+<tr><td><code>ErrProtocolNotSupported</code></td><td>vehicle does not support protocol -- use REST API</td><td>—</td><td>Fleet API 422. Pre-2021 Model S/X. The proxy falls back to REST</td></tr>
+<tr><td><code>ErrRequiresBLE</code></td><td>command can only be sent over BLE</td><td>—</td><td><code>SendAddKeyRequest</code> called over the internet path</td></tr>
+<tr><td><code>ErrRequiresEncryption</code></td><td>command should not be sent in plaintext or encrypted with an unauthenticated public key</td><td>—</td><td><code>SetPINToDrive</code> called over BLE. Only the Fleet API path is allowed</td></tr>
+<tr><td><code>ErrNoDecryptionContext</code></td><td>could not decrypt vehicle response without a session</td><td>—</td><td>An encrypted response arrived but there is no session for that domain</td></tr>
+<tr><td><code>ErrReplayedResponse</code></td><td>received vehicle response with duplicate counter</td><td>—</td><td>The same response counter arrived twice. The dispatcher discards the duplicate (may be normal, e.g. network retransmission)</td></tr>
+<tr><td><code>inet.ErrVehicleNotAwake</code></td><td>vehicle unavailable: vehicle is offline or asleep</td><td>false</td><td>Fleet API 503 or "vehicle is offline" 408. Call <code>Wakeup</code> first. The proxy returns 408</td></tr>
+<tr><td><code>ble.ErrAdapterInvalidID</code></td><td>the bluetooth adapter ID is invalid</td><td>false</td><td>Not in <code>hci0</code>–<code>hci15</code> form, or an ID was specified on macOS</td></tr>
+<tr><td><code>ble.ErrMaxConnectionsExceeded</code></td><td>the vehicle is already connected to the maximum number of BLE devices</td><td>false</td><td>The beacon has <code>Connectable=false</code>. VCSEC allows at most 3 connections (including key fobs and phone keys)</td></tr>
+<tr><td><code>vehicle.ErrInvalidPIN</code></td><td>PIN codes must be four digits</td><td>—</td><td>Valet/parental-controls PIN format</td></tr>
+<tr><td><code>vehicle.ErrNoFleetAPIConnection</code></td><td>not connected to Fleet API</td><td>—</td><td>A command that terminates at the server was called with the BLE connector</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-fault">Protocol layer: MessageFault_E</h2>
+<p>Set by the vehicle in <code>RoutableMessage.signedMessageStatus.signed_message_fault</code>. <code>protocol.GetError</code> converts it to a <code>RoutableMessageError</code>, except that <code>UNKNOWN_KEY_ID</code> is turned into <code>ErrKeyNotPaired</code>. The descriptions are taken from the comments in <code>universal_message.proto</code>.</p>
+<table>
+<thead><tr><th>Value</th><th>Name</th><th>Retry</th><th>Meaning and remedy</th></tr></thead>
+<tbody>
+<tr><td>0</td><td><code>ERROR_NONE</code></td><td>—</td><td>Success</td></tr>
+<tr><td>1</td><td><code>ERROR_BUSY</code></td><td>Automatic</td><td>A required vehicle subsystem is busy. Try again</td></tr>
+<tr><td>2</td><td><code>ERROR_TIMEOUT</code></td><td>Automatic</td><td>The subsystem did not respond. Try again</td></tr>
+<tr><td>3</td><td><code>ERROR_UNKNOWN_KEY_ID</code></td><td>No</td><td>The vehicle does not recognize the key that authenticated the command. Check key pairing (surfaced as <code>ErrKeyNotPaired</code>)</td></tr>
+<tr><td>4</td><td><code>ERROR_INACTIVE_KEY</code></td><td>No</td><td>The key has been deactivated</td></tr>
+<tr><td>5</td><td><code>ERROR_INVALID_SIGNATURE</code></td><td>Automatic</td><td>Signature/MAC mismatch. Refresh the session with the session info included in the response and retry (done automatically by the SDK)</td></tr>
+<tr><td>6</td><td><code>ERROR_INVALID_TOKEN_OR_COUNTER</code></td><td>Automatic</td><td>The anti-replay counter has already been used. Retry after refreshing the session (automatic)</td></tr>
+<tr><td>7</td><td><code>ERROR_INSUFFICIENT_PRIVILEGES</code></td><td>No</td><td>Not permitted because of the role or the vehicle state</td></tr>
+<tr><td>8</td><td><code>ERROR_INVALID_DOMAINS</code></td><td>No</td><td>Malformed message or unknown domain. A client bug or old firmware</td></tr>
+<tr><td>9</td><td><code>ERROR_INVALID_COMMAND</code></td><td>No</td><td>Unknown command. Client error or unsupported firmware</td></tr>
+<tr><td>10</td><td><code>ERROR_DECODING</code></td><td>No</td><td>Failed to parse the command. Client error</td></tr>
+<tr><td>11</td><td><code>ERROR_INTERNAL</code></td><td>Automatic</td><td>Internal vehicle error. Common when booting has not finished. Retry</td></tr>
+<tr><td>12</td><td><code>ERROR_WRONG_PERSONALIZATION</code></td><td>No</td><td>Command signed for a different VIN</td></tr>
+<tr><td>13</td><td><code>ERROR_BAD_PARAMETER</code></td><td>No</td><td>Malformed or deprecated parameter</td></tr>
+<tr><td>14</td><td><code>ERROR_KEYCHAIN_IS_FULL</code></td><td>No</td><td>The keychain is full. A key must be removed before another can be added</td></tr>
+<tr><td>15</td><td><code>ERROR_INCORRECT_EPOCH</code></td><td>Automatic</td><td>Session ID (epoch) mismatch. Common after a vehicle reboot. Retry after refreshing the session (automatic)</td></tr>
+<tr><td>16</td><td><code>ERROR_IV_INCORRECT_LENGTH</code></td><td>No</td><td>The AES-GCM nonce is not 12 bytes. Client programming error</td></tr>
+<tr><td>17</td><td><code>ERROR_TIME_EXPIRED</code></td><td>Automatic</td><td>Command expired. Possible clock desync. Retry after resynchronizing the clock with session info (automatic)</td></tr>
+<tr><td>18</td><td><code>ERROR_NOT_PROVISIONED_WITH_IDENTITY</code></td><td>No</td><td>The vehicle has no VIN. Service required</td></tr>
+<tr><td>19</td><td><code>ERROR_COULD_NOT_HASH_METADATA</code></td><td>No</td><td>Internal vehicle error</td></tr>
+<tr><td>20</td><td><code>ERROR_TIME_TO_LIVE_TOO_LONG</code></td><td>Automatic</td><td>The expiration time is too far in the future. Occurs when the context deadline is too long. Retry with a shorter deadline</td></tr>
+<tr><td>21</td><td><code>ERROR_REMOTE_ACCESS_DISABLED</code></td><td>No</td><td>The owner has disabled mobile access</td></tr>
+<tr><td>22</td><td><code>ERROR_REMOTE_SERVICE_ACCESS_DISABLED</code></td><td>No</td><td>Signed with a Service key, but remote service commands are not allowed</td></tr>
+<tr><td>23</td><td><code>ERROR_COMMAND_REQUIRES_ACCOUNT_CREDENTIALS</code></td><td>No</td><td>A command that requires Tesla account credentials was sent over BLE. Resend it via the Fleet API</td></tr>
+<tr><td>24</td><td><code>ERROR_REQUEST_MTU_EXCEEDED</code></td><td>No</td><td>A request field exceeds the MTU</td></tr>
+<tr><td>25</td><td><code>ERROR_RESPONSE_MTU_EXCEEDED</code></td><td>No (may have succeeded)</td><td>The request was received, but the response exceeds the MTU. The command may have been executed</td></tr>
+<tr><td>26</td><td><code>ERROR_REPEATED_COUNTER</code></td><td>No</td><td>(no description in proto) Repeated counter</td></tr>
+<tr><td>27</td><td><code>ERROR_INVALID_KEY_HANDLE</code></td><td>No</td><td>(no description in proto) Invalid key handle</td></tr>
+<tr><td>28</td><td><code>ERROR_REQUIRES_RESPONSE_ENCRYPTION</code></td><td>No</td><td>(no description in proto) Response encryption required. Can occur with clients that do not set <code>FLAG_ENCRYPT_RESPONSE</code></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-generic">VCSEC application layer: GenericError_E</h2>
+<p><code>FromVCSECMessage.nominalError.genericError</code>. Surfaced as a <code>NominalVCSECError</code> with the message <code>vcsec could not execute command: &lt;name&gt;</code>.</p>
+<table>
+<thead><tr><th>Value</th><th>Name</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>0</td><td><code>GENERICERROR_NONE</code></td><td>No error</td></tr>
+<tr><td>1</td><td><code>GENERICERROR_UNKNOWN</code></td><td>Unknown</td></tr>
+<tr><td>2</td><td><code>GENERICERROR_CLOSURES_OPEN</code></td><td>Cannot execute because a door/trunk is open (e.g. locking)</td></tr>
+<tr><td>3</td><td><code>GENERICERROR_ALREADY_ON</code></td><td>Already in that state</td></tr>
+<tr><td>4</td><td><code>GENERICERROR_DISABLED_FOR_USER_COMMAND</code></td><td>Disabled for user commands</td></tr>
+<tr><td>5</td><td><code>GENERICERROR_VEHICLE_NOT_IN_PARK</code></td><td>Not in park (P)</td></tr>
+<tr><td>6</td><td><code>GENERICERROR_UNAUTHORIZED</code></td><td>Unauthorized</td></tr>
+<tr><td>7</td><td><code>GENERICERROR_NOT_ALLOWED_OVER_TRANSPORT</code></td><td>The command is not allowed over this transport (BLE/internet)</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-whitelist">Keychain operation errors: WhitelistOperation_information_E</h2>
+<p>Stored in <code>KeychainError.Code</code> when <code>add-key</code>, <code>add-key-request</code>, or <code>remove-key</code> fails. Main values:</p>
+<table>
+<thead><tr><th>Value</th><th>Name</th><th>Situation</th></tr></thead>
+<tbody>
+<tr><td>2</td><td><code>NO_PERMISSION_TO_REMOVE_ONESELF</code></td><td>Attempted to remove its own key</td></tr>
+<tr><td>3</td><td><code>KEYFOB_SLOTS_FULL</code></td><td>Key fob slots are full</td></tr>
+<tr><td>4</td><td><code>WHITELIST_FULL</code></td><td>The keychain is full. An existing key must be removed</td></tr>
+<tr><td>5</td><td><code>NO_PERMISSION_TO_ADD</code></td><td>The signing key's role cannot add keys (Driver, etc.)</td></tr>
+<tr><td>6</td><td><code>INVALID_PUBLIC_KEY</code></td><td>Malformed public key</td></tr>
+<tr><td>7</td><td><code>NO_PERMISSION_TO_REMOVE</code></td><td>No permission to remove</td></tr>
+<tr><td>9</td><td><code>ATTEMPTING_TO_ELEVATE_OTHER_ABOVE_ONESELF</code></td><td>Attempted to grant a role higher than its own</td></tr>
+<tr><td>12</td><td><code>PUBLIC_KEY_NOT_ON_WHITELIST</code></td><td>The key to be removed does not exist</td></tr>
+<tr><td>13</td><td><code>ATTEMPTING_TO_ADD_KEY_THAT_IS_ALREADY_ON_THE_WHITELIST</code></td><td>The key is already enrolled</td></tr>
+<tr><td>14</td><td><code>NOT_ALLOWED_TO_ADD_UNLESS_ON_READER</code></td><td>Cannot add unless a card is placed on the NFC reader</td></tr>
+<tr><td>15–17</td><td><code>FM_*</code></td><td>Fleet Manager key restrictions (modification outside F mode, adding/removing permanent keys)</td></tr>
+<tr><td>19–22</td><td><code>ATTEMPTING_TO_ADD_KEY_WITHOUT_ROLE</code>, <code>*_SERVICE_*</code></td><td>No role specified, or restrictions related to the Service role</td></tr>
+<tr><td>23</td><td><code>COULD_NOT_START_LOCAL_ENTITY_AUTH</code></td><td>Failed to start the NFC approval procedure</td></tr>
+<tr><td>24</td><td><code>LOCAL_ENTITY_AUTH_FAILED_UI_DENIED</code></td><td>The user declined on the vehicle screen</td></tr>
+<tr><td>25</td><td><code>LOCAL_ENTITY_AUTH_FAILED_TIMED_OUT_WAITING_FOR_TAP</code></td><td>Timed out waiting for the NFC card tap</td></tr>
+<tr><td>26</td><td><code>LOCAL_ENTITY_AUTH_FAILED_TIMED_OUT_WAITING_FOR_UI_ACK</code></td><td>Timed out waiting for on-screen confirmation</td></tr>
+<tr><td>27</td><td><code>LOCAL_ENTITY_AUTH_FAILED_VALET_MODE</code></td><td>Keys cannot be added in valet mode</td></tr>
+<tr><td>28</td><td><code>LOCAL_ENTITY_AUTH_FAILED_CANCELLED</code></td><td>Cancelled</td></tr>
+</tbody>
+</table>
+<p>For the full list (0–28), see <code>WhitelistOperation_information_E</code> in <code>pkg/protocol/protobuf/vcsec.proto</code>. Because <code>SendAddKeyRequest</code> returns immediately after sending, these errors surface only when you read follow-up messages directly in the BLE session, or later when you check enrollment with <code>session-info</code>.</p>
+
+<h2 id="sec-info">Infotainment application-layer errors</h2>
+<p>If the Infotainment response <code>carserver.Response.actionStatus.result</code> is <code>OPERATIONSTATUS_ERROR</code>, <code>result_reason.plain_text</code> becomes the <code>NominalError</code> message: <code>car could not execute command: &lt;plain_text&gt;</code>. If the text is empty, it is <code>unspecified error</code>. Examples mentioned in the code: <code>already off</code> (treated as success when disabling valet mode), <code>low_power_mode_enforced</code>, <code>parental_controls_active</code>. The proxy returns this string as <code>reason</code>.</p>
+
+<h2 id="sec-http">HTTP layer: inet.HTTPError</h2>
+<table>
+<thead><tr><th>Fleet API response</th><th>SDK error</th><th>Temporary</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>None (body returned)</td><td></td></tr>
+<tr><td>422</td><td><code>protocol.ErrProtocolNotSupported</code></td><td></td></tr>
+<tr><td>503</td><td><code>inet.ErrVehicleNotAwake</code></td><td>false</td></tr>
+<tr><td>408 + "vehicle is offline" in body</td><td><code>inet.ErrVehicleNotAwake</code></td><td>false</td></tr>
+<tr><td>408 (other), 503, 504, 421</td><td><code>*inet.HTTPError</code></td><td>true</td></tr>
+<tr><td>Other 4xx</td><td><code>*inet.HTTPError</code> (MayHaveSucceeded false)</td><td>false</td></tr>
+<tr><td>Other 5xx</td><td><code>*inet.HTTPError</code> (MayHaveSucceeded true)</td><td>false</td></tr>
+<tr><td>Response &gt; 100000 bytes</td><td><code>response exceeds maximum length</code> (may have succeeded, temporary)</td><td>true</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-scenarios">Troubleshooting scenarios</h2>
+<table>
+<thead><tr><th>Symptom</th><th>Possible causes</th><th>Checks and remedies</th></tr></thead>
+<tbody>
+<tr><td>BLE scan never finishes / <code>ble: failed to scan for &lt;VIN&gt;: context deadline exceeded</code></td><td>VIN typo, vehicle too far away, advertised name mismatch, adapter problem</td><td>Check that the VIN is 17 characters (upper case). The advertised Local Name is <code>S</code> + hex of the first 8 bytes of SHA1(VIN) + <code>C</code> (<code>ble.VehicleLocalName</code>). Check whether that name appears in a generic BLE scanner app. Test scanning alone with <code>examples/ble -scan-only -vin …</code>. Try next to the vehicle</td></tr>
+<tr><td><code>the vehicle is already connected to the maximum number of BLE devices</code></td><td>The beacon has <code>Connectable=false</code>. VCSEC allows at most 3 BLE connections (including key fobs and phone keys)</td><td>Temporarily turn off the phone key in the mobile app, or disconnect another client. Not retried automatically</td></tr>
+<tr><td>Linux: <code>operation not permitted</code>, <code>Failed to initialize BLE adapter</code></td><td>No permission to access the HCI socket (go-ble calls HCIDEVDOWN)</td><td><code>sudo setcap 'cap_net_admin=eip' "$(which tesla-control)"</code> or run as root. Select a different adapter with <code>-bt-adapter hci1</code>. May conflict if bluetoothd holds the adapter</td></tr>
+<tr><td>macOS: no scan results at all</td><td>The terminal app lacks Bluetooth permission, or Bluetooth is off</td><td>Allow the terminal/IDE under System Settings → Privacy &amp; Security → Bluetooth. macOS does not support <code>-bt-adapter</code> (<code>ErrAdapterInvalidID</code>)</td></tr>
+<tr><td><code>not supported on Windows</code> on Windows</td><td>The BLE package does not support Windows</td><td>Use macOS/Linux, or switch to the internet path (OAuth)</td></tr>
+<tr><td>Connects, but <code>ble: failed to find required characteristics</code> / <code>failed to discover service</code></td><td>Connected to a different device (the Local Name is checked, but addresses can be reused), GATT cache problem</td><td>Retry (automatic). Toggle Bluetooth off and on in the OS. If another Tesla is nearby, recheck the VIN</td></tr>
+<tr><td>Handshake failure: <code>your public key has not been paired with the vehicle</code></td><td>Public key not enrolled, running with a different key, or enrollment not yet synced to Infotainment</td><td>Check the enrolled list with <code>tesla-control -ble list-keys</code>. Print the current key's public key with <code>tesla-keygen create</code> and compare. Wait a moment until <code>session-info public_key.pem infotainment</code> succeeds. Check that <code>TESLA_KEY_NAME</code>/<code>-key-file</code> points to the intended key</td></tr>
+<tr><td>Nothing happens after a pairing request</td><td>Vehicle asleep, valet mode, NFC card tap timeout, declined on screen</td><td>Run inside the vehicle with the screen on. Right after <code>add-key-request</code>, place the NFC card on the center console and press confirm on the screen. Turn off valet mode. Check the <code>WhitelistOperation_information_E</code> code with <code>-debug</code></td></tr>
+<tr><td><code>MESSAGEFAULT_ERROR_INVALID_SIGNATURE</code>, <code>INCORRECT_EPOCH</code>, <code>INVALID_TOKEN_OR_COUNTER</code> repeat in the log</td><td>Stale session cache (vehicle reboot, firmware update), or multiple processes using the same key at once, causing counter collisions</td><td>Normally recovers automatically using the session info in the response and succeeds after retry. If it keeps failing, delete the cache file (<code>~/.tesla-cache.json</code>) or use <code>-disable-session-cache</code>. Reduce the number of processes using the same key to one, or serialize per VIN as the proxy does</td></tr>
+<tr><td><code>MESSAGEFAULT_ERROR_TIME_EXPIRED</code> / <code>TIME_TO_LIVE_TOO_LONG</code></td><td>Difference between the local clock and the estimated domain clock, response latency exceeding <code>AllowedLatency</code> (4 seconds for BLE) so the clock sync is discarded, or a context deadline that is too long</td><td>Recovered automatically. If it persists, increase <code>Vehicle.SetMaxLatency</code> or decrease <code>-command-timeout</code>. Delete the cache</td></tr>
+<tr><td><code>vehicle busy or finishing wake-up</code> persists for a long time</td><td>VCSEC is processing another request (<code>OPERATIONSTATUS_WAIT</code>), or the vehicle is booting</td><td>Retried automatically. Increase it, e.g. <code>-command-timeout 15s</code>. Check your app's structure so that it does not send concurrent requests to VCSEC (concurrent requests are discouraged due to memory constraints)</td></tr>
+<tr><td>Only Infotainment commands time out; VCSEC commands work</td><td>Infotainment is asleep</td><td>BLE: <code>tesla-control -ble wake</code>, then wait a moment. Internet: <code>wake</code> (Fleet API). Check with <code>vehicleSleepStatus</code> in <code>body-controller-state</code></td></tr>
+<tr><td><code>Couldn't verify success: …</code></td><td>No response received (timeout). The command may have been executed</td><td>Check the result with <code>body-controller-state</code>/<code>state closures</code> and rerun if needed. Increase the timeout</td></tr>
+<tr><td><code>You must provide a private key with -key-name or -key-file to execute this command</code></td><td><code>ErrNoSession</code>: an authenticated command was run without a key</td><td>Set <code>TESLA_KEY_NAME</code> or <code>-key-file</code>. Check that you did not exclude that domain with <code>-domain</code></td></tr>
+<tr><td><code>no terminal output available for password prompt</code> / execution hangs</td><td>The keyring backend requires a password but there is no terminal (cron, systemd, CI)</td><td>Set <code>TESLA_KEYRING_PASSWORD</code>, or use a file-based key (<code>-key-file</code>). Check the backend with <code>TESLA_KEYRING_DEBUG=1</code></td></tr>
+<tr><td><code>could not load key: The specified item could not be found in the keyring</code></td><td>Key name mismatch, different keyring backend</td><td>Check that <code>TESLA_KEY_NAME</code> and <code>TESLA_KEYRING_TYPE</code> are the same as when the key was created. Search for <code>com.tesla.auth</code> in the macOS Keychain Access app</td></tr>
+<tr><td>Fleet API: <code>vehicle unavailable: vehicle is offline or asleep</code> (proxy 408)</td><td>Vehicle offline/asleep</td><td>Retry after <code>wake_up</code>. If offline, wait for a cellular connection</td></tr>
+<tr><td>Proxy 412</td><td>The proxy's public key is not enrolled on that vehicle</td><td>Ask the user to enroll the key via the <code>https://tesla.com/_ak/&lt;domain&gt;</code> link</td></tr>
+<tr><td>The proxy passes commands to REST (422 in the log)</td><td>A vehicle that does not support the protocol, such as a pre-2021 Model S/X</td><td>Expected behavior. The Fleet API handles it directly. That VIN keeps being forwarded while the process is alive</td></tr>
+<tr><td><code>command requires a FleetAPI OAuth token</code></td><td><code>-ble</code> used together with an account command (<code>product-info</code>, <code>get</code>, etc.)</td><td>Remove <code>-ble</code> and set an OAuth token</td></tr>
+<tr><td><code>MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES</code></td><td>Insufficient key role, vehicle state</td><td>Check the role with <code>list-keys</code>. Fleet Manager keys cannot use BLE. Driver cannot manage keys or PINs</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-debug">Debugging tools</h2>
+<h3>Decoding TX/RX dumps</h3>
+<p><code>tesla-control -debug</code> (or <code>TESLA_VERBOSE=1</code>) prints sent and received RoutableMessages in hexadecimal.</p>
+<pre><code>2023-12-13T14:41:13-08:00 [debug] TX: 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805</code></pre>
+<p>Decode it with <code>protoc</code> (run from the repository root).</p>
+<pre><code class="language-bash">cd vehicle-command/pkg/protocol
+echo 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805 \
+    | xxd -r -p \
+    | protoc --decode=UniversalMessage.RoutableMessage -I protobuf protobuf/*.proto
+
+# Decode protobuf_message_as_bytes from the output again, using the type that matches the domain
+printf "\n\002\010\005" | protoc --decode=VCSEC.UnsignedMessage -I protobuf protobuf/*.proto      # VCSEC request
+printf "..." | protoc --decode=VCSEC.FromVCSECMessage -I protobuf protobuf/*.proto              # VCSEC response
+printf "..." | protoc --decode=CarServer.Action -I protobuf protobuf/*.proto                    # Infotainment request
+printf "..." | protoc --decode=CarServer.Response -I protobuf protobuf/*.proto                  # Infotainment response</code></pre>
+<p>Over BLE, messages are encrypted with AES-GCM, so <code>protobuf_message_as_bytes</code> is ciphertext. To see the plaintext, you need the <code>-debug</code> log entries from when the request was built, or the session key. Handshake messages and the error fields of responses (<code>signedMessageStatus</code>) are plaintext.</p>
+
+<h3>Other</h3>
+<table>
+<thead><tr><th>Tool</th><th>Purpose</th></tr></thead>
+<tbody>
+<tr><td><code>tesla-control -ble session-info public_key.pem vcsec|infotainment</code></td><td>Checks key enrollment and the domain's epoch/counter/clock_time. No authentication required</td></tr>
+<tr><td><code>tesla-control -ble list-keys</code></td><td>Enrolled keys and their roles</td></tr>
+<tr><td><code>tesla-control -ble body-controller-state</code></td><td>Lock/closure/sleep status. No authentication required, VCSEC only</td></tr>
+<tr><td><code>tesla-control -ble ping</code></td><td>Checks the Infotainment session and key recognition</td></tr>
+<tr><td><code>examples/ble -scan-only -vin …</code></td><td>Repeats scanning only. Checks the advertised name/RSSI</td></tr>
+<tr><td><code>TESLA_KEYRING_DEBUG=1</code> / <code>-keyring-debug</code></td><td>Logs keyring backend selection and item access</td></tr>
+<tr><td><code>tesla-http-proxy -verbose</code></td><td>Logs forwarding URLs, 421 updates, and command execution</td></tr>
+<tr><td><code>curl https://localhost:4443/health</code></td><td>Checks that the proxy is alive</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-security">Security notes</h2>
+<ul>
+<li><strong>Do not enroll test keys on a real vehicle.</strong> The keys in <code>pkg/protocol/protocol.md</code>, <code>internal/authentication/test_data/</code>, and <code>pkg/protocol/test/</code> are public.</li>
+<li><strong>Session cache file permissions.</strong> <code>~/.tesla-cache.json</code> does not contain private keys, but it does contain session state. Do not let third parties read or tamper with it. A tampered cache recovers automatically after the first command fails, but it causes unnecessary failures.</li>
+<li><strong>Exporting private keys.</strong> The output of <code>tesla-keygen export</code> and the <code>-key-file</code> file grant command authority over every enrolled vehicle. Use 0600 permissions, exclude them from version control, and encrypt backups.</li>
+<li><strong>Debug logs.</strong> <code>-debug</code> output includes public keys, epochs, counters, and ciphertext. Private keys and session keys are not printed, but mask the VIN when posting logs to public issues.</li>
+<li><strong>Reporting vulnerabilities.</strong> Report directly to Tesla as described in <code>SECURITY.md</code>: <a href="https://www.tesla.com/legal/security">https://www.tesla.com/legal/security</a>.</li>
+</ul>
+
+<footer class="page-nav">
+  <a href="08-http-proxy.html"><span>Previous</span>8. HTTP Proxy</a>
+  <a class="next" href="index.html"><span>Back to home</span>Documentation home</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

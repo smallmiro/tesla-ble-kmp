@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>9. エラーとトラブルシューティング · vehicle-command BLE マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE 開発マニュアル · v0.4.1 基準</div>
+  <div class="lang-switch" aria-label="Language"><a href="../ko/09-errors-troubleshooting.html" hreflang="ko" lang="ko">한국어</a><a href="../en/09-errors-troubleshooting.html" hreflang="en" lang="en">English</a><a class="active" href="../ja/09-errors-troubleshooting.html" hreflang="ja" lang="ja">日本語</a></div>
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a class="active" href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>9. エラーとトラブルシューティング</h1>
+<p class="lead">SDK のエラーモデル、プロトコル層/アプリケーション層のエラーコード一覧、リトライポリシー、そして BLE 開発でよく遭遇する問題の原因と対処法をまとめます。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-model">エラーモデル</a></li>
+<li><a href="#sec-retry">リトライポリシー</a></li>
+<li><a href="#sec-sentinel">pkg/protocol の sentinel エラー</a></li>
+<li><a href="#sec-fault">プロトコル層：MessageFault_E</a></li>
+<li><a href="#sec-generic">VCSEC アプリケーション層：GenericError_E</a></li>
+<li><a href="#sec-whitelist">キーチェーン操作のエラー：WhitelistOperation_information_E</a></li>
+<li><a href="#sec-info">Infotainment アプリケーション層のエラー</a></li>
+<li><a href="#sec-http">HTTP 層：inet.HTTPError</a></li>
+<li><a href="#sec-scenarios">トラブルシューティングのシナリオ</a></li>
+<li><a href="#sec-debug">デバッグツール</a></li>
+<li><a href="#sec-security">セキュリティ上の注意</a></li>
+</ol></div>
+
+<h2 id="sec-model">エラーモデル</h2>
+<p>SDK が返すエラーは、可能な限り <code>protocol.Error</code> インターフェースを実装しています。2 つのメソッドが、呼び出し側が取るべき対応を決めます。</p>
+<pre><code class="language-go">type Error interface {
+    error
+    MayHaveSucceeded() bool // 車両がコマンドを受け取って実行した可能性がある (確認不可)
+    Temporary() bool        // ユーザーの介入なしにリトライで解決できる可能性がある
+}</code></pre>
+<table>
+<thead><tr><th>型</th><th>層</th><th>MayHaveSucceeded</th><th>Temporary</th><th>説明</th></tr></thead>
+<tbody>
+<tr><td><code>*protocol.CommandError</code></td><td>汎用</td><td>フィールド <code>PossibleSuccess</code></td><td>フィールド <code>PossibleTemporary</code></td><td><code>protocol.NewError(msg, mayHaveSucceeded, temporary)</code> で生成。コンテキストの期限切れ時は <code>{ctx.Err(), true, true}</code> でラップされます。<code>Unwrap()</code> をサポート</td></tr>
+<tr><td><code>*protocol.RoutableMessageError</code></td><td>プロトコル</td><td><code>ERROR_NONE</code>、<code>RESPONSE_MTU_EXCEEDED</code> のみ true</td><td><a href="#sec-fault">表</a>のリトライ可能なコードのみ true</td><td>車両の <code>signedMessageStatus.signed_message_fault</code>。<code>.Code</code> は <code>universal.MessageFault_E</code>。<code>Error()</code> は enum 名</td></tr>
+<tr><td><code>*protocol.NominalError</code></td><td>アプリケーション</td><td><code>Details</code> に委譲</td><td><code>Details</code> に委譲</td><td>車両がコマンドを認証したものの実行できない。Infotainment は <code>car could not execute command: &lt;理由&gt;</code>、VCSEC は <code>NominalVCSECError</code> をラップ。プロキシは HTTP 200 + <code>reason</code> に変換</td></tr>
+<tr><td><code>*protocol.NominalVCSECError</code></td><td>アプリケーション</td><td>false</td><td>false</td><td><code>FromVCSECMessage.nominalError</code>。<code>.Details.GetGenericError()</code> が <a href="#sec-generic">GenericError_E</a></td></tr>
+<tr><td><code>*protocol.KeychainError</code></td><td>アプリケーション</td><td>false</td><td>false</td><td>キーの追加/削除の失敗。<code>.Code</code> は <a href="#sec-whitelist">WhitelistOperation_information_E</a>。メッセージは <code>keychain operation failed: &lt;コード&gt;</code></td></tr>
+<tr><td><code>*inet.HTTPError</code></td><td>トランスポート（HTTP）</td><td>4xx と 503 は false、それ以外は true</td><td>503, 504, 408, 421</td><td>Fleet API が 200 以外を返した。<code>.Code</code>、<code>.Message</code>（ボディ）</td></tr>
+</tbody>
+</table>
+<p>ヘルパー関数 <code>protocol.MayHaveSucceeded(err)</code>、<code>protocol.Temporary(err)</code>、<code>protocol.ShouldRetry(err)</code>、<code>protocol.IsNominalError(err)</code> は、<code>errors.As</code> でラップを辿って検査します。コミット <code>a4b43c1</code> でラップされたプロトコルエラーの分類が修正されたため、<code>fmt.Errorf("%w")</code> でラップしたエラーも正しく分類されます。</p>
+
+<h2 id="sec-retry">リトライポリシー</h2>
+<pre><code class="language-go">func ShouldRetry(err error) bool {
+    // Error インターフェースを実装し、MayHaveSucceeded() が false で、Temporary() が true のときのみ true
+}</code></pre>
+<p>SDK は次の箇所で、<code>ShouldRetry</code> が真である間、コネクターの <code>RetryInterval()</code>（BLE、inet ともに 1 秒）間隔で、コンテキストが期限切れになるまでリトライします。</p>
+<table>
+<thead><tr><th>箇所</th><th>リトライ対象</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>Vehicle.StartSession</code></td><td>ハンドシェイク全体</td><td>ディスパッチャーは、レスポンスが <code>RetryInterval</code> 内に届かなければリクエストを再送</td></tr>
+<tr><td><code>Vehicle.Send</code>（Infotainment コマンド）</td><td>送信 + レスポンス待ち</td><td>リトライ時はカウンターを新たにインクリメントした新しいメッセージを作成</td></tr>
+<tr><td><code>getVCSECResult</code>（VCSEC コマンド）</td><td>送信 + 最終レスポンス待ち</td><td><code>OPERATIONSTATUS_WAIT</code> は <code>ErrBusy</code> に変換されてリトライ</td></tr>
+<tr><td><code>Dispatcher.Send</code></td><td>コネクターの <code>Send</code> そのもの</td><td>同一バイト列を再送（カウンターは不変）。コネクターが <code>protocol.Error</code> を返した場合のみ</td></tr>
+<tr><td><code>inet.Connection.Wakeup</code></td><td><code>wake_up</code> のポーリング</td><td>10 秒間隔、<code>state == "online"</code> になるまで。<code>Temporary</code> なエラーの場合のみ継続</td></tr>
+<tr><td><code>ble.NewConnectionFromScanResult</code></td><td>スキャン/ダイヤル/サービス探索</td><td>アダプターエラー（<code>IsAdapterError</code>）、不正な Local Name、接続不可のビーコンは即座に失敗。それ以外はコンテキストの期限切れまで繰り返し</td></tr>
+</tbody>
+</table>
+<div class="callout warn">
+<strong>MayHaveSucceeded が真のエラーは自動リトライされません</strong>
+<p>コンテキストのタイムアウトやレスポンスのパース失敗などでは、車両がすでにコマンドを実行している可能性があるため、SDK は再送しません。ロック解除やトランクを開くなど、2 回実行されると困るコマンドは、<code>BodyControllerState</code> や <code>GetState</code> で状態を確認してから判断してください。この場合、<code>tesla-control</code> は <code>Couldn't verify success: …</code> を出力します。</p>
+</div>
+
+<h2 id="sec-sentinel">pkg/protocol の sentinel エラー</h2>
+<table>
+<thead><tr><th>変数</th><th>メッセージ</th><th>Temporary</th><th>原因と対処</th></tr></thead>
+<tbody>
+<tr><td><code>ErrBusy</code></td><td>vehicle busy or finishing wake-up</td><td>true</td><td>VCSEC の <code>OPERATIONSTATUS_WAIT</code> または RoutableMessage の <code>OPERATIONSTATUS_WAIT</code>。自動でリトライされます。起動中/スリープ復帰中によく発生</td></tr>
+<tr><td><code>ErrUnknown</code></td><td>vehicle responded with an unrecognized status code</td><td>false</td><td>SDK が知らないステータスコード。パッケージの更新を確認</td></tr>
+<tr><td><code>ErrNotConnected</code></td><td>vehicle not connected</td><td>false</td><td><code>Connect()</code> をしていない、または <code>Disconnect()</code> 後に送信した。inet コネクターが閉じている</td></tr>
+<tr><td><code>ErrNoSession</code></td><td>cannot send authenticated command before establishing a vehicle session</td><td>false</td><td><code>StartSession</code> をしていない、または該当ドメインを除外した。秘密鍵が nil だとセッションを作成できない</td></tr>
+<tr><td><code>ErrRequiresKey</code></td><td>no private key available</td><td>false</td><td>秘密鍵なしでハンドシェイクを要求</td></tr>
+<tr><td><code>ErrInvalidPublicKey</code></td><td>(internal/authentication)</td><td>false</td><td>P-256 ではない、または非圧縮エンコーディングではない公開鍵</td></tr>
+<tr><td><code>ErrKeyNotPaired</code></td><td>vehicle rejected request: your public key has not been paired with the vehicle</td><td>false</td><td><code>MESSAGEFAULT_ERROR_UNKNOWN_KEY_ID</code> または <code>SESSION_INFO_STATUS_KEY_NOT_ON_WHITELIST</code>。キーのペアリングが必要。プロキシは 412</td></tr>
+<tr><td><code>ErrUnpexpectedPublicKey</code></td><td>remote public key changed unexpectedly</td><td>—</td><td>セッション更新中に車両の公開鍵が変わった（名前のタイプミスは原文のまま）</td></tr>
+<tr><td><code>ErrBadResponse</code></td><td>invalid response</td><td>—</td><td>レスポンスの protobuf のパース失敗、セッション情報の欠落</td></tr>
+<tr><td><code>ErrProtocolNotSupported</code></td><td>vehicle does not support protocol -- use REST API</td><td>—</td><td>Fleet API の 422。2021 年以前の Model S/X。プロキシは REST にフォールバック</td></tr>
+<tr><td><code>ErrRequiresBLE</code></td><td>command can only be sent over BLE</td><td>—</td><td><code>SendAddKeyRequest</code> をインターネット経路で呼び出した</td></tr>
+<tr><td><code>ErrRequiresEncryption</code></td><td>command should not be sent in plaintext or encrypted with an unauthenticated public key</td><td>—</td><td><code>SetPINToDrive</code> を BLE で呼び出した。Fleet API 経路のみ許可</td></tr>
+<tr><td><code>ErrNoDecryptionContext</code></td><td>could not decrypt vehicle response without a session</td><td>—</td><td>暗号化されたレスポンスが届いたが、該当ドメインのセッションがない</td></tr>
+<tr><td><code>ErrReplayedResponse</code></td><td>received vehicle response with duplicate counter</td><td>—</td><td>同じレスポンスカウンターが 2 回届いた。ディスパッチャーが重複を破棄（ネットワークの再送による正常な場合もある）</td></tr>
+<tr><td><code>inet.ErrVehicleNotAwake</code></td><td>vehicle unavailable: vehicle is offline or asleep</td><td>false</td><td>Fleet API の 503 または "vehicle is offline" の 408。先に <code>Wakeup</code>。プロキシは 408</td></tr>
+<tr><td><code>ble.ErrAdapterInvalidID</code></td><td>the bluetooth adapter ID is invalid</td><td>false</td><td><code>hci0</code>～<code>hci15</code> の形式ではない、または macOS で ID を指定した</td></tr>
+<tr><td><code>ble.ErrMaxConnectionsExceeded</code></td><td>the vehicle is already connected to the maximum number of BLE devices</td><td>false</td><td>ビーコンが <code>Connectable=false</code>。VCSEC の接続は最大 3 つ（キーフォブ、フォンキーを含む）</td></tr>
+<tr><td><code>vehicle.ErrInvalidPIN</code></td><td>PIN codes must be four digits</td><td>—</td><td>バレー/ペアレンタルコントロールの PIN 形式</td></tr>
+<tr><td><code>vehicle.ErrNoFleetAPIConnection</code></td><td>not connected to Fleet API</td><td>—</td><td>サーバーで完結するコマンドを BLE コネクターで呼び出した</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-fault">プロトコル層：MessageFault_E</h2>
+<p>車両が <code>RoutableMessage.signedMessageStatus.signed_message_fault</code> に設定します。<code>protocol.GetError</code> が <code>RoutableMessageError</code> に変換し、<code>UNKNOWN_KEY_ID</code> だけは <code>ErrKeyNotPaired</code> に置き換えます。説明は <code>universal_message.proto</code> のコメントを訳したものです。</p>
+<table>
+<thead><tr><th>値</th><th>名前</th><th>リトライ</th><th>意味と対処</th></tr></thead>
+<tbody>
+<tr><td>0</td><td><code>ERROR_NONE</code></td><td>—</td><td>成功</td></tr>
+<tr><td>1</td><td><code>ERROR_BUSY</code></td><td>自動</td><td>必要な車両サブシステムがビジー。再試行</td></tr>
+<tr><td>2</td><td><code>ERROR_TIMEOUT</code></td><td>自動</td><td>サブシステムが応答しない。再試行</td></tr>
+<tr><td>3</td><td><code>ERROR_UNKNOWN_KEY_ID</code></td><td>いいえ</td><td>コマンドを認証したキーを車両が知らない。キーのペアリングを確認（<code>ErrKeyNotPaired</code> として公開）</td></tr>
+<tr><td>4</td><td><code>ERROR_INACTIVE_KEY</code></td><td>いいえ</td><td>キーが無効化されている</td></tr>
+<tr><td>5</td><td><code>ERROR_INVALID_SIGNATURE</code></td><td>自動</td><td>署名/MAC の不一致。レスポンスに含まれるセッション情報でセッションを更新してリトライ（SDK が自動で実施）</td></tr>
+<tr><td>6</td><td><code>ERROR_INVALID_TOKEN_OR_COUNTER</code></td><td>自動</td><td>アンチリプレイカウンターがすでに使用済み。セッション更新後にリトライ（自動）</td></tr>
+<tr><td>7</td><td><code>ERROR_INSUFFICIENT_PRIVILEGES</code></td><td>いいえ</td><td>ロールまたは車両の状態により権限がない</td></tr>
+<tr><td>8</td><td><code>ERROR_INVALID_DOMAINS</code></td><td>いいえ</td><td>メッセージ形式のエラー、または不明なドメイン。クライアントのバグか古いファームウェア</td></tr>
+<tr><td>9</td><td><code>ERROR_INVALID_COMMAND</code></td><td>いいえ</td><td>不明なコマンド。クライアントのエラーまたは未対応のファームウェア</td></tr>
+<tr><td>10</td><td><code>ERROR_DECODING</code></td><td>いいえ</td><td>コマンドのパース失敗。クライアントのエラー</td></tr>
+<tr><td>11</td><td><code>ERROR_INTERNAL</code></td><td>自動</td><td>車両の内部エラー。起動が完了していないときによく発生。リトライ</td></tr>
+<tr><td>12</td><td><code>ERROR_WRONG_PERSONALIZATION</code></td><td>いいえ</td><td>別の VIN で署名されたコマンド</td></tr>
+<tr><td>13</td><td><code>ERROR_BAD_PARAMETER</code></td><td>いいえ</td><td>形式エラーまたは廃止されたパラメーター</td></tr>
+<tr><td>14</td><td><code>ERROR_KEYCHAIN_IS_FULL</code></td><td>いいえ</td><td>キーチェーンが満杯。キーを削除しないと追加できない</td></tr>
+<tr><td>15</td><td><code>ERROR_INCORRECT_EPOCH</code></td><td>自動</td><td>セッション ID（epoch）の不一致。車両の再起動後によく発生。セッション更新後にリトライ（自動）</td></tr>
+<tr><td>16</td><td><code>ERROR_IV_INCORRECT_LENGTH</code></td><td>いいえ</td><td>AES-GCM の nonce が 12 バイトではない。クライアントのプログラミングエラー</td></tr>
+<tr><td>17</td><td><code>ERROR_TIME_EXPIRED</code></td><td>自動</td><td>コマンドの期限切れ。時計の desync の可能性。セッション情報で時計を再同期してリトライ（自動）</td></tr>
+<tr><td>18</td><td><code>ERROR_NOT_PROVISIONED_WITH_IDENTITY</code></td><td>いいえ</td><td>車両に VIN がない。サービスが必要</td></tr>
+<tr><td>19</td><td><code>ERROR_COULD_NOT_HASH_METADATA</code></td><td>いいえ</td><td>車両の内部エラー</td></tr>
+<tr><td>20</td><td><code>ERROR_TIME_TO_LIVE_TOO_LONG</code></td><td>自動</td><td>有効期限が遠すぎる未来。コンテキストのデッドラインが長すぎると発生。短いデッドラインでリトライ</td></tr>
+<tr><td>21</td><td><code>ERROR_REMOTE_ACCESS_DISABLED</code></td><td>いいえ</td><td>オーナーがモバイルアクセスをオフにした</td></tr>
+<tr><td>22</td><td><code>ERROR_REMOTE_SERVICE_ACCESS_DISABLED</code></td><td>いいえ</td><td>Service キーで署名したが、リモートサービスコマンドが許可されていない</td></tr>
+<tr><td>23</td><td><code>ERROR_COMMAND_REQUIRES_ACCOUNT_CREDENTIALS</code></td><td>いいえ</td><td>Tesla アカウントの資格情報が必要なコマンドを BLE で送った。Fleet API で送り直すこと</td></tr>
+<tr><td>24</td><td><code>ERROR_REQUEST_MTU_EXCEEDED</code></td><td>いいえ</td><td>リクエストのフィールドが MTU を超過</td></tr>
+<tr><td>25</td><td><code>ERROR_RESPONSE_MTU_EXCEEDED</code></td><td>いいえ（成功の可能性あり）</td><td>リクエストは受信されたが、レスポンスが MTU を超過。コマンドは実行された可能性がある</td></tr>
+<tr><td>26</td><td><code>ERROR_REPEATED_COUNTER</code></td><td>いいえ</td><td>（proto に説明なし）繰り返されたカウンター</td></tr>
+<tr><td>27</td><td><code>ERROR_INVALID_KEY_HANDLE</code></td><td>いいえ</td><td>（proto に説明なし）不正なキーハンドル</td></tr>
+<tr><td>28</td><td><code>ERROR_REQUIRES_RESPONSE_ENCRYPTION</code></td><td>いいえ</td><td>（proto に説明なし）レスポンスの暗号化が必要。<code>FLAG_ENCRYPT_RESPONSE</code> を設定していないクライアントで発生する可能性がある</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-generic">VCSEC アプリケーション層：GenericError_E</h2>
+<p><code>FromVCSECMessage.nominalError.genericError</code>。<code>NominalVCSECError</code> として公開され、メッセージは <code>vcsec could not execute command: &lt;名前&gt;</code> です。</p>
+<table>
+<thead><tr><th>値</th><th>名前</th><th>意味</th></tr></thead>
+<tbody>
+<tr><td>0</td><td><code>GENERICERROR_NONE</code></td><td>エラーなし</td></tr>
+<tr><td>1</td><td><code>GENERICERROR_UNKNOWN</code></td><td>不明</td></tr>
+<tr><td>2</td><td><code>GENERICERROR_CLOSURES_OPEN</code></td><td>ドア/トランクが開いているため実行できない（例：ロック）</td></tr>
+<tr><td>3</td><td><code>GENERICERROR_ALREADY_ON</code></td><td>すでにその状態</td></tr>
+<tr><td>4</td><td><code>GENERICERROR_DISABLED_FOR_USER_COMMAND</code></td><td>ユーザーコマンドでは無効化されている</td></tr>
+<tr><td>5</td><td><code>GENERICERROR_VEHICLE_NOT_IN_PARK</code></td><td>パーキング（P）状態ではない</td></tr>
+<tr><td>6</td><td><code>GENERICERROR_UNAUTHORIZED</code></td><td>権限なし</td></tr>
+<tr><td>7</td><td><code>GENERICERROR_NOT_ALLOWED_OVER_TRANSPORT</code></td><td>このトランスポート経路（BLE/インターネット）では許可されていないコマンド</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-whitelist">キーチェーン操作のエラー：WhitelistOperation_information_E</h2>
+<p><code>add-key</code>、<code>add-key-request</code>、<code>remove-key</code> が失敗すると、<code>KeychainError.Code</code> に格納されます。主な値：</p>
+<table>
+<thead><tr><th>値</th><th>名前</th><th>状況</th></tr></thead>
+<tbody>
+<tr><td>2</td><td><code>NO_PERMISSION_TO_REMOVE_ONESELF</code></td><td>自分のキーを削除しようとした</td></tr>
+<tr><td>3</td><td><code>KEYFOB_SLOTS_FULL</code></td><td>キーフォブのスロットが満杯</td></tr>
+<tr><td>4</td><td><code>WHITELIST_FULL</code></td><td>キーチェーンが満杯。既存のキーの削除が必要</td></tr>
+<tr><td>5</td><td><code>NO_PERMISSION_TO_ADD</code></td><td>署名キーのロールではキーを追加できない（Driver など）</td></tr>
+<tr><td>6</td><td><code>INVALID_PUBLIC_KEY</code></td><td>公開鍵の形式エラー</td></tr>
+<tr><td>7</td><td><code>NO_PERMISSION_TO_REMOVE</code></td><td>削除の権限なし</td></tr>
+<tr><td>9</td><td><code>ATTEMPTING_TO_ELEVATE_OTHER_ABOVE_ONESELF</code></td><td>自分より高いロールを付与しようとした</td></tr>
+<tr><td>12</td><td><code>PUBLIC_KEY_NOT_ON_WHITELIST</code></td><td>削除しようとしたキーが存在しない</td></tr>
+<tr><td>13</td><td><code>ATTEMPTING_TO_ADD_KEY_THAT_IS_ALREADY_ON_THE_WHITELIST</code></td><td>すでに登録済みのキー</td></tr>
+<tr><td>14</td><td><code>NOT_ALLOWED_TO_ADD_UNLESS_ON_READER</code></td><td>NFC リーダーにカードをかざさないと追加できない</td></tr>
+<tr><td>15～17</td><td><code>FM_*</code></td><td>Fleet Manager キーの制限（F モード外での変更、永続キーの追加/削除）</td></tr>
+<tr><td>19～22</td><td><code>ATTEMPTING_TO_ADD_KEY_WITHOUT_ROLE</code>, <code>*_SERVICE_*</code></td><td>ロール未指定、または Service ロール関連の制限</td></tr>
+<tr><td>23</td><td><code>COULD_NOT_START_LOCAL_ENTITY_AUTH</code></td><td>NFC 承認手続きの開始に失敗</td></tr>
+<tr><td>24</td><td><code>LOCAL_ENTITY_AUTH_FAILED_UI_DENIED</code></td><td>車両の画面でユーザーが拒否</td></tr>
+<tr><td>25</td><td><code>LOCAL_ENTITY_AUTH_FAILED_TIMED_OUT_WAITING_FOR_TAP</code></td><td>NFC カードのタップ待ちでタイムアウト</td></tr>
+<tr><td>26</td><td><code>LOCAL_ENTITY_AUTH_FAILED_TIMED_OUT_WAITING_FOR_UI_ACK</code></td><td>画面での確認待ちでタイムアウト</td></tr>
+<tr><td>27</td><td><code>LOCAL_ENTITY_AUTH_FAILED_VALET_MODE</code></td><td>バレーモードではキーを追加できない</td></tr>
+<tr><td>28</td><td><code>LOCAL_ENTITY_AUTH_FAILED_CANCELLED</code></td><td>キャンセルされた</td></tr>
+</tbody>
+</table>
+<p>全一覧（0～28）は <code>pkg/protocol/protobuf/vcsec.proto</code> の <code>WhitelistOperation_information_E</code> を参照してください。<code>SendAddKeyRequest</code> は送信後すぐに戻るため、これらのエラーは BLE セッションで後続のメッセージを直接読んだとき、または後で <code>session-info</code> で登録状況を確認したときに判明します。</p>
+
+<h2 id="sec-info">Infotainment アプリケーション層のエラー</h2>
+<p>Infotainment のレスポンス <code>carserver.Response.actionStatus.result</code> が <code>OPERATIONSTATUS_ERROR</code> の場合、<code>result_reason.plain_text</code> が <code>NominalError</code> のメッセージになります：<code>car could not execute command: &lt;plain_text&gt;</code>。テキストが空なら <code>unspecified error</code>。コード中に登場する例：<code>already off</code>（バレー解除時は成功として扱う）、<code>low_power_mode_enforced</code>、<code>parental_controls_active</code>。プロキシはこの文字列を <code>reason</code> として返します。</p>
+
+<h2 id="sec-http">HTTP 層：inet.HTTPError</h2>
+<table>
+<thead><tr><th>Fleet API のレスポンス</th><th>SDK のエラー</th><th>Temporary</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>なし（ボディを返す）</td><td></td></tr>
+<tr><td>422</td><td><code>protocol.ErrProtocolNotSupported</code></td><td></td></tr>
+<tr><td>503</td><td><code>inet.ErrVehicleNotAwake</code></td><td>false</td></tr>
+<tr><td>408 + ボディに "vehicle is offline"</td><td><code>inet.ErrVehicleNotAwake</code></td><td>false</td></tr>
+<tr><td>408（その他）, 503, 504, 421</td><td><code>*inet.HTTPError</code></td><td>true</td></tr>
+<tr><td>その他の 4xx</td><td><code>*inet.HTTPError</code>（MayHaveSucceeded false）</td><td>false</td></tr>
+<tr><td>その他の 5xx</td><td><code>*inet.HTTPError</code>（MayHaveSucceeded true）</td><td>false</td></tr>
+<tr><td>レスポンス &gt; 100000 バイト</td><td><code>response exceeds maximum length</code>（成功の可能性あり、一時的）</td><td>true</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-scenarios">トラブルシューティングのシナリオ</h2>
+<table>
+<thead><tr><th>症状</th><th>考えられる原因</th><th>確認と対処</th></tr></thead>
+<tbody>
+<tr><td>BLE スキャンが終わらない / <code>ble: failed to scan for &lt;VIN&gt;: context deadline exceeded</code></td><td>VIN のタイプミス、車両が遠い、アドバタイズ名の不一致、アダプターの問題</td><td>VIN が 17 文字か確認（大文字）。アドバタイズの Local Name は <code>S</code> + SHA1(VIN) の先頭 8 バイトの hex + <code>C</code>（<code>ble.VehicleLocalName</code>）。一般的な BLE スキャナーアプリでその名前が見えるか確認。<code>examples/ble -scan-only -vin …</code> でスキャンだけをテスト。車のそばで試す</td></tr>
+<tr><td><code>the vehicle is already connected to the maximum number of BLE devices</code></td><td>ビーコンが <code>Connectable=false</code>。VCSEC の BLE 接続は最大 3 つ（キーフォブ、フォンキーを含む）</td><td>スマートフォンアプリのフォンキーを一時的にオフにするか、他のクライアントを切断。自動リトライはされない</td></tr>
+<tr><td>Linux：<code>operation not permitted</code>、<code>Failed to initialize BLE adapter</code></td><td>HCI ソケットへのアクセス権限がない（go-ble が HCIDEVDOWN を呼び出す）</td><td><code>sudo setcap 'cap_net_admin=eip' "$(which tesla-control)"</code> または root で実行。<code>-bt-adapter hci1</code> で別のアダプターを選択。bluetoothd がアダプターを占有していると競合することがある</td></tr>
+<tr><td>macOS：スキャン結果がまったくない</td><td>ターミナルアプリに Bluetooth の権限がない、Bluetooth がオフ</td><td>システム設定 → プライバシーとセキュリティ → Bluetooth でターミナル/IDE を許可。macOS は <code>-bt-adapter</code> をサポートしない（<code>ErrAdapterInvalidID</code>）</td></tr>
+<tr><td>Windows で <code>not supported on Windows</code></td><td>BLE パッケージが Windows 非対応</td><td>macOS/Linux を使用するか、インターネット経路（OAuth）に切り替える</td></tr>
+<tr><td>接続はできるが <code>ble: failed to find required characteristics</code> / <code>failed to discover service</code></td><td>別のデバイスに接続している（Local Name は検査するがアドレスは再利用されうる）、GATT キャッシュの問題</td><td>リトライ（自動）。OS の Bluetooth をオフ/オンする。近くに別の Tesla があれば VIN を再確認</td></tr>
+<tr><td>ハンドシェイク失敗：<code>your public key has not been paired with the vehicle</code></td><td>公開鍵が未登録、別のキーで実行している、登録がまだ Infotainment に同期されていない</td><td><code>tesla-control -ble list-keys</code> で登録一覧を確認。<code>tesla-keygen create</code> で現在のキーの公開鍵を出力して比較。<code>session-info public_key.pem infotainment</code> が成功するまでしばらく待つ。<code>TESLA_KEY_NAME</code>/<code>-key-file</code> が意図したキーを指しているか確認</td></tr>
+<tr><td>ペアリング要求後に何も起きない</td><td>車両がスリープ中、バレーモード、NFC カードのタップのタイムアウト、画面で拒否</td><td>車内で画面がオンの状態で実行。<code>add-key-request</code> の直後に NFC カードをセンターコンソールにかざし、画面の確認を押す。バレーモードを解除。<code>-debug</code> で <code>WhitelistOperation_information_E</code> のコードを確認</td></tr>
+<tr><td><code>MESSAGEFAULT_ERROR_INVALID_SIGNATURE</code>、<code>INCORRECT_EPOCH</code>、<code>INVALID_TOKEN_OR_COUNTER</code> がログに繰り返し出る</td><td>セッションキャッシュが古い（車両の再起動、ファームウェア更新）、同じキーを複数のプロセスが同時に使ってカウンターが衝突</td><td>通常はレスポンスに含まれるセッション情報で自動復旧し、リトライ後に成功します。失敗が続く場合はキャッシュファイル（<code>~/.tesla-cache.json</code>）を削除するか <code>-disable-session-cache</code>。同じキーを使うプロセスを 1 つに減らすか、プロキシのように VIN ごとに直列化</td></tr>
+<tr><td><code>MESSAGEFAULT_ERROR_TIME_EXPIRED</code> / <code>TIME_TO_LIVE_TOO_LONG</code></td><td>ローカル時計とドメイン時計の推定値のずれ、レスポンスの遅延が <code>AllowedLatency</code>（BLE は 4 秒）を超えて時計の同期が破棄された、コンテキストのデッドラインが長すぎる</td><td>自動復旧の対象。続く場合は <code>Vehicle.SetMaxLatency</code> を増やすか <code>-command-timeout</code> を減らす。キャッシュを削除</td></tr>
+<tr><td><code>vehicle busy or finishing wake-up</code> が長く続く</td><td>VCSEC が別のリクエストを処理中（<code>OPERATIONSTATUS_WAIT</code>）、車両が起動中</td><td>自動でリトライされます。<code>-command-timeout 15s</code> のように延ばす。VCSEC に同時リクエストを送らないようアプリの構造を確認（メモリの制約により同時リクエストは非推奨）</td></tr>
+<tr><td>Infotainment コマンドだけがタイムアウトし、VCSEC コマンドは正常</td><td>インフォテインメントがスリープ中</td><td>BLE：<code>tesla-control -ble wake</code> の後しばらく待つ。インターネット：<code>wake</code>（Fleet API）。<code>body-controller-state</code> の <code>vehicleSleepStatus</code> で確認</td></tr>
+<tr><td><code>Couldn't verify success: …</code></td><td>レスポンスを受信できなかった（タイムアウト）。コマンドは実行された可能性がある</td><td><code>body-controller-state</code>/<code>state closures</code> で結果を確認し、必要なら再実行。タイムアウトを延ばす</td></tr>
+<tr><td><code>You must provide a private key with -key-name or -key-file to execute this command</code></td><td><code>ErrNoSession</code>：キーなしで認証付きコマンドを実行</td><td><code>TESLA_KEY_NAME</code> または <code>-key-file</code> を設定。<code>-domain</code> で該当ドメインを除外していないか確認</td></tr>
+<tr><td><code>no terminal output available for password prompt</code> / 実行が止まる</td><td>キーリングのバックエンドがパスワードを要求しているが、ターミナルではない（cron、systemd、CI）</td><td><code>TESLA_KEYRING_PASSWORD</code> を設定するか、ファイルベースのキー（<code>-key-file</code>）を使用。<code>TESLA_KEYRING_DEBUG=1</code> でバックエンドを確認</td></tr>
+<tr><td><code>could not load key: The specified item could not be found in the keyring</code></td><td>キー名の不一致、別のキーリングバックエンド</td><td><code>TESLA_KEY_NAME</code> が作成時と同じか、<code>TESLA_KEYRING_TYPE</code> が同じかを確認。macOS のキーチェーンアクセスアプリで <code>com.tesla.auth</code> を検索</td></tr>
+<tr><td>Fleet API：<code>vehicle unavailable: vehicle is offline or asleep</code>（プロキシは 408）</td><td>車両がオフライン/スリープ中</td><td><code>wake_up</code> の後にリトライ。オフラインならセルラー接続を待つ</td></tr>
+<tr><td>プロキシの 412</td><td>プロキシの公開鍵がその車両に登録されていない</td><td>ユーザーに <code>https://tesla.com/_ak/&lt;domain&gt;</code> のリンクでキーの登録を依頼</td></tr>
+<tr><td>プロキシがコマンドを REST に転送する（ログに 422）</td><td>2021 年以前の Model S/X など、プロトコル非対応の車両</td><td>正常な動作。Fleet API が直接処理します。プロセスが生きている間、その VIN は常にフォワーディングされる</td></tr>
+<tr><td><code>command requires a FleetAPI OAuth token</code></td><td><code>-ble</code> とアカウント系コマンド（<code>product-info</code>、<code>get</code> など）を同時に使用</td><td><code>-ble</code> を外し、OAuth トークンを設定</td></tr>
+<tr><td><code>MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES</code></td><td>キーのロール不足、車両の状態</td><td><code>list-keys</code> でロールを確認。Fleet Manager キーは BLE 不可。Driver はキー管理/PIN 不可</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-debug">デバッグツール</h2>
+<h3>TX/RX ダンプのデコード</h3>
+<p><code>tesla-control -debug</code>（または <code>TESLA_VERBOSE=1</code>）は、送受信した RoutableMessage を 16 進数で出力します。</p>
+<pre><code>2023-12-13T14:41:13-08:00 [debug] TX: 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805</code></pre>
+<p><code>protoc</code> でデコードします（リポジトリのルートで実行）。</p>
+<pre><code class="language-bash">cd vehicle-command/pkg/protocol
+echo 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805 \
+    | xxd -r -p \
+    | protoc --decode=UniversalMessage.RoutableMessage -I protobuf protobuf/*.proto
+
+# 出力の protobuf_message_as_bytes を、ドメインに合った型で再度デコード
+printf "\n\002\010\005" | protoc --decode=VCSEC.UnsignedMessage -I protobuf protobuf/*.proto      # VCSEC リクエスト
+printf "..." | protoc --decode=VCSEC.FromVCSECMessage -I protobuf protobuf/*.proto              # VCSEC レスポンス
+printf "..." | protoc --decode=CarServer.Action -I protobuf protobuf/*.proto                    # Infotainment リクエスト
+printf "..." | protoc --decode=CarServer.Response -I protobuf protobuf/*.proto                  # Infotainment レスポンス</code></pre>
+<p>BLE では AES-GCM で暗号化されるため、<code>protobuf_message_as_bytes</code> は暗号文です。平文を見るには、<code>-debug</code> ログのうちリクエスト組み立て時点のログか、セッション鍵が必要です。ハンドシェイクメッセージとレスポンスのエラーフィールド（<code>signedMessageStatus</code>）は平文です。</p>
+
+<h3>その他</h3>
+<table>
+<thead><tr><th>ツール</th><th>用途</th></tr></thead>
+<tbody>
+<tr><td><code>tesla-control -ble session-info public_key.pem vcsec|infotainment</code></td><td>キーの登録状況、ドメインの epoch/counter/clock_time を確認。認証不要</td></tr>
+<tr><td><code>tesla-control -ble list-keys</code></td><td>登録済みのキーとロール</td></tr>
+<tr><td><code>tesla-control -ble body-controller-state</code></td><td>ロック/開閉/スリープの状態。認証不要、VCSEC のみ</td></tr>
+<tr><td><code>tesla-control -ble ping</code></td><td>Infotainment のセッションとキーの認識を確認</td></tr>
+<tr><td><code>examples/ble -scan-only -vin …</code></td><td>スキャンのみを繰り返す。アドバタイズ名/RSSI を確認</td></tr>
+<tr><td><code>TESLA_KEYRING_DEBUG=1</code> / <code>-keyring-debug</code></td><td>キーリングのバックエンド選択と項目アクセスのログ</td></tr>
+<tr><td><code>tesla-http-proxy -verbose</code></td><td>フォワーディング先 URL、421 による更新、コマンド実行のログ</td></tr>
+<tr><td><code>curl https://localhost:4443/health</code></td><td>プロキシの死活確認</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-security">セキュリティ上の注意</h2>
+<ul>
+<li><strong>テスト用のキーを実際の車両に登録しないでください。</strong> <code>pkg/protocol/protocol.md</code>、<code>internal/authentication/test_data/</code>、<code>pkg/protocol/test/</code> にあるキーは公開されています。</li>
+<li><strong>セッションキャッシュファイルの権限。</strong> <code>~/.tesla-cache.json</code> は秘密鍵を含みませんが、セッション状態を含みます。第三者に読まれたり改ざんされたりしないようにしてください。改ざんされたキャッシュは最初のコマンドの失敗後に自動復旧しますが、不要な失敗を引き起こします。</li>
+<li><strong>秘密鍵のエクスポート。</strong> <code>tesla-keygen export</code> の出力と <code>-key-file</code> のファイルは、登録済みのすべての車両に対するコマンド権限です。0600 の権限、バージョン管理からの除外、バックアップの暗号化を徹底してください。</li>
+<li><strong>デバッグログ。</strong> <code>-debug</code> の出力には公開鍵、epoch、カウンター、暗号文が含まれます。秘密鍵やセッション鍵は出力されませんが、ログを公開の issue に載せるときは VIN を伏せてください。</li>
+<li><strong>脆弱性の報告。</strong> <code>SECURITY.md</code> に従い、Tesla に直接報告します：<a href="https://www.tesla.com/legal/security">https://www.tesla.com/legal/security</a>。</li>
+</ul>
+
+<footer class="page-nav">
+  <a href="08-http-proxy.html"><span>前へ</span>8. HTTP プロキシ</a>
+  <a class="next" href="index.html"><span>ホームへ</span>ドキュメントホーム</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

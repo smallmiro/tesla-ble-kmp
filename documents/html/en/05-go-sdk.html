@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5. Go SDK · vehicle-command BLE Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE Developer Manual · based on v0.4.1</div>
+  <div class="lang-switch" aria-label="Language"><a href="../ko/05-go-sdk.html" hreflang="ko" lang="ko">한국어</a><a class="active" href="../en/05-go-sdk.html" hreflang="en" lang="en">English</a><a href="../ja/05-go-sdk.html" hreflang="ja" lang="ja">日本語</a></div>
+  <ol>
+    <li><a href="index.html">Home</a></li>
+    <li class="group">Getting Started</li>
+    <li><a href="01-overview.html">1. System Overview</a></li>
+    <li><a href="02-getting-started.html">2. Getting Started</a></li>
+    <li class="group">Protocol</li>
+    <li><a href="03-ble-transport.html">3. BLE Transport Layer</a></li>
+    <li><a href="04-protocol.html">4. Protocol Specification</a></li>
+    <li class="group">Development</li>
+    <li><a class="active" href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI Tools</a></li>
+    <li><a href="07-command-reference.html">7. Command Reference</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP Proxy</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. Errors and Troubleshooting</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>5. Go SDK</h1>
+<p class="lead">How to build vehicle command applications over BLE or the internet using the public packages of the <code>github.com/teslamotors/vehicle-command</code> module.</p>
+
+<div class="toc"><strong>On this page</strong><ol>
+<li><a href="#sec-1">Module and package map</a></li>
+<li><a href="#sec-2">Basic flow: unlocking over BLE</a></li>
+<li><a href="#sec-3">Working with private and public keys</a></li>
+<li><a href="#sec-4">Core methods of the Vehicle type</a></li>
+<li><a href="#sec-5">Choosing domains and not waking Infotainment</a></li>
+<li><a href="#sec-6">Session cache</a></li>
+<li><a href="#sec-7">Building CLI applications with pkg/cli</a></li>
+<li><a href="#sec-8">Internet path: pkg/account</a></li>
+<li><a href="#sec-9">Error handling patterns</a></li>
+<li><a href="#sec-10">State queries</a></li>
+<li><a href="#sec-11">Key management API</a></li>
+<li><a href="#sec-12">Implementing a custom Connector</a></li>
+<li><a href="#sec-13">Caveats for HSM/TEE integration</a></li>
+<li><a href="#sec-14">Logging, building, testing</a></li>
+</ol></div>
+
+<h2 id="sec-1">Module and package map</h2>
+<p>The module path is <code>github.com/teslamotors/vehicle-command</code>, and <code>go.mod</code> requires Go 1.23. v0.x releases do not guarantee API stability, so pin the version in your <code>go.mod</code>.</p>
+<pre><code class="language-bash">go get github.com/teslamotors/vehicle-command@v0.4.1</code></pre>
+
+<table>
+<thead><tr><th>Package</th><th>Role</th><th>Key symbols</th></tr></thead>
+<tbody>
+<tr><td><code>pkg/protocol</code></td><td>Key loading, domain constants, error types. Generated protobuf bindings live in the <code>protobuf/*</code> subdirectories.</td><td><code>LoadPrivateKey</code>, <code>LoadPublicKey</code>, <code>ECDHPrivateKey</code>, <code>DomainVCSEC</code>, <code>DomainInfotainment</code>, <code>Error</code>, <code>MayHaveSucceeded</code>, <code>ShouldRetry</code></td></tr>
+<tr><td><code>pkg/connector</code></td><td>Transport-layer interface definitions.</td><td><code>Connector</code>, <code>FleetAPIConnector</code>, <code>AuthMethodNone/GCM/HMAC</code>, <code>BufferSize</code>, <code>MaxResponseLength</code></td></tr>
+<tr><td><code>pkg/connector/ble</code></td><td>BLE transport implementation (based on go-ble). Supports macOS and Linux. It builds on Windows but fails at runtime.</td><td><code>InitAdapterWithID</code>, <code>ScanVehicleBeacon</code>, <code>NewConnection</code>, <code>NewConnectionFromScanResult</code>, <code>VehicleLocalName</code>, <code>CloseAdapter</code></td></tr>
+<tr><td><code>pkg/connector/inet</code></td><td>Fleet API (HTTPS) transport implementation.</td><td><code>NewConnection</code>, <code>SendFleetAPICommand</code>, <code>HTTPError</code>, <code>ErrVehicleNotAwake</code>, <code>MaxLatency</code></td></tr>
+<tr><td><code>pkg/vehicle</code></td><td>Vehicle command API. High-level methods that wrap domain routing, sessions and retries.</td><td><code>Vehicle</code>, <code>NewVehicle</code>, <code>StateCategory*</code>, <code>SeatPosition</code>, <code>Level</code>, <code>ChargingPolicy</code></td></tr>
+<tr><td><code>pkg/cache</code></td><td>Session state cache (JSON serialization).</td><td><code>SessionCache</code>, <code>New</code>, <code>ImportFromFile</code>, <code>ExportToFile</code></td></tr>
+<tr><td><code>pkg/cli</code></td><td>Common handling of flags, environment variables and keyrings. Used when building CLI tools.</td><td><code>Config</code>, <code>NewConfig</code>, <code>Flag*</code>, <code>DomainList</code>, <code>Env*</code> constants</td></tr>
+<tr><td><code>pkg/account</code></td><td>Tesla account (OAuth token) wrapper. Determines the Fleet API domain; <code>GetVehicle</code>.</td><td><code>Account</code>, <code>New</code>, <code>GetVehicle</code>, <code>Get</code>, <code>Post</code>, <code>UpdateKey</code></td></tr>
+<tr><td><code>pkg/proxy</code></td><td>Server that translates REST into end-to-end authenticated commands. Implements <code>http.Handler</code>.</td><td><code>Proxy</code>, <code>New</code>, <code>ExtractCommandAction</code>, <code>ErrCommandUseRESTAPI</code></td></tr>
+<tr><td><code>pkg/sign</code></td><td>JWS (Schnorr/P256) signing used for Fleet Telemetry configuration and similar.</td><td><code>SignMessageForVehicle</code>, <code>SignMessageForFleet</code></td></tr>
+</tbody>
+</table>
+
+<div class="callout warn">
+<strong>internal/ packages cannot be imported</strong>
+<p><code>internal/authentication</code> (ECDH, signing, verification), <code>internal/dispatcher</code> (sessions/routing), <code>internal/log</code> and <code>internal/schnorr</code> cannot be imported from external modules because of Go's internal rule. Access the functionality you need through <code>pkg/protocol</code> (re-exported key types), <code>pkg/vehicle</code> (session management) and <code>pkg/cache</code> (cache entries).</p>
+</div>
+
+<h2 id="sec-2">Basic flow: unlocking over BLE</h2>
+<p>A minimal program that summarizes <code>examples/ble/main.go</code> from the repository. The order of calls and the order of <code>defer</code>s matter.</p>
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "time"
+
+    "github.com/teslamotors/vehicle-command/pkg/connector/ble"
+    "github.com/teslamotors/vehicle-command/pkg/protocol"
+    "github.com/teslamotors/vehicle-command/pkg/vehicle"
+)
+
+func main() {
+    vin := "5YJ30123456789ABC"
+
+    // 1. Initialize the BLE adapter. An empty string means the default adapter. An ID such as "hci0" can be given on Linux only.
+    if err := ble.InitAdapterWithID(""); err != nil {
+        if ble.IsAdapterError(err) {
+            log.Fatal(ble.AdapterErrorHelpMessage(err)) // Linux: prints setcap guidance
+        }
+        log.Fatalf("failed to initialize BLE adapter: %s", err)
+    }
+
+    // 2. Load the private key (PEM, NIST P-256). nil is allowed, but authenticated commands will fail.
+    privateKey, err := protocol.LoadPrivateKey("private.pem")
+    if err != nil {
+        log.Fatalf("failed to load private key: %s", err)
+    }
+
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+
+    // 3. Scan advertisements. Finds the beacon matching the Local Name ("S...C") computed from the VIN.
+    scan, err := ble.ScanVehicleBeacon(ctx, vin)
+    if err != nil {
+        log.Fatalf("scan failed: %s", err)
+    }
+    fmt.Printf("found: %s (%s) %ddBm\n", scan.LocalName, scan.Address, scan.RSSI)
+
+    // 4. GATT connection. If target is nil, it scans again internally.
+    conn, err := ble.NewConnectionFromScanResult(ctx, vin, scan)
+    if err != nil {
+        log.Fatalf("connection failed: %s", err)
+    }
+    defer conn.Close() // (b) runs second
+
+    // 5. Create the Vehicle object. The third argument is the session cache (nil if none).
+    car, err := vehicle.NewVehicle(conn, privateKey, nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // 6. Start the receive goroutine.
+    if err := car.Connect(ctx); err != nil {
+        log.Fatalf("Connect failed: %s", err)
+    }
+    defer car.Disconnect() // (a) runs first. Must run before conn.Close().
+
+    // 7. Per-domain handshake. nil means both VCSEC and INFOTAINMENT.
+    if err := car.StartSession(ctx, nil); err != nil {
+        log.Fatalf("handshake failed: %s", err)
+    }
+
+    // 8. Send commands. Each command is retried automatically until the context expires.
+    if err := car.Unlock(ctx); err != nil {
+        log.Fatalf("unlock failed: %s", err)
+    }
+    if err := car.ClimateOn(ctx); err != nil {
+        log.Fatalf("failed to turn on climate: %s", err)
+    }
+    fmt.Println("done")
+}</code></pre>
+
+<ol class="steps">
+<li><strong>Initialize the adapter once per process.</strong> <code>ble.InitAdapterWithID</code> creates the global <code>ble.Device</code>, which <code>ScanVehicleBeacon</code>/<code>NewConnection</code> then reuse. If you do not call it explicitly, the default adapter is initialized automatically on the first scan/connection. Calling <code>newDevice()</code> more than once fails on Linux, so it is guarded by an internal mutex. To switch adapters, call <code>ble.CloseAdapter()</code> and then initialize again.</li>
+<li><strong>defer order.</strong> <code>Vehicle.Disconnect()</code> stops the dispatcher goroutine and then calls <code>conn.Close()</code> internally. <code>Connector.Close()</code> must be idempotent, so deferring both is fine, but <code>Disconnect</code> must run first (defers run in reverse order, so write <code>defer conn.Close()</code> first and <code>defer car.Disconnect()</code> after it).</li>
+<li><strong>Prefer a fresh context per command.</strong> The example shares a single 30-second context for simplicity, but <code>tesla-control</code> gives 20 seconds to connecting and a separate 5 seconds to each command. The session's command expiration time (<code>expires_at</code>) is also computed from the context deadline (5 seconds if there is no deadline).</li>
+<li><strong>The SDK handles retries.</strong> <code>Vehicle.Send</code>, <code>StartSession</code> and the VCSEC command loop retry errors for which <code>protocol.ShouldRetry(err)</code> is true (errors that are temporary and cannot have succeeded) at <code>RetryInterval()</code> intervals (1 second for BLE) until the context ends.</li>
+</ol>
+
+<h2 id="sec-3">Working with private and public keys</h2>
+<table>
+<thead><tr><th>Function</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>protocol.LoadPrivateKey(filename) (ECDHPrivateKey, error)</code></td><td>Loads a P-256 EC private key file. Supports PEM formats (<code>EC PRIVATE KEY</code>, PKCS#8 <code>PRIVATE KEY</code>). Other curves and RSA keys are rejected.</td></tr>
+<tr><td><code>protocol.SavePrivateKey(skey, filename) error</code></td><td>Saves a native key as SEC1 PEM (<code>EC PRIVATE KEY</code>) with 0600 permissions. Implementations that cannot be exported, such as HSM-backed keys, return a <code>key is not exportable</code> error.</td></tr>
+<tr><td><code>protocol.LoadPublicKey(filename) (*ecdh.PublicKey, error)</code></td><td>Loads a public key flexibly. Supported formats: PKIX PEM (<code>PUBLIC KEY</code>), unencrypted PKCS#8 PEM (<code>PRIVATE KEY</code>; extracts the public key from a private key file), SEC1 PEM (<code>EC PRIVATE KEY</code>), a binary uncompressed curve point (65 bytes, starting with <code>0x04</code>), and a hex-string uncompressed curve point (130 characters, trailing newline allowed). <code>ErrInvalidPublicKey</code> if the curve is not P-256.</td></tr>
+<tr><td><code>protocol.PublicKeyBytesFromHex(h) (*ecdh.PublicKey, error)</code></td><td>Validates a hex string and converts it to an <code>ecdh.PublicKey</code>.</td></tr>
+<tr><td><code>protocol.UnmarshalECDHPrivateKey(keyBytes) ECDHPrivateKey</code></td><td>Restores a private key from a 32-byte scalar (big-endian). This is the format stored in the keyring. Returns nil on failure.</td></tr>
+<tr><td><code>ECDHPrivateKey.PublicBytes() []byte</code></td><td>The uncompressed-encoding public key (65 bytes). Goes as-is into the handshake and <code>signer_identity.public_key</code>.</td></tr>
+</tbody>
+</table>
+
+<p>Creating a key pair with OpenSSL (when you want file-based keys instead of <code>tesla-keygen</code>):</p>
+<pre><code class="language-bash">openssl ecparam -genkey -name prime256v1 -noout &gt; private.pem
+openssl ec -in private.pem -pubout &gt; public.pem</code></pre>
+
+<div class="callout danger">
+<strong>Do not enroll the test keys from protocol.md on a real vehicle</strong>
+<p>The <code>client.key</code>/<code>vehicle.key</code> in <code>pkg/protocol/protocol.md</code> are published keys for verifying test vectors. If you enroll them on a vehicle, anyone can send it commands.</p>
+</div>
+
+<h2 id="sec-4">Core methods of the Vehicle type</h2>
+<table>
+<thead><tr><th>Method</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>vehicle.NewVehicle(conn connector.Connector, privateKey ECDHPrivateKey, sessionCache *cache.SessionCache) (*Vehicle, error)</code></td><td>Creates a Vehicle. <code>privateKey</code> and <code>sessionCache</code> may be nil. If the cache has an entry for this VIN, it is loaded immediately. The authentication method is determined by <code>conn.PreferredAuthMethod()</code> (BLE: AES-GCM, inet: HMAC). <code>Flags</code> is initialized to <code>DefaultFlags</code> (the <code>FLAG_ENCRYPT_RESPONSE</code> bit).</td></tr>
+<tr><td><code>Connect(ctx) error</code></td><td>Starts the dispatcher's receive goroutine. Returns an error if ctx expires before it is ready.</td></tr>
+<tr><td><code>StartSession(ctx, domains []universal.Domain) error</code></td><td>Performs handshakes with the given domains. nil means both VCSEC and INFOTAINMENT, done in parallel. <code>protocol.ErrKeyNotPaired</code> if the key is not paired. Temporary errors are retried automatically. Domains already loaded from the cache skip the handshake.</td></tr>
+<tr><td><code>Disconnect()</code></td><td>Stops the dispatcher and calls <code>conn.Close()</code>.</td></tr>
+<tr><td><code>Wakeup(ctx) error</code></td><td>If the connector is a <code>FleetAPIConnector</code>, polls the Fleet API <code>wake_up</code> endpoint every 10 seconds until <code>state == "online"</code>. Over BLE, sends <code>RKE_ACTION_WAKE_VEHICLE</code> to VCSEC (authentication required).</td></tr>
+<tr><td><code>Send(ctx, domain, payload []byte, auth connector.AuthMethod) ([]byte, error)</code></td><td>Low level: sends an arbitrary payload to a domain and returns the response payload. Includes retries. Use it to experiment with new commands.</td></tr>
+<tr><td><code>SendMessage(ctx, message *universal.RoutableMessage) (protocol.Receiver, error)</code></td><td>Lower level: sends an already-built RoutableMessage without authentication. Used to relay messages signed by another party (for example, key pairing without a card). <code>Close()</code> the returned Receiver after use.</td></tr>
+<tr><td><code>SessionInfo(ctx, publicKey *ecdh.PublicKey, domain) (*signatures.SessionInfo, error)</code></td><td>Sends a handshake request with an arbitrary public key and receives the SessionInfo. No authentication required. Used to check whether a key is enrolled (<code>tesla-control session-info</code>).</td></tr>
+<tr><td><code>SetMaxLatency(d time.Duration)</code></td><td>Session info responses that arrive later than this after the request are discarded and not used for clock synchronization. The default is the connector's <code>AllowedLatency()</code> (4 seconds for BLE, 10 seconds for inet).</td></tr>
+<tr><td><code>Flags uint32</code> (field)</td><td><code>RoutableMessage.flags</code> for every request. Defaults to <code>1 &lt;&lt; FLAG_ENCRYPT_RESPONSE</code>. Firmware 2024.38+ encrypts responses; older firmware ignores it.</td></tr>
+<tr><td><code>PrivateKeyAvailable() bool</code>, <code>VIN() string</code></td><td>State queries.</td></tr>
+<tr><td><code>UpdateCachedSessions(c *cache.SessionCache) error</code> / <code>LoadCachedSessions(c) error</code></td><td>Writes the current session state to the cache, or reads it from the cache.</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-5">Choosing domains and not waking Infotainment</h2>
+<p>If you only use VCSEC commands (lock, trunk, wake, key management, <code>BodyControllerState</code>), you do not need a handshake with INFOTAINMENT. An INFOTAINMENT handshake wakes a sleeping infotainment system and takes time.</p>
+<pre><code class="language-go">import universal "github.com/teslamotors/vehicle-command/pkg/protocol/protobuf/universalmessage"
+
+// Handshake with VCSEC only
+if err := car.StartSession(ctx, []universal.Domain{protocol.DomainVCSEC}); err != nil { ... }
+if err := car.Lock(ctx); err != nil { ... }</code></pre>
+<p><code>tesla-control</code> does the same through the <code>-domain vcsec</code> flag (repeatable), the <code>domain: protocol.DomainVCSEC</code> setting on the <code>body-controller-state</code> command, and special handling that performs a VCSEC-only handshake for <code>-ble wake</code>.</p>
+
+<div class="callout">
+<strong>If you send an Infotainment command without an INFOTAINMENT session</strong>
+<p><code>protocol.ErrNoSession</code> (<code>cannot send authenticated command before establishing a vehicle session</code>) is returned immediately. <code>tesla-control</code> reports this error as "You must provide a private key…".</p>
+</div>
+
+<h2 id="sec-6">Session cache</h2>
+<p>A handshake adds a round trip and, on the Fleet API, increases the number of requests. Storing session state (per-domain SessionInfo and creation time) on disk with <code>pkg/cache</code> lets you send the first command right away on the next run. If the cache is stale, the first command fails and the vehicle sends up-to-date session info along with the failure, so the SDK updates automatically and retries. In other words, using a stale cache costs nothing.</p>
+<pre><code class="language-go">const cacheFile = "/var/lib/myapp/tesla-cache.json"
+
+myCache, err := cache.ImportFromFile(cacheFile)
+if err != nil {
+    myCache = cache.New(5) // Up to 5 vehicles. 0 means unlimited. LRU eviction.
+}
+
+car, err := vehicle.NewVehicle(conn, privateKey, myCache) // Loads from the cache on creation
+...
+defer func() {
+    if err := car.UpdateCachedSessions(myCache); err != nil { log.Println(err) }
+    if err := myCache.ExportToFile(cacheFile); err != nil { log.Println(err) }
+}()</code></pre>
+<ul>
+<li><strong>The cache is tied to the client private key.</strong> If you use the cache with a different key, the first authentication fails, the vehicle sends new session info, and it recovers normally.</li>
+<li><strong>You can put multiple VINs in one cache.</strong> <code>SessionCache.Vehicles</code> is a map of VIN → per-domain entries.</li>
+<li><strong>Control file access.</strong> The cache contains the vehicle public key, epoch, counter and clock offset. It contains no private key, but third parties must not be able to read or tamper with it. <code>ExportToFile</code> creates it with 0644, so tighten the permissions if needed.</li>
+<li><code>tesla-control</code> uses <code>TESLA_CACHE_FILE</code> (default <code>~/.tesla-cache.json</code>), and the proxy uses an in-memory cache (up to 10000 vehicles).</li>
+<li><code>SessionCache.Update</code>/<code>GetEntry</code> are for the internal dispatcher, so prefer <code>Vehicle.UpdateCachedSessions</code>.</li>
+</ul>
+
+<h2 id="sec-7">Building CLI applications with pkg/cli</h2>
+<p><code>pkg/cli.Config</code> provides the flag, environment variable and keyring logic shared by the five CLI tools. You can reuse it as-is when building your own CLI.</p>
+<pre><code class="language-go">import (
+    "flag"
+    "github.com/teslamotors/vehicle-command/pkg/cli"
+)
+
+config, err := cli.NewConfig(cli.FlagAll) // FlagVIN | FlagOAuth | FlagPrivateKey | FlagBLE
+if err != nil { panic(err) }
+config.RegisterCommandLineFlags()   // -vin, -key-name, -key-file, -token-name, -token-file, -session-cache, -domain, -keyring-type ...
+flag.Parse()
+config.ReadFromEnvironment()        // Fills only empty values from TESLA_* environment variables
+if err := config.LoadCredentials(); err != nil { ... } // Handles the keyring password prompt before the timeout starts
+
+ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+defer cancel()
+acct, car, err := config.Connect(ctx) // Internet if OAuth is available, otherwise BLE. Performs Connect + StartSession(config.Domains)
+if err != nil { ... }
+if car != nil {
+    defer car.Disconnect()
+    defer config.UpdateCachedSessions(car) // Updates the cache file
+}</code></pre>
+<table>
+<thead><tr><th>Flag mask</th><th>Options registered</th></tr></thead>
+<tbody>
+<tr><td><code>FlagVIN</code></td><td><code>-vin</code> / <code>TESLA_VIN</code></td></tr>
+<tr><td><code>FlagPrivateKey</code></td><td><code>-key-name</code>, <code>-key-file</code>, <code>-session-cache</code>, <code>-disable-session-cache</code>, <code>-domain</code> / <code>TESLA_KEY_NAME</code>, <code>TESLA_KEY_FILE</code>, <code>TESLA_CACHE_FILE</code></td></tr>
+<tr><td><code>FlagOAuth</code></td><td><code>-token-name</code>, <code>-token-file</code> / <code>TESLA_TOKEN_NAME</code>, <code>TESLA_TOKEN_FILE</code></td></tr>
+<tr><td><code>FlagOAuth</code> or <code>FlagPrivateKey</code></td><td><code>-keyring-type</code>, <code>-keyring-file-dir</code>, <code>-keyring-debug</code> / <code>TESLA_KEYRING_TYPE</code>, <code>TESLA_KEYRING_PASSWORD</code>, <code>TESLA_KEYRING_PATH</code>, <code>TESLA_KEYRING_DEBUG</code></td></tr>
+<tr><td><code>FlagBLE</code> (Linux)</td><td><code>-bt-adapter</code></td></tr>
+</tbody>
+</table>
+<ul>
+<li>Transport selection in <code>config.Connect</code>: <code>ConnectRemote</code> if <code>FlagOAuth</code> is set and a token name/file is present; otherwise <code>ConnectLocal</code> if <code>FlagBLE|FlagVIN</code>; if neither, <code>ErrNoAvailableTransports</code>.</li>
+<li><code>ConnectLocal(ctx, skey)</code> only does <code>ble.InitAdapterWithID(c.BtAdapterID)</code> → <code>ble.NewConnection</code> → <code>vehicle.NewVehicle(conn, skey, c.sessions)</code> and does not call <code>Connect</code>/<code>StartSession</code>. <code>Connect</code> does both of those as well.</li>
+<li>If you set <code>config.Domains</code> (<code>cli.DomainList</code>), <code>Connect</code> handshakes only with those domains.</li>
+<li><code>config.PrivateKey()</code> prefers the file and falls back to the keyring. On first load it also reads the cache file.</li>
+</ul>
+
+<h2 id="sec-8">Internet path: pkg/account</h2>
+<pre><code class="language-go">acct, err := account.New(oauthToken, "myapp/1.0.0") // If userAgent is "", it is generated from build info
+if err != nil { ... }
+car, err := acct.GetVehicle(ctx, vin, privateKey, sessionCache) // Creates an inet.Connection
+if err != nil { ... }
+if err := car.Connect(ctx); err != nil { ... }
+defer car.Disconnect()
+if err := car.Wakeup(ctx); err != nil { ... }          // Polls Fleet API wake_up (optional)
+if err := car.StartSession(ctx, nil); err != nil { ... }
+if err := car.Unlock(ctx); err != nil { ... }</code></pre>
+<ul>
+<li><code>account.New</code> decodes the JWT without verifying its signature and picks the Fleet API host from <code>aud</code> and <code>ou_code</code>. The default is <code>fleet-api.prd.na.vn.cloud.tesla.com</code>. If the server returns 421 with a <code>use base URL: https://…</code> body, <code>inet.Connection</code> updates the host.</li>
+<li>The internet path uses <strong>HMAC-SHA256</strong> authentication (plaintext), because the Fleet API must check OAuth scopes. The Fleet API rejects AES-GCM encrypted commands.</li>
+<li>You can also make general Fleet API calls with <code>Account.Get(ctx, "api/1/products")</code>, <code>Post</code>, and <code>SendVehicleFleetAPICommand(ctx, vin, "vehicle_data", nil)</code>.</li>
+<li><code>Account.UpdateKey(ctx, publicKey, name)</code> registers key metadata (display name) at <code>api/1/users/keys</code>. It is shown on the vehicle's Locks screen.</li>
+<li>BLE-only commands (<code>SendAddKeyRequest</code>) return <code>protocol.ErrRequiresBLE</code> on the internet path. Conversely, <code>SetPINToDrive</code> is allowed only on the internet path (<code>protocol.ErrRequiresEncryption</code>; it is blocked over BLE because the PIN could be exposed to an unauthenticated public key).</li>
+</ul>
+
+<h2 id="sec-9">Error handling patterns</h2>
+<p>All SDK errors implement the <code>protocol.Error</code> interface where possible. Two methods determine retries and user guidance.</p>
+<pre><code class="language-go">err := car.Unlock(ctx)
+switch {
+case err == nil:
+    // Success
+case protocol.MayHaveSucceeded(err):
+    // The command may have arrived but was not confirmed (e.g. timeout). Resending could execute it twice, so query state to decide.
+case errors.Is(err, protocol.ErrKeyNotPaired):
+    // The public key is not enrolled on the vehicle. Guide the user through pairing.
+case errors.Is(err, protocol.ErrNoSession):
+    // StartSession was not called, or was called without that domain.
+case protocol.IsNominalError(err):
+    // The vehicle authenticated the command but cannot execute it (e.g. not in park, already on). Show the reason to the user.
+case protocol.Temporary(err):
+    // Temporary error. The SDK already retried until the context expired, so retry with a longer context.
+default:
+    // Anything else
+}</code></pre>
+<table>
+<thead><tr><th>Helper</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>protocol.MayHaveSucceeded(err)</code></td><td>The vehicle may have executed the command. Context timeouts, response parsing failures, HTTP 5xx (except 503), etc.</td></tr>
+<tr><td><code>protocol.Temporary(err)</code></td><td>May be resolved by retrying without user intervention. <code>ErrBusy</code>, <code>MESSAGEFAULT_ERROR_BUSY/TIMEOUT/INVALID_SIGNATURE/INVALID_TOKEN_OR_COUNTER/INTERNAL/INCORRECT_EPOCH/TIME_EXPIRED/TIME_TO_LIVE_TOO_LONG</code>, HTTP 503/504/408/421.</td></tr>
+<tr><td><code>protocol.ShouldRetry(err)</code></td><td>True only when <code>Temporary</code> and not <code>MayHaveSucceeded</code>. The criterion for the SDK's internal retry loops.</td></tr>
+<tr><td><code>protocol.IsNominalError(err)</code></td><td>Application-layer rejection (<code>NominalError</code>). The proxy returns this as HTTP 200 + <code>reason</code>.</td></tr>
+<tr><td><code>errors.As(err, &amp;*protocol.RoutableMessageError)</code></td><td>Protocol-layer error. Check <code>MessageFault_E</code> via <code>.Code</code>.</td></tr>
+<tr><td><code>errors.As(err, &amp;*protocol.KeychainError)</code></td><td>Key add/remove failure. <code>.Code</code> is a <code>WhitelistOperation_information_E</code>.</td></tr>
+</tbody>
+</table>
+<p>For the full error code table and scenario-by-scenario remedies, see <a href="09-errors-troubleshooting.html">9. Errors and Troubleshooting</a>.</p>
+
+<h2 id="sec-10">State queries</h2>
+<table>
+<thead><tr><th>Method</th><th>Domain</th><th>Authentication</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>BodyControllerState(ctx) (*vcsec.VehicleStatus, error)</code></td><td><span class="badge vcsec">VCSEC</span></td><td>Not required</td><td>Closure state of doors/trunk/charge port, lock state, whether infotainment is asleep, occupant presence, tonneau open percentage. Responds immediately over BLE even while Infotainment is asleep.</td></tr>
+<tr><td><code>GetState(ctx, category StateCategory) (*carserver.VehicleData, error)</code></td><td><span class="badge info">INFOTAINMENT</span></td><td>Required</td><td>Queries one category at a time. Designed for BLE; over the internet, the Fleet API <code>vehicle_data</code> endpoint is far more efficient (cached responses while offline, all data at once).</td></tr>
+<tr><td><code>KeySummary(ctx)</code>, <code>KeyInfoBySlot(ctx, slot)</code></td><td><span class="badge vcsec">VCSEC</span></td><td>Not required</td><td>List of enrolled keys. Iterates over the bits of <code>slotMask</code> and queries per-slot details.</td></tr>
+<tr><td><code>GetNearbyCharging(ctx) error</code></td><td><span class="badge info">INFOTAINMENT</span></td><td>Required</td><td>Sends a request with radius 200 and count 10, but this API does not return the response body (it returns only an error).</td></tr>
+</tbody>
+</table>
+<p><code>StateCategory</code> values: <code>StateCategoryCharge</code>, <code>Climate</code>, <code>Drive</code>, <code>Location</code>, <code>Closures</code>, <code>ChargeSchedule</code>, <code>PreconditioningSchedule</code>, <code>TirePressure</code>, <code>Media</code>, <code>MediaDetail</code>, <code>SoftwareUpdate</code>, <code>ParentalControls</code>. The returned <code>carserver.VehicleData</code> is easy to read when printed with <code>protojson.Format</code>.</p>
+<pre><code class="language-go">data, err := car.GetState(ctx, vehicle.StateCategoryCharge)
+if err != nil { ... }
+fmt.Println(protojson.Format(data))
+pct := data.GetChargeState().GetBatteryLevel()</code></pre>
+
+<h2 id="sec-11">Key management API</h2>
+<table>
+<thead><tr><th>Method</th><th>Authentication</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>SendAddKeyRequest(ctx, publicKey, isOwner bool, formFactor vcsec.KeyFormFactor)</code><br><code>SendAddKeyRequestWithRole(ctx, publicKey, role keys.Role, formFactor)</code></td><td>Not required · <span class="badge warn">BLE only</span></td><td>Key enrollment request approved with an NFC card. It is wrapped in a <code>vcsec.ToVCSECMessage{SignedMessage{SignatureType: SIGNATURE_TYPE_PRESENT_KEY}}</code> envelope and sent directly through the connector. Returns nil as soon as it is sent and does not guarantee approval. Confirm enrollment with <code>SessionInfo(ctx, publicKey, DomainInfotainment)</code>. <code>ErrRequiresBLE</code> on the internet path.</td></tr>
+<tr><td><code>AddKey(ctx, publicKey, isOwner, formFactor)</code><br><code>AddKeyWithRole(ctx, publicKey, role, formFactor)</code></td><td>Required (Owner key)</td><td>A client that already holds an Owner key adds another key. On 2023.38+ vehicles, Fleet Manager keys cannot add or remove other keys.</td></tr>
+<tr><td><code>RemoveKey(ctx, publicKey)</code></td><td>Required</td><td>Removes a key. A key cannot remove itself (<code>NO_PERMISSION_TO_REMOVE_ONESELF</code>).</td></tr>
+<tr><td><code>KeySummary(ctx)</code>, <code>KeyInfoBySlot(ctx, slot)</code></td><td>Not required</td><td>Queries enrolled keys.</td></tr>
+</tbody>
+</table>
+<p>Roles (<code>keys.Role</code>): <code>ROLE_OWNER</code>, <code>ROLE_DRIVER</code>, <code>ROLE_FM</code> (Fleet Manager), <code>ROLE_VEHICLE_MONITOR</code>, <code>ROLE_CHARGING_MANAGER</code>, <code>ROLE_GUEST</code>, <code>ROLE_SERVICE</code>. Form factors (<code>vcsec.KeyFormFactor</code>): <code>KEY_FORM_FACTOR_NFC_CARD</code>, <code>IOS_DEVICE</code>, <code>ANDROID_DEVICE</code>, <code>CLOUD_KEY</code>. The public key must be P-256; otherwise <code>ErrInvalidPublicKey</code>.</p>
+
+<h2 id="sec-12">Implementing a custom Connector</h2>
+<p>To plug in a different BLE stack (for example TinyGo, a mobile bridge, or a serial gateway) or a mock transport for testing, implement <code>connector.Connector</code> and pass it to <code>vehicle.NewVehicle</code>. The dispatcher treats the connector purely as a datagram channel.</p>
+<pre><code class="language-go">type Connector interface {
+    Receive() &lt;-chan []byte                     // RoutableMessage bytes sent by the vehicle. Thread-safe.
+    Send(ctx context.Context, buffer []byte) error // Sends RoutableMessage bytes. Thread-safe.
+    VIN() string
+    Close()                                     // Must be safe to call multiple times
+    PreferredAuthMethod() AuthMethod            // BLE: AuthMethodGCM, HTTP: AuthMethodHMAC
+    RetryInterval() time.Duration               // Resend interval (1 second for both BLE and inet)
+    AllowedLatency() time.Duration              // Maximum allowed latency for session info responses (4 seconds for BLE, 10 seconds for inet)
+}
+
+type FleetAPIConnector interface {             // Implemented additionally by internet connectors only
+    Connector
+    SendFleetAPICommand(ctx context.Context, endpoint string, command interface{}) ([]byte, error)
+    Wakeup(ctx context.Context) error
+}</code></pre>
+<ul>
+<li>A buffer of about <code>connector.BufferSize</code> (5) is recommended for the <code>Receive()</code> channel. The BLE implementation uses 5, and inet also uses 5. When it is full, BLE drops chunks and inet produces a <code>dropped response because inbox is full</code> error.</li>
+<li>If an error returned by <code>Send</code> implements <code>protocol.Error</code>, the dispatcher uses <code>ShouldRetry</code> to decide whether to resend. Plain errors are treated as terminal.</li>
+<li>Responses up to <code>connector.MaxResponseLength</code> (100000 bytes) must be supported. The BLE implementation limits messages to 1024 bytes each (<code>maxBLEMessageSize</code>).</li>
+<li>For BLE, the <a href="03-ble-transport.html">2-byte big-endian length framing</a> and MTU splitting must be handled inside the connector. The dispatcher knows nothing about framing.</li>
+<li>Session info responses that arrive later than <code>AllowedLatency</code> are discarded for clock synchronization, so for high-latency transports increase the value or adjust it with <code>Vehicle.SetMaxLatency</code>.</li>
+<li>If you implement <code>FleetAPIConnector</code>, <code>Vehicle.Wakeup</code> uses it, <code>SetPINToDrive</code> is allowed, and <code>SendAddKeyRequest</code> is rejected.</li>
+</ul>
+
+<h2 id="sec-13">Caveats for HSM/TEE integration</h2>
+<p><code>protocol.ECDHPrivateKey</code> is an interface and <code>protocol.Session</code> is re-exported, so they can be implemented in external modules too (<code>pkg/protocol/external_impl_test.go</code> is an example). To keep the private key in a Nitro Enclave, KMS or hardware HSM, create a type that proxies <code>Exchange(remotePublicBytes) (Session, error)</code>, <code>PublicBytes()</code> and <code>SchnorrSignature(message)</code> to TEE calls. The conditions required by the comments in <code>pkg/protocol/key.go</code>:</p>
+<ul>
+<li>The TEE must not expose an API that exports the ECDH shared secret.</li>
+<li>The TEE must not expose a general-purpose AES interface that operates with ECDH-derived keys (the host could compute integrity keys).</li>
+<li>The TEE must not expose an AES-GCM encryption interface in which the host specifies the nonce.</li>
+<li>Do not put derived secrets in the <code>Session</code> object; put only TEE handles in it.</li>
+</ul>
+<p>Even if these conditions are not met, it can still be valuable in that a compromised host leaks only the long-term shared secrets for already-known vehicle public keys. When using file-based storage, keep in mind that <code>SavePrivateKey</code> saves with 0600, and make use of the keyring options (<a href="06-cli-tools.html#sec-keyring">keyring</a>).</p>
+
+<h2 id="sec-14">Logging, building, testing</h2>
+<ul>
+<li><strong>Logging.</strong> The SDK prints <code>[debug]/[info ]/[warn ]/[error]</code> to stderr via <code>internal/log</code>. External modules cannot change the level directly, so use the CLI tools' <code>-debug</code>/<code>-verbose</code> or the <code>TESLA_VERBOSE</code> environment variable (<code>tesla-control</code>, <code>tesla-http-proxy</code>). If you need debug logs in your own application, you must fork the repository or build it as a program inside the repository like <code>examples/ble</code> (<code>examples/ble/main.go</code> is in-repository code that can import <code>internal/log</code>).</li>
+<li><strong>Interpreting debug output.</strong> <code>TX: 32020802…</code>/<code>RX: …</code> are RoutableMessages in hex. Decode them with <code>protoc --decode=UniversalMessage.RoutableMessage -I pkg/protocol/protobuf pkg/protocol/protobuf/*.proto</code> (<a href="09-errors-troubleshooting.html#sec-debug">procedure</a>).</li>
+<li><strong>Building.</strong> <code>go build ./...</code>, <code>go install ./cmd/...</code> (= <code>make install</code>). The BLE package uses cbgo (CoreBluetooth) on macOS and HCI sockets on Linux, so the cgo/permission requirements differ. The Docker image packs all five tools into a <code>distroless</code> runtime, and its default entrypoint is <code>tesla-http-proxy</code>.</li>
+<li><strong>Testing/linting.</strong> <code>./check-all.sh</code> runs <code>go build</code>, <code>go test ./...</code>, <code>go vet</code>, a <code>go fmt</code> no-changes check and shellcheck, in that order. <code>make test</code> runs <code>go test -cover ./...</code> and <code>go vet</code>. CI runs, with Go 1.23.0, <code>make format</code> followed by a no-diff check, <code>golangci-lint v1.61.0</code> (<code>.golangci.yml</code>: errcheck, gofmt, gosimple, govet, misspell, revive, unused) and <code>make test</code>.</li>
+<li><strong>Regenerating protobuf.</strong> <code>make proto-gen</code> regenerates <code>pkg/protocol/protobuf/*.pb.go</code> with <code>protoc --go_out</code>. Whenever you change a <code>.proto</code>, always regenerate and commit.</li>
+<li><strong>Mock tests.</strong> See how <code>pkg/vehicle/vehicle_mock_test.go</code> and <code>pkg/proxy/proxy_test.go</code> mock connectors/vehicles. The proxy is designed so that the <code>httpDoer</code> and <code>vehicleSession</code> interfaces and the <code>fetchVehicle</code> field can be swapped out in tests.</li>
+</ul>
+
+<footer class="page-nav">
+  <a href="04-protocol.html"><span>Previous</span>4. Protocol Specification</a>
+  <a class="next" href="06-cli-tools.html"><span>Next</span>6. CLI Tools</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

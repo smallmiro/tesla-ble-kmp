@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>8. HTTP プロキシ · vehicle-command BLE マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE 開発マニュアル · v0.4.1 基準</div>
+  <div class="lang-switch" aria-label="Language"><a href="../ko/08-http-proxy.html" hreflang="ko" lang="ko">한국어</a><a href="../en/08-http-proxy.html" hreflang="en" lang="en">English</a><a class="active" href="../ja/08-http-proxy.html" hreflang="ja" lang="ja">日本語</a></div>
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a class="active" href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>8. HTTP プロキシ</h1>
+<p class="lead"><code>tesla-http-proxy</code> は、Fleet API 形式の REST リクエストを受け取り、秘密鍵で署名したエンドツーエンド認証コマンドに変換して、Tesla のサーバー経由で車両に届ける HTTPS サーバーです。既存の Owner API クライアントを最小限の修正で移行するときに使います。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-flow">動作の流れ</a></li>
+<li><a href="#sec-run">実行</a></li>
+<li><a href="#sec-tls">TLS 証明書</a></li>
+<li><a href="#sec-docker">Docker でのデプロイ</a></li>
+<li><a href="#sec-routing">ルーティング規則</a></li>
+<li><a href="#sec-response">レスポンス形式とステータスコード</a></li>
+<li><a href="#sec-telemetry">Fleet Telemetry 設定の署名</a></li>
+<li><a href="#sec-internals">内部動作</a></li>
+<li><a href="#sec-security">セキュリティ上の注意</a></li>
+<li><a href="#sec-curl">curl の例</a></li>
+<li><a href="#sec-embed">pkg/proxy の組み込みと認証ミドルウェア</a></li>
+</ol></div>
+
+<h2 id="sec-flow">動作の流れ</h2>
+<p>プロキシは 2 種類の認証情報を扱います。クライアントが送る OAuth トークン（Tesla サーバーの認証）と、プロキシが起動時に読み込む秘密鍵（車両の認証）です。秘密鍵に対応する公開鍵は、ユーザーの車両にあらかじめ登録されている必要があります。</p>
+<div class="diagram"><pre>Your Backend            Vehicle Commands Proxy              Fleet API                 Vehicle
+     |                           |                              |                        |
+     |  POST /api/1/vehicles/    |                              |                        |
+     |   $VIN/command/flash_lights                              |                        |
+     |  Authorization: Bearer .. |                              |                        |
+     |--------------------------&gt;|                              |                        |
+     |                           | (1) キャッシュ確認/ハンドシェイク |                   |
+     |                           | (2) 秘密鍵で HMAC 署名       |                        |
+     |                           |  POST .../signed_command     |                        |
+     |                           |  {"routable_message": b64}   |                        |
+     |                           |-----------------------------&gt;|                        |
+     |                           |                              |  Signed command        |
+     |                           |                              |-----------------------&gt;|
+     |                           |                              |   (3) 公開鍵で検証     |
+     |                           |                              |   (4) Flash Lights     |
+     |                           |                              |&lt;-----------------------|
+     |                           |  {"response": b64}           |                        |
+     |                           |&lt;-----------------------------|                        |
+     |  {"response":{"result":true,"reason":""}}                |                        |
+     |&lt;--------------------------|                              |                        |</pre></div>
+<p>OAuth トークンを取得する手順（パートナートークン → ユーザー認可 → コード交換）は <code>doc/authorization.puml</code> と <a href="https://developer.tesla.com/docs/fleet-api/authentication/third-party-tokens">Fleet API ドキュメント</a> に従ってください。プロキシはトークンの発行や更新を行いません。</p>
+
+<h2 id="sec-run">実行</h2>
+<pre><code class="language-bash">tesla-http-proxy -tls-key config/tls-key.pem -cert config/tls-cert.pem -key-file config/fleet-key.pem -port 4443</code></pre>
+<table>
+<thead><tr><th>オプション</th><th>環境変数</th><th>デフォルト</th><th>説明</th></tr></thead>
+<tbody>
+<tr><td><code>-cert file</code></td><td><code>TESLA_HTTP_PROXY_TLS_CERT</code></td><td>（必須）</td><td>サーバー証明書 + 中間 CA + ルート CA を連結した PEM チェーン</td></tr>
+<tr><td><code>-tls-key file</code></td><td><code>TESLA_HTTP_PROXY_TLS_KEY</code></td><td>（必須）</td><td>サーバーの TLS 秘密鍵</td></tr>
+<tr><td><code>-host hostname</code></td><td><code>TESLA_HTTP_PROXY_HOST</code></td><td><code>localhost</code></td><td>バインドアドレス。<code>localhost</code> 以外なら起動時に警告を stderr に出力</td></tr>
+<tr><td><code>-port Port</code></td><td><code>TESLA_HTTP_PROXY_PORT</code></td><td><code>443</code></td><td>ポート。本番環境では 443 を推奨</td></tr>
+<tr><td><code>-timeout duration</code></td><td><code>TESLA_HTTP_PROXY_TIMEOUT</code></td><td><code>10s</code></td><td>Tesla サーバー/車両との通信タイムアウト（<code>proxy.DefaultTimeout</code>）</td></tr>
+<tr><td><code>-verbose</code></td><td><code>TESLA_VERBOSE</code></td><td>false</td><td>デバッグログ</td></tr>
+<tr><td><code>-key-file file</code> / <code>-key-name name</code></td><td><code>TESLA_KEY_FILE</code> / <code>TESLA_KEY_NAME</code></td><td></td><td>コマンド認証用の秘密鍵。ファイルが優先</td></tr>
+<tr><td><code>-keyring-type</code>, <code>-keyring-file-dir</code>, <code>-keyring-debug</code></td><td><code>TESLA_KEYRING_*</code></td><td></td><td>キーリングの設定</td></tr>
+<tr><td><code>-session-cache</code>, <code>-disable-session-cache</code>, <code>-domain</code></td><td></td><td></td><td><code>cli.FlagPrivateKey</code> で登録されますが、プロキシは独自のメモリキャッシュを使うため影響はありません</td></tr>
+</tbody>
+</table>
+<p>フラグは環境変数より優先されます。環境変数はフラグがデフォルト値のときだけ読み込まれます。ポート/タイムアウトの形式が不正な場合は <code>invalid port</code>/<code>invalid timeout</code> エラーで終了します。</p>
+
+<h2 id="sec-tls">TLS 証明書</h2>
+<p>プロキシでは TLS を無効にできません。開発用の自己署名証明書は OpenSSL で作成します。</p>
+<pre><code class="language-bash">mkdir config
+openssl req -x509 -nodes -newkey ec \
+    -pkeyopt ec_paramgen_curve:secp384r1 \
+    -pkeyopt ec_param_enc:named_curve  \
+    -subj '/CN=localhost' \
+    -keyout config/tls-key.pem -out config/tls-cert.pem -sha256 -days 3650 \
+    -addext "extendedKeyUsage = serverAuth" \
+    -addext "keyUsage = digitalSignature, keyCertSign, keyAgreement"</code></pre>
+<p>クライアント側では <code>--cacert config/tls-cert.pem</code> でこの証明書を信頼させます。本番環境では公的 CA の証明書を使い、<code>-cert</code> にチェーン全体を指定してください。</p>
+<div class="callout danger">
+<strong>TLS 鍵とコマンド認証鍵に同じ鍵を使うと起動が拒否されます</strong>
+<p><code>main.go</code> は <code>-tls-key</code> のファイルを <code>protocol.LoadPublicKey</code> で読み込み、コマンド鍵の公開鍵と比較します。同じであれば <code>It is unsafe to use the same private key for TLS and command authentication.</code> を出力して終了します。上の例で secp384r1（P-384）を使っている理由の一つです（コマンド鍵は P-256）。</p>
+</div>
+
+<h2 id="sec-docker">Docker でのデプロイ</h2>
+<p>イメージ <code>tesla/vehicle-command</code> は distroless ランタイムの上に 5 つのツールを収めており、デフォルトのエントリーポイントは <code>tesla-http-proxy</code> です。秘密鍵はファイルとしてマウントします（コンテナにはシステムのキーリングがありません）。</p>
+<pre><code class="language-bash"># docker run
+docker pull tesla/vehicle-command:latest
+docker run --security-opt=no-new-privileges:true -v ./config:/config -p 127.0.0.1:4443:4443 \
+    tesla/vehicle-command:latest \
+    -tls-key /config/tls-key.pem -cert /config/tls-cert.pem -key-file /config/fleet-key.pem -host 0.0.0.0 -port 4443
+
+# docker compose (リポジトリの docker-compose.yml)
+docker compose up</code></pre>
+<p>リポジトリの <code>docker-compose.yml</code> は、環境変数で同じ設定を行います。</p>
+<pre><code class="language-yaml">services:
+  tesla_http_proxy:
+    image: tesla/vehicle-command:latest
+    ports:
+      - "4443:4443"
+    environment:
+      - TESLA_HTTP_PROXY_TLS_CERT=/config/tls-cert.pem
+      - TESLA_HTTP_PROXY_TLS_KEY=/config/tls-key.pem
+      - TESLA_HTTP_PROXY_HOST=0.0.0.0
+      - TESLA_HTTP_PROXY_PORT=4443
+      - TESLA_HTTP_PROXY_TIMEOUT=10s
+      - TESLA_KEY_FILE=/config/fleet-key.pem
+      - TESLA_VERBOSE=true
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./config:/config</code></pre>
+<p>コンテナ内では <code>-host 0.0.0.0</code> が避けられませんが、ホストのポートマッピングを <code>127.0.0.1:4443:4443</code> のようにループバックに限定するか、前段に認証プロキシを置いて外部への公開を防いでください。</p>
+
+<h2 id="sec-routing">ルーティング規則</h2>
+<p><code>(*proxy.Proxy).ServeHTTP</code> は、リクエストのパスに応じて次の順序で処理します。</p>
+<table>
+<thead><tr><th>順序</th><th>パス</th><th>処理</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>すべてのリクエスト</td><td>ボディサイズを 1 MiB（<code>maxRequestBodyBytes</code>）に制限。超過すると 413</td></tr>
+<tr><td>1</td><td><code>GET /health</code></td><td>認証なしで <code>200 OK</code>。他のメソッドは 405</td></tr>
+<tr><td>2</td><td>それ以外のすべてのパス</td><td><code>Authorization: Bearer &lt;token&gt;</code> がなければ 403。トークンの <code>aud</code>/<code>ou_code</code> から Fleet API のホストを決定（<code>account.New</code>）。以前に 421 で更新されたホストがあればそれを使用</td></tr>
+<tr><td>3</td><td><code>POST /api/1/vehicles/{VIN}/command/{name}</code></td><td>VIN が 17 文字でなければ 404（<code>expected 17-character VIN in path (do not user Fleet API ID)</code>）。プロトコル非対応として記録された VIN ならフォワーディング。そうでなければ <code>handleVehicleCommand</code> でエンドツーエンド認証コマンドを実行。<code>ErrCommandUseRESTAPI</code> ならフォワーディング</td></tr>
+<tr><td>4</td><td><code>/api/1/vehicles/fleet_telemetry_config</code></td><td>ボディの <code>config</code> を JWS で署名し、<code>/api/1/vehicles/fleet_telemetry_config_jws</code> にフォワーディング</td></tr>
+<tr><td>5</td><td>残りの <code>/api/1/*</code> などすべてのパス</td><td><code>forwardRequest</code>：ヘッダーをコピーして hop-by-hop ヘッダーを除去し、<code>X-Forwarded-For</code> を追加して HTTPS で Fleet API に転送。GET/POST のいずれも対象</td></tr>
+</tbody>
+</table>
+<div class="callout warn">
+<strong>Owner API の ID ではなく VIN を使ってください</strong>
+<p>レガシーな Owner API クライアントは URL に数値の車両 ID を入れます。プロキシは <code>command/</code> パスでは必ず 17 文字の VIN を要求します。その他のパス（例：<code>vehicle_data</code>）はそのままフォワーディングされるため、Fleet API が受け付ける形式であれば構いません。</p>
+</div>
+
+<h2 id="sec-response">レスポンス形式とステータスコード</h2>
+<h3>コマンド成功</h3>
+<pre><code class="language-json">{"response":{"result":true,"reason":""}}</code></pre>
+<h3>車両がコマンドを拒否 (NominalError)</h3>
+<p>車両がコマンドを認証したものの実行できない場合（例：すでにオン、パーキング状態ではない）は、Fleet API の慣例どおり <strong>HTTP 200</strong> となり、<code>result</code> が false、<code>reason</code> に理由が入ります。</p>
+<pre><code class="language-json">{"response":{"result":false,"reason":"car could not execute command: already_on"},"error":"","error_description":""}</code></pre>
+<h3>その他のエラー</h3>
+<pre><code class="language-json">{"response":null,"error":"vehicle unavailable: vehicle is offline or asleep","error_description":""}</code></pre>
+<table>
+<thead><tr><th>HTTP</th><th>状況</th><th>発生元</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>成功、または車両のアプリケーション層での拒否（<code>reason</code> を確認）</td><td><code>handleVehicleCommand</code></td></tr>
+<tr><td>400</td><td>JSON のパース失敗、パラメーターの欠落/形式エラー（<code>missing X param</code>、<code>invalid X param</code>）、不明なコマンド（<code>{"response":null,"error":"invalid_command","error_description":""}</code>）、<code>remote_boombox</code> 未実装、不正な <code>window_control</code> の値</td><td><code>extractCommandAction</code></td></tr>
+<tr><td>403</td><td><code>Authorization</code> ヘッダーに Bearer トークンがない（<code>client did not provide an OAuth token</code>）</td><td><code>ServeHTTP</code></td></tr>
+<tr><td>404</td><td><code>command/</code> パスの VIN が 17 文字ではない</td><td><code>ServeHTTP</code></td></tr>
+<tr><td>405</td><td><code>command/</code> に POST 以外のメソッド、<code>/health</code> に GET 以外のメソッド</td><td></td></tr>
+<tr><td>408</td><td>車両がオフライン/スリープ中（<code>inet.ErrVehicleNotAwake</code>）。Fleet API が 503 または "vehicle is offline" の 408 を返した場合。先に <code>wake_up</code> を呼び出してください</td><td><code>httpStatusCode</code></td></tr>
+<tr><td>412</td><td>公開鍵が車両に登録されていない（<code>protocol.ErrKeyNotPaired</code>）。OAuth は有効なので 401 ではない</td><td><code>httpStatusCode</code></td></tr>
+<tr><td>413</td><td>リクエストボディが 1 MiB を超過</td><td></td></tr>
+<tr><td>422 (Fleet API)</td><td>車両がこのプロトコルをサポートしていない（<code>protocol.ErrProtocolNotSupported</code>）。プロキシはその VIN を非対応として記憶し、元のリクエストを REST でフォワーディング。以後、その VIN のコマンドは常にフォワーディング</td><td><code>handleVehicleCommand</code></td></tr>
+<tr><td>500</td><td>分類されないエラー、車両オブジェクトの生成失敗、JWS 署名の失敗</td><td></td></tr>
+<tr><td>502</td><td>Fleet API への接続失敗、レスポンスが 10 MB を超過、421 のリトライ上限到達（<code>max retry exhausted</code>）</td><td><code>forwardRequest</code></td></tr>
+<tr><td>503</td><td>同じ VIN の別のコマンドが進行中で、タイムアウト内にロックを取得できない</td><td><code>lockVIN</code></td></tr>
+<tr><td>504</td><td>Fleet API のレスポンスタイムアウト</td><td><code>forwardRequest</code></td></tr>
+<tr><td>（そのまま）</td><td>フォワーディングされたリクエストは、Fleet API のステータスコード、ヘッダー、ボディをそのまま返します。<code>inet.HTTPError</code> に分類されたエラーも元のコードとボディを維持します</td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-telemetry">Fleet Telemetry 設定の署名</h2>
+<p><code>POST /api/1/vehicles/fleet_telemetry_config</code> に署名されていない設定を送ると、プロキシが <code>sign.SignMessageForFleet(key, "TelemetryClient", config)</code> で JWS を作成し、<code>/api/1/vehicles/fleet_telemetry_config_jws</code> に <code>{"vins": [...], "token": "&lt;jws&gt;"}</code> としてフォワーディングします。設定に <code>aud</code> や <code>iss</code> があれば上書きし、警告をログに残します。<code>tesla-jws -fleet sign TelemetryClient</code> と同じ結果になります。</p>
+<pre><code class="language-bash">curl --cacert config/tls-cert.pem \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
+    -X POST --data-binary "@telemetry.json" \
+    "https://localhost:4443/api/1/vehicles/fleet_telemetry_config"</code></pre>
+
+<h2 id="sec-internals">内部動作</h2>
+<dl class="kv">
+<dt>VIN ごとの直列化</dt><dd><code>lockVIN</code> が VIN ごとにミューテックスを取得し、同じ車両へのコマンドを順番に実行します。VCSEC はカウンターの順序が乱れると拒否するため、これは必須です。異なる VIN は並列に処理されます。</dd>
+<dt>セッションキャッシュ</dt><dd><code>cmd/tesla-http-proxy</code> は <code>proxy.New(ctx, key, 10000)</code> により、最大 10000 台分のセッションをメモリに保持します（LRU）。コマンドごとに <code>acct.GetVehicle</code> → <code>Connect</code> → <code>StartSession</code> → 実行 → <code>Disconnect</code> を繰り返しますが、キャッシュのおかげでハンドシェイクは最初のコマンドかセッションの期限切れ時にしか発生しません。プロセスを再起動するとキャッシュは消えます。</dd>
+<dt>User-Agent</dt><dd><code>tesla-http-proxy/1.1.0</code>（<code>proxyProtocolVersion</code>）をアプリ名として <code>account.New</code> に渡します。</dd>
+<dt>リージョンホストの決定</dt><dd><code>account.New</code> は、トークンの <code>aud</code> のうち <code>fleet-api.</code> で始まり Tesla のドメインサフィックスを持つものを選び、<code>ou_code</code>（リージョン）を含むものを優先します。デフォルトは <code>fleet-api.prd.na.vn.cloud.tesla.com</code>。</dd>
+<dt>421 リダイレクト</dt><dd>フォワーディングのレスポンスが 421 で <code>Alt-Svc: h2="https://…"</code> ヘッダーがあれば、ホストを切り替えて最大 2 回（<code>MaxAttempts</code>）リトライし、トークンの <code>sub</code> ごとに新しいホストを記憶します。エンドツーエンドのコマンド経路では、<code>inet.Connection</code> がボディ内の <code>use base URL: https://…</code> をパースして更新します。</dd>
+<dt>タイムアウト</dt><dd><code>-timeout</code>（デフォルト 10 秒）がコマンド 1 つ分のコンテキスト全体です。この中で SDK がハンドシェイクのリトライとコマンドのリトライを行います。</dd>
+<dt>テストフック</dt><dd><code>Proxy.client</code>（<code>httpDoer</code>）と <code>Proxy.fetchVehicle</code>（<code>vehicleSession</code> を返す）は、パッケージ内部のテストで差し替えられます（<code>pkg/proxy/proxy_test.go</code>）。</dd>
+</dl>
+
+<h2 id="sec-security">セキュリティ上の注意</h2>
+<ul>
+<li><strong>localhost 以外へのバインドは禁止（認証なしの場合）。</strong> プロキシにはクライアント認証がありません。誰でもアクセスできる状態だと、あなたの IP から Tesla サーバーへ過剰なトラフィックが発生し、rate limit やブロックを受ける可能性があります。起動時に <code>nonLocalhostWarning</code> がこれを警告します。</li>
+<li><strong>TLS を無効にするオプションはありません。</strong> 過去の DIY デプロイで車両がインターネットに露出した事例があったため、意図的に <code>--insecure</code> のようなフラグを提供していません。TLS の終端を別の場所に置きたい場合は、<code>pkg/proxy</code> を直接使ってください。</li>
+<li><strong>秘密鍵ファイルの権限。</strong> <code>-key-file</code> はコマンド認証用の鍵です。漏洩すると、登録済みのすべての車両にコマンドを送れてしまいます。0600 の権限と最小アクセスの原則を守ってください。</li>
+<li><strong>OAuth トークンは保存しません。</strong> プロキシはリクエストごとにヘッダーのトークンをそのまま使用します。トークンの管理は呼び出し側の責任です。</li>
+</ul>
+
+<h2 id="sec-curl">curl の例</h2>
+<pre><code class="language-bash">export TESLA_AUTH_TOKEN=&lt;access-token&gt;
+export VIN=&lt;17 文字の VIN&gt;
+export CACERT=config/tls-cert.pem
+
+# ヘルスチェック (認証不要)
+curl --cacert $CACERT https://localhost:4443/health
+
+# フォワーディングされるエンドポイント: 車両データ
+curl --cacert $CACERT \
+    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
+    "https://localhost:4443/api/1/vehicles/$VIN/vehicle_data" | jq .
+
+# 起動 (エンドツーエンドのコマンド経路。online になるまでポーリング)
+curl --cacert $CACERT -X POST --data '{}' \
+    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
+    "https://localhost:4443/api/1/vehicles/$VIN/command/wake_up"
+
+# 引数なしのコマンド
+curl --cacert $CACERT \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
+    --data '{}' \
+    "https://localhost:4443/api/1/vehicles/$VIN/command/flash_lights"
+
+# 引数ありのコマンド
+curl --cacert $CACERT \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
+    --data '{"percent": 80}' \
+    "https://localhost:4443/api/1/vehicles/$VIN/command/set_charge_limit"
+
+curl --cacert $CACERT \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
+    --data '{"driver_temp": 21.5, "passenger_temp": 21.5}' \
+    "https://localhost:4443/api/1/vehicles/$VIN/command/set_temps"
+
+curl --cacert $CACERT \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
+    --data '{"days_of_week":"weekdays","start_time":1320,"start_enabled":true,"end_time":360,"end_enabled":true,"lat":37.4,"lon":-122.1,"enabled":true}' \
+    "https://localhost:4443/api/1/vehicles/$VIN/command/add_charge_schedule"</code></pre>
+<p>JSON パラメーターの型は厳格です。数値は JSON の数値、ブール値は <code>true</code>/<code>false</code>、文字列は文字列でなければならず、それ以外の型だと <code>invalid X param</code>（400）になります。各エンドポイントのパラメーターは <a href="07-command-reference.html">7. コマンドリファレンス</a> を参照してください。</p>
+
+<h2 id="sec-embed">pkg/proxy の組み込みと認証ミドルウェア</h2>
+<p><code>cmd/tesla-http-proxy/main.go</code> は <code>pkg/proxy</code> を包む薄いラッパーです。クライアント認証、独自の TLS 終端、リクエストのロギングなどを追加したい場合は、<code>proxy.Proxy</code>（<code>http.Handler</code>）を独自のハンドラーで包みます。</p>
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "crypto/subtle"
+    "net/http"
+    "time"
+
+    "github.com/teslamotors/vehicle-command/pkg/protocol"
+    "github.com/teslamotors/vehicle-command/pkg/proxy"
+)
+
+type authenticated struct {
+    next   http.Handler
+    apiKey string
+}
+
+func (a *authenticated) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+    if r.URL.Path == "/health" {
+        a.next.ServeHTTP(w, r)
+        return
+    }
+    if subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Api-Key")), []byte(a.apiKey)) != 1 {
+        http.Error(w, "unauthorized", http.StatusUnauthorized)
+        return
+    }
+    a.next.ServeHTTP(w, r) // Authorization: Bearer ヘッダーはそのままプロキシへ渡す
+}
+
+func main() {
+    skey, err := protocol.LoadPrivateKey("config/fleet-key.pem")
+    if err != nil { panic(err) }
+
+    p, err := proxy.New(context.Background(), skey, 10000)
+    if err != nil { panic(err) }
+    p.Timeout = 10 * time.Second
+
+    handler := &amp;authenticated{next: p, apiKey: "..."}
+    // TLS はここで終端してもよいし、前段のリバースプロキシに任せてもよい (pkg/proxy は TLS に依存しない)。
+    panic(http.ListenAndServeTLS("localhost:4443", "config/tls-cert.pem", "config/tls-key.pem", handler))
+}</code></pre>
+<p><code>proxy.ExtractCommandAction(ctx, command, params)</code> を直接呼び出すと、HTTP を介さずに Fleet API のコマンド名 + JSON パラメーターを <code>func(*vehicle.Vehicle) error</code> に変換できるため、他の RPC フレームワークで同じコマンドのマッピングを再利用できます。</p>
+
+<footer class="page-nav">
+  <a href="07-command-reference.html"><span>前へ</span>7. コマンドリファレンス</a>
+  <a class="next" href="09-errors-troubleshooting.html"><span>次へ</span>9. エラーとトラブルシューティング</a>
+</footer>
+</main>
+</div>
+</body>
+</html>
