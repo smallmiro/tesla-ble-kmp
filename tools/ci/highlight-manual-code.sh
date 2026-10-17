@@ -85,11 +85,12 @@ KOTLIN = re.compile("|".join([
 SWIFT = re.compile("|".join([
     r"(?P<c>//[^\n]*|/\*.*?\*/)",
     rf"(?P<s>{STR_DQ})",
+    # function calls before keywords: TeslaBleConfig.companion.default(...) is a call
+    r"(?P<f>\b[a-z_]\w*(?=\())",
     "(?P<k>" + words("as", "async", "await", "break", "case", "catch", "class", "continue", "default", "do", "else",
                      "enum", "for", "func", "guard", "if", "import", "in", "let", "private", "return", "self",
                      "struct", "switch", "throw", "throws", "try", "var", "where", "while") + ")",
     r"(?P<n>" + words("true", "false", "nil") + r"|\b0[xX][0-9a-fA-F_]+\b|\b\d[\d_]*(?:\.\d+)?\b)",
-    r"(?P<f>\b[a-z_]\w*(?=\())",
     r"(?P<t>\b[A-Z]\w*)",
     r"(?P<o>\?\?|->|==|!=|&&|\|\|)",
 ]), re.S)
