@@ -1,0 +1,455 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4. プロトコル仕様 · vehicle-command BLE マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE 開発マニュアル · v0.4.1 基準</div>
+  <div class="lang-switch" aria-label="Language"><a href="../ko/04-protocol.html" hreflang="ko" lang="ko">한국어</a><a href="../en/04-protocol.html" hreflang="en" lang="en">English</a><a class="active" href="../ja/04-protocol.html" hreflang="ja" lang="ja">日本語</a></div>
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a class="active" href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>4. プロトコル仕様</h1>
+<p class="lead">モバイルアプリとこの SDK が車両にコマンドを送るときに使うセッション管理と暗号プロトコルです。<code>pkg/protocol/protocol.md</code> を再構成し、Go の実装箇所を補足しました。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-msg">メッセージのエンコード: RoutableMessage</a></li>
+<li><a href="#sec-decode">protoc によるメッセージのデコード</a></li>
+<li><a href="#sec-concepts">プロトコルの概念: ドメイン、時刻、ロール</a></li>
+<li><a href="#sec-tlv">メタデータのシリアライズ (TLV)</a></li>
+<li><a href="#sec-notation">表記法とテスト鍵</a></li>
+<li><a href="#sec-handshake">ハンドシェイク</a></li>
+<li><a href="#sec-authz">コマンドの認可</a></li>
+<li><a href="#sec-hmac">HMAC-SHA256 認証</a></li>
+<li><a href="#sec-gcm">AES-GCM 暗号化</a></li>
+<li><a href="#sec-cache">セッションキャッシュと同期エラーからの復旧</a></li>
+<li><a href="#sec-response">レスポンスの処理</a></li>
+<li><a href="#sec-decrypt">レスポンスの復号</a></li>
+<li><a href="#sec-app">アプリケーション層のレスポンス</a></li>
+<li><a href="#sec-impl">Go の実装箇所</a></li>
+</ol></div>
+
+<div class="callout warn">
+  <strong>原文が優先されます</strong>
+  <p>このページと <code>vehicle-command/pkg/protocol/protocol.md</code> が異なる場合は原文が正しいです。フィールド番号と enum 値の最終的な出典は <code>pkg/protocol/protobuf/*.proto</code> です。アプリケーション層のペイロード(どのコマンドがどの protobuf か)はこの仕様の範囲外であり、<a href="07-command-reference.html">7. コマンドリファレンス</a> と <code>pkg/vehicle</code> のソースを参照してください。</p>
+</div>
+
+<h2 id="sec-msg">メッセージのエンコード: RoutableMessage</h2>
+<p>すべてのメッセージは Protocol Buffers でエンコードされ、最上位の型は <code>UniversalMessage.RoutableMessage</code>(<code>protobuf/universal_message.proto</code>)です。典型的なリクエストは次のとおりです(バイナリフィールドは hex で表記)。</p>
+<pre><code>to_destination {
+  domain: DOMAIN_VEHICLE_SECURITY
+}
+from_destination {
+  routing_address: 0a7962c10d38b61dd2a7722780a4f096
+}
+protobuf_message_as_bytes: 0a020805
+uuid: 05514f57616bcc81a8ce0f9d7b483229</code></pre>
+<table>
+  <thead><tr><th>フィールド (番号)</th><th>型</th><th>リクエストでは</th><th>レスポンスでは</th></tr></thead>
+  <tbody>
+    <tr><td><code>to_destination</code> (6)</td><td><code>Destination</code> oneof {<code>domain</code>, <code>routing_address</code>}</td><td>コマンドを処理する<a href="#sec-concepts">ドメイン</a></td><td>リクエストの <code>from_destination</code>(routing_address)がコピーされる</td></tr>
+    <tr><td><code>from_destination</code> (7)</td><td><code>Destination</code></td><td>接続を識別する<strong>ランダムな 16 バイト</strong>の <code>routing_address</code>。車両がレスポンスをトランスポート層のアドレスへ返すときに使用</td><td>応答したドメイン</td></tr>
+    <tr><td><code>payload</code> oneof: <code>protobuf_message_as_bytes</code> (10)</td><td><code>bytes</code></td><td>アプリケーションペイロード。VCSEC → <code>VCSEC.UnsignedMessage</code>、Infotainment → <code>CarServer.Action</code>。AES-GCM の場合は暗号文</td><td>VCSEC → <code>VCSEC.FromVCSECMessage</code>、Infotainment → <code>CarServer.Response</code>。レスポンス暗号化時は暗号文</td></tr>
+    <tr><td><code>payload</code>: <code>session_info_request</code> (14)</td><td><code>SessionInfoRequest{public_key, challenge}</code></td><td>ハンドシェイクリクエスト。クライアント公開鍵</td><td>-</td></tr>
+    <tr><td><code>payload</code>: <code>session_info</code> (15)</td><td><code>bytes</code> (エンコードされた <code>Signatures.SessionInfo</code>)</td><td>-</td><td>ハンドシェイクレスポンス、または同期エラー時にエラーとともに同梱</td></tr>
+    <tr><td><code>signature_data</code> (13)</td><td><code>Signatures.SignatureData</code></td><td><code>signer_identity.public_key</code> + <code>HMAC_Personalized_data</code> または <code>AES_GCM_Personalized_data</code></td><td><code>session_info_tag</code>(ハンドシェイク HMAC)または <code>AES_GCM_Response_data</code>(暗号化レスポンス)</td></tr>
+    <tr><td><code>signedMessageStatus</code> (12)</td><td><code>MessageStatus{operation_status, signed_message_fault}</code></td><td>-</td><td>プロトコル層のエラー。<code>MessageFault_E</code> の値は<a href="09-errors-troubleshooting.html">9 章</a></td></tr>
+    <tr><td><code>uuid</code> (51)</td><td><code>bytes</code> ≤ 16</td><td>コマンドを一意に識別する<strong>予測不可能な</strong>値。ハンドシェイクレスポンスのリプレイ防止に使われるため、ランダムでなければならない</td><td>-</td></tr>
+    <tr><td><code>request_uuid</code> (50)</td><td><code>bytes</code></td><td>-</td><td>リクエストの <code>uuid</code> のコピー。VCSEC はメモリ制約のため通常は設定しない</td></tr>
+    <tr><td><code>flags</code> (52)</td><td><code>uint32</code> ビットマスク</td><td><code>Flags</code> enum のビット。常に <code>1 &lt;&lt; FLAG_ENCRYPT_RESPONSE</code>(= 2)を設定することを推奨。車両が認証し、未知のビットは無視する</td><td>レスポンスの flags。レスポンスメタデータに含まれる</td></tr>
+  </tbody>
+</table>
+<p><code>Flags</code> enum: <code>FLAG_USER_COMMAND = 0</code>、<code>FLAG_ENCRYPT_RESPONSE = 1</code>。SDK の <code>vehicle.DefaultFlags = 1 &lt;&lt; FLAG_ENCRYPT_RESPONSE</code> であり、<code>Vehicle.Flags</code> フィールドで変更できます。</p>
+
+<h2 id="sec-decode">protoc によるメッセージのデコード</h2>
+<p><code>tesla-control -ble -debug list-keys</code> の <code>TX:</code> ログに出力された hex は、<code>pkg/protocol</code> ディレクトリで次のようにデコードできます。</p>
+<pre><code class="language-bash">echo 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805 \
+    | xxd -r -p \
+    | protoc --decode=UniversalMessage.RoutableMessage -I protobuf protobuf/*.proto</code></pre>
+<pre><code>to_destination {
+  domain: DOMAIN_VEHICLE_SECURITY
+}
+from_destination {
+  routing_address: "\nyb\301\r8\266\035\322\247r\'\200\244\360\226"
+}
+protobuf_message_as_bytes: "\n\002\010\005"
+uuid: "\005QOWak\314\201\250\316\017\235{H2)"</code></pre>
+<p>VCSEC 宛てのメッセージなので、<code>protobuf_message_as_bytes</code> は <code>VCSEC.UnsignedMessage</code> です。</p>
+<pre><code class="language-bash">printf "\n\002\010\005" | protoc --decode=VCSEC.UnsignedMessage -I protobuf protobuf/*.proto
+# InformationRequest {
+#   informationRequestType: INFORMATION_REQUEST_TYPE_GET_WHITELIST_INFO
+# }</code></pre>
+<p>逆に <code>protoc --encode</code> でペイロードを作ることもできます(後述の AES-GCM の例)。<code>*.proto</code> から他言語のバインディングも生成できます。</p>
+
+<h2 id="sec-concepts">プロトコルの概念: ドメイン、時刻、ロール</h2>
+<h3>ドメイン</h3>
+<p>車両のサブシステムはそれぞれ異なる公開鍵を持つため、<strong>ドメインごとにハンドシェイクとセッション状態を個別に</strong>管理します。VCSEC(<code>DOMAIN_VEHICLE_SECURITY = 2</code>)はロック、リモートスタート、トランク、キーチェーンを担当し、Infotainment(<code>DOMAIN_INFOTAINMENT = 3</code>)が残りを処理します。VCSEC は Infotainment がスリープ中でも BLE でアクセスできます。</p>
+<h3>時刻</h3>
+<p>各ドメインは独自の時計を持ち、時刻を <code>(epoch_id, timestamp)</code> のペアで表します。<code>epoch_id</code> は起動時に生成されるランダムな 16 バイト、<code>timestamp</code> は epoch 開始からの秒単位の整数です。クライアントはドメインの時計とローカルの時計の差を追跡し、コマンドの有効期限(<code>expires_at</code>)を計算します。SDK は <code>SessionInfo.clock_time</code> と受信時刻から <code>timeZero</code> を決め、リクエスト後 <code>AllowedLatency</code>(BLE 4 秒、インターネット 10 秒)を超えて到着したセッション情報は時計の補正に使いません。</p>
+<h3>ロール</h3>
+<p>公開鍵ごとにロール(Owner、Driver、Fleet Manager、Vehicle Monitor、Charging Manager、Guest、Service)があります。<a href="01-overview.html#sec-role">1 章のロール表</a>を参照してください。ロールごとの権限はファームウェアの更新によって変わる可能性があります。</p>
+
+<h2 id="sec-tlv">メタデータのシリアライズ (TLV)</h2>
+<p>認証ではメッセージを VIN などのメタデータに結び付ける必要があるため、メタデータをハッシュ入力として使える正規のシリアライズが必要です。各項目は <strong>tag(1B) || length(1B) || value</strong> としてエンコードされ、tag の値は <code>Signatures.Tag</code> に定義されています。</p>
+<table>
+  <thead><tr><th>Tag</th><th>値</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td><code>TAG_SIGNATURE_TYPE</code></td><td>0</td><td><code>SignatureType</code> 1 バイト</td></tr>
+    <tr><td><code>TAG_DOMAIN</code></td><td>1</td><td><code>Domain</code> 1 バイト</td></tr>
+    <tr><td><code>TAG_PERSONALIZATION</code></td><td>2</td><td>VIN (17 文字の ASCII)</td></tr>
+    <tr><td><code>TAG_EPOCH</code></td><td>3</td><td>16 バイトの epoch_id</td></tr>
+    <tr><td><code>TAG_EXPIRES_AT</code></td><td>4</td><td>uint32 big-endian</td></tr>
+    <tr><td><code>TAG_COUNTER</code></td><td>5</td><td>uint32 big-endian</td></tr>
+    <tr><td><code>TAG_CHALLENGE</code></td><td>6</td><td>16 バイト (ハンドシェイクリクエストの uuid)</td></tr>
+    <tr><td><code>TAG_FLAGS</code></td><td>7</td><td>uint32 big-endian</td></tr>
+    <tr><td><code>TAG_REQUEST_HASH</code></td><td>8</td><td>レスポンス復号用のリクエストハッシュ</td></tr>
+    <tr><td><code>TAG_FAULT</code></td><td>9</td><td>uint32 big-endian <code>MessageFault_E</code></td></tr>
+    <tr><td><code>TAG_END</code></td><td>255</td><td>終端マーカー <code>0xFF</code></td></tr>
+  </tbody>
+</table>
+<pre><code>TLV(VIN: "abc")   = TAG_PERSONALIZATION || LEN("abc") || "abc"
+                  = 0x02 || 0x03 || 0x61 0x62 0x63
+                  = 0x0203616263
+
+TLV(COUNTER: 100) = TAG_COUNTER || LEN(uint32) || 0x00000064    (整数は 4 バイト big-endian)
+                  = 0x05 || 0x04 || 0x00000064
+                  = 0x050400000064
+
+SERIALIZE({COUNTER: 100, VIN: "abc"})
+                  = TLV(VIN) || TLV(COUNTER) || 0xFF               (tag の昇順に並べて連結し、末尾に 0xFF)
+                  = 0x0203616263050400000064FF</code></pre>
+<p>Go の実装(<code>internal/authentication/metadata.go</code>)では、項目を必ず tag の昇順で追加する必要があり(<code>errOutOfOrderMetadata</code>)、値の長さは 255 バイト以下でなければならず(<code>ErrMetadataFieldTooLong</code>)、nil の値はスキップされます。<code>Checksum(message)</code> が <code>0xFF</code> を付けたあと、メッセージのバイト列を続けてハッシュします。</p>
+
+<h2 id="sec-notation">表記法とテスト鍵</h2>
+<dl class="kv">
+  <dt><code>c</code>, <code>C = (Cx, Cy)</code></dt><dd>クライアントの秘密鍵、公開鍵 (NIST P-256 上の点)</dd>
+  <dt><code>v</code>, <code>V = (Vx, Vy)</code></dt><dd>車両(ドメイン)の秘密鍵、公開鍵</dd>
+  <dt><code>s[:n]</code></dt><dd>文字列 s の先頭 n バイト</dd>
+  <dt><code>BIG_ENDIAN(m, n)</code></dt><dd>m の n バイト big-endian エンコード (0x00 でパディング)</dd>
+  <dt><code>K</code></dt><dd>クライアントと車両が共有する 128 ビットの AES-GCM 鍵</dd>
+  <dt><code>ENCODE_PUBLIC(P)</code></dt><dd><code>0x04 || BIG_ENDIAN(x, 32) || BIG_ENDIAN(y, 32)</code>。非圧縮の曲線点エンコード、65 バイト</dd>
+</dl>
+<div class="callout danger">
+  <strong>テスト鍵はテストベクターの検証にのみ使用</strong>
+  <p>以下の秘密鍵は公開されています。この公開鍵を実際の車両に登録すると、誰でもその車両にアクセスできるようになります。</p>
+</div>
+<h3>車両の鍵</h3>
+<pre><code>vehicle.key (EC PRIVATE KEY PEM):
+MHcCAQEEIDRO5bRmp88e6xK29QMx2y5exYNO9fS+/P2MvlXCUo1woAoGCCqGSM49
+AwEHoUQDQgAEx6H0cThIaqRymXFJSHjTOxok45Vx90im4WxZVbPYd9OmqqDpVRZk
+dK9dMsQQ9DmiI0E3rRuwhf1OiBPJWPEdlw==
+
+v  = 0x344EE5B466A7CF1EEB12B6F50331DB2E5EC5834EF5F4BEFCFD8CBE55C2528D70
+Vx = 0xC7A1F47138486AA4729971494878D33B1A24E39571F748A6E16C5955B3D877D3
+Vy = 0xA6AAA0E955166474AF5D32C410F439A2234137AD1BB085FD4E8813C958F11D97
+HEX(ENCODE_PUBLIC(V)) = 04c7a1f47138486aa4729971494878d33b1a24e39571f748a6e16c5955b3d877d3a6aaa0e955166474af5d32c410f439a2234137ad1bb085fd4e8813c958f11d97</code></pre>
+<h3>クライアントの鍵</h3>
+<pre><code>client.key (EC PRIVATE KEY PEM):
+MHcCAQEEICU4zcKal8GcHpmmN9bPT4yXDBGLVu3h5jI+bRYsSzDboAoGCCqGSM49
+AwEHoUQDQgAEsra8aMLaBmXOZWgVWUmWxiOU7di+qQX+eBp1T+aoRacUMwkC8iXp
+Jp1GbgWzSZgf2p2FzCPG+0RKpztikQXcbg==
+
+c  = 0x2538CDC29A97C19C1E99A637D6CF4F8C970C118B56EDE1E6323E6D162C4B30DB
+Cx = 0xB2B6BC68C2DA0665CE656815594996C62394EDD8BEA905FE781A754FE6A845A7
+Cy = 0x14330902F225E9269D466E05B349981FDA9D85CC23C6FB444AA73B629105DC6E
+HEX(ENCODE_PUBLIC(C)) = 04b2b6bc68c2da0665ce656815594996c62394edd8bea905fe781a754fe6a845a714330902f225e9269d466e05b349981fda9d85cc23c6fb444aa73b629105dc6e</code></pre>
+<p>PEM の全体(公開鍵 <code>vehicle.pem</code>、<code>client.pem</code> を含む)は <code>protocol.md</code> の「Test keys」節にあります。</p>
+
+<h2 id="sec-handshake">ハンドシェイク</h2>
+<p>クライアント公開鍵 <code>C</code> がすでに車両に登録されていると仮定します。鍵の登録(ブートストラップ)は既存の鍵または NFC カードで行われ、Tesla Service 鍵が信頼の起点です(<a href="02-getting-started.html#sec-pair">2 章 ペアリング</a>)。</p>
+<h3>リクエスト</h3>
+<p>コマンドを送るドメインに、<code>session_info_request.public_key = ENCODE_PUBLIC(C)</code> の <code>RoutableMessage</code> を送ります。</p>
+<pre><code>to_destination { domain: DOMAIN_INFOTAINMENT }
+from_destination { routing_address: 2c907bd76c640d360b3027dc7404efde }
+session_info_request {
+  public_key: 04b2b6bc68c2da0665ce656815594996c62394edd8bea905fe781a754fe6a845a714330902f225e9269d466e05b349981fda9d85cc23c6fb444aa73b629105dc6e
+}
+uuid: 1588d5a30eabc6f8fc9a951b11f6fd11</code></pre>
+<h3>レスポンス</h3>
+<p>車両は <code>session_info</code> を設定して応答します。これを <code>Signatures.SessionInfo</code> としてパースします。<code>signature_data.session_info_tag</code> はレスポンスの完全性(真正性ではない)を検証するために使われます。</p>
+<pre><code>to_destination { routing_address: 2c907bd76c640d360b3027dc7404efde }
+from_destination { domain: DOMAIN_INFOTAINMENT }
+signature_data {
+  session_info_tag {
+    tag: 996c1fe38331be138f8039c194b14db2198846ed7d8251e6749284d7b32ea002
+  }
+}
+session_info: 0806124104c7a1f471...(省略)...1a104c463f9cc0d3d26906e982ed224adde6255a0a0000
+request_uuid: 1588d5a30eabc6f8fc9a951b11f6fd11</code></pre>
+<pre><code>SessionInfo {
+  counter: 6
+  publicKey: 04c7a1f47138486aa4729971494878d33b1a24e39571f748a6e16c5955b3d877d3a6aaa0e955166474af5d32c410f439a2234137ad1bb085fd4e8813c958f11d97
+  epoch: 4c463f9cc0d3d26906e982ed224adde6
+  clock_time: 2650
+  status: SESSION_INFO_STATUS_OK      // KEY_NOT_ON_WHITELIST(1) なら protocol.ErrKeyNotPaired
+}</code></pre>
+<h3>鍵合意 (ECDH)</h3>
+<pre><code>S = (Sx, Sy) = ECDH(c, V) = ECDH(v, C)
+K = SHA1(BIG_ENDIAN(Sx, 32))[:16]</code></pre>
+<pre><code class="language-bash"># client.key と vehicle.pem から K を計算
+export K=$(openssl pkeyutl -derive -inkey client.key -peerkey vehicle.pem \
+    | openssl dgst -sha1 -binary | head -c 16 | xxd -p)
+echo $K
+# 1b2fce19967b79db696f909cff89ea9a</code></pre>
+<div class="callout warn">
+  <strong>自前で実装しないこと</strong>
+  <p>ECDH と AES-GCM には OpenSSL や Go の <code>crypto</code> のような検証済みライブラリを使ってください。プロトコルは常に <code>K</code> のバイナリ値を使用し、上記の hex は表示用です。</p>
+</div>
+<h3>レスポンスの認証 (session_info_tag の検証)</h3>
+<p>MITM 攻撃者が有効期限のより長いコマンドを入手できないよう、クライアントはセッション情報レスポンスを認証しなければなりません。攻撃者が公開鍵を差し替えると車両がコマンドを拒否し、公開鍵をそのままにして残りを変更するとクライアントがタグ検証で拒否します。</p>
+<ol class="steps">
+  <li><strong>セッション情報認証鍵の導出。</strong> <code>SESSION_INFO_KEY = HMAC-SHA256(K, "session info")</code>。文字列は ASCII リテラル。
+<pre><code class="language-bash">export SESSION_INFO_KEY=$(echo -n "session info" | openssl dgst -sha256 -mac hmac -macopt hexkey:"$K")
+# fceb679ee7bca756fcd441bf238bf2f338629b41d9eb9c67be1b32c9672ce300</code></pre></li>
+  <li><strong>メタデータのシリアライズ。</strong> <code>TAG_SIGNATURE_TYPE = SIGNATURE_TYPE_HMAC(6)</code>、<code>TAG_PERSONALIZATION = VIN</code>、<code>TAG_CHALLENGE = リクエストの uuid</code>。
+<pre><code>VIN = 5YJ30123456789ABC
+METADATA = 00 01 06
+        || 02 11 35594a3330313233343536373839414243
+        || 06 10 1588d5a30eabc6f8fc9a951b11f6fd11
+        || ff
+       = 000106021135594a333031323334353637383941424306101588d5a30eabc6f8fc9a951b11f6fd11ff</code></pre></li>
+  <li><strong>タグの計算。</strong> <code>HMAC-SHA256(SESSION_INFO_KEY, METADATA || session_info)</code>
+<pre><code class="language-bash">echo "$METADATA$SESSION_INFO" | xxd -r -p | openssl dgst -sha256 -mac hmac -macopt hexkey:"$SESSION_INFO_KEY"
+# 996c1fe38331be138f8039c194b14db2198846ed7d8251e6749284d7b32ea002</code></pre></li>
+  <li><strong>比較。</strong> レスポンスの <code>signature_data.session_info_tag.tag</code> と<strong>定数時間で比較</strong>(Go: <code>hmac.Equal</code>)。一致しなければレスポンスを破棄。</li>
+</ol>
+<p>Go では <code>internal/authentication.NewAuthenticatedSigner</code> がこの検証を行い、<code>NativeSession.SessionInfoHMAC</code> がタグを計算します。SDK は、<code>uuid</code> が最近のリクエストのものでない、または <code>AllowedLatency</code> を超えて到着したセッション情報を、タグ検証の前に破棄します。</p>
+
+<h2 id="sec-authz">コマンドの認可</h2>
+<p>ハンドシェイク後、クライアントはドメインの時計(epoch、timestamp)、アンチリプレイカウンター、共有鍵 <code>K</code> を持ちます。コマンドの protobuf <code>P</code>(<code>VCSEC.UnsignedMessage</code> または <code>CarServer.Action</code>)を作成したあと、以下のメタデータ <code>M</code> をシリアライズします。</p>
+<table>
+  <thead><tr><th>値</th><th>Tag</th><th>説明</th></tr></thead>
+  <tbody>
+    <tr><td>署名の種類</td><td><code>TAG_SIGNATURE_TYPE</code></td><td><code>SIGNATURE_TYPE_HMAC_PERSONALIZED</code>(8) または <code>SIGNATURE_TYPE_AES_GCM_PERSONALIZED</code>(5)</td></tr>
+    <tr><td>ドメイン</td><td><code>TAG_DOMAIN</code></td><td><code>DOMAIN_VEHICLE_SECURITY</code>(2) または <code>DOMAIN_INFOTAINMENT</code>(3)</td></tr>
+    <tr><td>VIN</td><td><code>TAG_PERSONALIZATION</code></td><td>17 文字の VIN</td></tr>
+    <tr><td>Epoch</td><td><code>TAG_EPOCH</code></td><td><code>session_info.epoch</code> をコピー</td></tr>
+    <tr><td>有効期限</td><td><code>TAG_EXPIRES_AT</code></td><td>ドメインの時計基準の秒。SDK は ctx のデッドラインまで(なければ 5 秒)に設定</td></tr>
+    <tr><td>カウンター</td><td><code>TAG_COUNTER</code></td><td>単調増加。初期値は <code>session_info.counter</code>、コマンドごとに +1</td></tr>
+    <tr><td>フラグ</td><td><code>TAG_FLAGS</code></td><td>リクエストの flags。<strong>0 でない場合のみ含める</strong></td></tr>
+  </tbody>
+</table>
+<ul>
+  <li>カウンターは同じ epoch 内でコマンドごとに増加しなければなりません。Infotainment は順序が入れ替わった到着を許容するスライディングウィンドウを維持しますが、<strong>VCSEC にはカウンター順に到着する必要が</strong>あります。</li>
+  <li>遠すぎる有効期限は <code>MESSAGEFAULT_ERROR_TIME_TO_LIVE_TOO_LONG</code> で拒否されます。</li>
+</ul>
+<h3>2 つの認証方式</h3>
+<table>
+  <thead><tr><th></th><th>HMAC-SHA256</th><th>AES-GCM</th></tr></thead>
+  <tbody>
+    <tr><td>ペイロード</td><td>平文</td><td>暗号文</td></tr>
+    <tr><td>用途</td><td>Fleet API (サーバーが OAuth スコープでコマンドを拒否し、VCSEC の廃止されたメッセージを除外できるように)</td><td>BLE (Fleet API はスコープを検査できないため GCM コマンドをブロック)</td></tr>
+    <tr><td>Go</td><td><code>Signer.AuthorizeHMAC</code>, <code>connector.AuthMethodHMAC</code></td><td><code>Signer.Encrypt</code>, <code>connector.AuthMethodGCM</code></td></tr>
+    <tr><td>SignatureData フィールド</td><td><code>HMAC_Personalized_data</code> (8)</td><td><code>AES_GCM_Personalized_data</code> (5)</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sec-hmac">HMAC-SHA256 認証</h2>
+<ol>
+  <li>鍵の導出: <code>K' = HMAC-SHA256(K, "authenticated command")</code>。</li>
+  <li><code>RoutableMessage</code> を作成し、<code>payload.protobuf_message_as_bytes = P</code> とする。</li>
+  <li><code>signature_data.signer_identity.public_key = ENCODE_PUBLIC(C)</code>。</li>
+  <li><code>tag = HMAC-SHA256(K', M || P)</code>。</li>
+  <li><code>signature_data.HMAC_Personalized_data</code> に <code>epoch</code>、<code>counter</code>、<code>expires_at</code>、<code>tag</code> を設定する。</li>
+</ol>
+<pre><code>message HMAC_Personalized_Signature_Data {
+    bytes   epoch       = 1;
+    uint32  counter     = 2;
+    fixed32 expires_at  = 3;
+    bytes   tag         = 4;
+}</code></pre>
+
+<h2 id="sec-gcm">AES-GCM 暗号化</h2>
+<ol>
+  <li>128 ビット鍵 <code>K</code> をそのまま AES-GCM の鍵として使用する。</li>
+  <li>ランダムな <strong>12 バイトの nonce</strong>(IV)。他の長さは <code>MESSAGEFAULT_ERROR_IV_INCORRECT_LENGTH</code>。</li>
+  <li>AAD(Associated Authenticated Data) = <code>SHA256(M)</code>。</li>
+  <li><code>P</code> を暗号化し、暗号文 <code>x</code> と 16 バイトの <code>tag</code> を得る。</li>
+  <li><code>payload.protobuf_message_as_bytes = x</code>、<code>signer_identity.public_key = ENCODE_PUBLIC(C)</code>。</li>
+  <li><code>signature_data.AES_GCM_Personalized_data</code> に <code>epoch</code>、<code>nonce</code>、<code>counter</code>、<code>expires_at</code>、<code>tag</code> を設定する。epoch は省略できるが、含めると不一致時により具体的なエラーを受け取れる。</li>
+</ol>
+<h3>完全な例: 「HVAC をオン」</h3>
+<p><code>VIN = 5YJ30123456789ABC</code>、<code>K = 1b2fce19967b79db696f909cff89ea9a</code>、<code>FLAG_ENCRYPT_RESPONSE</code> を設定(flags = 2)。</p>
+<pre><code class="language-bash"># 1) コマンドの protobuf P
+echo 'vehicleAction {
+  hvacAutoAction {
+    power_on: true
+  }
+}' | protoc --encode=CarServer.Action -I protobuf protobuf/*.proto | xxd -p
+# 120452020801</code></pre>
+<table>
+  <thead><tr><th>Tag</th><th>値</th><th>エンコード (hex)</th></tr></thead>
+  <tbody>
+    <tr><td><code>TAG_SIGNATURE_TYPE</code></td><td><code>SIGNATURE_TYPE_AES_GCM_PERSONALIZED = 0x05</code></td><td><code>00 01 05</code></td></tr>
+    <tr><td><code>TAG_DOMAIN</code></td><td><code>DOMAIN_INFOTAINMENT = 0x03</code></td><td><code>01 01 03</code></td></tr>
+    <tr><td><code>TAG_PERSONALIZATION</code></td><td><code>5YJ30123456789ABC</code></td><td><code>02 11 35594a3330313233343536373839414243</code></td></tr>
+    <tr><td><code>TAG_EPOCH</code></td><td><code>session_info.epoch</code></td><td><code>03 10 4c463f9cc0d3d26906e982ed224adde6</code></td></tr>
+    <tr><td><code>TAG_EXPIRES_AT</code></td><td>t = 2655</td><td><code>04 04 00000a5f</code></td></tr>
+    <tr><td><code>TAG_COUNTER</code></td><td>7</td><td><code>05 04 00000007</code></td></tr>
+    <tr><td><code>TAG_FLAGS</code></td><td><code>1 &lt;&lt; FLAG_ENCRYPT_RESPONSE = 0x02</code></td><td><code>07 04 00000002</code></td></tr>
+  </tbody>
+</table>
+<pre><code># 2) M = 上記項目を連結 + ff
+000105010103021135594a333031323334353637383941424303104c463f9cc0d3d26906e982ed224adde6040400000a5f050400000007070400000002ff</code></pre>
+<pre><code class="language-python"># 3) AES-GCM (Python cryptography)
+import os
+from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from cryptography.hazmat.primitives import hashes
+
+plaintext = bytes.fromhex("120452020801")
+metadata = bytes.fromhex("000105010103021135594a333031323334353637383941424303104c463f9cc0d3d26906e982ed224adde6040400000a5f050400000007070400000002ff")
+aad = hashes.Hash(hashes.SHA256()); aad.update(metadata)
+key = bytes.fromhex("1b2fce19967b79db696f909cff89ea9a")
+nonce = os.urandom(12)
+ct = AESGCM(key).encrypt(nonce, plaintext, aad.finalize())
+print(f"Nonce: {nonce.hex()}, Ciphertext: {ct[:-16].hex()}, Tag: {ct[-16:].hex()}")
+# Nonce: dbf79447fa156674dae1caed, Ciphertext: 38038e8c0f2e, Tag: c228e0ff64991481db3a7bbc133696c5  (nonce ごとに変わる)</code></pre>
+<pre><code># 4) 完成した RoutableMessage
+to_destination { domain: DOMAIN_INFOTAINMENT }
+from_destination { routing_address: 2c907bd76c640d360b3027dc7404efde }
+protobuf_message_as_bytes: 38038e8c0f2e
+signature_data {
+  signer_identity {
+    public_key: 04b2b6bc68c2da0665ce656815594996c62394edd8bea905fe781a754fe6a845a714330902f225e9269d466e05b349981fda9d85cc23c6fb444aa73b629105dc6e
+  }
+  AES_GCM_Personalized_data {
+    epoch: 4c463f9cc0d3d26906e982ed224adde6
+    nonce: dbf79447fa156674dae1caed
+    counter: 7
+    expires_at: 2655
+    tag: c228e0ff64991481db3a7bbc133696c5
+  }
+}
+flags: 2
+uuid: 58406580528b6a5301391800b4fe9b99</code></pre>
+<div class="callout">
+  <strong>FLAG_ENCRYPT_RESPONSE</strong>
+  <p>このビットを設定すると、2024.38 以降のファームウェアはレスポンスのペイロードを暗号化します。それ以前のファームウェアはこのフラグを無視するため、ファームウェアのバージョンを確認する必要はなく、常に設定してください。フラグはメタデータに含まれて認証されるため、攻撃者がオフにすることはできません。</p>
+</div>
+
+<h2 id="sec-cache">セッションキャッシュと同期エラーからの復旧</h2>
+<h3>セッションキャッシュ</h3>
+<p>常時実行されないクライアントは、セッション状態とローカル/車両の時計の差をディスクに保存する必要があります。キャッシュを使うと最初のコマンドの遅延が減り、Fleet API の呼び出し回数も減ります。キャッシュが古くなっていても、後述の復旧手順はハンドシェイク 1 回と同じコストなので、<strong>楽観的にキャッシュを信頼しても損はありません</strong>。SDK: <code>pkg/cache.SessionCache</code>、<code>Vehicle.UpdateCachedSessions</code>/<code>LoadCachedSessions</code>、CLI の <code>TESLA_CACHE_FILE</code>。</p>
+<h3>同期エラーからの復旧</h3>
+<p>車両は、認証エラーが同期の問題(例: Infotainment の再起動による epoch の変更)である可能性がある場合、エラーメッセージに最新のセッション情報を同梱します。クライアントは、次のいずれかが真であれば<strong>セッション情報を破棄しなければなりません(MUST)</strong>。</p>
+<ul>
+  <li>直近数秒以内に、その <code>request_uuid</code> でリクエストを送っていない。</li>
+  <li>セッション情報の HMAC タグが正しくない。</li>
+  <li>同じ epoch で以前に認証されたセッション情報よりも <code>clock_time</code> が早い。</li>
+</ul>
+<p>すべて偽であれば<strong>セッション状態を更新しなければなりません(MUST)</strong>。更新時には、<strong>epoch が変わらない限りアンチリプレイカウンターを巻き戻してはなりません(MUST NOT)</strong>。これはセキュリティ要件というより(リプレイの拒否は車両の責任)、不安定な接続や順序の入れ替わりに耐えるためのルールです。Go: <code>Dispatcher.checkForSessionUpdate</code> → <code>session.processHello</code> → <code>Signer.UpdateSignedSessionInfo</code>。dispatcher はセッションを更新したあと、エラーレスポンスもそのまま receiver に渡し、<code>Vehicle.Send</code> は <code>ShouldRetry</code> なエラー(<code>INVALID_SIGNATURE</code>、<code>INVALID_TOKEN_OR_COUNTER</code>、<code>INCORRECT_EPOCH</code>、<code>TIME_EXPIRED</code> など)であれば更新されたセッションで再送します。</p>
+
+<h2 id="sec-response">レスポンスの処理</h2>
+<div class="callout warn">
+  <strong>レスポンスがなくても実行されている可能性がある</strong>
+  <p>コマンドを送ったのにレスポンスを受け取れなかった場合、車両はすでにコマンドを受信・実行している可能性があります。不安定なネットワークでは特によく起こります。SDK はこのような場合に <code>protocol.MayHaveSucceeded(err) == true</code> となるエラーを返し、自動ではリトライしません。</p>
+</div>
+<h3>プロトコル層のエラー</h3>
+<p>レスポンスも <code>RoutableMessage</code> です。プロトコル層のエラーがあると <code>signedMessageStatus.signed_message_fault</code> が設定されます。コードと対処法は <code>universal_message.proto</code> の <code>MessageFault_E</code> のコメントと<a href="09-errors-troubleshooting.html#sec-fault">9 章</a>にあります。Go の <code>protocol.GetError</code> がこれを <code>*RoutableMessageError</code>(<code>UNKNOWN_KEY_ID</code> の場合は <code>ErrKeyNotPaired</code>)に変換し、<code>session_info.status == KEY_NOT_ON_WHITELIST</code> も <code>ErrKeyNotPaired</code> に、<code>operation_status == WAIT</code> は <code>ErrBusy</code> にします。</p>
+
+<h2 id="sec-decrypt">レスポンスの復号</h2>
+<p>レスポンスに <code>signature_data.AES_GCM_Response_data</code> があれば <code>protobuf_message_as_bytes</code> は暗号文であり、なければ平文です。</p>
+<pre><code>message AES_GCM_Response_Signature_Data {
+    bytes  nonce   = 1;
+    uint32 counter = 2;
+    bytes  tag     = 3;
+}</code></pre>
+<h3>リクエストハッシュ (request hash)</h3>
+<p>クライアントは送信したリクエストごとに「リクエストハッシュ」を計算しておく必要があります。<strong>認証方式 1 バイト || リクエストの認証タグ</strong>です。</p>
+<ul>
+  <li>AES-GCM リクエスト: <code>0x05 || AES_GCM_Personalized_data.tag</code> (16 バイトのタグ → 合計 17 バイト)</li>
+  <li>HMAC リクエスト: <code>0x08 || HMAC_Personalized_data.tag</code> (32 バイトのタグ → 合計 33 バイト)</li>
+  <li><strong>VCSEC に送ったリクエストは 17 バイトに切り詰める</strong>: 方式 1 バイト + MAC の先頭 16 バイト。AES-GCM のタグはもともと 16 バイトなので、影響するのは HMAC リクエストのみ</li>
+</ul>
+<p>Go: <code>internal/authentication.RequestID(message)</code>。dispatcher が <code>Send</code> 時に receiver に <code>requestID</code> として保存します。</p>
+<h3>カウンターの検証</h3>
+<p>レスポンスの <code>counter</code> が、<strong>同じリクエストに対する以前のレスポンスですでに使われた値でないこと</strong>を検証する必要があります。1 つのリクエストが複数のレスポンスを引き起こすことがあり、順序が入れ替わることもあります。この検査を省くとリプレイ攻撃に対して脆弱になります。Go: receiver ごとに <code>authentication.SlidingWindow</code> を置き、<code>session.decrypt</code> で <code>antireplay.Update(counter)</code> が false なら <code>ErrReplayedResponse</code> として破棄(<code>internal/authentication/window.go</code>)。</p>
+<h3>レスポンスメタデータ</h3>
+<p>AES-GCM で、鍵 <code>K</code>、レスポンスの nonce と tag、そして以下のメタデータのシリアライズを AAD として使って復号します。リクエストと異なり、<strong>flags は 0 でも常に含め</strong>、fault は 32 ビット big-endian でエンコードします。</p>
+<table>
+  <thead><tr><th>値</th><th>Tag</th><th>説明</th></tr></thead>
+  <tbody>
+    <tr><td>署名の種類</td><td><code>TAG_SIGNATURE_TYPE</code></td><td><code>SIGNATURE_TYPE_AES_GCM_RESPONSE</code>(9)</td></tr>
+    <tr><td>ドメイン</td><td><code>TAG_DOMAIN</code></td><td>レスポンスの <code>from_destination.domain</code></td></tr>
+    <tr><td>VIN</td><td><code>TAG_PERSONALIZATION</code></td><td>17 文字の VIN</td></tr>
+    <tr><td>カウンター</td><td><code>TAG_COUNTER</code></td><td><code>AES_GCM_Response_data.counter</code></td></tr>
+    <tr><td>フラグ</td><td><code>TAG_FLAGS</code></td><td>レスポンスの flags (リクエストの flags ではない)。常に含める</td></tr>
+    <tr><td>リクエストハッシュ</td><td><code>TAG_REQUEST_HASH</code></td><td>上で計算した request hash</td></tr>
+    <tr><td>Fault</td><td><code>TAG_FAULT</code></td><td>レスポンスの <code>signed_message_fault</code>、uint32 big-endian</td></tr>
+  </tbody>
+</table>
+<p>Go: <code>Peer.responseMetadata</code> → <code>Signer.Decrypt</code> がペイロードを平文に置き換え、<code>SubSigData</code> を nil にします。セッションがなければ <code>ErrNoDecryptionContext</code>。</p>
+
+<h2 id="sec-app">アプリケーション層のレスポンス</h2>
+<h3>Infotainment</h3>
+<p><code>protobuf_message_as_bytes</code> を <code>CarServer.Response</code> としてパースします。ステータスコードは <code>Response.actionStatus.result</code> で、<code>OPERATIONSTATUS_ERROR</code> の場合は <code>result_reason.plain_text</code> に理由が入っています。Go: <code>Vehicle.getCarServerResponse</code> が <code>NominalError{"car could not execute command: &lt;理由&gt;"}</code> に変換。状態照会の結果は <code>Response.vehicleData</code>。</p>
+<h3>VCSEC</h3>
+<p><code>VCSEC.FromVCSECMessage</code> としてパースします。VCSEC は 1 つのリクエストに対して<strong>最大 3 つのレスポンス</strong>を送ります。Fleet API クライアントは最終レスポンスのみを受け取りますが、BLE クライアントはどのレスポンスが最終かを自分で判断する必要があります。</p>
+<table>
+  <thead><tr><th>状況</th><th>ルール</th><th>Go 実装</th></tr></thead>
+  <tbody>
+    <tr><td>NFC カードによる鍵のペアリング要求</td><td><code>commandStatus.operationStatus = OPERATIONSTATUS_WAIT</code> はカードのタップ待ち</td><td>-</td></tr>
+    <tr><td>それ以外のリクエストでの <code>OPERATIONSTATUS_WAIT</code></td><td>VCSEC が別のリクエストを処理中。少し待ってからリトライ</td><td><code>protocol.ErrBusy</code> (Temporary) → <code>getVCSECResult</code> が <code>RetryInterval</code> 後に再送</td></tr>
+    <tr><td><code>OPERATIONSTATUS_ERROR</code></td><td>レガシークライアント向け。無視して次のメッセージの具体的なエラーコードを待つ</td><td><code>whitelistOperationInformation != NONE</code> なら <code>KeychainError</code>、<code>signedMessageStatus</code> がなければ <code>ErrUnknown</code></td></tr>
+    <tr><td>whitelist 操作 (鍵の追加/削除)</td><td><code>commandStatus.whitelistOperationStatus</code> が設定されたメッセージで終了。空のメッセージは捨てる</td><td><code>isWhitelistOperationComplete</code>: information が NONE なら成功、そうでなければ <code>KeychainError{Code}</code></td></tr>
+    <tr><td>それ以外の操作 (ロック、トランクなど)</td><td>空のメッセージ(<code>commandStatus</code> なし) = 成功、<code>nominalError</code> = 失敗</td><td><code>executeRKEAction</code>/<code>executeClosureAction</code> の done: <code>GetCommandStatus() == nil</code>; <code>nominalError</code> は <code>NominalVCSECError</code></td></tr>
+    <tr><td>情報リクエスト (状態、鍵一覧)</td><td>最初のレスポンスが結果</td><td><code>getVCSECInfo</code> の done は常に true</td></tr>
+  </tbody>
+</table>
+<pre><code>enum GenericError_E {            // Errors.NominalError.genericError
+    GENERICERROR_NONE = 0;
+    GENERICERROR_UNKNOWN = 1;
+    GENERICERROR_CLOSURES_OPEN = 2;
+    GENERICERROR_ALREADY_ON = 3;
+    GENERICERROR_DISABLED_FOR_USER_COMMAND = 4;
+    GENERICERROR_VEHICLE_NOT_IN_PARK = 5;
+    GENERICERROR_UNAUTHORIZED = 6;
+    GENERICERROR_NOT_ALLOWED_OVER_TRANSPORT = 7;
+}</code></pre>
+
+<h2 id="sec-impl">Go の実装箇所</h2>
+<table>
+  <thead><tr><th>仕様の項目</th><th>ファイル</th><th>主要シンボル</th></tr></thead>
+  <tbody>
+    <tr><td>ECDH、K の導出、サブキー KDF、AES-GCM のプリミティブ演算</td><td><code>internal/authentication/native.go</code>, <code>ecdh.go</code></td><td><code>NativeECDHKey.Exchange</code>, <code>NativeSession.subkey/NewHMAC/Encrypt/Decrypt/SessionInfoHMAC</code>, <code>ECDHPrivateKey</code> インターフェース</td></tr>
+    <tr><td>メタデータ TLV</td><td><code>internal/authentication/metadata.go</code></td><td><code>metadata.Add/AddUint32/Checksum</code>, <code>ErrMetadataFieldTooLong</code></td></tr>
+    <tr><td>リクエストメタデータの抽出、リクエストハッシュ、レスポンスメタデータ</td><td><code>internal/authentication/peer.go</code></td><td><code>Peer.extractMetadata</code>, <code>RequestID</code>, <code>Peer.responseMetadata</code>, <code>Peer.hmacTag</code></td></tr>
+    <tr><td>コマンドの認可(HMAC/GCM)、セッション情報の検証・更新・キャッシュ、レスポンスの復号</td><td><code>internal/authentication/signer.go</code></td><td><code>NewAuthenticatedSigner</code>, <code>ImportSessionInfo</code>, <code>ExportSessionInfo</code>, <code>UpdateSignedSessionInfo</code>, <code>Encrypt</code>, <code>AuthorizeHMAC</code>, <code>Decrypt</code></td></tr>
+    <tr><td>車両側の検証 (テスト/参照用)</td><td><code>internal/authentication/verifier.go</code></td><td><code>Verifier.Verify</code>, <code>SignedSessionInfo</code>, <code>Encrypt</code>(レスポンスの暗号化)</td></tr>
+    <tr><td>レスポンスカウンターのスライディングウィンドウ</td><td><code>internal/authentication/window.go</code></td><td><code>SlidingWindow.Update</code></td></tr>
+    <tr><td>ドメインごとのセッション状態、認可待ち、レスポンス復号の呼び出し</td><td><code>internal/dispatcher/session.go</code></td><td><code>session.processHello/authorize/decrypt/export</code>, <code>CacheEntry</code>, <code>defaultExpiration</code>(5s)</td></tr>
+    <tr><td>RoutableMessage の組み立て、uuid/routing_address、ハンドシェイク、レスポンスのルーティング、セッション更新</td><td><code>internal/dispatcher/dispatcher.go</code>, <code>receiver.go</code></td><td><code>Dispatcher.Send/StartSessions/process/checkForSessionUpdate</code>, <code>SessionInfoRequest</code>, <code>receiverKey</code></td></tr>
+    <tr><td>エラーの分類</td><td><code>pkg/protocol/error.go</code></td><td><code>GetError</code>, <code>RoutableMessageError</code>, <code>ShouldRetry</code>, <code>MayHaveSucceeded</code></td></tr>
+    <tr><td>メッセージ定義</td><td><code>pkg/protocol/protobuf/universal_message.proto</code>, <code>signatures.proto</code>, <code>vcsec.proto</code>, <code>car_server.proto</code>, <code>keys.proto</code>, <code>errors.proto</code></td><td>-</td></tr>
+    <tr><td>仕様テスト</td><td><code>internal/authentication/protocol_doc_test.go</code>, <code>example_test.go</code></td><td>ドキュメントのテストベクターを検証</td></tr>
+  </tbody>
+</table>
+
+<footer class="page-nav">
+  <a href="03-ble-transport.html"><span>前へ</span>3. BLE トランスポート層</a>
+  <a class="next" href="05-go-sdk.html"><span>次へ</span>5. Go SDK</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

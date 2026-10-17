@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>6. CLI Tools · vehicle-command BLE Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE Developer Manual · based on v0.4.1</div>
+  <div class="lang-switch" aria-label="Language"><a href="../ko/06-cli-tools.html" hreflang="ko" lang="ko">한국어</a><a class="active" href="../en/06-cli-tools.html" hreflang="en" lang="en">English</a><a href="../ja/06-cli-tools.html" hreflang="ja" lang="ja">日本語</a></div>
+  <ol>
+    <li><a href="index.html">Home</a></li>
+    <li class="group">Getting Started</li>
+    <li><a href="01-overview.html">1. System Overview</a></li>
+    <li><a href="02-getting-started.html">2. Getting Started</a></li>
+    <li class="group">Protocol</li>
+    <li><a href="03-ble-transport.html">3. BLE Transport Layer</a></li>
+    <li><a href="04-protocol.html">4. Protocol Specification</a></li>
+    <li class="group">Development</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a class="active" href="06-cli-tools.html">6. CLI Tools</a></li>
+    <li><a href="07-command-reference.html">7. Command Reference</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP Proxy</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. Errors and Troubleshooting</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>6. CLI Tools</h1>
+<p class="lead">Usage, options, environment variables and keyring behavior of the five tools under <code>cmd/</code> (tesla-keygen, tesla-control, tesla-auth-token, tesla-jws, tesla-http-proxy).</p>
+
+<div class="toc"><strong>On this page</strong><ol>
+<li><a href="#sec-install">Installation</a></li>
+<li><a href="#sec-env">Common environment variables</a></li>
+<li><a href="#sec-keyring">Keyring behavior</a></li>
+<li><a href="#sec-keygen">tesla-keygen</a></li>
+<li><a href="#sec-control">tesla-control</a></li>
+<li><a href="#sec-auth-token">tesla-auth-token</a></li>
+<li><a href="#sec-jws">tesla-jws</a></li>
+<li><a href="#sec-proxy">tesla-http-proxy</a></li>
+</ol></div>
+
+<h2 id="sec-install">Installation</h2>
+<pre><code class="language-bash">cd vehicle-command
+go get ./...
+go build ./...
+go install ./...          # Installs the five tools into $GOBIN (default ~/go/bin). Same as make install (which installs only ./cmd/...)</code></pre>
+<p>The Docker image <code>tesla/vehicle-command</code> also contains all five tools, and its default entrypoint is <code>tesla-http-proxy</code>. Select other tools with <code>--entrypoint</code>. However, the host BLE adapter is not accessible from inside the container, so run BLE commands with a local build.</p>
+<pre><code class="language-bash">docker run --entrypoint tesla-keygen tesla/vehicle-command:latest -h</code></pre>
+
+<div class="callout warn">
+<strong>Platforms</strong>
+<p>macOS and Linux are supported. On Windows, everything except BLE builds, but <code>newAdapter</code> in <code>pkg/connector/ble</code> returns <code>not supported on Windows</code>, so <code>tesla-control -ble</code> does not work. On Linux, initializing the BLE adapter requires <code>CAP_NET_ADMIN</code> (<a href="09-errors-troubleshooting.html#sec-scenarios">troubleshooting</a>).</p>
+</div>
+
+<h2 id="sec-env">Common environment variables</h2>
+<p><code>pkg/cli.Config.ReadFromEnvironment()</code> fills from environment variables only the values that were not set by command-line flags. In other words, flags always take precedence.</p>
+<table>
+<thead><tr><th>Environment variable</th><th>Corresponding flag</th><th>Meaning</th><th>Used by</th></tr></thead>
+<tbody>
+<tr><td><code>TESLA_KEY_NAME</code></td><td><code>-key-name</code></td><td>Name of the command-authentication private key stored in the system keyring</td><td>keygen, control, jws, http-proxy</td></tr>
+<tr><td><code>TESLA_KEY_FILE</code></td><td><code>-key-file</code></td><td>Path to the private key PEM file. If both a name and a file are given, the file is loaded first</td><td>keygen, control, jws, http-proxy</td></tr>
+<tr><td><code>TESLA_TOKEN_NAME</code></td><td><code>-token-name</code></td><td>Name of the OAuth token stored in the keyring</td><td>control, auth-token, keygen (registered only)</td></tr>
+<tr><td><code>TESLA_TOKEN_FILE</code></td><td><code>-token-file</code></td><td>Path to the OAuth token file. Falls back to the keyring if there is no file</td><td>control</td></tr>
+<tr><td><code>TESLA_VIN</code></td><td><code>-vin</code></td><td>17-character VIN</td><td>control, jws</td></tr>
+<tr><td><code>TESLA_CACHE_FILE</code></td><td><code>-session-cache</code></td><td>Session cache JSON file. <code>$HOME/.tesla-cache.json</code> if unset. Disable with <code>-disable-session-cache</code></td><td>control, keygen, jws, http-proxy (load only)</td></tr>
+<tr><td><code>TESLA_KEYRING_TYPE</code></td><td><code>-keyring-type</code></td><td>Keyring backend type. The supported list is shown per OS in the <code>-keyring-type</code> description of <code>tesla-keygen -h</code></td><td>keygen, control, jws, http-proxy, auth-token (environment variable only)</td></tr>
+<tr><td><code>TESLA_KEYRING_PASSWORD</code></td><td>(none)</td><td>Password for the file/keychain backend. If set, no prompt is shown</td><td>All tools that use the keyring</td></tr>
+<tr><td><code>TESLA_KEYRING_PATH</code></td><td><code>-keyring-file-dir</code></td><td>File backend directory. Default <code>~/.tesla_keys</code></td><td>All tools that use the keyring</td></tr>
+<tr><td><code>TESLA_KEYRING_DEBUG</code></td><td><code>-keyring-debug</code></td><td>Enables keyring debug logging if present (value ignored)</td><td>All tools that use the keyring</td></tr>
+<tr><td><code>TESLA_VERBOSE</code></td><td><code>-debug</code> / <code>-verbose</code></td><td>Debug logging (including TX/RX hex) for any value other than <code>false</code> or <code>0</code></td><td>control, http-proxy</td></tr>
+<tr><td><code>TESLA_HTTP_PROXY_TLS_CERT</code></td><td><code>-cert</code></td><td>Proxy TLS certificate chain file</td><td>http-proxy</td></tr>
+<tr><td><code>TESLA_HTTP_PROXY_TLS_KEY</code></td><td><code>-tls-key</code></td><td>Proxy TLS private key file</td><td>http-proxy</td></tr>
+<tr><td><code>TESLA_HTTP_PROXY_HOST</code></td><td><code>-host</code></td><td>Bind host. Default <code>localhost</code></td><td>http-proxy</td></tr>
+<tr><td><code>TESLA_HTTP_PROXY_PORT</code></td><td><code>-port</code></td><td>Bind port. Default 443</td><td>http-proxy</td></tr>
+<tr><td><code>TESLA_HTTP_PROXY_TIMEOUT</code></td><td><code>-timeout</code></td><td>Command timeout (e.g. <code>10s</code>). Default 10 seconds</td><td>http-proxy</td></tr>
+</tbody>
+</table>
+<p>A typical initial setup:</p>
+<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)
+export TESLA_TOKEN_NAME=$(whoami)
+export TESLA_VIN=5YJ30123456789ABC
+export TESLA_CACHE_FILE=~/.tesla-cache.json</code></pre>
+
+<h2 id="sec-keyring">Keyring behavior</h2>
+<p>Private keys and OAuth tokens are kept in the OS credential store via <a href="https://github.com/99designs/keyring">99designs/keyring</a>.</p>
+<dl class="kv">
+<dt>Service name</dt><dd><code>com.tesla.auth</code> (items appear under this name in the macOS Keychain)</dd>
+<dt>Private key item</dt><dd><code>vehicleCommandKey.&lt;TESLA_KEY_NAME&gt;</code>. The data is a 32-byte P-256 scalar (big-endian)</dd>
+<dt>OAuth token item</dt><dd><code>oauthtoken.&lt;TESLA_TOKEN_NAME&gt;</code>. The data is the token string as-is</dd>
+<dt>Default backend</dt><dd>The OS default. On macOS the login keychain (<code>KeychainTrustApplication: true</code>), on Linux whichever of secret-service/kwallet/keyctl etc. is available, and for the file backend <code>~/.tesla_keys</code></dd>
+<dt>Password</dt><dd>If the file backend or keychain unlock needs a password, a prompt is shown in the terminal. If neither stdout nor stderr is a terminal, you get a <code>no terminal output available for password prompt</code> error. For unattended runs, set <code>TESLA_KEYRING_PASSWORD</code>.</dd>
+<dt>KeyCtl scope</dt><dd>The Linux keyctl backend uses the <code>user</code> scope.</dd>
+</dl>
+<p><code>tesla-control</code> calls <code>config.LoadCredentials()</code> before the connection timeout starts so that the password prompt does not eat into the timeout. Follow the same order when building your own tools.</p>
+
+<h2 id="sec-keygen">tesla-keygen</h2>
+<p>Creates, deletes, exports and migrates P-256 private keys for command authentication, and prints the public key as PEM.</p>
+<pre><code>usage: tesla-keygen [OPTION...] create|delete|export|migrate</code></pre>
+<table>
+<thead><tr><th>Subcommand</th><th>Behavior</th></tr></thead>
+<tbody>
+<tr><td><code>create</code></td><td>If a key already exists (keyring name or file), it does not create one and only prints the existing key's public key. With <code>-f</code>, it overwrites with a new key. The key is stored in the keyring if <code>-key-name</code> is given, otherwise in <code>-key-file</code> (SEC1 PEM, 0600). If neither is given, <code>private key location not provided</code>.</td></tr>
+<tr><td><code>delete</code></td><td>Deletes <code>vehicleCommandKey.&lt;name&gt;</code> from the keyring. File keys are not deleted.</td></tr>
+<tr><td><code>export</code></td><td>Prints the private key to stdout as <code>EC PRIVATE KEY</code> PEM. Errors if the key implementation is not exportable.</td></tr>
+<tr><td><code>migrate</code></td><td>Reads the PEM private key from <code>-key-file</code> and stores it in the keyring under the <code>-key-name</code> name. Both are required. The original file is left in place.</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>Option</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>-f</code></td><td>Overwrite even if a key already exists (<code>create</code>)</td></tr>
+<tr><td><code>-output file</code></td><td>Save the public key to a file instead of stdout</td></tr>
+<tr><td><code>-key-name name</code>, <code>-key-file file</code></td><td>Key location. Defaults <code>$TESLA_KEY_NAME</code>, <code>$TESLA_KEY_FILE</code></td></tr>
+<tr><td><code>-keyring-type type</code>, <code>-keyring-file-dir directory</code>, <code>-keyring-debug</code></td><td>Keyring settings</td></tr>
+<tr><td><code>-token-name</code>, <code>-token-file</code>, <code>-session-cache</code>, <code>-disable-session-cache</code>, <code>-domain</code></td><td>Registered via <code>cli.FlagOAuth | cli.FlagPrivateKey</code>, so the flags exist but have no effect on keygen's behavior</td></tr>
+</tbody>
+</table>
+<pre><code class="language-bash"># Create in the keyring and save the public key
+export TESLA_KEY_NAME=$(whoami)
+tesla-keygen create &gt; public_key.pem
+
+# Create a file-based key (no keyring)
+tesla-keygen -key-file ~/.tesla/private.pem create &gt; public_key.pem
+
+# Migrate a key created with OpenSSL into the keyring
+tesla-keygen -key-file private.pem -key-name $(whoami) migrate
+
+# Export for backup (the output is secret; store it securely)
+tesla-keygen export &gt; private_backup.pem
+
+# Force the file backend + unattended run
+TESLA_KEYRING_TYPE=file TESLA_KEYRING_PASSWORD=... tesla-keygen create</code></pre>
+<p>The public key printed is PKIX PEM (<code>-----BEGIN PUBLIC KEY-----</code>). It can be used as-is both for Fleet API partner registration (<code>/.well-known/appspecific/com.tesla.3p.public-key.pem</code>) and for <code>tesla-control add-key-request</code>.</p>
+
+<h2 id="sec-control">tesla-control</h2>
+<p>A general-purpose CLI that sends vehicle commands over BLE or the internet. It does not work on Windows.</p>
+<pre><code>Usage: tesla-control [OPTION...] COMMAND [ARG...]
+       tesla-control help            # Full list of commands
+       tesla-control help COMMAND    # Argument description for a command
+       tesla-control                 # Running without COMMAND starts an interactive shell</code></pre>
+
+<h3>Options</h3>
+<table>
+<thead><tr><th>Option</th><th>Default</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>-ble</code></td><td>false</td><td>Forces a BLE connection even when OAuth environment variables are set. Combined with a Fleet API-only command, yields <code>command requires a FleetAPI OAuth token</code></td></tr>
+<tr><td><code>-debug</code></td><td>false</td><td>Debug logging, including TX/RX hex dumps. Can also be enabled with <code>TESLA_VERBOSE</code></td></tr>
+<tr><td><code>-command-timeout duration</code></td><td><code>5s</code></td><td>Timeout for a single command. The SDK keeps retrying within it</td></tr>
+<tr><td><code>-connect-timeout duration</code></td><td><code>20s</code></td><td>Timeout for scan + connect + handshake</td></tr>
+<tr><td><code>-vin VIN</code></td><td><code>$TESLA_VIN</code></td><td>Target vehicle</td></tr>
+<tr><td><code>-key-name name</code> / <code>-key-file file</code></td><td><code>$TESLA_KEY_NAME</code> / <code>$TESLA_KEY_FILE</code></td><td>Command-authentication private key</td></tr>
+<tr><td><code>-token-name name</code> / <code>-token-file file</code></td><td><code>$TESLA_TOKEN_NAME</code> / <code>$TESLA_TOKEN_FILE</code></td><td>OAuth token (internet path)</td></tr>
+<tr><td><code>-session-cache file</code></td><td><code>$TESLA_CACHE_FILE</code> → <code>~/.tesla-cache.json</code></td><td>Session cache file. Updated automatically on exit</td></tr>
+<tr><td><code>-disable-session-cache</code></td><td>false</td><td>Do not use the cache</td></tr>
+<tr><td><code>-domain vcsec|infotainment</code></td><td>(all)</td><td>Domain(s) to handshake with. Can be repeated. Example: <code>-domain vcsec</code> avoids waking infotainment</td></tr>
+<tr><td><code>-keyring-type</code>, <code>-keyring-file-dir</code>, <code>-keyring-debug</code></td><td>OS default / <code>~/.tesla_keys</code> / false</td><td>Keyring settings</td></tr>
+<tr><td><code>-bt-adapter id</code> (Linux only)</td><td><code>hci0</code></td><td>Bluetooth adapter to use (<code>hci0</code>–<code>hci15</code>)</td></tr>
+</tbody>
+</table>
+
+<h3>Credential selection rules</h3>
+<p>In <code>cmd/tesla-control/commands.go</code>, each command is classified by <code>requiresAuth</code> (needs a private key) and <code>requiresFleetAPI</code> (needs an OAuth token). Before execution, <code>configureFlags</code> and <code>checkReadiness</code> apply the following rules.</p>
+<table>
+<thead><tr><th>Command type</th><th>Requires</th><th>Transport</th><th>Examples</th></tr></thead>
+<tbody>
+<tr><td>Vehicle command, authentication required (<code>requiresAuth</code>)</td><td>VIN + private key</td><td>Internet if OAuth is available; BLE if <code>-ble</code> is given or there is no OAuth</td><td><code>lock</code>, <code>climate-on</code>, <code>state charge</code></td></tr>
+<tr><td>Vehicle command, no authentication required</td><td>VIN</td><td>Same as above</td><td><code>list-keys</code>, <code>session-info</code>, <code>body-controller-state</code>, <code>add-key-request</code>, <code>wake</code> (internet)</td></tr>
+<tr><td>Account command (<code>requiresFleetAPI</code>)</td><td>OAuth token</td><td>Internet only. Error if combined with <code>-ble</code></td><td><code>product-info</code>, <code>rename-key</code>, <code>get</code>, <code>post</code></td></tr>
+<tr><td><code>-ble wake</code></td><td>VIN + private key</td><td>BLE. Handshakes with VCSEC only (because infotainment is asleep)</td><td><code>tesla-control -ble wake</code></td></tr>
+</tbody>
+</table>
+<p><code>body-controller-state</code> has <code>domain: protocol.DomainVCSEC</code> specified, so it handshakes with VCSEC only. Other commands can be restricted with the <code>-domain</code> flag.</p>
+
+<h3>Interactive shell</h3>
+<p>Running without COMMAND establishes the connection once and lets you send multiple commands in a row at the <code>&gt; </code> prompt. Because the handshake is not repeated each time, this is useful when trying out several commands. Arguments are parsed with <code>shlex</code>, so quotes can be used; exit with <code>exit</code>. <code>-command-timeout</code> applies to each command.</p>
+<pre><code class="language-bash">$ tesla-control -ble
+&gt; body-controller-state
+{ "vehicleLockState": "VEHICLELOCKSTATE_LOCKED", ... }
+&gt; unlock
+&gt; climate-set-temp 21C
+&gt; exit</code></pre>
+
+<h3>Output and exit codes</h3>
+<ul>
+<li>Success: exit code 0. Most commands print nothing. <code>state</code>, <code>body-controller-state</code>, <code>session-info</code>, <code>list-keys</code>, <code>product-info</code>, <code>get</code>/<code>post</code>, <code>charging-schedule-add</code> (the generated ID) and others print their result to stdout.</li>
+<li><code>Couldn't verify success: …</code>: the command may have arrived but was not confirmed (<code>protocol.MayHaveSucceeded</code>). Exit code 1.</li>
+<li><code>You must provide a private key with -key-name or -key-file to execute this command</code>: <code>protocol.ErrNoSession</code>. Exit code 1.</li>
+<li><code>Failed to execute command: …</code>: any other error. Exit code 1.</li>
+<li>On Linux, an adapter permission error prints <code>setcap</code> guidance.</li>
+</ul>
+
+<h3>Examples</h3>
+<pre><code class="language-bash"># Key pairing (inside the car, with an NFC card ready)
+tesla-control -ble add-key-request public_key.pem owner cloud_key
+
+# Confirm enrollment
+tesla-control -ble list-keys
+tesla-control -ble session-info public_key.pem infotainment
+
+# Basic commands
+tesla-control -ble lock
+tesla-control -ble -domain vcsec unlock           # Does not wake infotainment
+tesla-control -ble climate-set-temp 72F
+tesla-control -ble seat-heater front-left high
+tesla-control -ble charging-set-limit 80
+tesla-control -ble state climate
+tesla-control -ble -debug ping                    # Inspect the TX/RX dump
+
+# Internet path (when an OAuth token is in the keyring)
+tesla-control wake
+tesla-control lock
+tesla-control product-info
+tesla-control get "api/1/vehicles/$TESLA_VIN/vehicle_data"
+
+# Charging schedules
+tesla-control -ble charging-schedule-add weekdays 22:00-06:00 37.4 -122.1
+tesla-control -ble charging-schedule-remove home</code></pre>
+<p>For all commands and their arguments, see <a href="07-command-reference.html">7. Command Reference</a>.</p>
+
+<h2 id="sec-auth-token">tesla-auth-token</h2>
+<p>Reads an OAuth token from stdin or a file and stores it in the keyring as the <code>oauthtoken.&lt;name&gt;</code> item. It does not issue tokens. Follow the <a href="https://developer.tesla.com/docs/fleet-api/authentication/third-party-tokens">Fleet API documentation</a> for the issuance procedure.</p>
+<pre><code>usage: tesla-auth-token [-token-name token_name] [file]</code></pre>
+<table>
+<thead><tr><th>Option</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>-token-name name</code></td><td>Keyring item name. Default <code>$TESLA_TOKEN_NAME</code>. This is the only flag. The keyring type/path/password can be specified only through the <code>TESLA_KEYRING_TYPE</code>, <code>TESLA_KEYRING_PATH</code> and <code>TESLA_KEYRING_PASSWORD</code> environment variables.</td></tr>
+<tr><td><code>file</code> (positional argument)</td><td>File containing the token. If omitted, reads stdin until EOF. Passing more than one is an error.</td></tr>
+</tbody>
+</table>
+<pre><code class="language-bash">export TESLA_TOKEN_NAME=$(whoami)
+echo -n "$ACCESS_TOKEN" | tesla-auth-token
+tesla-auth-token token.txt
+# After saving, tesla-control uses the internet path by default because OAuth is available. Use -ble for BLE.</code></pre>
+<div class="callout">
+<strong>The token string is stored as-is</strong>
+<p>The bytes read are stored without processing, so a trailing newline may be included. <code>account.New</code> cleans it up with <code>strings.TrimSpace</code>, so this causes no problems in practice. An expired token must be refreshed and stored again.</p>
+</div>
+
+<h2 id="sec-jws">tesla-jws</h2>
+<p>Signs or verifies JWS (JSON Web Signature) objects, used for Fleet Telemetry configuration and similar, with the command-authentication private key. The signing algorithm is <code>Tesla.SS256</code> (Schnorr/P-256 + SHA-256), which is not part of the JWS standard; it exists so that the existing ECDH/P-256 key can be safely reused as a signing key.</p>
+<pre><code>usage: tesla-jws [OPTION...] sign APP [JSON_FILE]
+       tesla-jws verify [JWS_FILE]</code></pre>
+<table>
+<thead><tr><th>Subcommand / option</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>sign APP [JSON_FILE]</code></td><td>Signs the JSON object in <code>JSON_FILE</code> (stdin if omitted) as the claims. <code>iss</code> is <strong>overwritten</strong> with the base64 public key and <code>aud</code> with the context string. Prints the resulting JWS to stdout.</td></tr>
+<tr><td><code>-fleet</code></td><td>Signature for the whole fleet. <code>aud = com.tesla.fleet.&lt;APP&gt;</code>. Without it, <code>-vin</code> is required and <code>aud = com.tesla.vehicle.&lt;VIN&gt;.&lt;APP&gt;</code>, so only that vehicle accepts it.</td></tr>
+<tr><td><code>verify [JWS_FILE]</code></td><td>Only checks that the signature is valid for the public key in <code>iss</code>, and prints the claims as JSON. It does not check whether the issuer is trustworthy or whether <code>aud</code> is correct.</td></tr>
+<tr><td><code>-vin</code>, <code>-key-name</code>, <code>-key-file</code>, <code>-keyring-*</code>, <code>-session-cache</code>, <code>-domain</code></td><td>Common flags from <code>cli.FlagPrivateKey | cli.FlagVIN</code></td></tr>
+</tbody>
+</table>
+<pre><code class="language-bash"># Sign a Fleet Telemetry config → POST to Fleet API /api/1/vehicles/fleet_telemetry_config_jws
+tesla-jws -fleet sign TelemetryClient telemetry_config.json &gt; signed-config.jws
+tesla-jws verify signed-config.jws
+
+# Signature for a specific vehicle only
+tesla-jws -vin $TESLA_VIN sign TelemetryClient telemetry_config.json</code></pre>
+<p>The generated <code>.jws</code> file is not secret (it uses the same syntax as a JWT, but it is not a bearer token). The proxy's <code>/api/1/vehicles/fleet_telemetry_config</code> endpoint performs the same signing automatically on the server side (<a href="08-http-proxy.html#sec-telemetry">8. HTTP Proxy</a>).</p>
+
+<h2 id="sec-proxy">tesla-http-proxy</h2>
+<p>An HTTPS server that translates REST requests into end-to-end authenticated commands. Options, routing, response formats and deployment are covered in detail in <a href="08-http-proxy.html">8. HTTP Proxy</a>. Summary:</p>
+<pre><code class="language-bash">tesla-http-proxy -tls-key config/tls-key.pem -cert config/tls-cert.pem -key-file config/fleet-key.pem -port 4443</code></pre>
+<table>
+<thead><tr><th>Option</th><th>Default</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>-cert file</code></td><td>(required)</td><td>TLS certificate chain concatenating server + intermediate CA + root CA</td></tr>
+<tr><td><code>-tls-key file</code></td><td>(required)</td><td>Server TLS private key. Startup is refused if it is the same as the command-authentication key</td></tr>
+<tr><td><code>-host hostname</code></td><td><code>localhost</code></td><td>Bind address. Prints a warning if it is not localhost</td></tr>
+<tr><td><code>-port Port</code></td><td><code>443</code></td><td>Port</td></tr>
+<tr><td><code>-timeout duration</code></td><td><code>10s</code></td><td>Timeout for Tesla server/vehicle responses</td></tr>
+<tr><td><code>-verbose</code></td><td>false</td><td>Debug logging</td></tr>
+<tr><td><code>-key-name</code>, <code>-key-file</code>, <code>-keyring-*</code>, <code>-session-cache</code>, <code>-domain</code></td><td></td><td>Common flags from <code>cli.FlagPrivateKey</code>. Location of the command-authentication private key</td></tr>
+</tbody>
+</table>
+
+<footer class="page-nav">
+  <a href="05-go-sdk.html"><span>Previous</span>5. Go SDK</a>
+  <a class="next" href="07-command-reference.html"><span>Next</span>7. Command Reference</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tesla vehicle-command BLE 開発マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE 開発マニュアル · v0.4.1 基準</div>
+  <div class="lang-switch" aria-label="Language"><a href="../ko/index.html" hreflang="ko" lang="ko">한국어</a><a href="../en/index.html" hreflang="en" lang="en">English</a><a class="active" href="../ja/index.html" hreflang="ja" lang="ja">日本語</a></div>
+  <ol>
+    <li><a class="active" href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+  </ol>
+</nav>
+<main class="content">
+
+<h1>Tesla vehicle-command BLE 開発マニュアル</h1>
+<p class="lead">Tesla 車両と Bluetooth Low Energy(BLE) またはインターネットで接続し、エンドツーエンド認証(end-to-end authenticated)されたコマンドを送信する <code>vehicle-command</code> SDK の開発者マニュアルです。</p>
+
+<div class="callout">
+  <strong>このドキュメントの基準バージョン</strong>
+  <p>リポジトリ <code>vehicle-command/</code> のタグ <code>v0.4.1</code> 以降のコミット <code>a4b43c1</code>(Fix wrapped protocol error classification)を基準に作成しました。Go モジュールパスは <code>github.com/teslamotors/vehicle-command</code>、必要な Go バージョンは 1.23 です。コードが更新されたら、このマニュアルの API シグネチャとコマンド一覧も再確認してください。</p>
+</div>
+
+<h2>誰がどのドキュメントを読むべきか</h2>
+<p>このマニュアルは 2 種類で提供されます。同じ内容を扱いますが、読者が異なります。</p>
+<table>
+  <thead><tr><th>場所</th><th>読者</th><th>形式</th><th>言語</th><th>特徴</th></tr></thead>
+  <tbody>
+    <tr><td><code>documents/html/</code></td><td>人間 (開発者、レビュアー、運用者)</td><td>HTML (今ご覧のドキュメント)</td><td>韓国語(<code>ko/</code>)、英語(<code>en/</code>)、日本語(<code>ja/</code>)。3 言語の内容は同じです。</td><td>概念説明、ダイアグラム、段階的な手順、表が中心</td></tr>
+    <tr><td><code>documents/md/</code></td><td>AI コーディングエージェント (Claude Code、Codex など)</td><td>Markdown</td><td>英語</td><td>正確なシグネチャ、不変条件、ファイルパス、検証チェックリストが中心。エージェントがコードを修正したり新しいクライアントを実装したりするときにコンテキストとして読みます。</td></tr>
+  </tbody>
+</table>
+
+<h2>ドキュメント構成</h2>
+<div class="cards">
+  <a class="card" href="01-overview.html"><div class="num">01</div><h3>システム概要</h3><p>2 段階の認証モデル、VCSEC/Infotainment ドメイン、リポジトリ構造とレイヤーアーキテクチャ。</p></a>
+  <a class="card" href="02-getting-started.html"><div class="num">02</div><h3>はじめに</h3><p>インストール、鍵の生成、NFC カードによる鍵のペアリング、最初の BLE コマンドまで 10 分以内で。</p></a>
+  <a class="card" href="03-ble-transport.html"><div class="num">03</div><h3>BLE トランスポート層</h3><p>GATT サービス/キャラクタリスティック UUID、アドバタイズ名の計算、2 バイト長フレーミング、MTU、スキャンと接続のリトライ。</p></a>
+  <a class="card" href="04-protocol.html"><div class="num">04</div><h3>プロトコル仕様</h3><p>RoutableMessage、ハンドシェイク、ECDH 鍵合意、メタデータ TLV、HMAC/AES-GCM 認証、レスポンスの復号、セッション復旧。</p></a>
+  <a class="card" href="05-go-sdk.html"><div class="num">05</div><h3>Go SDK</h3><p><code>pkg/vehicle</code>、<code>pkg/connector</code>、<code>pkg/cache</code>、<code>pkg/cli</code>、<code>pkg/account</code> でアプリケーションを作る方法。</p></a>
+  <a class="card" href="06-cli-tools.html"><div class="num">06</div><h3>CLI ツール</h3><p>tesla-keygen、tesla-control、tesla-auth-token、tesla-jws、tesla-http-proxy のオプションと環境変数。</p></a>
+  <a class="card" href="07-command-reference.html"><div class="num">07</div><h3>コマンドリファレンス</h3><p>すべての車両コマンドを CLI 名、Go メソッド、プロキシエンドポイント、ドメイン、認証要件で整理した表。</p></a>
+  <a class="card" href="08-http-proxy.html"><div class="num">08</div><h3>HTTP プロキシ</h3><p>REST API をエンドツーエンド認証コマンドに変換するプロキシの設定、TLS、Docker デプロイ、レスポンス規約。</p></a>
+  <a class="card" href="09-errors-troubleshooting.html"><div class="num">09</div><h3>エラーとトラブルシューティング</h3><p>MessageFault コード全体、リトライポリシー、BLE 接続失敗、鍵ペアリング失敗、セッション desync への対処法。</p></a>
+</div>
+
+<h2>30 秒でわかる要約</h2>
+<ol class="steps">
+  <li><strong>鍵を作る。</strong> <code>tesla-keygen create &gt; public_key.pem</code>。NIST P-256 秘密鍵が OS のキーリングに保存され、公開鍵が出力されます。</li>
+  <li><strong>車両に鍵を登録する。</strong> 車内で <code>tesla-control -ble add-key-request public_key.pem owner cloud_key</code> を実行し、NFC カードをセンターコンソールにかざして承認します。</li>
+  <li><strong>コマンドを送る。</strong> <code>tesla-control -ble lock</code>。SDK がアドバタイズのスキャン → GATT 接続 → ドメインごとのハンドシェイク → AES-GCM で暗号化したコマンドの送信を処理します。</li>
+</ol>
+
+<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)
+export TESLA_VIN=5YJ30123456789ABC
+export TESLA_CACHE_FILE=~/.tesla-cache.json
+
+tesla-keygen create &gt; public_key.pem
+tesla-control -ble add-key-request public_key.pem owner cloud_key   # 車内で、NFC カードを用意
+tesla-control -ble lock
+tesla-control -ble -debug body-controller-state                     # ロック/ドア/スリープ状態 (Infotainment がスリープ中でも動作)</code></pre>
+
+<h2>主要概念のまとめ</h2>
+<dl class="kv">
+  <dt>ドメイン(Domain)</dt><dd><span class="badge vcsec">VCSEC</span> ロック、トランク、鍵管理、ウェイクアップを担当するセキュリティコントローラー。Infotainment がスリープしていても BLE で応答します。<span class="badge info">INFOTAINMENT</span> 空調、充電、メディア、状態照会など残りのコマンドを担当します。ドメインごとに別々の鍵ペアとセッションがあります。</dd>
+  <dt>セッション(Session)</dt><dd>クライアントの公開鍵で <code>SessionInfoRequest</code> を送ると、ドメインが自身の公開鍵、epoch、カウンター、時計を含む <code>SessionInfo</code> を返します。ECDH で 128 ビットの AES-GCM 鍵 <code>K</code> を合意します。</dd>
+  <dt>認証方式</dt><dd>BLE では <strong>AES-GCM</strong>(暗号化 + 認証)、Fleet API では <strong>HMAC-SHA256</strong>(平文 + 認証)を使用します。どちらの方式も、VIN、epoch、有効期限、カウンターを含むメタデータを認証に結合します。</dd>
+  <dt>ロール(Role)</dt><dd>Owner、Driver、Fleet Manager、Vehicle Monitor、Charging Manager、Guest、Service。ロールによって許可されるコマンドが異なります。</dd>
+  <dt>セッションキャッシュ</dt><dd>セッション状態をディスクに保存すると、次回の実行時にハンドシェイクなしですぐにコマンドを送れます。キャッシュが古い場合は車両が新しいセッション情報をエラーと一緒に返すため、自動的に復旧します。</dd>
+</dl>
+
+<h2>リポジトリの原典ドキュメント</h2>
+<ul>
+  <li><code>vehicle-command/README.md</code>: インストール、プロキシ設定、鍵の配布手順</li>
+  <li><code>vehicle-command/pkg/protocol/protocol.md</code>: プロトコル仕様の原文 (テストベクター付き)</li>
+  <li><code>vehicle-command/cmd/tesla-control/README.md</code>: CLI の使い方</li>
+  <li><code>vehicle-command/pkg/protocol/protobuf/*.proto</code>: メッセージ定義</li>
+  <li><a href="https://pkg.go.dev/github.com/teslamotors/vehicle-command/pkg">pkg.go.dev パッケージドキュメント</a>、<a href="https://developer.tesla.com/docs/fleet-api">Tesla Fleet API ドキュメント</a></li>
+</ul>
+
+<footer class="page-nav">
+  <span></span>
+  <a class="next" href="01-overview.html"><span>次へ</span>1. システム概要</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,307 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>8. HTTP Proxy · vehicle-command BLE Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE Developer Manual · based on v0.4.1</div>
+  <div class="lang-switch" aria-label="Language"><a href="../ko/08-http-proxy.html" hreflang="ko" lang="ko">한국어</a><a class="active" href="../en/08-http-proxy.html" hreflang="en" lang="en">English</a><a href="../ja/08-http-proxy.html" hreflang="ja" lang="ja">日本語</a></div>
+  <ol>
+    <li><a href="index.html">Home</a></li>
+    <li class="group">Getting Started</li>
+    <li><a href="01-overview.html">1. System Overview</a></li>
+    <li><a href="02-getting-started.html">2. Getting Started</a></li>
+    <li class="group">Protocol</li>
+    <li><a href="03-ble-transport.html">3. BLE Transport Layer</a></li>
+    <li><a href="04-protocol.html">4. Protocol Specification</a></li>
+    <li class="group">Development</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI Tools</a></li>
+    <li><a href="07-command-reference.html">7. Command Reference</a></li>
+    <li><a class="active" href="08-http-proxy.html">8. HTTP Proxy</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. Errors and Troubleshooting</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>8. HTTP Proxy</h1>
+<p class="lead"><code>tesla-http-proxy</code> is an HTTPS server that accepts REST requests in Fleet API format, converts them into end-to-end authenticated commands signed with a private key, and delivers them to the vehicle via Tesla's servers. Use it to migrate existing Owner API clients with minimal changes.</p>
+
+<div class="toc"><strong>On this page</strong><ol>
+<li><a href="#sec-flow">How it works</a></li>
+<li><a href="#sec-run">Running</a></li>
+<li><a href="#sec-tls">TLS certificates</a></li>
+<li><a href="#sec-docker">Docker deployment</a></li>
+<li><a href="#sec-routing">Routing rules</a></li>
+<li><a href="#sec-response">Response format and status codes</a></li>
+<li><a href="#sec-telemetry">Signing Fleet Telemetry configuration</a></li>
+<li><a href="#sec-internals">Internals</a></li>
+<li><a href="#sec-security">Security considerations</a></li>
+<li><a href="#sec-curl">curl examples</a></li>
+<li><a href="#sec-embed">Embedding pkg/proxy and authentication middleware</a></li>
+</ol></div>
+
+<h2 id="sec-flow">How it works</h2>
+<p>The proxy handles two credentials: the OAuth token sent by the client (authenticates to Tesla's servers) and the private key the proxy loads at startup (authenticates to the vehicle). The public key of that private key must already be enrolled on the user's vehicle.</p>
+<div class="diagram"><pre>Your Backend            Vehicle Commands Proxy              Fleet API                 Vehicle
+     |                           |                              |                        |
+     |  POST /api/1/vehicles/    |                              |                        |
+     |   $VIN/command/flash_lights                              |                        |
+     |  Authorization: Bearer .. |                              |                        |
+     |--------------------------&gt;|                              |                        |
+     |                           | (1) check cache / handshake  |                        |
+     |                           | (2) sign HMAC w/ private key |                        |
+     |                           |  POST .../signed_command     |                        |
+     |                           |  {"routable_message": b64}   |                        |
+     |                           |-----------------------------&gt;|                        |
+     |                           |                              |  Signed command        |
+     |                           |                              |-----------------------&gt;|
+     |                           |                              |   (3) verify w/ pub key|
+     |                           |                              |   (4) Flash Lights     |
+     |                           |                              |&lt;-----------------------|
+     |                           |  {"response": b64}           |                        |
+     |                           |&lt;-----------------------------|                        |
+     |  {"response":{"result":true,"reason":""}}                |                        |
+     |&lt;--------------------------|                              |                        |</pre></div>
+<p>For the procedure to obtain an OAuth token (partner token → user authorization → code exchange), follow <code>doc/authorization.puml</code> and the <a href="https://developer.tesla.com/docs/fleet-api/authentication/third-party-tokens">Fleet API documentation</a>. The proxy does not issue or refresh tokens.</p>
+
+<h2 id="sec-run">Running</h2>
+<pre><code class="language-bash">tesla-http-proxy -tls-key config/tls-key.pem -cert config/tls-cert.pem -key-file config/fleet-key.pem -port 4443</code></pre>
+<table>
+<thead><tr><th>Option</th><th>Environment variable</th><th>Default</th><th>Description</th></tr></thead>
+<tbody>
+<tr><td><code>-cert file</code></td><td><code>TESLA_HTTP_PROXY_TLS_CERT</code></td><td>(required)</td><td>PEM chain concatenating the server certificate + intermediate CA + root CA</td></tr>
+<tr><td><code>-tls-key file</code></td><td><code>TESLA_HTTP_PROXY_TLS_KEY</code></td><td>(required)</td><td>Server TLS private key</td></tr>
+<tr><td><code>-host hostname</code></td><td><code>TESLA_HTTP_PROXY_HOST</code></td><td><code>localhost</code></td><td>Bind address. If not <code>localhost</code>, a warning is printed to stderr at startup</td></tr>
+<tr><td><code>-port Port</code></td><td><code>TESLA_HTTP_PROXY_PORT</code></td><td><code>443</code></td><td>Port. 443 recommended in production</td></tr>
+<tr><td><code>-timeout duration</code></td><td><code>TESLA_HTTP_PROXY_TIMEOUT</code></td><td><code>10s</code></td><td>Timeout for communication with Tesla servers/the vehicle (<code>proxy.DefaultTimeout</code>)</td></tr>
+<tr><td><code>-verbose</code></td><td><code>TESLA_VERBOSE</code></td><td>false</td><td>Debug logging</td></tr>
+<tr><td><code>-key-file file</code> / <code>-key-name name</code></td><td><code>TESLA_KEY_FILE</code> / <code>TESLA_KEY_NAME</code></td><td></td><td>Private key for command authentication. The file takes precedence</td></tr>
+<tr><td><code>-keyring-type</code>, <code>-keyring-file-dir</code>, <code>-keyring-debug</code></td><td><code>TESLA_KEYRING_*</code></td><td></td><td>Keyring settings</td></tr>
+<tr><td><code>-session-cache</code>, <code>-disable-session-cache</code>, <code>-domain</code></td><td></td><td></td><td>Registered via <code>cli.FlagPrivateKey</code>, but have no effect because the proxy uses its own in-memory cache</td></tr>
+</tbody>
+</table>
+<p>Flags take precedence over environment variables. Environment variables are read only when the flag is at its default value. An invalid port/timeout format exits with an <code>invalid port</code>/<code>invalid timeout</code> error.</p>
+
+<h2 id="sec-tls">TLS certificates</h2>
+<p>TLS cannot be disabled on the proxy. Create a self-signed certificate for development with OpenSSL.</p>
+<pre><code class="language-bash">mkdir config
+openssl req -x509 -nodes -newkey ec \
+    -pkeyopt ec_paramgen_curve:secp384r1 \
+    -pkeyopt ec_param_enc:named_curve  \
+    -subj '/CN=localhost' \
+    -keyout config/tls-key.pem -out config/tls-cert.pem -sha256 -days 3650 \
+    -addext "extendedKeyUsage = serverAuth" \
+    -addext "keyUsage = digitalSignature, keyCertSign, keyAgreement"</code></pre>
+<p>Make clients trust this certificate with <code>--cacert config/tls-cert.pem</code>. In production, use a certificate from a public CA and put the full chain in <code>-cert</code>.</p>
+<div class="callout danger">
+<strong>Startup is refused if the TLS key and the command authentication key are the same key</strong>
+<p><code>main.go</code> reads the <code>-tls-key</code> file with <code>protocol.LoadPublicKey</code> and compares it with the command key's public key. If they match, it prints <code>It is unsafe to use the same private key for TLS and command authentication.</code> and exits. This is one reason the example above uses secp384r1 (P-384) (the command key is P-256).</p>
+</div>
+
+<h2 id="sec-docker">Docker deployment</h2>
+<p>The image <code>tesla/vehicle-command</code> contains the five tools on a distroless runtime, and its default entrypoint is <code>tesla-http-proxy</code>. Mount the private key as a file (the container has no system keyring).</p>
+<pre><code class="language-bash"># docker run
+docker pull tesla/vehicle-command:latest
+docker run --security-opt=no-new-privileges:true -v ./config:/config -p 127.0.0.1:4443:4443 \
+    tesla/vehicle-command:latest \
+    -tls-key /config/tls-key.pem -cert /config/tls-cert.pem -key-file /config/fleet-key.pem -host 0.0.0.0 -port 4443
+
+# docker compose (docker-compose.yml in the repository)
+docker compose up</code></pre>
+<p>The repository's <code>docker-compose.yml</code> applies the same settings through environment variables.</p>
+<pre><code class="language-yaml">services:
+  tesla_http_proxy:
+    image: tesla/vehicle-command:latest
+    ports:
+      - "4443:4443"
+    environment:
+      - TESLA_HTTP_PROXY_TLS_CERT=/config/tls-cert.pem
+      - TESLA_HTTP_PROXY_TLS_KEY=/config/tls-key.pem
+      - TESLA_HTTP_PROXY_HOST=0.0.0.0
+      - TESLA_HTTP_PROXY_PORT=4443
+      - TESLA_HTTP_PROXY_TIMEOUT=10s
+      - TESLA_KEY_FILE=/config/fleet-key.pem
+      - TESLA_VERBOSE=true
+    security_opt:
+      - no-new-privileges:true
+    volumes:
+      - ./config:/config</code></pre>
+<p><code>-host 0.0.0.0</code> is unavoidable inside a container, but prevent external exposure by binding the host port mapping to loopback, as in <code>127.0.0.1:4443:4443</code>, or by placing an authenticating proxy in front.</p>
+
+<h2 id="sec-routing">Routing rules</h2>
+<p><code>(*proxy.Proxy).ServeHTTP</code> handles requests in the following order, based on the request path.</p>
+<table>
+<thead><tr><th>Order</th><th>Path</th><th>Handling</th></tr></thead>
+<tbody>
+<tr><td>0</td><td>All requests</td><td>Limits the body size to 1 MiB (<code>maxRequestBodyBytes</code>). 413 if exceeded</td></tr>
+<tr><td>1</td><td><code>GET /health</code></td><td><code>200 OK</code> without authentication. 405 for other methods</td></tr>
+<tr><td>2</td><td>All other paths</td><td>403 if there is no <code>Authorization: Bearer &lt;token&gt;</code>. Determines the Fleet API host from the token's <code>aud</code>/<code>ou_code</code> (<code>account.New</code>). If a host was previously updated by a 421, that host is used</td></tr>
+<tr><td>3</td><td><code>POST /api/1/vehicles/{VIN}/command/{name}</code></td><td>404 if the VIN is not 17 characters (<code>expected 17-character VIN in path (do not user Fleet API ID)</code>). Forwarded if the VIN is marked as not supporting the protocol. Otherwise, <code>handleVehicleCommand</code> executes an end-to-end authenticated command. Forwarded on <code>ErrCommandUseRESTAPI</code></td></tr>
+<tr><td>4</td><td><code>/api/1/vehicles/fleet_telemetry_config</code></td><td>Signs the body's <code>config</code> as a JWS and forwards it to <code>/api/1/vehicles/fleet_telemetry_config_jws</code></td></tr>
+<tr><td>5</td><td>All remaining paths, including other <code>/api/1/*</code></td><td><code>forwardRequest</code>: copies headers, strips hop-by-hop headers, adds <code>X-Forwarded-For</code>, and forwards to the Fleet API over HTTPS. Both GET and POST</td></tr>
+</tbody>
+</table>
+<div class="callout warn">
+<strong>Use the VIN, not the Owner API ID</strong>
+<p>Legacy Owner API clients put a numeric vehicle ID in the URL. The proxy strictly requires a 17-character VIN on <code>command/</code> paths. Other paths (for example <code>vehicle_data</code>) are forwarded as-is, so any format the Fleet API accepts works.</p>
+</div>
+
+<h2 id="sec-response">Response format and status codes</h2>
+<h3>Command succeeded</h3>
+<pre><code class="language-json">{"response":{"result":true,"reason":""}}</code></pre>
+<h3>Vehicle rejects the command (NominalError)</h3>
+<p>When the vehicle authenticates the command but cannot execute it (for example, already on, or not in park), the response follows Fleet API convention: <strong>HTTP 200</strong> with <code>result</code> set to false and the cause in <code>reason</code>.</p>
+<pre><code class="language-json">{"response":{"result":false,"reason":"car could not execute command: already_on"},"error":"","error_description":""}</code></pre>
+<h3>Other errors</h3>
+<pre><code class="language-json">{"response":null,"error":"vehicle unavailable: vehicle is offline or asleep","error_description":""}</code></pre>
+<table>
+<thead><tr><th>HTTP</th><th>Situation</th><th>Source</th></tr></thead>
+<tbody>
+<tr><td>200</td><td>Success, or an application-layer rejection by the vehicle (check <code>reason</code>)</td><td><code>handleVehicleCommand</code></td></tr>
+<tr><td>400</td><td>JSON parse failure, missing/malformed parameters (<code>missing X param</code>, <code>invalid X param</code>), unknown command (<code>{"response":null,"error":"invalid_command","error_description":""}</code>), unimplemented <code>remote_boombox</code>, invalid <code>window_control</code> value</td><td><code>extractCommandAction</code></td></tr>
+<tr><td>403</td><td>No Bearer token in the <code>Authorization</code> header (<code>client did not provide an OAuth token</code>)</td><td><code>ServeHTTP</code></td></tr>
+<tr><td>404</td><td>The VIN in a <code>command/</code> path is not 17 characters</td><td><code>ServeHTTP</code></td></tr>
+<tr><td>405</td><td>A method other than POST on <code>command/</code>, or other than GET on <code>/health</code></td><td></td></tr>
+<tr><td>408</td><td>Vehicle offline/asleep (<code>inet.ErrVehicleNotAwake</code>). When the Fleet API returns 503 or a "vehicle is offline" 408. Call <code>wake_up</code> first</td><td><code>httpStatusCode</code></td></tr>
+<tr><td>412</td><td>Public key not enrolled on the vehicle (<code>protocol.ErrKeyNotPaired</code>). Not 401, because the OAuth token is valid</td><td><code>httpStatusCode</code></td></tr>
+<tr><td>413</td><td>Request body exceeds 1 MiB</td><td></td></tr>
+<tr><td>422 (Fleet API)</td><td>The vehicle does not support this protocol (<code>protocol.ErrProtocolNotSupported</code>). The proxy remembers the VIN as unsupported and forwards the original request to REST. From then on, commands for that VIN are always forwarded</td><td><code>handleVehicleCommand</code></td></tr>
+<tr><td>500</td><td>Unclassified error, failure to create the vehicle object, JWS signing failure</td><td></td></tr>
+<tr><td>502</td><td>Failure to connect to the Fleet API, response over 10 MB, 421 retries exhausted (<code>max retry exhausted</code>)</td><td><code>forwardRequest</code></td></tr>
+<tr><td>503</td><td>Another command for the same VIN is in progress and the lock could not be acquired within the timeout</td><td><code>lockVIN</code></td></tr>
+<tr><td>504</td><td>Fleet API response timeout</td><td><code>forwardRequest</code></td></tr>
+<tr><td>(passed through)</td><td>Forwarded requests pass through the Fleet API's status code, headers, and body unchanged. Errors classified as <code>inet.HTTPError</code> also keep their original code and body</td><td></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-telemetry">Signing Fleet Telemetry configuration</h2>
+<p>If you send an unsigned configuration to <code>POST /api/1/vehicles/fleet_telemetry_config</code>, the proxy creates a JWS with <code>sign.SignMessageForFleet(key, "TelemetryClient", config)</code> and forwards it to <code>/api/1/vehicles/fleet_telemetry_config_jws</code> as <code>{"vins": [...], "token": "&lt;jws&gt;"}</code>. If the configuration contains <code>aud</code> or <code>iss</code>, they are overwritten and a warning is logged. The result is the same as <code>tesla-jws -fleet sign TelemetryClient</code>.</p>
+<pre><code class="language-bash">curl --cacert config/tls-cert.pem \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
+    -X POST --data-binary "@telemetry.json" \
+    "https://localhost:4443/api/1/vehicles/fleet_telemetry_config"</code></pre>
+
+<h2 id="sec-internals">Internals</h2>
+<dl class="kv">
+<dt>Per-VIN serialization</dt><dd><code>lockVIN</code> holds a mutex per VIN so that commands to the same vehicle run sequentially. This is required because VCSEC rejects messages whose counters arrive out of order. Different VINs are processed in parallel.</dd>
+<dt>Session cache</dt><dd><code>cmd/tesla-http-proxy</code> keeps sessions for up to 10000 vehicles in memory (LRU) via <code>proxy.New(ctx, key, 10000)</code>. Each command repeats <code>acct.GetVehicle</code> → <code>Connect</code> → <code>StartSession</code> → execute → <code>Disconnect</code>, but thanks to the cache a handshake happens only on the first command or when the session expires. Restarting the process clears the cache.</dd>
+<dt>User-Agent</dt><dd>Passes <code>tesla-http-proxy/1.1.0</code> (<code>proxyProtocolVersion</code>) to <code>account.New</code> as the app name.</dd>
+<dt>Regional host selection</dt><dd><code>account.New</code> picks, from the token's <code>aud</code>, an entry that starts with <code>fleet-api.</code> and has a Tesla domain suffix, preferring one that contains the <code>ou_code</code> (region). The default is <code>fleet-api.prd.na.vn.cloud.tesla.com</code>.</dd>
+<dt>421 redirect</dt><dd>If a forwarded response is 421 with an <code>Alt-Svc: h2="https://…"</code> header, the proxy switches host and retries up to 2 times (<code>MaxAttempts</code>), remembering the new host per token <code>sub</code>. On the end-to-end command path, <code>inet.Connection</code> parses <code>use base URL: https://…</code> from the body to update it.</dd>
+<dt>Timeout</dt><dd><code>-timeout</code> (default 10 seconds) is the overall context for a single command. Within it, the SDK performs handshake retries and command retries.</dd>
+<dt>Test hooks</dt><dd><code>Proxy.client</code> (<code>httpDoer</code>) and <code>Proxy.fetchVehicle</code> (returns <code>vehicleSession</code>) are replaced in package-internal tests (<code>pkg/proxy/proxy_test.go</code>).</dd>
+</dl>
+
+<h2 id="sec-security">Security considerations</h2>
+<ul>
+<li><strong>Do not bind to anything other than localhost (without authentication).</strong> The proxy has no client authentication. If anyone can reach it, excessive traffic may flow from your IP to Tesla's servers, which can get you rate-limited or blocked. At startup, <code>nonLocalhostWarning</code> warns about this.</li>
+<li><strong>There is no option to disable TLS.</strong> Because of past DIY deployments that exposed vehicles to the internet, no <code>--insecure</code>-style flag is provided, by design. To terminate TLS elsewhere, use <code>pkg/proxy</code> directly.</li>
+<li><strong>Private key file permissions.</strong> <code>-key-file</code> is the command authentication key. If it leaks, anyone can send commands to every vehicle it is enrolled on. Use 0600 permissions and the principle of least access.</li>
+<li><strong>OAuth tokens are not stored.</strong> The proxy uses the token in each request's header as-is. Token management is the caller's responsibility.</li>
+</ul>
+
+<h2 id="sec-curl">curl examples</h2>
+<pre><code class="language-bash">export TESLA_AUTH_TOKEN=&lt;access-token&gt;
+export VIN=&lt;17-character VIN&gt;
+export CACERT=config/tls-cert.pem
+
+# Health check (no authentication required)
+curl --cacert $CACERT https://localhost:4443/health
+
+# Forwarded endpoint: vehicle data
+curl --cacert $CACERT \
+    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
+    "https://localhost:4443/api/1/vehicles/$VIN/vehicle_data" | jq .
+
+# Wake up (end-to-end command path; polls until online)
+curl --cacert $CACERT -X POST --data '{}' \
+    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
+    "https://localhost:4443/api/1/vehicles/$VIN/command/wake_up"
+
+# Command without arguments
+curl --cacert $CACERT \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
+    --data '{}' \
+    "https://localhost:4443/api/1/vehicles/$VIN/command/flash_lights"
+
+# Commands with arguments
+curl --cacert $CACERT \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
+    --data '{"percent": 80}' \
+    "https://localhost:4443/api/1/vehicles/$VIN/command/set_charge_limit"
+
+curl --cacert $CACERT \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
+    --data '{"driver_temp": 21.5, "passenger_temp": 21.5}' \
+    "https://localhost:4443/api/1/vehicles/$VIN/command/set_temps"
+
+curl --cacert $CACERT \
+    --header 'Content-Type: application/json' \
+    --header "Authorization: Bearer $TESLA_AUTH_TOKEN" \
+    --data '{"days_of_week":"weekdays","start_time":1320,"start_enabled":true,"end_time":360,"end_enabled":true,"lat":37.4,"lon":-122.1,"enabled":true}' \
+    "https://localhost:4443/api/1/vehicles/$VIN/command/add_charge_schedule"</code></pre>
+<p>JSON parameter types are strict. Numbers must be JSON numbers, booleans must be <code>true</code>/<code>false</code>, and strings must be strings; any other type yields <code>invalid X param</code> (400). For each endpoint's parameters, see <a href="07-command-reference.html">7. Command Reference</a>.</p>
+
+<h2 id="sec-embed">Embedding pkg/proxy and authentication middleware</h2>
+<p><code>cmd/tesla-http-proxy/main.go</code> is a thin wrapper around <code>pkg/proxy</code>. To add client authentication, separate TLS termination, request logging, and so on, wrap <code>proxy.Proxy</code> (an <code>http.Handler</code>) in your own handler.</p>
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "crypto/subtle"
+    "net/http"
+    "time"
+
+    "github.com/teslamotors/vehicle-command/pkg/protocol"
+    "github.com/teslamotors/vehicle-command/pkg/proxy"
+)
+
+type authenticated struct {
+    next   http.Handler
+    apiKey string
+}
+
+func (a *authenticated) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+    if r.URL.Path == "/health" {
+        a.next.ServeHTTP(w, r)
+        return
+    }
+    if subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Api-Key")), []byte(a.apiKey)) != 1 {
+        http.Error(w, "unauthorized", http.StatusUnauthorized)
+        return
+    }
+    a.next.ServeHTTP(w, r) // The Authorization: Bearer header is passed through to the proxy unchanged
+}
+
+func main() {
+    skey, err := protocol.LoadPrivateKey("config/fleet-key.pem")
+    if err != nil { panic(err) }
+
+    p, err := proxy.New(context.Background(), skey, 10000)
+    if err != nil { panic(err) }
+    p.Timeout = 10 * time.Second
+
+    handler := &amp;authenticated{next: p, apiKey: "..."}
+    // TLS can be terminated here or delegated to a reverse proxy in front (pkg/proxy is TLS-agnostic).
+    panic(http.ListenAndServeTLS("localhost:4443", "config/tls-cert.pem", "config/tls-key.pem", handler))
+}</code></pre>
+<p>Calling <code>proxy.ExtractCommandAction(ctx, command, params)</code> directly converts a Fleet API command name + JSON parameters into a <code>func(*vehicle.Vehicle) error</code> without HTTP, so you can reuse the same command mapping in another RPC framework.</p>
+
+<footer class="page-nav">
+  <a href="07-command-reference.html"><span>Previous</span>7. Command Reference</a>
+  <a class="next" href="09-errors-troubleshooting.html"><span>Next</span>9. Errors and Troubleshooting</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

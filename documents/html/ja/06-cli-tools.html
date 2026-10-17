@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>6. CLI ツール · vehicle-command BLE マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE 開発マニュアル · v0.4.1 基準</div>
+  <div class="lang-switch" aria-label="Language"><a href="../ko/06-cli-tools.html" hreflang="ko" lang="ko">한국어</a><a href="../en/06-cli-tools.html" hreflang="en" lang="en">English</a><a class="active" href="../ja/06-cli-tools.html" hreflang="ja" lang="ja">日本語</a></div>
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a class="active" href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>6. CLI ツール</h1>
+<p class="lead"><code>cmd/</code> 配下の 5 つのツール(tesla-keygen、tesla-control、tesla-auth-token、tesla-jws、tesla-http-proxy)の使い方、オプション、環境変数、キーリングの動作をまとめます。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-install">インストール</a></li>
+<li><a href="#sec-env">共通の環境変数</a></li>
+<li><a href="#sec-keyring">キーリングの動作</a></li>
+<li><a href="#sec-keygen">tesla-keygen</a></li>
+<li><a href="#sec-control">tesla-control</a></li>
+<li><a href="#sec-auth-token">tesla-auth-token</a></li>
+<li><a href="#sec-jws">tesla-jws</a></li>
+<li><a href="#sec-proxy">tesla-http-proxy</a></li>
+</ol></div>
+
+<h2 id="sec-install">インストール</h2>
+<pre><code class="language-bash">cd vehicle-command
+go get ./...
+go build ./...
+go install ./...          # $GOBIN (デフォルト ~/go/bin) に 5 つのツールをインストール。make install と同等(./cmd/... のみインストール)</code></pre>
+<p>Docker イメージ <code>tesla/vehicle-command</code> にも 5 つのツールがすべて含まれており、デフォルトのエントリーポイントは <code>tesla-http-proxy</code> です。他のツールは <code>--entrypoint</code> で指定します。ただし、コンテナ内からはホストの BLE アダプターにアクセスできないため、BLE コマンドはローカルビルドで実行してください。</p>
+<pre><code class="language-bash">docker run --entrypoint tesla-keygen tesla/vehicle-command:latest -h</code></pre>
+
+<div class="callout warn">
+<strong>プラットフォーム</strong>
+<p>macOS と Linux に対応しています。Windows では BLE 以外の機能はビルドされますが、<code>pkg/connector/ble</code> の <code>newAdapter</code> が <code>not supported on Windows</code> を返すため、<code>tesla-control -ble</code> は動作しません。Linux では BLE アダプターの初期化に <code>CAP_NET_ADMIN</code> が必要です(<a href="09-errors-troubleshooting.html#sec-scenarios">トラブルシューティング</a>)。</p>
+</div>
+
+<h2 id="sec-env">共通の環境変数</h2>
+<p><code>pkg/cli.Config.ReadFromEnvironment()</code> は、コマンドラインフラグで設定されなかった値だけを環境変数で埋めます。つまり、常にフラグが優先されます。</p>
+<table>
+<thead><tr><th>環境変数</th><th>対応するフラグ</th><th>意味</th><th>使用するツール</th></tr></thead>
+<tbody>
+<tr><td><code>TESLA_KEY_NAME</code></td><td><code>-key-name</code></td><td>システムキーリングに保存されたコマンド認証用秘密鍵の名前</td><td>keygen, control, jws, http-proxy</td></tr>
+<tr><td><code>TESLA_KEY_FILE</code></td><td><code>-key-file</code></td><td>秘密鍵 PEM ファイルのパス。名前とファイルの両方があればファイルが優先して読み込まれる</td><td>keygen, control, jws, http-proxy</td></tr>
+<tr><td><code>TESLA_TOKEN_NAME</code></td><td><code>-token-name</code></td><td>キーリングに保存された OAuth トークンの名前</td><td>control, auth-token, keygen(登録のみ)</td></tr>
+<tr><td><code>TESLA_TOKEN_FILE</code></td><td><code>-token-file</code></td><td>OAuth トークンファイルのパス。ファイルがなければキーリングにフォールバック</td><td>control</td></tr>
+<tr><td><code>TESLA_VIN</code></td><td><code>-vin</code></td><td>17 文字の VIN</td><td>control, jws</td></tr>
+<tr><td><code>TESLA_CACHE_FILE</code></td><td><code>-session-cache</code></td><td>セッションキャッシュの JSON ファイル。未指定時は <code>$HOME/.tesla-cache.json</code>。<code>-disable-session-cache</code> で無効化</td><td>control, keygen, jws, http-proxy(読み込みのみ)</td></tr>
+<tr><td><code>TESLA_KEYRING_TYPE</code></td><td><code>-keyring-type</code></td><td>キーリングのバックエンドの種類。対応一覧は <code>tesla-keygen -h</code> の <code>-keyring-type</code> の説明に OS ごとに表示</td><td>keygen, control, jws, http-proxy, auth-token(環境変数のみ)</td></tr>
+<tr><td><code>TESLA_KEYRING_PASSWORD</code></td><td>(なし)</td><td>ファイル/キーチェーンバックエンドのパスワード。設定するとプロンプトを表示しない</td><td>キーリングを使うすべてのツール</td></tr>
+<tr><td><code>TESLA_KEYRING_PATH</code></td><td><code>-keyring-file-dir</code></td><td>ファイルバックエンドのディレクトリ。デフォルト <code>~/.tesla_keys</code></td><td>キーリングを使うすべてのツール</td></tr>
+<tr><td><code>TESLA_KEYRING_DEBUG</code></td><td><code>-keyring-debug</code></td><td>存在すればキーリングのデバッグログを有効化(値は問わない)</td><td>キーリングを使うすべてのツール</td></tr>
+<tr><td><code>TESLA_VERBOSE</code></td><td><code>-debug</code> / <code>-verbose</code></td><td><code>false</code>、<code>0</code> 以外の値ならデバッグログ(TX/RX の 16 進を含む)</td><td>control, http-proxy</td></tr>
+<tr><td><code>TESLA_HTTP_PROXY_TLS_CERT</code></td><td><code>-cert</code></td><td>プロキシの TLS 証明書チェーンファイル</td><td>http-proxy</td></tr>
+<tr><td><code>TESLA_HTTP_PROXY_TLS_KEY</code></td><td><code>-tls-key</code></td><td>プロキシの TLS 秘密鍵ファイル</td><td>http-proxy</td></tr>
+<tr><td><code>TESLA_HTTP_PROXY_HOST</code></td><td><code>-host</code></td><td>バインドするホスト。デフォルト <code>localhost</code></td><td>http-proxy</td></tr>
+<tr><td><code>TESLA_HTTP_PROXY_PORT</code></td><td><code>-port</code></td><td>バインドするポート。デフォルト 443</td><td>http-proxy</td></tr>
+<tr><td><code>TESLA_HTTP_PROXY_TIMEOUT</code></td><td><code>-timeout</code></td><td>コマンドのタイムアウト(例: <code>10s</code>)。デフォルト 10 秒</td><td>http-proxy</td></tr>
+</tbody>
+</table>
+<p>一般的な初期設定:</p>
+<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)
+export TESLA_TOKEN_NAME=$(whoami)
+export TESLA_VIN=5YJ30123456789ABC
+export TESLA_CACHE_FILE=~/.tesla-cache.json</code></pre>
+
+<h2 id="sec-keyring">キーリングの動作</h2>
+<p>秘密鍵と OAuth トークンは <a href="https://github.com/99designs/keyring">99designs/keyring</a> を介して OS の資格情報ストアに保管されます。</p>
+<dl class="kv">
+<dt>サービス名</dt><dd><code>com.tesla.auth</code> (macOS のキーチェーンではこの名前で項目が表示されます)</dd>
+<dt>秘密鍵の項目</dt><dd><code>vehicleCommandKey.&lt;TESLA_KEY_NAME&gt;</code>。データは 32 バイトの P-256 スカラー(ビッグエンディアン)</dd>
+<dt>OAuth トークンの項目</dt><dd><code>oauthtoken.&lt;TESLA_TOKEN_NAME&gt;</code>。データはトークン文字列そのまま</dd>
+<dt>デフォルトのバックエンド</dt><dd>OS のデフォルト。macOS はログインキーチェーン(<code>KeychainTrustApplication: true</code>)、Linux は secret-service/kwallet/keyctl など利用可能なもの、ファイルバックエンドは <code>~/.tesla_keys</code></dd>
+<dt>パスワード</dt><dd>ファイルバックエンドやキーチェーンのロック解除にパスワードが必要な場合は、ターミナルにプロンプトを表示します。stdout/stderr がどちらもターミナルでなければ <code>no terminal output available for password prompt</code> エラー。無人実行では <code>TESLA_KEYRING_PASSWORD</code> を設定してください。</dd>
+<dt>KeyCtl のスコープ</dt><dd>Linux の keyctl バックエンドは <code>user</code> スコープを使います。</dd>
+</dl>
+<p><code>tesla-control</code> は接続タイムアウトが始まる前に <code>config.LoadCredentials()</code> を呼び出し、パスワードプロンプトがタイムアウトを消費しないようにしています。独自のツールを作るときも同じ順序を守ってください。</p>
+
+<h2 id="sec-keygen">tesla-keygen</h2>
+<p>コマンド認証用の P-256 秘密鍵を生成・削除・エクスポート・移行し、公開鍵を PEM で出力します。</p>
+<pre><code>usage: tesla-keygen [OPTION...] create|delete|export|migrate</code></pre>
+<table>
+<thead><tr><th>サブコマンド</th><th>動作</th></tr></thead>
+<tbody>
+<tr><td><code>create</code></td><td>鍵がすでにある場合(キーリング名またはファイル)は生成せず、既存の鍵の公開鍵だけを出力します。<code>-f</code> を指定すると新しい鍵で上書きします。保存先は、<code>-key-name</code> があればキーリング、なければ <code>-key-file</code>(SEC1 PEM、0600)。どちらもなければ <code>private key location not provided</code>。</td></tr>
+<tr><td><code>delete</code></td><td>キーリングから <code>vehicleCommandKey.&lt;name&gt;</code> を削除します。ファイルの鍵は削除しません。</td></tr>
+<tr><td><code>export</code></td><td>秘密鍵を <code>EC PRIVATE KEY</code> PEM として stdout に出力します。エクスポートできない鍵の実装であればエラー。</td></tr>
+<tr><td><code>migrate</code></td><td><code>-key-file</code> の PEM 秘密鍵を読み込み、<code>-key-name</code> の名前でキーリングに保存します。両方とも必須。元のファイルはそのまま残します。</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>オプション</th><th>説明</th></tr></thead>
+<tbody>
+<tr><td><code>-f</code></td><td>既存の鍵があっても上書きする (<code>create</code>)</td></tr>
+<tr><td><code>-output file</code></td><td>公開鍵を stdout の代わりにファイルに保存</td></tr>
+<tr><td><code>-key-name name</code>, <code>-key-file file</code></td><td>鍵の場所。デフォルト <code>$TESLA_KEY_NAME</code>、<code>$TESLA_KEY_FILE</code></td></tr>
+<tr><td><code>-keyring-type type</code>, <code>-keyring-file-dir directory</code>, <code>-keyring-debug</code></td><td>キーリングの設定</td></tr>
+<tr><td><code>-token-name</code>, <code>-token-file</code>, <code>-session-cache</code>, <code>-disable-session-cache</code>, <code>-domain</code></td><td><code>cli.FlagOAuth | cli.FlagPrivateKey</code> で登録されているためフラグは存在しますが、keygen の動作には影響しません</td></tr>
+</tbody>
+</table>
+<pre><code class="language-bash"># キーリングに生成して公開鍵を保存
+export TESLA_KEY_NAME=$(whoami)
+tesla-keygen create &gt; public_key.pem
+
+# ファイルベースの鍵を生成 (キーリングなし)
+tesla-keygen -key-file ~/.tesla/private.pem create &gt; public_key.pem
+
+# OpenSSL で作った鍵をキーリングへ移行
+tesla-keygen -key-file private.pem -key-name $(whoami) migrate
+
+# バックアップ用のエクスポート (出力は秘密情報。安全に保管)
+tesla-keygen export &gt; private_backup.pem
+
+# ファイルバックエンドを強制 + 無人実行
+TESLA_KEYRING_TYPE=file TESLA_KEYRING_PASSWORD=... tesla-keygen create</code></pre>
+<p>出力される公開鍵は PKIX PEM(<code>-----BEGIN PUBLIC KEY-----</code>)です。Fleet API のパートナー登録(<code>/.well-known/appspecific/com.tesla.3p.public-key.pem</code>)と <code>tesla-control add-key-request</code> の両方にそのまま使えます。</p>
+
+<h2 id="sec-control">tesla-control</h2>
+<p>BLE またはインターネットで車両にコマンドを送る汎用 CLI です。Windows では動作しません。</p>
+<pre><code>Usage: tesla-control [OPTION...] COMMAND [ARG...]
+       tesla-control help            # 全コマンドの一覧
+       tesla-control help COMMAND    # コマンドごとの引数の説明
+       tesla-control                 # COMMAND なしで実行すると対話型シェル</code></pre>
+
+<h3>オプション</h3>
+<table>
+<thead><tr><th>オプション</th><th>デフォルト値</th><th>説明</th></tr></thead>
+<tbody>
+<tr><td><code>-ble</code></td><td>false</td><td>OAuth の環境変数があっても BLE 接続を強制。Fleet API 専用コマンドと併用すると <code>command requires a FleetAPI OAuth token</code></td></tr>
+<tr><td><code>-debug</code></td><td>false</td><td>デバッグログ。TX/RX の 16 進ダンプを含む。<code>TESLA_VERBOSE</code> でも有効化できる</td></tr>
+<tr><td><code>-command-timeout duration</code></td><td><code>5s</code></td><td>コマンド 1 つのタイムアウト。この時間内で SDK がリトライを繰り返す</td></tr>
+<tr><td><code>-connect-timeout duration</code></td><td><code>20s</code></td><td>スキャン + 接続 + ハンドシェイクのタイムアウト</td></tr>
+<tr><td><code>-vin VIN</code></td><td><code>$TESLA_VIN</code></td><td>対象の車両</td></tr>
+<tr><td><code>-key-name name</code> / <code>-key-file file</code></td><td><code>$TESLA_KEY_NAME</code> / <code>$TESLA_KEY_FILE</code></td><td>コマンド認証用の秘密鍵</td></tr>
+<tr><td><code>-token-name name</code> / <code>-token-file file</code></td><td><code>$TESLA_TOKEN_NAME</code> / <code>$TESLA_TOKEN_FILE</code></td><td>OAuth トークン(インターネット経路)</td></tr>
+<tr><td><code>-session-cache file</code></td><td><code>$TESLA_CACHE_FILE</code> → <code>~/.tesla-cache.json</code></td><td>セッションキャッシュファイル。終了時に自動で更新</td></tr>
+<tr><td><code>-disable-session-cache</code></td><td>false</td><td>キャッシュを使わない</td></tr>
+<tr><td><code>-domain vcsec|infotainment</code></td><td>(すべて)</td><td>ハンドシェイクするドメイン。繰り返し指定可。例: <code>-domain vcsec</code> でインフォテインメントを起こさない</td></tr>
+<tr><td><code>-keyring-type</code>, <code>-keyring-file-dir</code>, <code>-keyring-debug</code></td><td>OS のデフォルト / <code>~/.tesla_keys</code> / false</td><td>キーリングの設定</td></tr>
+<tr><td><code>-bt-adapter id</code> (Linux のみ)</td><td><code>hci0</code></td><td>使用する Bluetooth アダプター(<code>hci0</code>~<code>hci15</code>)</td></tr>
+</tbody>
+</table>
+
+<h3>資格情報の選択ルール</h3>
+<p>各コマンドは <code>cmd/tesla-control/commands.go</code> で <code>requiresAuth</code>(秘密鍵が必要)と <code>requiresFleetAPI</code>(OAuth トークンが必要)に分類されます。実行前に <code>configureFlags</code> と <code>checkReadiness</code> が次のルールを適用します。</p>
+<table>
+<thead><tr><th>コマンドの種類</th><th>必要なもの</th><th>トランスポート</th><th>例</th></tr></thead>
+<tbody>
+<tr><td>車両コマンド、認証が必要 (<code>requiresAuth</code>)</td><td>VIN + 秘密鍵</td><td>OAuth があればインターネット、<code>-ble</code> 指定時または OAuth がなければ BLE</td><td><code>lock</code>, <code>climate-on</code>, <code>state charge</code></td></tr>
+<tr><td>車両コマンド、認証不要</td><td>VIN</td><td>同上</td><td><code>list-keys</code>, <code>session-info</code>, <code>body-controller-state</code>, <code>add-key-request</code>, <code>wake</code>(インターネット)</td></tr>
+<tr><td>アカウントコマンド (<code>requiresFleetAPI</code>)</td><td>OAuth トークン</td><td>インターネットのみ。<code>-ble</code> と併用するとエラー</td><td><code>product-info</code>, <code>rename-key</code>, <code>get</code>, <code>post</code></td></tr>
+<tr><td><code>-ble wake</code></td><td>VIN + 秘密鍵</td><td>BLE。VCSEC とだけハンドシェイク(インフォテインメントがスリープ中のため)</td><td><code>tesla-control -ble wake</code></td></tr>
+</tbody>
+</table>
+<p><code>body-controller-state</code> は <code>domain: protocol.DomainVCSEC</code> が指定されているため、VCSEC とだけハンドシェイクします。他のコマンドは <code>-domain</code> フラグで制限できます。</p>
+
+<h3>対話型シェル</h3>
+<p>COMMAND なしで実行すると、接続を 1 回確立し、<code>&gt; </code> プロンプトから複数のコマンドを続けて送れます。ハンドシェイクを毎回繰り返さないので、複数のコマンドを試すときに便利です。引数は <code>shlex</code> でパースされるため引用符を使え、<code>exit</code> で終了します。各コマンドには <code>-command-timeout</code> が適用されます。</p>
+<pre><code class="language-bash">$ tesla-control -ble
+&gt; body-controller-state
+{ "vehicleLockState": "VEHICLELOCKSTATE_LOCKED", ... }
+&gt; unlock
+&gt; climate-set-temp 21C
+&gt; exit</code></pre>
+
+<h3>出力と終了コード</h3>
+<ul>
+<li>成功: 終了コード 0。ほとんどのコマンドは何も出力しません。<code>state</code>、<code>body-controller-state</code>、<code>session-info</code>、<code>list-keys</code>、<code>product-info</code>、<code>get</code>/<code>post</code>、<code>charging-schedule-add</code>(生成された ID)などは stdout に結果を出力します。</li>
+<li><code>Couldn't verify success: …</code>: コマンドは届いた可能性があるが確認が取れていない(<code>protocol.MayHaveSucceeded</code>)。終了コード 1。</li>
+<li><code>You must provide a private key with -key-name or -key-file to execute this command</code>: <code>protocol.ErrNoSession</code>。終了コード 1。</li>
+<li><code>Failed to execute command: …</code>: その他のエラー。終了コード 1。</li>
+<li>Linux でアダプターの権限エラーの場合は <code>setcap</code> の案内文を出力します。</li>
+</ul>
+
+<h3>例</h3>
+<pre><code class="language-bash"># 鍵のペアリング (車内で、NFC カードを用意)
+tesla-control -ble add-key-request public_key.pem owner cloud_key
+
+# 登録の確認
+tesla-control -ble list-keys
+tesla-control -ble session-info public_key.pem infotainment
+
+# 基本コマンド
+tesla-control -ble lock
+tesla-control -ble -domain vcsec unlock           # インフォテインメントを起こさない
+tesla-control -ble climate-set-temp 72F
+tesla-control -ble seat-heater front-left high
+tesla-control -ble charging-set-limit 80
+tesla-control -ble state climate
+tesla-control -ble -debug ping                    # TX/RX ダンプを確認
+
+# インターネット経路 (OAuth トークンがキーリングにある場合)
+tesla-control wake
+tesla-control lock
+tesla-control product-info
+tesla-control get "api/1/vehicles/$TESLA_VIN/vehicle_data"
+
+# 充電スケジュール
+tesla-control -ble charging-schedule-add weekdays 22:00-06:00 37.4 -122.1
+tesla-control -ble charging-schedule-remove home</code></pre>
+<p>全コマンドと引数は <a href="07-command-reference.html">7. コマンドリファレンス</a> を参照してください。</p>
+
+<h2 id="sec-auth-token">tesla-auth-token</h2>
+<p>OAuth トークンを stdin またはファイルから読み込み、キーリングの <code>oauthtoken.&lt;name&gt;</code> 項目として保存します。トークンの発行は行いません。発行手順は <a href="https://developer.tesla.com/docs/fleet-api/authentication/third-party-tokens">Fleet API のドキュメント</a>に従ってください。</p>
+<pre><code>usage: tesla-auth-token [-token-name token_name] [file]</code></pre>
+<table>
+<thead><tr><th>オプション</th><th>説明</th></tr></thead>
+<tbody>
+<tr><td><code>-token-name name</code></td><td>キーリングの項目名。デフォルト <code>$TESLA_TOKEN_NAME</code>。これが唯一のフラグです。キーリングの種類/パス/パスワードは <code>TESLA_KEYRING_TYPE</code>、<code>TESLA_KEYRING_PATH</code>、<code>TESLA_KEYRING_PASSWORD</code> 環境変数でのみ指定します。</td></tr>
+<tr><td><code>file</code> (位置引数)</td><td>トークンを含むファイル。省略すると stdin から EOF まで読み込みます。2 つ以上指定するとエラー。</td></tr>
+</tbody>
+</table>
+<pre><code class="language-bash">export TESLA_TOKEN_NAME=$(whoami)
+echo -n "$ACCESS_TOKEN" | tesla-auth-token
+tesla-auth-token token.txt
+# 保存後、tesla-control は OAuth があるためデフォルトでインターネット経路を使う。BLE を使うには -ble。</code></pre>
+<div class="callout">
+<strong>トークン文字列はそのまま保存されます</strong>
+<p>読み込んだバイト列を加工せずに保存するため、末尾の改行が含まれることがあります。<code>account.New</code> が <code>strings.TrimSpace</code> で整えるので、動作には問題ありません。期限切れのトークンは更新後に再度保存する必要があります。</p>
+</div>
+
+<h2 id="sec-jws">tesla-jws</h2>
+<p>Fleet Telemetry の設定などに使う JWS(JSON Web Signature)を、コマンド認証用の秘密鍵で署名または検証します。署名アルゴリズムは JWS 標準にはない <code>Tesla.SS256</code>(Schnorr/P-256 + SHA-256)で、既存の ECDH/P-256 鍵を署名鍵として安全に再利用するためのものです。</p>
+<pre><code>usage: tesla-jws [OPTION...] sign APP [JSON_FILE]
+       tesla-jws verify [JWS_FILE]</code></pre>
+<table>
+<thead><tr><th>サブコマンド / オプション</th><th>説明</th></tr></thead>
+<tbody>
+<tr><td><code>sign APP [JSON_FILE]</code></td><td><code>JSON_FILE</code>(なければ stdin)の JSON オブジェクトをクレームとして署名します。<code>iss</code> は base64 の公開鍵、<code>aud</code> はコンテキスト文字列で<strong>上書きされます</strong>。結果の JWS を stdout に出力。</td></tr>
+<tr><td><code>-fleet</code></td><td>フリート全体用の署名。<code>aud = com.tesla.fleet.&lt;APP&gt;</code>。指定しない場合は <code>-vin</code> が必須となり、<code>aud = com.tesla.vehicle.&lt;VIN&gt;.&lt;APP&gt;</code> となって該当車両だけが受け入れる。</td></tr>
+<tr><td><code>verify [JWS_FILE]</code></td><td>署名が <code>iss</code> の公開鍵で有効かどうかだけを検査し、クレームを JSON で出力します。発行者が信頼できるか、<code>aud</code> が正しいかは検査しません。</td></tr>
+<tr><td><code>-vin</code>, <code>-key-name</code>, <code>-key-file</code>, <code>-keyring-*</code>, <code>-session-cache</code>, <code>-domain</code></td><td><code>cli.FlagPrivateKey | cli.FlagVIN</code> の共通フラグ</td></tr>
+</tbody>
+</table>
+<pre><code class="language-bash"># Fleet Telemetry 設定に署名 → Fleet API /api/1/vehicles/fleet_telemetry_config_jws に POST
+tesla-jws -fleet sign TelemetryClient telemetry_config.json &gt; signed-config.jws
+tesla-jws verify signed-config.jws
+
+# 特定車両専用の署名
+tesla-jws -vin $TESLA_VIN sign TelemetryClient telemetry_config.json</code></pre>
+<p>生成された <code>.jws</code> ファイルは秘密情報ではありません(JWT と同じ構文ですが、bearer トークンではありません)。プロキシの <code>/api/1/vehicles/fleet_telemetry_config</code> エンドポイントは、同じ署名をサーバー側で自動的に行います(<a href="08-http-proxy.html#sec-telemetry">8. HTTP プロキシ</a>)。</p>
+
+<h2 id="sec-proxy">tesla-http-proxy</h2>
+<p>REST リクエストをエンドツーエンド認証コマンドに変換する HTTPS サーバーです。オプション、ルーティング、レスポンス形式、デプロイについては <a href="08-http-proxy.html">8. HTTP プロキシ</a> で詳しく扱います。概要:</p>
+<pre><code class="language-bash">tesla-http-proxy -tls-key config/tls-key.pem -cert config/tls-cert.pem -key-file config/fleet-key.pem -port 4443</code></pre>
+<table>
+<thead><tr><th>オプション</th><th>デフォルト値</th><th>説明</th></tr></thead>
+<tbody>
+<tr><td><code>-cert file</code></td><td>(必須)</td><td>サーバー + 中間 CA + ルート CA を連結した TLS 証明書チェーン</td></tr>
+<tr><td><code>-tls-key file</code></td><td>(必須)</td><td>サーバーの TLS 秘密鍵。コマンド認証鍵と同じ場合は起動を拒否</td></tr>
+<tr><td><code>-host hostname</code></td><td><code>localhost</code></td><td>バインドするアドレス。localhost 以外なら警告を出力</td></tr>
+<tr><td><code>-port Port</code></td><td><code>443</code></td><td>ポート</td></tr>
+<tr><td><code>-timeout duration</code></td><td><code>10s</code></td><td>Tesla サーバー/車両のレスポンスのタイムアウト</td></tr>
+<tr><td><code>-verbose</code></td><td>false</td><td>デバッグログ</td></tr>
+<tr><td><code>-key-name</code>, <code>-key-file</code>, <code>-keyring-*</code>, <code>-session-cache</code>, <code>-domain</code></td><td></td><td><code>cli.FlagPrivateKey</code> の共通フラグ。コマンド認証用秘密鍵の場所</td></tr>
+</tbody>
+</table>
+
+<footer class="page-nav">
+  <a href="05-go-sdk.html"><span>前へ</span>5. Go SDK</a>
+  <a class="next" href="07-command-reference.html"><span>次へ</span>7. コマンドリファレンス</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

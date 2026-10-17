@@ -1,0 +1,408 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5. Go SDK · vehicle-command BLE マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE 開発マニュアル · v0.4.1 基準</div>
+  <div class="lang-switch" aria-label="Language"><a href="../ko/05-go-sdk.html" hreflang="ko" lang="ko">한국어</a><a href="../en/05-go-sdk.html" hreflang="en" lang="en">English</a><a class="active" href="../ja/05-go-sdk.html" hreflang="ja" lang="ja">日本語</a></div>
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a class="active" href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>5. Go SDK</h1>
+<p class="lead"><code>github.com/teslamotors/vehicle-command</code> モジュールの公開パッケージを使って、BLE またはインターネット経路で車両にコマンドを送るアプリケーションを作る方法を説明します。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-1">モジュールとパッケージの全体像</a></li>
+<li><a href="#sec-2">基本フロー: BLE でアンロック</a></li>
+<li><a href="#sec-3">秘密鍵と公開鍵の扱い</a></li>
+<li><a href="#sec-4">Vehicle 型の主要メソッド</a></li>
+<li><a href="#sec-5">ドメインの選択と Infotainment を起こさない方法</a></li>
+<li><a href="#sec-6">セッションキャッシュ</a></li>
+<li><a href="#sec-7">pkg/cli で CLI アプリケーションを作る</a></li>
+<li><a href="#sec-8">インターネット経路: pkg/account</a></li>
+<li><a href="#sec-9">エラー処理のパターン</a></li>
+<li><a href="#sec-10">状態の照会</a></li>
+<li><a href="#sec-11">鍵管理 API</a></li>
+<li><a href="#sec-12">カスタム Connector の実装</a></li>
+<li><a href="#sec-13">HSM/TEE 統合時の注意</a></li>
+<li><a href="#sec-14">ロギング、ビルド、テスト</a></li>
+</ol></div>
+
+<h2 id="sec-1">モジュールとパッケージの全体像</h2>
+<p>モジュールパスは <code>github.com/teslamotors/vehicle-command</code> で、<code>go.mod</code> は Go 1.23 を要求します。v0.x リリースは API の安定性を保証しないため、<code>go.mod</code> でバージョンを固定してください。</p>
+<pre><code class="language-bash">go get github.com/teslamotors/vehicle-command@v0.4.1</code></pre>
+
+<table>
+<thead><tr><th>パッケージ</th><th>役割</th><th>主要シンボル</th></tr></thead>
+<tbody>
+<tr><td><code>pkg/protocol</code></td><td>鍵の読み込み、ドメイン定数、エラー型。サブディレクトリ <code>protobuf/*</code> に生成された protobuf バインディング。</td><td><code>LoadPrivateKey</code>, <code>LoadPublicKey</code>, <code>ECDHPrivateKey</code>, <code>DomainVCSEC</code>, <code>DomainInfotainment</code>, <code>Error</code>, <code>MayHaveSucceeded</code>, <code>ShouldRetry</code></td></tr>
+<tr><td><code>pkg/connector</code></td><td>トランスポート層のインターフェース定義。</td><td><code>Connector</code>, <code>FleetAPIConnector</code>, <code>AuthMethodNone/GCM/HMAC</code>, <code>BufferSize</code>, <code>MaxResponseLength</code></td></tr>
+<tr><td><code>pkg/connector/ble</code></td><td>BLE トランスポートの実装 (go-ble ベース)。macOS、Linux に対応。Windows はビルドはできるが実行時エラー。</td><td><code>InitAdapterWithID</code>, <code>ScanVehicleBeacon</code>, <code>NewConnection</code>, <code>NewConnectionFromScanResult</code>, <code>VehicleLocalName</code>, <code>CloseAdapter</code></td></tr>
+<tr><td><code>pkg/connector/inet</code></td><td>Fleet API(HTTPS) トランスポートの実装。</td><td><code>NewConnection</code>, <code>SendFleetAPICommand</code>, <code>HTTPError</code>, <code>ErrVehicleNotAwake</code>, <code>MaxLatency</code></td></tr>
+<tr><td><code>pkg/vehicle</code></td><td>車両コマンド API。ドメインのルーティング、セッション、リトライを包んだ高水準メソッド。</td><td><code>Vehicle</code>, <code>NewVehicle</code>, <code>StateCategory*</code>, <code>SeatPosition</code>, <code>Level</code>, <code>ChargingPolicy</code></td></tr>
+<tr><td><code>pkg/cache</code></td><td>セッション状態のキャッシュ(JSON シリアライズ)。</td><td><code>SessionCache</code>, <code>New</code>, <code>ImportFromFile</code>, <code>ExportToFile</code></td></tr>
+<tr><td><code>pkg/cli</code></td><td>共通のフラグ/環境変数/キーリング処理。CLI ツールを作るときに使用。</td><td><code>Config</code>, <code>NewConfig</code>, <code>Flag*</code>, <code>DomainList</code>, <code>Env*</code> 定数</td></tr>
+<tr><td><code>pkg/account</code></td><td>Tesla アカウント(OAuth トークン)のラッパー。Fleet API ドメインの決定、<code>GetVehicle</code>。</td><td><code>Account</code>, <code>New</code>, <code>GetVehicle</code>, <code>Get</code>, <code>Post</code>, <code>UpdateKey</code></td></tr>
+<tr><td><code>pkg/proxy</code></td><td>REST → エンドツーエンド認証コマンドへの変換サーバー。<code>http.Handler</code> を実装。</td><td><code>Proxy</code>, <code>New</code>, <code>ExtractCommandAction</code>, <code>ErrCommandUseRESTAPI</code></td></tr>
+<tr><td><code>pkg/sign</code></td><td>Fleet Telemetry の設定などに使う JWS(Schnorr/P256) 署名。</td><td><code>SignMessageForVehicle</code>, <code>SignMessageForFleet</code></td></tr>
+</tbody>
+</table>
+
+<div class="callout warn">
+<strong>internal/ パッケージはインポートできません</strong>
+<p><code>internal/authentication</code>(ECDH、署名、検証)、<code>internal/dispatcher</code>(セッション/ルーティング)、<code>internal/log</code>、<code>internal/schnorr</code> は Go の internal ルールにより外部モジュールからインポートできません。必要な機能は <code>pkg/protocol</code>(鍵の型の再公開)、<code>pkg/vehicle</code>(セッション管理)、<code>pkg/cache</code>(キャッシュエントリ)を通じて使います。</p>
+</div>
+
+<h2 id="sec-2">基本フロー: BLE でアンロック</h2>
+<p>リポジトリの <code>examples/ble/main.go</code> を要約した最小限のプログラムです。呼び出し順序と <code>defer</code> の順序が重要です。</p>
+<pre><code class="language-go">package main
+
+import (
+    "context"
+    "fmt"
+    "log"
+    "time"
+
+    "github.com/teslamotors/vehicle-command/pkg/connector/ble"
+    "github.com/teslamotors/vehicle-command/pkg/protocol"
+    "github.com/teslamotors/vehicle-command/pkg/vehicle"
+)
+
+func main() {
+    vin := "5YJ30123456789ABC"
+
+    // 1. BLE アダプターの初期化。空文字列ならデフォルトアダプター。"hci0" のような ID 指定は Linux のみ可能。
+    if err := ble.InitAdapterWithID(""); err != nil {
+        if ble.IsAdapterError(err) {
+            log.Fatal(ble.AdapterErrorHelpMessage(err)) // Linux: setcap の案内を出力
+        }
+        log.Fatalf("BLE アダプターの初期化に失敗: %s", err)
+    }
+
+    // 2. 秘密鍵の読み込み (PEM, NIST P-256)。nil でもよいが、認証が必要なコマンドは失敗する。
+    privateKey, err := protocol.LoadPrivateKey("private.pem")
+    if err != nil {
+        log.Fatalf("秘密鍵の読み込みに失敗: %s", err)
+    }
+
+    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+    defer cancel()
+
+    // 3. アドバタイズのスキャン。VIN から計算した Local Name("S...C")と一致するビーコンを探す。
+    scan, err := ble.ScanVehicleBeacon(ctx, vin)
+    if err != nil {
+        log.Fatalf("スキャンに失敗: %s", err)
+    }
+    fmt.Printf("検出: %s (%s) %ddBm\n", scan.LocalName, scan.Address, scan.RSSI)
+
+    // 4. GATT 接続。target が nil なら内部で再度スキャンする。
+    conn, err := ble.NewConnectionFromScanResult(ctx, vin, scan)
+    if err != nil {
+        log.Fatalf("接続に失敗: %s", err)
+    }
+    defer conn.Close() // (b) 2 番目に実行
+
+    // 5. Vehicle オブジェクトの生成。3 番目の引数はセッションキャッシュ(なければ nil)。
+    car, err := vehicle.NewVehicle(conn, privateKey, nil)
+    if err != nil {
+        log.Fatal(err)
+    }
+
+    // 6. 受信ゴルーチンの開始。
+    if err := car.Connect(ctx); err != nil {
+        log.Fatalf("Connect に失敗: %s", err)
+    }
+    defer car.Disconnect() // (a) 最初に実行。必ず conn.Close() より先に。
+
+    // 7. ドメインごとのハンドシェイク。nil なら VCSEC と INFOTAINMENT の両方。
+    if err := car.StartSession(ctx, nil); err != nil {
+        log.Fatalf("ハンドシェイクに失敗: %s", err)
+    }
+
+    // 8. コマンドの送信。各コマンドはコンテキストの期限まで自動でリトライする。
+    if err := car.Unlock(ctx); err != nil {
+        log.Fatalf("アンロックに失敗: %s", err)
+    }
+    if err := car.ClimateOn(ctx); err != nil {
+        log.Fatalf("空調のオンに失敗: %s", err)
+    }
+    fmt.Println("完了")
+}</code></pre>
+
+<ol class="steps">
+<li><strong>アダプターの初期化はプロセスごとに 1 回。</strong> <code>ble.InitAdapterWithID</code> はグローバルな <code>ble.Device</code> を作成し、以降は <code>ScanVehicleBeacon</code>/<code>NewConnection</code> がそれを再利用します。明示的に呼ばない場合は、最初のスキャン/接続時にデフォルトアダプターで自動的に初期化されます。Linux では <code>newDevice()</code> を複数回呼ぶと失敗するため、内部のミューテックスで保護されています。アダプターを切り替えるには <code>ble.CloseAdapter()</code> のあとで再初期化します。</li>
+<li><strong>defer の順序。</strong> <code>Vehicle.Disconnect()</code> はディスパッチャーのゴルーチンを停止したあと、内部で <code>conn.Close()</code> を呼び出します。<code>Connector.Close()</code> は冪等でなければならないので両方を defer しても構いませんが、<code>Disconnect</code> が先に実行される必要があります(defer は逆順に実行されるため、<code>defer conn.Close()</code> を先に、<code>defer car.Disconnect()</code> を後に書きます)。</li>
+<li><strong>コンテキストはコマンドごとに新しく作るのが望ましいです。</strong> 例では簡略化のため 30 秒のものを 1 つ共有していますが、<code>tesla-control</code> は接続に 20 秒、コマンドごとに 5 秒を個別に与えます。セッションにおけるコマンドの有効期限(<code>expires_at</code>)もコンテキストのデッドラインから計算されます(デッドラインがなければ 5 秒)。</li>
+<li><strong>リトライは SDK が行います。</strong> <code>Vehicle.Send</code>、<code>StartSession</code>、VCSEC コマンドのループは、<code>protocol.ShouldRetry(err)</code> が真となるエラー(一時的で、かつ成功した可能性がないエラー)を、<code>RetryInterval()</code>(BLE 1 秒)の間隔でコンテキストが終了するまでリトライします。</li>
+</ol>
+
+<h2 id="sec-3">秘密鍵と公開鍵の扱い</h2>
+<table>
+<thead><tr><th>関数</th><th>説明</th></tr></thead>
+<tbody>
+<tr><td><code>protocol.LoadPrivateKey(filename) (ECDHPrivateKey, error)</code></td><td>P-256 EC 秘密鍵ファイルを読み込みます。PEM 形式(<code>EC PRIVATE KEY</code>、PKCS#8 <code>PRIVATE KEY</code>)に対応しています。他の曲線や RSA 鍵は拒否されます。</td></tr>
+<tr><td><code>protocol.SavePrivateKey(skey, filename) error</code></td><td>ネイティブ鍵を SEC1 PEM(<code>EC PRIVATE KEY</code>)として 0600 の権限で保存します。HSM ベースの鍵のようにエクスポートできない実装の場合は <code>key is not exportable</code> エラー。</td></tr>
+<tr><td><code>protocol.LoadPublicKey(filename) (*ecdh.PublicKey, error)</code></td><td>公開鍵を柔軟に読み込みます。対応形式: PKIX PEM(<code>PUBLIC KEY</code>)、暗号化されていない PKCS#8 PEM(<code>PRIVATE KEY</code>、秘密鍵ファイルから公開鍵を抽出)、SEC1 PEM(<code>EC PRIVATE KEY</code>)、バイナリの非圧縮曲線点(65 バイト、<code>0x04</code> で始まる)、16 進文字列の非圧縮曲線点(130 文字、末尾の改行を許容)。曲線が P-256 でなければ <code>ErrInvalidPublicKey</code>。</td></tr>
+<tr><td><code>protocol.PublicKeyBytesFromHex(h) (*ecdh.PublicKey, error)</code></td><td>16 進文字列を検証して <code>ecdh.PublicKey</code> に変換します。</td></tr>
+<tr><td><code>protocol.UnmarshalECDHPrivateKey(keyBytes) ECDHPrivateKey</code></td><td>32 バイトのスカラー(ビッグエンディアン)から秘密鍵を復元します。キーリングに保存される形式はこれです。失敗すると nil。</td></tr>
+<tr><td><code>ECDHPrivateKey.PublicBytes() []byte</code></td><td>非圧縮エンコードの公開鍵(65 バイト)。ハンドシェイクと <code>signer_identity.public_key</code> にそのまま入ります。</td></tr>
+</tbody>
+</table>
+
+<p>OpenSSL で鍵ペアを作る方法(<code>tesla-keygen</code> の代わりにファイルベースの鍵を使いたい場合):</p>
+<pre><code class="language-bash">openssl ecparam -genkey -name prime256v1 -noout &gt; private.pem
+openssl ec -in private.pem -pubout &gt; public.pem</code></pre>
+
+<div class="callout danger">
+<strong>protocol.md のテスト鍵を実際の車両に登録しないでください</strong>
+<p><code>pkg/protocol/protocol.md</code> にある <code>client.key</code>/<code>vehicle.key</code> はテストベクター検証用に公開されている鍵です。車両に登録すると、誰でもコマンドを送れるようになります。</p>
+</div>
+
+<h2 id="sec-4">Vehicle 型の主要メソッド</h2>
+<table>
+<thead><tr><th>メソッド</th><th>説明</th></tr></thead>
+<tbody>
+<tr><td><code>vehicle.NewVehicle(conn connector.Connector, privateKey ECDHPrivateKey, sessionCache *cache.SessionCache) (*Vehicle, error)</code></td><td>Vehicle を作成します。<code>privateKey</code> と <code>sessionCache</code> は nil でも可。キャッシュにこの VIN のエントリがあれば即座に読み込みます。認証方式は <code>conn.PreferredAuthMethod()</code> で決まります(BLE: AES-GCM、inet: HMAC)。<code>Flags</code> は <code>DefaultFlags</code>(<code>FLAG_ENCRYPT_RESPONSE</code> ビット)で初期化されます。</td></tr>
+<tr><td><code>Connect(ctx) error</code></td><td>ディスパッチャーの受信ゴルーチンを開始します。準備が整う前に ctx が期限切れになるとエラー。</td></tr>
+<tr><td><code>StartSession(ctx, domains []universal.Domain) error</code></td><td>指定したドメインとハンドシェイクします。nil なら VCSEC と INFOTAINMENT の両方を並列に実行。鍵がペアリングされていなければ <code>protocol.ErrKeyNotPaired</code>。一時的なエラーは自動でリトライ。キャッシュからすでに読み込まれたドメインはハンドシェイクを省略します。</td></tr>
+<tr><td><code>Disconnect()</code></td><td>ディスパッチャーを停止し、<code>conn.Close()</code> を呼び出します。</td></tr>
+<tr><td><code>Wakeup(ctx) error</code></td><td>コネクターが <code>FleetAPIConnector</code> であれば、Fleet API の <code>wake_up</code> エンドポイントを <code>state == "online"</code> になるまで 10 秒間隔でポーリングします。BLE であれば VCSEC に <code>RKE_ACTION_WAKE_VEHICLE</code> を送ります(認証が必要)。</td></tr>
+<tr><td><code>Send(ctx, domain, payload []byte, auth connector.AuthMethod) ([]byte, error)</code></td><td>低水準: 任意のペイロードをドメインに送り、レスポンスのペイロードを返します。リトライ込み。新しいコマンドを試すときに使用。</td></tr>
+<tr><td><code>SendMessage(ctx, message *universal.RoutableMessage) (protocol.Receiver, error)</code></td><td>さらに低水準: 構築済みの RoutableMessage を認証なしで送信します。別の主体が署名したメッセージを中継するとき(カードなしの鍵ペアリングなど)に使用。返された Receiver は使用後に <code>Close()</code>。</td></tr>
+<tr><td><code>SessionInfo(ctx, publicKey *ecdh.PublicKey, domain) (*signatures.SessionInfo, error)</code></td><td>任意の公開鍵でハンドシェイクリクエストを送り、SessionInfo を受け取ります。認証不要。鍵が登録されているかを確認する用途(<code>tesla-control session-info</code>)。</td></tr>
+<tr><td><code>SetMaxLatency(d time.Duration)</code></td><td>セッション情報のレスポンスがリクエスト後この時間より遅れて届いた場合、時計の同期に使わずに破棄します。デフォルトはコネクターの <code>AllowedLatency()</code>(BLE 4 秒、inet 10 秒)。</td></tr>
+<tr><td><code>Flags uint32</code> (フィールド)</td><td>すべてのリクエストの <code>RoutableMessage.flags</code>。デフォルトは <code>1 &lt;&lt; FLAG_ENCRYPT_RESPONSE</code>。2024.38+ のファームウェアはレスポンスを暗号化し、古いファームウェアは無視します。</td></tr>
+<tr><td><code>PrivateKeyAvailable() bool</code>, <code>VIN() string</code></td><td>状態の照会。</td></tr>
+<tr><td><code>UpdateCachedSessions(c *cache.SessionCache) error</code> / <code>LoadCachedSessions(c) error</code></td><td>現在のセッション状態をキャッシュに書き込む、またはキャッシュから読み込みます。</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-5">ドメインの選択と Infotainment を起こさない方法</h2>
+<p>VCSEC のコマンド(ロック、トランク、ウェイク、鍵管理、<code>BodyControllerState</code>)だけを使う場合は、INFOTAINMENT とハンドシェイクする必要はありません。INFOTAINMENT とのハンドシェイクはスリープ中のインフォテインメントを起こし、時間がかかります。</p>
+<pre><code class="language-go">import universal "github.com/teslamotors/vehicle-command/pkg/protocol/protobuf/universalmessage"
+
+// VCSEC のみハンドシェイク
+if err := car.StartSession(ctx, []universal.Domain{protocol.DomainVCSEC}); err != nil { ... }
+if err := car.Lock(ctx); err != nil { ... }</code></pre>
+<p><code>tesla-control</code> は、<code>-domain vcsec</code> フラグ(繰り返し指定可)、<code>body-controller-state</code> コマンドでの <code>domain: protocol.DomainVCSEC</code> の指定、そして <code>-ble wake</code> のときに VCSEC だけとハンドシェイクする特別な処理によって、同じことを行います。</p>
+
+<div class="callout">
+<strong>INFOTAINMENT セッションなしで Infotainment コマンドを送ると</strong>
+<p><code>protocol.ErrNoSession</code>(<code>cannot send authenticated command before establishing a vehicle session</code>)が即座に返されます。<code>tesla-control</code> はこのエラーを「You must provide a private key…」として案内します。</p>
+</div>
+
+<h2 id="sec-6">セッションキャッシュ</h2>
+<p>ハンドシェイクは往復を 1 回追加し、Fleet API ではリクエスト数を増やします。<code>pkg/cache</code> でセッション状態(ドメインごとの SessionInfo と生成時刻)をディスクに保存すると、次回の実行時に最初のコマンドをすぐに送れます。キャッシュが古い場合は、最初のコマンドが失敗すると同時に車両が最新のセッション情報を送ってくるため、SDK が自動で更新してリトライします。つまり、古いキャッシュを使っても損はありません。</p>
+<pre><code class="language-go">const cacheFile = "/var/lib/myapp/tesla-cache.json"
+
+myCache, err := cache.ImportFromFile(cacheFile)
+if err != nil {
+    myCache = cache.New(5) // 最大 5 台分。0 なら無制限。LRU で追い出し。
+}
+
+car, err := vehicle.NewVehicle(conn, privateKey, myCache) // 生成時にキャッシュから読み込む
+...
+defer func() {
+    if err := car.UpdateCachedSessions(myCache); err != nil { log.Println(err) }
+    if err := myCache.ExportToFile(cacheFile); err != nil { log.Println(err) }
+}()</code></pre>
+<ul>
+<li><strong>キャッシュはクライアントの秘密鍵に紐づきます。</strong> 別の鍵でキャッシュを使うと最初の認証が失敗し、車両が新しいセッション情報を送ってくることで正常に復旧します。</li>
+<li><strong>複数の VIN を 1 つのキャッシュに入れても構いません。</strong> <code>SessionCache.Vehicles</code> は VIN → ドメインごとのエントリのマップです。</li>
+<li><strong>ファイルのアクセス制御を行ってください。</strong> キャッシュには車両の公開鍵、epoch、カウンター、時計のオフセットが入っています。秘密鍵は含まれませんが、第三者に読まれたり改ざんされたりしないようにする必要があります。<code>ExportToFile</code> は 0644 で作成するので、必要に応じて権限を絞ってください。</li>
+<li><code>tesla-control</code> とプロキシは、それぞれ <code>TESLA_CACHE_FILE</code>(デフォルト <code>~/.tesla-cache.json</code>)とメモリ内キャッシュ(最大 10000 台)を使用します。</li>
+<li><code>SessionCache.Update</code>/<code>GetEntry</code> は内部のディスパッチャー用なので、<code>Vehicle.UpdateCachedSessions</code> を使う方がよいでしょう。</li>
+</ul>
+
+<h2 id="sec-7">pkg/cli で CLI アプリケーションを作る</h2>
+<p><code>pkg/cli.Config</code> は、5 つの CLI ツールが共有するフラグ/環境変数/キーリングのロジックを提供します。独自の CLI を作るときにそのまま再利用できます。</p>
+<pre><code class="language-go">import (
+    "flag"
+    "github.com/teslamotors/vehicle-command/pkg/cli"
+)
+
+config, err := cli.NewConfig(cli.FlagAll) // FlagVIN | FlagOAuth | FlagPrivateKey | FlagBLE
+if err != nil { panic(err) }
+config.RegisterCommandLineFlags()   // -vin, -key-name, -key-file, -token-name, -token-file, -session-cache, -domain, -keyring-type ...
+flag.Parse()
+config.ReadFromEnvironment()        // 空の値だけを TESLA_* 環境変数で埋める
+if err := config.LoadCredentials(); err != nil { ... } // キーリングのパスワードプロンプトをタイムアウト前に処理
+
+ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
+defer cancel()
+acct, car, err := config.Connect(ctx) // OAuth があればインターネット、なければ BLE。Connect + StartSession(config.Domains) まで実行
+if err != nil { ... }
+if car != nil {
+    defer car.Disconnect()
+    defer config.UpdateCachedSessions(car) // キャッシュファイルを更新
+}</code></pre>
+<table>
+<thead><tr><th>Flag マスク</th><th>登録されるオプション</th></tr></thead>
+<tbody>
+<tr><td><code>FlagVIN</code></td><td><code>-vin</code> / <code>TESLA_VIN</code></td></tr>
+<tr><td><code>FlagPrivateKey</code></td><td><code>-key-name</code>, <code>-key-file</code>, <code>-session-cache</code>, <code>-disable-session-cache</code>, <code>-domain</code> / <code>TESLA_KEY_NAME</code>, <code>TESLA_KEY_FILE</code>, <code>TESLA_CACHE_FILE</code></td></tr>
+<tr><td><code>FlagOAuth</code></td><td><code>-token-name</code>, <code>-token-file</code> / <code>TESLA_TOKEN_NAME</code>, <code>TESLA_TOKEN_FILE</code></td></tr>
+<tr><td><code>FlagOAuth</code> または <code>FlagPrivateKey</code></td><td><code>-keyring-type</code>, <code>-keyring-file-dir</code>, <code>-keyring-debug</code> / <code>TESLA_KEYRING_TYPE</code>, <code>TESLA_KEYRING_PASSWORD</code>, <code>TESLA_KEYRING_PATH</code>, <code>TESLA_KEYRING_DEBUG</code></td></tr>
+<tr><td><code>FlagBLE</code> (Linux)</td><td><code>-bt-adapter</code></td></tr>
+</tbody>
+</table>
+<ul>
+<li><code>config.Connect</code> のトランスポート選択: <code>FlagOAuth</code> が有効でトークン名/ファイルがあれば <code>ConnectRemote</code>、そうでなく <code>FlagBLE|FlagVIN</code> であれば <code>ConnectLocal</code>、どちらでもなければ <code>ErrNoAvailableTransports</code>。</li>
+<li><code>ConnectLocal(ctx, skey)</code> は <code>ble.InitAdapterWithID(c.BtAdapterID)</code> → <code>ble.NewConnection</code> → <code>vehicle.NewVehicle(conn, skey, c.sessions)</code> だけを行い、<code>Connect</code>/<code>StartSession</code> は呼び出しません。<code>Connect</code> はその 2 つまで行います。</li>
+<li><code>config.Domains</code>(<code>cli.DomainList</code>)を設定すると、<code>Connect</code> はそのドメインだけとハンドシェイクします。</li>
+<li><code>config.PrivateKey()</code> はファイルが優先で、なければキーリング。最初の読み込み時にキャッシュファイルも一緒に読みます。</li>
+</ul>
+
+<h2 id="sec-8">インターネット経路: pkg/account</h2>
+<pre><code class="language-go">acct, err := account.New(oauthToken, "myapp/1.0.0") // userAgent が "" ならビルド情報から生成
+if err != nil { ... }
+car, err := acct.GetVehicle(ctx, vin, privateKey, sessionCache) // inet.Connection を生成
+if err != nil { ... }
+if err := car.Connect(ctx); err != nil { ... }
+defer car.Disconnect()
+if err := car.Wakeup(ctx); err != nil { ... }          // Fleet API wake_up のポーリング (任意)
+if err := car.StartSession(ctx, nil); err != nil { ... }
+if err := car.Unlock(ctx); err != nil { ... }</code></pre>
+<ul>
+<li><code>account.New</code> は JWT を署名検証なしでデコードし、<code>aud</code> と <code>ou_code</code> から Fleet API のホストを選びます。デフォルトは <code>fleet-api.prd.na.vn.cloud.tesla.com</code>。サーバーが 421 と <code>use base URL: https://…</code> という本文を返すと、<code>inet.Connection</code> がホストを更新します。</li>
+<li>インターネット経路は <strong>HMAC-SHA256</strong> 認証(平文)を使います。Fleet API が OAuth スコープを検査する必要があるためです。AES-GCM で暗号化されたコマンドは Fleet API が拒否します。</li>
+<li><code>Account.Get(ctx, "api/1/products")</code>、<code>Post</code>、<code>SendVehicleFleetAPICommand(ctx, vin, "vehicle_data", nil)</code> で一般的な Fleet API 呼び出しもできます。</li>
+<li><code>Account.UpdateKey(ctx, publicKey, name)</code> は <code>api/1/users/keys</code> に鍵のメタデータ(表示名)を登録します。車両の Locks 画面に表示されます。</li>
+<li>BLE 専用コマンド(<code>SendAddKeyRequest</code>)はインターネット経路では <code>protocol.ErrRequiresBLE</code>。逆に <code>SetPINToDrive</code> はインターネット経路でのみ許可されます(<code>protocol.ErrRequiresEncryption</code>。BLE では認証されていない公開鍵に PIN が露出するおそれがあるためブロックしている)。</li>
+</ul>
+
+<h2 id="sec-9">エラー処理のパターン</h2>
+<p>SDK のエラーは可能な限り <code>protocol.Error</code> インターフェースを実装しています。2 つのメソッドがリトライとユーザーへの案内を決定します。</p>
+<pre><code class="language-go">err := car.Unlock(ctx)
+switch {
+case err == nil:
+    // 成功
+case protocol.MayHaveSucceeded(err):
+    // コマンドは届いた可能性があるが確認が取れていない (例: タイムアウト)。再送すると 2 回実行される可能性があるので、状態を照会して判断。
+case errors.Is(err, protocol.ErrKeyNotPaired):
+    // 公開鍵が車両に登録されていない。ペアリングを案内。
+case errors.Is(err, protocol.ErrNoSession):
+    // StartSession を行っていないか、該当ドメインを除いて行った。
+case protocol.IsNominalError(err):
+    // 車両はコマンドを認証したが実行できない (例: パーキング状態でない、すでにオン)。ユーザーに理由を表示。
+case protocol.Temporary(err):
+    // 一時的なエラー。SDK がすでにコンテキストの期限までリトライしたので、コンテキストを延ばして再試行。
+default:
+    // その他
+}</code></pre>
+<table>
+<thead><tr><th>ヘルパー</th><th>意味</th></tr></thead>
+<tbody>
+<tr><td><code>protocol.MayHaveSucceeded(err)</code></td><td>車両がコマンドを実行した可能性がある。コンテキストのタイムアウト、レスポンスのパース失敗、HTTP 5xx(503 を除く)など。</td></tr>
+<tr><td><code>protocol.Temporary(err)</code></td><td>ユーザーの介入なしにリトライで解決できる可能性がある。<code>ErrBusy</code>、<code>MESSAGEFAULT_ERROR_BUSY/TIMEOUT/INVALID_SIGNATURE/INVALID_TOKEN_OR_COUNTER/INTERNAL/INCORRECT_EPOCH/TIME_EXPIRED/TIME_TO_LIVE_TOO_LONG</code>、HTTP 503/504/408/421。</td></tr>
+<tr><td><code>protocol.ShouldRetry(err)</code></td><td><code>Temporary</code> であり、かつ <code>MayHaveSucceeded</code> でない場合のみ真。SDK 内部のリトライループの基準。</td></tr>
+<tr><td><code>protocol.IsNominalError(err)</code></td><td>アプリケーション層での拒否(<code>NominalError</code>)。プロキシはこれを HTTP 200 + <code>reason</code> として返します。</td></tr>
+<tr><td><code>errors.As(err, &amp;*protocol.RoutableMessageError)</code></td><td>プロトコル層のエラー。<code>.Code</code> で <code>MessageFault_E</code> を確認。</td></tr>
+<tr><td><code>errors.As(err, &amp;*protocol.KeychainError)</code></td><td>鍵の追加/削除の失敗。<code>.Code</code> は <code>WhitelistOperation_information_E</code>。</td></tr>
+</tbody>
+</table>
+<p>エラーコードの一覧とシナリオ別の対処は <a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a> を参照してください。</p>
+
+<h2 id="sec-10">状態の照会</h2>
+<table>
+<thead><tr><th>メソッド</th><th>ドメイン</th><th>認証</th><th>説明</th></tr></thead>
+<tbody>
+<tr><td><code>BodyControllerState(ctx) (*vcsec.VehicleStatus, error)</code></td><td><span class="badge vcsec">VCSEC</span></td><td>不要</td><td>ドア/トランク/充電ポートの開閉状態、ロック状態、インフォテインメントのスリープ有無、乗員の有無、トノカバーの開度。Infotainment がスリープ中でも BLE で即座に応答します。</td></tr>
+<tr><td><code>GetState(ctx, category StateCategory) (*carserver.VehicleData, error)</code></td><td><span class="badge info">INFOTAINMENT</span></td><td>必要</td><td>カテゴリーを 1 つずつ照会。BLE 用に設計されており、インターネットでは Fleet API の <code>vehicle_data</code> エンドポイントの方がはるかに効率的です(オフライン時のキャッシュ応答、一度に全データ)。</td></tr>
+<tr><td><code>KeySummary(ctx)</code>, <code>KeyInfoBySlot(ctx, slot)</code></td><td><span class="badge vcsec">VCSEC</span></td><td>不要</td><td>登録済みの鍵の一覧。<code>slotMask</code> のビットを走査してスロットごとの詳細を照会します。</td></tr>
+<tr><td><code>GetNearbyCharging(ctx) error</code></td><td><span class="badge info">INFOTAINMENT</span></td><td>必要</td><td>半径 200、10 件のリクエストを送りますが、レスポンス本文を返さない API です(エラーのみ返す)。</td></tr>
+</tbody>
+</table>
+<p><code>StateCategory</code> の値: <code>StateCategoryCharge</code>, <code>Climate</code>, <code>Drive</code>, <code>Location</code>, <code>Closures</code>, <code>ChargeSchedule</code>, <code>PreconditioningSchedule</code>, <code>TirePressure</code>, <code>Media</code>, <code>MediaDetail</code>, <code>SoftwareUpdate</code>, <code>ParentalControls</code>。返された <code>carserver.VehicleData</code> は <code>protojson.Format</code> で出力すると読みやすくなります。</p>
+<pre><code class="language-go">data, err := car.GetState(ctx, vehicle.StateCategoryCharge)
+if err != nil { ... }
+fmt.Println(protojson.Format(data))
+pct := data.GetChargeState().GetBatteryLevel()</code></pre>
+
+<h2 id="sec-11">鍵管理 API</h2>
+<table>
+<thead><tr><th>メソッド</th><th>認証</th><th>説明</th></tr></thead>
+<tbody>
+<tr><td><code>SendAddKeyRequest(ctx, publicKey, isOwner bool, formFactor vcsec.KeyFormFactor)</code><br><code>SendAddKeyRequestWithRole(ctx, publicKey, role keys.Role, formFactor)</code></td><td>不要 · <span class="badge warn">BLE 専用</span></td><td>NFC カードによる承認方式の鍵登録リクエスト。<code>vcsec.ToVCSECMessage{SignedMessage{SignatureType: SIGNATURE_TYPE_PRESENT_KEY}}</code> のエンベロープに入れてコネクターから直接送ります。送信後すぐに nil を返し、承認されたかどうかは保証しません。登録の確認は <code>SessionInfo(ctx, publicKey, DomainInfotainment)</code> で行います。インターネット経路では <code>ErrRequiresBLE</code>。</td></tr>
+<tr><td><code>AddKey(ctx, publicKey, isOwner, formFactor)</code><br><code>AddKeyWithRole(ctx, publicKey, role, formFactor)</code></td><td>必要 (Owner 鍵)</td><td>すでに Owner 鍵を持つクライアントが別の鍵を追加します。2023.38+ の車両では、Fleet Manager 鍵は他の鍵を追加/削除できません。</td></tr>
+<tr><td><code>RemoveKey(ctx, publicKey)</code></td><td>必要</td><td>鍵の削除。自分自身は削除できません(<code>NO_PERMISSION_TO_REMOVE_ONESELF</code>)。</td></tr>
+<tr><td><code>KeySummary(ctx)</code>, <code>KeyInfoBySlot(ctx, slot)</code></td><td>不要</td><td>登録済みの鍵の照会。</td></tr>
+</tbody>
+</table>
+<p>ロール(<code>keys.Role</code>): <code>ROLE_OWNER</code>, <code>ROLE_DRIVER</code>, <code>ROLE_FM</code>(Fleet Manager), <code>ROLE_VEHICLE_MONITOR</code>, <code>ROLE_CHARGING_MANAGER</code>, <code>ROLE_GUEST</code>, <code>ROLE_SERVICE</code>。フォームファクター(<code>vcsec.KeyFormFactor</code>): <code>KEY_FORM_FACTOR_NFC_CARD</code>, <code>IOS_DEVICE</code>, <code>ANDROID_DEVICE</code>, <code>CLOUD_KEY</code>。公開鍵は必ず P-256 でなければならず、そうでなければ <code>ErrInvalidPublicKey</code>。</p>
+
+<h2 id="sec-12">カスタム Connector の実装</h2>
+<p>別の BLE スタック(例: TinyGo、モバイルブリッジ、シリアルゲートウェイ)やテスト用のモックトランスポートをつなぐには、<code>connector.Connector</code> を実装して <code>vehicle.NewVehicle</code> に渡せば済みます。ディスパッチャーはコネクターを純粋なデータグラムの通り道としてのみ扱います。</p>
+<pre><code class="language-go">type Connector interface {
+    Receive() &lt;-chan []byte                     // 車両が送った RoutableMessage のバイト列。スレッドセーフ。
+    Send(ctx context.Context, buffer []byte) error // RoutableMessage のバイト列を送信。スレッドセーフ。
+    VIN() string
+    Close()                                     // 複数回呼んでも安全でなければならない
+    PreferredAuthMethod() AuthMethod            // BLE: AuthMethodGCM, HTTP: AuthMethodHMAC
+    RetryInterval() time.Duration               // 再送間隔 (BLE/inet とも 1 秒)
+    AllowedLatency() time.Duration              // セッション情報レスポンスの最大許容遅延 (BLE 4 秒, inet 10 秒)
+}
+
+type FleetAPIConnector interface {             // インターネットコネクターのみ追加で実装
+    Connector
+    SendFleetAPICommand(ctx context.Context, endpoint string, command interface{}) ([]byte, error)
+    Wakeup(ctx context.Context) error
+}</code></pre>
+<ul>
+<li><code>Receive()</code> チャネルのバッファは <code>connector.BufferSize</code>(5) 程度を推奨します。BLE 実装は 5、inet も 5 を使います。満杯になると、BLE はチャンクを捨て、inet は <code>dropped response because inbox is full</code> エラーを出します。</li>
+<li><code>Send</code> が返すエラーが <code>protocol.Error</code> を実装していれば、ディスパッチャーは <code>ShouldRetry</code> で再送を判断します。一般的なエラーは終端エラーとして扱われます。</li>
+<li>レスポンスは <code>connector.MaxResponseLength</code>(100000 バイト)までサポートする必要があります。BLE 実装はメッセージあたり 1024 バイト(<code>maxBLEMessageSize</code>)に制限しています。</li>
+<li>BLE の場合、<a href="03-ble-transport.html">2 バイトのビッグエンディアン長プレフィックスによるフレーミング</a>と MTU 分割をコネクター内で処理する必要があります。ディスパッチャーはフレーミングを知りません。</li>
+<li>セッション情報のレスポンスが <code>AllowedLatency</code> より遅れて届くと時計同期用としては破棄されるため、遅延の大きいトランスポートでは値を増やすか、<code>Vehicle.SetMaxLatency</code> で調整してください。</li>
+<li><code>FleetAPIConnector</code> を実装すると、<code>Vehicle.Wakeup</code> がそれを使い、<code>SetPINToDrive</code> が許可され、<code>SendAddKeyRequest</code> は拒否されます。</li>
+</ul>
+
+<h2 id="sec-13">HSM/TEE 統合時の注意</h2>
+<p><code>protocol.ECDHPrivateKey</code> はインターフェースであり、<code>protocol.Session</code> が再公開されているため、外部モジュールからも実装できます(<code>pkg/protocol/external_impl_test.go</code> が例)。秘密鍵を Nitro Enclave、KMS、ハードウェア HSM に置くには、<code>Exchange(remotePublicBytes) (Session, error)</code>、<code>PublicBytes()</code>、<code>SchnorrSignature(message)</code> を TEE 呼び出しにプロキシする型を作ります。<code>pkg/protocol/key.go</code> のコメントが求める条件:</p>
+<ul>
+<li>TEE は ECDH の共有秘密をエクスポートする API を公開してはなりません。</li>
+<li>TEE は ECDH 由来の鍵で動作する汎用 AES インターフェースを公開してはなりません(ホストが完全性鍵を計算できてしまう)。</li>
+<li>TEE はホストが nonce を指定する AES-GCM 暗号化インターフェースを公開してはなりません。</li>
+<li><code>Session</code> オブジェクトには導出された秘密を入れず、TEE のハンドルだけを入れます。</li>
+</ul>
+<p>これらの条件を満たせなくても、ホストが侵害されたときに漏洩するのは既知の車両公開鍵に対する長期共有秘密だけである、という点で依然として価値がある場合があります。ファイルベースの保存を使う場合は、<code>SavePrivateKey</code> が 0600 で保存する点と、キーリングのオプション(<a href="06-cli-tools.html#sec-keyring">キーリング</a>)を活用してください。</p>
+
+<h2 id="sec-14">ロギング、ビルド、テスト</h2>
+<ul>
+<li><strong>ロギング。</strong> SDK は <code>internal/log</code> で stderr に <code>[debug]/[info ]/[warn ]/[error]</code> を出力します。外部モジュールはレベルを直接変更できないため、CLI ツールの <code>-debug</code>/<code>-verbose</code> または環境変数 <code>TESLA_VERBOSE</code>(<code>tesla-control</code>、<code>tesla-http-proxy</code>)を使います。独自アプリケーションでデバッグログが必要な場合は、リポジトリをフォークするか、<code>examples/ble</code> のようにリポジトリ内のプログラムとしてビルドする必要があります(<code>examples/ble/main.go</code> は <code>internal/log</code> をインポートできるリポジトリ内部のコードです)。</li>
+<li><strong>デバッグ出力の読み方。</strong> <code>TX: 32020802…</code>/<code>RX: …</code> は RoutableMessage の 16 進表記です。<code>protoc --decode=UniversalMessage.RoutableMessage -I pkg/protocol/protobuf pkg/protocol/protobuf/*.proto</code> でデコードします(<a href="09-errors-troubleshooting.html#sec-debug">手順</a>)。</li>
+<li><strong>ビルド。</strong> <code>go build ./...</code>、<code>go install ./cmd/...</code>(= <code>make install</code>)。BLE パッケージは macOS では cbgo(CoreBluetooth)、Linux では HCI ソケットを使うため、cgo/権限の要件が異なります。Docker イメージは <code>distroless</code> ランタイムに 5 つのツールをすべて含み、デフォルトのエントリーポイントは <code>tesla-http-proxy</code> です。</li>
+<li><strong>テスト/リント。</strong> <code>./check-all.sh</code> は <code>go build</code>、<code>go test ./...</code>、<code>go vet</code>、<code>go fmt</code> による変更の有無、shellcheck を順に実行します。<code>make test</code> は <code>go test -cover ./...</code> と <code>go vet</code>。CI は <code>make format</code> 後に diff がないこと、<code>golangci-lint v1.61.0</code>(<code>.golangci.yml</code>: errcheck, gofmt, gosimple, govet, misspell, revive, unused)、<code>make test</code> を Go 1.23.0 で実行します。</li>
+<li><strong>protobuf の再生成。</strong> <code>make proto-gen</code> は <code>protoc --go_out</code> で <code>pkg/protocol/protobuf/*.pb.go</code> を再生成します。<code>.proto</code> を変更したら必ず再生成してコミットします。</li>
+<li><strong>モックテスト。</strong> <code>pkg/vehicle/vehicle_mock_test.go</code> と <code>pkg/proxy/proxy_test.go</code> がコネクター/車両をモックする方法を参考にしてください。プロキシは <code>httpDoer</code>、<code>vehicleSession</code> インターフェースと <code>fetchVehicle</code> フィールドによって、テストで差し替えられるようになっています。</li>
+</ul>
+
+<footer class="page-nav">
+  <a href="04-protocol.html"><span>前へ</span>4. プロトコル仕様</a>
+  <a class="next" href="06-cli-tools.html"><span>次へ</span>6. CLI ツール</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

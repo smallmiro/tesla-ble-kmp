@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>2. はじめに · vehicle-command BLE マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE 開発マニュアル · v0.4.1 基準</div>
+  <div class="lang-switch" aria-label="Language"><a href="../ko/02-getting-started.html" hreflang="ko" lang="ko">한국어</a><a href="../en/02-getting-started.html" hreflang="en" lang="en">English</a><a class="active" href="../ja/02-getting-started.html" hreflang="ja" lang="ja">日本語</a></div>
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a class="active" href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>2. はじめに</h1>
+<p class="lead">インストールから鍵の生成、NFC カードによる鍵のペアリング、最初の BLE コマンド送信までを順番に進めます。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-req">必要なもの</a></li>
+<li><a href="#sec-install">インストール</a></li>
+<li><a href="#sec-env">環境変数の設定</a></li>
+<li><a href="#sec-keygen">秘密鍵の生成</a></li>
+<li><a href="#sec-pair">車両への鍵のペアリング</a></li>
+<li><a href="#sec-first">最初の BLE コマンド</a></li>
+<li><a href="#sec-debug">デバッグ出力とセッションキャッシュ</a></li>
+<li><a href="#sec-linux">Linux の追加設定</a></li>
+<li><a href="#sec-inet">インターネット経路で送る</a></li>
+<li><a href="#sec-next">次のステップ</a></li>
+</ol></div>
+
+<h2 id="sec-req">必要なもの</h2>
+<ul>
+  <li><strong>Go 1.23</strong> 以上 (<code>go.mod</code> の <code>go 1.23</code>、CI は 1.23.0 でテスト)。Docker イメージも <code>golang:1.23.0</code> でビルドされます。</li>
+  <li><strong>macOS または Linux</strong>。BLE はこの 2 つのプラットフォームのみサポートします。Windows では BLE 以外の機能だけがビルドされます。</li>
+  <li><strong>Bluetooth アダプター</strong>を備えたコンピューター、そして車両の <strong>VIN</strong>(車両画面の Controls &gt; Software で確認。17 文字、英字 + 数字)。</li>
+  <li>鍵のペアリングのための車両の <strong>NFC カード</strong>(またはキーフォブ)と、車内で画面を操作できる状況。</li>
+  <li>インターネット経路を使う場合は Tesla 開発者アカウントと <a href="https://developer.tesla.com/docs/fleet-api/authentication/third-party-tokens">OAuth アクセストークン</a>。BLE だけを使う場合は不要です。</li>
+</ul>
+
+<h2 id="sec-install">インストール</h2>
+<h3>ソースからビルド</h3>
+<pre><code class="language-bash">cd vehicle-command
+go get ./...        # 依存関係のダウンロード
+go build ./...      # 全体のコンパイル (ツール + サンプル)
+go install ./...    # $GOBIN (デフォルト ~/go/bin) にツールをインストール</code></pre>
+<p><code>go install</code> の後、次の実行ファイルが PATH に配置されます。</p>
+<table>
+  <thead><tr><th>実行ファイル</th><th>役割</th></tr></thead>
+  <tbody>
+    <tr><td><code>tesla-keygen</code></td><td>コマンド認証用の秘密鍵を生成し、システムのキーリングに保存、公開鍵を出力</td></tr>
+    <tr><td><code>tesla-control</code></td><td>BLE またはインターネットで車両にコマンドを送信。引数なしで実行すると対話型シェル</td></tr>
+    <tr><td><code>tesla-auth-token</code></td><td>OAuth トークンをキーリングに保存 (トークンの発行は行わない)</td></tr>
+    <tr><td><code>tesla-http-proxy</code></td><td>REST API プロキシサーバー</td></tr>
+    <tr><td><code>tesla-jws</code></td><td>Fleet Telemetry 設定 JWS の署名/検証</td></tr>
+    <tr><td><code>ble</code>、<code>unlock</code></td><td><code>examples/</code> のサンプルプログラム (<code>go install ./...</code> に含まれる)</td></tr>
+  </tbody>
+</table>
+<p>リポジトリの <code>Makefile</code> も使用できます: <code>make install</code>(<code>go install ./cmd/...</code>)、<code>make test</code>、<code>make build</code>、<code>make linters</code>(golangci-lint)、<code>make proto-gen</code>(protoc が必要)。<code>./check-all.sh</code> は build/test/vet/fmt を一度に検査します。</p>
+
+<h3>Docker</h3>
+<p>BLE はコンテナ内で使うのが難しいため、Docker イメージは主に HTTP プロキシ用です。デフォルトのエントリーポイントは <code>tesla-http-proxy</code> で、<code>--entrypoint</code> で変更できます。</p>
+<pre><code class="language-bash">docker pull tesla/vehicle-command:latest
+docker run tesla/vehicle-command:latest --help
+docker run --entrypoint tesla-keygen tesla/vehicle-command:latest --help</code></pre>
+
+<h2 id="sec-env">環境変数の設定</h2>
+<p>すべての CLI ツールは <code>pkg/cli</code> を共有し、コマンドラインフラグの代わりに環境変数を読み取ります。フラグが優先され、空の値だけが環境変数で補われます。</p>
+<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)            # キーリングで秘密鍵を探す名前
+export TESLA_VIN=5YJ30123456789ABC          # 対象車両の VIN
+export TESLA_CACHE_FILE=~/.tesla-cache.json # セッションキャッシュ (省略時 ~/.tesla-cache.json)
+# インターネット経路を使う場合のみ:
+export TESLA_TOKEN_NAME=$(whoami)           # キーリングで OAuth トークンを探す名前</code></pre>
+<table>
+  <thead><tr><th>変数</th><th>対応するフラグ</th><th>意味</th></tr></thead>
+  <tbody>
+    <tr><td><code>TESLA_KEY_NAME</code></td><td><code>-key-name</code></td><td>システムキーリング内の秘密鍵の項目名 (実際の項目キーは <code>vehicleCommandKey.&lt;名前&gt;</code>)</td></tr>
+    <tr><td><code>TESLA_KEY_FILE</code></td><td><code>-key-file</code></td><td>PEM ファイルから秘密鍵を読み込む。キーリングの代わりに使用</td></tr>
+    <tr><td><code>TESLA_TOKEN_NAME</code></td><td><code>-token-name</code></td><td>キーリング内の OAuth トークンの項目名 (<code>oauthtoken.&lt;名前&gt;</code>)</td></tr>
+    <tr><td><code>TESLA_TOKEN_FILE</code></td><td><code>-token-file</code></td><td>ファイルから OAuth トークンを読み込む</td></tr>
+    <tr><td><code>TESLA_VIN</code></td><td><code>-vin</code></td><td>VIN</td></tr>
+    <tr><td><code>TESLA_CACHE_FILE</code></td><td><code>-session-cache</code></td><td>セッションキャッシュ JSON のパス。<code>-disable-session-cache</code> で無効化できる</td></tr>
+    <tr><td><code>TESLA_KEYRING_TYPE</code></td><td><code>-keyring-type</code></td><td>キーリングのバックエンドを強制指定。<code>tesla-keygen -h</code> に OS ごとのサポート値を表示</td></tr>
+    <tr><td><code>TESLA_KEYRING_PATH</code></td><td><code>-keyring-file-dir</code></td><td>ファイルベースのキーリングのディレクトリ (デフォルト <code>~/.tesla_keys</code>)</td></tr>
+    <tr><td><code>TESLA_KEYRING_PASSWORD</code></td><td>-</td><td>ファイルキーリング/キーチェーンのパスワード。空の場合はターミナルでプロンプト</td></tr>
+    <tr><td><code>TESLA_KEYRING_DEBUG</code></td><td><code>-keyring-debug</code></td><td>キーリングのデバッグログ</td></tr>
+    <tr><td><code>TESLA_VERBOSE</code></td><td><code>-debug</code> / <code>-verbose</code></td><td><code>tesla-control</code>、<code>tesla-http-proxy</code> の詳細ログ。<code>false</code>/<code>0</code> 以外の値なら有効</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sec-keygen">秘密鍵の生成</h2>
+<h3>方法 A: tesla-keygen (推奨)</h3>
+<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)
+tesla-keygen create &gt; public_key.pem
+cat public_key.pem
+# -----BEGIN PUBLIC KEY-----
+# MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...
+# -----END PUBLIC KEY-----</code></pre>
+<ul>
+  <li>NIST P-256 秘密鍵を生成して OS のキーリング(macOS ではログインキーチェーン)に保存し、PKIX PEM 形式の<strong>公開鍵を stdout</strong> に出力します。<code>-output ファイル</code>でファイルに書き出すこともできます。</li>
+  <li>同じ名前の鍵がすでにある場合は上書きせず、既存の公開鍵を再出力するだけです。強制的に新しく作るには <code>-f</code>。</li>
+  <li><code>-key-file private.pem</code> を指定すると、キーリングの代わりにファイルに保存します(<code>EC PRIVATE KEY</code> PEM、0600)。</li>
+</ul>
+<table>
+  <thead><tr><th>サブコマンド</th><th>動作</th></tr></thead>
+  <tbody>
+    <tr><td><code>create</code></td><td>鍵を生成して保存し、公開鍵を出力。既存の鍵があれば再利用(<code>-f</code> で上書き)</td></tr>
+    <tr><td><code>export</code></td><td>キーリングの秘密鍵を <code>EC PRIVATE KEY</code> PEM として stdout に出力</td></tr>
+    <tr><td><code>migrate</code></td><td><code>-key-file</code> の PEM 秘密鍵を <code>-key-name</code> のキーリング項目に移す</td></tr>
+    <tr><td><code>delete</code></td><td>キーリングから鍵を削除</td></tr>
+  </tbody>
+</table>
+
+<h3>方法 B: OpenSSL</h3>
+<p>キーリングを使わずファイルだけで管理するには、<code>examples/ble/doc.go</code> にある方法で作成します。</p>
+<pre><code class="language-bash">openssl ecparam -genkey -name prime256v1 -noout &gt; private.pem
+openssl ec -in private.pem -pubout &gt; public.pem
+export TESLA_KEY_FILE=$PWD/private.pem   # または毎回 -key-file private.pem</code></pre>
+<div class="callout warn">
+  <strong>秘密鍵の保護</strong>
+  <p>秘密鍵が漏洩すると、車両のロックを解除して運転できてしまいます。ファイルで保管する場合は権限を 0600 に保ち、リポジトリにコミットしないでください。<code>protocol.LoadPrivateKey</code> は暗号化されていない PKCS#8/SEC1 PEM のみを読み込みます。TLS サーバー鍵とコマンド認証鍵に同じ鍵を使うと、<code>tesla-http-proxy</code> は起動を拒否します。</p>
+</div>
+
+<h2 id="sec-pair">車両への鍵のペアリング</h2>
+<p>公開鍵を車両のキーチェーン(whitelist)に登録しなければ、車両はコマンドを受け付けません。BLE では NFC カードで承認する <code>add-key-request</code> を使用します。このリクエスト自体は認証が不要なため、まだペアリングされていない鍵でも送信できます。</p>
+<ol class="steps">
+  <li><strong>車内に座る。</strong> ノートパソコンの Bluetooth をオンにし、NFC カード(またはキーフォブ)を用意します。車両は同時に最大 3 つの BLE 接続しか維持しないため、他のスマートフォンキーが多数接続されているとスキャン結果が <code>Connectable=false</code> になることがあります。</li>
+  <li><strong>リクエストを送る。</strong>
+<pre><code class="language-bash">export TESLA_VIN=&lt;VIN&gt;
+tesla-control -ble add-key-request public_key.pem owner cloud_key
+# Sent add-key request to &lt;VIN&gt;. Confirm by tapping NFC card on center console.</code></pre>
+  プログラムはリクエストを送信するとすぐに終了します。終了したからといって承認が完了したわけではありません。</li>
+  <li><strong>NFC カードをセンターコンソール(カードリーダーの位置)にかざす。</strong> 車両画面に新しい鍵の承認確認ウィンドウが表示されます。</li>
+  <li><strong>画面で Confirm を押す。</strong> Locks 画面に新しい鍵が表示されます。</li>
+  <li><strong>確認する。</strong> <code>tesla-control -ble list-keys</code> で登録された公開鍵、ロール、フォームファクターを確認するか、<code>tesla-control -ble session-info public_key.pem infotainment</code> が成功するかを確認します(Infotainment まで同期されれば成功)。</li>
+</ol>
+<p><code>add-key-request PUBLIC_KEY ROLE FORM_FACTOR</code> の引数:</p>
+<table>
+  <thead><tr><th>引数</th><th>許容値</th><th>説明</th></tr></thead>
+  <tbody>
+    <tr><td><code>PUBLIC_KEY</code></td><td>ファイルパス</td><td>公開鍵 PEM。対応する秘密鍵 PEM、65 バイトのバイナリ、130 文字の hex ポイントも可(<code>protocol.LoadPublicKey</code>)</td></tr>
+    <tr><td><code>ROLE</code></td><td><code>owner</code>、<code>driver</code>、<code>fm</code>、<code>vehicle_monitor</code>、<code>charging_manager</code></td><td><code>keys.Role</code> から <code>ROLE_</code> 接頭辞を除いた小文字。自分のコンピューター用なら通常は <code>owner</code></td></tr>
+    <tr><td><code>FORM_FACTOR</code></td><td><code>nfc_card</code>、<code>ios_device</code>、<code>android_device</code>、<code>cloud_key</code></td><td>車両 UI に表示される種類。サードパーティのアプリ/サーバーの鍵は <code>cloud_key</code></td></tr>
+  </tbody>
+</table>
+<div class="callout">
+  <strong>すでに Owner 鍵がある場合</strong>
+  <p>ペアリング済みの Owner 鍵があれば、NFC なしで他の鍵を追加できます: <code>tesla-control -ble -key-file owner.pem add-key new_public.pem driver cloud_key</code>。削除は <code>remove-key new_public.pem</code>。インターネット経路では <code>rename-key</code> で車両画面に表示される名前を変更できます(OAuth が必要)。</p>
+</div>
+<div class="callout warn">
+  <strong>ペアリングが失敗するよくある理由</strong>
+  <ul>
+    <li>カードタップのタイムアウト: <code>WHITELISTOPERATION_INFORMATION_LOCAL_ENTITY_AUTH_FAILED_TIMED_OUT_WAITING_FOR_TAP</code>。リクエスト後すぐにカードをかざしてください。</li>
+    <li>画面で拒否/キャンセル: <code>…UI_DENIED</code>、<code>…CANCELLED</code>。</li>
+    <li>バレーモード中: <code>…LOCAL_ENTITY_AUTH_FAILED_VALET_MODE</code>。</li>
+    <li>キーチェーンが満杯: <code>MESSAGEFAULT_ERROR_KEYCHAIN_IS_FULL</code> または <code>WHITELISTOPERATION_INFORMATION_WHITELIST_FULL</code>。既存の鍵を削除する必要があります。</li>
+    <li>登録済みの鍵: <code>…ATTEMPTING_TO_ADD_KEY_THAT_IS_ALREADY_ON_THE_WHITELIST</code>。正常です。</li>
+  </ul>
+</div>
+
+<h2 id="sec-first">最初の BLE コマンド</h2>
+<pre><code class="language-bash">tesla-control -ble lock
+tesla-control -ble unlock
+tesla-control -ble body-controller-state   # ロック/ドア/トランク/スリープ状態の JSON。Infotainment がスリープ中でも動作
+tesla-control -ble list-keys               # 登録された鍵の一覧
+tesla-control -ble climate-on              # Infotainment コマンド。車両がスリープ中なら先に wake
+tesla-control -ble wake                    # VCSEC にウェイクアップを要求
+tesla-control -ble state charge            # 充電状態の JSON (Infotainment が必要)</code></pre>
+<ul>
+  <li><code>-ble</code> は OAuth の環境変数が設定されていても BLE 接続を強制します。OAuth の変数がなければ VIN だけで自動的に BLE を選択するため、省略しても構いません。</li>
+  <li>接続のタイムアウトは <code>-connect-timeout</code>(デフォルト 20s)、コマンドのタイムアウトは <code>-command-timeout</code>(デフォルト 5s)です。スキャンが遅い環境では <code>-connect-timeout 60s</code> のように延ばしてください。</li>
+  <li>引数なしで <code>tesla-control -ble</code> を実行すると、<code>&gt;</code> プロンプトの対話型シェルが起動します。接続とハンドシェイクを 1 回だけ行い、複数のコマンドを送れます。<code>exit</code> で終了。</li>
+  <li><code>tesla-control help &lt;コマンド&gt;</code> で引数の説明を確認できます。全一覧は <a href="07-command-reference.html">7. コマンドリファレンス</a>。</li>
+</ul>
+<div class="callout ok">
+  <strong>ドメインを限定して遅延を減らす</strong>
+  <p>デフォルトでは、<code>StartSession</code> は VCSEC と Infotainment の 2 つのドメインと並列にハンドシェイクします。VCSEC コマンドだけを使う場合は <code>-domain vcsec</code> を指定すると Infotainment を起こさないため高速で、車両がスリープしていても失敗しません。<code>wake</code> と <code>body-controller-state</code> は CLI が自動的に VCSEC のみを使用します。</p>
+</div>
+
+<h2 id="sec-debug">デバッグ出力とセッションキャッシュ</h2>
+<h3>-debug で送受信バイトを見る</h3>
+<pre><code class="language-bash">tesla-control -ble -debug list-keys
+# 2023-12-13T14:41:13-08:00 [debug] Creating new BLE adapter
+# 2023-12-13T14:41:13-08:00 [debug] Dialing to xx:xx:xx:xx:xx:xx (S1a87a5a75f3df858C)...
+# 2023-12-13T14:41:13-08:00 [debug] MTU size: 517
+# 2023-12-13T14:41:13-08:00 [info ] Connected to vehicle BLE
+# 2023-12-13T14:41:13-08:00 [debug] TX: 320208023a1212100a7962c1...
+# 2023-12-13T14:41:13-08:00 [debug] RX: ...</code></pre>
+<p><code>TX:</code>/<code>RX:</code> の後の hex は、長さプレフィックスを除いた <code>RoutableMessage</code> です。<a href="04-protocol.html#sec-decode">protoc でデコード</a>できます。ログは stderr に出力され、<code>TESLA_VERBOSE=1</code> でも有効にできます。</p>
+
+<h3>セッションキャッシュ</h3>
+<p><code>tesla-control</code> は実行のたびに新しいプロセスになるため、キャッシュがなければ毎回ハンドシェイクを行います。<code>TESLA_CACHE_FILE</code>(デフォルト <code>~/.tesla-cache.json</code>)にドメインごとのセッション情報が保存され、次回の実行では <code>Session for DOMAIN_VEHICLE_SECURITY loaded from cache</code> というログとともにすぐにコマンドを送ります。キャッシュが古い場合(車両の再起動など)は最初のコマンドが失敗し、車両が新しいセッション情報を送ってくれるので自動的にリトライします。キャッシュファイルは秘密鍵に紐づいており、別の鍵で使うと単に失敗した後に更新されます。ファイルに共有シークレットが直接含まれるわけではありませんが、アクセス権限は制限してください。</p>
+
+<h2 id="sec-linux">Linux の追加設定</h2>
+<p>Linux 実装は HCI ソケットを直接開き、初期化の過程で <code>HCIDEVDOWN</code> を呼び出すため、<code>CAP_NET_ADMIN</code> 権限が必要です。権限がないと <code>operation not permitted</code> が発生し、CLI が次の案内を出力します。</p>
+<pre><code class="language-bash">Failed to initialize BLE adapter:
+        ...operation not permitted
+Try again after granting this application CAP_NET_ADMIN or running with root:
+
+        sudo setcap 'cap_net_admin=eip' "$(which tesla-control)"</code></pre>
+<ul>
+  <li><code>setcap</code> は実行ファイル単位で適用されるため、<code>go install</code> でバイナリを再ビルドしたら再設定が必要です。</li>
+  <li>アダプターが複数ある場合は <code>-bt-adapter hci1</code> のように指定します(<code>hci0</code>〜<code>hci15</code>)。デフォルトは <code>hci0</code>。形式が誤っていると <code>ErrAdapterInvalidID</code>。</li>
+  <li><code>bluetoothd</code> が同じアダプターを掴んでいてスキャンできない場合は、<code>sudo hciconfig hci0 down</code> の後に再試行するか、専用のアダプターを使ってください。この SDK は BlueZ D-Bus ではなく raw HCI を使用します。</li>
+</ul>
+
+<h2 id="sec-inet">インターネット経路で送る</h2>
+<p>同じ秘密鍵でインターネット経路も使用できます。違いは、OAuth トークンが必要であること、公開鍵が <a href="https://developer.tesla.com/docs/fleet-api/endpoints/partner-endpoints#register">Tesla 開発者ポータルに登録されたドメイン</a>と紐づいている必要があること、そして認証方式が HMAC-SHA256 であることです。</p>
+<ol class="steps">
+  <li><strong>OAuth トークンを取得する。</strong> Fleet API ドキュメントのサードパーティトークンの手順に従います。このリポジトリにはトークンを発行するツールはありません。</li>
+  <li><strong>トークンをキーリングに保存する。</strong>
+<pre><code class="language-bash">export TESLA_TOKEN_NAME=$(whoami)
+tesla-auth-token &lt; token.txt          # または tesla-auth-token token.txt</code></pre></li>
+  <li><strong>公開鍵をドメインに登録し、車両の所有者が承認する。</strong> 所有者は Tesla アプリ(4.27.3+)で <code>https://tesla.com/_ak/&lt;your_domain&gt;</code> リンクを開いて承認します。個人の車両であれば、上記の BLE ペアリングで登録した鍵をそのまま使っても構いません。</li>
+  <li><strong>コマンドを送る。</strong> <code>-ble</code> を外すと、OAuth の設定があれば自動的にインターネット経路を選択します。
+<pre><code class="language-bash">tesla-control lock
+tesla-control product-info          # アカウントコマンド (VIN 不要)
+tesla-control get api/1/vehicles/$TESLA_VIN/vehicle_data</code></pre></li>
+</ol>
+<p>車両がスリープしていると Fleet API は <code>408</code>/<code>503</code> を返し、SDK は <code>ErrVehicleNotAwake</code> を返します。<code>tesla-control wake</code> は <code>api/1/vehicles/&lt;vin&gt;/wake_up</code> を呼び出し、<code>state == "online"</code> になるまで 10 秒間隔でポーリングします。</p>
+
+<h2 id="sec-next">次のステップ</h2>
+<ul>
+  <li>BLE のアドバタイズ、GATT、フレーミングについて知りたい場合は <a href="03-ble-transport.html">3. BLE トランスポート層</a>。</li>
+  <li>ハンドシェイクと暗号化がどのように動作するかは <a href="04-protocol.html">4. プロトコル仕様</a>。</li>
+  <li>Go コードから SDK を使うには <a href="05-go-sdk.html">5. Go SDK</a>。最小のサンプルは <code>examples/ble/main.go</code>。</li>
+  <li>接続できない場合やエラーが発生した場合は <a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a>。</li>
+</ul>
+
+<footer class="page-nav">
+  <a href="01-overview.html"><span>前へ</span>1. システム概要</a>
+  <a class="next" href="03-ble-transport.html"><span>次へ</span>3. BLE トランスポート層</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3. BLE トランスポート層 · vehicle-command BLE マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE 開発マニュアル · v0.4.1 基準</div>
+  <div class="lang-switch" aria-label="Language"><a href="../ko/03-ble-transport.html" hreflang="ko" lang="ko">한국어</a><a href="../en/03-ble-transport.html" hreflang="en" lang="en">English</a><a class="active" href="../ja/03-ble-transport.html" hreflang="ja" lang="ja">日本語</a></div>
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a class="active" href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>3. BLE トランスポート層</h1>
+<p class="lead"><code>pkg/connector/ble</code> が車両と GATT でバイトをやり取りする方法: アドバタイズ名、サービス/キャラクタリスティック UUID、長さフレーミング、MTU 分割、スキャンと接続のリトライ、プラットフォームごとの違い。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-ids">識別子: UUID とアドバタイズ名</a></li>
+<li><a href="#sec-gatt">GATT 接続手順</a></li>
+<li><a href="#sec-framing">メッセージフレーミングと MTU</a></li>
+<li><a href="#sec-conn">Connection 型の特性</a></li>
+<li><a href="#sec-scan">スキャン</a></li>
+<li><a href="#sec-retry">接続リトライループ</a></li>
+<li><a href="#sec-adapter">アダプター管理</a></li>
+<li><a href="#sec-platform">プラットフォームごとの実装の違い</a></li>
+<li><a href="#sec-vcsec">VCSEC のレスポンス特性と並行性</a></li>
+<li><a href="#sec-seq">シーケンス図</a></li>
+<li><a href="#sec-impl">他の BLE スタックで実装する場合</a></li>
+</ol></div>
+
+<div class="callout">
+  <strong>トランスポート層は暗号を知らない</strong>
+  <p><code>ble.Connection</code> は <code>connector.Connector</code> インターフェースだけを実装します。つまり <code>[]byte</code> を送受信するだけで、protobuf やセッション、署名はすべて上位レイヤー(<code>internal/dispatcher</code>、<code>internal/authentication</code>)の仕事です。このページでは、そのバイトが無線でどのように運ばれるかだけを扱います。</p>
+</div>
+
+<h2 id="sec-ids">識別子: UUID とアドバタイズ名</h2>
+<table>
+  <thead><tr><th>項目</th><th>値</th><th>Go 変数</th><th>用途</th></tr></thead>
+  <tbody>
+    <tr><td>GATT サービス</td><td><code>00000211-b2d1-43f0-9b88-960cebf8b91e</code></td><td><code>vehicleServiceUUID</code></td><td>車両コマンドサービス。このサービス 1 つだけを探索</td></tr>
+    <tr><td>書き込みキャラクタリスティック (クライアント → 車両)</td><td><code>00000212-b2d1-43f0-9b88-960cebf8b91e</code></td><td><code>toVehicleUUID</code> / <code>Connection.txChar</code></td><td><strong>write with response</strong> で書き込む。SDK は <code>WriteCharacteristic(txChar, chunk, false)</code>(noRsp=false)</td></tr>
+    <tr><td>読み取りキャラクタリスティック (車両 → クライアント)</td><td><code>00000213-b2d1-43f0-9b88-960cebf8b91e</code></td><td><code>fromVehicleUUID</code> / <code>Connection.rxChar</code></td><td><strong>indication</strong> を購読する。SDK は <code>Subscribe(rxChar, true, rx)</code>(ind=true)</td></tr>
+    <tr><td>アドバタイズ Local Name</td><td><code>S</code> + hex(SHA1(VIN)[0:8]) + <code>C</code></td><td><code>VehicleLocalName(vin)</code></td><td>スキャン結果のフィルタリング。合計 18 文字</td></tr>
+  </tbody>
+</table>
+<h3>アドバタイズ名の計算</h3>
+<p>車両は VIN を直接アドバタイズしません。VIN の SHA-1 ダイジェストの先頭 8 バイトを小文字の hex でエンコードし、前後に <code>S</code>、<code>C</code> を付けた名前を Local Name としてアドバタイズします。</p>
+<pre><code class="language-go">// pkg/connector/ble/ble.go
+func VehicleLocalName(vin string) string {
+	vinBytes := []byte(vin)
+	digest := sha1.Sum(vinBytes)
+	return fmt.Sprintf("S%02xC", digest[:8])
+}</code></pre>
+<pre><code class="language-bash"># シェルで確認: VIN 5YJS0000000000000 → S1a87a5a75f3df858C
+printf '5YJS0000000000000' | shasum | cut -c1-16 | sed 's/^/S/; s/$/C/'
+# S1a87a5a75f3df858C</code></pre>
+<p>スキャンコールバックは <code>a.LocalName() != localName</code> であれば無視します。名前は一致しても異なる値を持つアドバタイズが渡されると、<code>tryToConnect</code> は <code>ble: beacon with unexpected local name</code> エラーを出し、リトライしません。</p>
+
+<h2 id="sec-gatt">GATT 接続手順</h2>
+<p><code>tryToConnect</code> が実行する順序です。各段階の失敗は <code>retry=true</code>(リトライ可能)に分類されます(アダプターエラー、名前の不一致、接続不可のアドバタイズを除く)。</p>
+<ol class="steps">
+  <li><strong>アダプターの初期化</strong> <code>initAdapter(nil)</code>。グローバルな <code>device</code> がすでにあれば再利用。</li>
+  <li><strong>スキャン</strong> (target が nil のとき) <code>scanVehicleBeacon(ctx, localName)</code> でアドバタイズのアドレスを取得する。</li>
+  <li><strong>接続可能かの確認</strong> <code>target.Connectable == false</code> なら <code>ErrMaxConnectionsExceeded</code> を返し、リトライなし。</li>
+  <li><strong>Dial</strong> <code>device.Dial(ctx, ble.NewAddr(target.Address))</code>。</li>
+  <li><strong>サービスの探索</strong> <code>client.DiscoverServices([]ble.UUID{vehicleServiceUUID})</code>。結果が空なら <code>failed to discover service</code>。</li>
+  <li><strong>キャラクタリスティックの探索</strong> <code>client.DiscoverCharacteristics([]ble.UUID{toVehicleUUID, fromVehicleUUID}, services[0])</code>。両方のキャラクタリスティックが揃っていなければ <code>failed to find required characteristics</code>。</li>
+  <li><strong>ディスクリプターの探索</strong> キャラクタリスティックごとに <code>client.DiscoverDescriptors(nil, characteristic)</code>。go-ble が CCCD(0x2902)を見つけないと購読できない。</li>
+  <li><strong>購読</strong> <code>client.Subscribe(conn.rxChar, true, conn.rx)</code>: <code>0213</code> キャラクタリスティックの indication を有効にし、受信コールバック <code>rx</code> を登録。</li>
+  <li><strong>MTU 交換</strong> <code>client.ExchangeMTU(ble.MaxMTU)</code>。成功すれば <code>blockLength = min(txMtu, 1024) - 3</code>、失敗すれば警告ログを出して <code>ble.DefaultMTU - 3</code>(= 20 バイト)にフォールバック。3 バイトは ATT Write Request ヘッダー(opcode 1 + handle 2)。</li>
+</ol>
+<p>成功すると <code>[info ] Connected to vehicle BLE</code> が記録され、<code>*Connection</code> が返されます。<code>Close()</code> は <code>ClearSubscriptions()</code> と <code>CancelConnection()</code> を呼び出し、何度呼び出しても安全です。</p>
+
+<h2 id="sec-framing">メッセージフレーミングと MTU</h2>
+<p>BLE キャラクタリスティックへの 1 回の書き込みは MTU に縛られますが、<code>RoutableMessage</code> は数百バイトになることがあるため、SDK は<strong>長さプレフィックス付きストリーム</strong>として扱います。</p>
+<div class="diagram"><pre>
+  送信 (Send):
+  ┌────────────┬──────────────────────────────────────────────┐
+  │ len (2B BE)│ RoutableMessage (protobuf, ≤ 1024 B)          │
+  └────────────┴──────────────────────────────────────────────┘
+        └──────── blockLength バイトずつ切って 0212 に write-with-response ────────┘
+        chunk#1 [len_hi len_lo msg[0..]]  chunk#2 [msg[..]]  chunk#3 [...]
+
+  受信 (rx コールバック, 0213 indication):
+  inputBuffer ← append(chunk)  →  flush(): 先頭 2 バイトで長さを確認
+                                  → 十分に溜まったら inbox チャネルへ 1 メッセージを渡す、繰り返し
+</pre></div>
+<table>
+  <thead><tr><th>定数/フィールド</th><th>値</th><th>意味</th></tr></thead>
+  <tbody>
+    <tr><td><code>maxBLEMessageSize</code></td><td>1024</td><td>長さプレフィックスがこの値を超える受信メッセージはバッファを空にして破棄。送信ブロック長の上限にも使用</td></tr>
+    <tr><td><code>maxBLEMTUSize</code></td><td><code>ble.MaxMTU</code> (go-ble の定義、ATT 最大 517)</td><td><code>ExchangeMTU</code> に要求するクライアント側の最大 MTU</td></tr>
+    <tr><td><code>Connection.blockLength</code></td><td><code>min(MTU, 1024) - 3</code>、フォールバック <code>ble.DefaultMTU - 3</code> (= 20)</td><td>1 回のキャラクタリスティック書き込みに載せる最大バイト数</td></tr>
+    <tr><td><code>rxTimeout</code></td><td>1 秒</td><td>最後の受信チャンクからこの時間が経過すると <code>inputBuffer</code> を破棄し、新しいメッセージとみなす (部分受信からの復旧)</td></tr>
+    <tr><td><code>inbox</code></td><td><code>chan []byte</code>、バッファ 5</td><td>完成したメッセージのキュー。満杯になると <code>flush</code> がメッセージを破棄して <code>false</code> を返す</td></tr>
+  </tbody>
+</table>
+<h3>送信コード</h3>
+<pre><code class="language-go">func (c *Connection) Send(_ context.Context, buffer []byte) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	var out []byte
+	out = append(out, uint8(len(buffer)&gt;&gt;8), uint8(len(buffer)))  // 2 バイト big-endian の長さ
+	out = append(out, buffer...)
+	blockLength := c.blockLength
+	for len(out) &gt; 0 {
+		if blockLength &gt; len(out) { blockLength = len(out) }
+		if err := c.client.WriteCharacteristic(c.txChar, out[:blockLength], false); err != nil {
+			return err
+		}
+		out = out[blockLength:]
+	}
+	return nil
+}</code></pre>
+<p><code>Send</code> は <code>ctx</code> を無視します(go-ble の write API にコンテキストがないため)。ミューテックスで一度に 1 メッセージだけを書き込むため、チャンクが混ざることはありません。</p>
+<h3>受信コード</h3>
+<pre><code class="language-go">func (c *Connection) rx(p []byte) {
+	if time.Since(c.lastRx) &gt; rxTimeout {
+		c.inputBuffer = []byte{}          // 古い部分メッセージを破棄
+	}
+	c.lastRx = time.Now()
+	c.inputBuffer = append(c.inputBuffer, p...)
+	for c.flush() {}                       // バッファに完成メッセージが複数あればすべて配送
+}
+
+func (c *Connection) flush() bool {
+	if len(c.inputBuffer) &gt;= 2 {
+		msgLength := 256*int(c.inputBuffer[0]) + int(c.inputBuffer[1])
+		if msgLength &gt; maxBLEMessageSize { c.inputBuffer = []byte{}; return false }
+		if len(c.inputBuffer) &gt;= 2+msgLength {
+			buffer := c.inputBuffer[2 : 2+msgLength]
+			c.inputBuffer = c.inputBuffer[2+msgLength:]
+			select {
+			case c.inbox &lt;- buffer:
+			default:
+				return false                 // inbox が満杯: メッセージをドロップ
+			}
+			return true
+		}
+	}
+	return false
+}</code></pre>
+<div class="callout warn">
+  <strong>受信経路にロックがない</strong>
+  <p><code>rx</code> と <code>flush</code> は go-ble の通知ゴルーチンから逐次呼び出されることを前提としており、別途ロックはありません。他の BLE スタックに移植する際、コールバックが並列に来る可能性がある場合は直列化が必要です。</p>
+</div>
+
+<h2 id="sec-conn">Connection 型の特性</h2>
+<table>
+  <thead><tr><th>メソッド</th><th>戻り値</th><th>上位レイヤーでの意味</th></tr></thead>
+  <tbody>
+    <tr><td><code>PreferredAuthMethod()</code></td><td><code>connector.AuthMethodGCM</code></td><td>BLE コマンドは AES-GCM で<strong>暗号化</strong>される (インターネットは HMAC)</td></tr>
+    <tr><td><code>RetryInterval()</code></td><td>1 秒</td><td><code>Vehicle.Send</code>、<code>StartSession</code> の再送間隔</td></tr>
+    <tr><td><code>AllowedLatency()</code></td><td><code>maxLatency</code> = 4 秒</td><td>リクエスト後この時間を過ぎて届いた <code>session_info</code> は時計の同期に使わず破棄 (<code>receiver.expired</code>)</td></tr>
+    <tr><td><code>Receive()</code></td><td><code>&lt;-chan []byte</code></td><td>完成した <code>RoutableMessage</code> のバイト列</td></tr>
+    <tr><td><code>VIN()</code></td><td>生成時に渡した VIN</td><td>メタデータの <code>TAG_PERSONALIZATION</code> に使用</td></tr>
+    <tr><td><code>Close()</code></td><td>-</td><td>購読解除 + 接続のキャンセル。冪等</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sec-scan">スキャン</h2>
+<pre><code class="language-go">type ScanResult struct {
+	Address     string  // アドバタイズのアドレス (macOS は CoreBluetooth の識別子、Linux は MAC)
+	LocalName   string  // "S…C"
+	RSSI        int16   // dBm
+	Connectable bool    // false なら車両はすでに最大接続数に達している
+}
+
+func ScanVehicleBeacon(ctx context.Context, vin string) (*ScanResult, error)</code></pre>
+<ul>
+  <li><code>ScanVehicleBeacon</code> はアダプターを初期化し、<code>VehicleLocalName(vin)</code> と一致する最初のアドバタイズを返します。ctx が期限切れになるまでスキャンを続けます。</li>
+  <li>内部の <code>scanVehicleBeacon</code> は一致するアドバタイズを見つけると派生コンテキストをキャンセルして <code>device.Scan</code> を止めます。macOS の <code>device.Scan</code> はコンテキストがキャンセルされるまで戻らず、常に <code>context.Canceled</code> を返すため、コードは <code>errors.Is(err, context.Canceled)</code> ではないエラーだけを失敗として扱います。</li>
+  <li><code>Connectable == false</code>: 車両(VCSEC)はハードウェアの制約により<strong>同時に最大 3 つの BLE 接続</strong>しか維持せず、キーフォブとスマートフォンキーがこれを共有します。このとき接続を試みると、<code>ErrMaxConnectionsExceeded</code>("the vehicle is already connected to the maximum number of BLE devices")を即座に返します。近くのスマートフォンキーをオフにするか、車から離してください。</li>
+  <li>RSSI で複数の車両の中から近い車を選ぶロジックはありません。同じ VIN は 1 台しかないため不要です。</li>
+  <li>スキャンだけを行うには、<code>examples/ble</code> の <code>-scan-only</code> フラグを参考にしてください。<code>ScanVehicleBeacon</code> の結果を <code>NewConnectionFromScanResult</code> に渡せば再スキャンを省略できます。</li>
+</ul>
+
+<h2 id="sec-retry">接続リトライループ</h2>
+<pre><code class="language-go">func NewConnection(ctx context.Context, vin string) (*Connection, error) {
+	return NewConnectionFromScanResult(ctx, vin, nil)
+}
+
+func NewConnectionFromScanResult(ctx context.Context, vin string, target *ScanResult) (*Connection, error) {
+	var lastError error
+	for {
+		conn, retry, err := tryToConnect(ctx, vin, target)
+		if err == nil { return conn, nil }
+		if !retry || IsAdapterError(err) { return nil, err }   // 致命的: 即座に断念
+		log.Warning("BLE connection attempt failed: %s", err)
+		if err := ctx.Err(); err != nil {                        // ctx 期限切れ: 最後の実際のエラーを返す
+			if lastError != nil { return nil, lastError }
+			return nil, err
+		}
+		lastError = err
+	}
+}</code></pre>
+<table>
+  <thead><tr><th><code>tryToConnect</code> の失敗箇所</th><th>retry</th><th>備考</th></tr></thead>
+  <tbody>
+    <tr><td><code>initAdapter</code> の失敗</td><td>false</td><td>権限/ハードウェアの問題。Linux では <code>IsAdapterError</code> でも除外される</td></tr>
+    <tr><td>スキャンの失敗 (ctx 期限切れを含む)</td><td>true</td><td>ループが <code>ctx.Err()</code> を見て終了</td></tr>
+    <tr><td>Local Name の不一致</td><td>false</td><td>誤った <code>ScanResult</code> を渡した場合</td></tr>
+    <tr><td><code>Connectable == false</code></td><td>false</td><td><code>ErrMaxConnectionsExceeded</code></td></tr>
+    <tr><td>Dial / サービス・キャラクタリスティック・ディスクリプターの探索 / 購読の失敗</td><td>true</td><td>一時的な無線エラーとみなし、即座にリトライ (遅延なし)</td></tr>
+  </tbody>
+</table>
+<p>リトライの間に待機がないため、実質的な上限は <code>ctx</code> のデッドラインです。<code>tesla-control</code> は <code>-connect-timeout</code>(デフォルト 20 秒)でこの ctx を作ります。接続後の <code>Vehicle.Connect</code> と <code>StartSession</code> も同じ ctx を共有するため、スキャンに時間がかかる環境では余裕を持って設定する必要があります。</p>
+
+<h2 id="sec-adapter">アダプター管理</h2>
+<p>パッケージはグローバルな <code>device ble.Device</code> 1 つとミューテックス <code>mu</code> を持ちます。Linux では <code>newDevice()</code> を複数回呼び出すと失敗するため、一度作ったアダプターを再利用します。</p>
+<table>
+  <thead><tr><th>関数</th><th>説明</th></tr></thead>
+  <tbody>
+    <tr><td><code>InitAdapterWithID(id string) error</code></td><td>指定したアダプターでグローバルな device を作る。デフォルトのアダプターを使う場合は呼び出さなくてよく、<code>ScanVehicleBeacon</code>/<code>NewConnection</code> が <code>initAdapter(nil)</code> で自動的に初期化する。デフォルト以外のアダプターを使うには、他の BLE 呼び出しより前に必ず呼び出す。Linux では <code>"hci0"</code>〜<code>"hci15"</code>、それ以外の形式は <code>ErrAdapterInvalidID</code>。macOS で空文字列以外の ID を渡すと警告の後 <code>ErrAdapterInvalidID</code>。</td></tr>
+    <tr><td><code>CloseAdapter() error</code></td><td><code>device.Stop()</code> の後、グローバル変数を nil にする。既存の接続を切ったりスキャンを止めたりはしないため、先に <code>Connection.Close()</code> とスキャン ctx のキャンセルを行う必要がある。その後、次の呼び出しで新しいアダプターが作られる。</td></tr>
+    <tr><td><code>IsAdapterError(err) bool</code></td><td>Linux: エラー文字列に <code>operation not permitted</code> が含まれるかどうか。macOS/Windows: 常に false (TODO)</td></tr>
+    <tr><td><code>AdapterErrorHelpMessage(err) string</code></td><td>Linux: <code>setcap 'cap_net_admin=eip'</code> の案内を含むメッセージ。それ以外: <code>err.Error()</code></td></tr>
+  </tbody>
+</table>
+<p><code>pkg/cli.Config.ConnectLocal</code> は <code>ble.InitAdapterWithID(c.BtAdapterID)</code> → <code>ble.NewConnection(ctx, c.VIN)</code> → <code>vehicle.NewVehicle(conn, skey, c.sessions)</code> の順に呼び出します。複数の車両に順次接続する長時間実行プロセスであれば、アダプターは一度だけ初期化し、<code>Connection</code> だけを開閉すれば済みます。</p>
+
+<h2 id="sec-platform">プラットフォームごとの実装の違い</h2>
+<table>
+  <thead><tr><th>項目</th><th>macOS (<code>device_darwin.go</code>)</th><th>Linux (<code>device_linux.go</code>)</th><th>Windows (<code>device_windows.go</code>)</th></tr></thead>
+  <tbody>
+    <tr><td>バックエンド</td><td>go-ble <code>darwin.NewDevice()</code> (CoreBluetooth、cbgo)</td><td>go-ble <code>linux.NewDeviceWithName("vehicle-command", opts...)</code> (raw HCI ソケット)</td><td><code>errors.New("not supported on Windows")</code></td></tr>
+    <tr><td>アダプター ID</td><td>指定不可</td><td><code>ble.OptDeviceID(N)</code>、<code>hciN</code> 0〜15</td><td>-</td></tr>
+    <tr><td>タイムアウト</td><td>go-ble のデフォルト</td><td><code>OptDialerTimeout</code>、<code>OptListenerTimeout</code> = <code>bleTimeout</code> 20 秒</td><td>-</td></tr>
+    <tr><td>スキャンパラメーター</td><td>CoreBluetooth のデフォルト</td><td><code>LESetScanParameters{LEScanType:1(active), LEScanInterval:0x10, LEScanWindow:0x10 (10ms), OwnAddressType:0, ScanningFilterPolicy:2}</code></td><td>-</td></tr>
+    <tr><td>権限</td><td>Bluetooth の権限プロンプト (アプリ単位)</td><td><code>CAP_NET_ADMIN</code> または root。go-ble が初期化時に <code>HCIDEVDOWN</code> を呼び出す</td><td>-</td></tr>
+    <tr><td><code>device.Scan</code> の動作</td><td>ctx のキャンセルまでブロックし、常にエラーを返す</td><td>一般的</td><td>-</td></tr>
+    <tr><td>アドバタイズ周期 (コードコメント)</td><td colspan="2">モデル/状態に応じて 20ms または 150ms 間隔でアドバタイズ</td><td>-</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sec-vcsec">VCSEC のレスポンス特性と並行性</h2>
+<p>BLE で直接接続すると、Fleet API が隠していた VCSEC の特性がそのまま表に出ます。dispatcher が処理しますが、動作を理解しておく必要があります。</p>
+<ul>
+  <li><strong><code>request_uuid</code> がない。</strong> VCSEC はメモリ制約のため、レスポンスにリクエスト UUID を入れません。そのため dispatcher は VCSEC に送るリクエストごとに<strong>ランダムな 16 バイトの <code>routing_address</code></strong> を新たに作り、レスポンスの <code>to_destination.routing_address</code> で待機中の receiver を探します(Infotainment は接続単位の固定アドレス + <code>request_uuid</code>)。</li>
+  <li><strong>同時リクエストの禁止。</strong> VCSEC はカウンターが順番どおりに届く必要があり、同時リクエストを区別しにくいため、一度に 1 つずつ送ります。<code>tesla-control</code> とプロキシ(<code>lockVIN</code>)はコマンドを直列化します。</li>
+  <li><strong>1 リクエストに最大 3 つのレスポンス。</strong> <code>OPERATIONSTATUS_WAIT</code>(NFC タップ待ちまたはビジー)、中間状態、最終結果が別々に届くことがあります。<code>pkg/vehicle/vcsec.go</code> の <code>readUntil</code> が、終了条件(<code>isTerminalTest</code>)が真になるまで receiver チャネルを読み続けます。たとえば <code>Lock</code> は <code>commandStatus</code> のない空メッセージを成功とみなし、whitelist 操作は <code>whitelistOperationStatus</code> が設定されたメッセージを終了とみなします。</li>
+  <li><strong><code>OPERATIONSTATUS_ERROR</code> は無視。</strong> レガシークライアント向けのもので、新しいクライアントは次のメッセージの具体的なエラーコードを待ちます。dispatcher はこの場合、<code>whitelistOperationInformation</code> が NONE でなければ <code>KeychainError</code>、<code>signedMessageStatus</code> がなければ <code>ErrUnknown</code> に変換します。</li>
+  <li><strong>Infotainment のスリープ。</strong> VCSEC のセッションだけを確立するには <code>StartSession(ctx, []Domain{DomainVCSEC})</code>。両方のドメインとハンドシェイクすると、スリープ中の Infotainment のために失敗するか、車両が起きるまで遅延します。</li>
+</ul>
+
+<h2 id="sec-seq">シーケンス図</h2>
+<div class="diagram">
+<svg viewBox="0 0 880 620" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="currentColor">
+  <defs><marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <g stroke="var(--border)" stroke-dasharray="4 4">
+    <line x1="120" y1="50" x2="120" y2="600"/><line x1="420" y1="50" x2="420" y2="600"/><line x1="760" y1="50" x2="760" y2="600"/>
+  </g>
+  <g font-weight="700" text-anchor="middle">
+    <rect x="40" y="18" width="160" height="26" rx="6" fill="var(--bg-alt)" stroke="var(--border)"/><text x="120" y="36">dispatcher / vehicle</text>
+    <rect x="340" y="18" width="160" height="26" rx="6" fill="var(--bg-alt)" stroke="var(--border)"/><text x="420" y="36">connector/ble</text>
+    <rect x="680" y="18" width="160" height="26" rx="6" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="760" y="36">車両 GATT サーバー</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3" marker-end="url(#arr3)">
+    <line x1="420" y1="80" x2="755" y2="80"/>
+    <line x1="760" y1="105" x2="425" y2="105"/>
+    <line x1="420" y1="135" x2="755" y2="135"/>
+    <line x1="420" y1="160" x2="755" y2="160"/>
+    <line x1="420" y1="185" x2="755" y2="185"/>
+    <line x1="420" y1="210" x2="755" y2="210"/>
+    <line x1="420" y1="235" x2="755" y2="235"/>
+    <line x1="760" y1="260" x2="425" y2="260"/>
+    <line x1="120" y1="310" x2="415" y2="310"/>
+    <line x1="420" y1="345" x2="755" y2="345"/>
+    <line x1="420" y1="370" x2="755" y2="370"/>
+    <line x1="420" y1="395" x2="755" y2="395"/>
+    <line x1="760" y1="440" x2="425" y2="440"/>
+    <line x1="760" y1="465" x2="425" y2="465"/>
+    <line x1="420" y1="505" x2="125" y2="505"/>
+    <line x1="760" y1="545" x2="425" y2="545"/>
+    <line x1="420" y1="580" x2="125" y2="580"/>
+  </g>
+  <g>
+    <text x="430" y="74">LE Scan (active) — LocalName == "S…C"?</text>
+    <text x="440" y="99">ADV_IND {LocalName, RSSI, Connectable}</text>
+    <text x="430" y="129">Connect (Dial)</text>
+    <text x="430" y="154">Discover Primary Service 0211</text>
+    <text x="430" y="179">Discover Characteristics 0212, 0213</text>
+    <text x="430" y="204">Discover Descriptors (CCCD)</text>
+    <text x="430" y="229">Write CCCD(0213) = indication · Exchange MTU(517)</text>
+    <text x="440" y="254">MTU rsp → blockLength = min(MTU,1024)-3</text>
+    <text x="130" y="304">Send(routableMessageBytes)</text>
+    <text x="130" y="336" fill="var(--fg-muted)">frame = len(2B BE) || bytes</text>
+    <text x="430" y="339">Write Request 0212: chunk 1 (≤ blockLength)</text>
+    <text x="430" y="364">Write Request 0212: chunk 2</text>
+    <text x="430" y="389">Write Request 0212: chunk n (それぞれ Write Response を受信)</text>
+    <text x="440" y="434">Indication 0213: [len_hi len_lo rsp[0..k]]</text>
+    <text x="440" y="459">Indication 0213: rsp[k..]  (rxTimeout 1s 以内)</text>
+    <text x="130" y="499">inbox &lt;- rsp  (Receive() チャネル)</text>
+    <text x="440" y="539">Indication 0213: 2 番目のレスポンス (VCSEC、同じ routing_address)</text>
+    <text x="130" y="574">inbox &lt;- rsp2 → receiver → readUntil 終了判定</text>
+  </g>
+</svg>
+</div>
+
+<h2 id="sec-impl">他の BLE スタックで実装する場合</h2>
+<p>Python(bleak)、Swift(CoreBluetooth)、Kotlin(Android BluetoothGatt)、Rust(btleplug)などでこのトランスポート層を再実装する際に守るべき条件です。詳しいチェックリストは <code>../md/10-porting-guide.md</code>。</p>
+<table>
+  <thead><tr><th>要件</th><th>詳細</th></tr></thead>
+  <tbody>
+    <tr><td>アドバタイズフィルター</td><td>Local Name が <code>S</code>+hex(SHA1(VIN)[:8])+<code>C</code> と完全に一致すること。サービス UUID がアドバタイズされるかどうかに依存しないこと</td></tr>
+    <tr><td>接続可能性</td><td>アドバタイズの connectable フラグがオフなら、接続を試みる代わりにユーザーに「他の鍵の接続を解除」するよう案内</td></tr>
+    <tr><td>サービス/キャラクタリスティック</td><td><code>0211</code> サービスで <code>0212</code>(write)、<code>0213</code>(indicate)を探索。128 ビット UUID で比較</td></tr>
+    <tr><td>書き込みモード</td><td><strong>Write With Response</strong>(ATT Write Request)。Write Without Response を使うと順序/フロー制御が崩れる可能性がある</td></tr>
+    <tr><td>通知モード</td><td><strong>Indication</strong> の購読(CCCD = 0x0002)。スタックが自動的に確認応答を送るかを確認</td></tr>
+    <tr><td>MTU</td><td>可能な最大値(517)を要求し、ネゴシエーション値から 3 を引いたサイズでチャンク分割。ネゴシエーションできなければ 20 バイト</td></tr>
+    <tr><td>フレーミング</td><td>2 バイト big-endian の長さプレフィックス。受信時はチャンクを蓄積し、長さが満たされるたびに 1 メッセージとして分離。1024 を超える長さは破棄。1 秒以上途切れたら部分バッファを破棄</td></tr>
+    <tr><td>レスポンスのマッチング</td><td>VCSEC: <code>to_destination.routing_address</code> のみでマッチング。Infotainment: routing_address + <code>request_uuid</code>。1 リクエストに複数のレスポンスを許容</td></tr>
+    <tr><td>並行性</td><td>車両ごとに一度に 1 つのリクエスト。書き込み呼び出しを直列化</td></tr>
+    <tr><td>認証方式</td><td>BLE では AES-GCM で暗号化したコマンドを使用 (<a href="04-protocol.html#sec-gcm">4. プロトコル仕様</a>)。HMAC の平文も車両は受け付けるが、公式実装は GCM</td></tr>
+    <tr><td>再接続</td><td>車両には 3 接続の制限があるため、使用後は必ず接続を解除。アプリがバックグラウンドに移ったら切断し、再度スキャン</td></tr>
+  </tbody>
+</table>
+
+<footer class="page-nav">
+  <a href="02-getting-started.html"><span>前へ</span>2. はじめに</a>
+  <a class="next" href="04-protocol.html"><span>次へ</span>4. プロトコル仕様</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

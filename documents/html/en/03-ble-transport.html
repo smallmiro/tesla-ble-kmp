@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>3. BLE Transport Layer · vehicle-command BLE Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<div class="layout">
+<nav class="sidebar">
+  <div class="brand">Tesla <span>vehicle-command</span></div>
+  <div class="sub">BLE Developer Manual · based on v0.4.1</div>
+  <div class="lang-switch" aria-label="Language"><a href="../ko/03-ble-transport.html" hreflang="ko" lang="ko">한국어</a><a class="active" href="../en/03-ble-transport.html" hreflang="en" lang="en">English</a><a href="../ja/03-ble-transport.html" hreflang="ja" lang="ja">日本語</a></div>
+  <ol>
+    <li><a href="index.html">Home</a></li>
+    <li class="group">Getting Started</li>
+    <li><a href="01-overview.html">1. System Overview</a></li>
+    <li><a href="02-getting-started.html">2. Getting Started</a></li>
+    <li class="group">Protocol</li>
+    <li><a class="active" href="03-ble-transport.html">3. BLE Transport Layer</a></li>
+    <li><a href="04-protocol.html">4. Protocol Specification</a></li>
+    <li class="group">Development</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI Tools</a></li>
+    <li><a href="07-command-reference.html">7. Command Reference</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP Proxy</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. Errors and Troubleshooting</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>3. BLE Transport Layer</h1>
+<p class="lead">How <code>pkg/connector/ble</code> exchanges bytes with the vehicle over GATT: advertised name, service/characteristic UUIDs, length framing, MTU chunking, scanning and connection retries, and platform differences.</p>
+
+<div class="toc"><strong>On this page</strong><ol>
+<li><a href="#sec-ids">Identifiers: UUIDs and the advertised name</a></li>
+<li><a href="#sec-gatt">GATT connection procedure</a></li>
+<li><a href="#sec-framing">Message framing and MTU</a></li>
+<li><a href="#sec-conn">Properties of the Connection type</a></li>
+<li><a href="#sec-scan">Scanning</a></li>
+<li><a href="#sec-retry">Connection retry loop</a></li>
+<li><a href="#sec-adapter">Adapter management</a></li>
+<li><a href="#sec-platform">Platform implementation differences</a></li>
+<li><a href="#sec-vcsec">VCSEC response characteristics and concurrency</a></li>
+<li><a href="#sec-seq">Sequence diagram</a></li>
+<li><a href="#sec-impl">Implementing with a different BLE stack</a></li>
+</ol></div>
+
+<div class="callout">
+  <strong>The transport layer knows nothing about cryptography</strong>
+  <p><code>ble.Connection</code> implements only the <code>connector.Connector</code> interface. In other words, it just sends and receives <code>[]byte</code>; protobuf, sessions, and signatures are all the job of the upper layers (<code>internal/dispatcher</code>, <code>internal/authentication</code>). This page covers only how those bytes are carried over the air.</p>
+</div>
+
+<h2 id="sec-ids">Identifiers: UUIDs and the advertised name</h2>
+<table>
+  <thead><tr><th>Item</th><th>Value</th><th>Go variable</th><th>Purpose</th></tr></thead>
+  <tbody>
+    <tr><td>GATT service</td><td><code>00000211-b2d1-43f0-9b88-960cebf8b91e</code></td><td><code>vehicleServiceUUID</code></td><td>Vehicle command service. Only this one service is discovered</td></tr>
+    <tr><td>Write characteristic (client → vehicle)</td><td><code>00000212-b2d1-43f0-9b88-960cebf8b91e</code></td><td><code>toVehicleUUID</code> / <code>Connection.txChar</code></td><td>Written with <strong>write with response</strong>. The SDK calls <code>WriteCharacteristic(txChar, chunk, false)</code> (noRsp=false)</td></tr>
+    <tr><td>Read characteristic (vehicle → client)</td><td><code>00000213-b2d1-43f0-9b88-960cebf8b91e</code></td><td><code>fromVehicleUUID</code> / <code>Connection.rxChar</code></td><td>Subscribed for <strong>indications</strong>. The SDK calls <code>Subscribe(rxChar, true, rx)</code> (ind=true)</td></tr>
+    <tr><td>Advertised Local Name</td><td><code>S</code> + hex(SHA1(VIN)[0:8]) + <code>C</code></td><td><code>VehicleLocalName(vin)</code></td><td>Filtering scan results. 18 characters in total</td></tr>
+  </tbody>
+</table>
+<h3>Computing the advertised name</h3>
+<p>The vehicle does not advertise its VIN directly. It advertises, as its Local Name, the first 8 bytes of the VIN's SHA-1 digest encoded as lowercase hex, prefixed with <code>S</code> and suffixed with <code>C</code>.</p>
+<pre><code class="language-go">// pkg/connector/ble/ble.go
+func VehicleLocalName(vin string) string {
+	vinBytes := []byte(vin)
+	digest := sha1.Sum(vinBytes)
+	return fmt.Sprintf("S%02xC", digest[:8])
+}</code></pre>
+<pre><code class="language-bash"># Check from the shell: VIN 5YJS0000000000000 → S1a87a5a75f3df858C
+printf '5YJS0000000000000' | shasum | cut -c1-16 | sed 's/^/S/; s/$/C/'
+# S1a87a5a75f3df858C</code></pre>
+<p>The scan callback ignores the advertisement if <code>a.LocalName() != localName</code>. If an advertisement with a different name is passed in where a matching one was expected, <code>tryToConnect</code> raises the error <code>ble: beacon with unexpected local name</code> and does not retry.</p>
+
+<h2 id="sec-gatt">GATT connection procedure</h2>
+<p>This is the sequence performed by <code>tryToConnect</code>. A failure at each step is classified as <code>retry=true</code> (retryable), except for adapter errors, name mismatches, and non-connectable advertisements.</p>
+<ol class="steps">
+  <li><strong>Adapter initialization</strong> <code>initAdapter(nil)</code>. Reuses the global <code>device</code> if it already exists.</li>
+  <li><strong>Scan</strong> (when target is nil) obtains the advertised address with <code>scanVehicleBeacon(ctx, localName)</code>.</li>
+  <li><strong>Connectability check</strong> If <code>target.Connectable == false</code>, returns <code>ErrMaxConnectionsExceeded</code> with no retry.</li>
+  <li><strong>Dial</strong> <code>device.Dial(ctx, ble.NewAddr(target.Address))</code>.</li>
+  <li><strong>Service discovery</strong> <code>client.DiscoverServices([]ble.UUID{vehicleServiceUUID})</code>. If the result is empty, <code>failed to discover service</code>.</li>
+  <li><strong>Characteristic discovery</strong> <code>client.DiscoverCharacteristics([]ble.UUID{toVehicleUUID, fromVehicleUUID}, services[0])</code>. If both characteristics are not found, <code>failed to find required characteristics</code>.</li>
+  <li><strong>Descriptor discovery</strong> <code>client.DiscoverDescriptors(nil, characteristic)</code> for each characteristic. go-ble must find the CCCD (0x2902) for subscription to work.</li>
+  <li><strong>Subscribe</strong> <code>client.Subscribe(conn.rxChar, true, conn.rx)</code>: enables indications on the <code>0213</code> characteristic and registers the receive callback <code>rx</code>.</li>
+  <li><strong>MTU exchange</strong> <code>client.ExchangeMTU(ble.MaxMTU)</code>. On success, <code>blockLength = min(txMtu, 1024) - 3</code>; on failure, logs a warning and falls back to <code>ble.DefaultMTU - 3</code> (= 20 bytes). The 3 bytes are the ATT Write Request header (opcode 1 + handle 2).</li>
+</ol>
+<p>On success, <code>[info ] Connected to vehicle BLE</code> is logged and a <code>*Connection</code> is returned. <code>Close()</code> calls <code>ClearSubscriptions()</code> and <code>CancelConnection()</code> and is safe to call multiple times.</p>
+
+<h2 id="sec-framing">Message framing and MTU</h2>
+<p>A single BLE characteristic write is bound by the MTU, but a <code>RoutableMessage</code> can be hundreds of bytes long, so the SDK treats the link as a <strong>length-prefixed stream</strong>.</p>
+<div class="diagram"><pre>
+  Transmit (Send):
+  ┌────────────┬──────────────────────────────────────────────┐
+  │ len (2B BE)│ RoutableMessage (protobuf, ≤ 1024 B)          │
+  └────────────┴──────────────────────────────────────────────┘
+        └──────── split into blockLength-byte chunks, write-with-response to 0212 ────────┘
+        chunk#1 [len_hi len_lo msg[0..]]  chunk#2 [msg[..]]  chunk#3 [...]
+
+  Receive (rx callback, 0213 indication):
+  inputBuffer ← append(chunk)  →  flush(): read length from the first 2 bytes
+                                  → once enough has arrived, deliver 1 message to the inbox channel; repeat
+</pre></div>
+<table>
+  <thead><tr><th>Constant/field</th><th>Value</th><th>Meaning</th></tr></thead>
+  <tbody>
+    <tr><td><code>maxBLEMessageSize</code></td><td>1024</td><td>A received message whose length prefix exceeds this value causes the buffer to be cleared and the message discarded. Also used as the upper bound on the transmit block length</td></tr>
+    <tr><td><code>maxBLEMTUSize</code></td><td><code>ble.MaxMTU</code> (defined by go-ble, ATT maximum 517)</td><td>Client-side maximum MTU requested in <code>ExchangeMTU</code></td></tr>
+    <tr><td><code>Connection.blockLength</code></td><td><code>min(MTU, 1024) - 3</code>, fallback <code>ble.DefaultMTU - 3</code> (= 20)</td><td>Maximum bytes carried in a single characteristic write</td></tr>
+    <tr><td><code>rxTimeout</code></td><td>1 second</td><td>If this much time passes after the last received chunk, <code>inputBuffer</code> is discarded and the next data is treated as a new message (partial-receive recovery)</td></tr>
+    <tr><td><code>inbox</code></td><td><code>chan []byte</code>, buffer 5</td><td>Queue of completed messages. When full, <code>flush</code> drops the message and returns <code>false</code></td></tr>
+  </tbody>
+</table>
+<h3>Transmit code</h3>
+<pre><code class="language-go">func (c *Connection) Send(_ context.Context, buffer []byte) error {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+	var out []byte
+	out = append(out, uint8(len(buffer)&gt;&gt;8), uint8(len(buffer)))  // 2-byte big-endian length
+	out = append(out, buffer...)
+	blockLength := c.blockLength
+	for len(out) &gt; 0 {
+		if blockLength &gt; len(out) { blockLength = len(out) }
+		if err := c.client.WriteCharacteristic(c.txChar, out[:blockLength], false); err != nil {
+			return err
+		}
+		out = out[blockLength:]
+	}
+	return nil
+}</code></pre>
+<p><code>Send</code> ignores <code>ctx</code> (go-ble's write API takes no context). A mutex ensures only one message is written at a time, so chunks never interleave.</p>
+<h3>Receive code</h3>
+<pre><code class="language-go">func (c *Connection) rx(p []byte) {
+	if time.Since(c.lastRx) &gt; rxTimeout {
+		c.inputBuffer = []byte{}          // discard stale partial message
+	}
+	c.lastRx = time.Now()
+	c.inputBuffer = append(c.inputBuffer, p...)
+	for c.flush() {}                       // deliver every complete message in the buffer
+}
+
+func (c *Connection) flush() bool {
+	if len(c.inputBuffer) &gt;= 2 {
+		msgLength := 256*int(c.inputBuffer[0]) + int(c.inputBuffer[1])
+		if msgLength &gt; maxBLEMessageSize { c.inputBuffer = []byte{}; return false }
+		if len(c.inputBuffer) &gt;= 2+msgLength {
+			buffer := c.inputBuffer[2 : 2+msgLength]
+			c.inputBuffer = c.inputBuffer[2+msgLength:]
+			select {
+			case c.inbox &lt;- buffer:
+			default:
+				return false                 // inbox full: drop message
+			}
+			return true
+		}
+	}
+	return false
+}</code></pre>
+<div class="callout warn">
+  <strong>The receive path has no locking</strong>
+  <p><code>rx</code> and <code>flush</code> assume they are called sequentially from go-ble's notification goroutine and have no locks of their own. When porting to another BLE stack where callbacks may arrive in parallel, you need to serialize them.</p>
+</div>
+
+<h2 id="sec-conn">Properties of the Connection type</h2>
+<table>
+  <thead><tr><th>Method</th><th>Returns</th><th>Meaning for upper layers</th></tr></thead>
+  <tbody>
+    <tr><td><code>PreferredAuthMethod()</code></td><td><code>connector.AuthMethodGCM</code></td><td>BLE commands are <strong>encrypted</strong> with AES-GCM (the internet uses HMAC)</td></tr>
+    <tr><td><code>RetryInterval()</code></td><td>1 second</td><td>Retransmission interval for <code>Vehicle.Send</code> and <code>StartSession</code></td></tr>
+    <tr><td><code>AllowedLatency()</code></td><td><code>maxLatency</code> = 4 seconds</td><td>A <code>session_info</code> arriving later than this after the request is discarded rather than used for clock synchronization (<code>receiver.expired</code>)</td></tr>
+    <tr><td><code>Receive()</code></td><td><code>&lt;-chan []byte</code></td><td>Bytes of completed <code>RoutableMessage</code>s</td></tr>
+    <tr><td><code>VIN()</code></td><td>The VIN passed at creation</td><td>Used for the metadata <code>TAG_PERSONALIZATION</code></td></tr>
+    <tr><td><code>Close()</code></td><td>-</td><td>Unsubscribes and cancels the connection. Idempotent</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sec-scan">Scanning</h2>
+<pre><code class="language-go">type ScanResult struct {
+	Address     string  // advertised address (CoreBluetooth identifier on macOS, MAC on Linux)
+	LocalName   string  // "S…C"
+	RSSI        int16   // dBm
+	Connectable bool    // false means the vehicle has already reached its maximum number of connections
+}
+
+func ScanVehicleBeacon(ctx context.Context, vin string) (*ScanResult, error)</code></pre>
+<ul>
+  <li><code>ScanVehicleBeacon</code> initializes the adapter and returns the first advertisement matching <code>VehicleLocalName(vin)</code>. It keeps scanning until ctx expires.</li>
+  <li>The internal <code>scanVehicleBeacon</code> cancels a derived context to stop <code>device.Scan</code> once it finds a matching advertisement. On macOS, <code>device.Scan</code> does not return until the context is cancelled and always returns <code>context.Canceled</code>, so the code treats only errors for which <code>errors.Is(err, context.Canceled)</code> is false as failures.</li>
+  <li><code>Connectable == false</code>: due to hardware constraints, the vehicle (VCSEC) maintains <strong>at most 3 BLE connections at a time</strong>, shared by key fobs and phone keys. Attempting to connect in this state immediately returns <code>ErrMaxConnectionsExceeded</code> ("the vehicle is already connected to the maximum number of BLE devices"). Turn off nearby phone keys or move them away from the car.</li>
+  <li>There is no logic to pick the nearest of several vehicles by RSSI. It is unnecessary because there is only one vehicle with a given VIN.</li>
+  <li>To scan only, see the <code>-scan-only</code> flag in <code>examples/ble</code>. The result of <code>ScanVehicleBeacon</code> can be passed to <code>NewConnectionFromScanResult</code> to skip rescanning.</li>
+</ul>
+
+<h2 id="sec-retry">Connection retry loop</h2>
+<pre><code class="language-go">func NewConnection(ctx context.Context, vin string) (*Connection, error) {
+	return NewConnectionFromScanResult(ctx, vin, nil)
+}
+
+func NewConnectionFromScanResult(ctx context.Context, vin string, target *ScanResult) (*Connection, error) {
+	var lastError error
+	for {
+		conn, retry, err := tryToConnect(ctx, vin, target)
+		if err == nil { return conn, nil }
+		if !retry || IsAdapterError(err) { return nil, err }   // fatal: give up immediately
+		log.Warning("BLE connection attempt failed: %s", err)
+		if err := ctx.Err(); err != nil {                        // ctx expired: return the last real error
+			if lastError != nil { return nil, lastError }
+			return nil, err
+		}
+		lastError = err
+	}
+}</code></pre>
+<table>
+  <thead><tr><th><code>tryToConnect</code> failure point</th><th>retry</th><th>Notes</th></tr></thead>
+  <tbody>
+    <tr><td><code>initAdapter</code> fails</td><td>false</td><td>Permission/hardware problem. On Linux, also caught by <code>IsAdapterError</code></td></tr>
+    <tr><td>Scan fails (including ctx expiry)</td><td>true</td><td>The loop checks <code>ctx.Err()</code> and exits</td></tr>
+    <tr><td>Local Name mismatch</td><td>false</td><td>When an incorrect <code>ScanResult</code> was passed in</td></tr>
+    <tr><td><code>Connectable == false</code></td><td>false</td><td><code>ErrMaxConnectionsExceeded</code></td></tr>
+    <tr><td>Dial / service, characteristic, descriptor discovery / subscribe fails</td><td>true</td><td>Treated as a transient radio error; retried immediately (no delay)</td></tr>
+  </tbody>
+</table>
+<p>Because there is no wait between retries, the effective upper bound is the deadline of <code>ctx</code>. <code>tesla-control</code> creates this ctx with <code>-connect-timeout</code> (default 20 seconds). After connecting, <code>Vehicle.Connect</code> and <code>StartSession</code> share the same ctx, so set it generously in environments where scanning takes a long time.</p>
+
+<h2 id="sec-adapter">Adapter management</h2>
+<p>The package holds a single global <code>device ble.Device</code> and a mutex <code>mu</code>. Calling <code>newDevice()</code> multiple times fails on Linux, so an adapter, once created, is reused.</p>
+<table>
+  <thead><tr><th>Function</th><th>Description</th></tr></thead>
+  <tbody>
+    <tr><td><code>InitAdapterWithID(id string) error</code></td><td>Creates the global device using the specified adapter. You do not need to call it when using the default adapter; <code>ScanVehicleBeacon</code>/<code>NewConnection</code> initialize automatically via <code>initAdapter(nil)</code>. To use a non-default adapter, you must call it before any other BLE call. On Linux, <code>"hci0"</code>–<code>"hci15"</code>; any other format yields <code>ErrAdapterInvalidID</code>. On macOS, passing a non-empty ID logs a warning and yields <code>ErrAdapterInvalidID</code>.</td></tr>
+    <tr><td><code>CloseAdapter() error</code></td><td>Calls <code>device.Stop()</code> and sets the global variable to nil. It does not close existing connections or stop scans, so you must first call <code>Connection.Close()</code> and cancel the scan ctx. A new adapter is then created on the next call.</td></tr>
+    <tr><td><code>IsAdapterError(err) bool</code></td><td>Linux: whether the error string contains <code>operation not permitted</code>. macOS/Windows: always false (TODO)</td></tr>
+    <tr><td><code>AdapterErrorHelpMessage(err) string</code></td><td>Linux: a message including <code>setcap 'cap_net_admin=eip'</code> guidance. Elsewhere: <code>err.Error()</code></td></tr>
+  </tbody>
+</table>
+<p><code>pkg/cli.Config.ConnectLocal</code> calls <code>ble.InitAdapterWithID(c.BtAdapterID)</code> → <code>ble.NewConnection(ctx, c.VIN)</code> → <code>vehicle.NewVehicle(conn, skey, c.sessions)</code> in that order. For a long-running process that connects to multiple vehicles in sequence, initialize the adapter once and just open and close <code>Connection</code>s.</p>
+
+<h2 id="sec-platform">Platform implementation differences</h2>
+<table>
+  <thead><tr><th>Item</th><th>macOS (<code>device_darwin.go</code>)</th><th>Linux (<code>device_linux.go</code>)</th><th>Windows (<code>device_windows.go</code>)</th></tr></thead>
+  <tbody>
+    <tr><td>Backend</td><td>go-ble <code>darwin.NewDevice()</code> (CoreBluetooth, cbgo)</td><td>go-ble <code>linux.NewDeviceWithName("vehicle-command", opts...)</code> (raw HCI socket)</td><td><code>errors.New("not supported on Windows")</code></td></tr>
+    <tr><td>Adapter ID</td><td>Cannot be specified</td><td><code>ble.OptDeviceID(N)</code>, <code>hciN</code> 0–15</td><td>-</td></tr>
+    <tr><td>Timeouts</td><td>go-ble defaults</td><td><code>OptDialerTimeout</code>, <code>OptListenerTimeout</code> = <code>bleTimeout</code> 20 seconds</td><td>-</td></tr>
+    <tr><td>Scan parameters</td><td>CoreBluetooth defaults</td><td><code>LESetScanParameters{LEScanType:1(active), LEScanInterval:0x10, LEScanWindow:0x10 (10ms), OwnAddressType:0, ScanningFilterPolicy:2}</code></td><td>-</td></tr>
+    <tr><td>Permissions</td><td>Bluetooth permission prompt (per app)</td><td><code>CAP_NET_ADMIN</code> or root. go-ble calls <code>HCIDEVDOWN</code> during initialization</td><td>-</td></tr>
+    <tr><td><code>device.Scan</code> behavior</td><td>Blocks until ctx is cancelled; always returns an error</td><td>Normal</td><td>-</td></tr>
+    <tr><td>Advertising interval (code comment)</td><td colspan="2">Advertises at 20 ms or 150 ms intervals depending on model/state</td><td>-</td></tr>
+  </tbody>
+</table>
+
+<h2 id="sec-vcsec">VCSEC response characteristics and concurrency</h2>
+<p>With a direct BLE connection, VCSEC characteristics that the Fleet API used to hide are exposed as-is. The dispatcher handles them, but you should understand the behavior.</p>
+<ul>
+  <li><strong>There is no <code>request_uuid</code>.</strong> Due to memory constraints, VCSEC does not fill in the request UUID in responses. The dispatcher therefore generates a fresh <strong>random 16-byte <code>routing_address</code></strong> for every request sent to VCSEC, and finds the waiting receiver by the response's <code>to_destination.routing_address</code> (Infotainment uses a fixed per-connection address + <code>request_uuid</code>).</li>
+  <li><strong>No concurrent requests.</strong> VCSEC requires counters to arrive in order and has difficulty distinguishing concurrent requests, so requests are sent one at a time. <code>tesla-control</code> and the proxy (<code>lockVIN</code>) serialize commands.</li>
+  <li><strong>Up to 3 responses per request.</strong> <code>OPERATIONSTATUS_WAIT</code> (waiting for an NFC tap, or busy), an intermediate status, and the final result may arrive separately. <code>readUntil</code> in <code>pkg/vehicle/vcsec.go</code> keeps reading the receiver channel until the termination condition (<code>isTerminalTest</code>) is true. For example, <code>Lock</code> treats an empty message without <code>commandStatus</code> as success, and whitelist operations treat a message with <code>whitelistOperationStatus</code> filled in as terminal.</li>
+  <li><strong><code>OPERATIONSTATUS_ERROR</code> is ignored.</strong> It exists for legacy clients; new clients wait for the specific error code in the next message. In this case the dispatcher converts it to a <code>KeychainError</code> if <code>whitelistOperationInformation</code> is not NONE, or to <code>ErrUnknown</code> if there is no <code>signedMessageStatus</code>.</li>
+  <li><strong>Infotainment sleep.</strong> To establish only a VCSEC session, use <code>StartSession(ctx, []Domain{DomainVCSEC})</code>. Handshaking with both domains either fails because Infotainment is asleep, or is delayed until the vehicle wakes up.</li>
+</ul>
+
+<h2 id="sec-seq">Sequence diagram</h2>
+<div class="diagram">
+<svg viewBox="0 0 880 620" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, Menlo, monospace" font-size="12" fill="currentColor">
+  <defs><marker id="arr3" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <g stroke="var(--border)" stroke-dasharray="4 4">
+    <line x1="120" y1="50" x2="120" y2="600"/><line x1="420" y1="50" x2="420" y2="600"/><line x1="760" y1="50" x2="760" y2="600"/>
+  </g>
+  <g font-weight="700" text-anchor="middle">
+    <rect x="40" y="18" width="160" height="26" rx="6" fill="var(--bg-alt)" stroke="var(--border)"/><text x="120" y="36">dispatcher / vehicle</text>
+    <rect x="340" y="18" width="160" height="26" rx="6" fill="var(--bg-alt)" stroke="var(--border)"/><text x="420" y="36">connector/ble</text>
+    <rect x="680" y="18" width="160" height="26" rx="6" fill="var(--accent-soft)" stroke="var(--accent)"/><text x="760" y="36">Vehicle GATT server</text>
+  </g>
+  <g stroke="currentColor" stroke-width="1.3" marker-end="url(#arr3)">
+    <line x1="420" y1="80" x2="755" y2="80"/>
+    <line x1="760" y1="105" x2="425" y2="105"/>
+    <line x1="420" y1="135" x2="755" y2="135"/>
+    <line x1="420" y1="160" x2="755" y2="160"/>
+    <line x1="420" y1="185" x2="755" y2="185"/>
+    <line x1="420" y1="210" x2="755" y2="210"/>
+    <line x1="420" y1="235" x2="755" y2="235"/>
+    <line x1="760" y1="260" x2="425" y2="260"/>
+    <line x1="120" y1="310" x2="415" y2="310"/>
+    <line x1="420" y1="345" x2="755" y2="345"/>
+    <line x1="420" y1="370" x2="755" y2="370"/>
+    <line x1="420" y1="395" x2="755" y2="395"/>
+    <line x1="760" y1="440" x2="425" y2="440"/>
+    <line x1="760" y1="465" x2="425" y2="465"/>
+    <line x1="420" y1="505" x2="125" y2="505"/>
+    <line x1="760" y1="545" x2="425" y2="545"/>
+    <line x1="420" y1="580" x2="125" y2="580"/>
+  </g>
+  <g>
+    <text x="430" y="74">LE Scan (active) — LocalName == "S…C"?</text>
+    <text x="440" y="99">ADV_IND {LocalName, RSSI, Connectable}</text>
+    <text x="430" y="129">Connect (Dial)</text>
+    <text x="430" y="154">Discover Primary Service 0211</text>
+    <text x="430" y="179">Discover Characteristics 0212, 0213</text>
+    <text x="430" y="204">Discover Descriptors (CCCD)</text>
+    <text x="430" y="229">Write CCCD(0213) = indication · Exchange MTU(517)</text>
+    <text x="440" y="254">MTU rsp → blockLength = min(MTU,1024)-3</text>
+    <text x="130" y="304">Send(routableMessageBytes)</text>
+    <text x="130" y="336" fill="var(--fg-muted)">frame = len(2B BE) || bytes</text>
+    <text x="430" y="339">Write Request 0212: chunk 1 (≤ blockLength)</text>
+    <text x="430" y="364">Write Request 0212: chunk 2</text>
+    <text x="430" y="389">Write Request 0212: chunk n (each receives a Write Response)</text>
+    <text x="440" y="434">Indication 0213: [len_hi len_lo rsp[0..k]]</text>
+    <text x="440" y="459">Indication 0213: rsp[k..]  (within rxTimeout 1s)</text>
+    <text x="130" y="499">inbox &lt;- rsp  (Receive() channel)</text>
+    <text x="440" y="539">Indication 0213: second response (VCSEC, same routing_address)</text>
+    <text x="130" y="574">inbox &lt;- rsp2 → receiver → readUntil decides termination</text>
+  </g>
+</svg>
+</div>
+
+<h2 id="sec-impl">Implementing with a different BLE stack</h2>
+<p>These are the conditions you must meet when reimplementing this transport layer in Python (bleak), Swift (CoreBluetooth), Kotlin (Android BluetoothGatt), Rust (btleplug), and so on. For the detailed checklist, see <code>../md/10-porting-guide.md</code>.</p>
+<table>
+  <thead><tr><th>Requirement</th><th>Details</th></tr></thead>
+  <tbody>
+    <tr><td>Advertisement filter</td><td>The Local Name must exactly match <code>S</code>+hex(SHA1(VIN)[:8])+<code>C</code>. Do not rely on whether the service UUID is advertised</td></tr>
+    <tr><td>Connectability</td><td>If the advertisement's connectable flag is off, instead of attempting to connect, tell the user to "disconnect other keys"</td></tr>
+    <tr><td>Service/characteristics</td><td>Discover <code>0212</code> (write) and <code>0213</code> (indicate) in service <code>0211</code>. Compare 128-bit UUIDs</td></tr>
+    <tr><td>Write mode</td><td><strong>Write With Response</strong> (ATT Write Request). Using Write Without Response may break ordering/flow control</td></tr>
+    <tr><td>Notification mode</td><td>Subscribe to <strong>indications</strong> (CCCD = 0x0002). Check that your stack sends confirmations automatically</td></tr>
+    <tr><td>MTU</td><td>Request the maximum possible (517) and split into chunks of the negotiated value minus 3. If negotiation fails, 20 bytes</td></tr>
+    <tr><td>Framing</td><td>2-byte big-endian length prefix. On receive, accumulate chunks and split off one message each time the length is satisfied. Discard lengths over 1024. Discard the partial buffer after a gap of 1 second or more</td></tr>
+    <tr><td>Response matching</td><td>VCSEC: match by <code>to_destination.routing_address</code> alone. Infotainment: routing_address + <code>request_uuid</code>. Allow multiple responses per request</td></tr>
+    <tr><td>Concurrency</td><td>One request at a time per vehicle. Serialize write calls</td></tr>
+    <tr><td>Authentication method</td><td>Use AES-GCM encrypted commands over BLE (<a href="04-protocol.html#sec-gcm">4. Protocol Specification</a>). The vehicle also accepts HMAC plaintext, but the official implementation uses GCM</td></tr>
+    <tr><td>Reconnection</td><td>The vehicle has a 3-connection limit, so always disconnect after use. When the app goes to the background, disconnect and scan again</td></tr>
+  </tbody>
+</table>
+
+<footer class="page-nav">
+  <a href="02-getting-started.html"><span>Previous</span>2. Getting Started</a>
+  <a class="next" href="04-protocol.html"><span>Next</span>4. Protocol Specification</a>
+</footer>
+</main>
+</div>
+</body>
+</html>
