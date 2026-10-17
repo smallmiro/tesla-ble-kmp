@@ -385,7 +385,7 @@ uuid: 58406580528b6a5301391800b4fe9b99</code></pre>
 <h3>カウンターの検証</h3>
 <p>レスポンスの <code>counter</code> が、<strong>同じリクエストに対する以前のレスポンスですでに使われた値でないこと</strong>を検証する必要があります。1 つのリクエストが複数のレスポンスを引き起こすことがあり、順序が入れ替わることもあります。この検査を省くとリプレイ攻撃に対して脆弱になります。Go: receiver ごとに <code>authentication.SlidingWindow</code> を置き、<code>session.decrypt</code> で <code>antireplay.Update(counter)</code> が false なら <code>ErrReplayedResponse</code> として破棄(<code>internal/authentication/window.go</code>)。</p>
 <h3>レスポンスメタデータ</h3>
-<p>AES-GCM で、鍵 <code>K</code>、レスポンスの nonce と tag、そして以下のメタデータのシリアライズを AAD として使って復号します。リクエストと異なり、<strong>flags は 0 でも常に含め</strong>、fault は 32 ビット big-endian でエンコードします。</p>
+<p>AES-GCM で、鍵 <code>K</code>、レスポンスの nonce と tag、そして以下のメタデータをシリアライズした値の SHA-256 ダイジェスト <code>SHA256(TLV || 0xFF)</code> を AAD として使って復号します(リクエストと同じ方式です。Go の <code>responseMetadata</code> は <code>Checksum(nil)</code> を AAD として渡します)。リクエストと異なり、<strong>flags は 0 でも常に含め</strong>、fault は 32 ビット big-endian でエンコードします。</p>
 <table>
   <thead><tr><th>値</th><th>Tag</th><th>説明</th></tr></thead>
   <tbody>

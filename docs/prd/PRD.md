@@ -276,7 +276,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 |---|---|---|---|---|---|
 | FR-110 | Android 샘플(Compose): VIN 입력, 스캔, 페어링(진행 상태), 키 목록, 잠금/해제/트렁크, VehicleStatus, 깨우기, 공조 on/off, 충전 시작/정지, GetState 1개 이상, 결과 불확실 표시, 디버그 로그 보기 | P0 | – | `examples/ble` | `06-cli-tools examples/`, `09-recipes R1, R4~R6` |
 | FR-111 | iOS 샘플(SwiftUI): FR-110과 같은 흐름을 SKIE Swift API로 구현 | P0 | – | 〃 | 〃 |
-| FR-112 | 디버그 로거 포트: TX/RX 헥사는 디버그 모드에서만, VIN 마스킹, 키·세션키·복호화 전 페이로드는 어떤 레벨에서도 출력하지 않음 | P0 | – | `internal/log`, `-debug` | `08-errors §9.1`, `10-porting-guide §12` |
+| FR-112 | 디버그 로거 포트: TX/RX 헥사는 디버그 모드에서만, VIN 마스킹, 키·세션키·복호화된(평문) 페이로드는 어떤 레벨에서도 출력하지 않음 | P0 | – | `internal/log`, `-debug` | `08-errors §9.1`, `10-porting-guide §12` |
 
 ### 5.13 HANDOFF §5 ↔ FR 추적 요약
 

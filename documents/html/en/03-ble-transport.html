@@ -72,7 +72,7 @@ func VehicleLocalName(vin string) string {
 <pre><code class="language-bash"># Check from the shell: VIN 5YJS0000000000000 → S1a87a5a75f3df858C
 printf '5YJS0000000000000' | shasum | cut -c1-16 | sed 's/^/S/; s/$/C/'
 # S1a87a5a75f3df858C</code></pre>
-<p>The scan callback ignores the advertisement if <code>a.LocalName() != localName</code>. If an advertisement with a different name is passed in where a matching one was expected, <code>tryToConnect</code> raises the error <code>ble: beacon with unexpected local name</code> and does not retry.</p>
+<p>The scan callback ignores the advertisement if <code>a.LocalName() != localName</code>. If the caller passes a <code>ScanResult</code> whose name differs from the one computed from the VIN, <code>tryToConnect</code> raises the error <code>ble: beacon with unexpected local name</code> and does not retry.</p>
 
 <h2 id="sec-gatt">GATT connection procedure</h2>
 <p>This is the sequence performed by <code>tryToConnect</code>. A failure at each step is classified as <code>retry=true</code> (retryable), except for adapter errors, name mismatches, and non-connectable advertisements.</p>

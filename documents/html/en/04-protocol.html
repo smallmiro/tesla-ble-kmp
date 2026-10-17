@@ -385,7 +385,7 @@ uuid: 58406580528b6a5301391800b4fe9b99</code></pre>
 <h3>Counter verification</h3>
 <p>The client must verify that the response's <code>counter</code> <strong>has not already been used by a previous response to the same request</strong>. A single request can trigger multiple responses, and they can arrive out of order. Omitting this check leaves the client vulnerable to replay attacks. Go: each receiver has an <code>authentication.SlidingWindow</code>, and in <code>session.decrypt</code> the response is discarded with <code>ErrReplayedResponse</code> if <code>antireplay.Update(counter)</code> returns false (<code>internal/authentication/window.go</code>).</p>
 <h3>Response metadata</h3>
-<p>Decrypt with AES-GCM using key <code>K</code>, the response's nonce and tag, and the serialization of the metadata below as AAD. Unlike requests, <strong>flags are always included, even when 0</strong>, and the fault is encoded as a 32-bit big-endian value.</p>
+<p>Decrypt with AES-GCM using key <code>K</code>, the response's nonce and tag, and the SHA-256 digest of the serialized metadata below, <code>SHA256(TLV || 0xFF)</code>, as AAD (the same construction as for requests; Go's <code>responseMetadata</code> passes <code>Checksum(nil)</code> as AAD). Unlike requests, <strong>flags are always included, even when 0</strong>, and the fault is encoded as a 32-bit big-endian value.</p>
 <table>
   <thead><tr><th>Value</th><th>Tag</th><th>Description</th></tr></thead>
   <tbody>
