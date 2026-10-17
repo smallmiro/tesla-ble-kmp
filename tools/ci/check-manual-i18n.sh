@@ -4,19 +4,29 @@
 #   - documents/html/{ko,en,ja}/ 의 파일 목록이 같다
 #   - 페이지마다 <html lang> 이 폴더 언어와 같고, id 집합과 href 순서가 ko/ 와 같다
 #     (언어 전환 링크의 class="active" 위치만 다를 수 있다)
+#   - 페이지마다 태그 이름별 개수가 ko/ 와 같다 (문단·목록·표 행 누락 탐지. 어순 때문에 순서는 비교하지 않는다)
 #   - en/, ja/ 에는 언어 전환 링크의 "한국어" 라벨 말고는 한글이 없다
 # 인자로 저장소 루트를 넘기면 그 경로를 검사한다(검사 스크립트 자체를 시험할 때).
 set -euo pipefail
 ROOT="${1:-$(cd "$(dirname "$0")/../.." && pwd)}"
 python3 -I - "$ROOT" <<'PY'
-import pathlib, re, sys
+import collections, pathlib, re, sys
 
 root = pathlib.Path(sys.argv[1])
 md_dir = root / "documents/md"
 html_dir = root / "documents/html"
-hangul = re.compile("[ᄀ-ᇿ㄰-㆏가-힣]")
+hangul = re.compile("[\u1100-\u11ff\u3130-\u318f\uac00-\ud7a3]")  # 한글 자모, 호환 자모, 음절
 langs = ["ko", "en", "ja"]
 errors = []
+
+# 폴더가 옮겨졌거나 경로가 틀리면 아무것도 검사하지 않고 통과하는 일을 막는다.
+for d in [md_dir] + [html_dir / lang for lang in langs]:
+    if not d.is_dir():
+        print(f"{d}: directory missing")
+        sys.exit(1)
+if not any(md_dir.glob("*.md")) or not any((html_dir / "ko").glob("*.html")):
+    print(f"{root}: no manual pages found under documents/md or documents/html/ko")
+    sys.exit(1)
 
 for p in sorted(md_dir.glob("*.md")):
     for n, line in enumerate(p.read_text(encoding="utf-8").splitlines(), 1):
@@ -33,10 +43,11 @@ for lang in langs[1:]:
 def shape(text):
     ids = sorted(re.findall(r'\bid="([^"]+)"', text))
     hrefs = re.findall(r'\bhref="([^"]+)"', text)
-    return ids, hrefs
+    tags = collections.Counter(re.findall(r"<([a-zA-Z][a-zA-Z0-9]*)", text))
+    return ids, hrefs, tags
 
 for name in pages["ko"]:
-    base_ids, base_hrefs = shape((html_dir / "ko" / name).read_text(encoding="utf-8"))
+    base_ids, base_hrefs, base_tags = shape((html_dir / "ko" / name).read_text(encoding="utf-8"))
     for lang in langs:
         p = html_dir / lang / name
         if not p.exists():
@@ -47,11 +58,14 @@ for name in pages["ko"]:
             errors.append(f"{rel}: <html lang> must be \"{lang}\"")
         if lang == "ko":
             continue
-        ids, hrefs = shape(text)
+        ids, hrefs, tags = shape(text)
         if ids != base_ids:
             errors.append(f"{rel}: id set differs from ko/{name}")
         if hrefs != base_hrefs:
             errors.append(f"{rel}: href list differs from ko/{name}")
+        if tags != base_tags:
+            diff = {t: (base_tags[t], tags[t]) for t in set(base_tags) | set(tags) if base_tags[t] != tags[t]}
+            errors.append(f"{rel}: tag counts differ from ko/{name} (ko, {lang}): {diff}")
         for n, line in enumerate(text.splitlines(), 1):
             if hangul.search(line.replace("한국어", "")):
                 errors.append(f"{rel}:{n}: Hangul outside the language switcher")
