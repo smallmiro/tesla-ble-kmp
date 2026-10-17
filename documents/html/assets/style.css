@@ -1,24 +1,46 @@
 /* Shared stylesheet for the Tesla vehicle-command BLE manual (ko / en / ja)
    Layout: top header + left nav + content + right "on this page" rail; home pages use a bento grid.
-   Theme: neutral graphite, one muted green accent. No external resources. */
+   Theme: Tokyo Night (dark) and Tokyo Night Light, chosen by the system setting. Colours come from
+   github.com/tokyo-night/tokyo-night-vscode-theme (MIT); a few greys and accents are a step darker (light)
+   or lighter (dark) than the editor theme so small text keeps 4.5:1 contrast. No external resources. */
 :root {
   color-scheme: dark;
-  --bg: #0f0f10;
-  --surface: #161617;
-  --surface-2: #1c1c1e;
-  --line: #262628;
-  --line-2: #36363a;
-  --text: #f4f4f5;
-  --text-2: #d4d4d8;
-  --muted: #a6a6ad;
-  --dim: #8e8e95;
-  --accent: #45d08e;
-  --accent-soft: rgba(69, 208, 142, .12);
-  --blue: #6aa9ff;
-  --violet: #b39dff;
-  --amber: #f0b54a;
-  --red: #ff7b6e;
-  --code-bg: #131314;
+  /* Tokyo Night */
+  --bg: #1a1b26;
+  --surface: #16161e;
+  --surface-2: #202330;
+  --line: #292e42;
+  --line-2: #363b54;
+  --text: #c0caf5;
+  --text-2: #a9b1d6;
+  --muted: #9aa5ce;
+  --dim: #8189b0;
+  --accent: #7aa2f7;
+  --accent-soft: rgba(122, 162, 247, .14);
+  --on-accent: #16161e;
+  --blue: #7dcfff;
+  --violet: #bb9af7;
+  --green: #9ece6a;
+  --amber: #e0af68;
+  --red: #f7768e;
+  --code-bg: #16161e;
+  --code-fg: #a9b1d6;
+  --hero-bg: #1f2a48;
+  --hero-line: #3d59a1;
+  --hero-fg: #c0caf5;
+  --hero-lead: #a9b1d6;
+  --shadow: rgba(0, 0, 0, .45);
+  /* Syntax (token colours of the same theme) */
+  --tk-comment: #8189b0;
+  --tk-keyword: #bb9af7;
+  --tk-string: #9ece6a;
+  --tk-number: #ff9e64;
+  --tk-function: #7aa2f7;
+  --tk-type: #0db9d7;
+  --tk-variable: #7dcfff;
+  --tk-property: #73daca;
+  --tk-operator: #89ddff;
+
   --top-h: 56px;
   --nav-w: 256px;
   --toc-w: 208px;
@@ -30,6 +52,45 @@
   --border: var(--line-2);
   --bg-alt: var(--surface-2);
   --fg-muted: var(--muted);
+}
+@media (prefers-color-scheme: light) {
+  :root {
+    color-scheme: light;
+    /* Tokyo Night Light */
+    --bg: #e6e7ed;
+    --surface: #dcdee3;
+    --surface-2: #d6d8df;
+    --line: #c1c2c7;
+    --line-2: #b0b2bb;
+    --text: #343b58;
+    --text-2: #363c4d;
+    --muted: #4c505e;
+    --dim: #5a5c66;
+    --accent: #234d93;
+    --accent-soft: rgba(35, 77, 147, .12);
+    --on-accent: #ffffff;
+    --blue: #005a70;
+    --violet: #65359d;
+    --green: #385f0d;
+    --amber: #774d0e;
+    --red: #7a3946;
+    --code-bg: #dcdee3;
+    --code-fg: #343b59;
+    --hero-bg: #d0d9ec;
+    --hero-line: #2959aa;
+    --hero-fg: #343b58;
+    --hero-lead: #363c4d;
+    --shadow: rgba(52, 59, 88, .18);
+    --tk-comment: #5a5c66;
+    --tk-keyword: #65359d;
+    --tk-string: #385f0d;
+    --tk-number: #844520;
+    --tk-function: #234d93;
+    --tk-type: #005a70;
+    --tk-variable: #0f4b6e;
+    --tk-property: #33635c;
+    --tk-operator: #005a70;
+  }
 }
 
 * { box-sizing: border-box; }
@@ -75,7 +136,7 @@ header.top .top-sub { padding-left: 14px; border-left: 1px solid var(--line-2); 
 .lang-menu summary:hover, .lang-menu[open] summary { background: var(--surface-2); color: var(--text); }
 .lang-menu ul {
   position: absolute; right: 0; top: calc(100% + 6px); min-width: 150px; margin: 0; padding: 4px; list-style: none;
-  background: var(--surface); border: 1px solid var(--line-2); border-radius: 8px; box-shadow: 0 8px 24px rgba(0, 0, 0, .35);
+  background: var(--surface); border: 1px solid var(--line-2); border-radius: 8px; box-shadow: 0 8px 24px var(--shadow);
 }
 .lang-menu li { margin: 0; }
 .lang-menu a { display: block; padding: 7px 10px; border-radius: 5px; color: var(--text-2); font-size: 14px; }
@@ -129,11 +190,21 @@ strong { color: var(--text); font-weight: 600; }
 
 code { font-family: var(--mono); font-size: .85em; background: var(--surface-2); color: var(--text); padding: 1px 5px; border-radius: 4px; font-variant-ligatures: none; }
 pre {
-  background: var(--code-bg); color: #d4d4d8; padding: 14px 16px; border-radius: 8px; overflow-x: auto;
+  background: var(--code-bg); color: var(--code-fg); padding: 14px 16px; border-radius: 8px; overflow-x: auto;
   border: 1px solid var(--line); font: 400 13px/1.65 var(--mono); margin: 0 0 20px; font-variant-ligatures: none;
   scrollbar-width: thin; scrollbar-color: var(--line-2) transparent;
 }
 pre code { background: none; padding: 0; font-size: inherit; color: inherit; }
+/* Syntax colours; spans come from tools/ci/highlight-manual-code.sh */
+pre code .c { color: var(--tk-comment); font-style: italic; }
+pre code .k { color: var(--tk-keyword); }
+pre code .s { color: var(--tk-string); }
+pre code .n { color: var(--tk-number); }
+pre code .f { color: var(--tk-function); }
+pre code .t { color: var(--tk-type); }
+pre code .v { color: var(--tk-variable); }
+pre code .p { color: var(--tk-property); }
+pre code .o { color: var(--tk-operator); }
 /* Long identifiers break only when they would push past the column, at any width */
 main.content { overflow-wrap: break-word; }
 main.content :not(pre) > code { overflow-wrap: anywhere; }
@@ -159,7 +230,7 @@ th { color: var(--muted); font-weight: 500; font-size: 13px; border-bottom-color
 }
 .badge.vcsec { --c: var(--red); }
 .badge.info { --c: var(--blue); }
-.badge.ok { --c: var(--accent); }
+.badge.ok { --c: var(--green); }
 .badge.warn { --c: var(--amber); }
 
 /* Cards, steps, diagrams, key-value lists */
@@ -173,7 +244,7 @@ th { color: var(--muted); font-weight: 500; font-size: 13px; border-bottom-color
 .steps > li::before {
   counter-increment: step; content: counter(step); position: absolute; left: 0; top: 2px;
   width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
-  font-size: 12px; font-weight: 700; color: #0b1f15; background: var(--accent);
+  font-size: 12px; font-weight: 700; color: var(--on-accent); background: var(--accent);
 }
 .diagram { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; overflow-x: auto; margin: 0 0 20px; }
 .diagram svg { display: block; max-width: 100%; height: auto; }
@@ -197,10 +268,10 @@ body.home main.content { max-width: 1120px; }
 .tile { padding: 24px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
 .tile > :last-child { margin-bottom: 0; }
 .tile h2 { margin: 0 0 14px; font-size: 1.05rem; font-weight: 600; letter-spacing: 0; }
-.tile.hero { grid-column: span 8; display: flex; flex-direction: column; justify-content: flex-end; min-height: 220px; padding: 32px; background: #113a29; border-color: #1c5a40; }
-.tile.hero h1 { color: #fff; }
-.tile.hero .lead { color: #c4e6d4; }
-.tile.hero code { background: rgba(255, 255, 255, .1); color: #fff; }
+.tile.hero { grid-column: span 8; display: flex; flex-direction: column; justify-content: flex-end; min-height: 220px; padding: 32px; background: var(--hero-bg); border-color: var(--hero-line); }
+.tile.hero h1 { color: var(--hero-fg); }
+.tile.hero .lead { color: var(--hero-lead); }
+.tile.hero code { background: color-mix(in srgb, var(--hero-fg) 12%, transparent); color: var(--hero-fg); }
 .tile.hero h1 { font-size: clamp(1.8rem, 3.2vw, 2.4rem); line-height: 1.18; letter-spacing: -.025em; max-width: 20em; }
 .tile.hero .lead { max-width: 38em; margin: 6px 0 0; }
 .tile.version { --c: var(--blue); grid-column: span 4; background: color-mix(in srgb, var(--c) 10%, var(--surface)); border-color: color-mix(in srgb, var(--c) 28%, var(--line)); }

@@ -30,7 +30,7 @@ documents/
 ├── README.md                      # this file
 ├── html/                          # for people
 │   ├── index.html                 # English home: copy of en/index.html, regenerate with tools/ci/sync-manual-root-index.sh
-│   ├── assets/style.css           # shared by all languages
+│   ├── assets/style.css           # shared by all languages; Tokyo Night / Tokyo Night Light, follows the system setting
 │   └── ko/ en/ ja/                # one folder per language, identical file names
 │       ├── index.html             # home / document map
 │       ├── 01-overview.html       # system overview and architecture
