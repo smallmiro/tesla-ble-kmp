@@ -384,4 +384,4 @@ After modifying `pkg/connector/ble/*`:
 - [ ] Are the function signatures (`IsAdapterError`, `AdapterErrorHelpMessage`, `newAdapter`) identical across `device_darwin.go`/`device_linux.go`/`device_windows.go` (compiled per build tag)?
 - [ ] Do `examples/ble`, `pkg/cli.ConnectLocal`, and `cmd/tesla-control` still compile?
 - [ ] Have you verified `tesla-control -ble -debug body-controller-state` (Infotainment asleep) and `state charge` (Infotainment awake) on a real vehicle? If not, state so in the report.
-- [ ] Have you updated this document, `../html/03-ble-transport.html`, and the card in section 4.1 of `00-agent-guide.md`?
+- [ ] Have you updated this document, `../html/{ko,en,ja}/03-ble-transport.html` (all three languages), and the card in section 4.1 of `00-agent-guide.md`?

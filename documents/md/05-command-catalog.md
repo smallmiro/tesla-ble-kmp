@@ -247,7 +247,7 @@ VCSEC RKE/Closure responses: the first message with `commandStatus == nil` is te
 3. **CLI**: Add an entry to the `commands` map in `cmd/tesla-control/commands.go` (`help`, `requiresAuth`, `requiresFleetAPI`, `args`, `optional`, `domain` (set if VCSEC-only), `handler`). Wrapping argument parsing errors with `fmt.Errorf("%w: ...", ErrCommandLineArgs)` automatically prints usage.
 4. **Proxy**: Add `case "<fleet_api_endpoint_name>"` to the `switch` in `ExtractCommandAction` in `pkg/proxy/command.go`. Read parameters with `params.getString/getBool/getNumber/getDays/getPolicy/getTimeAfterMidnight`. Follow the official Fleet API endpoint names and JSON keys exactly.
 5. **Tests**: `cmd/tesla-control/commands_test.go` (command table integrity), `pkg/proxy/command_test.go` (`TestExtractCommandAction` cases), and if needed `pkg/vehicle/vehicle_test.go` (payload verification with a mock connector).
-6. **Docs**: The relevant table in this file, [04-go-api-reference.md](04-go-api-reference.md), `../html/07-command-reference.html`, and the repository's `cmd/tesla-control/README.md` (if needed).
+6. **Docs**: The relevant table in this file, [04-go-api-reference.md](04-go-api-reference.md), `../html/{ko,en,ja}/07-command-reference.html` (all three languages), and the repository's `cmd/tesla-control/README.md` (if needed).
 7. Pass `./check-all.sh` (build, test, vet, gofmt) or `make test`.
 
 ---

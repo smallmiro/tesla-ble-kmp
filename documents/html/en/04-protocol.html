@@ -258,7 +258,7 @@ METADATA = 00 01 06
   <thead><tr><th></th><th>HMAC-SHA256</th><th>AES-GCM</th></tr></thead>
   <tbody>
     <tr><td>Payload</td><td>Plaintext</td><td>Ciphertext</td></tr>
-    <tr><td>Used by</td><td>Fleet API (so the server can reject commands based on OAuth scopes and filter out discarded VCSEC messages)</td><td>BLE (Fleet API cannot check scopes, so it blocks GCM commands)</td></tr>
+    <tr><td>Used by</td><td>Fleet API (so the server can reject commands based on OAuth scopes and filter out deprecated (legacy) VCSEC messages)</td><td>BLE (Fleet API cannot check scopes, so it blocks GCM commands)</td></tr>
     <tr><td>Go</td><td><code>Signer.AuthorizeHMAC</code>, <code>connector.AuthMethodHMAC</code></td><td><code>Signer.Encrypt</code>, <code>connector.AuthMethodGCM</code></td></tr>
     <tr><td>SignatureData field</td><td><code>HMAC_Personalized_data</code> (8)</td><td><code>AES_GCM_Personalized_data</code> (5)</td></tr>
   </tbody>
