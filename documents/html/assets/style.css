@@ -8,15 +8,16 @@
   --surface-2: #1c1c1e;
   --line: #262628;
   --line-2: #36363a;
-  --text: #ededed;
-  --text-2: #c8c8cb;
-  --muted: #9d9da3;
-  --dim: #87878d;
-  --accent: #5cc08d;
-  --accent-soft: rgba(92, 192, 141, .1);
-  --blue: #74b3f0;
-  --amber: #dcb15a;
-  --red: #ec7a6f;
+  --text: #f4f4f5;
+  --text-2: #d4d4d8;
+  --muted: #a6a6ad;
+  --dim: #8e8e95;
+  --accent: #45d08e;
+  --accent-soft: rgba(69, 208, 142, .12);
+  --blue: #6aa9ff;
+  --violet: #b39dff;
+  --amber: #f0b54a;
+  --red: #ff7b6e;
   --code-bg: #131314;
   --top-h: 56px;
   --nav-w: 256px;
@@ -94,7 +95,7 @@ nav.sidebar ol { list-style: none; padding: 0; margin: 0; }
 nav.sidebar li { margin: 0; }
 nav.sidebar a { display: block; padding: 6px 10px; border-radius: 6px; color: var(--muted); font-size: 14px; line-height: 1.45; }
 nav.sidebar a:hover { color: var(--text); background: var(--surface); text-decoration: none; }
-nav.sidebar a.active { color: var(--text); background: var(--surface-2); font-weight: 500; }
+nav.sidebar a.active { color: var(--accent); background: var(--accent-soft); font-weight: 600; }
 nav.sidebar .group { margin: 20px 10px 4px; font-size: 12.5px; font-weight: 600; color: var(--dim); }
 
 /* Content column; pages with a .toc get a right rail for it */
@@ -149,7 +150,8 @@ th { color: var(--muted); font-weight: 500; font-size: 13px; border-bottom-color
 .badge {
   --c: var(--muted);
   display: inline-block; padding: 0 6px; border-radius: 4px; vertical-align: 1px;
-  font-size: 11.5px; font-weight: 600; line-height: 1.6; color: var(--c); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent);
+  font-size: 11.5px; font-weight: 600; line-height: 1.6; color: var(--c);
+  background: color-mix(in srgb, var(--c) 12%, transparent); border: 1px solid color-mix(in srgb, var(--c) 35%, transparent);
 }
 .badge.vcsec { --c: var(--red); }
 .badge.info { --c: var(--blue); }
@@ -167,7 +169,7 @@ th { color: var(--muted); font-weight: 500; font-size: 13px; border-bottom-color
 .steps > li::before {
   counter-increment: step; content: counter(step); position: absolute; left: 0; top: 2px;
   width: 22px; height: 22px; border-radius: 50%; display: grid; place-items: center;
-  font-size: 12px; font-weight: 600; color: var(--text); border: 1px solid var(--line-2);
+  font-size: 12px; font-weight: 700; color: #0b1f15; background: var(--accent);
 }
 .diagram { background: var(--surface); border: 1px solid var(--line); border-radius: 10px; padding: 16px 18px; overflow-x: auto; margin: 0 0 20px; }
 .diagram svg { display: block; max-width: 100%; height: auto; }
@@ -191,10 +193,14 @@ body.home main.content { max-width: 1120px; }
 .tile { padding: 24px; border-radius: 12px; background: var(--surface); border: 1px solid var(--line); }
 .tile > :last-child { margin-bottom: 0; }
 .tile h2 { margin: 0 0 14px; font-size: 1.05rem; font-weight: 600; letter-spacing: 0; }
-.tile.hero { grid-column: span 8; display: flex; flex-direction: column; justify-content: flex-end; min-height: 200px; padding: 32px; background: var(--bg); }
+.tile.hero { grid-column: span 8; display: flex; flex-direction: column; justify-content: flex-end; min-height: 220px; padding: 32px; background: #113a29; border-color: #1c5a40; }
+.tile.hero h1 { color: #fff; }
+.tile.hero .lead { color: #c4e6d4; }
+.tile.hero code { background: rgba(255, 255, 255, .1); color: #fff; }
 .tile.hero h1 { font-size: clamp(1.8rem, 3.2vw, 2.4rem); line-height: 1.18; letter-spacing: -.025em; max-width: 20em; }
 .tile.hero .lead { max-width: 38em; margin: 6px 0 0; }
-.tile.version { grid-column: span 4; }
+.tile.version { --c: var(--blue); grid-column: span 4; background: color-mix(in srgb, var(--c) 10%, var(--surface)); border-color: color-mix(in srgb, var(--c) 28%, var(--line)); }
+.tile.version .callout strong:first-child { color: var(--c); }
 .tile.version .callout { margin: 0; padding: 0; border: 0; background: none; }
 .tile.version .callout strong:first-child { margin-bottom: 8px; font-size: 1.05rem; }
 .tile.version .callout p { font-size: 14px; }
@@ -208,7 +214,16 @@ body.home main.content { max-width: 1120px; }
 .tile.concepts .kv dd { margin: 2px 0 16px; break-inside: avoid; }
 .bento > .bento-label { margin: 28px 0 0; font-size: 1.05rem; font-weight: 600; }
 .bento .cards { display: contents; }
-.bento .card { grid-column: span 3; padding: 20px; }
+/* Chapter cards take the colour of their sidebar group: getting started, protocol, development */
+.bento .card {
+  --c: var(--violet); grid-column: span 3; padding: 20px;
+  background: color-mix(in srgb, var(--c) 7%, var(--surface)); border-color: color-mix(in srgb, var(--c) 22%, var(--line));
+}
+.bento .card:is([href$="01-overview.html"], [href$="02-getting-started.html"]) { --c: var(--accent); }
+.bento .card:is([href$="03-ble-transport.html"], [href$="04-protocol.html"]) { --c: var(--blue); }
+.bento .card:hover { background: color-mix(in srgb, var(--c) 12%, var(--surface)); border-color: color-mix(in srgb, var(--c) 50%, var(--line)); }
+.bento .card .num { color: var(--c); font-weight: 700; }
+.bento .card:is([href$="01-overview.html"], [href$="04-protocol.html"]) { background: color-mix(in srgb, var(--c) 14%, var(--surface)); }
 .bento .card:is([href$="01-overview.html"], [href$="04-protocol.html"]) { grid-column: span 6; }
 .bento .card:is([href$="07-command-reference.html"], [href$="08-http-proxy.html"], [href$="09-errors-troubleshooting.html"]) { grid-column: span 4; }
 .tile.readers :is(th, td) { overflow-wrap: normal; }
