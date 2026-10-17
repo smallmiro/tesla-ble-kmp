@@ -1,203 +1,203 @@
-# 10. 다른 언어/플랫폼 포팅 가이드 (BLE 클라이언트)
+# 10. Porting Guide for Other Languages/Platforms (BLE Client)
 
-Python(bleak), Swift(CoreBluetooth), Kotlin/Android(BluetoothGatt), Rust(btleplug), Node(noble) 등으로 Tesla BLE 명령 클라이언트를 처음부터 구현하기 위한 단계별 체크리스트. 언어 중립 의사코드와 각 단계의 Go 원본 위치를 함께 제시한다. 프로토콜 세부는 [03-protocol.md](03-protocol.md), BLE 세부는 [02-ble-transport.md](02-ble-transport.md), 오류 코드는 [08-errors.md](08-errors.md).
+A step-by-step checklist for implementing a Tesla BLE command client from scratch in Python (bleak), Swift (CoreBluetooth), Kotlin/Android (BluetoothGatt), Rust (btleplug), Node (noble), etc. Each step comes with language-neutral pseudocode and the location of the Go original. Protocol details: [03-protocol.md](03-protocol.md); BLE details: [02-ble-transport.md](02-ble-transport.md); error codes: [08-errors.md](08-errors.md).
 
-관련 파일 (저장소 루트 기준)
+Related files (relative to repository root)
 
-- `pkg/protocol/protocol.md` — 사양 원문과 테스트 벡터 (**최종 권위**)
-- `pkg/protocol/protobuf/*.proto` — 메시지 정의
-- `pkg/connector/ble/ble.go` — 스캔/연결/프레이밍
-- `internal/dispatcher/dispatcher.go`, `session.go`, `receiver.go` — 메시지 조립, 응답 매칭, 세션 갱신
-- `internal/authentication/native.go`, `signer.go`, `peer.go`, `metadata.go`, `window.go`, `crypto.go` — 암호 연산
-- `internal/authentication/protocol_doc_test.go` — 문서 벡터 고정 테스트
-- `pkg/cache/cache.go` — 세션 캐시 파일 형식
-- `pkg/vehicle/security.go` `SendAddKeyRequestWithRole` — 키 페어링 전송
+- `pkg/protocol/protocol.md` — original specification and test vectors (**final authority**)
+- `pkg/protocol/protobuf/*.proto` — message definitions
+- `pkg/connector/ble/ble.go` — scan/connect/framing
+- `internal/dispatcher/dispatcher.go`, `session.go`, `receiver.go` — message assembly, response matching, session updates
+- `internal/authentication/native.go`, `signer.go`, `peer.go`, `metadata.go`, `window.go`, `crypto.go` — cryptographic operations
+- `internal/authentication/protocol_doc_test.go` — tests pinning the documented vectors
+- `pkg/cache/cache.go` — session cache file format
+- `pkg/vehicle/security.go` `SendAddKeyRequestWithRole` — key pairing send
 
-표기: `||` 연결, `BE32(n)` 4바이트 빅엔디언, `ENCODE_PUBLIC(P)` = `0x04 || X(32) || Y(32)` (65바이트), `K` 128비트 AES 키.
+Notation: `||` concatenation, `BE32(n)` 4-byte big-endian, `ENCODE_PUBLIC(P)` = `0x04 || X(32) || Y(32)` (65 bytes), `K` 128-bit AES key.
 
 ---
 
-## 0. 사전 준비
+## 0. Prerequisites
 
-### 0.1 protobuf 바인딩
+### 0.1 protobuf bindings
 
 ```bash
 cd vehicle-command/pkg/protocol/protobuf
 protoc --proto_path . --python_out=../../../../out/py   *.proto   # Python
 protoc --proto_path . --swift_out=../../../../out/swift  *.proto   # Swift (protoc-gen-swift)
 protoc --proto_path . --kotlin_out=... --java_out=...    *.proto   # Kotlin/Android
-# Rust: prost-build / protobuf-codegen, Node: protobufjs 또는 @bufbuild/protobuf
+# Rust: prost-build / protobuf-codegen, Node: protobufjs or @bufbuild/protobuf
 ```
 
-필요한 메시지: `UniversalMessage.RoutableMessage`, `Destination`, `SessionInfoRequest`, `MessageStatus`; `Signatures.SessionInfo`, `SignatureData`, `KeyIdentity`, `AES_GCM_Personalized_Signature_Data`, `AES_GCM_Response_Signature_Data`, `HMAC_Personalized_Signature_Data`, `HMAC_Signature_Data`; `VCSEC.UnsignedMessage`, `FromVCSECMessage`, `ToVCSECMessage`, `SignedMessage`, `WhitelistOperation`, `PermissionChange`, `KeyMetadata`, `PublicKey`, `InformationRequest`, `ClosureMoveRequest`; `CarServer.Action`, `VehicleAction`, `Response`; `Keys.Role`; `Errors.NominalError`.
+Required messages: `UniversalMessage.RoutableMessage`, `Destination`, `SessionInfoRequest`, `MessageStatus`; `Signatures.SessionInfo`, `SignatureData`, `KeyIdentity`, `AES_GCM_Personalized_Signature_Data`, `AES_GCM_Response_Signature_Data`, `HMAC_Personalized_Signature_Data`, `HMAC_Signature_Data`; `VCSEC.UnsignedMessage`, `FromVCSECMessage`, `ToVCSECMessage`, `SignedMessage`, `WhitelistOperation`, `PermissionChange`, `KeyMetadata`, `PublicKey`, `InformationRequest`, `ClosureMoveRequest`; `CarServer.Action`, `VehicleAction`, `Response`; `Keys.Role`; `Errors.NominalError`.
 
-### 0.2 암호 프리미티브
+### 0.2 Cryptographic primitives
 
-| 용도 | 프리미티브 | 비고 |
+| Purpose | Primitive | Notes |
 |---|---|---|
-| 키 쌍 | NIST P-256 (secp256r1) ECDSA/ECDH 키, PEM `EC PRIVATE KEY` 또는 PKCS8 | 공개 키는 uncompressed 65바이트로 전송 |
-| 키 합의 | ECDH(c, V) → 공유점 X 좌표 32바이트 (`BE32`가 아니라 32바이트 고정 길이) | `native.go sharedSecret`: `sharedX.FillBytes(32)` |
-| KDF | `K = SHA1(X)[:16]` | 충돌 저항 불필요 (레거시 호환) |
-| 서브키 | `HMAC-SHA256(K, label)` — label `"session info"`, `"authenticated command"` | |
-| 메타데이터 해시 | SHA256 | AES-GCM AAD |
-| 명령 암호화 | AES-128-GCM, 12바이트 nonce, 16바이트 tag | |
-| 명령 인증(HMAC 경로) | HMAC-SHA256 | Fleet API 전용. BLE에서는 AES-GCM 사용 |
-| 난수 | CSPRNG: routing_address 16B, uuid 16B, nonce 12B | |
-| 상수 시간 비교 | HMAC 태그 비교 | 필수 |
+| Key pair | NIST P-256 (secp256r1) ECDSA/ECDH key, PEM `EC PRIVATE KEY` or PKCS8 | Public key is sent as uncompressed 65 bytes |
+| Key agreement | ECDH(c, V) → shared point X coordinate, 32 bytes (fixed 32-byte length, not `BE32`) | `native.go sharedSecret`: `sharedX.FillBytes(32)` |
+| KDF | `K = SHA1(X)[:16]` | Collision resistance not required (legacy compatibility) |
+| Subkeys | `HMAC-SHA256(K, label)` — labels `"session info"`, `"authenticated command"` | |
+| Metadata hash | SHA256 | AES-GCM AAD |
+| Command encryption | AES-128-GCM, 12-byte nonce, 16-byte tag | |
+| Command authentication (HMAC path) | HMAC-SHA256 | Fleet API only. BLE uses AES-GCM |
+| Randomness | CSPRNG: routing_address 16B, uuid 16B, nonce 12B | |
+| Constant-time comparison | HMAC tag comparison | Mandatory |
 
-### 0.3 먼저 단위 테스트를 작성한다
+### 0.3 Write unit tests first
 
-`pkg/protocol/protocol.md`의 테스트 키/벡터로 다음을 고정한다 (자세한 값은 [03-protocol.md](03-protocol.md)):
+Pin the following using the test keys/vectors in `pkg/protocol/protocol.md` (detailed values in [03-protocol.md](03-protocol.md)):
 
 1. `K(client.key, vehicle.pem) = 1b2fce19967b79db696f909cff89ea9a`
 2. `SESSION_INFO_KEY = HMAC-SHA256(K, "session info") = fceb679ee7bca756fcd441bf238bf2f338629b41d9eb9c67be1b32c9672ce300`
-3. 메타데이터 `TLV({SIG_TYPE: 0x06, VIN: "5YJ30123456789ABC", CHALLENGE: 1588d5a3...})` = `000106021135594a333031323334353637383941424306101588d5a30eabc6f8fc9a951b11f6fd11ff`
-4. 세션 정보 태그 = `996c1fe38331be138f8039c194b14db2198846ed7d8251e6749284d7b32ea002`
-5. AES-GCM 메타데이터 `000105010103021135594a333031323334353637383941424303104c463f9cc0d3d26906e982ed224adde6040400000a5f050400000007070400000002ff`, 평문 `120452020801`, nonce `dbf79447fa156674dae1caed` → 암호문 `38038e8c0f2e`, 태그 `c228e0ff64991481db3a7bbc133696c5` (Go: `internal/authentication/protocol_doc_test.go`)
+3. Metadata `TLV({SIG_TYPE: 0x06, VIN: "5YJ30123456789ABC", CHALLENGE: 1588d5a3...})` = `000106021135594a333031323334353637383941424306101588d5a30eabc6f8fc9a951b11f6fd11ff`
+4. Session info tag = `996c1fe38331be138f8039c194b14db2198846ed7d8251e6749284d7b32ea002`
+5. AES-GCM metadata `000105010103021135594a333031323334353637383941424303104c463f9cc0d3d26906e982ed224adde6040400000a5f050400000007070400000002ff`, plaintext `120452020801`, nonce `dbf79447fa156674dae1caed` → ciphertext `38038e8c0f2e`, tag `c228e0ff64991481db3a7bbc133696c5` (Go: `internal/authentication/protocol_doc_test.go`)
 6. `VehicleLocalName("5YJS0000000000000") = "S1a87a5a75f3df858C"`
 
-**테스트 키를 실제 차량에 등록하지 말 것** (개인 키가 공개되어 있음).
+**Do not register the test keys on a real vehicle** (the private keys are public).
 
 ---
 
-## 1. 광고 스캔
+## 1. Advertisement scan
 
 ```
-local_name = "S" + hex_lower(SHA1(VIN_ascii)[0:8]) + "C"    # 18자
+local_name = "S" + hex_lower(SHA1(VIN_ascii)[0:8]) + "C"    # 18 chars
 scan(active=True)
 for adv in advertisements:
     if adv.local_name == local_name:
-        if not adv.connectable:  -> 오류 ErrMaxConnectionsExceeded (VCSEC는 최대 3개 연결)
+        if not adv.connectable:  -> error ErrMaxConnectionsExceeded (VCSEC allows at most 3 connections)
         return adv.address
-timeout -> 재시도 (Go는 ctx 만료까지 무한)
+timeout -> retry (Go retries indefinitely until ctx expires)
 ```
 
-- Go: `ble.VehicleLocalName`, `scanVehicleBeacon` (`pkg/connector/ble/ble.go`). Linux 스캔 파라미터: active, interval/window 0x10 (10ms), filter policy 2.
-- 광고 주기는 모델/상태에 따라 20ms~150ms. 깊은 수면에서는 더 드물 수 있으므로 스캔 타임아웃 20s 이상.
-- 서비스 UUID 필터 대신 Local Name으로 식별한다 (광고에 서비스 UUID가 포함되지 않을 수 있음).
+- Go: `ble.VehicleLocalName`, `scanVehicleBeacon` (`pkg/connector/ble/ble.go`). Linux scan parameters: active, interval/window 0x10 (10ms), filter policy 2.
+- Advertising period is 20ms–150ms depending on model/state. It may be rarer in deep sleep, so use a scan timeout of 20s or more.
+- Identify by Local Name rather than a service UUID filter (the advertisement may not include the service UUID).
 
-## 2. GATT 연결
+## 2. GATT connection
 
 ```
 connect(address)
 svc  = discover_service("00000211-b2d1-43f0-9b88-960cebf8b91e")
-tx   = discover_characteristic(svc, "00000212-b2d1-43f0-9b88-960cebf8b91e")   # 차량으로 write (with response)
-rx   = discover_characteristic(svc, "00000213-b2d1-43f0-9b88-960cebf8b91e")   # 차량에서 indication
+tx   = discover_characteristic(svc, "00000212-b2d1-43f0-9b88-960cebf8b91e")   # write to vehicle (with response)
+rx   = discover_characteristic(svc, "00000213-b2d1-43f0-9b88-960cebf8b91e")   # indication from vehicle
 discover_descriptors(rx)                                                     # CCCD
 subscribe(rx, mode=INDICATION, handler=on_rx)                                # Go: client.Subscribe(rxChar, ind=true, ...)
-mtu = exchange_mtu(request=517)                                              # go-ble ble.MaxMTU. 실패 시 23
-block_length = min(mtu, 1024) - 3                                            # ATT 헤더 3바이트. 실패 시 23-3 = 20
+mtu = exchange_mtu(request=517)                                              # go-ble ble.MaxMTU. 23 on failure
+block_length = min(mtu, 1024) - 3                                            # 3-byte ATT header. On failure 23-3 = 20
 ```
 
-- Go: `tryToConnect`. 서비스/특성/구독/MTU 중 하나라도 실패하면 연결을 끊고 재시도(`retry=true`).
-- 특성 213은 **indication**으로 구독한다 (Go의 `Subscribe(..., true, ...)`). 플랫폼이 notification만 지원하면 실제 차량에서 동작 여부를 확인할 것.
-- 212는 "write with response" (Go `WriteCharacteristic(..., noRsp=false)`).
+- Go: `tryToConnect`. If any of service/characteristic/subscribe/MTU fails, disconnect and retry (`retry=true`).
+- Subscribe to characteristic 213 with **indication** (Go's `Subscribe(..., true, ...)`). If the platform supports only notification, verify that it works on a real vehicle.
+- 212 is "write with response" (Go `WriteCharacteristic(..., noRsp=false)`).
 
-## 3. 프레이밍 (2바이트 길이 프리픽스)
+## 3. Framing (2-byte length prefix)
 
-송신 (Go `Connection.Send`):
+Send (Go `Connection.Send`):
 
 ```
-frame = [len(msg) >> 8, len(msg) & 0xff] + msg      # 빅엔디언 uint16
+frame = [len(msg) >> 8, len(msg) & 0xff] + msg      # big-endian uint16
 for chunk in split(frame, block_length):
-    write_with_response(tx, chunk)                   # 순서 보장, 직렬화(뮤텍스)
+    write_with_response(tx, chunk)                   # ordered, serialized (mutex)
 ```
 
-수신 (Go `Connection.rx` + `flush`):
+Receive (Go `Connection.rx` + `flush`):
 
 ```
 on_rx(chunk):
-    if now - last_rx > 1s: buffer = b""              # 조각 간 타임아웃 → 버퍼 폐기
+    if now - last_rx > 1s: buffer = b""              # inter-fragment timeout → discard buffer
     last_rx = now
     buffer += chunk
     loop:
         if len(buffer) < 2: break
         n = buffer[0]*256 + buffer[1]
-        if n > 1024: buffer = b""; break             # maxBLEMessageSize 초과 → 폐기
-        if len(buffer) < 2+n: break                  # 더 기다림
+        if n > 1024: buffer = b""; break             # exceeds maxBLEMessageSize → discard
+        if len(buffer) < 2+n: break                  # wait for more
         msg = buffer[2:2+n]; buffer = buffer[2+n:]
-        enqueue(msg)                                  # 큐(5) 가득 차면 드롭 (Go 동작). 포팅 시 더 큰 큐 권장
+        enqueue(msg)                                  # drop if queue(5) is full (Go behavior). A larger queue is recommended when porting
 ```
 
-- 하나의 indication에 여러 메시지가 붙어 오거나, 하나의 메시지가 여러 indication으로 나뉘어 올 수 있다. 위 루프가 둘 다 처리한다.
-- 메시지 최대 1024바이트 (`maxBLEMessageSize`). 응답이 이보다 크면 차량이 `RESPONSE_MTU_EXCEEDED`.
+- Multiple messages may arrive concatenated in one indication, or one message may be split across multiple indications. The loop above handles both.
+- Maximum message size is 1024 bytes (`maxBLEMessageSize`). If a response would be larger, the vehicle returns `RESPONSE_MTU_EXCEEDED`.
 
-## 4. RoutableMessage 조립
+## 4. RoutableMessage assembly
 
 Go `dispatcher.Send`:
 
 ```
 msg = RoutableMessage()
 msg.to_destination.domain = DOMAIN_VEHICLE_SECURITY(2) | DOMAIN_INFOTAINMENT(3)
-msg.uuid = random(16)                                # 응답의 request_uuid로 돌아옴; 핸드셰이크 challenge로도 사용
+msg.uuid = random(16)                                # comes back as the response's request_uuid; also used as the handshake challenge
 if domain == VCSEC:
-    routing_address = random(16)                     # 요청마다 새 주소 (VCSEC는 request_uuid를 안 채움)
+    routing_address = random(16)                     # new address per request (VCSEC does not populate request_uuid)
 else:
-    routing_address = connection_address             # 연결당 고정 16바이트 (Go: Dispatcher.address)
+    routing_address = connection_address             # fixed 16 bytes per connection (Go: Dispatcher.address)
 msg.from_destination.routing_address = routing_address
-msg.flags = 1 << FLAG_ENCRYPT_RESPONSE   # = 2. 항상 설정 (구 펌웨어는 무시)
+msg.flags = 1 << FLAG_ENCRYPT_RESPONSE   # = 2. Always set (old firmware ignores it)
 msg.payload = protobuf_message_as_bytes | session_info_request
 register_handler(key=(routing_address, uuid if domain!=VCSEC else 0, domain))
 ```
 
-- `to_destination.domain == DOMAIN_BROADCAST(0)` 은 오류.
-- 응답은 `to_destination.routing_address == 우리 주소`, `from_destination.domain == 요청 도메인`으로 온다.
+- `to_destination.domain == DOMAIN_BROADCAST(0)` is an error.
+- The response arrives with `to_destination.routing_address == our address` and `from_destination.domain == request domain`.
 
-## 5. 핸드셰이크
+## 5. Handshake
 
 ```
 req = RoutableMessage(to=domain, session_info_request={public_key: ENCODE_PUBLIC(C)}, uuid=challenge)
 send(req)
-rsp = wait_response()                                 # RetryInterval(1s) 안에 없으면 재전송
-if rsp.signedMessageStatus.signed_message_fault != NONE: 오류 (UNKNOWN_KEY_ID → 키 미등록)
+rsp = wait_response()                                 # resend if none within RetryInterval(1s)
+if rsp.signedMessageStatus.signed_message_fault != NONE: error (UNKNOWN_KEY_ID → key not registered)
 info = SessionInfo.parse(rsp.session_info)
-if info.status == KEY_NOT_ON_WHITELIST: 키 미등록
+if info.status == KEY_NOT_ON_WHITELIST: key not registered
 tag  = rsp.signature_data.session_info_tag.tag
 
-# 키 합의
-S_x = ECDH(c, info.publicKey)                          # 32바이트 X 좌표
+# Key agreement
+S_x = ECDH(c, info.publicKey)                          # 32-byte X coordinate
 K   = SHA1(S_x)[0:16]
 SESSION_INFO_KEY = HMAC_SHA256(K, b"session info")
 
-# 응답 무결성 검증 (필수)
+# Verify response integrity (mandatory)
 M = TLV(TAG_SIGNATURE_TYPE=0x00, [0x06])              # SIGNATURE_TYPE_HMAC
   + TLV(TAG_PERSONALIZATION=0x02, VIN_ascii)
-  + TLV(TAG_CHALLENGE=0x06, challenge)                # 요청의 uuid
+  + TLV(TAG_CHALLENGE=0x06, challenge)                # the request's uuid
   + 0xFF
-expected = HMAC_SHA256(SESSION_INFO_KEY, M + rsp.session_info_bytes)   # 파싱 전 원본 bytes
-if not constant_time_eq(expected, tag): 폐기
+expected = HMAC_SHA256(SESSION_INFO_KEY, M + rsp.session_info_bytes)   # raw bytes before parsing
+if not constant_time_eq(expected, tag): discard
 
-# 세션 상태 저장 (도메인별)
+# Store session state (per domain)
 session[domain] = {
     K, vehicle_public: info.publicKey, epoch: info.epoch (16B),
     counter: info.counter,
-    time_zero: now - info.clock_time seconds,          # 도메인 시계 원점(로컬 시각)
+    time_zero: now - info.clock_time seconds,          # origin of domain clock (local time)
     set_time: info.clock_time,
 }
 ```
 
-- TLV: `tag(1) || len(1) || value`, 값 길이 ≤ 255, 태그 오름차순, 마지막 `0xFF`. 정수는 `BE32`.
-- Go: `session.processHello` → `authentication.NewAuthenticatedSigner` → `NativeSession.SessionInfoHMAC` (HMAC 컨텍스트에 TLV를 직접 써 넣는 구현이지만 결과는 위 식과 같다).
-- 두 도메인(VCSEC, Infotainment)에 각각 수행한다. Go는 병렬로 보낸다. Infotainment가 잠들어 있으면 그 핸드셰이크는 응답이 없다 → VCSEC로 `RKE_ACTION_WAKE_VEHICLE` 후 재시도.
-- 요청 후 `AllowedLatency`(BLE 4s) 이상 지나서 온 session_info는 시계 동기화용으로 신뢰하지 않는다 (Go `receiver.expired`).
+- TLV: `tag(1) || len(1) || value`, value length ≤ 255, tags in ascending order, trailing `0xFF`. Integers are `BE32`.
+- Go: `session.processHello` → `authentication.NewAuthenticatedSigner` → `NativeSession.SessionInfoHMAC` (the implementation writes the TLV directly into the HMAC context, but the result equals the formula above).
+- Perform for each of the two domains (VCSEC, Infotainment). Go sends them in parallel. If Infotainment is asleep, its handshake gets no response → retry after `RKE_ACTION_WAKE_VEHICLE` via VCSEC.
+- session_info arriving more than `AllowedLatency` (BLE 4s) after the request is not trusted for clock synchronization (Go `receiver.expired`).
 
-## 6. 명령 인가 (AES-GCM)
+## 6. Command authorization (AES-GCM)
 
 ```
 P = serialize(CarServer.Action | VCSEC.UnsignedMessage)
 s = session[domain]
-if s.counter == 0xFFFFFFFF: 오류 (롤오버; 재핸드셰이크)
+if s.counter == 0xFFFFFFFF: error (rollover; re-handshake)
 s.counter += 1
-expires_at = int((now + lifetime - s.time_zero).seconds)     # lifetime: ctx 남은 시간, 기본 5s. 너무 길면 TIME_TO_LIVE_TOO_LONG
+expires_at = int((now + lifetime - s.time_zero).seconds)     # lifetime: remaining ctx time, default 5s. Too long → TIME_TO_LIVE_TOO_LONG
 flags = 2
 
 M = TLV(0x00, [0x05])                 # SIGNATURE_TYPE_AES_GCM_PERSONALIZED
-  + TLV(0x01, [domain])               # 2 또는 3
-  + TLV(0x02, VIN_ascii)              # 17바이트
-  + TLV(0x03, s.epoch)                # 16바이트
+  + TLV(0x01, [domain])               # 2 or 3
+  + TLV(0x02, VIN_ascii)              # 17 bytes
+  + TLV(0x03, s.epoch)                # 16 bytes
   + TLV(0x04, BE32(expires_at))
   + TLV(0x05, BE32(s.counter))
-  + TLV(0x07, BE32(flags))            # flags != 0 일 때만 포함
+  + TLV(0x07, BE32(flags))            # included only when flags != 0
   + 0xFF
 AAD   = SHA256(M)
 nonce = random(12)
@@ -207,89 +207,89 @@ msg.payload.protobuf_message_as_bytes = ct
 msg.signature_data.signer_identity.public_key = ENCODE_PUBLIC(C)
 msg.signature_data.AES_GCM_Personalized_data = {epoch: s.epoch, nonce, counter: s.counter, expires_at, tag}
 msg.flags = flags
-request_hash = [0x05] + tag           # 응답 복호화용으로 저장 (§7)
+request_hash = [0x05] + tag           # stored for response decryption (§7)
 ```
 
 - Go: `Signer.Encrypt` → `encryptWithCounter`, `Peer.extractMetadata`, `metadata.Add/AddUint32/Checksum`.
-- HMAC 경로(Fleet API 전용)는 `[0x08]` 서명 타입, `K' = HMAC_SHA256(K, "authenticated command")`, `tag = HMAC_SHA256(K', M || P)`, 페이로드 평문, `HMAC_Personalized_data{epoch, counter, expires_at, tag}`. BLE에서는 사용하지 않는다.
-- VCSEC는 카운터 순서를 엄격히 요구한다 → VCSEC 명령은 동시에 보내지 말고 직렬화한다. Infotainment는 슬라이딩 윈도우 허용.
+- The HMAC path (Fleet API only) uses signature type `[0x08]`, `K' = HMAC_SHA256(K, "authenticated command")`, `tag = HMAC_SHA256(K', M || P)`, plaintext payload, `HMAC_Personalized_data{epoch, counter, expires_at, tag}`. Not used over BLE.
+- VCSEC strictly requires counter order → do not send VCSEC commands concurrently; serialize them. Infotainment allows a sliding window.
 
-## 7. 응답 처리
+## 7. Response handling
 
 ```
 on_message(rsp):
-    if rsp.from_destination is None or rsp.to_destination.routing_address is None: 드롭
+    if rsp.from_destination is None or rsp.to_destination.routing_address is None: drop
     key = (rsp.to_destination.routing_address,
            rsp.request_uuid if rsp.from_destination.domain != VCSEC else 0,
            rsp.from_destination.domain)
-    handler = handlers.get(key) or 드롭
+    handler = handlers.get(key) or drop
 
-    # (a) 동봉 session_info 로 세션 갱신 (오류 응답에 흔히 동봉됨)
+    # (a) Update session from enclosed session_info (commonly enclosed in error responses)
     if rsp.session_info and rsp.signature_data.session_info_tag:
-        if not handler.expired(AllowedLatency): verify_and_update(domain, challenge=rsp.request_uuid, ...)   # §8 규칙
+        if not handler.expired(AllowedLatency): verify_and_update(domain, challenge=rsp.request_uuid, ...)   # §8 rules
 
-    # (b) 암호화 응답 복호화
+    # (b) Decrypt encrypted response
     if rsp.signature_data.AES_GCM_Response_data:
         g = rsp.signature_data.AES_GCM_Response_data
         M = TLV(0x00, [0x09])                            # SIGNATURE_TYPE_AES_GCM_RESPONSE
           + TLV(0x01, [rsp.from_destination.domain])
           + TLV(0x02, VIN_ascii)
           + TLV(0x05, BE32(g.counter))
-          + TLV(0x07, BE32(rsp.flags))                  # 응답 flags, 0이어도 항상 포함
-          + TLV(0x08, handler.request_hash)             # §6에서 저장. VCSEC + HMAC이면 태그 16바이트로 절단
+          + TLV(0x07, BE32(rsp.flags))                  # response flags, always included even if 0
+          + TLV(0x08, handler.request_hash)             # stored in §6. For VCSEC + HMAC, truncate tag to 16 bytes
           + TLV(0x09, BE32(rsp.signedMessageStatus.signed_message_fault))
           + 0xFF
         plaintext = AES_128_GCM_decrypt(K, g.nonce, ct=rsp.protobuf_message_as_bytes, aad=SHA256(M), tag=g.tag)
-        if fail: 드롭 (로그)
-        if not handler.window.accept(g.counter): 드롭   # 요청별 슬라이딩 윈도우(32). 리플레이 방지
+        if fail: drop (log)
+        if not handler.window.accept(g.counter): drop   # per-request sliding window (32). Replay protection
         rsp.protobuf_message_as_bytes = plaintext
 
-    # (c) 프로토콜 오류
+    # (c) Protocol error
     fault = rsp.signedMessageStatus.signed_message_fault
     if fault != NONE: handler.deliver(error(fault)); return        # 08-errors §3.1
     if rsp.signedMessageStatus.operation_status == WAIT: handler.deliver(BUSY)
 
-    # (d) 도메인별 페이로드
+    # (d) Per-domain payload
     if domain == INFOTAINMENT:
         r = CarServer.Response.parse(payload)
-        if r.actionStatus.result == OPERATIONSTATUS_ERROR: 애플리케이션 오류 r.actionStatus.result_reason.plain_text
-        else: 성공 (r.vehicleData 등)
-        handler.done()                                   # 응답 1개
-    else:  # VCSEC — 최대 3개 응답. 종료 규칙:
-        f = VCSEC.FromVCSECMessage.parse(payload)        # payload 없음 → 빈 메시지 = 성공
-        if f.nominalError: 오류 GenericError_E; done
+        if r.actionStatus.result == OPERATIONSTATUS_ERROR: application error r.actionStatus.result_reason.plain_text
+        else: success (r.vehicleData, etc.)
+        handler.done()                                   # 1 response
+    else:  # VCSEC — up to 3 responses. Termination rules:
+        f = VCSEC.FromVCSECMessage.parse(payload)        # no payload → empty message = success
+        if f.nominalError: error GenericError_E; done
         if f.commandStatus:
-            if f.commandStatus.operationStatus == WAIT: 재시도(BUSY)
+            if f.commandStatus.operationStatus == WAIT: retry (BUSY)
             if f.commandStatus.operationStatus == ERROR and f.commandStatus.whitelistOperationStatus.whitelistOperationInformation != NONE: KeychainError; done
-            if whitelist 작업이고 whitelistOperationStatus 존재: done (NONE=성공)
-            else: 계속 대기 (중간 상태)
+            if whitelist operation and whitelistOperationStatus present: done (NONE=success)
+            else: keep waiting (intermediate state)
         else:
-            RKE/Closure: commandStatus 없는 메시지 = 최종 성공; 정보 요청: 첫 메시지가 결과
+            RKE/Closure: message without commandStatus = final success; information request: first message is the result
 ```
 
-- Go: `dispatcher.process`, `checkForSessionUpdate`, `decrypt`, `Signer.Decrypt`, `Peer.responseMetadata`, `authentication.RequestID`, `SlidingWindow.Update`; 페이로드 해석은 `pkg/vehicle/vcsec.go unmarshalVCSECResponse/readUntil`, `infotainment.go getCarServerResponse`.
-- `request_hash`: `[서명 타입 바이트] || 요청 태그`. AES-GCM 요청이면 `0x05 || tag(16)`. HMAC 요청이면 `0x08 || tag(32)`, 단 VCSEC 대상이면 `tag[:16]`.
-- 응답을 받지 못한 채 타임아웃되면 "실행됐을 수 있음"으로 취급하고 자동 재전송하지 않는다.
+- Go: `dispatcher.process`, `checkForSessionUpdate`, `decrypt`, `Signer.Decrypt`, `Peer.responseMetadata`, `authentication.RequestID`, `SlidingWindow.Update`; payload interpretation in `pkg/vehicle/vcsec.go unmarshalVCSECResponse/readUntil`, `infotainment.go getCarServerResponse`.
+- `request_hash`: `[signature type byte] || request tag`. For an AES-GCM request, `0x05 || tag(16)`. For an HMAC request, `0x08 || tag(32)`, but `tag[:16]` when targeting VCSEC.
+- If it times out without receiving a response, treat it as "may have been executed" and do not resend automatically.
 
-## 8. 재시도와 세션 복구
+## 8. Retry and session recovery
 
-재시도 가능한 fault (Go `retriableErrors`): `BUSY(1)`, `TIMEOUT(2)`, `INVALID_SIGNATURE(5)`, `INVALID_TOKEN_OR_COUNTER(6)`, `INTERNAL(11)`, `INCORRECT_EPOCH(15)`, `TIME_EXPIRED(17)`, `TIME_TO_LIVE_TOO_LONG(20)`, 그리고 `operation_status == WAIT`. 재시도 시 §6을 처음부터 다시 수행한다 (새 카운터, 새 nonce, 새 expires_at). 간격 1s. `RESPONSE_MTU_EXCEEDED(25)`는 "실행됨"이므로 재시도 금지.
+Retriable faults (Go `retriableErrors`): `BUSY(1)`, `TIMEOUT(2)`, `INVALID_SIGNATURE(5)`, `INVALID_TOKEN_OR_COUNTER(6)`, `INTERNAL(11)`, `INCORRECT_EPOCH(15)`, `TIME_EXPIRED(17)`, `TIME_TO_LIVE_TOO_LONG(20)`, plus `operation_status == WAIT`. On retry, redo §6 from the start (new counter, new nonce, new expires_at). Interval 1s. `RESPONSE_MTU_EXCEEDED(25)` means "executed", so do not retry.
 
-세션 갱신 규칙 (`protocol.md` "Recovering from synchronization errors" + Go `Signer.UpdateSessionInfo`):
+Session update rules (`protocol.md` "Recovering from synchronization errors" + Go `Signer.UpdateSessionInfo`):
 
 ```
 verify_and_update(domain, challenge, info_bytes, tag):
-    if challenge 가 최근 몇 초 내 우리가 보낸 uuid 가 아님: 폐기
-    if HMAC(SESSION_INFO_KEY, TLV(sig=0x06, VIN, challenge) + 0xFF + info_bytes) != tag: 폐기
+    if challenge is not a uuid we sent within the last few seconds: discard
+    if HMAC(SESSION_INFO_KEY, TLV(sig=0x06, VIN, challenge) + 0xFF + info_bytes) != tag: discard
     info = parse(info_bytes)
-    if info.publicKey != s.vehicle_public: 폐기
+    if info.publicKey != s.vehicle_public: discard
     if info.epoch != s.epoch or s.set_time <= info.clock_time:
-        s.counter = max(s.counter, info.counter)       # 카운터는 내리지 않는다 (Go 구현). 사양은 "epoch 변경 시 제외" 허용
+        s.counter = max(s.counter, info.counter)       # never lower the counter (Go implementation). The spec allows an "except when epoch changes" exception
         s.epoch = info.epoch; s.set_time = info.clock_time; s.time_zero = now - info.clock_time
-    else: 무시 (더 오래된 시각의 정보)
+    else: ignore (information with an older timestamp)
 ```
 
-## 9. 세션 캐시 형식 (Go 호환)
+## 9. Session cache format (Go-compatible)
 
 `pkg/cache/cache.go` + `internal/dispatcher/session.go CacheEntry`:
 
@@ -305,14 +305,14 @@ verify_and_update(domain, challenge, info_bytes, tag):
 }
 ```
 
-- `data`는 `SessionInfo{counter, publicKey(차량), epoch, clock_time}`의 protobuf 바이트. `clock_time`은 **`created_at` 시점의 도메인 시각**이어야 한다 (Go `ExportSessionInfo`는 `timestamp()` = `now - time_zero`를 넣고, `ImportSessionInfo`는 `time_zero = created_at - clock_time`으로 복원).
-- `created_at`은 RFC3339Nano (Go `time.Time` JSON). `domain`은 정수(2/3). `MaxEntries`는 태그 없는 필드라 대문자.
-- 다른 언어에서 자체 형식을 써도 되지만, 캐시는 개인 키에 묶이며 카운터/epoch를 담으므로 파일 권한을 0600으로 제한한다.
-- 캐시로 복원한 세션은 즉시 사용 가능(ready)으로 취급하고, 첫 명령 실패 시 §8로 복구한다.
+- `data` is the protobuf bytes of `SessionInfo{counter, publicKey (vehicle), epoch, clock_time}`. `clock_time` must be **the domain time at `created_at`** (Go `ExportSessionInfo` stores `timestamp()` = `now - time_zero`, and `ImportSessionInfo` restores `time_zero = created_at - clock_time`).
+- `created_at` is RFC3339Nano (Go `time.Time` JSON). `domain` is an integer (2/3). `MaxEntries` is capitalized because it is an untagged field.
+- Other languages may use their own format, but since the cache is bound to the private key and holds counter/epoch, restrict file permissions to 0600.
+- Treat sessions restored from the cache as immediately usable (ready), and recover via §8 if the first command fails.
 
-## 10. 키 페어링 (개인 키 없이)
+## 10. Key pairing (without a private key)
 
-Go `SendAddKeyRequestWithRole`은 **RoutableMessage로 감싸지 않고** 다음 바이트를 `conn.Send`로 직접 보낸다:
+Go `SendAddKeyRequestWithRole` **does not wrap it in a RoutableMessage**; it sends the following bytes directly via `conn.Send`:
 
 ```
 inner = VCSEC.UnsignedMessage{
@@ -322,70 +322,70 @@ inner = VCSEC.UnsignedMessage{
     }
 }
 envelope = VCSEC.ToVCSECMessage{ signedMessage: SignedMessage{ protobufMessageAsBytes: serialize(inner), signatureType: SIGNATURE_TYPE_PRESENT_KEY(2) } }
-ble_send(serialize(envelope))          # §3 프레이밍 적용
+ble_send(serialize(envelope))          # apply §3 framing
 ```
 
-- 사용자가 NFC 카드를 센터 콘솔에 대고 화면에서 확인해야 한다. 차량은 `FromVCSECMessage.commandStatus.operationStatus = WAIT`를 보내며 탭을 기다린다 (Go는 이 응답을 읽지 않는다).
-- 등록 확인: 해당 공개 키로 §5 핸드셰이크(`SessionInfoRequest`)를 Infotainment 도메인에 보내 `status == OK`이면 완료. VCSEC 등록 후 Infotainment 동기화까지 수십 초 걸릴 수 있다.
-- 인터넷 경로에서는 불가능 (Go: `ErrRequiresBLE`). 실패 코드는 `WhitelistOperation_information_E` ([08-errors.md](08-errors.md) §3.7).
+- The user must place an NFC card on the center console and confirm on screen. The vehicle sends `FromVCSECMessage.commandStatus.operationStatus = WAIT` and waits for the tap (Go does not read this response).
+- Confirming registration: send a §5 handshake (`SessionInfoRequest`) with that public key to the Infotainment domain; it is complete when `status == OK`. Syncing to Infotainment after VCSEC registration can take tens of seconds.
+- Not possible over the internet path (Go: `ErrRequiresBLE`). Failure codes are `WhitelistOperation_information_E` ([08-errors.md](08-errors.md) §3.7).
 
-## 11. 검증 절차
+## 11. Verification procedure
 
-1. **벡터 테스트** (§0.3) 통과.
-2. **바이트 비교**: `tesla-control -ble -vin $VIN -debug list-keys` (비인증) 의 `TX:` hex와 내 구현의 프레이밍 전 바이트를 비교. 랜덤 필드(`uuid`, `routing_address`)를 제외하면 동일해야 한다. `protoc --decode=UniversalMessage.RoutableMessage -I pkg/protocol/protobuf pkg/protocol/protobuf/*.proto` 로 양쪽을 디코딩해 필드 단위로 대조.
-3. **비인증 명령 먼저**: `InformationRequest{GET_STATUS}` (VCSEC, `body-controller-state`), `GET_WHITELIST_INFO` (`list-keys`), `SessionInfoRequest` (`session-info`). 이 세 가지가 되면 §1~§4, §7(평문)이 맞다.
-4. **핸드셰이크 검증**: `session-info public_key.pem vcsec` 출력의 `epoch/counter/clock_time`과 내 구현이 받은 값 비교. HMAC 검증이 통과해야 한다.
-5. **인증 명령**: `RKE_ACTION_LOCK`/`UNLOCK` (VCSEC) → `HvacAutoAction` (Infotainment). 첫 명령이 `INVALID_SIGNATURE`면 메타데이터 TLV 순서/길이/`flags` 포함 규칙을, `TIME_EXPIRED`면 `expires_at` 계산(도메인 시계 기준)을, `INVALID_TOKEN_OR_COUNTER`면 카운터 증가 시점을 확인.
-6. **응답 복호화**: `AES_GCM_Response_data`가 있는 응답이 복호화되면 §7(b)가 맞다. 실패하면 `request_hash`(요청 태그 저장)와 응답 메타데이터의 `flags` 항상 포함/`fault` 포함 규칙을 확인.
-7. **복구**: 캐시를 일부러 낡게 만든 뒤(카운터 감소) 첫 명령 실패 → 동봉 session_info로 갱신 → 재전송 성공을 확인.
+1. **Vector tests** (§0.3) pass.
+2. **Byte comparison**: compare the `TX:` hex of `tesla-control -ble -vin $VIN -debug list-keys` (unauthenticated) with your implementation's pre-framing bytes. Excluding random fields (`uuid`, `routing_address`), they must be identical. Decode both sides with `protoc --decode=UniversalMessage.RoutableMessage -I pkg/protocol/protobuf pkg/protocol/protobuf/*.proto` and compare field by field.
+3. **Unauthenticated commands first**: `InformationRequest{GET_STATUS}` (VCSEC, `body-controller-state`), `GET_WHITELIST_INFO` (`list-keys`), `SessionInfoRequest` (`session-info`). If these three work, §1–§4 and §7 (plaintext) are correct.
+4. **Handshake verification**: compare the `epoch/counter/clock_time` in the `session-info public_key.pem vcsec` output with the values your implementation received. HMAC verification must pass.
+5. **Authenticated commands**: `RKE_ACTION_LOCK`/`UNLOCK` (VCSEC) → `HvacAutoAction` (Infotainment). If the first command returns `INVALID_SIGNATURE`, check metadata TLV order/length/`flags` inclusion rules; if `TIME_EXPIRED`, check the `expires_at` calculation (based on the domain clock); if `INVALID_TOKEN_OR_COUNTER`, check when the counter is incremented.
+6. **Response decryption**: if a response with `AES_GCM_Response_data` decrypts, §7(b) is correct. If it fails, check `request_hash` (storing the request tag) and the response metadata rules for always including `flags` and including `fault`.
+7. **Recovery**: deliberately make the cache stale (decrease the counter), then confirm first command fails → session updated from enclosed session_info → resend succeeds.
 
-## 12. 플랫폼별 주의와 보안 체크리스트
+## 12. Platform-specific notes and security checklist
 
-| 플랫폼 | 주의 |
+| Platform | Notes |
 |---|---|
-| iOS/macOS (CoreBluetooth) | Local Name은 `CBAdvertisementDataLocalNameKey`; 백그라운드에서는 Local Name이 제한될 수 있어 서비스 UUID 스캔이 필요할 수 있음. MTU는 `maximumWriteValueLength(for: .withResponse)`. 어댑터 ID 선택 불가. 앱 Bluetooth 권한 필요. |
-| Android (BluetoothGatt) | `requestMtu(517)` 후 `onMtuChanged`를 기다린 뒤 block_length 계산. 213은 `setCharacteristicNotification` + CCCD에 `ENABLE_INDICATION_VALUE` 기록. 쓰기는 `WRITE_TYPE_DEFAULT`(응답 있음)이며 `onCharacteristicWrite` 후 다음 청크. 스캔 필터는 device name. Android 12+ `BLUETOOTH_SCAN/CONNECT` 권한. |
-| Linux (BlueZ, bleak/btleplug) | 원시 HCI 접근이면 `CAP_NET_ADMIN`; BlueZ D-Bus면 불필요. 어댑터 선택 `hciN`. 여러 어댑터 초기화 반복 시 실패(Go 주석) → 어댑터 객체 재사용. |
-| Windows | Go 구현은 미지원. WinRT BLE로 구현 가능하나 검증 사례 없음. |
-| 공통 | 연결은 VCSEC 최대 3개. 명령을 보내지 않을 때는 연결을 끊어 키포브/폰키 슬롯을 비운다. |
+| iOS/macOS (CoreBluetooth) | Local Name is `CBAdvertisementDataLocalNameKey`; in the background the Local Name may be restricted, so a service UUID scan may be needed. MTU is `maximumWriteValueLength(for: .withResponse)`. Adapter ID selection not possible. App Bluetooth permission required. |
+| Android (BluetoothGatt) | After `requestMtu(517)`, wait for `onMtuChanged` before computing block_length. For 213, `setCharacteristicNotification` + write `ENABLE_INDICATION_VALUE` to the CCCD. Writes use `WRITE_TYPE_DEFAULT` (with response); send the next chunk after `onCharacteristicWrite`. Scan filter by device name. Android 12+ requires `BLUETOOTH_SCAN/CONNECT` permissions. |
+| Linux (BlueZ, bleak/btleplug) | `CAP_NET_ADMIN` for raw HCI access; not needed with BlueZ D-Bus. Adapter selection `hciN`. Repeated initialization of multiple adapters fails (Go comment) → reuse the adapter object. |
+| Windows | Not supported by the Go implementation. Implementable with WinRT BLE, but no verified cases. |
+| Common | VCSEC allows at most 3 connections. Disconnect when not sending commands to free key fob/phone key slots. |
 
-보안 체크리스트
+Security checklist
 
-- [ ] 개인 키는 OS 키체인/Keystore/Secure Enclave 등 보호 저장소에. Go는 `99designs/keyring` (macOS Keychain 등).
-- [ ] 세션 캐시 파일 0600, 다른 사용자가 읽지 못하게.
-- [ ] 문서의 테스트 키(`client.key`, `vehicle.key`)를 실제 차량에 등록하지 않는다.
-- [ ] HMAC 태그 비교는 상수 시간 함수.
-- [ ] nonce는 명령마다 새 CSPRNG 12바이트. 재사용 금지.
-- [ ] `session_info_tag` 검증 없이 세션을 갱신하지 않는다 (MITM이 만료 시각을 늘리는 공격 방지).
-- [ ] 응답 카운터 슬라이딩 윈도우 구현 (리플레이 방지).
-- [ ] `expires_at`은 짧게 (5~10s). 긴 TTL은 차량이 거부한다.
-- [ ] 로그에 K, 개인 키, 복호화 전 페이로드를 남기지 않는다 (Go `-debug`는 TX/RX 암호문 hex만 남긴다).
+- [ ] Store the private key in protected storage such as the OS keychain/Keystore/Secure Enclave. Go uses `99designs/keyring` (macOS Keychain, etc.).
+- [ ] Session cache file 0600, unreadable by other users.
+- [ ] Do not register the documented test keys (`client.key`, `vehicle.key`) on a real vehicle.
+- [ ] HMAC tag comparison uses a constant-time function.
+- [ ] Nonce is a fresh 12-byte CSPRNG value per command. Never reuse.
+- [ ] Never update the session without verifying `session_info_tag` (prevents MITM attacks that extend the expiration time).
+- [ ] Implement a sliding window for response counters (replay protection).
+- [ ] Keep `expires_at` short (5–10s). The vehicle rejects long TTLs.
+- [ ] Do not log K, private keys, or pre-decryption payloads (Go `-debug` logs only TX/RX ciphertext hex).
 
-## 부록: 단계 ↔ Go 구현 대응표
+## Appendix: Step ↔ Go implementation mapping
 
-| 단계 | 파일:함수 |
+| Step | File:function |
 |---|---|
-| 1 스캔 | `pkg/connector/ble/ble.go`: `VehicleLocalName`, `ScanVehicleBeacon`, `scanVehicleBeacon`; `device_linux.go`: `scanParams` |
+| 1 Scan | `pkg/connector/ble/ble.go`: `VehicleLocalName`, `ScanVehicleBeacon`, `scanVehicleBeacon`; `device_linux.go`: `scanParams` |
 | 2 GATT | `ble.go`: `tryToConnect` (Dial → DiscoverServices → DiscoverCharacteristics → DiscoverDescriptors → Subscribe → ExchangeMTU) |
-| 3 프레이밍 | `ble.go`: `Connection.Send`, `Connection.rx`, `Connection.flush`; 상수 `maxBLEMessageSize=1024`, `rxTimeout=1s` |
+| 3 Framing | `ble.go`: `Connection.Send`, `Connection.rx`, `Connection.flush`; constants `maxBLEMessageSize=1024`, `rxTimeout=1s` |
 | 4 RoutableMessage | `internal/dispatcher/dispatcher.go`: `Dispatcher.Send`, `SessionInfoRequest`; `receiver.go`: `receiverKey` |
-| 5 핸드셰이크 | `dispatcher.go`: `StartSession`, `tryStartSession`, `StartSessions`, `checkForSessionUpdate`; `session.go`: `processHello`; `internal/authentication/signer.go`: `NewAuthenticatedSigner`, `ImportSessionInfo`; `native.go`: `NativeECDHKey.Exchange`, `NativeSession.SessionInfoHMAC` |
-| 6 인가 | `session.go`: `authorize`; `signer.go`: `Encrypt`, `encryptWithCounter`, `AuthorizeHMAC`; `peer.go`: `extractMetadata`, `hmacTag`; `metadata.go`; `crypto.go`: 라벨 상수 |
-| 7 응답 | `dispatcher.go`: `process`, `decrypt`; `session.go`: `decrypt`; `signer.go`: `Decrypt`; `peer.go`: `RequestID`, `responseMetadata`; `window.go`: `SlidingWindow`; `pkg/vehicle/vcsec.go`: `unmarshalVCSECResponse`, `readUntil`; `infotainment.go`: `getCarServerResponse`; `pkg/protocol/error.go`: `GetError` |
-| 8 재시도/복구 | `pkg/vehicle/vehicle.go`: `Send`, `StartSession`; `pkg/protocol/error.go`: `ShouldRetry`, `retriableErrors`; `signer.go`: `UpdateSignedSessionInfo`, `UpdateSessionInfo` |
-| 9 캐시 | `pkg/cache/cache.go`; `session.go`: `CacheEntry`, `export`; `dispatcher.go`: `Cache`, `LoadCache`; `signer.go`: `ExportSessionInfo` |
-| 10 페어링 | `pkg/vehicle/security.go`: `SendAddKeyRequestWithRole`; `vcsec.go`: `addKeyPayload`; `pkg/vehicle/vehicle.go`: `SessionInfo` |
-| 11 검증 | `cmd/tesla-control` (`-debug`, `list-keys`, `session-info`, `body-controller-state`); `internal/authentication/protocol_doc_test.go`; `pkg/protocol/protocol.md` |
+| 5 Handshake | `dispatcher.go`: `StartSession`, `tryStartSession`, `StartSessions`, `checkForSessionUpdate`; `session.go`: `processHello`; `internal/authentication/signer.go`: `NewAuthenticatedSigner`, `ImportSessionInfo`; `native.go`: `NativeECDHKey.Exchange`, `NativeSession.SessionInfoHMAC` |
+| 6 Authorization | `session.go`: `authorize`; `signer.go`: `Encrypt`, `encryptWithCounter`, `AuthorizeHMAC`; `peer.go`: `extractMetadata`, `hmacTag`; `metadata.go`; `crypto.go`: label constants |
+| 7 Response | `dispatcher.go`: `process`, `decrypt`; `session.go`: `decrypt`; `signer.go`: `Decrypt`; `peer.go`: `RequestID`, `responseMetadata`; `window.go`: `SlidingWindow`; `pkg/vehicle/vcsec.go`: `unmarshalVCSECResponse`, `readUntil`; `infotainment.go`: `getCarServerResponse`; `pkg/protocol/error.go`: `GetError` |
+| 8 Retry/recovery | `pkg/vehicle/vehicle.go`: `Send`, `StartSession`; `pkg/protocol/error.go`: `ShouldRetry`, `retriableErrors`; `signer.go`: `UpdateSignedSessionInfo`, `UpdateSessionInfo` |
+| 9 Cache | `pkg/cache/cache.go`; `session.go`: `CacheEntry`, `export`; `dispatcher.go`: `Cache`, `LoadCache`; `signer.go`: `ExportSessionInfo` |
+| 10 Pairing | `pkg/vehicle/security.go`: `SendAddKeyRequestWithRole`; `vcsec.go`: `addKeyPayload`; `pkg/vehicle/vehicle.go`: `SessionInfo` |
+| 11 Verification | `cmd/tesla-control` (`-debug`, `list-keys`, `session-info`, `body-controller-state`); `internal/authentication/protocol_doc_test.go`; `pkg/protocol/protocol.md` |
 
 ---
 
-## 검증 체크리스트
+## Verification checklist
 
-- [ ] UUID 3개, Local Name 규칙, 길이 프리픽스(빅엔디언 2바이트), `maxBLEMessageSize=1024`, `rxTimeout=1s`, `blockLength = min(mtu,1024)-3` 이 `pkg/connector/ble/ble.go`와 일치.
-- [ ] TLV 태그 값(0 SIGNATURE_TYPE, 1 DOMAIN, 2 PERSONALIZATION, 3 EPOCH, 4 EXPIRES_AT, 5 COUNTER, 6 CHALLENGE, 7 FLAGS, 8 REQUEST_HASH, 9 FAULT, 255 END)과 서명 타입 값(5 AES_GCM_PERSONALIZED, 6 HMAC, 8 HMAC_PERSONALIZED, 9 AES_GCM_RESPONSE)이 `signatures.proto`와 일치.
-- [ ] 요청 메타데이터는 `flags != 0`일 때만 FLAGS 포함, 응답 메타데이터는 항상 포함 — `peer.go extractMetadata` / `responseMetadata`와 일치.
-- [ ] `request_hash` 절단 규칙(VCSEC + HMAC → 16바이트)이 `peer.go RequestID`와 일치.
-- [ ] 세션 갱신 시 카운터를 내리지 않는 Go 동작(`signer.go UpdateSessionInfo`)을 반영.
-- [ ] 캐시 JSON 키(`vehicles`, `created_at`, `domain`, `data`, `MaxEntries`)가 `cache.go`/`session.go`와 일치.
-- [ ] 페어링 메시지가 RoutableMessage가 아닌 `ToVCSECMessage`임을 `security.go`에서 재확인.
-- [ ] §0.3 벡터가 `pkg/protocol/protocol.md`의 값과 바이트 단위로 일치.
+- [ ] The 3 UUIDs, Local Name rule, length prefix (2-byte big-endian), `maxBLEMessageSize=1024`, `rxTimeout=1s`, `blockLength = min(mtu,1024)-3` match `pkg/connector/ble/ble.go`.
+- [ ] TLV tag values (0 SIGNATURE_TYPE, 1 DOMAIN, 2 PERSONALIZATION, 3 EPOCH, 4 EXPIRES_AT, 5 COUNTER, 6 CHALLENGE, 7 FLAGS, 8 REQUEST_HASH, 9 FAULT, 255 END) and signature type values (5 AES_GCM_PERSONALIZED, 6 HMAC, 8 HMAC_PERSONALIZED, 9 AES_GCM_RESPONSE) match `signatures.proto`.
+- [ ] Request metadata includes FLAGS only when `flags != 0`; response metadata always includes it — matches `peer.go extractMetadata` / `responseMetadata`.
+- [ ] The `request_hash` truncation rule (VCSEC + HMAC → 16 bytes) matches `peer.go RequestID`.
+- [ ] Reflects the Go behavior of never lowering the counter on session update (`signer.go UpdateSessionInfo`).
+- [ ] Cache JSON keys (`vehicles`, `created_at`, `domain`, `data`, `MaxEntries`) match `cache.go`/`session.go`.
+- [ ] Re-confirm in `security.go` that the pairing message is a `ToVCSECMessage`, not a RoutableMessage.
+- [ ] §0.3 vectors match the values in `pkg/protocol/protocol.md` byte for byte.
