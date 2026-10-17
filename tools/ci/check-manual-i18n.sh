@@ -7,7 +7,7 @@
 #   - 페이지마다 태그 이름별 개수가 ko/ 와 같다 (문단·목록·표 행 누락 탐지. 어순 때문에 순서는 비교하지 않는다)
 #   - en/, ja/ 에는 언어 전환 링크의 "한국어" 라벨 말고는 한글이 없다
 #   - documents/html/index.html 은 en/index.html 을 한 단계 위 경로로 옮긴 영어 홈이다
-#     (en/index.html 의 href를 루트 기준으로 바꾼 결과와 바이트 단위로 같다)
+#     (en/index.html 의 href·src를 루트 기준으로 바꾼 결과와 바이트 단위로 같다)
 #   - 코드 블록 문법 색이 최신이다 (highlight-manual-code.sh --check)
 # 인자로 저장소 루트를 넘기면 그 경로를 검사한다(검사 스크립트 자체를 시험할 때).
 set -euo pipefail
@@ -86,7 +86,7 @@ if not root_index.exists():
     errors.append("documents/html/index.html: missing (English home)")
 else:
     en = (html_dir / "en/index.html").read_text(encoding="utf-8")
-    expected = re.sub(r'\bhref="([^"]+)"', lambda m: f'href="{to_root(m.group(1))}"', en)
+    expected = re.sub(r'\b(href|src)="([^"]+)"', lambda m: f'{m.group(1)}="{to_root(m.group(2))}"', en)
     if root_index.read_text(encoding="utf-8") != expected:
         errors.append("documents/html/index.html: out of sync with en/index.html (run tools/ci/sync-manual-root-index.sh)")
 
