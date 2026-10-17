@@ -72,7 +72,7 @@ func VehicleLocalName(vin string) string {
 <pre><code class="language-bash"># シェルで確認: VIN 5YJS0000000000000 → S1a87a5a75f3df858C
 printf '5YJS0000000000000' | shasum | cut -c1-16 | sed 's/^/S/; s/$/C/'
 # S1a87a5a75f3df858C</code></pre>
-<p>スキャンコールバックは <code>a.LocalName() != localName</code> であれば無視します。名前は一致しても異なる値を持つアドバタイズが渡されると、<code>tryToConnect</code> は <code>ble: beacon with unexpected local name</code> エラーを出し、リトライしません。</p>
+<p>スキャンコールバックは <code>a.LocalName() != localName</code> であれば無視します。呼び出し側が渡した <code>ScanResult</code> の名前が VIN から計算した名前と異なると、<code>tryToConnect</code> は <code>ble: beacon with unexpected local name</code> エラーを出し、リトライしません。</p>
 
 <h2 id="sec-gatt">GATT 接続手順</h2>
 <p><code>tryToConnect</code> が実行する順序です。各段階の失敗は <code>retry=true</code>(リトライ可能)に分類されます(アダプターエラー、名前の不一致、接続不可のアドバタイズを除く)。</p>

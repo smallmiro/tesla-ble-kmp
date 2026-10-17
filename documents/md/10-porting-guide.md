@@ -359,7 +359,7 @@ Security checklist
 - [ ] Never update the session without verifying `session_info_tag` (prevents MITM attacks that extend the expiration time).
 - [ ] Implement a sliding window for response counters (replay protection).
 - [ ] Keep `expires_at` short (5–10s). The vehicle rejects long TTLs.
-- [ ] Do not log K, private keys, or pre-decryption payloads (Go `-debug` logs only TX/RX ciphertext hex).
+- [ ] Do not log K, private keys, or decrypted (plaintext) payloads (Go `-debug` logs only TX/RX ciphertext hex).
 
 ## Appendix: Step ↔ Go implementation mapping
 

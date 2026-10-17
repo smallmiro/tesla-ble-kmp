@@ -686,7 +686,7 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 - `TeslaLogger` 포트. 기본 `NoOp`. 샘플 앱은 `DebugLogger`(플랫폼 로그)를 주입.
 - `DEBUG` 레벨에서만 `TX: <hex>` / `RX: <hex>`(암호문 그대로, Go `-debug`와 동일). `INFO`는 세션·연결 이벤트, `WARN`은 드롭·폐기 사유(Go 로그 문구 유지: "Discarding unauthenticated session info" 등).
 - VIN은 모든 로그에서 `Vin.toString()` 마스킹(`5YJ**********9ABC`). 로컬 이름(`S…C`)은 VIN의 해시라 그대로 남겨도 된다.
-- 개인키(핸들만 존재), 공유 X, K, 서브키, 복호화 전 페이로드는 어떤 레벨에서도 로그에 쓰지 않는다. `Session.toString()`은 공개키 지문만 출력.
+- 개인키(핸들만 존재), 공유 X, K, 서브키, 복호화된(평문) 페이로드는 어떤 레벨에서도 로그에 쓰지 않는다. `Session.toString()`은 공개키 지문만 출력.
 - `Session.close()`는 K와 서브키 배열을 0으로 덮는다. `Vehicle.disconnect()`가 모든 세션을 닫는다.
 - `protocol.md` 테스트 키는 `:testing`에만 존재하고 `:sdk`에서 참조하지 않는다(detekt `ForbiddenImport`로 `:testing` → 운영 모듈 유입 차단).
 - 비밀 스캔 로컬 게이트(`tools/ci/verify.sh`, ADR-0012): `[A-HJ-NPR-Z0-9]{17}` VIN 패턴은 테스트 VIN(`5YJ30123456789ABC`, `5YJS0000000000000`, `0123456789ABCDEFG`) 허용 목록만 통과.
@@ -718,7 +718,7 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 
 | # | 매뉴얼 위치 | 원본 위치 | 내용 | 처리 |
 |---|---|---|---|---|
-| 1 | `03-protocol.md` §9.2 "응답 메타데이터 (AAD)" 첫 문장 | `internal/authentication/peer.go` `responseMetadata` (`newMetadata()` = SHA-256 컨텍스트, `Checksum(nil)` 반환) | 매뉴얼은 "AAD는 SHA-256 해시가 아니라 직렬화 바이트 자체"라고 굵게 적었으나, 같은 문단 괄호와 원본 코드는 `SHA256(TLV‖0xFF)`를 AAD로 사용 | **원본을 따름**(SHA-256 다이제스트). §3.3, PoC `decryptResponse`도 동일. 사용자에게 보고. 매뉴얼 문장 수정은 승인 후 |
+| 1 | `03-protocol.md` §9.2 "응답 메타데이터 (AAD)" 첫 문장 | `internal/authentication/peer.go` `responseMetadata` (`newMetadata()` = SHA-256 컨텍스트, `Checksum(nil)` 반환) | 매뉴얼은 "AAD는 SHA-256 해시가 아니라 직렬화 바이트 자체"라고 굵게 적었으나, 같은 문단 괄호와 원본 코드는 `SHA256(TLV‖0xFF)`를 AAD로 사용 | **원본을 따름**(SHA-256 다이제스트). §3.3, PoC `decryptResponse`도 동일. 사용자에게 보고. 2026-10-17 사용자 승인으로 매뉴얼 수정 완료(MD §9.2, HTML `04-protocol` ko/en/ja) |
 
 | 2 | `10-porting-guide.md:88` | `pkg/connector/ble/ble.go:20, 349` | 매뉴얼은 `ble.MaxMTU = 517`. Go는 go-ble `ble.MaxMTU`를 요청(go-ble 소스는 이 저장소에 없어 값 미확인; 517은 Android 상한). 우리는 Android `requestMtu(517)` | **원본을 따름**. 매뉴얼은 승인 전 수정하지 않음 |
 | 3 | `10-porting-guide.md:92` | `ble.go:314-352` | 매뉴얼은 "서비스·특성·구독·MTU 실패 시 연결을 끊고 재시도". Go는 끊지 않고(누수), MTU 실패는 재시도 없이 블록 20 | 원본의 재시도 구조를 따르되 실패한 시도의 연결은 닫는다(아래 "의도" 절). 매뉴얼은 승인 전 수정하지 않음 |

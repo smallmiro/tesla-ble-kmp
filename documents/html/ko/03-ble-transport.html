@@ -72,7 +72,7 @@ func VehicleLocalName(vin string) string {
 <pre><code class="language-bash"># 셸에서 확인: VIN 5YJS0000000000000 → S1a87a5a75f3df858C
 printf '5YJS0000000000000' | shasum | cut -c1-16 | sed 's/^/S/; s/$/C/'
 # S1a87a5a75f3df858C</code></pre>
-<p>스캔 콜백은 <code>a.LocalName() != localName</code>이면 무시합니다. 이름이 일치하지만 다른 값을 가진 광고가 전달되면 <code>tryToConnect</code>가 <code>ble: beacon with unexpected local name</code> 오류를 내고 재시도하지 않습니다.</p>
+<p>스캔 콜백은 <code>a.LocalName() != localName</code>이면 무시합니다. 호출자가 넘긴 <code>ScanResult</code>의 이름이 VIN으로 계산한 이름과 다르면 <code>tryToConnect</code>가 <code>ble: beacon with unexpected local name</code> 오류를 내고 재시도하지 않습니다.</p>
 
 <h2 id="sec-gatt">GATT 연결 절차</h2>
 <p><code>tryToConnect</code>가 수행하는 순서입니다. 각 단계의 실패는 <code>retry=true</code>(재시도 가능)로 분류됩니다(어댑터 오류와 이름 불일치, 연결 불가 광고 제외).</p>

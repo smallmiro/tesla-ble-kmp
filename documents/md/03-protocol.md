@@ -462,7 +462,7 @@ Verify that the response's `counter` has not been used by a previous response to
 
 #### Response metadata (AAD)
 
-AES-GCM decrypt using `K`, the response's `nonce`/`tag`, and the serialization (section 4) of the metadata below as AAD. **Note: unlike requests, the AAD is the serialized bytes themselves rather than a SHA-256 hash** (Go's `responseMetadata` builds it with `newMetadata()` (SHA-256 context) and then passes `Checksum(nil)`, i.e. `SHA256(TLV || 0xFF)`, as AAD. The original spec text only says "serializing the following metadata", but the implementation uses the SHA-256 digest as AAD. When porting, follow the Go implementation.)
+AES-GCM decrypt using `K`, the response's `nonce`/`tag`, and **the SHA-256 digest of the metadata serialization (section 4), `SHA256(TLV || 0xFF)`, as AAD** — the same construction as for requests. Go's `responseMetadata` (`internal/authentication/peer.go`) builds the TLV with `newMetadata()` (SHA-256 context) and passes `Checksum(nil)` as AAD. The original `protocol.md` only says "serializing the following metadata"; follow the Go implementation, which hashes it.
 
 | Value | Tag | Description |
 |---|---|---|
