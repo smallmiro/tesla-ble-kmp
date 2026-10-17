@@ -58,14 +58,14 @@
   <li><strong>コマンドを送る。</strong> <code>tesla-control -ble lock</code>。SDK がアドバタイズのスキャン → GATT 接続 → ドメインごとのハンドシェイク → AES-GCM で暗号化したコマンドの送信を処理します。</li>
 </ol>
 
-<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)
-export TESLA_VIN=5YJ30123456789ABC
-export TESLA_CACHE_FILE=~/.tesla-cache.json
+<pre><code class="language-bash"><span class="k">export</span> <span class="v">TESLA_KEY_NAME</span>=$(<span class="f">whoami</span>)
+<span class="k">export</span> <span class="v">TESLA_VIN</span>=5YJ30123456789ABC
+<span class="k">export</span> <span class="v">TESLA_CACHE_FILE</span>=~/.tesla-cache.json
 
-tesla-keygen create &gt; public_key.pem
-tesla-control -ble add-key-request public_key.pem owner cloud_key   # 車内で、NFC カードを用意
-tesla-control -ble lock
-tesla-control -ble -debug body-controller-state                     # ロック/ドア/スリープ状態 (Infotainment がスリープ中でも動作)</code></pre>
+<span class="f">tesla-keygen</span> create <span class="o">&gt;</span> public_key.pem
+<span class="f">tesla-control</span> <span class="p">-ble</span> add-key-request public_key.pem owner cloud_key   <span class="c"># 車内で、NFC カードを用意</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> lock
+<span class="f">tesla-control</span> <span class="p">-ble</span> <span class="p">-debug</span> body-controller-state                     <span class="c"># ロック/ドア/スリープ状態 (Infotainment がスリープ中でも動作)</span></code></pre>
 </section>
 <section class="tile sources">
 <h2>リポジトリの原典ドキュメント</h2>

@@ -57,10 +57,10 @@
 
 <h2 id="sec-model">오류 모델</h2>
 <p>SDK가 반환하는 오류는 가능한 한 <code>protocol.Error</code> 인터페이스를 구현합니다. 두 메서드가 호출자가 해야 할 일을 결정합니다.</p>
-<pre><code class="language-go">type Error interface {
-    error
-    MayHaveSucceeded() bool // 차량이 명령을 받아 실행했을 수 있음 (확인 불가)
-    Temporary() bool        // 사용자 개입 없이 재시도로 해결될 수 있음
+<pre><code class="language-go"><span class="k">type</span> Error <span class="k">interface</span> {
+    <span class="t">error</span>
+    <span class="f">MayHaveSucceeded</span>() <span class="t">bool</span> <span class="c">// 차량이 명령을 받아 실행했을 수 있음 (확인 불가)</span>
+    <span class="f">Temporary</span>() <span class="t">bool</span>        <span class="c">// 사용자 개입 없이 재시도로 해결될 수 있음</span>
 }</code></pre>
 <table>
 <thead><tr><th>타입</th><th>계층</th><th>MayHaveSucceeded</th><th>Temporary</th><th>설명</th></tr></thead>
@@ -76,8 +76,8 @@
 <p>도우미 함수 <code>protocol.MayHaveSucceeded(err)</code>, <code>protocol.Temporary(err)</code>, <code>protocol.ShouldRetry(err)</code>, <code>protocol.IsNominalError(err)</code>는 <code>errors.As</code>로 래핑을 뚫고 검사합니다. 커밋 <code>a4b43c1</code>에서 래핑된 프로토콜 오류의 분류가 수정되었으므로 <code>fmt.Errorf("%w")</code>로 감싼 오류도 올바르게 분류됩니다.</p>
 
 <h2 id="sec-retry">재시도 정책</h2>
-<pre><code class="language-go">func ShouldRetry(err error) bool {
-    // Error 인터페이스를 구현하고, MayHaveSucceeded()가 false이며, Temporary()가 true일 때만 true
+<pre><code class="language-go"><span class="k">func</span> <span class="f">ShouldRetry</span>(err <span class="t">error</span>) <span class="t">bool</span> {
+    <span class="c">// Error 인터페이스를 구현하고, MayHaveSucceeded()가 false이며, Temporary()가 true일 때만 true</span>
 }</code></pre>
 <p>SDK는 다음 지점에서 <code>ShouldRetry</code>가 참인 동안 커넥터의 <code>RetryInterval()</code>(BLE, inet 모두 1초) 간격으로 컨텍스트가 만료될 때까지 재시도합니다.</p>
 <table>
@@ -253,16 +253,16 @@
 <p><code>tesla-control -debug</code>(또는 <code>TESLA_VERBOSE=1</code>)는 송수신한 RoutableMessage를 16진수로 출력합니다.</p>
 <pre><code>2023-12-13T14:41:13-08:00 [debug] TX: 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805</code></pre>
 <p><code>protoc</code>로 디코드합니다(저장소 루트에서 실행).</p>
-<pre><code class="language-bash">cd vehicle-command/pkg/protocol
-echo 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805 \
-    | xxd -r -p \
-    | protoc --decode=UniversalMessage.RoutableMessage -I protobuf protobuf/*.proto
+<pre><code class="language-bash"><span class="f">cd</span> vehicle-command/pkg/protocol
+<span class="f">echo</span> 320208023a1212100a7962c10d38b61dd2a7722780a4f0969a031005514f57616bcc81a8ce0f9d7b48322952040a020805 \
+    <span class="o">|</span> <span class="f">xxd</span> <span class="p">-r</span> <span class="p">-p</span> \
+    <span class="o">|</span> <span class="f">protoc</span> <span class="p">--decode</span>=UniversalMessage.RoutableMessage <span class="p">-I</span> protobuf protobuf/*.proto
 
-# 출력의 protobuf_message_as_bytes 를 도메인에 맞는 타입으로 다시 디코드
-printf "\n\002\010\005" | protoc --decode=VCSEC.UnsignedMessage -I protobuf protobuf/*.proto      # VCSEC 요청
-printf "..." | protoc --decode=VCSEC.FromVCSECMessage -I protobuf protobuf/*.proto              # VCSEC 응답
-printf "..." | protoc --decode=CarServer.Action -I protobuf protobuf/*.proto                    # Infotainment 요청
-printf "..." | protoc --decode=CarServer.Response -I protobuf protobuf/*.proto                  # Infotainment 응답</code></pre>
+<span class="c"># 출력의 protobuf_message_as_bytes 를 도메인에 맞는 타입으로 다시 디코드</span>
+<span class="f">printf</span> <span class="s">"\n\002\010\005"</span> <span class="o">|</span> <span class="f">protoc</span> <span class="p">--decode</span>=VCSEC.UnsignedMessage <span class="p">-I</span> protobuf protobuf/*.proto      <span class="c"># VCSEC 요청</span>
+<span class="f">printf</span> <span class="s">"..."</span> <span class="o">|</span> <span class="f">protoc</span> <span class="p">--decode</span>=VCSEC.FromVCSECMessage <span class="p">-I</span> protobuf protobuf/*.proto              <span class="c"># VCSEC 응답</span>
+<span class="f">printf</span> <span class="s">"..."</span> <span class="o">|</span> <span class="f">protoc</span> <span class="p">--decode</span>=CarServer.Action <span class="p">-I</span> protobuf protobuf/*.proto                    <span class="c"># Infotainment 요청</span>
+<span class="f">printf</span> <span class="s">"..."</span> <span class="o">|</span> <span class="f">protoc</span> <span class="p">--decode</span>=CarServer.Response <span class="p">-I</span> protobuf protobuf/*.proto                  <span class="c"># Infotainment 응답</span></code></pre>
 <p>BLE에서는 AES-GCM으로 암호화되므로 <code>protobuf_message_as_bytes</code>가 암호문입니다. 평문을 보려면 <code>-debug</code> 로그의 요청 구성 시점 로그나 세션 키를 알아야 합니다. 핸드셰이크 메시지와 응답의 오류 필드(<code>signedMessageStatus</code>)는 평문입니다.</p>
 
 <h3>기타</h3>

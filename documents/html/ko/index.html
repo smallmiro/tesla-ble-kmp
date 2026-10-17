@@ -58,14 +58,14 @@
   <li><strong>명령을 보낸다.</strong> <code>tesla-control -ble lock</code>. SDK가 광고 스캔 → GATT 연결 → 도메인별 핸드셰이크 → AES-GCM 암호화 명령 전송을 처리합니다.</li>
 </ol>
 
-<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)
-export TESLA_VIN=5YJ30123456789ABC
-export TESLA_CACHE_FILE=~/.tesla-cache.json
+<pre><code class="language-bash"><span class="k">export</span> <span class="v">TESLA_KEY_NAME</span>=$(<span class="f">whoami</span>)
+<span class="k">export</span> <span class="v">TESLA_VIN</span>=5YJ30123456789ABC
+<span class="k">export</span> <span class="v">TESLA_CACHE_FILE</span>=~/.tesla-cache.json
 
-tesla-keygen create &gt; public_key.pem
-tesla-control -ble add-key-request public_key.pem owner cloud_key   # 차 안에서, NFC 카드 준비
-tesla-control -ble lock
-tesla-control -ble -debug body-controller-state                     # 잠금/도어/수면 상태 (Infotainment가 자고 있어도 동작)</code></pre>
+<span class="f">tesla-keygen</span> create <span class="o">&gt;</span> public_key.pem
+<span class="f">tesla-control</span> <span class="p">-ble</span> add-key-request public_key.pem owner cloud_key   <span class="c"># 차 안에서, NFC 카드 준비</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> lock
+<span class="f">tesla-control</span> <span class="p">-ble</span> <span class="p">-debug</span> body-controller-state                     <span class="c"># 잠금/도어/수면 상태 (Infotainment가 자고 있어도 동작)</span></code></pre>
 </section>
 <section class="tile sources">
 <h2>저장소 원본 문서</h2>

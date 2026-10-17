@@ -60,7 +60,7 @@
 
 <h2 id="sec-1">Module and package map</h2>
 <p>The module path is <code>github.com/teslamotors/vehicle-command</code>, and <code>go.mod</code> requires Go 1.23. v0.x releases do not guarantee API stability, so pin the version in your <code>go.mod</code>.</p>
-<pre><code class="language-bash">go get github.com/teslamotors/vehicle-command@v0.4.1</code></pre>
+<pre><code class="language-bash"><span class="f">go</span> get github.com/teslamotors/vehicle-command@v0.4.1</code></pre>
 
 <table>
 <thead><tr><th>Package</th><th>Role</th><th>Key symbols</th></tr></thead>
@@ -85,78 +85,78 @@
 
 <h2 id="sec-2">Basic flow: unlocking over BLE</h2>
 <p>A minimal program that summarizes <code>examples/ble/main.go</code> from the repository. The order of calls and the order of <code>defer</code>s matter.</p>
-<pre><code class="language-go">package main
+<pre><code class="language-go"><span class="k">package</span> main
 
-import (
-    "context"
-    "fmt"
-    "log"
-    "time"
+<span class="k">import</span> (
+    <span class="s">"context"</span>
+    <span class="s">"fmt"</span>
+    <span class="s">"log"</span>
+    <span class="s">"time"</span>
 
-    "github.com/teslamotors/vehicle-command/pkg/connector/ble"
-    "github.com/teslamotors/vehicle-command/pkg/protocol"
-    "github.com/teslamotors/vehicle-command/pkg/vehicle"
+    <span class="s">"github.com/teslamotors/vehicle-command/pkg/connector/ble"</span>
+    <span class="s">"github.com/teslamotors/vehicle-command/pkg/protocol"</span>
+    <span class="s">"github.com/teslamotors/vehicle-command/pkg/vehicle"</span>
 )
 
-func main() {
-    vin := "5YJ30123456789ABC"
+<span class="k">func</span> <span class="f">main</span>() {
+    vin <span class="o">:=</span> <span class="s">"5YJ30123456789ABC"</span>
 
-    // 1. Initialize the BLE adapter. An empty string means the default adapter. An ID such as "hci0" can be given on Linux only.
-    if err := ble.InitAdapterWithID(""); err != nil {
-        if ble.IsAdapterError(err) {
-            log.Fatal(ble.AdapterErrorHelpMessage(err)) // Linux: prints setcap guidance
+    <span class="c">// 1. Initialize the BLE adapter. An empty string means the default adapter. An ID such as "hci0" can be given on Linux only.</span>
+    <span class="k">if</span> err <span class="o">:=</span> ble.<span class="f">InitAdapterWithID</span>(<span class="s">""</span>); err <span class="o">!=</span> <span class="n">nil</span> {
+        <span class="k">if</span> ble.<span class="f">IsAdapterError</span>(err) {
+            log.<span class="f">Fatal</span>(ble.<span class="f">AdapterErrorHelpMessage</span>(err)) <span class="c">// Linux: prints setcap guidance</span>
         }
-        log.Fatalf("failed to initialize BLE adapter: %s", err)
+        log.<span class="f">Fatalf</span>(<span class="s">"failed to initialize BLE adapter: %s"</span>, err)
     }
 
-    // 2. Load the private key (PEM, NIST P-256). nil is allowed, but authenticated commands will fail.
-    privateKey, err := protocol.LoadPrivateKey("private.pem")
-    if err != nil {
-        log.Fatalf("failed to load private key: %s", err)
+    <span class="c">// 2. Load the private key (PEM, NIST P-256). nil is allowed, but authenticated commands will fail.</span>
+    privateKey, err <span class="o">:=</span> protocol.<span class="f">LoadPrivateKey</span>(<span class="s">"private.pem"</span>)
+    <span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> {
+        log.<span class="f">Fatalf</span>(<span class="s">"failed to load private key: %s"</span>, err)
     }
 
-    ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
-    defer cancel()
+    ctx, cancel <span class="o">:=</span> context.<span class="f">WithTimeout</span>(context.<span class="f">Background</span>(), <span class="n">30</span>*time.Second)
+    <span class="k">defer</span> <span class="f">cancel</span>()
 
-    // 3. Scan advertisements. Finds the beacon matching the Local Name ("S...C") computed from the VIN.
-    scan, err := ble.ScanVehicleBeacon(ctx, vin)
-    if err != nil {
-        log.Fatalf("scan failed: %s", err)
+    <span class="c">// 3. Scan advertisements. Finds the beacon matching the Local Name ("S...C") computed from the VIN.</span>
+    scan, err <span class="o">:=</span> ble.<span class="f">ScanVehicleBeacon</span>(ctx, vin)
+    <span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> {
+        log.<span class="f">Fatalf</span>(<span class="s">"scan failed: %s"</span>, err)
     }
-    fmt.Printf("found: %s (%s) %ddBm\n", scan.LocalName, scan.Address, scan.RSSI)
+    fmt.<span class="f">Printf</span>(<span class="s">"found: %s (%s) %ddBm\n"</span>, scan.LocalName, scan.Address, scan.RSSI)
 
-    // 4. GATT connection. If target is nil, it scans again internally.
-    conn, err := ble.NewConnectionFromScanResult(ctx, vin, scan)
-    if err != nil {
-        log.Fatalf("connection failed: %s", err)
+    <span class="c">// 4. GATT connection. If target is nil, it scans again internally.</span>
+    conn, err <span class="o">:=</span> ble.<span class="f">NewConnectionFromScanResult</span>(ctx, vin, scan)
+    <span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> {
+        log.<span class="f">Fatalf</span>(<span class="s">"connection failed: %s"</span>, err)
     }
-    defer conn.Close() // (b) runs second
+    <span class="k">defer</span> conn.<span class="f">Close</span>() <span class="c">// (b) runs second</span>
 
-    // 5. Create the Vehicle object. The third argument is the session cache (nil if none).
-    car, err := vehicle.NewVehicle(conn, privateKey, nil)
-    if err != nil {
-        log.Fatal(err)
-    }
-
-    // 6. Start the receive goroutine.
-    if err := car.Connect(ctx); err != nil {
-        log.Fatalf("Connect failed: %s", err)
-    }
-    defer car.Disconnect() // (a) runs first. Must run before conn.Close().
-
-    // 7. Per-domain handshake. nil means both VCSEC and INFOTAINMENT.
-    if err := car.StartSession(ctx, nil); err != nil {
-        log.Fatalf("handshake failed: %s", err)
+    <span class="c">// 5. Create the Vehicle object. The third argument is the session cache (nil if none).</span>
+    car, err <span class="o">:=</span> vehicle.<span class="f">NewVehicle</span>(conn, privateKey, <span class="n">nil</span>)
+    <span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> {
+        log.<span class="f">Fatal</span>(err)
     }
 
-    // 8. Send commands. Each command is retried automatically until the context expires.
-    if err := car.Unlock(ctx); err != nil {
-        log.Fatalf("unlock failed: %s", err)
+    <span class="c">// 6. Start the receive goroutine.</span>
+    <span class="k">if</span> err <span class="o">:=</span> car.<span class="f">Connect</span>(ctx); err <span class="o">!=</span> <span class="n">nil</span> {
+        log.<span class="f">Fatalf</span>(<span class="s">"Connect failed: %s"</span>, err)
     }
-    if err := car.ClimateOn(ctx); err != nil {
-        log.Fatalf("failed to turn on climate: %s", err)
+    <span class="k">defer</span> car.<span class="f">Disconnect</span>() <span class="c">// (a) runs first. Must run before conn.Close().</span>
+
+    <span class="c">// 7. Per-domain handshake. nil means both VCSEC and INFOTAINMENT.</span>
+    <span class="k">if</span> err <span class="o">:=</span> car.<span class="f">StartSession</span>(ctx, <span class="n">nil</span>); err <span class="o">!=</span> <span class="n">nil</span> {
+        log.<span class="f">Fatalf</span>(<span class="s">"handshake failed: %s"</span>, err)
     }
-    fmt.Println("done")
+
+    <span class="c">// 8. Send commands. Each command is retried automatically until the context expires.</span>
+    <span class="k">if</span> err <span class="o">:=</span> car.<span class="f">Unlock</span>(ctx); err <span class="o">!=</span> <span class="n">nil</span> {
+        log.<span class="f">Fatalf</span>(<span class="s">"unlock failed: %s"</span>, err)
+    }
+    <span class="k">if</span> err <span class="o">:=</span> car.<span class="f">ClimateOn</span>(ctx); err <span class="o">!=</span> <span class="n">nil</span> {
+        log.<span class="f">Fatalf</span>(<span class="s">"failed to turn on climate: %s"</span>, err)
+    }
+    fmt.<span class="f">Println</span>(<span class="s">"done"</span>)
 }</code></pre>
 
 <ol class="steps">
@@ -180,8 +180,8 @@ func main() {
 </table>
 
 <p>Creating a key pair with OpenSSL (when you want file-based keys instead of <code>tesla-keygen</code>):</p>
-<pre><code class="language-bash">openssl ecparam -genkey -name prime256v1 -noout &gt; private.pem
-openssl ec -in private.pem -pubout &gt; public.pem</code></pre>
+<pre><code class="language-bash"><span class="f">openssl</span> ecparam <span class="p">-genkey</span> <span class="p">-name</span> prime256v1 <span class="p">-noout</span> <span class="o">&gt;</span> private.pem
+<span class="f">openssl</span> ec <span class="p">-in</span> private.pem <span class="p">-pubout</span> <span class="o">&gt;</span> public.pem</code></pre>
 
 <div class="callout danger">
 <strong>Do not enroll the test keys from protocol.md on a real vehicle</strong>
@@ -209,11 +209,11 @@ openssl ec -in private.pem -pubout &gt; public.pem</code></pre>
 
 <h2 id="sec-5">Choosing domains and not waking Infotainment</h2>
 <p>If you only use VCSEC commands (lock, trunk, wake, key management, <code>BodyControllerState</code>), you do not need a handshake with INFOTAINMENT. An INFOTAINMENT handshake wakes a sleeping infotainment system and takes time.</p>
-<pre><code class="language-go">import universal "github.com/teslamotors/vehicle-command/pkg/protocol/protobuf/universalmessage"
+<pre><code class="language-go"><span class="k">import</span> universal <span class="s">"github.com/teslamotors/vehicle-command/pkg/protocol/protobuf/universalmessage"</span>
 
-// Handshake with VCSEC only
-if err := car.StartSession(ctx, []universal.Domain{protocol.DomainVCSEC}); err != nil { ... }
-if err := car.Lock(ctx); err != nil { ... }</code></pre>
+<span class="c">// Handshake with VCSEC only</span>
+<span class="k">if</span> err <span class="o">:=</span> car.<span class="f">StartSession</span>(ctx, []universal.Domain{protocol.DomainVCSEC}); err <span class="o">!=</span> <span class="n">nil</span> { ... }
+<span class="k">if</span> err <span class="o">:=</span> car.<span class="f">Lock</span>(ctx); err <span class="o">!=</span> <span class="n">nil</span> { ... }</code></pre>
 <p><code>tesla-control</code> does the same through the <code>-domain vcsec</code> flag (repeatable), the <code>domain: protocol.DomainVCSEC</code> setting on the <code>body-controller-state</code> command, and special handling that performs a VCSEC-only handshake for <code>-ble wake</code>.</p>
 
 <div class="callout">
@@ -223,18 +223,18 @@ if err := car.Lock(ctx); err != nil { ... }</code></pre>
 
 <h2 id="sec-6">Session cache</h2>
 <p>A handshake adds a round trip and, on the Fleet API, increases the number of requests. Storing session state (per-domain SessionInfo and creation time) on disk with <code>pkg/cache</code> lets you send the first command right away on the next run. If the cache is stale, the first command fails and the vehicle sends up-to-date session info along with the failure, so the SDK updates automatically and retries. In other words, using a stale cache costs nothing.</p>
-<pre><code class="language-go">const cacheFile = "/var/lib/myapp/tesla-cache.json"
+<pre><code class="language-go"><span class="k">const</span> cacheFile = <span class="s">"/var/lib/myapp/tesla-cache.json"</span>
 
-myCache, err := cache.ImportFromFile(cacheFile)
-if err != nil {
-    myCache = cache.New(5) // Up to 5 vehicles. 0 means unlimited. LRU eviction.
+myCache, err <span class="o">:=</span> cache.<span class="f">ImportFromFile</span>(cacheFile)
+<span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> {
+    myCache = cache.<span class="f">New</span>(<span class="n">5</span>) <span class="c">// Up to 5 vehicles. 0 means unlimited. LRU eviction.</span>
 }
 
-car, err := vehicle.NewVehicle(conn, privateKey, myCache) // Loads from the cache on creation
+car, err <span class="o">:=</span> vehicle.<span class="f">NewVehicle</span>(conn, privateKey, myCache) <span class="c">// Loads from the cache on creation</span>
 ...
-defer func() {
-    if err := car.UpdateCachedSessions(myCache); err != nil { log.Println(err) }
-    if err := myCache.ExportToFile(cacheFile); err != nil { log.Println(err) }
+<span class="k">defer</span> <span class="k">func</span>() {
+    <span class="k">if</span> err <span class="o">:=</span> car.<span class="f">UpdateCachedSessions</span>(myCache); err <span class="o">!=</span> <span class="n">nil</span> { log.<span class="f">Println</span>(err) }
+    <span class="k">if</span> err <span class="o">:=</span> myCache.<span class="f">ExportToFile</span>(cacheFile); err <span class="o">!=</span> <span class="n">nil</span> { log.<span class="f">Println</span>(err) }
 }()</code></pre>
 <ul>
 <li><strong>The cache is tied to the client private key.</strong> If you use the cache with a different key, the first authentication fails, the vehicle sends new session info, and it recovers normally.</li>
@@ -246,25 +246,25 @@ defer func() {
 
 <h2 id="sec-7">Building CLI applications with pkg/cli</h2>
 <p><code>pkg/cli.Config</code> provides the flag, environment variable and keyring logic shared by the five CLI tools. You can reuse it as-is when building your own CLI.</p>
-<pre><code class="language-go">import (
-    "flag"
-    "github.com/teslamotors/vehicle-command/pkg/cli"
+<pre><code class="language-go"><span class="k">import</span> (
+    <span class="s">"flag"</span>
+    <span class="s">"github.com/teslamotors/vehicle-command/pkg/cli"</span>
 )
 
-config, err := cli.NewConfig(cli.FlagAll) // FlagVIN | FlagOAuth | FlagPrivateKey | FlagBLE
-if err != nil { panic(err) }
-config.RegisterCommandLineFlags()   // -vin, -key-name, -key-file, -token-name, -token-file, -session-cache, -domain, -keyring-type ...
-flag.Parse()
-config.ReadFromEnvironment()        // Fills only empty values from TESLA_* environment variables
-if err := config.LoadCredentials(); err != nil { ... } // Handles the keyring password prompt before the timeout starts
+config, err <span class="o">:=</span> cli.<span class="f">NewConfig</span>(cli.FlagAll) <span class="c">// FlagVIN | FlagOAuth | FlagPrivateKey | FlagBLE</span>
+<span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> { <span class="f">panic</span>(err) }
+config.<span class="f">RegisterCommandLineFlags</span>()   <span class="c">// -vin, -key-name, -key-file, -token-name, -token-file, -session-cache, -domain, -keyring-type ...</span>
+flag.<span class="f">Parse</span>()
+config.<span class="f">ReadFromEnvironment</span>()        <span class="c">// Fills only empty values from TESLA_* environment variables</span>
+<span class="k">if</span> err <span class="o">:=</span> config.<span class="f">LoadCredentials</span>(); err <span class="o">!=</span> <span class="n">nil</span> { ... } <span class="c">// Handles the keyring password prompt before the timeout starts</span>
 
-ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
-defer cancel()
-acct, car, err := config.Connect(ctx) // Internet if OAuth is available, otherwise BLE. Performs Connect + StartSession(config.Domains)
-if err != nil { ... }
-if car != nil {
-    defer car.Disconnect()
-    defer config.UpdateCachedSessions(car) // Updates the cache file
+ctx, cancel <span class="o">:=</span> context.<span class="f">WithTimeout</span>(context.<span class="f">Background</span>(), <span class="n">20</span>*time.Second)
+<span class="k">defer</span> <span class="f">cancel</span>()
+acct, car, err <span class="o">:=</span> config.<span class="f">Connect</span>(ctx) <span class="c">// Internet if OAuth is available, otherwise BLE. Performs Connect + StartSession(config.Domains)</span>
+<span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> { ... }
+<span class="k">if</span> car <span class="o">!=</span> <span class="n">nil</span> {
+    <span class="k">defer</span> car.<span class="f">Disconnect</span>()
+    <span class="k">defer</span> config.<span class="f">UpdateCachedSessions</span>(car) <span class="c">// Updates the cache file</span>
 }</code></pre>
 <table>
 <thead><tr><th>Flag mask</th><th>Options registered</th></tr></thead>
@@ -284,15 +284,15 @@ if car != nil {
 </ul>
 
 <h2 id="sec-8">Internet path: pkg/account</h2>
-<pre><code class="language-go">acct, err := account.New(oauthToken, "myapp/1.0.0") // If userAgent is "", it is generated from build info
-if err != nil { ... }
-car, err := acct.GetVehicle(ctx, vin, privateKey, sessionCache) // Creates an inet.Connection
-if err != nil { ... }
-if err := car.Connect(ctx); err != nil { ... }
-defer car.Disconnect()
-if err := car.Wakeup(ctx); err != nil { ... }          // Polls Fleet API wake_up (optional)
-if err := car.StartSession(ctx, nil); err != nil { ... }
-if err := car.Unlock(ctx); err != nil { ... }</code></pre>
+<pre><code class="language-go">acct, err <span class="o">:=</span> account.<span class="f">New</span>(oauthToken, <span class="s">"myapp/1.0.0"</span>) <span class="c">// If userAgent is "", it is generated from build info</span>
+<span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> { ... }
+car, err <span class="o">:=</span> acct.<span class="f">GetVehicle</span>(ctx, vin, privateKey, sessionCache) <span class="c">// Creates an inet.Connection</span>
+<span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> { ... }
+<span class="k">if</span> err <span class="o">:=</span> car.<span class="f">Connect</span>(ctx); err <span class="o">!=</span> <span class="n">nil</span> { ... }
+<span class="k">defer</span> car.<span class="f">Disconnect</span>()
+<span class="k">if</span> err <span class="o">:=</span> car.<span class="f">Wakeup</span>(ctx); err <span class="o">!=</span> <span class="n">nil</span> { ... }          <span class="c">// Polls Fleet API wake_up (optional)</span>
+<span class="k">if</span> err <span class="o">:=</span> car.<span class="f">StartSession</span>(ctx, <span class="n">nil</span>); err <span class="o">!=</span> <span class="n">nil</span> { ... }
+<span class="k">if</span> err <span class="o">:=</span> car.<span class="f">Unlock</span>(ctx); err <span class="o">!=</span> <span class="n">nil</span> { ... }</code></pre>
 <ul>
 <li><code>account.New</code> decodes the JWT without verifying its signature and picks the Fleet API host from <code>aud</code> and <code>ou_code</code>. The default is <code>fleet-api.prd.na.vn.cloud.tesla.com</code>. If the server returns 421 with a <code>use base URL: https://…</code> body, <code>inet.Connection</code> updates the host.</li>
 <li>The internet path uses <strong>HMAC-SHA256</strong> authentication (plaintext), because the Fleet API must check OAuth scopes. The Fleet API rejects AES-GCM encrypted commands.</li>
@@ -303,22 +303,22 @@ if err := car.Unlock(ctx); err != nil { ... }</code></pre>
 
 <h2 id="sec-9">Error handling patterns</h2>
 <p>All SDK errors implement the <code>protocol.Error</code> interface where possible. Two methods determine retries and user guidance.</p>
-<pre><code class="language-go">err := car.Unlock(ctx)
-switch {
-case err == nil:
-    // Success
-case protocol.MayHaveSucceeded(err):
-    // The command may have arrived but was not confirmed (e.g. timeout). Resending could execute it twice, so query state to decide.
-case errors.Is(err, protocol.ErrKeyNotPaired):
-    // The public key is not enrolled on the vehicle. Guide the user through pairing.
-case errors.Is(err, protocol.ErrNoSession):
-    // StartSession was not called, or was called without that domain.
-case protocol.IsNominalError(err):
-    // The vehicle authenticated the command but cannot execute it (e.g. not in park, already on). Show the reason to the user.
-case protocol.Temporary(err):
-    // Temporary error. The SDK already retried until the context expired, so retry with a longer context.
-default:
-    // Anything else
+<pre><code class="language-go">err <span class="o">:=</span> car.<span class="f">Unlock</span>(ctx)
+<span class="k">switch</span> {
+<span class="k">case</span> err <span class="o">==</span> <span class="n">nil</span>:
+    <span class="c">// Success</span>
+<span class="k">case</span> protocol.<span class="f">MayHaveSucceeded</span>(err):
+    <span class="c">// The command may have arrived but was not confirmed (e.g. timeout). Resending could execute it twice, so query state to decide.</span>
+<span class="k">case</span> errors.<span class="f">Is</span>(err, protocol.ErrKeyNotPaired):
+    <span class="c">// The public key is not enrolled on the vehicle. Guide the user through pairing.</span>
+<span class="k">case</span> errors.<span class="f">Is</span>(err, protocol.ErrNoSession):
+    <span class="c">// StartSession was not called, or was called without that domain.</span>
+<span class="k">case</span> protocol.<span class="f">IsNominalError</span>(err):
+    <span class="c">// The vehicle authenticated the command but cannot execute it (e.g. not in park, already on). Show the reason to the user.</span>
+<span class="k">case</span> protocol.<span class="f">Temporary</span>(err):
+    <span class="c">// Temporary error. The SDK already retried until the context expired, so retry with a longer context.</span>
+<span class="k">default</span>:
+    <span class="c">// Anything else</span>
 }</code></pre>
 <table>
 <thead><tr><th>Helper</th><th>Meaning</th></tr></thead>
@@ -344,10 +344,10 @@ default:
 </tbody>
 </table>
 <p><code>StateCategory</code> values: <code>StateCategoryCharge</code>, <code>Climate</code>, <code>Drive</code>, <code>Location</code>, <code>Closures</code>, <code>ChargeSchedule</code>, <code>PreconditioningSchedule</code>, <code>TirePressure</code>, <code>Media</code>, <code>MediaDetail</code>, <code>SoftwareUpdate</code>, <code>ParentalControls</code>. The returned <code>carserver.VehicleData</code> is easy to read when printed with <code>protojson.Format</code>.</p>
-<pre><code class="language-go">data, err := car.GetState(ctx, vehicle.StateCategoryCharge)
-if err != nil { ... }
-fmt.Println(protojson.Format(data))
-pct := data.GetChargeState().GetBatteryLevel()</code></pre>
+<pre><code class="language-go">data, err <span class="o">:=</span> car.<span class="f">GetState</span>(ctx, vehicle.StateCategoryCharge)
+<span class="k">if</span> err <span class="o">!=</span> <span class="n">nil</span> { ... }
+fmt.<span class="f">Println</span>(protojson.<span class="f">Format</span>(data))
+pct <span class="o">:=</span> data.<span class="f">GetChargeState</span>().<span class="f">GetBatteryLevel</span>()</code></pre>
 
 <h2 id="sec-11">Key management API</h2>
 <table>
@@ -363,20 +363,20 @@ pct := data.GetChargeState().GetBatteryLevel()</code></pre>
 
 <h2 id="sec-12">Implementing a custom Connector</h2>
 <p>To plug in a different BLE stack (for example TinyGo, a mobile bridge, or a serial gateway) or a mock transport for testing, implement <code>connector.Connector</code> and pass it to <code>vehicle.NewVehicle</code>. The dispatcher treats the connector purely as a datagram channel.</p>
-<pre><code class="language-go">type Connector interface {
-    Receive() &lt;-chan []byte                     // RoutableMessage bytes sent by the vehicle. Thread-safe.
-    Send(ctx context.Context, buffer []byte) error // Sends RoutableMessage bytes. Thread-safe.
-    VIN() string
-    Close()                                     // Must be safe to call multiple times
-    PreferredAuthMethod() AuthMethod            // BLE: AuthMethodGCM, HTTP: AuthMethodHMAC
-    RetryInterval() time.Duration               // Resend interval (1 second for both BLE and inet)
-    AllowedLatency() time.Duration              // Maximum allowed latency for session info responses (4 seconds for BLE, 10 seconds for inet)
+<pre><code class="language-go"><span class="k">type</span> Connector <span class="k">interface</span> {
+    <span class="f">Receive</span>() <span class="o">&lt;-</span><span class="k">chan</span> []<span class="t">byte</span>                     <span class="c">// RoutableMessage bytes sent by the vehicle. Thread-safe.</span>
+    <span class="f">Send</span>(ctx context.Context, buffer []<span class="t">byte</span>) <span class="t">error</span> <span class="c">// Sends RoutableMessage bytes. Thread-safe.</span>
+    <span class="f">VIN</span>() <span class="t">string</span>
+    <span class="f">Close</span>()                                     <span class="c">// Must be safe to call multiple times</span>
+    <span class="f">PreferredAuthMethod</span>() AuthMethod            <span class="c">// BLE: AuthMethodGCM, HTTP: AuthMethodHMAC</span>
+    <span class="f">RetryInterval</span>() time.Duration               <span class="c">// Resend interval (1 second for both BLE and inet)</span>
+    <span class="f">AllowedLatency</span>() time.Duration              <span class="c">// Maximum allowed latency for session info responses (4 seconds for BLE, 10 seconds for inet)</span>
 }
 
-type FleetAPIConnector interface {             // Implemented additionally by internet connectors only
+<span class="k">type</span> FleetAPIConnector <span class="k">interface</span> {             <span class="c">// Implemented additionally by internet connectors only</span>
     Connector
-    SendFleetAPICommand(ctx context.Context, endpoint string, command interface{}) ([]byte, error)
-    Wakeup(ctx context.Context) error
+    <span class="f">SendFleetAPICommand</span>(ctx context.Context, endpoint <span class="t">string</span>, command <span class="k">interface</span>{}) ([]<span class="t">byte</span>, <span class="t">error</span>)
+    <span class="f">Wakeup</span>(ctx context.Context) <span class="t">error</span>
 }</code></pre>
 <ul>
 <li>A buffer of about <code>connector.BufferSize</code> (5) is recommended for the <code>Receive()</code> channel. The BLE implementation uses 5, and inet also uses 5. When it is full, BLE drops chunks and inet produces a <code>dropped response because inbox is full</code> error.</li>

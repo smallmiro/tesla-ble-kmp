@@ -65,10 +65,10 @@
 
 <h2 id="sec-install">설치</h2>
 <h3>소스에서 빌드</h3>
-<pre><code class="language-bash">cd vehicle-command
-go get ./...        # 의존성 다운로드
-go build ./...      # 전체 컴파일 (도구 + 예제)
-go install ./...    # $GOBIN (기본 ~/go/bin)에 도구 설치</code></pre>
+<pre><code class="language-bash"><span class="f">cd</span> vehicle-command
+<span class="f">go</span> get ./...        <span class="c"># 의존성 다운로드</span>
+<span class="f">go</span> build ./...      <span class="c"># 전체 컴파일 (도구 + 예제)</span>
+<span class="f">go</span> install ./...    <span class="c"># $GOBIN (기본 ~/go/bin)에 도구 설치</span></code></pre>
 <p><code>go install</code> 후 다음 실행 파일이 PATH에 놓입니다.</p>
 <table>
   <thead><tr><th>실행 파일</th><th>역할</th></tr></thead>
@@ -85,17 +85,17 @@ go install ./...    # $GOBIN (기본 ~/go/bin)에 도구 설치</code></pre>
 
 <h3>Docker</h3>
 <p>BLE는 컨테이너에서 쓰기 어렵기 때문에 Docker 이미지는 주로 HTTP 프록시용입니다. 기본 엔트리포인트는 <code>tesla-http-proxy</code>이고 <code>--entrypoint</code>로 바꿀 수 있습니다.</p>
-<pre><code class="language-bash">docker pull tesla/vehicle-command:latest
-docker run tesla/vehicle-command:latest --help
-docker run --entrypoint tesla-keygen tesla/vehicle-command:latest --help</code></pre>
+<pre><code class="language-bash"><span class="f">docker</span> pull tesla/vehicle-command:latest
+<span class="f">docker</span> run tesla/vehicle-command:latest <span class="p">--help</span>
+<span class="f">docker</span> run <span class="p">--entrypoint</span> tesla-keygen tesla/vehicle-command:latest <span class="p">--help</span></code></pre>
 
 <h2 id="sec-env">환경 변수 설정</h2>
 <p>모든 CLI 도구는 <code>pkg/cli</code>를 공유하며 명령줄 플래그 대신 환경 변수를 읽습니다. 플래그가 우선하고, 비어 있는 값만 환경 변수로 채워집니다.</p>
-<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)            # 키링에서 개인 키를 찾는 이름
-export TESLA_VIN=5YJ30123456789ABC          # 대상 차량 VIN
-export TESLA_CACHE_FILE=~/.tesla-cache.json # 세션 캐시 (생략 시 ~/.tesla-cache.json)
-# 인터넷 경로를 쓸 때만:
-export TESLA_TOKEN_NAME=$(whoami)           # 키링에서 OAuth 토큰을 찾는 이름</code></pre>
+<pre><code class="language-bash"><span class="k">export</span> <span class="v">TESLA_KEY_NAME</span>=$(<span class="f">whoami</span>)            <span class="c"># 키링에서 개인 키를 찾는 이름</span>
+<span class="k">export</span> <span class="v">TESLA_VIN</span>=5YJ30123456789ABC          <span class="c"># 대상 차량 VIN</span>
+<span class="k">export</span> <span class="v">TESLA_CACHE_FILE</span>=~/.tesla-cache.json <span class="c"># 세션 캐시 (생략 시 ~/.tesla-cache.json)</span>
+<span class="c"># 인터넷 경로를 쓸 때만:</span>
+<span class="k">export</span> <span class="v">TESLA_TOKEN_NAME</span>=$(<span class="f">whoami</span>)           <span class="c"># 키링에서 OAuth 토큰을 찾는 이름</span></code></pre>
 <table>
   <thead><tr><th>변수</th><th>대응 플래그</th><th>의미</th></tr></thead>
   <tbody>
@@ -115,12 +115,12 @@ export TESLA_TOKEN_NAME=$(whoami)           # 키링에서 OAuth 토큰을 찾�
 
 <h2 id="sec-keygen">개인 키 생성</h2>
 <h3>방법 A: tesla-keygen (권장)</h3>
-<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)
-tesla-keygen create &gt; public_key.pem
-cat public_key.pem
-# -----BEGIN PUBLIC KEY-----
-# MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...
-# -----END PUBLIC KEY-----</code></pre>
+<pre><code class="language-bash"><span class="k">export</span> <span class="v">TESLA_KEY_NAME</span>=$(<span class="f">whoami</span>)
+<span class="f">tesla-keygen</span> create <span class="o">&gt;</span> public_key.pem
+<span class="f">cat</span> public_key.pem
+<span class="c"># -----BEGIN PUBLIC KEY-----</span>
+<span class="c"># MFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAE...</span>
+<span class="c"># -----END PUBLIC KEY-----</span></code></pre>
 <ul>
   <li>NIST P-256 개인 키를 생성해 OS 키링(macOS는 로그인 키체인)에 저장하고, PKIX PEM 형식의 <strong>공개 키를 stdout</strong>에 출력합니다. <code>-output 파일</code>로 파일에 쓸 수도 있습니다.</li>
   <li>이미 같은 이름의 키가 있으면 덮어쓰지 않고 기존 공개 키만 다시 출력합니다. 강제로 새로 만들려면 <code>-f</code>.</li>
@@ -138,9 +138,9 @@ cat public_key.pem
 
 <h3>방법 B: OpenSSL</h3>
 <p>키링을 쓰지 않고 파일로만 관리하려면 <code>examples/ble/doc.go</code>에 있는 방법대로 만듭니다.</p>
-<pre><code class="language-bash">openssl ecparam -genkey -name prime256v1 -noout &gt; private.pem
-openssl ec -in private.pem -pubout &gt; public.pem
-export TESLA_KEY_FILE=$PWD/private.pem   # 또는 매번 -key-file private.pem</code></pre>
+<pre><code class="language-bash"><span class="f">openssl</span> ecparam <span class="p">-genkey</span> <span class="p">-name</span> prime256v1 <span class="p">-noout</span> <span class="o">&gt;</span> private.pem
+<span class="f">openssl</span> ec <span class="p">-in</span> private.pem <span class="p">-pubout</span> <span class="o">&gt;</span> public.pem
+<span class="k">export</span> <span class="v">TESLA_KEY_FILE</span>=<span class="v">$PWD</span>/private.pem   <span class="c"># 또는 매번 -key-file private.pem</span></code></pre>
 <div class="callout warn">
   <strong>개인 키 보호</strong>
   <p>개인 키가 유출되면 차량을 잠금 해제하고 운전할 수 있습니다. 파일로 보관한다면 권한을 0600으로 유지하고 저장소에 커밋하지 마세요. <code>protocol.LoadPrivateKey</code>는 암호화되지 않은 PKCS#8/SEC1 PEM만 읽습니다. TLS 서버 키와 명령 인증 키를 같은 키로 쓰면 <code>tesla-http-proxy</code>가 시작을 거부합니다.</p>
@@ -151,9 +151,9 @@ export TESLA_KEY_FILE=$PWD/private.pem   # 또는 매번 -key-file private.pem</
 <ol class="steps">
   <li><strong>차 안에 앉는다.</strong> 노트북의 Bluetooth를 켜고 NFC 카드(또는 키포브)를 준비합니다. 차량은 동시에 최대 3개의 BLE 연결만 유지하므로 다른 폰 키가 많이 연결되어 있으면 스캔 결과가 <code>Connectable=false</code>일 수 있습니다.</li>
   <li><strong>요청을 보낸다.</strong>
-<pre><code class="language-bash">export TESLA_VIN=&lt;VIN&gt;
-tesla-control -ble add-key-request public_key.pem owner cloud_key
-# Sent add-key request to &lt;VIN&gt;. Confirm by tapping NFC card on center console.</code></pre>
+<pre><code class="language-bash"><span class="k">export</span> <span class="v">TESLA_VIN</span>=<span class="o">&lt;</span>VIN<span class="o">&gt;</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> add-key-request public_key.pem owner cloud_key
+<span class="c"># Sent add-key request to &lt;VIN&gt;. Confirm by tapping NFC card on center console.</span></code></pre>
   프로그램은 요청을 전송하자마자 종료합니다. 종료했다고 승인이 끝난 것은 아닙니다.</li>
   <li><strong>NFC 카드를 센터 콘솔(카드 리더 위치)에 댄다.</strong> 차량 화면에 새 키 승인 확인 창이 뜹니다.</li>
   <li><strong>화면에서 Confirm을 누른다.</strong> Locks 화면에 새 키가 표시됩니다.</li>
@@ -184,13 +184,13 @@ tesla-control -ble add-key-request public_key.pem owner cloud_key
 </div>
 
 <h2 id="sec-first">첫 BLE 명령</h2>
-<pre><code class="language-bash">tesla-control -ble lock
-tesla-control -ble unlock
-tesla-control -ble body-controller-state   # 잠금/도어/트렁크/수면 상태 JSON. Infotainment가 자고 있어도 동작
-tesla-control -ble list-keys               # 등록된 키 목록
-tesla-control -ble climate-on              # Infotainment 명령. 차량이 잠들어 있으면 먼저 wake
-tesla-control -ble wake                    # VCSEC에 웨이크업 요청
-tesla-control -ble state charge            # 충전 상태 JSON (Infotainment 필요)</code></pre>
+<pre><code class="language-bash"><span class="f">tesla-control</span> <span class="p">-ble</span> lock
+<span class="f">tesla-control</span> <span class="p">-ble</span> unlock
+<span class="f">tesla-control</span> <span class="p">-ble</span> body-controller-state   <span class="c"># 잠금/도어/트렁크/수면 상태 JSON. Infotainment가 자고 있어도 동작</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> list-keys               <span class="c"># 등록된 키 목록</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> climate-on              <span class="c"># Infotainment 명령. 차량이 잠들어 있으면 먼저 wake</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> wake                    <span class="c"># VCSEC에 웨이크업 요청</span>
+<span class="f">tesla-control</span> <span class="p">-ble</span> state charge            <span class="c"># 충전 상태 JSON (Infotainment 필요)</span></code></pre>
 <ul>
   <li><code>-ble</code>는 OAuth 환경 변수가 설정되어 있어도 BLE 연결을 강제합니다. OAuth 변수가 없으면 VIN만으로 자동으로 BLE를 선택하므로 생략해도 됩니다.</li>
   <li>연결 제한 시간은 <code>-connect-timeout</code>(기본 20s), 명령 제한 시간은 <code>-command-timeout</code>(기본 5s)입니다. 스캔이 느린 환경에서는 <code>-connect-timeout 60s</code>처럼 늘리세요.</li>
@@ -204,13 +204,13 @@ tesla-control -ble state charge            # 충전 상태 JSON (Infotainment �
 
 <h2 id="sec-debug">디버그 출력과 세션 캐시</h2>
 <h3>-debug로 송수신 바이트 보기</h3>
-<pre><code class="language-bash">tesla-control -ble -debug list-keys
-# 2023-12-13T14:41:13-08:00 [debug] Creating new BLE adapter
-# 2023-12-13T14:41:13-08:00 [debug] Dialing to xx:xx:xx:xx:xx:xx (S1a87a5a75f3df858C)...
-# 2023-12-13T14:41:13-08:00 [debug] MTU size: 517
-# 2023-12-13T14:41:13-08:00 [info ] Connected to vehicle BLE
-# 2023-12-13T14:41:13-08:00 [debug] TX: 320208023a1212100a7962c1...
-# 2023-12-13T14:41:13-08:00 [debug] RX: ...</code></pre>
+<pre><code class="language-bash"><span class="f">tesla-control</span> <span class="p">-ble</span> <span class="p">-debug</span> list-keys
+<span class="c"># 2023-12-13T14:41:13-08:00 [debug] Creating new BLE adapter</span>
+<span class="c"># 2023-12-13T14:41:13-08:00 [debug] Dialing to xx:xx:xx:xx:xx:xx (S1a87a5a75f3df858C)...</span>
+<span class="c"># 2023-12-13T14:41:13-08:00 [debug] MTU size: 517</span>
+<span class="c"># 2023-12-13T14:41:13-08:00 [info ] Connected to vehicle BLE</span>
+<span class="c"># 2023-12-13T14:41:13-08:00 [debug] TX: 320208023a1212100a7962c1...</span>
+<span class="c"># 2023-12-13T14:41:13-08:00 [debug] RX: ...</span></code></pre>
 <p><code>TX:</code>/<code>RX:</code> 뒤의 hex는 길이 프리픽스를 뺀 <code>RoutableMessage</code>입니다. <a href="04-protocol.html#sec-decode">protoc로 디코딩</a>할 수 있습니다. 로그는 stderr로 나가며 <code>TESLA_VERBOSE=1</code>로도 켤 수 있습니다.</p>
 
 <h3>세션 캐시</h3>
@@ -222,7 +222,7 @@ tesla-control -ble state charge            # 충전 상태 JSON (Infotainment �
         ...operation not permitted
 Try again after granting this application CAP_NET_ADMIN or running with root:
 
-        sudo setcap 'cap_net_admin=eip' "$(which tesla-control)"</code></pre>
+        <span class="k">sudo</span> <span class="f">setcap</span> <span class="s">'cap_net_admin=eip'</span> <span class="s">"$(which tesla-control)"</span></code></pre>
 <ul>
   <li><code>setcap</code>은 실행 파일 단위로 적용되므로 <code>go install</code>로 바이너리를 다시 빌드하면 다시 설정해야 합니다.</li>
   <li>어댑터가 여럿이면 <code>-bt-adapter hci1</code>처럼 지정합니다(<code>hci0</code>~<code>hci15</code>). 기본은 <code>hci0</code>. 잘못된 형식은 <code>ErrAdapterInvalidID</code>.</li>
@@ -234,13 +234,13 @@ Try again after granting this application CAP_NET_ADMIN or running with root:
 <ol class="steps">
   <li><strong>OAuth 토큰을 발급받는다.</strong> Fleet API 문서의 서드파티 토큰 절차를 따릅니다. 이 저장소에는 토큰을 발급하는 도구가 없습니다.</li>
   <li><strong>토큰을 키링에 저장한다.</strong>
-<pre><code class="language-bash">export TESLA_TOKEN_NAME=$(whoami)
-tesla-auth-token &lt; token.txt          # 또는 tesla-auth-token token.txt</code></pre></li>
+<pre><code class="language-bash"><span class="k">export</span> <span class="v">TESLA_TOKEN_NAME</span>=$(<span class="f">whoami</span>)
+<span class="f">tesla-auth-token</span> <span class="o">&lt;</span> token.txt          <span class="c"># 또는 tesla-auth-token token.txt</span></code></pre></li>
   <li><strong>공개 키를 도메인에 등록하고 차량 소유자가 승인한다.</strong> 소유자는 Tesla 앱(4.27.3+)에서 <code>https://tesla.com/_ak/&lt;your_domain&gt;</code> 링크를 열어 승인합니다. 개인 차량이라면 위의 BLE 페어링으로 등록한 키를 그대로 써도 됩니다.</li>
   <li><strong>명령을 보낸다.</strong> <code>-ble</code>를 빼면 OAuth 설정이 있을 때 자동으로 인터넷 경로를 선택합니다.
-<pre><code class="language-bash">tesla-control lock
-tesla-control product-info          # 계정 명령 (VIN 불필요)
-tesla-control get api/1/vehicles/$TESLA_VIN/vehicle_data</code></pre></li>
+<pre><code class="language-bash"><span class="f">tesla-control</span> lock
+<span class="f">tesla-control</span> product-info          <span class="c"># 계정 명령 (VIN 불필요)</span>
+<span class="f">tesla-control</span> get api/1/vehicles/<span class="v">$TESLA_VIN</span>/vehicle_data</code></pre></li>
 </ol>
 <p>차량이 잠들어 있으면 Fleet API가 <code>408</code>/<code>503</code>을 돌려주고 SDK는 <code>ErrVehicleNotAwake</code>를 반환합니다. <code>tesla-control wake</code>가 <code>api/1/vehicles/&lt;vin&gt;/wake_up</code>을 호출해 <code>state == "online"</code>이 될 때까지 10초 간격으로 폴링합니다.</p>
 

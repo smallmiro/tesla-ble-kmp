@@ -72,15 +72,15 @@
 </table>
 <h3>アドバタイズ名の計算</h3>
 <p>車両は VIN を直接アドバタイズしません。VIN の SHA-1 ダイジェストの先頭 8 バイトを小文字の hex でエンコードし、前後に <code>S</code>、<code>C</code> を付けた名前を Local Name としてアドバタイズします。</p>
-<pre><code class="language-go">// pkg/connector/ble/ble.go
-func VehicleLocalName(vin string) string {
-	vinBytes := []byte(vin)
-	digest := sha1.Sum(vinBytes)
-	return fmt.Sprintf("S%02xC", digest[:8])
+<pre><code class="language-go"><span class="c">// pkg/connector/ble/ble.go</span>
+<span class="k">func</span> <span class="f">VehicleLocalName</span>(vin <span class="t">string</span>) <span class="t">string</span> {
+	vinBytes <span class="o">:=</span> []<span class="t">byte</span>(vin)
+	digest <span class="o">:=</span> sha1.<span class="f">Sum</span>(vinBytes)
+	<span class="k">return</span> fmt.<span class="f">Sprintf</span>(<span class="s">"S%02xC"</span>, digest[:<span class="n">8</span>])
 }</code></pre>
-<pre><code class="language-bash"># シェルで確認: VIN 5YJS0000000000000 → S1a87a5a75f3df858C
-printf '5YJS0000000000000' | shasum | cut -c1-16 | sed 's/^/S/; s/$/C/'
-# S1a87a5a75f3df858C</code></pre>
+<pre><code class="language-bash"><span class="c"># シェルで確認: VIN 5YJS0000000000000 → S1a87a5a75f3df858C</span>
+<span class="f">printf</span> <span class="s">'5YJS0000000000000'</span> <span class="o">|</span> <span class="f">shasum</span> <span class="o">|</span> <span class="f">cut</span> <span class="p">-c1-16</span> <span class="o">|</span> <span class="f">sed</span> <span class="s">'s/^/S/; s/$/C/'</span>
+<span class="c"># S1a87a5a75f3df858C</span></code></pre>
 <p>スキャンコールバックは <code>a.LocalName() != localName</code> であれば無視します。呼び出し側が渡した <code>ScanResult</code> の名前が VIN から計算した名前と異なると、<code>tryToConnect</code> は <code>ble: beacon with unexpected local name</code> エラーを出し、リトライしません。</p>
 
 <h2 id="sec-gatt">GATT 接続手順</h2>
@@ -140,49 +140,49 @@ printf '5YJS0000000000000' | shasum | cut -c1-16 | sed 's/^/S/; s/$/C/'
   </tbody>
 </table>
 <h3>送信コード</h3>
-<pre><code class="language-go">func (c *Connection) Send(_ context.Context, buffer []byte) error {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	var out []byte
-	out = append(out, uint8(len(buffer)&gt;&gt;8), uint8(len(buffer)))  // 2 バイト big-endian の長さ
-	out = append(out, buffer...)
-	blockLength := c.blockLength
-	for len(out) &gt; 0 {
-		if blockLength &gt; len(out) { blockLength = len(out) }
-		if err := c.client.WriteCharacteristic(c.txChar, out[:blockLength], false); err != nil {
-			return err
+<pre><code class="language-go"><span class="k">func</span> (c *Connection) <span class="f">Send</span>(_ context.Context, buffer []<span class="t">byte</span>) <span class="t">error</span> {
+	c.lock.<span class="f">Lock</span>()
+	<span class="k">defer</span> c.lock.<span class="f">Unlock</span>()
+	<span class="k">var</span> out []<span class="t">byte</span>
+	out = <span class="f">append</span>(out, <span class="t">uint8</span>(<span class="f">len</span>(buffer)&gt;&gt;<span class="n">8</span>), <span class="t">uint8</span>(<span class="f">len</span>(buffer)))  <span class="c">// 2 バイト big-endian の長さ</span>
+	out = <span class="f">append</span>(out, buffer...)
+	blockLength <span class="o">:=</span> c.blockLength
+	<span class="k">for</span> <span class="f">len</span>(out) &gt; <span class="n">0</span> {
+		<span class="k">if</span> blockLength &gt; <span class="f">len</span>(out) { blockLength = <span class="f">len</span>(out) }
+		<span class="k">if</span> err <span class="o">:=</span> c.client.<span class="f">WriteCharacteristic</span>(c.txChar, out[:blockLength], <span class="n">false</span>); err <span class="o">!=</span> <span class="n">nil</span> {
+			<span class="k">return</span> err
 		}
 		out = out[blockLength:]
 	}
-	return nil
+	<span class="k">return</span> <span class="n">nil</span>
 }</code></pre>
 <p><code>Send</code> は <code>ctx</code> を無視します(go-ble の write API にコンテキストがないため)。ミューテックスで一度に 1 メッセージだけを書き込むため、チャンクが混ざることはありません。</p>
 <h3>受信コード</h3>
-<pre><code class="language-go">func (c *Connection) rx(p []byte) {
-	if time.Since(c.lastRx) &gt; rxTimeout {
-		c.inputBuffer = []byte{}          // 古い部分メッセージを破棄
+<pre><code class="language-go"><span class="k">func</span> (c *Connection) <span class="f">rx</span>(p []<span class="t">byte</span>) {
+	<span class="k">if</span> time.<span class="f">Since</span>(c.lastRx) &gt; rxTimeout {
+		c.inputBuffer = []<span class="t">byte</span>{}          <span class="c">// 古い部分メッセージを破棄</span>
 	}
-	c.lastRx = time.Now()
-	c.inputBuffer = append(c.inputBuffer, p...)
-	for c.flush() {}                       // バッファに完成メッセージが複数あればすべて配送
+	c.lastRx = time.<span class="f">Now</span>()
+	c.inputBuffer = <span class="f">append</span>(c.inputBuffer, p...)
+	<span class="k">for</span> c.<span class="f">flush</span>() {}                       <span class="c">// バッファに完成メッセージが複数あればすべて配送</span>
 }
 
-func (c *Connection) flush() bool {
-	if len(c.inputBuffer) &gt;= 2 {
-		msgLength := 256*int(c.inputBuffer[0]) + int(c.inputBuffer[1])
-		if msgLength &gt; maxBLEMessageSize { c.inputBuffer = []byte{}; return false }
-		if len(c.inputBuffer) &gt;= 2+msgLength {
-			buffer := c.inputBuffer[2 : 2+msgLength]
-			c.inputBuffer = c.inputBuffer[2+msgLength:]
-			select {
-			case c.inbox &lt;- buffer:
-			default:
-				return false                 // inbox が満杯: メッセージをドロップ
+<span class="k">func</span> (c *Connection) <span class="f">flush</span>() <span class="t">bool</span> {
+	<span class="k">if</span> <span class="f">len</span>(c.inputBuffer) &gt;= <span class="n">2</span> {
+		msgLength <span class="o">:=</span> <span class="n">256</span>*<span class="t">int</span>(c.inputBuffer[<span class="n">0</span>]) + <span class="t">int</span>(c.inputBuffer[<span class="n">1</span>])
+		<span class="k">if</span> msgLength &gt; maxBLEMessageSize { c.inputBuffer = []<span class="t">byte</span>{}; <span class="k">return</span> <span class="n">false</span> }
+		<span class="k">if</span> <span class="f">len</span>(c.inputBuffer) &gt;= <span class="n">2</span>+msgLength {
+			buffer <span class="o">:=</span> c.inputBuffer[<span class="n">2</span> : <span class="n">2</span>+msgLength]
+			c.inputBuffer = c.inputBuffer[<span class="n">2</span>+msgLength:]
+			<span class="k">select</span> {
+			<span class="k">case</span> c.inbox <span class="o">&lt;-</span> buffer:
+			<span class="k">default</span>:
+				<span class="k">return</span> <span class="n">false</span>                 <span class="c">// inbox が満杯: メッセージをドロップ</span>
 			}
-			return true
+			<span class="k">return</span> <span class="n">true</span>
 		}
 	}
-	return false
+	<span class="k">return</span> <span class="n">false</span>
 }</code></pre>
 <div class="callout warn">
   <strong>受信経路にロックがない</strong>
@@ -203,14 +203,14 @@ func (c *Connection) flush() bool {
 </table>
 
 <h2 id="sec-scan">スキャン</h2>
-<pre><code class="language-go">type ScanResult struct {
-	Address     string  // アドバタイズのアドレス (macOS は CoreBluetooth の識別子、Linux は MAC)
-	LocalName   string  // "S…C"
-	RSSI        int16   // dBm
-	Connectable bool    // false なら車両はすでに最大接続数に達している
+<pre><code class="language-go"><span class="k">type</span> ScanResult <span class="k">struct</span> {
+	Address     <span class="t">string</span>  <span class="c">// アドバタイズのアドレス (macOS は CoreBluetooth の識別子、Linux は MAC)</span>
+	LocalName   <span class="t">string</span>  <span class="c">// "S…C"</span>
+	RSSI        <span class="t">int16</span>   <span class="c">// dBm</span>
+	Connectable <span class="t">bool</span>    <span class="c">// false なら車両はすでに最大接続数に達している</span>
 }
 
-func ScanVehicleBeacon(ctx context.Context, vin string) (*ScanResult, error)</code></pre>
+<span class="k">func</span> <span class="f">ScanVehicleBeacon</span>(ctx context.Context, vin <span class="t">string</span>) (*ScanResult, <span class="t">error</span>)</code></pre>
 <ul>
   <li><code>ScanVehicleBeacon</code> はアダプターを初期化し、<code>VehicleLocalName(vin)</code> と一致する最初のアドバタイズを返します。ctx が期限切れになるまでスキャンを続けます。</li>
   <li>内部の <code>scanVehicleBeacon</code> は一致するアドバタイズを見つけると派生コンテキストをキャンセルして <code>device.Scan</code> を止めます。macOS の <code>device.Scan</code> はコンテキストがキャンセルされるまで戻らず、常に <code>context.Canceled</code> を返すため、コードは <code>errors.Is(err, context.Canceled)</code> ではないエラーだけを失敗として扱います。</li>
@@ -220,20 +220,20 @@ func ScanVehicleBeacon(ctx context.Context, vin string) (*ScanResult, error)</co
 </ul>
 
 <h2 id="sec-retry">接続リトライループ</h2>
-<pre><code class="language-go">func NewConnection(ctx context.Context, vin string) (*Connection, error) {
-	return NewConnectionFromScanResult(ctx, vin, nil)
+<pre><code class="language-go"><span class="k">func</span> <span class="f">NewConnection</span>(ctx context.Context, vin <span class="t">string</span>) (*Connection, <span class="t">error</span>) {
+	<span class="k">return</span> <span class="f">NewConnectionFromScanResult</span>(ctx, vin, <span class="n">nil</span>)
 }
 
-func NewConnectionFromScanResult(ctx context.Context, vin string, target *ScanResult) (*Connection, error) {
-	var lastError error
-	for {
-		conn, retry, err := tryToConnect(ctx, vin, target)
-		if err == nil { return conn, nil }
-		if !retry || IsAdapterError(err) { return nil, err }   // 致命的: 即座に断念
-		log.Warning("BLE connection attempt failed: %s", err)
-		if err := ctx.Err(); err != nil {                        // ctx 期限切れ: 最後の実際のエラーを返す
-			if lastError != nil { return nil, lastError }
-			return nil, err
+<span class="k">func</span> <span class="f">NewConnectionFromScanResult</span>(ctx context.Context, vin <span class="t">string</span>, target *ScanResult) (*Connection, <span class="t">error</span>) {
+	<span class="k">var</span> lastError <span class="t">error</span>
+	<span class="k">for</span> {
+		conn, retry, err <span class="o">:=</span> <span class="f">tryToConnect</span>(ctx, vin, target)
+		<span class="k">if</span> err <span class="o">==</span> <span class="n">nil</span> { <span class="k">return</span> conn, <span class="n">nil</span> }
+		<span class="k">if</span> !retry <span class="o">||</span> <span class="f">IsAdapterError</span>(err) { <span class="k">return</span> <span class="n">nil</span>, err }   <span class="c">// 致命的: 即座に断念</span>
+		log.<span class="f">Warning</span>(<span class="s">"BLE connection attempt failed: %s"</span>, err)
+		<span class="k">if</span> err <span class="o">:=</span> ctx.<span class="f">Err</span>(); err <span class="o">!=</span> <span class="n">nil</span> {                        <span class="c">// ctx 期限切れ: 最後の実際のエラーを返す</span>
+			<span class="k">if</span> lastError <span class="o">!=</span> <span class="n">nil</span> { <span class="k">return</span> <span class="n">nil</span>, lastError }
+			<span class="k">return</span> <span class="n">nil</span>, err
 		}
 		lastError = err
 	}
