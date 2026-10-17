@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tools/ci/highlight-manual-code.sh — HTML 매뉴얼 코드 블록에 문법 색을 입힌다
 #   매뉴얼은 스크립트와 외부 리소스를 쓰지 않으므로, 색은 미리 <span class="..."> 로 넣어 둔다.
-#   대상: documents/html/{ko,en,ja}/*.html 와 index.html 의 <pre><code class="language-X"> (bash, go, json, python, yaml)
+#   대상: documents/html/{ko,en,ja}/*.html 와 index.html 의 <pre><code class="language-X"> (bash, go, json, kotlin, python, swift, xml, yaml)
 #   다시 돌려도 결과가 같다(기존 span을 지우고 다시 칠한다). 코드 블록을 고친 뒤 돌리고 함께 커밋한다.
 #   --check: 파일을 바꾸지 않고, 칠하지 않은 블록이 있으면 실패한다(check-manual-i18n.sh 가 부른다).
 #   클래스: c 주석, k 키워드, s 문자열, n 숫자·상수, f 함수·명령, t 타입, v 변수, p 키·플래그, o 연산자
@@ -70,7 +70,39 @@ YAML = re.compile("|".join([
     r"(?P<n>" + words("true", "false", "null") + r")",
 ]), re.M)
 
-LEXERS = {"bash": BASH, "go": GO, "json": JSON, "python": PYTHON, "yaml": YAML}
+KOTLIN = re.compile("|".join([
+    r"(?P<c>//[^\n]*|/\*.*?\*/)",
+    rf"(?P<s>\"\"\".*?\"\"\"|{STR_DQ}|'(?:\\.|[^'\\\n])+')",
+    "(?P<k>" + words("as", "break", "class", "companion", "continue", "data", "do", "else", "enum", "finally", "for",
+                     "fun", "if", "import", "in", "interface", "is", "object", "override", "package", "private",
+                     "public", "return", "sealed", "suspend", "throw", "try", "val", "var", "when", "while") + ")",
+    r"(?P<n>" + words("true", "false", "null", "this") + r"|\b0[xX][0-9a-fA-F_]+\b|\b\d[\d_]*(?:\.\d+)?[uUL]?\b)",
+    r"(?P<f>\b[a-z_]\w*(?=\s*[({]))",
+    r"(?P<t>\b[A-Z]\w*)",
+    r"(?P<o>\?:|\?\.|!!|->|==|!=|&&|\|\|)",
+]), re.S)
+
+SWIFT = re.compile("|".join([
+    r"(?P<c>//[^\n]*|/\*.*?\*/)",
+    rf"(?P<s>{STR_DQ})",
+    "(?P<k>" + words("as", "async", "await", "break", "case", "catch", "class", "continue", "default", "do", "else",
+                     "enum", "for", "func", "guard", "if", "import", "in", "let", "private", "return", "self",
+                     "struct", "switch", "throw", "throws", "try", "var", "where", "while") + ")",
+    r"(?P<n>" + words("true", "false", "nil") + r"|\b0[xX][0-9a-fA-F_]+\b|\b\d[\d_]*(?:\.\d+)?\b)",
+    r"(?P<f>\b[a-z_]\w*(?=\())",
+    r"(?P<t>\b[A-Z]\w*)",
+    r"(?P<o>\?\?|->|==|!=|&&|\|\|)",
+]), re.S)
+
+XML = re.compile("|".join([
+    r"(?P<c><!--.*?-->)",
+    rf"(?P<s>{STR_DQ})",
+    r"(?P<p>(?<=\s)[\w:.-]+(?==))",
+    r"(?P<k></?[\w:.-]+|/?>)",
+]), re.S)
+
+LEXERS = {"bash": BASH, "go": GO, "json": JSON, "kotlin": KOTLIN, "python": PYTHON, "swift": SWIFT, "xml": XML,
+          "yaml": YAML}
 
 def paint(lang, code):
     lexer = LEXERS[lang]
