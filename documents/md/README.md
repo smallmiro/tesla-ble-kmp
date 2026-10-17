@@ -1,7 +1,14 @@
-# vehicle-command Manual for Agents (Entry Point)
+# Manual for Agents (Entry Point)
 
-This directory is a Markdown manual written to be read as context by AI coding agents (Claude Code, Codex, etc.)
-when working with the `vehicle-command/` repository. The human-readable HTML version is at `../html/index.html`.
+This directory is a Markdown manual written to be read as context by AI coding agents (Claude Code, Codex, etc.).
+The human-readable HTML version is at `../html/index.html`. It has two parts:
+
+| Files | Part | Maintained by |
+|---|---|---|
+| `00`–`10` | **vehicle-command reference** (the Go original, the porting reference) | The user. Do not change without approval |
+| `11-lib-*`–`19-lib-*` | **tesla-ble-kmp library manual** (this repository's Kotlin Multiplatform library) | Agents. Updated in every PR that changes library behaviour, public API or status; entry point `11-lib-overview.md` |
+
+The rest of this page covers the vehicle-command reference. For the library, start at `11-lib-overview.md`.
 
 Baseline: `github.com/teslamotors/vehicle-command` commit `a4b43c1` (after tag `v0.4.1`), Go 1.23.
 The repository root is `../../vehicle-command/` relative to this document. All file paths below are relative to the repository root.
@@ -24,6 +31,7 @@ The repository root is `../../vehicle-command/` relative to this document. All f
 | Modify the HTTP proxy, add endpoints, deploy | `07-http-proxy.md`, `05-command-catalog.md` |
 | Error handling, retry policy, troubleshooting | `08-errors.md` |
 | Implement a BLE client in another language (Python, Swift, Kotlin, Rust, etc.) | `10-porting-guide.md`, `02-ble-transport.md`, `03-protocol.md` |
+| Use or change the tesla-ble-kmp library | `11-lib-overview.md`, then the page it names for the task |
 
 ## File List
 
@@ -40,6 +48,7 @@ The repository root is `../../vehicle-command/` relative to this document. All f
 | `08-errors.md` | `protocol.Error` interface, full MessageFault table, VCSEC/Infotainment application errors, retry policy |
 | `09-recipes.md` | Code examples: BLE connection, session cache, key pairing, state queries, custom Connector, adding a new command, writing tests |
 | `10-porting-guide.md` | Step-by-step checklist and verification methods for implementing a BLE client in another language |
+| `11-lib-overview.md` … `19-lib-architecture.md` | tesla-ble-kmp library manual: overview, getting started, pairing, reading state, commands, errors, platform notes, troubleshooting, architecture |
 
 ## Original Repository Documents (Authoritative Sources)
 
