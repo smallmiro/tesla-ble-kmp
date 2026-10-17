@@ -240,7 +240,7 @@ Refs: FR-012
 ### 8.3 플랫폼
 - iOS: Kotlin/Native에서 CryptoKit(Swift 전용)은 쓸 수 없습니다. GCM 구현 방식은 ADR을 따릅니다.
 - Android: Keystore 안에서 ECDH는 API 31 이상에서만 가능합니다. 대체 방식은 PRD와 ADR을 따릅니다.
-- BLE 권한, 백그라운드 제약은 샘플 앱과 `{{LIB_DOCS_DIR}}` 의 platform-notes에 반영합니다.
+- BLE 권한, 백그라운드 제약은 샘플 앱과 라이브러리 사용 문서의 platform notes(`{{LIB_DOCS_DIR}}17-lib-platform-notes.md` 와 HTML 세 언어)에 반영합니다.
 
 ### 8.4 실차 검증 체크리스트 (사용자 수행)
 | 시나리오 | 확인 |
@@ -277,7 +277,7 @@ Refs: FR-012
 
 **문서**
 - [ ] 요구사항이 바뀌었다면 `{{PRD_FILE}}`, 설계가 바뀌었다면 `{{SDD_FILE}}`/ADR을 같은 PR에서 갱신했다
-- [ ] 공개 API가 바뀌었다면 `{{LIB_DOCS_DIR}}` 해당 페이지를 갱신했다
+- [ ] 라이브러리 동작·공개 API·마일스톤 상태가 바뀌었다면 라이브러리 사용 문서를 머지 전에 갱신했다: `{{LIB_DOCS_DIR}}`(에이전트용 MD, 영어)와 `{{LIB_DOCS_HTML_DIR}}`(사람용 HTML, `ko/`·`en/`·`ja/`). 바뀐 것이 없으면 PR에 "문서 영향 없음"을 적었다 (`{{AGENTS_FILE}}` 절대 규칙 13)
 - [ ] 개발 매뉴얼을 고쳤다면 `{{MANUAL_DIR}}` 는 영어로 썼고, `{{MANUAL_HTML_DIR}}` 는 `ko/`, `en/`, `ja/` 세 언어를 모두 갱신했다
 
 **통합**
@@ -314,6 +314,6 @@ Refs: FR-012
 
 | 코드 | 문서 |
 |---|---|
-| 공개 API | `{{LIB_DOCS_DIR}}` + KDoc + `apiDump` |
+| 공개 API, 라이브러리 동작 | `{{LIB_DOCS_DIR}}` + `{{LIB_DOCS_HTML_DIR}}`(3언어) + KDoc + `apiDump` |
 | 프로토콜 동작, 원본과의 차이 | `{{SDD_FILE}}` + ADR |
 | 요구사항 충족 여부 | `{{PRD_FILE}}` FR 상태 |
