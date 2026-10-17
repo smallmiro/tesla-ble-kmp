@@ -3,21 +3,112 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>vehicle-command BLE Manual</title>
+<title>Tesla vehicle-command BLE Developer Manual</title>
 <link rel="stylesheet" href="assets/style.css">
-<link rel="alternate" hreflang="ko" href="ko/index.html">
-<link rel="alternate" hreflang="en" href="en/index.html">
-<link rel="alternate" hreflang="ja" href="ja/index.html">
 </head>
-<body>
+<body class="home">
+<header class="top">
+  <a class="brand" href="en/index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE Developer Manual · based on v0.4.1</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>English</span></summary>
+    <ul>
+      <li><a href="ko/index.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a class="active" aria-current="true" href="en/index.html" hreflang="en" lang="en">English</a></li>
+      <li><a href="ja/index.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a class="active" href="en/index.html">Home</a></li>
+    <li class="group">Getting Started</li>
+    <li><a href="en/01-overview.html">1. System Overview</a></li>
+    <li><a href="en/02-getting-started.html">2. Getting Started</a></li>
+    <li class="group">Protocol</li>
+    <li><a href="en/03-ble-transport.html">3. BLE Transport Layer</a></li>
+    <li><a href="en/04-protocol.html">4. Protocol Specification</a></li>
+    <li class="group">Development</li>
+    <li><a href="en/05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="en/06-cli-tools.html">6. CLI Tools</a></li>
+    <li><a href="en/07-command-reference.html">7. Command Reference</a></li>
+    <li><a href="en/08-http-proxy.html">8. HTTP Proxy</a></li>
+    <li><a href="en/09-errors-troubleshooting.html">9. Errors and Troubleshooting</a></li>
+  </ol>
+</nav>
 <main class="content">
-<h1>Tesla <span style="color:var(--accent)">vehicle-command</span> BLE Manual</h1>
-<p class="lead">Choose a language. All three editions cover the same content.</p>
-<ul class="lang-picker">
-  <li><a href="ko/index.html" hreflang="ko" lang="ko"><strong>한국어</strong><span>BLE 개발 매뉴얼</span></a></li>
-  <li><a href="en/index.html" hreflang="en" lang="en"><strong>English</strong><span>BLE Developer Manual</span></a></li>
-  <li><a href="ja/index.html" hreflang="ja" lang="ja"><strong>日本語</strong><span>BLE 開発マニュアル</span></a></li>
+
+<h1>Tesla vehicle-command BLE Developer Manual</h1>
+<p class="lead">The developer manual for the <code>vehicle-command</code> SDK, which connects to Tesla vehicles over Bluetooth Low Energy (BLE) or the internet and sends end-to-end authenticated commands.</p>
+
+<div class="callout">
+  <strong>Reference version for this document</strong>
+  <p>Written against commit <code>a4b43c1</code> (Fix wrapped protocol error classification), which follows tag <code>v0.4.1</code> of the <code>vehicle-command/</code> repository. The Go module path is <code>github.com/teslamotors/vehicle-command</code> and the required Go version is 1.23. When the code is updated, re-check the API signatures and command lists in this manual.</p>
+</div>
+
+<h2>Who should read which documents</h2>
+<p>This manual is provided in two sets. They cover the same content but target different readers.</p>
+<table>
+  <thead><tr><th>Location</th><th>Reader</th><th>Format</th><th>Language</th><th>Characteristics</th></tr></thead>
+  <tbody>
+    <tr><td><code>documents/html/</code></td><td>Humans (developers, reviewers, operators)</td><td>HTML (the document you are reading now)</td><td>Korean (<code>ko/</code>), English (<code>en/</code>), Japanese (<code>ja/</code>). The content is identical across the three languages.</td><td>Focused on concept explanations, diagrams, step-by-step procedures, and tables</td></tr>
+    <tr><td><code>documents/md/</code></td><td>AI coding agents (Claude Code, Codex, etc.)</td><td>Markdown</td><td>English</td><td>Focused on exact signatures, invariants, file paths, and verification checklists. Agents read it as context when modifying code or implementing a new client.</td></tr>
+  </tbody>
+</table>
+
+<h2>Document structure</h2>
+<div class="cards">
+  <a class="card" href="en/01-overview.html"><div class="num">01</div><h3>System Overview</h3><p>The two-stage authentication model, the VCSEC/Infotainment domains, repository layout, and layered architecture.</p></a>
+  <a class="card" href="en/02-getting-started.html"><div class="num">02</div><h3>Getting Started</h3><p>Installation, key generation, pairing a key with an NFC card, and your first BLE command in under 10 minutes.</p></a>
+  <a class="card" href="en/03-ble-transport.html"><div class="num">03</div><h3>BLE Transport Layer</h3><p>GATT service/characteristic UUIDs, advertised name computation, 2-byte length framing, MTU, scanning, and connection retries.</p></a>
+  <a class="card" href="en/04-protocol.html"><div class="num">04</div><h3>Protocol Specification</h3><p>RoutableMessage, handshake, ECDH key agreement, metadata TLV, HMAC/AES-GCM authentication, response decryption, and session recovery.</p></a>
+  <a class="card" href="en/05-go-sdk.html"><div class="num">05</div><h3>Go SDK</h3><p>How to build applications with <code>pkg/vehicle</code>, <code>pkg/connector</code>, <code>pkg/cache</code>, <code>pkg/cli</code>, and <code>pkg/account</code>.</p></a>
+  <a class="card" href="en/06-cli-tools.html"><div class="num">06</div><h3>CLI Tools</h3><p>Options and environment variables for tesla-keygen, tesla-control, tesla-auth-token, tesla-jws, and tesla-http-proxy.</p></a>
+  <a class="card" href="en/07-command-reference.html"><div class="num">07</div><h3>Command Reference</h3><p>A table of every vehicle command with its CLI name, Go method, proxy endpoint, domain, and authorization requirements.</p></a>
+  <a class="card" href="en/08-http-proxy.html"><div class="num">08</div><h3>HTTP Proxy</h3><p>Configuration, TLS, Docker deployment, and response conventions of the proxy that converts REST API calls into end-to-end authenticated commands.</p></a>
+  <a class="card" href="en/09-errors-troubleshooting.html"><div class="num">09</div><h3>Errors and Troubleshooting</h3><p>The full set of MessageFault codes, retry policy, and how to handle BLE connection failures, key pairing failures, and session desync.</p></a>
+</div>
+
+<h2>30-second summary</h2>
+<ol class="steps">
+  <li><strong>Create a key.</strong> <code>tesla-keygen create &gt; public_key.pem</code>. A NIST P-256 private key is stored in the OS keyring and the public key is printed.</li>
+  <li><strong>Register the key with the vehicle.</strong> Inside the car, run <code>tesla-control -ble add-key-request public_key.pem owner cloud_key</code>, then approve by tapping an NFC card on the center console.</li>
+  <li><strong>Send a command.</strong> <code>tesla-control -ble lock</code>. The SDK handles advertisement scanning → GATT connection → per-domain handshake → sending the AES-GCM encrypted command.</li>
+</ol>
+
+<pre><code class="language-bash">export TESLA_KEY_NAME=$(whoami)
+export TESLA_VIN=5YJ30123456789ABC
+export TESLA_CACHE_FILE=~/.tesla-cache.json
+
+tesla-keygen create &gt; public_key.pem
+tesla-control -ble add-key-request public_key.pem owner cloud_key   # inside the car, with an NFC card ready
+tesla-control -ble lock
+tesla-control -ble -debug body-controller-state                     # lock/door/sleep state (works even while Infotainment is asleep)</code></pre>
+
+<h2>Key concepts at a glance</h2>
+<dl class="kv">
+  <dt>Domain</dt><dd><span class="badge vcsec">VCSEC</span> The security controller responsible for locking, trunks, key management, and wake-up. It responds over BLE even while Infotainment is asleep. <span class="badge info">INFOTAINMENT</span> Handles the remaining commands, such as climate, charging, media, and state queries. Each domain has its own key pair and session.</dd>
+  <dt>Session</dt><dd>When the client sends a <code>SessionInfoRequest</code> with its public key, the domain returns a <code>SessionInfo</code> containing its public key, epoch, counter, and clock. The two sides agree on a 128-bit AES-GCM key <code>K</code> via ECDH.</dd>
+  <dt>Authentication method</dt><dd>BLE uses <strong>AES-GCM</strong> (encryption + authentication), and the Fleet API uses <strong>HMAC-SHA256</strong> (plaintext + authentication). Both bind metadata containing the VIN, epoch, expiration time, and counter into the authentication.</dd>
+  <dt>Role</dt><dd>Owner, Driver, Fleet Manager, Vehicle Monitor, Charging Manager, Guest, Service. The permitted commands depend on the role.</dd>
+  <dt>Session cache</dt><dd>If session state is saved to disk, the next run can send commands immediately without a handshake. If the cache is stale, the vehicle returns new session information along with an error, so it recovers automatically.</dd>
+</dl>
+
+<h2>Original repository documents</h2>
+<ul>
+  <li><code>vehicle-command/README.md</code>: installation, proxy setup, key deployment procedure</li>
+  <li><code>vehicle-command/pkg/protocol/protocol.md</code>: the original protocol specification (including test vectors)</li>
+  <li><code>vehicle-command/cmd/tesla-control/README.md</code>: CLI usage</li>
+  <li><code>vehicle-command/pkg/protocol/protobuf/*.proto</code>: message definitions</li>
+  <li><a href="https://pkg.go.dev/github.com/teslamotors/vehicle-command/pkg">pkg.go.dev package documentation</a>, <a href="https://developer.tesla.com/docs/fleet-api">Tesla Fleet API documentation</a></li>
 </ul>
+
+<footer class="page-nav">
+  <span></span>
+  <a class="next" href="en/01-overview.html"><span>Next</span>1. System Overview</a>
+</footer>
 </main>
+</div>
 </body>
 </html>
