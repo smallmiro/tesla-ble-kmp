@@ -9,7 +9,7 @@ Baseline: commit `a4b43c1` after tag `v0.4.1` (Go 1.23, module `github.com/tesla
 
 | Directory | Audience | Format | Language | Entry point |
 |---|---|---|---|---|
-| `html/` | People (developers, reviewers, operators) | HTML | Korean (`ko/`), English (`en/`), Japanese (`ja/`) | Open `html/index.html` in a browser and pick a language |
+| `html/` | People (developers, reviewers, operators) | HTML | Korean (`ko/`), English (`en/`), Japanese (`ja/`) | Open `html/index.html` in a browser (English home); switch language from the menu at the top right |
 | `md/`   | AI coding agents (Claude Code, Codex, etc.) | Markdown | English only | `md/README.md` |
 
 Both cover the same facts but serve different purposes.
@@ -29,7 +29,7 @@ Language rules are AGENTS.md absolute rule 12.
 documents/
 ├── README.md                      # this file
 ├── html/                          # for people
-│   ├── index.html                 # language picker
+│   ├── index.html                 # English home: copy of en/index.html, regenerate with tools/ci/sync-manual-root-index.sh
 │   ├── assets/style.css           # shared by all languages
 │   └── ko/ en/ ja/                # one folder per language, identical file names
 │       ├── index.html             # home / document map

@@ -80,7 +80,7 @@ When you change `pkg/protocol/protobuf/*.proto`, regenerate `*.pb.go` with `make
 
 ### 2.5 Documentation Update Rules
 
-When you change code, update the corresponding file in this directory (`documents/md/`) and the corresponding page under `documents/html/` in the same change. HTML pages live under `documents/html/{ko,en,ja}/` (same file names in each language directory), and all three languages must be updated in the same change. Files in `documents/md/` must be written in English (AGENTS.md absolute rule 12). Mapping:
+When you change code, update the corresponding file in this directory (`documents/md/`) and the corresponding page under `documents/html/` in the same change. HTML pages live under `documents/html/{ko,en,ja}/` (same file names in each language directory), and all three languages must be updated in the same change. `documents/html/index.html` is the English home mirrored from `en/index.html`; after editing `en/index.html`, run `tools/ci/sync-manual-root-index.sh`. Files in `documents/md/` must be written in English (AGENTS.md absolute rule 12). Mapping:
 
 | Code | md | html |
 |---|---|---|
