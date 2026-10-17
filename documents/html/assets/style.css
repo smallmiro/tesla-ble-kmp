@@ -1,4 +1,4 @@
-/* Tesla vehicle-command BLE 개발 매뉴얼 공용 스타일 */
+/* Shared stylesheet for the Tesla vehicle-command BLE manual (ko / en / ja) */
 :root {
   --bg: #ffffff;
   --bg-alt: #f6f7f9;
@@ -18,6 +18,7 @@
   --link: #0b5cad;
   --nav-w: 260px;
   --font: -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo", "Pretendard", "Noto Sans KR", "Segoe UI", Roboto, sans-serif;
+  --font-ja: -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", "Yu Gothic UI", "Yu Gothic", Meiryo, "Segoe UI", Roboto, sans-serif;
   --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, "Liberation Mono", monospace;
 }
 @media (prefers-color-scheme: dark) {
@@ -113,3 +114,16 @@ footer.page-nav span { display: block; font-size: 12px; color: var(--fg-muted); 
   main h1 { font-size: 1.6rem; }
   .kv { grid-template-columns: 1fr; }
 }
+
+/* Japanese pages use a Japanese-first font stack so kanji get Japanese glyph forms */
+:lang(ja) { font-family: var(--font-ja); }
+code:lang(ja), pre:lang(ja), pre :lang(ja) { font-family: var(--mono); }
+
+/* Language switcher (sidebar) and language picker (html/index.html) */
+nav.sidebar .lang-switch { display: flex; gap: 4px; margin: -8px 0 18px; }
+nav.sidebar .lang-switch a { flex: 1; text-align: center; padding: 4px 6px; font-size: 12px; border: 1px solid var(--border); }
+.lang-picker { list-style: none; padding: 0; display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
+.lang-picker a { display: block; padding: 18px 20px; border: 1px solid var(--border); border-radius: 10px; background: var(--bg-alt); color: var(--fg); }
+.lang-picker a:hover { border-color: var(--accent); text-decoration: none; }
+.lang-picker strong { display: block; font-size: 18px; margin-bottom: 4px; }
+.lang-picker span { font-size: 13px; color: var(--fg-muted); }
