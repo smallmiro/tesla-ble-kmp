@@ -18,7 +18,8 @@ Refs: FR-___ / NFR-___ / ADR-____
 - [ ] `tools/ci/verify.sh` 통과(로컬), 경고 0
 - [ ] 원본 Go 동작과 같음 (다르면 주석과 ADR에 이유 기록)
 - [ ] 로그와 픽스처에 키, VIN 원문 없음
-- [ ] 공개 API 변경 시 `apiDump`, KDoc, 라이브러리 사용 문서(`{{LIB_DOCS_DIR}}`) 갱신
+- [ ] 공개 API 변경 시 `apiDump`, KDoc 갱신
+- [ ] `documents/` 라이브러리 사용 문서 갱신: MD(`documents/md/1x-lib-*.md`, 에이전트용, 영어) + HTML(`documents/html/{ko,en,ja}/1x-lib-*.html`, 사람용) — 또는 "문서 영향 없음: <이유>" (AGENTS.md 절대 규칙 13)
 - [ ] 요구사항·설계 변경 시 PRD, SDD, ADR 갱신
 - [ ] 개발 매뉴얼 변경 시 MD는 영어, HTML은 ko/en/ja 세 언어 모두 갱신 (AGENTS.md 절대 규칙 12)
 - [ ] 의존성 변경 시 `architecture` 라벨, 암호·키·로그 변경 시 `security` 라벨
