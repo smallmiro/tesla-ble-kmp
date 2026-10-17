@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>15. 명령 · vehicle-command BLE 매뉴얼</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE 개발 매뉴얼 · v0.4.1 기준</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>한국어</span></summary>
+    <ul>
+      <li><a class="active" aria-current="true" href="../ko/15-lib-commands.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/15-lib-commands.html" hreflang="en" lang="en">English</a></li>
+      <li><a href="../ja/15-lib-commands.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">홈</a></li>
+    <li class="group">시작하기</li>
+    <li><a href="01-overview.html">1. 시스템 개요</a></li>
+    <li><a href="02-getting-started.html">2. 시작하기</a></li>
+    <li class="group">프로토콜</li>
+    <li><a href="03-ble-transport.html">3. BLE 전송 계층</a></li>
+    <li><a href="04-protocol.html">4. 프로토콜 사양</a></li>
+    <li class="group">개발</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI 도구</a></li>
+    <li><a href="07-command-reference.html">7. 명령 레퍼런스</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP 프록시</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. 오류와 문제 해결</a></li>
+    <li class="group">tesla-ble-kmp 라이브러리</li>
+    <li><a href="11-lib-overview.html">11. 라이브러리 개요</a></li>
+    <li><a href="12-lib-getting-started.html">12. 라이브러리 시작하기</a></li>
+    <li><a href="13-lib-pairing.html">13. 키와 페어링</a></li>
+    <li><a href="14-lib-reading-state.html">14. 차량 상태 조회</a></li>
+    <li><a class="active" href="15-lib-commands.html">15. 명령</a></li>
+    <li><a href="16-lib-errors.html">16. 에러 처리</a></li>
+    <li><a href="17-lib-platform-notes.html">17. 플랫폼 노트</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. 문제 해결</a></li>
+    <li><a href="19-lib-architecture.html">19. 아키텍처</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>15. 명령</h1>
+<p class="lead">현재 <code>Vehicle</code>은 세션을 시작하고 끝낼 수 있습니다. 제어 명령은 M4(보안 컨트롤러: 잠금, 트렁크, 깨우기)와 M5(인포테인먼트: 공조, 충전, 미디어 등)에서 추가됩니다. 앱을 계획할 수 있도록 이 페이지에 둘 다 정리합니다.</p>
+
+<div class="toc"><strong>이 페이지의 내용</strong><ol>
+<li><a href="#sec-now">현재 사용 가능</a></li>
+<li><a href="#sec-rules">모든 명령의 공통 동작</a></li>
+<li><a href="#sec-m4">M4 예정: 보안 컨트롤러</a></li>
+<li><a href="#sec-m5">M5 예정: 인포테인먼트</a></li>
+<li><a href="#sec-later">이후 계획</a></li>
+</ol></div>
+
+<h2 id="sec-now">현재 사용 가능</h2>
+<table>
+<thead><tr><th>호출</th><th>동작</th></tr></thead>
+<tbody>
+<tr><td><code>startSession(domains, timeout)</code></td><td>VCSEC와 Infotainment(기본값은 둘 다)의 핸드셰이크를 병렬로 실행합니다. 세션 캐시에서 이미 복원된 도메인은 차량에 묻지 않고 성공합니다. 등록된 키가 필요합니다. 기본 시간 제한 20초</td></tr>
+<tr><td><code>disconnect()</code></td><td>세션 캐시를 저장하고, 세션 키를 지우고, 링크를 닫습니다. 여러 번 호출해도 안전합니다</td></tr>
+</tbody>
+</table>
+<p><code>startSession</code>이 실행되는 동안 <code>vehicle.sessions</code>는 <code>Handshaking</code>을 보여 주고, 끝나면 <code>Ready</code>, 실패하거나 취소되면 다시 <code>None</code>이 됩니다.</p>
+
+<h2 id="sec-rules">모든 명령의 공통 동작</h2>
+<p>명령 아래의 기반 구조는 이미 갖춰져 있으므로 다음 규칙은 확정되어 있습니다.</p>
+<ul>
+<li>명령은 도메인 세션 위에서 AES-GCM으로 암호화, 인증되며 5초 후 만료됩니다.</li>
+<li>일시적 실패는 1초마다 자동으로 재시도합니다. 이미 실행되었을 수 있는 명령은 <strong>절대</strong> 다시 보내지 않습니다.</li>
+<li>보안 컨트롤러 명령은 연결마다 한 번에 하나씩 실행되고, 인포테인먼트 명령은 동시에 실행될 수 있습니다.</li>
+<li><code>Uncertain</code> 결과는 상태를 읽고 재전송하지 말라는 뜻입니다. <a href="16-lib-errors.html">16. 에러 처리</a>를 참고하세요.</li>
+</ul>
+
+<h2 id="sec-m4">M4 예정: 보안 컨트롤러</h2>
+<table>
+<thead><tr><th>요구사항</th><th>예정 메서드</th><th>우선순위</th></tr></thead>
+<tbody>
+<tr><td>FR-040, FR-041</td><td><code>lock()</code>, <code>unlock()</code></td><td><span class="badge ok">P0</span></td></tr>
+<tr><td>FR-042</td><td><code>wakeUp()</code></td><td><span class="badge ok">P0</span></td></tr>
+<tr><td>FR-045, FR-046</td><td><code>openTrunk()</code>, <code>closeTrunk()</code>, <code>openFrunk()</code></td><td><span class="badge ok">P0</span></td></tr>
+<tr><td>FR-043, FR-044</td><td><code>remoteDrive()</code>, <code>autoSecureVehicle()</code>(Model X)</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>FR-047</td><td><code>openTonneau()</code>, <code>closeTonneau()</code>, <code>stopTonneau()</code>(Cybertruck)</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>FR-022–027</td><td>키 등록과 제거</td><td><a href="13-lib-pairing.html#sec-planned">13. 키와 페어링</a> 참고</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-m5">M5 예정: 인포테인먼트</h2>
+<table>
+<thead><tr><th>영역</th><th>예정 메서드</th><th>우선순위</th></tr></thead>
+<tbody>
+<tr><td>공조</td><td><code>climateOn()</code>, <code>climateOff()</code>, <code>setClimateTemp(driverC, passengerC)</code></td><td><span class="badge ok">P0</span></td></tr>
+<tr><td>충전</td><td><code>chargeStart()</code>, <code>chargeStop()</code>, <code>setChargeLimit(percent)</code>, <code>setChargingAmps(amps)</code></td><td><span class="badge ok">P0</span></td></tr>
+<tr><td>공조 부가 기능</td><td>시트 열선과 통풍, 스티어링 휠 열선, 사전 공조, 공조 유지(도그, 캠프), 생화학 무기 방어 모드, 실내 과열 방지</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>충전 부가 기능</td><td>표준 및 최대 주행 거리, 예약 충전과 출발 시간, 충전 및 사전 공조 일정, 저전력 모드와 액세서리 전원 모드</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>차체</td><td><code>ventWindows()</code>, <code>closeWindows()</code>, <code>setSunroof(level)</code>, <code>openChargePort()</code>, <code>closeChargePort()</code>, <code>honkHorn()</code>, <code>flashLights()</code></td><td><span class="badge info">P1</span></td></tr>
+<tr><td>보안</td><td><code>setSentryMode(on)</code>, 발레 모드</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>미디어와 업데이트</td><td>볼륨, 트랙, 즐겨찾기 제어, 소프트웨어 업데이트 예약 또는 취소</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>상태</td><td><code>ping()</code>, <code>getState(category)</code></td><td><a href="14-lib-reading-state.html#sec-wake">14. 차량 상태 조회</a> 참고</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-later">이후 계획</h2>
+<p>v1.1 예정: HomeLink, PIN to Drive 해제, 속도 제한 모드, 자녀 보호, 게스트 모드, 차량 이름 변경, 주변 충전소. PIN to Drive 설정은 BLE로 할 수 없어 제외합니다. 모든 명령에 대응하는 Go 명령은 <a href="07-command-reference.html">7. 명령 레퍼런스</a>에 정리되어 있습니다.</p>
+
+<footer class="page-nav">
+  <a href="14-lib-reading-state.html"><span>이전</span>14. 차량 상태 조회</a>
+  <a class="next" href="16-lib-errors.html"><span>다음</span>16. 에러 처리</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

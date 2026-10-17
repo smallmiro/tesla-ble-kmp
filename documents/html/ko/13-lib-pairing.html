@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>13. 키와 페어링 · vehicle-command BLE 매뉴얼</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE 개발 매뉴얼 · v0.4.1 기준</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>한국어</span></summary>
+    <ul>
+      <li><a class="active" aria-current="true" href="../ko/13-lib-pairing.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/13-lib-pairing.html" hreflang="en" lang="en">English</a></li>
+      <li><a href="../ja/13-lib-pairing.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">홈</a></li>
+    <li class="group">시작하기</li>
+    <li><a href="01-overview.html">1. 시스템 개요</a></li>
+    <li><a href="02-getting-started.html">2. 시작하기</a></li>
+    <li class="group">프로토콜</li>
+    <li><a href="03-ble-transport.html">3. BLE 전송 계층</a></li>
+    <li><a href="04-protocol.html">4. 프로토콜 사양</a></li>
+    <li class="group">개발</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI 도구</a></li>
+    <li><a href="07-command-reference.html">7. 명령 레퍼런스</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP 프록시</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. 오류와 문제 해결</a></li>
+    <li class="group">tesla-ble-kmp 라이브러리</li>
+    <li><a href="11-lib-overview.html">11. 라이브러리 개요</a></li>
+    <li><a href="12-lib-getting-started.html">12. 라이브러리 시작하기</a></li>
+    <li><a class="active" href="13-lib-pairing.html">13. 키와 페어링</a></li>
+    <li><a href="14-lib-reading-state.html">14. 차량 상태 조회</a></li>
+    <li><a href="15-lib-commands.html">15. 명령</a></li>
+    <li><a href="16-lib-errors.html">16. 에러 처리</a></li>
+    <li><a href="17-lib-platform-notes.html">17. 플랫폼 노트</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. 문제 해결</a></li>
+    <li><a href="19-lib-architecture.html">19. 아키텍처</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>13. 키와 페어링</h1>
+<p class="lead">휴대폰에는 자체 키 쌍이 필요하고, 차량은 그 공개키를 목록에 올려야 해당 키의 명령을 받아들입니다. 현재 라이브러리는 키를 생성, 저장하고 차량의 키 목록을 읽습니다. 차량에 키를 등록하는 기능(add-key-request)은 M4에서 추가됩니다.</p>
+
+<div class="toc"><strong>이 페이지의 내용</strong><ol>
+<li><a href="#sec-store">키 보관소</a></li>
+<li><a href="#sec-protection">키가 저장되는 위치</a></li>
+<li><a href="#sec-check">내 키가 등록되어 있나요?</a></li>
+<li><a href="#sec-delete">키 삭제와 교체</a></li>
+<li><a href="#sec-planned">M4 예정: 키 등록</a></li>
+</ol></div>
+
+<h2 id="sec-store">키 보관소</h2>
+<p><code>TeslaBle.keys</code>는 <code>VehicleKeyStore</code>입니다. 키는 별칭으로 찾으며, 대부분의 앱은 기본 별칭 하나만 있으면 됩니다.</p>
+<table>
+<thead><tr><th>호출</th><th>반환</th><th>동작</th></tr></thead>
+<tbody>
+<tr><td><code>getOrCreate(alias, policy)</code></td><td><code>VehicleResult&lt;VehicleKey&gt;</code></td><td>저장된 키를 반환하거나, 별칭으로 NIST P-256 키 쌍을 생성</td></tr>
+<tr><td><code>get(alias)</code></td><td><code>VehicleResult&lt;VehicleKey?&gt;</code></td><td>키가 없으면 <code>Success(null)</code></td></tr>
+<tr><td><code>delete(alias)</code></td><td><code>VehicleResult&lt;Unit&gt;</code></td><td>키가 없어도 성공</td></tr>
+</tbody>
+</table>
+<ul>
+<li>기본 별칭은 <code>"teslable-default"</code>입니다(<code>VehicleKeyStore.DEFAULT_ALIAS</code>, Swift에서는 <code>VehicleKeyStoreCompanion.shared.DEFAULT_ALIAS</code>).</li>
+<li>별칭에는 영문자, 숫자, <code>.</code>, <code>_</code>, <code>-</code>를 최대 64자까지 쓸 수 있으며, <code>.</code>이나 <code>..</code>은 쓸 수 없습니다.</li>
+<li><code>VehicleKey</code>는 핸들입니다. <code>alias</code>, <code>protection</code>, <code>publicKey</code>(65바이트, <code>0x04 ‖ X ‖ Y</code>)를 제공합니다. 개인키는 플랫폼 키 보관소를 벗어나지 않으며, 내보내기 API는 없습니다.</li>
+</ul>
+
+<h2 id="sec-protection">키가 저장되는 위치</h2>
+<p><code>policy</code> 인자는 소프트웨어 키를 허용할지 정합니다. 키가 실제로 어디에 저장되었는지는 <code>VehicleKey.protection</code>으로 알 수 있습니다.</p>
+<table>
+<thead><tr><th><code>KeyPolicy</code></th><th>동작</th></tr></thead>
+<tbody>
+<tr><td><code>PREFER_HARDWARE</code>(기본값)</td><td>하드웨어 우선, 하드웨어가 실패하면 소프트웨어</td></tr>
+<tr><td><code>REQUIRE_HARDWARE</code></td><td>하드웨어만, 아니면 <code>KeyStoreError.HardwareUnavailable</code></td></tr>
+<tr><td><code>SOFTWARE_ONLY</code></td><td>소프트웨어만, 테스트와 에뮬레이터용</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th><code>KeyProtection</code></th><th>하드웨어</th><th>위치</th></tr></thead>
+<tbody>
+<tr><td><code>SECURE_ENCLAVE</code></td><td><span class="badge ok">예</span></td><td>iOS Secure Enclave</td></tr>
+<tr><td><code>STRONGBOX</code></td><td><span class="badge ok">예</span></td><td>Android StrongBox</td></tr>
+<tr><td><code>TEE</code></td><td><span class="badge ok">예</span></td><td>Android Trusted Execution Environment</td></tr>
+<tr><td><code>SOFTWARE</code></td><td><span class="badge warn">아니요</span></td><td>Android Keystore로 래핑되거나 iOS 키체인에 보관, JVM에서는 메모리</td></tr>
+</tbody>
+</table>
+<p>실제 기기에서 <code>SOFTWARE</code>가 나오면 사용자에게 알리는 것을 고려하세요. 하드웨어 키보다 보안이 약합니다.</p>
+
+<h2 id="sec-check">내 키가 등록되어 있나요?</h2>
+<p><code>vehicle.listKeys()</code>는 키 없이, 차량을 깨우지 않고 동작합니다. 차량의 목록과 내 공개키를 비교하세요.</p>
+<pre><code class="language-kotlin"><span class="k">val</span> mine = key.publicKey.<span class="f">toByteArray</span>()
+<span class="k">val</span> enrolled = <span class="k">when</span> (<span class="k">val</span> r = vehicle.<span class="f">listKeys</span>()) {
+    <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> r.value.<span class="f">firstOrNull</span> { it.publicKey<span class="o">?.</span><span class="f">toByteArray</span>()<span class="o">?.</span><span class="f">contentEquals</span>(mine) <span class="o">==</span> <span class="n">true</span> }
+    <span class="k">else</span> <span class="o">-&gt;</span> <span class="n">null</span>                                   <span class="c">// Uncertain 또는 Failure: 알 수 없음, 나중에 다시 조회</span>
+}
+<span class="c">// enrolled?.role은 KeyRole, enrolled?.slot은 화이트리스트 슬롯</span></code></pre>
+<p>등록되지 않은 키로도 연결과 읽기는 할 수 있습니다. 그 키로 세션을 시작하면 <code>KeyNotPaired</code>로 실패합니다.</p>
+
+<h2 id="sec-delete">키 삭제와 교체</h2>
+<ul>
+<li><code>keys.delete(alias)</code>는 휴대폰에서만 키를 지웁니다. 차량에서 제거하기 전까지 차량은 그 공개키를 계속 목록에 둡니다.</li>
+<li>저장된 세션은 키 하나에 속합니다. 키가 바뀌면 다음 연결에서 이전 세션을 버리고 새 핸드셰이크를 시작합니다.</li>
+<li><strong>손상된</strong> 저장 키(<code>KeyStoreError.PlatformFailure</code>, <code>stored key is corrupted</code>)는 자동으로 교체되지 않습니다. 사용자에게 알리고, <code>delete</code> 후 <code>getOrCreate</code>를 호출한 다음, 새 키를 차량에 다시 등록하세요. <a href="17-lib-platform-notes.html#sec-keys">플랫폼 노트</a>를 참고하세요.</li>
+</ul>
+
+<h2 id="sec-planned">M4 예정: 키 등록</h2>
+<div class="callout warn">
+<strong>아직 사용할 수 없습니다</strong>
+<p>아래 이름은 요구사항 문서에서 가져온 것이며, M4가 완료될 때 바뀔 수 있습니다.</p>
+</div>
+<table>
+<thead><tr><th>요구사항</th><th>예정 API</th><th>예정 동작</th></tr></thead>
+<tbody>
+<tr><td>FR-022</td><td><code>addKeyRequest(role = OWNER, …)</code></td><td>차량에 휴대폰 키 추가를 요청합니다. 사용자는 센터 콘솔에 NFC 키 카드를 태그해 확인합니다</td></tr>
+<tr><td>FR-023</td><td>진행 상황 <code>Flow</code></td><td>사용자가 확인하는 동안 차량의 대기 응답과 최종 응답을 알려 줍니다</td></tr>
+<tr><td>FR-024</td><td><code>sessionInfo(publicKey, domain)</code></td><td>도메인별 등록 여부를 확인합니다. Infotainment가 반영될 때까지 기다리는 데 씁니다</td></tr>
+<tr><td>FR-026</td><td><code>removeKey(publicKey)</code></td><td>차량에서 키를 제거합니다</td></tr>
+<tr><td>FR-027</td><td><code>addKeyWithRole(publicKey, role, formFactor)</code></td><td>등록된 소유자 키가 NFC 카드 없이 다른 키를 추가합니다</td></tr>
+</tbody>
+</table>
+<p>역할(<code>KeyRole</code>)은 <code>OWNER</code>, <code>DRIVER</code>, <code>FLEET_MANAGER</code>, <code>VEHICLE_MONITOR</code>, <code>CHARGING_MANAGER</code>, <code>GUEST</code>, <code>SERVICE</code>입니다. 역할별로 보낼 수 있는 명령은 <a href="07-command-reference.html">7. 명령 레퍼런스</a>에 정리되어 있습니다.</p>
+
+<footer class="page-nav">
+  <a href="12-lib-getting-started.html"><span>이전</span>12. 라이브러리 시작하기</a>
+  <a class="next" href="14-lib-reading-state.html"><span>다음</span>14. 차량 상태 조회</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

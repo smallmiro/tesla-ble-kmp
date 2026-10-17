@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>19. Architecture · vehicle-command BLE Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE Developer Manual · based on v0.4.1</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>English</span></summary>
+    <ul>
+      <li><a href="../ko/19-lib-architecture.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a class="active" aria-current="true" href="../en/19-lib-architecture.html" hreflang="en" lang="en">English</a></li>
+      <li><a href="../ja/19-lib-architecture.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">Home</a></li>
+    <li class="group">Getting Started</li>
+    <li><a href="01-overview.html">1. System Overview</a></li>
+    <li><a href="02-getting-started.html">2. Getting Started</a></li>
+    <li class="group">Protocol</li>
+    <li><a href="03-ble-transport.html">3. BLE Transport Layer</a></li>
+    <li><a href="04-protocol.html">4. Protocol Specification</a></li>
+    <li class="group">Development</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI Tools</a></li>
+    <li><a href="07-command-reference.html">7. Command Reference</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP Proxy</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. Errors and Troubleshooting</a></li>
+    <li class="group">tesla-ble-kmp Library</li>
+    <li><a href="11-lib-overview.html">11. Library Overview</a></li>
+    <li><a href="12-lib-getting-started.html">12. Getting Started with the Library</a></li>
+    <li><a href="13-lib-pairing.html">13. Keys and Pairing</a></li>
+    <li><a href="14-lib-reading-state.html">14. Reading Vehicle State</a></li>
+    <li><a href="15-lib-commands.html">15. Commands</a></li>
+    <li><a href="16-lib-errors.html">16. Error Handling</a></li>
+    <li><a href="17-lib-platform-notes.html">17. Platform Notes</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. Troubleshooting</a></li>
+    <li><a class="active" href="19-lib-architecture.html">19. Architecture</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>19. Architecture</h1>
+<p class="lead">A summary for contributors: how the modules depend on each other, the path a command takes, the concurrency rules, and how sessions are cached. The full design is <code>docs/sdd/SDD.md</code>. This page covers M0 to M3 and is extended when the control commands land.</p>
+
+<div class="toc"><strong>On this page</strong><ol>
+<li><a href="#sec-modules">Modules</a></li>
+<li><a href="#sec-path">The path of a command</a></li>
+<li><a href="#sec-concurrency">Concurrency</a></li>
+<li><a href="#sec-ble">Bluetooth adapter</a></li>
+<li><a href="#sec-facade">Facade</a></li>
+<li><a href="#sec-cache">Session cache</a></li>
+</ol></div>
+
+<h2 id="sec-modules">Modules</h2>
+<div class="diagram">
+<svg viewBox="0 0 900 360" xmlns="http://www.w3.org/2000/svg" font-family="ui-monospace, Menlo, monospace" font-size="13" fill="currentColor">
+  <defs><marker id="arr" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="currentColor"/></marker></defs>
+  <rect fill="var(--bg-alt)" stroke="var(--border)" x="250" y="10" width="400" height="44" rx="6"/>
+  <text x="450" y="37" text-anchor="middle">App (Android Compose / iOS SwiftUI)</text>
+  <rect fill="var(--green)" fill-opacity=".12" stroke="var(--green)" x="250" y="84" width="400" height="44" rx="6"/>
+  <text x="450" y="111" text-anchor="middle">:sdk  public facade: TeslaBle, Vehicle</text>
+  <rect fill="var(--blue)" fill-opacity=".1" stroke="var(--blue)" x="250" y="158" width="400" height="44" rx="6"/>
+  <text x="450" y="185" text-anchor="middle">:application  Dispatcher, sessions, commands</text>
+  <rect fill="var(--violet)" fill-opacity=".12" stroke="var(--violet)" x="250" y="232" width="400" height="44" rx="6"/>
+  <text x="450" y="259" text-anchor="middle">:domain  protocol model and ports, pure Kotlin</text>
+  <rect fill="var(--bg-alt)" stroke="var(--border)" x="20" y="306" width="270" height="44" rx="6"/>
+  <text x="155" y="332" text-anchor="middle" font-size="11.5">:adapter-ble (Kable)</text>
+  <rect fill="var(--bg-alt)" stroke="var(--border)" x="315" y="306" width="270" height="44" rx="6"/>
+  <text x="450" y="332" text-anchor="middle" font-size="11.5">:adapter-crypto (Keystore, Security)</text>
+  <rect fill="var(--bg-alt)" stroke="var(--border)" x="610" y="306" width="270" height="44" rx="6"/>
+  <text x="745" y="332" text-anchor="middle" font-size="11.5">:adapter-storage (files, Keychain)</text>
+  <line x1="450" y1="54" x2="450" y2="82" stroke="currentColor" marker-end="url(#arr)"/>
+  <line x1="450" y1="128" x2="450" y2="156" stroke="currentColor" marker-end="url(#arr)"/>
+  <line x1="450" y1="202" x2="450" y2="230" stroke="currentColor" marker-end="url(#arr)"/>
+  <line x1="155" y1="306" x2="300" y2="278" stroke="currentColor" marker-end="url(#arr)"/>
+  <line x1="450" y1="306" x2="450" y2="278" stroke="currentColor" marker-end="url(#arr)"/>
+  <line x1="745" y1="306" x2="600" y2="278" stroke="currentColor" marker-end="url(#arr)"/>
+</svg>
+</div>
+<ul>
+<li>Every dependency points towards <code>:domain</code>, and the Gradle convention plugins enforce it.</li>
+<li>The adapters implement the ports of <code>:domain</code> for each platform; <code>:sdk</code> wires them together.</li>
+<li><code>:testing</code> holds fakes such as <code>FakeVehicle</code> and <code>FakeTransport</code> and is used only by tests.</li>
+</ul>
+
+<h2 id="sec-path">The path of a command</h2>
+<p>Using a security-controller command such as the planned <code>lock()</code> as the example:</p>
+<ol class="steps">
+<li><strong>Serialize.</strong> <code>VcsecCommands</code> takes the per-connection lock, so only one VCSEC command is in flight.</li>
+<li><strong>Retry loop.</strong> Each attempt that fails with a retryable error starts again after the transport's retry interval.</li>
+<li><strong>Sign and encrypt.</strong> <code>Dispatcher.send</code> asks <code>SessionState</code> to authorize the message: the counter goes up, the metadata is bound, a nonce is drawn.</li>
+<li><strong>Send.</strong> The bytes go to the <code>Transport</code> port, implemented by <code>:adapter-ble</code>.</li>
+<li><strong>Wait.</strong> The request waits until an answer is judged final.</li>
+</ol>
+<p>Infotainment commands take the same steps from the retry loop on, without the lock. On the way back, one receive coroutine per connection reads <code>Transport.incoming</code>, parses each message, matches it to the waiting request, applies attached session information, decrypts it and checks it against replays, then hands it over.</p>
+
+<h2 id="sec-concurrency">Concurrency</h2>
+<ul>
+<li><strong>Exactly one receive coroutine per connection.</strong> It never waits on another coroutine; it hands data over with non-blocking <code>trySend</code>. The only wait: a new receive coroutine waits for the previous one to finish.</li>
+<li><strong>One VCSEC command at a time per connection.</strong> Waiting for the previous one counts against the timeout. Infotainment commands may run in parallel.</li>
+<li>Each domain has one session state. Its lock covers only encrypting, decrypting and session updates, so waits are short.</li>
+<li>The handshakes for both domains run in parallel; if one fails, the other is cancelled.</li>
+<li>Commands, handshakes and connections each have their own timeout; see <a href="16-lib-errors.html#sec-retry">16. Error Handling</a>.</li>
+</ul>
+
+<h2 id="sec-ble">Bluetooth adapter</h2>
+<p>Only two classes know Kable: <code>KableGattConnector</code> (scan, open) and <code>KableGattLink</code> (write, subscribe, notice drops). <code>BleTransportFactory</code> and <code>BleTransport</code> do framing, reassembly, retries and error mapping without Kable, so they are tested on the JVM. When the link drops, the incoming flow closes and the state becomes <code>Disconnected</code>. The scan matches the advertised local name exactly.</p>
+
+<h2 id="sec-facade">Facade</h2>
+<p><code>TeslaBle.create</code> assembles the platform adapters: Bluetooth transport, key store, session cache and crypto primitives. <code>connect</code> opens the transport, creates a coroutine scope for that connection, attaches a <code>Dispatcher</code> and a <code>VehicleSession</code>, and restores saved sessions. If anything fails or is cancelled on the way, the transport and the scope are always released. One <code>Vehicle</code> stands for one connection; after <code>disconnect()</code> its calls fail with <code>NotConnected</code>.</p>
+
+<h2 id="sec-cache">Session cache</h2>
+<p>Sessions are saved in a small binary format (version 1) so the next connection can send commands without a new handshake. They are tied to the client key (SHA-1 of its public key); sessions of other keys are ignored and deleted. They are saved when a handshake finishes, when session information changes, and on disconnect. Private keys, session encryption keys and raw VINs are never saved. Damaged or unrecognized entries are skipped and the rest restored.</p>
+
+<footer class="page-nav">
+  <a href="18-lib-troubleshooting.html"><span>Previous</span>18. Troubleshooting</a>
+  <a class="next" href="index.html"><span>Back to home</span>Documentation home</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

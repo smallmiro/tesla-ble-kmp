@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>16. 에러 처리 · vehicle-command BLE 매뉴얼</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE 개발 매뉴얼 · v0.4.1 기준</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>한국어</span></summary>
+    <ul>
+      <li><a class="active" aria-current="true" href="../ko/16-lib-errors.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/16-lib-errors.html" hreflang="en" lang="en">English</a></li>
+      <li><a href="../ja/16-lib-errors.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">홈</a></li>
+    <li class="group">시작하기</li>
+    <li><a href="01-overview.html">1. 시스템 개요</a></li>
+    <li><a href="02-getting-started.html">2. 시작하기</a></li>
+    <li class="group">프로토콜</li>
+    <li><a href="03-ble-transport.html">3. BLE 전송 계층</a></li>
+    <li><a href="04-protocol.html">4. 프로토콜 사양</a></li>
+    <li class="group">개발</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI 도구</a></li>
+    <li><a href="07-command-reference.html">7. 명령 레퍼런스</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP 프록시</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. 오류와 문제 해결</a></li>
+    <li class="group">tesla-ble-kmp 라이브러리</li>
+    <li><a href="11-lib-overview.html">11. 라이브러리 개요</a></li>
+    <li><a href="12-lib-getting-started.html">12. 라이브러리 시작하기</a></li>
+    <li><a href="13-lib-pairing.html">13. 키와 페어링</a></li>
+    <li><a href="14-lib-reading-state.html">14. 차량 상태 조회</a></li>
+    <li><a href="15-lib-commands.html">15. 명령</a></li>
+    <li><a class="active" href="16-lib-errors.html">16. 에러 처리</a></li>
+    <li><a href="17-lib-platform-notes.html">17. 플랫폼 노트</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. 문제 해결</a></li>
+    <li><a href="19-lib-architecture.html">19. 아키텍처</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>16. 에러 처리</h1>
+<p class="lead">모든 호출은 세 가지 결과 중 하나를 반환하고, 모든 오류는 차량이 동작했을 수 있는지와 다시 시도하면 도움이 되는지를 알려 줍니다. 라이브러리가 안전하게 재시도할 수 있는 것은 이미 재시도하므로, 대부분의 앱은 결과에 따라 분기하기만 하면 됩니다.</p>
+
+<div class="toc"><strong>이 페이지의 내용</strong><ol>
+<li><a href="#sec-outcomes">세 가지 결과</a></li>
+<li><a href="#sec-hierarchy">오류 타입</a></li>
+<li><a href="#sec-transport">블루투스와 키 보관소 오류</a></li>
+<li><a href="#sec-retry">재시도와 시간 제한</a></li>
+</ol></div>
+
+<h2 id="sec-outcomes">세 가지 결과</h2>
+<table>
+<thead><tr><th>결과</th><th>의미</th><th>앱이 할 일</th></tr></thead>
+<tbody>
+<tr><td><span class="badge ok">성공</span></td><td>차량이 확인함</td><td>값을 사용</td></tr>
+<tr><td><span class="badge warn">불확실</span></td><td>차량이 실행했을 수 있지만 확인 응답이 오지 않음</td><td>다시 보내지 <strong>마세요</strong>. 대신 상태를 읽으세요(<code>vehicleStatus()</code>, M5 이후에는 <code>getState()</code>)</td></tr>
+<tr><td><span class="badge vcsec">실패</span></td><td>실행되지 않음</td><td><code>error</code> 확인</td></tr>
+</tbody>
+</table>
+<p>Swift에서는 <code>switch onEnum(of: result)</code>로 <code>.success</code>, <code>.uncertain</code>, <code>.failure</code>를 모두 다룹니다. <a href="12-lib-getting-started.html#sec-swift">12. 라이브러리 시작하기</a>를 참고하세요. 호출한 쪽의 코루틴이나 Task를 취소한 것은 결과로 바뀌지 않고, 취소가 평소처럼 전파됩니다.</p>
+
+<h2 id="sec-hierarchy">오류 타입</h2>
+<p>모든 <code>VehicleError</code>는 <code>message</code>(영어), <code>mayHaveSucceeded</code>, <code>temporary</code>를 가집니다. <code>shouldRetry()</code>는 오류가 일시적이고 차량이 동작했을 리 없을 때 true입니다. 라이브러리가 이미 이런 경우를 재시도하므로 재시도 루프를 만들 필요가 없습니다.</p>
+<table>
+<thead><tr><th>타입</th><th>발생 상황</th><th>일시적</th><th>성공했을 수 있음</th></tr></thead>
+<tbody>
+<tr><td><code>ProtocolFault</code></td><td>차량이 프로토콜 fault 코드를 보냄</td><td>busy, timeout, signature, counter, internal, epoch, expiry fault만</td><td><code>NONE</code>과 <code>RESPONSE_MTU_EXCEEDED</code>만</td></tr>
+<tr><td><code>KeyNotPaired</code></td><td>차량이 이 키를 모름</td><td>아니요</td><td>아니요</td></tr>
+<tr><td><code>Busy</code></td><td>차량이 대기를 요청함</td><td>예</td><td>아니요</td></tr>
+<tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UnknownResponse</code></td><td>새 펌웨어가 이 라이브러리가 모르는 코드를 보냄. 업데이트를 확인하세요</td><td>아니요</td><td>아니요</td></tr>
+<tr><td><code>NotConnected</code>, <code>NoSession</code>, <code>RequiresKey</code></td><td>잘못된 순서로 또는 키 없이 호출함</td><td>아니요</td><td>아니요</td></tr>
+<tr><td><code>BadResponse</code></td><td>응답을 읽을 수 없음</td><td>아니요</td><td>VCSEC와 Infotainment 응답이면 예</td></tr>
+<tr><td><code>KeychainRejected</code>, <code>VcsecRejected</code>, <code>InfotainmentRejected</code></td><td>차량이 이해했지만 거부함</td><td>아니요</td><td>아니요</td></tr>
+<tr><td><code>TransportError</code></td><td>블루투스 스캔, 연결, 쓰기</td><td>스캔 시간 초과, 연결 실패, 쓰기 실패만</td><td>아니요</td></tr>
+<tr><td><code>KeyStoreError</code></td><td>플랫폼 키 보관소</td><td>아니요</td><td>아니요</td></tr>
+<tr><td><code>Timeout</code></td><td>명령의 시간 제한이 지남</td><td>예</td><td>이미 전송된 경우</td></tr>
+<tr><td><code>InvalidArgument</code></td><td>잘못된 인자</td><td>아니요</td><td>아니요</td></tr>
+</tbody>
+</table>
+<p>모든 프로토콜 fault 코드의 의미는 <a href="09-errors-troubleshooting.html#sec-fault">9. 오류와 문제 해결</a>에 있습니다.</p>
+
+<h2 id="sec-transport">블루투스와 키 보관소 오류</h2>
+<p>연결은 연결 시간 제한까지 1초마다 이미 재시도됩니다. 마지막 열은 앱이 할 일입니다.</p>
+<table>
+<thead><tr><th>오류</th><th>의미</th><th>대처</th></tr></thead>
+<tbody>
+<tr><td><code>ScanTimeout</code></td><td>시간 안에 차량을 찾지 못함</td><td>차량이 범위 안에 있는지 확인하고 다시 시도</td></tr>
+<tr><td><code>MaxConnectionsExceeded</code></td><td>차량에 이미 블루투스 연결이 세 개 있음</td><td>다른 휴대폰이나 앱의 연결을 끊고 다시 시도</td></tr>
+<tr><td><code>ConnectFailed</code></td><td>연결, 서비스 탐색, 구독 중 하나가 실패함</td><td>잠시 후 다시 시도</td></tr>
+<tr><td><code>Disconnected</code></td><td>링크가 끊김</td><td><code>disconnect()</code>를 호출한 뒤 다시 연결</td></tr>
+<tr><td><code>BluetoothOff</code></td><td>블루투스가 꺼져 있음</td><td>사용자에게 켜 달라고 요청</td></tr>
+<tr><td><code>PermissionDenied</code></td><td>블루투스 권한 없음</td><td>권한을 요청하거나 설정 열기</td></tr>
+<tr><td><code>WriteFailed</code></td><td>전송 실패</td><td>자동으로 재시도됨, 계속 발생하면 다시 연결</td></tr>
+<tr><td><code>HardwareUnavailable</code></td><td>하드웨어가 필요했지만 사용할 수 없음</td><td><code>PREFER_HARDWARE</code> 사용</td></tr>
+<tr><td><code>KeyNotFound</code></td><td>해당 별칭의 키가 없음</td><td><code>getOrCreate</code>로 생성</td></tr>
+<tr><td><code>PlatformFailure</code></td><td>플랫폼 키 보관소가 실패함. <code>stored key is corrupted</code>는 저장된 키가 손상되었다는 뜻</td><td>손상된 키는 자동으로 교체되지 않음. 삭제하고, 생성하고, 새 키를 다시 등록</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-retry">재시도와 시간 제한</h2>
+<p>라이브러리는 Go 원본과 같은 규칙으로 재시도합니다.</p>
+<table>
+<thead><tr><th>상황</th><th>라이브러리 동작</th></tr></thead>
+<tbody>
+<tr><td>차량이 동작했을 리 없는 일시적 오류(busy, wait, 만료, 잘못된 카운터…)</td><td>1초 기다린 뒤 새 카운터와 만료 시각으로 명령에 다시 서명하고 재전송합니다. 오류와 함께 온 세션 정보를 먼저 적용합니다</td></tr>
+<tr><td>차량이 동작했을 수 있는 오류(응답 없음, 읽을 수 없는 응답)</td><td>토글 명령이 두 번 실행되지 않도록 절대 재전송하지 않습니다. <code>Uncertain</code>을 반환합니다</td></tr>
+<tr><td>전송 전에 시간 제한이 지남</td><td><code>Failure(Timeout)</code></td></tr>
+<tr><td>응답을 기다리는 중에 시간 제한이 지남</td><td><code>Uncertain(Timeout)</code></td></tr>
+<tr><td>핸드셰이크의 시간 제한이 지남</td><td><code>Failure(Timeout)</code>. 세션이 만들어지지 않았고 바뀐 것은 없습니다</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th><code>TeslaBleConfig</code></th><th>기본값</th><th>용도</th></tr></thead>
+<tbody>
+<tr><td><code>commandTimeout</code></td><td>5초</td><td>각 조회 또는 명령</td></tr>
+<tr><td><code>commandLifetime</code></td><td>5초</td><td>차량이 서명된 명령을 받아들이는 시간</td></tr>
+<tr><td><code>handshakeTimeout</code></td><td>20초</td><td><code>startSession()</code></td></tr>
+<tr><td><code>connectTimeout</code></td><td>30초</td><td>스캔과 연결</td></tr>
+</tbody>
+</table>
+
+<footer class="page-nav">
+  <a href="15-lib-commands.html"><span>이전</span>15. 명령</a>
+  <a class="next" href="17-lib-platform-notes.html"><span>다음</span>17. 플랫폼 노트</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

@@ -35,6 +35,16 @@
     <li><a href="07-command-reference.html">7. 명령 레퍼런스</a></li>
     <li><a href="08-http-proxy.html">8. HTTP 프록시</a></li>
     <li><a href="09-errors-troubleshooting.html">9. 오류와 문제 해결</a></li>
+    <li class="group">tesla-ble-kmp 라이브러리</li>
+    <li><a href="11-lib-overview.html">11. 라이브러리 개요</a></li>
+    <li><a href="12-lib-getting-started.html">12. 라이브러리 시작하기</a></li>
+    <li><a href="13-lib-pairing.html">13. 키와 페어링</a></li>
+    <li><a href="14-lib-reading-state.html">14. 차량 상태 조회</a></li>
+    <li><a href="15-lib-commands.html">15. 명령</a></li>
+    <li><a href="16-lib-errors.html">16. 에러 처리</a></li>
+    <li><a href="17-lib-platform-notes.html">17. 플랫폼 노트</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. 문제 해결</a></li>
+    <li><a href="19-lib-architecture.html">19. 아키텍처</a></li>
   </ol>
 </nav>
 <main class="content">
@@ -87,6 +97,19 @@
   <dt>세션 캐시</dt><dd>세션 상태를 디스크에 저장하면 다음 실행 때 핸드셰이크 없이 바로 명령을 보낼 수 있습니다. 캐시가 낡았으면 차량이 새 세션 정보를 오류와 함께 돌려주므로 자동 복구됩니다.</dd>
 </dl>
 </section>
+<h2 class="bento-label">tesla-ble-kmp 라이브러리 (이 저장소)</h2>
+<p class="bento-note">이 저장소에서 만드는 Kotlin Multiplatform 라이브러리의 사용법입니다. <code>vehicle-command</code> 의 BLE 경로를 Android와 iOS로 포팅한 것입니다. 다음 제목 아래의 장들은 Go 원본을 설명합니다.</p>
+<div class="cards">
+  <a class="card" href="11-lib-overview.html"><div class="num">11</div><h3>라이브러리 개요</h3><p>지금 되는 기능과 예정된 기능, 지원 플랫폼, 소스 빌드, 작업별로 읽을 페이지.</p></a>
+  <a class="card" href="12-lib-getting-started.html"><div class="num">12</div><h3>라이브러리 시작하기</h3><p><code>TeslaBle.create</code> 부터 스캔, 연결, 차량 상태 조회, 연결 해제까지. Kotlin과 Swift 예제.</p></a>
+  <a class="card" href="13-lib-pairing.html"><div class="num">13</div><h3>키와 페어링</h3><p>키 보관소, 하드웨어 보호 수준, 등록 확인, 예정된 add-key-request.</p></a>
+  <a class="card" href="14-lib-reading-state.html"><div class="num">14</div><h3>차량 상태 조회</h3><p>키도 깨우기도 없이 잠금, 개폐부, 수면 상태, 키 목록을 읽습니다.</p></a>
+  <a class="card" href="15-lib-commands.html"><div class="num">15</div><h3>명령</h3><p>지금 쓸 수 있는 세션 호출과 마일스톤별 예정 제어 명령.</p></a>
+  <a class="card" href="16-lib-errors.html"><div class="num">16</div><h3>에러 처리</h3><p>성공, 불확실, 실패의 세 갈래, 에러 계층, 내장 재시도와 시간 제한.</p></a>
+  <a class="card" href="17-lib-platform-notes.html"><div class="num">17</div><h3>플랫폼 노트</h3><p>Android 권한과 백업, iOS Info.plist, 키와 세션의 저장 위치.</p></a>
+  <a class="card" href="18-lib-troubleshooting.html"><div class="num">18</div><h3>문제 해결</h3><p>스캔, 연결, 키 문제의 증상, 원인, 대처와 디버그 로그.</p></a>
+  <a class="card" href="19-lib-architecture.html"><div class="num">19</div><h3>아키텍처</h3><p>기여자용: 모듈, 명령 하나의 경로, 동시성 규칙, 세션 캐시.</p></a>
+</div>
 <h2 class="bento-label">문서 구성</h2>
 <div class="cards">
   <a class="card" href="01-overview.html"><div class="num">01</div><h3>시스템 개요</h3><p>두 단계 인증 모델, VCSEC/Infotainment 도메인, 저장소 구조와 계층 아키텍처.</p></a>

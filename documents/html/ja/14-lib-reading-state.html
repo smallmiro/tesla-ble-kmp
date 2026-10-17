@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>14. 車両状態の取得 · vehicle-command BLE マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE 開発マニュアル · v0.4.1 基準</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>日本語</span></summary>
+    <ul>
+      <li><a href="../ko/14-lib-reading-state.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/14-lib-reading-state.html" hreflang="en" lang="en">English</a></li>
+      <li><a class="active" aria-current="true" href="../ja/14-lib-reading-state.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+    <li class="group">tesla-ble-kmp ライブラリ</li>
+    <li><a href="11-lib-overview.html">11. ライブラリ概要</a></li>
+    <li><a href="12-lib-getting-started.html">12. ライブラリ入門</a></li>
+    <li><a href="13-lib-pairing.html">13. キーとペアリング</a></li>
+    <li><a class="active" href="14-lib-reading-state.html">14. 車両状態の取得</a></li>
+    <li><a href="15-lib-commands.html">15. コマンド</a></li>
+    <li><a href="16-lib-errors.html">16. エラー処理</a></li>
+    <li><a href="17-lib-platform-notes.html">17. プラットフォームノート</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. トラブルシューティング</a></li>
+    <li><a href="19-lib-architecture.html">19. アーキテクチャ</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>14. 車両状態の取得</h1>
+<p class="lead">3 つのクエリが BLE で車両のセキュリティコントローラー (VCSEC) を読み取ります。インフォテインメントコンピューターがスリープしていても VCSEC は応答するため、キー、セッション、ウェイクアップはいずれも不要です。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-calls">3 つのクエリ</a></li>
+<li><a href="#sec-status">vehicleStatus() の戻り値</a></li>
+<li><a href="#sec-keys">キークエリの戻り値</a></li>
+<li><a href="#sec-flows">接続とセッションの状態</a></li>
+<li><a href="#sec-wake">スリープとウェイクアップ</a></li>
+</ol></div>
+
+<h2 id="sec-calls">3 つのクエリ</h2>
+<table>
+<thead><tr><th>呼び出し</th><th>戻り値</th><th>Go 原本</th></tr></thead>
+<tbody>
+<tr><td><code>vehicleStatus()</code></td><td>ロック、ドア、トランク、充電ポート、スリープ状態、在車状態</td><td><code>BodyControllerState</code></td></tr>
+<tr><td><code>keySummary()</code></td><td>登録済みキーの数と使用中のスロット</td><td><code>KeySummary</code></td></tr>
+<tr><td><code>listKeys()</code></td><td>登録済みのすべてのキーと、その公開鍵、ロール、フォームファクター</td><td><code>KeySummary</code> + <code>KeyInfoBySlot</code></td></tr>
+</tbody>
+</table>
+<ul>
+<li>いずれも省略可能な <code>timeout</code> を受け取ります。指定しない場合はデフォルトのコマンドタイムアウト (5 秒) が適用されます。<code>listKeys()</code> では、このタイムアウトがすべてのリクエストの合計にかかります。</li>
+<li>車両は接続ごとに VCSEC リクエストを 1 つずつ処理します。別のクエリを待つ必要があるクエリは、タイムアウトの一部を待ち時間に使います。</li>
+<li>これらはクエリなので、<code>Uncertain</code> の結果はそのまま再度問い合わせて構いません。</li>
+</ul>
+
+<h2 id="sec-status">vehicleStatus() の戻り値</h2>
+<table>
+<thead><tr><th>フィールド</th><th>値</th></tr></thead>
+<tbody>
+<tr><td><code>lockState</code></td><td><code>UNLOCKED</code>, <code>LOCKED</code>, <code>INTERNAL_LOCKED</code>, <code>SELECTIVE_UNLOCKED</code>, <code>UNKNOWN</code></td></tr>
+<tr><td><code>closures</code></td><td>8 つの開口部で、それぞれ <code>ClosureState</code> です。車両が送ってこなかった場合は <code>null</code></td></tr>
+<tr><td><code>sleepStatus</code></td><td><code>AWAKE</code>, <code>ASLEEP</code>, <code>UNKNOWN</code></td></tr>
+<tr><td><code>userPresence</code></td><td><code>PRESENT</code>, <code>NOT_PRESENT</code>, <code>UNKNOWN</code></td></tr>
+<tr><td><code>tonneauPercentOpen</code></td><td>Cybertruck のみ。それ以外は <code>null</code></td></tr>
+</tbody>
+</table>
+<p>8 つの開口部は <code>frontDriverDoor</code>、<code>frontPassengerDoor</code>、<code>rearDriverDoor</code>、<code>rearPassengerDoor</code>、<code>rearTrunk</code>、<code>frontTrunk</code>、<code>chargePort</code>、<code>tonneau</code> です。それぞれ <code>CLOSED</code>、<code>OPEN</code>、<code>AJAR</code>、<code>OPENING</code>、<code>CLOSING</code>、<code>FAILED_UNLATCH</code>、<code>UNKNOWN</code> のいずれかです。</p>
+<div class="callout">
+<strong>未知の値でも失敗しません</strong>
+<p>新しい車両ファームウェアがライブラリの知らない値を送ってきた場合、クエリを失敗させずに、そのフィールドは <code>UNKNOWN</code> になります。</p>
+</div>
+
+<h2 id="sec-keys">キークエリの戻り値</h2>
+<table>
+<thead><tr><th>型</th><th>フィールド</th><th>意味</th></tr></thead>
+<tbody>
+<tr><td><code>WhitelistSummary</code></td><td><code>numberOfEntries</code></td><td>登録されているキーの数</td></tr>
+<tr><td></td><td><code>slotMask</code>, <code>occupiedSlots</code></td><td>使用中のスロット。ビットマスクとソート済みリストの両方</td></tr>
+<tr><td><code>WhitelistEntry</code></td><td><code>slot</code></td><td>スロット番号</td></tr>
+<tr><td></td><td><code>publicKey</code></td><td>65 バイトの公開鍵。欠落または不正な場合は <code>null</code></td></tr>
+<tr><td></td><td><code>keyIdSha1Hex</code></td><td>公開鍵の SHA-1 (16 進数)、または <code>null</code></td></tr>
+<tr><td></td><td><code>role</code>, <code>formFactor</code></td><td>例えば <code>OWNER</code> と <code>IOS_DEVICE</code>。<a href="13-lib-pairing.html">13. キーとペアリング</a> を参照してください</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-flows">接続とセッションの状態</h2>
+<p>これらは車両に送る問い合わせではなく、監視する <code>Vehicle</code> のプロパティです:</p>
+<table>
+<thead><tr><th>プロパティ</th><th>値</th></tr></thead>
+<tbody>
+<tr><td><code>connection</code></td><td><code>Connected</code>、または <code>Disconnected</code> (わかる場合はその理由付き)</td></tr>
+<tr><td><code>sessions</code></td><td><code>VCSEC</code> と <code>INFOTAINMENT</code> それぞれについて <code>None</code>、<code>Handshaking</code>、<code>Ready</code> (<code>fromCache</code> 付き)</td></tr>
+<tr><td><code>hasKey</code></td><td>キーを使って接続したかどうか</td></tr>
+<tr><td><code>vin</code></td><td>VIN です。出力するとマスクされた形式になります。<code>vin.value</code> は生の VIN なので、ログに出さないでください</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-wake">スリープとウェイクアップ</h2>
+<ul>
+<li>3 つのクエリはいずれも車両をウェイクアップしません。スリープ中かどうかの表示には <code>sleepStatus</code> を使います。</li>
+<li>M5 で追加予定: <code>getState(category)</code> は 12 のインフォテインメントカテゴリ (充電、空調、走行、位置、開閉部、充電スケジュール、プレコンディショニングスケジュール、タイヤ空気圧、メディア、メディア詳細、ソフトウェアアップデート、ペアレンタルコントロール) を読み取ります。登録済みキーと起きている車両が必要です。</li>
+<li>M4 で追加予定: <code>wakeUp()</code>。VCSEC セッションだけで使えます。</li>
+<li>ロックやトランクのコマンド (M4) が <code>Uncertain</code> を返した場合は、コマンドを再送せずに <code>vehicleStatus()</code> をもう一度読み取ってください。</li>
+</ul>
+
+<footer class="page-nav">
+  <a href="13-lib-pairing.html"><span>前へ</span>13. キーとペアリング</a>
+  <a class="next" href="15-lib-commands.html"><span>次へ</span>15. コマンド</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

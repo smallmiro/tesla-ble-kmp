@@ -303,6 +303,11 @@ body.home main.content { max-width: 1120px; }
 .bento .card:is([href$="01-overview.html"], [href$="04-protocol.html"]) { background: color-mix(in srgb, var(--c) 14%, var(--surface)); }
 .bento .card:is([href$="01-overview.html"], [href$="04-protocol.html"]) { grid-column: span 6; }
 .bento .card:is([href$="07-command-reference.html"], [href$="08-http-proxy.html"], [href$="09-errors-troubleshooting.html"]) { grid-column: span 4; }
+/* Library chapters (11-19): their own colour; overview and getting started wide, the last three in thirds */
+.bento .card[href*="-lib-"] { --c: var(--green); }
+.bento .card:is([href$="11-lib-overview.html"], [href$="12-lib-getting-started.html"]) { grid-column: span 6; background: color-mix(in srgb, var(--c) 14%, var(--surface)); }
+.bento .card:is([href$="17-lib-platform-notes.html"], [href$="18-lib-troubleshooting.html"], [href$="19-lib-architecture.html"]) { grid-column: span 4; }
+.bento > .bento-note { margin: -4px 0 0; color: var(--muted); font-size: 14px; }
 .tile.readers :is(th, td) { overflow-wrap: normal; }
 .tile.readers td:first-child { white-space: nowrap; }
 @container (max-width: 860px) {

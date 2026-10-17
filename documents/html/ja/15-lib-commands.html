@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>15. コマンド · vehicle-command BLE マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE 開発マニュアル · v0.4.1 基準</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>日本語</span></summary>
+    <ul>
+      <li><a href="../ko/15-lib-commands.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/15-lib-commands.html" hreflang="en" lang="en">English</a></li>
+      <li><a class="active" aria-current="true" href="../ja/15-lib-commands.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+    <li class="group">tesla-ble-kmp ライブラリ</li>
+    <li><a href="11-lib-overview.html">11. ライブラリ概要</a></li>
+    <li><a href="12-lib-getting-started.html">12. ライブラリ入門</a></li>
+    <li><a href="13-lib-pairing.html">13. キーとペアリング</a></li>
+    <li><a href="14-lib-reading-state.html">14. 車両状態の取得</a></li>
+    <li><a class="active" href="15-lib-commands.html">15. コマンド</a></li>
+    <li><a href="16-lib-errors.html">16. エラー処理</a></li>
+    <li><a href="17-lib-platform-notes.html">17. プラットフォームノート</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. トラブルシューティング</a></li>
+    <li><a href="19-lib-architecture.html">19. アーキテクチャ</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>15. コマンド</h1>
+<p class="lead">現在、<code>Vehicle</code> はセッションの開始と終了ができます。制御コマンドは M4 (セキュリティコントローラー: ロック、トランク、ウェイクアップ) と M5 (インフォテインメント: 空調、充電、メディアなど) で追加されます。アプリの計画に役立つよう、このページでは両方を一覧にします。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-now">現在使えるもの</a></li>
+<li><a href="#sec-rules">すべてのコマンドに共通する動作</a></li>
+<li><a href="#sec-m4">M4 で追加予定: セキュリティコントローラー</a></li>
+<li><a href="#sec-m5">M5 で追加予定: インフォテインメント</a></li>
+<li><a href="#sec-later">その後</a></li>
+</ol></div>
+
+<h2 id="sec-now">現在使えるもの</h2>
+<table>
+<thead><tr><th>呼び出し</th><th>動作</th></tr></thead>
+<tbody>
+<tr><td><code>startSession(domains, timeout)</code></td><td>VCSEC と Infotainment (デフォルトでは両方) のハンドシェイクを並行して実行します。セッションキャッシュからすでに復元されたドメインは、車両に問い合わせずに成功します。登録済みのキーが必要です。デフォルトのタイムアウトは 20 秒です</td></tr>
+<tr><td><code>disconnect()</code></td><td>セッションキャッシュを保存し、セッションキーを消去してリンクを閉じます。複数回呼んでも安全です</td></tr>
+</tbody>
+</table>
+<p><code>startSession</code> の実行中、<code>vehicle.sessions</code> は <code>Handshaking</code> を示します。終了後は <code>Ready</code> に、失敗またはキャンセルされた場合は再び <code>None</code> になります。</p>
+
+<h2 id="sec-rules">すべてのコマンドに共通する動作</h2>
+<p>コマンドを支える仕組みはすでに実装済みなので、以下のルールは確定しています:</p>
+<ul>
+<li>コマンドはドメインのセッション上で AES-GCM により暗号化と認証が行われ、5 秒で失効します。</li>
+<li>一時的な失敗は 1 秒ごとに自動でリトライされます。すでに実行された可能性のあるコマンドが再送されることは <strong>決して</strong> ありません。</li>
+<li>セキュリティコントローラーのコマンドは接続ごとに 1 つずつ実行されます。インフォテインメントのコマンドは並行して実行できます。</li>
+<li><code>Uncertain</code> の結果は「状態を読み取り、再送しない」という意味です。<a href="16-lib-errors.html">16. エラー処理</a> を参照してください。</li>
+</ul>
+
+<h2 id="sec-m4">M4 で追加予定: セキュリティコントローラー</h2>
+<table>
+<thead><tr><th>要件</th><th>予定メソッド</th><th>優先度</th></tr></thead>
+<tbody>
+<tr><td>FR-040, FR-041</td><td><code>lock()</code>, <code>unlock()</code></td><td><span class="badge ok">P0</span></td></tr>
+<tr><td>FR-042</td><td><code>wakeUp()</code></td><td><span class="badge ok">P0</span></td></tr>
+<tr><td>FR-045, FR-046</td><td><code>openTrunk()</code>, <code>closeTrunk()</code>, <code>openFrunk()</code></td><td><span class="badge ok">P0</span></td></tr>
+<tr><td>FR-043, FR-044</td><td><code>remoteDrive()</code>, <code>autoSecureVehicle()</code> (Model X)</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>FR-047</td><td><code>openTonneau()</code>, <code>closeTonneau()</code>, <code>stopTonneau()</code> (Cybertruck)</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>FR-022–027</td><td>キーの登録と削除</td><td><a href="13-lib-pairing.html#sec-planned">13. キーとペアリング</a> を参照</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-m5">M5 で追加予定: インフォテインメント</h2>
+<table>
+<thead><tr><th>領域</th><th>予定メソッド</th><th>優先度</th></tr></thead>
+<tbody>
+<tr><td>空調</td><td><code>climateOn()</code>, <code>climateOff()</code>, <code>setClimateTemp(driverC, passengerC)</code></td><td><span class="badge ok">P0</span></td></tr>
+<tr><td>充電</td><td><code>chargeStart()</code>, <code>chargeStop()</code>, <code>setChargeLimit(percent)</code>, <code>setChargingAmps(amps)</code></td><td><span class="badge ok">P0</span></td></tr>
+<tr><td>空調の追加機能</td><td>シートヒーターとシートクーラー、ステアリングヒーター、プレコンディショニング、クライメートキーパー (ドッグ、キャンプ)、生物兵器防御モード、車内過熱防止</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>充電の追加機能</td><td>スタンダードレンジと最大レンジ、充電予約と出発時刻の設定、充電とプレコンディショニングのスケジュール、低消費電力モードとアクセサリー電源モード</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>ボディ</td><td><code>ventWindows()</code>, <code>closeWindows()</code>, <code>setSunroof(level)</code>, <code>openChargePort()</code>, <code>closeChargePort()</code>, <code>honkHorn()</code>, <code>flashLights()</code></td><td><span class="badge info">P1</span></td></tr>
+<tr><td>セキュリティ</td><td><code>setSentryMode(on)</code>、バレーモード</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>メディアとアップデート</td><td>音量、トラック、お気に入りの操作、ソフトウェアアップデートの予約とキャンセル</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>状態</td><td><code>ping()</code>, <code>getState(category)</code></td><td><a href="14-lib-reading-state.html#sec-wake">14. 車両状態の取得</a> を参照</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-later">その後</h2>
+<p>v1.1 で予定しているもの: HomeLink、PIN to Drive の解除、速度制限モード、ペアレンタルコントロール、ゲストモード、車両名の変更、近くの充電器。PIN to Drive の設定は BLE ではできないため対象外です。すべてのコマンドに対応する Go の実装は <a href="07-command-reference.html">7. コマンドリファレンス</a> に記載しています。</p>
+
+<footer class="page-nav">
+  <a href="14-lib-reading-state.html"><span>前へ</span>14. 車両状態の取得</a>
+  <a class="next" href="16-lib-errors.html"><span>次へ</span>16. エラー処理</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

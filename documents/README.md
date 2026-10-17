@@ -1,9 +1,11 @@
-# Tesla vehicle-command Development Manual
+# Tesla BLE Development Manual
 
-Manual for building applications that send end-to-end authenticated commands to Tesla vehicles over BLE
-and the internet, based on the `vehicle-command/` repository (Tesla Vehicle Command SDK, Go).
+This folder holds two documents that share one layout:
 
-Baseline: commit `a4b43c1` after tag `v0.4.1` (Go 1.23, module `github.com/teslamotors/vehicle-command`).
+| Chapters | Document | Maintained by |
+|---|---|---|
+| 1–9 (HTML), `00`–`10` (MD) | **vehicle-command reference**: building applications that send end-to-end authenticated commands to Tesla vehicles over BLE and the internet, based on the `vehicle-command/` repository (Tesla Vehicle Command SDK, Go). Baseline: commit `a4b43c1` after tag `v0.4.1` (Go 1.23, module `github.com/teslamotors/vehicle-command`). The porting reference | The user; changed only with approval |
+| 11–19 (`11-lib-*` … `19-lib-*`) | **tesla-ble-kmp library manual**: how to use this repository's Kotlin Multiplatform library (Android + iOS) | Agents; updated in every PR that changes library behaviour, public API or status, before it merges (AGENTS.md absolute rule 13) |
 
 ## Two manuals
 
@@ -41,7 +43,8 @@ documents/
 │       ├── 06-cli-tools.html      # CLI tools
 │       ├── 07-command-reference.html # command reference
 │       ├── 08-http-proxy.html     # HTTP proxy
-│       └── 09-errors-troubleshooting.html
+│       ├── 09-errors-troubleshooting.html
+│       └── 11-lib-overview.html … 19-lib-architecture.html   # tesla-ble-kmp library manual
 └── md/                            # for AI agents (English)
     ├── README.md                  # entry point: reading order and per-task file list
     ├── 00-agent-guide.md          # working rules, invariants, quick reference card
@@ -54,10 +57,19 @@ documents/
     ├── 07-http-proxy.md           # HTTP proxy
     ├── 08-errors.md               # error codes and retry policy
     ├── 09-recipes.md              # code recipes
-    └── 10-porting-guide.md        # porting checklist for other languages/platforms
+    ├── 10-porting-guide.md        # porting checklist for other languages/platforms
+    ├── 11-lib-overview.md         # tesla-ble-kmp library: status, platforms, install, per-task file list
+    ├── 12-lib-getting-started.md  # end-to-end Kotlin / Swift example
+    ├── 13-lib-pairing.md          # key store, protection levels, enrollment check
+    ├── 14-lib-reading-state.md    # vehicleStatus / keySummary / listKeys
+    ├── 15-lib-commands.md         # implemented session API, planned control API
+    ├── 16-lib-errors.md           # VehicleResult, VehicleError, retries, timeouts
+    ├── 17-lib-platform-notes.md   # Android / iOS setup, storage, clocks, slots
+    ├── 18-lib-troubleshooting.md  # symptom -> cause -> action, logging
+    └── 19-lib-architecture.md     # contributor summary
 ```
 
-## Upstream references
+## Upstream references (vehicle-command reference)
 
 - `vehicle-command/README.md`
 - `vehicle-command/pkg/protocol/protocol.md` (protocol specification)

@@ -1,0 +1,123 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>11. ライブラリ概要 · vehicle-command BLE マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE 開発マニュアル · v0.4.1 基準</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>日本語</span></summary>
+    <ul>
+      <li><a href="../ko/11-lib-overview.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/11-lib-overview.html" hreflang="en" lang="en">English</a></li>
+      <li><a class="active" aria-current="true" href="../ja/11-lib-overview.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+    <li class="group">tesla-ble-kmp ライブラリ</li>
+    <li><a class="active" href="11-lib-overview.html">11. ライブラリ概要</a></li>
+    <li><a href="12-lib-getting-started.html">12. ライブラリ入門</a></li>
+    <li><a href="13-lib-pairing.html">13. キーとペアリング</a></li>
+    <li><a href="14-lib-reading-state.html">14. 車両状態の取得</a></li>
+    <li><a href="15-lib-commands.html">15. コマンド</a></li>
+    <li><a href="16-lib-errors.html">16. エラー処理</a></li>
+    <li><a href="17-lib-platform-notes.html">17. プラットフォームノート</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. トラブルシューティング</a></li>
+    <li><a href="19-lib-architecture.html">19. アーキテクチャ</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>11. ライブラリ概要</h1>
+<p class="lead">tesla-ble-kmp はこのリポジトリで作っているライブラリです。<code>vehicle-command</code> の BLE 経路を Kotlin Multiplatform に移植したもので、Android や iOS のアプリがサーバーなしでテスラと直接通信できるようにします。第 11 章から第 19 章ではその使い方を、第 1 章から第 9 章では Go の原本を説明します。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-status">現在できること</a></li>
+<li><a href="#sec-platforms">プラットフォームとパッケージ</a></li>
+<li><a href="#sec-install">インストール</a></li>
+<li><a href="#sec-map">どのページを読むか</a></li>
+<li><a href="#sec-upkeep">これらのページの更新方法</a></li>
+</ol></div>
+
+<h2 id="sec-status">現在できること</h2>
+<p>ライブラリはマイルストーンごとに作られています。これらのページは <code>main</code> のコードを説明しており、現在は <strong>M3</strong> の段階です。</p>
+<table>
+<thead><tr><th>領域</th><th>マイルストーン</th><th>状態</th><th>ページ</th></tr></thead>
+<tbody>
+<tr><td>プロトコルコア、ディスパッチャー、セッション、リトライ、セッションキャッシュ</td><td>M0–M2</td><td><span class="badge ok">完了</span></td><td><a href="16-lib-errors.html">16</a>, <a href="19-lib-architecture.html">19</a></td></tr>
+<tr><td>BLE スキャンと接続 (Kable)、キーストア、セッションキャッシュの保存、<code>TeslaBle</code> / <code>Vehicle</code></td><td>M3</td><td><span class="badge ok">完了</span> 実車での確認を進行中</td><td><a href="12-lib-getting-started.html">12</a>, <a href="17-lib-platform-notes.html">17</a></td></tr>
+<tr><td>キー不要の読み取り専用クエリ: <code>vehicleStatus()</code>、<code>keySummary()</code>、<code>listKeys()</code></td><td>M3</td><td><span class="badge ok">完了</span></td><td><a href="14-lib-reading-state.html">14</a></td></tr>
+<tr><td>キーの登録 (add-key-request)、VCSEC 制御 (ロック、ロック解除、トランク…)</td><td>M4</td><td><span class="badge warn">予定</span></td><td><a href="13-lib-pairing.html">13</a>, <a href="15-lib-commands.html">15</a></td></tr>
+<tr><td>インフォテインメント制御と <code>getState()</code></td><td>M5</td><td><span class="badge warn">予定</span></td><td><a href="14-lib-reading-state.html">14</a>, <a href="15-lib-commands.html">15</a></td></tr>
+<tr><td>パッケージ: GitHub Packages と Swift Package Manager</td><td>M6</td><td><span class="badge warn">予定</span></td><td><a href="#sec-install">インストール</a></td></tr>
+</tbody>
+</table>
+<div class="callout warn">
+<strong>予定中の API はまだ使えません</strong>
+<p>予定中のメソッド名は要件文書 (<code>docs/prd/PRD.md</code>) に基づくもので、そのマイルストーンの実装時に変わる可能性があります。それまでの間、アプリはスキャン、接続、状態の読み取りはできますが、キーの登録や制御コマンドの送信はできません。</p>
+</div>
+
+<h2 id="sec-platforms">プラットフォームとパッケージ</h2>
+<ul>
+<li>Android 12 (API 31) 以降と iOS 16 以降に対応します。アプリはフォアグラウンドにあることを前提とします。</li>
+<li>テストや実験用に JVM ターゲットもあります。そのキーとセッションキャッシュはメモリ上にのみ保持されます。</li>
+<li>パッケージのルートは <code>dev.mirolab.teslable</code> です。ファサードは <code>dev.mirolab.teslable</code>、値と結果は <code>dev.mirolab.teslable.model</code>、キーストア、スキャン、ログは <code>dev.mirolab.teslable.port</code> にあります。</li>
+<li>iOS フレームワーク名は <code>Teslable</code> です。Swift からは SKIE を通して Kotlin が見えます (<code>async</code> 関数、<code>AsyncSequence</code>、<code>onEnum(of:)</code>)。</li>
+</ul>
+
+<h2 id="sec-install">インストール</h2>
+<p>ライブラリはまだ公開されていません。M6 で GitHub Packages と Swift Package Manager に対応します。現時点ではソースからビルドしてください:</p>
+<table>
+<thead><tr><th>ターゲット</th><th>コマンド</th></tr></thead>
+<tbody>
+<tr><td>Android / JVM</td><td><code>./gradlew :sdk:assemble</code></td></tr>
+<tr><td>iOS シミュレーター用フレームワーク</td><td><code>./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64</code></td></tr>
+<tr><td>サンプルアプリ</td><td><code>samples/android</code> (Gradle モジュール)、<code>samples/ios</code> (<code>xcodegen generate</code>、<code>samples/ios/README.md</code> を参照)</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-map">どのページを読むか</h2>
+<table>
+<thead><tr><th>やりたいこと</th><th>読むページ</th></tr></thead>
+<tbody>
+<tr><td>アプリでスキャン、接続し、車両の状態を表示する</td><td><a href="12-lib-getting-started.html">12. ライブラリ入門</a>, <a href="14-lib-reading-state.html">14. 車両状態の取得</a></td></tr>
+<tr><td>スマートフォンのキーを作成、検索、削除し、登録済みかを確認する</td><td><a href="13-lib-pairing.html">13. キーとペアリング</a></td></tr>
+<tr><td>どのコマンドがあり、どれが今後追加されるかを知る</td><td><a href="15-lib-commands.html">15. コマンド</a></td></tr>
+<tr><td>エラーへの対処方法を決める</td><td><a href="16-lib-errors.html">16. エラー処理</a></td></tr>
+<tr><td>権限、<code>Info.plist</code>、バックアップルールを設定する</td><td><a href="17-lib-platform-notes.html">17. プラットフォームノート</a></td></tr>
+<tr><td>スキャン、接続、キーが失敗する原因を調べる</td><td><a href="18-lib-troubleshooting.html">18. トラブルシューティング</a></td></tr>
+<tr><td>ライブラリ自体を変更する</td><td><a href="19-lib-architecture.html">19. アーキテクチャ</a></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-upkeep">これらのページの更新方法</h2>
+<p>ライブラリの動作、公開 API、マイルストーンの状態を変えるプルリクエストは、マージ前に必ずこれらのページを更新します。対象はエージェント向けの Markdown ページ (<code>documents/md/1x-lib-*.md</code>、英語) と、人向けの韓国語、英語、日本語の HTML ページです。Go リファレンスの第 1 章から第 9 章は、メンテナーの承認がある場合にのみ変更します。</p>
+
+<footer class="page-nav">
+  <a href="09-errors-troubleshooting.html"><span>前へ</span>9. エラーとトラブルシューティング</a>
+  <a class="next" href="12-lib-getting-started.html"><span>次へ</span>12. ライブラリ入門</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

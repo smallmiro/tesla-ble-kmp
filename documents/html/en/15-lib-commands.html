@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>15. Commands · vehicle-command BLE Manual</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE Developer Manual · based on v0.4.1</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>English</span></summary>
+    <ul>
+      <li><a href="../ko/15-lib-commands.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a class="active" aria-current="true" href="../en/15-lib-commands.html" hreflang="en" lang="en">English</a></li>
+      <li><a href="../ja/15-lib-commands.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">Home</a></li>
+    <li class="group">Getting Started</li>
+    <li><a href="01-overview.html">1. System Overview</a></li>
+    <li><a href="02-getting-started.html">2. Getting Started</a></li>
+    <li class="group">Protocol</li>
+    <li><a href="03-ble-transport.html">3. BLE Transport Layer</a></li>
+    <li><a href="04-protocol.html">4. Protocol Specification</a></li>
+    <li class="group">Development</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI Tools</a></li>
+    <li><a href="07-command-reference.html">7. Command Reference</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP Proxy</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. Errors and Troubleshooting</a></li>
+    <li class="group">tesla-ble-kmp Library</li>
+    <li><a href="11-lib-overview.html">11. Library Overview</a></li>
+    <li><a href="12-lib-getting-started.html">12. Getting Started with the Library</a></li>
+    <li><a href="13-lib-pairing.html">13. Keys and Pairing</a></li>
+    <li><a href="14-lib-reading-state.html">14. Reading Vehicle State</a></li>
+    <li><a class="active" href="15-lib-commands.html">15. Commands</a></li>
+    <li><a href="16-lib-errors.html">16. Error Handling</a></li>
+    <li><a href="17-lib-platform-notes.html">17. Platform Notes</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. Troubleshooting</a></li>
+    <li><a href="19-lib-architecture.html">19. Architecture</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>15. Commands</h1>
+<p class="lead">Today a <code>Vehicle</code> can start and end sessions. Control commands arrive with M4 (security controller: locks, trunks, wake-up) and M5 (infotainment: climate, charging, media and more). This page lists both, so you can plan your app.</p>
+
+<div class="toc"><strong>On this page</strong><ol>
+<li><a href="#sec-now">Available today</a></li>
+<li><a href="#sec-rules">How every command will behave</a></li>
+<li><a href="#sec-m4">Coming in M4: security controller</a></li>
+<li><a href="#sec-m5">Coming in M5: infotainment</a></li>
+<li><a href="#sec-later">Later</a></li>
+</ol></div>
+
+<h2 id="sec-now">Available today</h2>
+<table>
+<thead><tr><th>Call</th><th>What it does</th></tr></thead>
+<tbody>
+<tr><td><code>startSession(domains, timeout)</code></td><td>Runs the handshake for VCSEC and Infotainment (both by default) in parallel. A domain already restored from the session cache succeeds without asking the car. Needs a key that is enrolled. Default timeout 20 seconds</td></tr>
+<tr><td><code>disconnect()</code></td><td>Saves the session cache, erases session keys and closes the link. Safe to call more than once</td></tr>
+</tbody>
+</table>
+<p>While <code>startSession</code> runs, <code>vehicle.sessions</code> shows <code>Handshaking</code>; afterwards <code>Ready</code>, or <code>None</code> again if it failed or was cancelled.</p>
+
+<h2 id="sec-rules">How every command will behave</h2>
+<p>The machinery under the commands is already in place, so these rules are fixed:</p>
+<ul>
+<li>Commands are encrypted and authenticated with AES-GCM over the domain's session and expire after 5 seconds.</li>
+<li>Temporary failures are retried every second automatically. A command that may already have run is <strong>never</strong> sent again.</li>
+<li>Security-controller commands run one at a time per connection; infotainment commands may run side by side.</li>
+<li>An <code>Uncertain</code> result means: read the state, do not resend. See <a href="16-lib-errors.html">16. Error Handling</a>.</li>
+</ul>
+
+<h2 id="sec-m4">Coming in M4: security controller</h2>
+<table>
+<thead><tr><th>Requirement</th><th>Planned method</th><th>Priority</th></tr></thead>
+<tbody>
+<tr><td>FR-040, FR-041</td><td><code>lock()</code>, <code>unlock()</code></td><td><span class="badge ok">P0</span></td></tr>
+<tr><td>FR-042</td><td><code>wakeUp()</code></td><td><span class="badge ok">P0</span></td></tr>
+<tr><td>FR-045, FR-046</td><td><code>openTrunk()</code>, <code>closeTrunk()</code>, <code>openFrunk()</code></td><td><span class="badge ok">P0</span></td></tr>
+<tr><td>FR-043, FR-044</td><td><code>remoteDrive()</code>, <code>autoSecureVehicle()</code> (Model X)</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>FR-047</td><td><code>openTonneau()</code>, <code>closeTonneau()</code>, <code>stopTonneau()</code> (Cybertruck)</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>FR-022–027</td><td>Enrolling and removing keys</td><td>See <a href="13-lib-pairing.html#sec-planned">13. Keys and Pairing</a></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-m5">Coming in M5: infotainment</h2>
+<table>
+<thead><tr><th>Area</th><th>Planned methods</th><th>Priority</th></tr></thead>
+<tbody>
+<tr><td>Climate</td><td><code>climateOn()</code>, <code>climateOff()</code>, <code>setClimateTemp(driverC, passengerC)</code></td><td><span class="badge ok">P0</span></td></tr>
+<tr><td>Charging</td><td><code>chargeStart()</code>, <code>chargeStop()</code>, <code>setChargeLimit(percent)</code>, <code>setChargingAmps(amps)</code></td><td><span class="badge ok">P0</span></td></tr>
+<tr><td>Climate extras</td><td>Seat heaters and coolers, steering wheel heater, preconditioning, climate keeper (dog, camp), bioweapon defense, cabin overheat protection</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>Charging extras</td><td>Standard and max range, scheduled charging and departure, charge and precondition schedules, low power and accessory power modes</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>Body</td><td><code>ventWindows()</code>, <code>closeWindows()</code>, <code>setSunroof(level)</code>, <code>openChargePort()</code>, <code>closeChargePort()</code>, <code>honkHorn()</code>, <code>flashLights()</code></td><td><span class="badge info">P1</span></td></tr>
+<tr><td>Security</td><td><code>setSentryMode(on)</code>, valet mode</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>Media and updates</td><td>Volume, track and favourite controls, schedule or cancel a software update</td><td><span class="badge info">P1</span></td></tr>
+<tr><td>Status</td><td><code>ping()</code>, <code>getState(category)</code></td><td>See <a href="14-lib-reading-state.html#sec-wake">14. Reading Vehicle State</a></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-later">Later</h2>
+<p>Planned for v1.1: HomeLink, clearing PIN to Drive, speed limit mode, parental controls, guest mode, renaming the car and nearby chargers. Setting PIN to Drive is not possible over BLE and is left out. The Go equivalents of every command are listed in <a href="07-command-reference.html">7. Command Reference</a>.</p>
+
+<footer class="page-nav">
+  <a href="14-lib-reading-state.html"><span>Previous</span>14. Reading Vehicle State</a>
+  <a class="next" href="16-lib-errors.html"><span>Next</span>16. Error Handling</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

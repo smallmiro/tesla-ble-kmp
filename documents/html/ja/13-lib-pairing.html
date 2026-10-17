@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>13. キーとペアリング · vehicle-command BLE マニュアル</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE 開発マニュアル · v0.4.1 基準</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>日本語</span></summary>
+    <ul>
+      <li><a href="../ko/13-lib-pairing.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/13-lib-pairing.html" hreflang="en" lang="en">English</a></li>
+      <li><a class="active" aria-current="true" href="../ja/13-lib-pairing.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">はじめに</li>
+    <li><a href="01-overview.html">1. システム概要</a></li>
+    <li><a href="02-getting-started.html">2. はじめに</a></li>
+    <li class="group">プロトコル</li>
+    <li><a href="03-ble-transport.html">3. BLE トランスポート層</a></li>
+    <li><a href="04-protocol.html">4. プロトコル仕様</a></li>
+    <li class="group">開発</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI ツール</a></li>
+    <li><a href="07-command-reference.html">7. コマンドリファレンス</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP プロキシ</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. エラーとトラブルシューティング</a></li>
+    <li class="group">tesla-ble-kmp ライブラリ</li>
+    <li><a href="11-lib-overview.html">11. ライブラリ概要</a></li>
+    <li><a href="12-lib-getting-started.html">12. ライブラリ入門</a></li>
+    <li><a class="active" href="13-lib-pairing.html">13. キーとペアリング</a></li>
+    <li><a href="14-lib-reading-state.html">14. 車両状態の取得</a></li>
+    <li><a href="15-lib-commands.html">15. コマンド</a></li>
+    <li><a href="16-lib-errors.html">16. エラー処理</a></li>
+    <li><a href="17-lib-platform-notes.html">17. プラットフォームノート</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. トラブルシューティング</a></li>
+    <li><a href="19-lib-architecture.html">19. アーキテクチャ</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>13. キーとペアリング</h1>
+<p class="lead">スマートフォンには専用のキーペアが必要で、車両がその公開鍵をリストに登録していなければコマンドを受け付けません。現在のライブラリはキーの作成と保存、車両のキー一覧の読み取りを行います。車両へのキーの登録 (add-key-request) は M4 で追加されます。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-store">キーストア</a></li>
+<li><a href="#sec-protection">キーの保存場所</a></li>
+<li><a href="#sec-check">自分のキーは登録されているか</a></li>
+<li><a href="#sec-delete">キーの削除と置き換え</a></li>
+<li><a href="#sec-planned">M4 で追加予定: キーの登録</a></li>
+</ol></div>
+
+<h2 id="sec-store">キーストア</h2>
+<p><code>TeslaBle.keys</code> は <code>VehicleKeyStore</code> です。キーはエイリアスで検索します。ほとんどのアプリではデフォルトのエイリアスだけで足ります。</p>
+<table>
+<thead><tr><th>呼び出し</th><th>戻り値</th><th>動作</th></tr></thead>
+<tbody>
+<tr><td><code>getOrCreate(alias, policy)</code></td><td><code>VehicleResult&lt;VehicleKey&gt;</code></td><td>保存済みのキーを返すか、そのエイリアスで NIST P-256 キーペアを作成します</td></tr>
+<tr><td><code>get(alias)</code></td><td><code>VehicleResult&lt;VehicleKey?&gt;</code></td><td>キーがない場合は <code>Success(null)</code></td></tr>
+<tr><td><code>delete(alias)</code></td><td><code>VehicleResult&lt;Unit&gt;</code></td><td>キーがない場合も成功します</td></tr>
+</tbody>
+</table>
+<ul>
+<li>デフォルトのエイリアスは <code>"teslable-default"</code> です (<code>VehicleKeyStore.DEFAULT_ALIAS</code>、Swift では <code>VehicleKeyStoreCompanion.shared.DEFAULT_ALIAS</code>)。</li>
+<li>エイリアスには英字、数字、<code>.</code>、<code>_</code>、<code>-</code> を 64 文字まで使えます。ただし <code>.</code> や <code>..</code> にはできません。</li>
+<li><code>VehicleKey</code> はハンドルです。<code>alias</code>、<code>protection</code>、<code>publicKey</code> (65 バイト、<code>0x04 ‖ X ‖ Y</code>) を公開します。秘密鍵はプラットフォームのキーストアから出ることはなく、エクスポート API もありません。</li>
+</ul>
+
+<h2 id="sec-protection">キーの保存場所</h2>
+<p><code>policy</code> 引数はソフトウェアキーを許容するかどうかを決めます。<code>VehicleKey.protection</code> でキーが実際にどこに置かれたかがわかります。</p>
+<table>
+<thead><tr><th><code>KeyPolicy</code></th><th>動作</th></tr></thead>
+<tbody>
+<tr><td><code>PREFER_HARDWARE</code> (デフォルト)</td><td>ハードウェアを優先し、失敗した場合はソフトウェア</td></tr>
+<tr><td><code>REQUIRE_HARDWARE</code></td><td>ハードウェアのみ。使えない場合は <code>KeyStoreError.HardwareUnavailable</code></td></tr>
+<tr><td><code>SOFTWARE_ONLY</code></td><td>ソフトウェアのみ。テストやエミュレーター用</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th><code>KeyProtection</code></th><th>ハードウェア</th><th>場所</th></tr></thead>
+<tbody>
+<tr><td><code>SECURE_ENCLAVE</code></td><td><span class="badge ok">はい</span></td><td>iOS Secure Enclave</td></tr>
+<tr><td><code>STRONGBOX</code></td><td><span class="badge ok">はい</span></td><td>Android StrongBox</td></tr>
+<tr><td><code>TEE</code></td><td><span class="badge ok">はい</span></td><td>Android Trusted Execution Environment</td></tr>
+<tr><td><code>SOFTWARE</code></td><td><span class="badge warn">いいえ</span></td><td>Android Keystore でラップされるか iOS キーチェーンに保存されます。JVM ではメモリ上</td></tr>
+</tbody>
+</table>
+<p>実機が <code>SOFTWARE</code> を報告した場合は、ユーザーに知らせることを検討してください。そのキーはハードウェアキーより弱いためです。</p>
+
+<h2 id="sec-check">自分のキーは登録されているか</h2>
+<p><code>vehicle.listKeys()</code> はキーなしで、車両をウェイクアップせずに動作します。車両のリストと自分の公開鍵を比較します:</p>
+<pre><code class="language-kotlin"><span class="k">val</span> mine = key.publicKey.<span class="f">toByteArray</span>()
+<span class="k">val</span> enrolled = <span class="k">when</span> (<span class="k">val</span> r = vehicle.<span class="f">listKeys</span>()) {
+    <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> r.value.<span class="f">firstOrNull</span> { it.publicKey<span class="o">?.</span><span class="f">toByteArray</span>()<span class="o">?.</span><span class="f">contentEquals</span>(mine) <span class="o">==</span> <span class="n">true</span> }
+    <span class="k">else</span> <span class="o">-&gt;</span> <span class="n">null</span>                                   <span class="c">// Uncertain または Failure: 不明なので後でもう一度問い合わせる</span>
+}
+<span class="c">// enrolled?.role は KeyRole、enrolled?.slot はホワイトリストのスロット</span></code></pre>
+<p>登録されていないキーでも接続と読み取りはできます。そのキーでセッションを開始すると <code>KeyNotPaired</code> で失敗します。</p>
+
+<h2 id="sec-delete">キーの削除と置き換え</h2>
+<ul>
+<li><code>keys.delete(alias)</code> はスマートフォンからだけキーを削除します。車両側で削除されるまで、車両はその公開鍵をリストに残します。</li>
+<li>保存されたセッションは 1 つのキーに属します。キーが変わると、次の接続で古いセッションを破棄して新しいハンドシェイクを始めます。</li>
+<li><strong>破損した</strong> 保存キー (<code>KeyStoreError.PlatformFailure</code>、<code>stored key is corrupted</code>) が自動で置き換えられることはありません。ユーザーに知らせ、<code>delete</code> を呼んでから <code>getOrCreate</code> を呼び、新しいキーを車両に登録し直してください。<a href="17-lib-platform-notes.html#sec-keys">プラットフォームノート</a> を参照してください。</li>
+</ul>
+
+<h2 id="sec-planned">M4 で追加予定: キーの登録</h2>
+<div class="callout warn">
+<strong>まだ使えません</strong>
+<p>以下の名前は要件文書に基づくもので、M4 の実装時に変わる可能性があります。</p>
+</div>
+<table>
+<thead><tr><th>要件</th><th>予定 API</th><th>予定の動作</th></tr></thead>
+<tbody>
+<tr><td>FR-022</td><td><code>addKeyRequest(role = OWNER, …)</code></td><td>スマートフォンのキーの追加を車両に要求します。ユーザーはセンターコンソールに NFC キーカードをかざして承認します</td></tr>
+<tr><td>FR-023</td><td>進捗 <code>Flow</code></td><td>ユーザーが承認する間、車両の待機応答と最終応答を報告します</td></tr>
+<tr><td>FR-024</td><td><code>sessionInfo(publicKey, domain)</code></td><td>ドメインごとに登録状態を確認します。Infotainment が追いつくまで待つために使います</td></tr>
+<tr><td>FR-026</td><td><code>removeKey(publicKey)</code></td><td>車両からキーを削除します</td></tr>
+<tr><td>FR-027</td><td><code>addKeyWithRole(publicKey, role, formFactor)</code></td><td>登録済みのオーナーキーが NFC カードなしで別のキーを追加します</td></tr>
+</tbody>
+</table>
+<p>ロール (<code>KeyRole</code>) は <code>OWNER</code>、<code>DRIVER</code>、<code>FLEET_MANAGER</code>、<code>VEHICLE_MONITOR</code>、<code>CHARGING_MANAGER</code>、<code>GUEST</code>、<code>SERVICE</code> です。各ロールが送信できるコマンドは <a href="07-command-reference.html">7. コマンドリファレンス</a> に記載しています。</p>
+
+<footer class="page-nav">
+  <a href="12-lib-getting-started.html"><span>前へ</span>12. ライブラリ入門</a>
+  <a class="next" href="14-lib-reading-state.html"><span>次へ</span>14. 車両状態の取得</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

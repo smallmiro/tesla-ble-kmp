@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>12. 라이브러리 시작하기 · vehicle-command BLE 매뉴얼</title>
+<link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>Tesla <b>vehicle-command</b></span></a>
+  <span class="top-sub">BLE 개발 매뉴얼 · v0.4.1 기준</span>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>한국어</span></summary>
+    <ul>
+      <li><a class="active" aria-current="true" href="../ko/12-lib-getting-started.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/12-lib-getting-started.html" hreflang="en" lang="en">English</a></li>
+      <li><a href="../ja/12-lib-getting-started.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">홈</a></li>
+    <li class="group">시작하기</li>
+    <li><a href="01-overview.html">1. 시스템 개요</a></li>
+    <li><a href="02-getting-started.html">2. 시작하기</a></li>
+    <li class="group">프로토콜</li>
+    <li><a href="03-ble-transport.html">3. BLE 전송 계층</a></li>
+    <li><a href="04-protocol.html">4. 프로토콜 사양</a></li>
+    <li class="group">개발</li>
+    <li><a href="05-go-sdk.html">5. Go SDK</a></li>
+    <li><a href="06-cli-tools.html">6. CLI 도구</a></li>
+    <li><a href="07-command-reference.html">7. 명령 레퍼런스</a></li>
+    <li><a href="08-http-proxy.html">8. HTTP 프록시</a></li>
+    <li><a href="09-errors-troubleshooting.html">9. 오류와 문제 해결</a></li>
+    <li class="group">tesla-ble-kmp 라이브러리</li>
+    <li><a href="11-lib-overview.html">11. 라이브러리 개요</a></li>
+    <li><a class="active" href="12-lib-getting-started.html">12. 라이브러리 시작하기</a></li>
+    <li><a href="13-lib-pairing.html">13. 키와 페어링</a></li>
+    <li><a href="14-lib-reading-state.html">14. 차량 상태 조회</a></li>
+    <li><a href="15-lib-commands.html">15. 명령</a></li>
+    <li><a href="16-lib-errors.html">16. 에러 처리</a></li>
+    <li><a href="17-lib-platform-notes.html">17. 플랫폼 노트</a></li>
+    <li><a href="18-lib-troubleshooting.html">18. 문제 해결</a></li>
+    <li><a href="19-lib-architecture.html">19. 아키텍처</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>12. 라이브러리 시작하기</h1>
+<p class="lead">M3의 전체 흐름을 따라갑니다. 라이브러리를 만들고, 키를 얻고, 차량을 찾고, 연결하고, 상태를 읽고, 연결을 끊습니다. 키 등록은 M4에서 추가되므로, 지금 예제는 등록된 키가 필요 없는 조회만 사용합니다.</p>
+
+<div class="toc"><strong>이 페이지의 내용</strong><ol>
+<li><a href="#sec-flow">흐름</a></li>
+<li><a href="#sec-rules">다섯 가지 규칙</a></li>
+<li><a href="#sec-kotlin">Kotlin (Android)</a></li>
+<li><a href="#sec-swift">Swift (iOS)</a></li>
+<li><a href="#sec-next">다음 단계</a></li>
+</ol></div>
+
+<h2 id="sec-flow">흐름</h2>
+<ol class="steps">
+<li><strong>라이브러리를 만듭니다.</strong> <code>TeslaBle.create(platform, config)</code>를 앱마다 한 번 호출합니다.</li>
+<li><strong>키를 얻습니다.</strong> <code>ble.keys.getOrCreate()</code>는 휴대폰의 P-256 키를 반환하며, 처음 호출할 때 보안 하드웨어에 키를 만듭니다.</li>
+<li><strong>차량을 찾습니다.</strong> <code>ble.scan(vin)</code>이 차량의 광고를 내보내면 첫 번째 것을 사용합니다.</li>
+<li><strong>연결합니다.</strong> <code>ble.connect(vin, key, advertisement)</code>는 <code>Vehicle</code>을 반환합니다.</li>
+<li><strong>읽습니다.</strong> <code>vehicleStatus()</code>, <code>keySummary()</code>, <code>listKeys()</code>.</li>
+<li><strong>정리합니다.</strong> <code>vehicle.disconnect()</code>를 호출하고, 앱이 끝나면 <code>ble.close()</code>를 호출합니다.</li>
+</ol>
+
+<h2 id="sec-rules">다섯 가지 규칙</h2>
+<ul>
+<li><strong>결과는 값입니다.</strong> 차량이나 키 보관소에 대한 모든 호출은 <code>VehicleResult</code>(<code>Success</code>, <code>Uncertain</code>, <code>Failure</code>)를 반환합니다. 호출한 쪽의 코루틴이 취소된 경우를 빼고는 예외를 던지지 않습니다.</li>
+<li><strong>앱마다 <code>TeslaBle</code> 하나.</strong> 다 쓰면 <code>close()</code>를 호출하세요. 아직 연결된 차량이 있으면 함께 연결을 끊습니다.</li>
+<li><strong>항상 연결을 끊으세요.</strong> 링크가 이미 끊겼더라도 <code>vehicle.disconnect()</code>를 호출하세요. 세션 캐시를 저장하고, 세션 키를 지우고, 차량의 BLE 슬롯을 비웁니다. 두 번 호출해도 괜찮습니다.</li>
+<li><strong>읽기에는 키가 없어도 됩니다.</strong> 세 가지 조회에는 <code>connect(vin, key = null)</code>로 충분합니다. 세션을 시작하려면 키가 필요합니다.</li>
+<li><strong>디버그 로깅은 개발 중에만.</strong> <code>DebugLogger()</code>는 플랫폼 로그에 기록합니다. 릴리스 빌드에서는 빼세요.</li>
+</ul>
+
+<h2 id="sec-kotlin">Kotlin (Android)</h2>
+<pre><code class="language-kotlin"><span class="k">import</span> dev.mirolab.teslable.*
+<span class="k">import</span> dev.mirolab.teslable.model.*
+<span class="k">import</span> dev.mirolab.teslable.port.*
+<span class="k">import</span> kotlinx.coroutines.flow.first
+
+<span class="k">suspend</span> <span class="k">fun</span> <span class="f">demo</span>(context: android.content.<span class="t">Context</span>, vinText: <span class="t">String</span>) {
+    <span class="k">val</span> vin = <span class="t">Vin</span>.<span class="f">parseOrNull</span>(vinText) <span class="o">?:</span> <span class="k">return</span>              <span class="c">// 17자 형식 검사</span>
+    <span class="k">val</span> ble = <span class="t">TeslaBle</span>.<span class="f">create</span>(
+        <span class="t">PlatformContext</span>(context),
+        <span class="t">TeslaBleConfig</span>.<span class="f">default</span>(logger = <span class="t">DebugLogger</span>()),         <span class="c">// 개발용 로거, 릴리스 빌드에서는 사용하지 않음</span>
+    )
+    <span class="k">try</span> {
+        <span class="k">val</span> key = <span class="k">when</span> (<span class="k">val</span> r = ble.keys.<span class="f">getOrCreate</span>()) {       <span class="c">// 기본 별칭, 하드웨어 우선</span>
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> r.value
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Uncertain</span> <span class="o">-&gt;</span> <span class="k">return</span>
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span> <span class="k">return</span>                  <span class="c">// r.error: KeyStoreError</span>
+        }
+
+        <span class="c">// 첫 번째 광고를 사용합니다. 시간 제한은 호출자가 정합니다(예: withTimeoutOrNull).</span>
+        <span class="k">val</span> event = ble.<span class="f">scan</span>(vin).<span class="f">first</span>()
+        <span class="k">val</span> target = (event <span class="k">as</span>? <span class="t">ScanEvent</span>.<span class="t">Found</span>)<span class="o">?.</span>advertisement <span class="o">?:</span> <span class="k">return</span>   <span class="c">// Failed이면 event.error 확인</span>
+
+        <span class="k">val</span> vehicle = <span class="k">when</span> (<span class="k">val</span> r = ble.<span class="f">connect</span>(vin, key, target)) {
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> r.value
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Uncertain</span> <span class="o">-&gt;</span> <span class="k">return</span>
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span> <span class="k">return</span>                  <span class="c">// r.error: TransportError 등</span>
+        }
+        <span class="k">try</span> {
+            <span class="f">println</span>(vehicle.<span class="f">vehicleStatus</span>())                    <span class="c">// println 대신 UI에 표시</span>
+            <span class="f">println</span>(vehicle.<span class="f">listKeys</span>())
+        } <span class="k">finally</span> {
+            vehicle.<span class="f">disconnect</span>()                                <span class="c">// 슬롯을 비움, 링크가 끊긴 뒤에도 호출</span>
+        }
+    } <span class="k">finally</span> {
+        ble.<span class="f">close</span>()                                             <span class="c">// suspend, 아직 연결된 차량이 있으면 연결을 끊음</span>
+    }
+}</code></pre>
+<p>이 호출들 전에 <code>BLUETOOTH_SCAN</code>과 <code>BLUETOOTH_CONNECT</code>를 런타임에 요청하세요. <a href="17-lib-platform-notes.html#sec-android">플랫폼 노트</a>를 참고하세요.</p>
+
+<h2 id="sec-swift">Swift (iOS)</h2>
+<p>SKIE는 <code>suspend</code> 함수를 <code>async throws</code>로, <code>Flow</code>를 <code>AsyncSequence</code>로 바꾸고, <code>switch onEnum(of:)</code>로 결과의 모든 경우를 다룰 수 있게 합니다. 코드 구조는 <code>samples/ios/Sources/SampleModel.swift</code>와 같습니다.</p>
+<pre><code class="language-swift"><span class="k">import</span> <span class="t">Teslable</span>
+
+<span class="k">let</span> ble = <span class="t">TeslaBle</span>.companion.<span class="f">create</span>(
+    platform: <span class="t">PlatformContext</span>(),
+    config: <span class="t">TeslaBleConfig</span>.companion.<span class="k">default</span>(logger: <span class="t">DebugLogger</span>())
+)
+
+<span class="k">func</span> <span class="f">run</span>(vinText: <span class="t">String</span>) <span class="k">async</span> {
+    <span class="k">guard</span> <span class="k">let</span> vin = <span class="t">Vin</span>.companion.<span class="f">parseOrNull</span>(value: vinText) <span class="k">else</span> { <span class="k">return</span> }   <span class="c">// 잘못된 형식</span>
+
+    <span class="c">// 1) 키</span>
+    <span class="k">var</span> key: <span class="t">VehicleKey</span>?
+    <span class="k">do</span> {
+        <span class="k">let</span> result = <span class="k">try</span> <span class="k">await</span> ble.keys.<span class="f">getOrCreate</span>(alias: <span class="t">VehicleKeyStoreCompanion</span>.shared.<span class="t">DEFAULT_ALIAS</span>, policy: .preferHardware)
+        <span class="k">switch</span> <span class="f">onEnum</span>(of: result) {
+        <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s): key = s.value <span class="k">as</span>? <span class="t">VehicleKey</span>
+        <span class="k">case</span> .<span class="f">uncertain</span>(<span class="k">let</span> u): <span class="f">print</span>(<span class="s">"불확실: \(u.error.message)"</span>)
+        <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f): <span class="f">print</span>(<span class="s">"실패: \(f.error.message)"</span>)
+        }
+    } <span class="k">catch</span> { <span class="f">print</span>(<span class="s">"오류: \(error)"</span>) }
+
+    <span class="c">// 2) 스캔(첫 번째 광고에서 멈춤, 시간 제한은 Task를 취소해서 설정)</span>
+    <span class="k">for</span> <span class="k">await</span> event <span class="k">in</span> ble.<span class="f">scan</span>(vin: vin) {
+        <span class="k">switch</span> <span class="f">onEnum</span>(of: event) {
+        <span class="k">case</span> .<span class="f">found</span>(<span class="k">let</span> f): <span class="f">print</span>(<span class="s">"\(f.advertisement.localName.value) rssi=\(f.advertisement.rssi)"</span>)
+        <span class="k">case</span> .<span class="f">failed</span>(<span class="k">let</span> e): <span class="f">print</span>(<span class="s">"스캔 실패: \(e.error.message)"</span>)
+        }
+        <span class="k">break</span>
+    }
+
+    <span class="c">// 3) 연결과 조회</span>
+    <span class="k">do</span> {
+        <span class="k">let</span> connected = <span class="k">try</span> <span class="k">await</span> ble.<span class="f">connect</span>(vin: vin, key: key, target: <span class="n">nil</span>, options: <span class="t">ConnectOptions</span>(timeout: <span class="n">nil</span>))
+        <span class="k">switch</span> <span class="f">onEnum</span>(of: connected) {
+        <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s):
+            <span class="k">guard</span> <span class="k">let</span> vehicle = s.value <span class="k">as</span>? <span class="t">Vehicle</span> <span class="k">else</span> { <span class="k">return</span> }
+            <span class="k">let</span> status = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">vehicleStatus</span>(timeout: <span class="n">nil</span>)
+            <span class="k">switch</span> <span class="f">onEnum</span>(of: status) {
+            <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> v): <span class="f">print</span>(<span class="s">"상태: \(String(describing: v.value))"</span>)
+            <span class="k">case</span> .<span class="f">uncertain</span>(<span class="k">let</span> u): <span class="f">print</span>(<span class="s">"불확실: \(u.error.message)"</span>)   <span class="c">// 다시 조회, 재전송하지 않음</span>
+            <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f): <span class="f">print</span>(<span class="s">"실패: \(f.error.message)"</span>)
+            }
+            <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">disconnect</span>()
+        <span class="k">case</span> .<span class="f">uncertain</span>(<span class="k">let</span> u): <span class="f">print</span>(<span class="s">"불확실: \(u.error.message)"</span>)
+        <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f): <span class="f">print</span>(<span class="s">"실패: \(f.error.message)"</span>)
+        }
+    } <span class="k">catch</span> { <span class="f">print</span>(<span class="s">"오류: \(error)"</span>) }
+}</code></pre>
+<p><code>target: nil</code>이면 <code>connect</code>가 직접 스캔합니다. <code>Info.plist</code>에 <code>NSBluetoothAlwaysUsageDescription</code>을 추가하세요. <a href="17-lib-platform-notes.html#sec-ios">플랫폼 노트</a>를 참고하세요.</p>
+
+<h2 id="sec-next">다음 단계</h2>
+<ul>
+<li>차량에 키를 등록하는 기능은 M4에서 추가됩니다(<a href="13-lib-pairing.html">13. 키와 페어링</a>). 그때까지는 <code>vehicleStatus()</code>, <code>keySummary()</code>, <code>listKeys()</code>에 <code>connect(vin, key = null)</code>로 충분합니다.</li>
+<li>링크는 <code>vehicle.connection</code>으로, 세션은 <code>vehicle.sessions</code>로 관찰하세요. 둘 다 <code>StateFlow</code>입니다. 링크가 <code>Disconnected</code>를 알려도 <code>disconnect()</code>는 직접 호출하세요.</li>
+</ul>
+
+<footer class="page-nav">
+  <a href="11-lib-overview.html"><span>이전</span>11. 라이브러리 개요</a>
+  <a class="next" href="13-lib-pairing.html"><span>다음</span>13. 키와 페어링</a>
+</footer>
+</main>
+</div>
+</body>
+</html>
