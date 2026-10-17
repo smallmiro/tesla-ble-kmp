@@ -76,7 +76,7 @@ samples/* ──▶ :sdk 만
 | 공개 API 호환성 | `./gradlew apiCheck` (변경을 의도했다면 `apiDump` 후 커밋) |
 | protobuf 생성 | `./gradlew :domain:generateCommonMainProtos` (Wire 태스크 이름은 `./gradlew :domain:tasks --all \| grep -i proto`로 확인) |
 | iOS 프레임워크 | `./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64` |
-| 전체 로컬 검증 게이트 (푸시·병합 전 필수) | `tools/ci/verify.sh` (ADR-0012, 예전 GitHub Actions CI 6개 잡을 로컬에서 재현) |
+| 전체 로컬 검증 게이트 (푸시·병합 전 필수) | `tools/ci/verify.sh` (ADR-0012, 예전 GitHub Actions CI 6개 잡을 로컬에서 재현 + 매뉴얼 언어 규칙 검사) |
 
 ## 7. 커밋과 PR
 - 접두어: `struct:` (구조) · `feat:` (기능) · `fix:` (결함) · `test:` (테스트만) · `docs:` · `chore:` (의존성·빌드)

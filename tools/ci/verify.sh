@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # tools/ci/verify.sh — 로컬 검증 게이트 (ADR-0012). 이 Mac 한 대에서 예전 GitHub Actions
-# .github/workflows/ci.yml의 6개 잡을 순서대로 전부 재현한다. main에 푸시하거나 PR을 병합하기
+# .github/workflows/ci.yml의 6개 잡을 순서대로 전부 재현하고, 매뉴얼 언어 규칙 검사(g)를 더한다. main에 푸시하거나 PR을 병합하기
 # 전에 이 스크립트가 통과해야 한다(workflow.md §5.3/§6, AGENTS.md §3 규칙 3).
 #
 # 단계 → 대체하는 CI 잡
@@ -10,6 +10,7 @@
 #   (d) xcodegen + xcodebuild      → ios 잡의 샘플 앱 빌드 스텝
 #   (e) tools/ci/check-license.sh  → license 잡
 #   (f) tools/ci/scan-secrets.sh   → secrets 잡
+#   (g) tools/ci/check-manual-i18n.sh → (CI 잡 없음) 매뉴얼 언어 규칙, AGENTS.md §3 규칙 12
 set -euo pipefail
 
 if [ "$(uname -s)" != "Darwin" ]; then
@@ -20,7 +21,7 @@ fi
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
-TOTAL_STEPS=6
+TOTAL_STEPS=7
 STEP=0
 START_TIME=$(date +%s)
 
@@ -82,6 +83,10 @@ tools/ci/check-license.sh || fail "check-license.sh"
 # (f) ci.yml secrets 잡.
 step "tools/ci/scan-secrets.sh"
 tools/ci/scan-secrets.sh || fail "scan-secrets.sh"
+
+# (g) 매뉴얼 언어 규칙 — MD는 영어로만, HTML은 ko/en/ja가 같은 구성 (AGENTS.md §3 규칙 12).
+step "tools/ci/check-manual-i18n.sh"
+tools/ci/check-manual-i18n.sh || fail "check-manual-i18n.sh"
 
 END_TIME=$(date +%s)
 ELAPSED=$((END_TIME - START_TIME))
