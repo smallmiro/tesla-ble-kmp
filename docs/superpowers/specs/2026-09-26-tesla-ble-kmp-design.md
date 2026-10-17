@@ -51,6 +51,6 @@
 - `session.authorize`: `readySignal` 대기 후 `Encrypt`; 실패해도 ctx 만료까지 반복.
 - `GetError` 순서: fault → session_info.status → operation_status. RoutableMessage 계층 `OPERATIONSTATUS_ERROR`는 오류 아님.
 - `unmarshalVCSECResponse`: payload 없음 = 빈 메시지(성공), 파싱 실패는 `PossibleSuccess=true`.
-- `responseMetadata`: AAD = SHA256(TLV‖0xFF) — 매뉴얼 `03-protocol §9.2` 첫 문장과 다름(SDD §12).
+- `responseMetadata`: AAD = SHA256(TLV‖0xFF) — 매뉴얼 `03-protocol §9.2` 첫 문장과 다름(SDD §12). 2026-10-17 매뉴얼을 원본 기준으로 수정해 해소.
 - `SendAddKeyRequestWithRole`: 응답을 읽지 않음 → ADR-0009로 확장.
 - `SlidingWindow`: Go의 64비트 시프트 의미(≥64는 0)를 PoC가 명시적 분기로 재현함을 확인.
