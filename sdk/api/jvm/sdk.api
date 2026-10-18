@@ -78,11 +78,6 @@ public final class dev/mirolab/teslable/TeslaBleConfig$Companion {
 	public static synthetic fun default$default (Ldev/mirolab/teslable/TeslaBleConfig$Companion;Ldev/mirolab/teslable/port/TeslaLogger;ILjava/lang/Object;)Ldev/mirolab/teslable/TeslaBleConfig;
 }
 
-public final class dev/mirolab/teslable/TeslableDiagnostics {
-	public static final field INSTANCE Ldev/mirolab/teslable/TeslableDiagnostics;
-	public final fun probe (Ljava/lang/String;ZLkotlin/jvm/functions/Function1;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
-}
-
 public abstract interface class dev/mirolab/teslable/Vehicle {
 	public abstract fun disconnect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun getConnection ()Lkotlinx/coroutines/flow/StateFlow;

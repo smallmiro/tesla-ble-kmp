@@ -12,9 +12,3 @@ public final class dev/mirolab/teslable/ble/BleTransportsKt {
 	public static synthetic fun kableTransportFactory-9VgGkz4$default (Lkotlinx/coroutines/CoroutineScope;Ldev/mirolab/teslable/port/CryptoPrimitives;Ldev/mirolab/teslable/ble/BleAvailability;Ldev/mirolab/teslable/port/TeslaLogger;JILjava/lang/Object;)Ldev/mirolab/teslable/port/TransportFactory;
 }
 
-public final class dev/mirolab/teslable/ble/GattProbe {
-	public static final field INSTANCE Ldev/mirolab/teslable/ble/GattProbe;
-	public final fun run-Lkj3upI (Ljava/lang/String;[BZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;JJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
-	public static synthetic fun run-Lkj3upI$default (Ldev/mirolab/teslable/ble/GattProbe;Ljava/lang/String;[BZLkotlin/jvm/functions/Function1;Lkotlin/jvm/functions/Function1;JJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-}
-

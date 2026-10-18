@@ -11,6 +11,6 @@ internal enum class SubscriptionMode {
 
 /**
  * 기본 구독 방식. 예상되는 두 판정 모두 [SubscriptionMode.KABLE_DEFAULT]이므로 이 값으로 둔다.
- * 이 값은 ADR-0003 실차 스파이크 결과로 확정해야 한다(판정이 나오면 "스파이크 결과" 절과 일치하는지 확인).
+ * 이 값은 ADR-0003 스파이크(2026-10-17, iOS)로 확정되었다.
  */
 internal val DEFAULT_SUBSCRIPTION: SubscriptionMode = SubscriptionMode.KABLE_DEFAULT

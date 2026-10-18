@@ -40,9 +40,6 @@ struct ContentView: View {
                         Text($0.element).font(.footnote.monospaced()).textSelection(.enabled)
                     }
                 }
-                Section("진단") {
-                    NavigationLink("BLE 진단 (스파이크)") { DiagnosticsView() }
-                }
                 Section("앱 정보") {
                     LabeledContent("번들 ID", value: AppInfo.bundleID)
                     LabeledContent("버전", value: AppInfo.version)
