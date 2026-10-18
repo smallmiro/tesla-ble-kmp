@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Scope: M3–M4 (scan, connect, key store, read-only queries, observation log). Pairing-time and command-time problems are added with M4/M5.
+Scope: M3–M4 (scan, connect, key store, read-only queries, pairing, VCSEC commands, observation log). Infotainment command problems are added with M5.
 Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 
 ## Symptom → cause → action
@@ -14,10 +14,16 @@ Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 | `ConnectFailed` repeats | Link unstable or the vehicle is busy | The library already retries inside `connectTimeout` (30 s); try again later |
 | `connection` turns `Disconnected` | Link lost (range, vehicle side) | Call `vehicle.disconnect()`, then `connect` again |
 | `startSession()` → `RequiresKey` | Connected with `key = null` | Connect with a `VehicleKey` |
-| `startSession()` → `KeyNotPaired` | The public key is not enrolled on the vehicle | Enroll it (M4). Check with `listKeys()` (`13-lib-pairing.md`) |
+| `startSession()` → `KeyNotPaired` | The public key is not enrolled on the vehicle | Enroll it with `addKeyRequest` (`13-lib-pairing.md`). Check with `listKeys()` or `sessionInfo` |
 | `KeyStoreError.PlatformFailure("stored key is corrupted")` | Android backup restored the key file without its wrapping key, or storage damage | `delete` then `getOrCreate`, then enroll the new key. Exclude `files/teslable/keys/` from backup (`17-lib-platform-notes.md`) |
 | `KeyStoreError.HardwareUnavailable` | `REQUIRE_HARDWARE` on a device without StrongBox / TEE / Secure Enclave | Use `PREFER_HARDWARE` |
 | First command after restoring a cached session fails with `TIME_EXPIRED` and then succeeds | Device slept, monotonic clock lagged | Nothing; the library resyncs from the attached session info and retries |
+| `addKeyRequest` ends with `TimedOut` | The card was not tapped, or the on-screen confirmation was not given in time (default 60 s), or the reply was not recognized | Ask the user to tap the key card on the center console and confirm on the screen, then check `sessionInfo(publicKey, INFOTAINMENT)`. It may still have been enrolled |
+| `addKeyRequest` emits `Rejected(KeychainRejected(WHITELIST_FULL))` or another `KeychainRejected` code | The vehicle refused: key list full, no permission to add, … | Remove an unused key on the vehicle's touchscreen or with `removeKey`; see `16-lib-errors.md` |
+| `addKeyRequest` emits `Unknown(raw)` | A reply format not seen before (real-vehicle behaviour is not verified yet, ADR-0009) | Report `raw` as hex (no VIN) and what the car did |
+| `addKeyRequest` emits `Failed(NotConnected)` | The vehicle was disconnected or the link dropped | `disconnect()`, `connect` again, repeat |
+| `lock()` (or any VCSEC command) → `NoSession` | No VCSEC session yet, or the cached session is stale | Call `startSession(setOf(VehicleDomain.VCSEC))` first. If `sessions` showed `Ready(fromCache = true)` it changes to `None` after this failure (the cache belonged to another key or vehicle); `startSession` fixes it |
+| `removeKey` / `addKey` → `InsufficientPrivileges` | The connection's key may not manage keys (for example a Driver key) | Use an Owner key |
 | `Uncertain(Timeout(afterSend = true))` | Response lost after sending | Query state again; do not resend |
 | `UnknownFault`, `UnknownKeychainCode`, enum values read as `UNKNOWN` | Newer vehicle firmware | Check for a library update |
 | Keychain test fails with -25291 on the simulator | Plain Kotlin/Native test binaries cannot use the Keychain | Verify Keychain behaviour in the sample app |

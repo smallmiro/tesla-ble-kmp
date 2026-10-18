@@ -1,7 +1,7 @@
 # Keys and Pairing
 
-Scope: what exists on `main` (M3) is the local key store and the read-only key list. **Enrolling a key on the vehicle
-(add-key-request) is M4 and not implemented.** Go original behaviour: `09-recipes.md` (key pairing), `10-porting-guide.md`
+Scope: what exists on `main` (M4) is the local key store, the read-only key list, enrolling a key on the vehicle
+(`addKeyRequest`, `sessionInfo`, `addKey`, `removeKey`). Real-vehicle check of pairing is pending. Go original behaviour: `09-recipes.md` (key pairing), `10-porting-guide.md`
 §10 and §12. Errors: `16-lib-errors.md` §Transport and key store errors. Storage details: `17-lib-platform-notes.md`.
 
 ## Key store API (`TeslaBle.keys: VehicleKeyStore`)
@@ -61,24 +61,117 @@ key fails with `VehicleError.KeyNotPaired`.
 ## Deleting or replacing a key locally
 
 - `keys.delete(alias)` removes the key pair from the device. The vehicle still lists the public key until it is removed
-  on the vehicle (planned `removeKey`, M4, or the car's touchscreen).
+  on the vehicle (`removeKey`, or the car's touchscreen).
 - The session cache belongs to the client key (key ID = SHA-1 of the public key). After a key is deleted or replaced,
   the next `connect` discards the old key's cache entries and handshakes again.
 - A corrupted stored key (`KeyStoreError.PlatformFailure`, message `stored key is corrupted`) is **never replaced
   automatically**. The app tells the user, calls `delete(alias)` then `getOrCreate(alias)`, and the new public key has
   to be enrolled again. See `17-lib-platform-notes.md` §Key storage.
 
-## Planned (M4, not implemented)
+## Enrolling a key (M4)
 
-Names follow `docs/prd/PRD.md` §5 and may change when M4 lands.
+Go original: `SendAddKeyRequestWithRole` sends the request and **does not read the reply**. Reading the reply as
+`PairingEvent` values is new behaviour of this library, not checked on a real vehicle yet (ADR-0009).
 
-| FR | Planned API | Behaviour |
+| Call | Returns | Notes |
 |---|---|---|
-| FR-022 | `addKeyRequest(role = OWNER, formFactor = platform default)` | Sends `addKeyToWhitelistAndAddPermissions` as an unsigned VCSEC message over BLE. The user approves by tapping an NFC key card on the center console |
-| FR-023 | progress `Flow` of the request | Reads the vehicle's `WAIT` and final responses (the Go original does not read them) |
-| FR-024 | `sessionInfo(publicKey, domain)` | Enrollment check per domain, used to wait for Infotainment to sync after pairing |
-| FR-026 | `removeKey(publicKey)` | Removes a key from the whitelist (authenticated) |
-| FR-027 | `addKeyWithRole(publicKey, role, formFactor)` | An enrolled owner key adds another key without the NFC step |
+| `addKeyRequest(publicKey, role = KeyRole.OWNER, formFactor = platformKeyFormFactor(), timeout = null)` | `Flow<PairingEvent>` | FR-022, FR-023. Cold: every collection sends one request. Unsigned VCSEC message, no session needed. `timeout = null` uses `TeslaBleConfig.pairingTimeout` (60 s). Requests are serialized: a second collector waits for the first to reach a terminal event |
+| `sessionInfo(publicKey, domain, timeout = null)` | `VehicleResult<SessionInfoSummary>` | FR-024. Per-domain enrollment check, no key needed on the connection. `Failure(KeyNotPaired)` when the vehicle does not list the key. Asking with the connection's own key also creates that domain's session, so `sessions` shows `Ready(fromCache = false)` |
+| `addKey(publicKey, role = KeyRole.OWNER, formFactor = platformKeyFormFactor(), timeout = null)` | `VehicleResult<Unit>` | FR-026. Authenticated VCSEC (GCM): an enrolled key with enough privileges adds another key, no NFC step. Needs a VCSEC session |
+| `removeKey(publicKey, timeout = null)` | `VehicleResult<Unit>` | FR-027. Authenticated VCSEC (GCM). Needs a VCSEC session |
+
+`platformKeyFormFactor()` is `ANDROID_DEVICE` on Android, `IOS_DEVICE` on iOS and `CLOUD_KEY` on the JVM (tests). In
+Swift, Kotlin default arguments are not available: pass every argument (`role:`, `formFactor:`, `timeout:`), for
+example `formFactor: .iosDevice`.
+
+`addKey` / `removeKey` failures: `InsufficientPrivileges` (the connection's key may not manage keys, for example a
+Driver key), `KeychainRejected(code)` (for example `WHITELIST_FULL`, `NO_PERMISSION_TO_ADD`), `NoSession`,
+`InvalidArgument` (`role = UNKNOWN`). `Uncertain` means the vehicle may have changed its key list: check with
+`listKeys()`, do not resend.
+
+### `PairingEvent`
+
+| Event | Meaning | Terminal |
+|---|---|---|
+| `Sent` | The request was written. The user must tap an NFC key card on the center console and confirm on the screen | no |
+| `WaitingForTap` | The vehicle reports `commandStatus.operationStatus == WAIT` | no |
+| `Accepted` | `whitelistOperationStatus` NONE. Infotainment can take tens of seconds more to learn the key | yes |
+| `Rejected(error)` | `KeychainRejected(code)`, `UnknownKeychainCode`, `VcsecRejected`, `UnknownVcsecError` | yes |
+| `Unknown(raw)` | A frame that could not be decoded as `FromVCSECMessage`. `raw` is a copy of the bytes | no |
+| `Failed(error)` | Not sent (`NotConnected`, write failure, `InvalidArgument`), or the link dropped while waiting | yes |
+| `TimedOut` | No terminal reply within `timeout`. The key may still have been enrolled: check with `sessionInfo` | yes |
+
+`isTerminal` is true for the four terminal events; the `Flow` completes right after one.
+
+Ignored frames (no event): a frame without `commandStatus` and without `nominalError`; an `OK` intermediate status;
+the legacy `ERROR` status. Frames that arrive before the request is sent are dropped.
+
+Procedure:
+
+1. `keys.getOrCreate()`, then `connect(vin, key)`.
+2. Collect `vehicle.addKeyRequest(key.publicKey)`. Tell the user to tap the key card on the center console, then confirm on the screen.
+3. After `Accepted` (or `TimedOut`), poll `vehicle.sessionInfo(key.publicKey, VehicleDomain.INFOTAINMENT)` every 3 s for
+   up to 2 min. `Failure(KeyNotPaired)` means "not yet": keep polling. `Success` means enrolled and synced.
+4. `startSession(setOf(VehicleDomain.VCSEC))`, then commands (`15-lib-commands.md`).
+
+Kotlin:
+
+```kotlin
+val key = (ble.keys.getOrCreate() as VehicleResult.Success).value
+val vehicle = (ble.connect(vin, key) as VehicleResult.Success).value
+
+vehicle.addKeyRequest(key.publicKey).collect { event ->
+    when (event) {
+        PairingEvent.Sent -> show("Tap the key card on the center console, then confirm on the screen")
+        PairingEvent.WaitingForTap -> show("Waiting for the card")
+        PairingEvent.Accepted -> show("Accepted, waiting for the car to sync")
+        is PairingEvent.Rejected -> show("Rejected: ${event.error.message}")
+        is PairingEvent.Unknown -> report(event.raw.toHex())      // see the warning below
+        is PairingEvent.Failed -> show("Failed: ${event.error.message}")
+        PairingEvent.TimedOut -> show("No answer, checking enrollment")
+    }
+}
+
+suspend fun waitUntilEnrolled(vehicle: Vehicle, key: VehicleKey): Boolean {
+    val deadline = TimeSource.Monotonic.markNow() + 2.minutes
+    while (deadline.hasNotPassedNow()) {
+        when (val r = vehicle.sessionInfo(key.publicKey, VehicleDomain.INFOTAINMENT)) {
+            is VehicleResult.Success -> return true
+            is VehicleResult.Failure -> if (r.error != VehicleError.KeyNotPaired) return false
+            is VehicleResult.Uncertain -> Unit                  // reply lost: ask again
+        }
+        delay(3.seconds)
+    }
+    return false
+}
+```
+
+Swift:
+
+```swift
+for await event in vehicle.addKeyRequest(publicKey: key.publicKey, role: .owner, formFactor: .iosDevice, timeout: nil) {
+    switch onEnum(of: event) {
+    case .sent: print("Tap the key card on the center console, then confirm on the screen")
+    case .waitingForTap: print("Waiting for the card")
+    case .accepted: print("Accepted, waiting for the car to sync")
+    case .rejected(let r): print("Rejected: \(r.error.message)")
+    case .unknown(let u): print("Unknown frame, \(u.raw.size) bytes")
+    case .failed(let f): print("Failed: \(f.error.message)")
+    case .timedOut: print("No answer, checking enrollment")
+    }
+}
+
+// then, every 3 s for up to 2 minutes:
+let r = try await vehicle.sessionInfo(publicKey: key.publicKey, domain: .infotainment, timeout: nil)
+switch onEnum(of: r) {
+case .success: print("enrolled")
+case .failure(let f): print("not yet or failed: \(f.error.message)")   // KeyNotPaired: keep polling
+case .uncertain: print("reply lost, ask again")
+}
+```
+
+> **Warning (ADR-0009).** The reply format of add-key-request was not observed on a real vehicle yet. If you receive
+> `Unknown(raw)`, please report `raw` as hex (hex only, no VIN) together with what the car did.
 
 Roles (`KeyRole`): `OWNER`, `DRIVER`, `FLEET_MANAGER`, `VEHICLE_MONITOR`, `CHARGING_MANAGER`, `GUEST`, `SERVICE`, `NONE`,
 `UNKNOWN` (newer firmware). Form factors (`KeyFormFactor`): `NFC_CARD`, `IOS_DEVICE`, `ANDROID_DEVICE`, `CLOUD_KEY`,
