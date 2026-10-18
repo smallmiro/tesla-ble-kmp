@@ -74,7 +74,10 @@ public interface Vehicle {
         timeout: Duration? = null,
     ): Flow<PairingEvent>
 
-    /** 키를 바로 등록한다(FR-027, 이미 승인된 세션에서). VCSEC(GCM). 세션이 없으면 `NoSession`. 실패는 `InsufficientPrivileges`/`KeychainRejected`. `Uncertain`이면 `listKeys()`로 확인. */
+    /**
+     * 키를 바로 등록한다(FR-027, 이미 승인된 세션에서). VCSEC(GCM). 세션이 없으면 `NoSession`.
+     * 실패는 `InsufficientPrivileges`/`KeychainRejected`. `Uncertain`이면 다시 보내지 말고 `listKeys()`로 확인.
+     */
     public suspend fun addKey(
         publicKey: PublicKeyBytes,
         role: KeyRole = KeyRole.OWNER,
