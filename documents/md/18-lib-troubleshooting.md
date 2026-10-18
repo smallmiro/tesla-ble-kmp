@@ -67,6 +67,8 @@ see what the vehicle pushes without being asked. It changes no behaviour: the li
 | `from=`, `to=` | `domain(DOMAIN_X)`, `address(16B, self\|open-request\|other)` (`to=` only), `none`, `empty` |
 | `payload=` | `FromVCSECMessage{…}`, `Response{fields=[…]}`, `encrypted(NB)`, `NB`, `none` |
 | `unknownFields=[n]` | Field numbers present on the wire but unknown to the generated proto |
+| `uiDesire=`, `gear=` | `vehicleStatus` fields 6 and 7, named by the Teslemetry proto schema (`UI_DESIRE_*`, `GEAR_UNKNOWN\|PARK\|DRIVE\|REVERSE\|NEUTRAL`). Schema names only: the vehicle meaning is not confirmed. Always printed (proto3 enum: absent reads as the zero value) |
+| `authenticationRequest{requestedLevel=…, reasons=[…], token=NB}` | `FromVCSECMessage` field 3, named by the Teslemetry proto schema (field names unverified). The token is shown by length only |
 | `absent=[…]` | Message fields of `vehicleStatus` that were not sent (`closureStatuses`, `detailedClosureStatus`) |
 | `key=sha1:xxxxxxxx` | Public key: first 4 bytes of its SHA-1 only |
 
@@ -93,7 +95,8 @@ Limits and rules:
   does not touch FR-112: it applies only to a frame the vehicle originally sent as plaintext, never to anything the
   library decrypted. The gate is all of: `from=domain(DOMAIN_VEHICLE_SECURITY)`, `to=domain(DOMAIN_BROADCAST)`, empty
   `request_uuid`, no `signature_data`, no `session_info`, and a payload that decodes as `FromVCSECMessage`. For such
-  frames only `FromVCSECMessage` unknown fields 48 and 53 and `VehicleStatus` unknown fields 7 and 8 are decoded; every
+  frames only `FromVCSECMessage` unknown fields 48 and 53 and `VehicleStatus` unknown field 8 are decoded (`VehicleStatus` 7
+  is now the named `gear`; a gear value outside the schema shows as `unknownFields=[7]`); every
   other unknown field, and every other frame (replies, encrypted, addressed to a routing address, unwrapped
   reinterpretations), keeps the number-only form.
 - Ciphertext and `session_info` are logged by length only; public keys by SHA-1 prefix only; the VIN and plaintext

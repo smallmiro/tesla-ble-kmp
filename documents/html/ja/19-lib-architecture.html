@@ -64,6 +64,7 @@
 <li><a href="#sec-ble">Bluetooth アダプター</a></li>
 <li><a href="#sec-facade">ファサード</a></li>
 <li><a href="#sec-cache">セッションキャッシュ</a></li>
+<li><a href="#sec-proto">プロトコル定義</a></li>
 </ol></div>
 
 <h2 id="sec-modules">モジュール</h2>
@@ -126,6 +127,17 @@
 
 <h2 id="sec-cache">セッションキャッシュ</h2>
 <p>次の接続で新しいハンドシェイクなしにコマンドを送れるよう、セッションは小さなバイナリ形式 (バージョン 1) で保存されます。セッションはクライアントキー (その公開鍵の SHA-1) に結び付けられ、他のキーのセッションは無視されて削除されます。保存のタイミングは、ハンドシェイクの完了時、セッション情報の変更時、切断時です。秘密鍵、セッション暗号鍵、生の VIN は決して保存されません。破損したエントリや認識できないエントリはスキップされ、残りが復元されます。</p>
+
+<h2 id="sec-proto">プロトコル定義</h2>
+<p><code>:domain</code> モジュールは Wire 7.0.4 で 9 個の <code>.proto</code> ファイルから Kotlin を生成します。2026-10-18 以降、これらのファイルは固定されたコミット（<code>e6f7afb1</code>、Apache-2.0）の Teslemetry/tesla-protocol を無修正でコピーしたものです。このスナップショットには公式の vehicle-command 定義と、<code>TESLEMETRY-EXT</code> と記された追加分が含まれ、一部は <code>UNCONFIRMED</code> や <code>name unverified</code> とも記されています。出典は <code>NOTICE</code> と <code>PROTO_SOURCE.md</code> に記録しています。</p>
+<table>
+<thead><tr><th>項目</th><th>ルール</th></tr></thead>
+<tbody>
+<tr><td>正しさの基準</td><td>意味、暗号、ルーティング、エラーは公式 Go コード（vehicle-command <code>a4b43c1</code>）が基準です。両者が食い違う場合は Go コードに従います。</td></tr>
+<tr><td>追加されたフィールドと値</td><td>生成された型としてだけ存在します。実車か Go コードで確認されるまで、どのコマンド、イベント、公開値もこれを使いません。<code>KeyRole</code> と <code>KeyFormFactor</code> はこれを <code>UNKNOWN</code> として読みます。</td></tr>
+<tr><td>更新</td><td>tesla-protocol を固定コミットでチェックアウトし、<code>tools/proto/sync-protos.sh &lt;checkout&gt;</code> を実行します（ネットワークは使わず、別のコミットなら拒否します）。再生成してから <code>apiDump</code> とテストを実行します。固定コミットはスクリプトと <code>docs/PATHS.md</code> で同じ PR の中で変更します。</td></tr>
+</tbody>
+</table>
 
 <footer class="page-nav">
   <a href="18-lib-troubleshooting.html"><span>前へ</span>18. トラブルシューティング</a>

@@ -85,7 +85,7 @@
 <tr><td><code>KeyNotPaired</code></td><td>차량이 이 키를 모름</td><td>아니요</td><td>아니요</td></tr>
 <tr><td><code>InsufficientPrivileges</code></td><td>키 역할이나 차량 상태(주행 중, 발레)가 명령을 허용하지 않음</td><td>아니요</td><td>아니요</td></tr>
 <tr><td><code>Busy</code></td><td>차량이 대기를 요청함</td><td>예</td><td>아니요</td></tr>
-<tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UnknownVcsecError</code>, <code>UnknownResponse</code></td><td>새 펌웨어가 이 라이브러리가 모르는 코드를 보냄. 업데이트를 확인하세요</td><td>아니요</td><td>아니요</td></tr>
+<tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UnknownVcsecError</code>, <code>UnknownResponse</code></td><td>새 펌웨어가 이 라이브러리의 프로토콜 정의에 없는 코드를 보냄. 업데이트를 확인하세요</td><td>아니요</td><td>아니요</td></tr>
 <tr><td><code>NotConnected</code>, <code>NoSession</code>, <code>RequiresKey</code></td><td>잘못된 순서로 또는 키 없이 호출함</td><td>아니요</td><td>아니요</td></tr>
 <tr><td><code>BadResponse</code></td><td>응답을 읽을 수 없음</td><td>아니요</td><td>VCSEC와 Infotainment 응답이면 예</td></tr>
 <tr><td><code>KeychainRejected</code>, <code>VcsecRejected</code>, <code>InfotainmentRejected</code></td><td>차량이 이해했지만 거부함</td><td>아니요</td><td>아니요</td></tr>
@@ -96,6 +96,18 @@
 </tbody>
 </table>
 <p>모든 프로토콜 fault 코드의 의미는 <a href="09-errors-troubleshooting.html#sec-fault">9. 오류와 문제 해결</a>에 있습니다.</p>
+<h3 id="sec-schema-codes">확장된 프로토콜 정의에서 온 코드</h3>
+<p>2026-10-18부터 라이브러리의 프로토콜 정의는 Teslemetry/tesla-protocol의 고정된 스냅샷에서 가져옵니다. 이 스냅샷은 공식 정의에 코드를 더한 것입니다(<a href="19-lib-architecture.html#sec-proto">19. 아키텍처</a> 참고). 스냅샷에 있는 코드는 이제 숫자를 담은 <code>Unknown…</code> 타입 대신 이름이 있는 오류 타입으로 알립니다. 라이브러리의 재시도 여부는 바뀌지 않습니다. 코드 이름은 스냅샷에서 온 것이며 실차에서 확인되지 않았습니다.</p>
+<table>
+<thead><tr><th>코드</th><th>이전</th><th>현재</th></tr></thead>
+<tbody>
+<tr><td>프로토콜 fault 29 <code>MESSAGEFAULT_ERROR_COMMAND_REQUIRES_PHYSICAL_PROXIMITY</code></td><td><code>UnknownFault(29)</code></td><td><code>ProtocolFault</code>, 재시도하지 않음</td></tr>
+<tr><td>키 목록 코드 29~32(rider·predelivery 키)</td><td><code>UnknownKeychainCode</code></td><td><code>KeychainRejected</code></td></tr>
+<tr><td>VCSEC 오류 8 <code>GENERICERROR_KEY_NOT_FOUND</code>, 9 <code>GENERICERROR_NOT_SUPPORTED</code></td><td><code>UnknownVcsecError</code></td><td><code>VcsecRejected</code></td></tr>
+<tr><td>세션 정보 상태 2 <code>SESSION_INFO_STATUS_INVALID_HANDLE</code></td><td><code>UnknownResponse</code></td><td><code>UnknownResponse</code>(공식 Go 코드도 이 값을 모릅니다)</td></tr>
+</tbody>
+</table>
+<p><code>message</code>가 아니라 오류 타입으로 판단하세요. 이제 메시지에는 숫자 대신 코드 이름이 들어갑니다.</p>
 
 <h2 id="sec-transport">블루투스와 키 보관소 오류</h2>
 <p>연결은 연결 시간 제한까지 1초마다 이미 재시도됩니다. 마지막 열은 앱이 할 일입니다.</p>

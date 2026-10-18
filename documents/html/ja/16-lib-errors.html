@@ -85,7 +85,7 @@
 <tr><td><code>KeyNotPaired</code></td><td>車両がこのキーを知らない</td><td>いいえ</td><td>いいえ</td></tr>
 <tr><td><code>InsufficientPrivileges</code></td><td>キーの役割や車両の状態(走行中、バレー)がコマンドを許可していない</td><td>いいえ</td><td>いいえ</td></tr>
 <tr><td><code>Busy</code></td><td>車両が待つよう求めた</td><td>はい</td><td>いいえ</td></tr>
-<tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UnknownVcsecError</code>, <code>UnknownResponse</code></td><td>新しいファームウェアがこのライブラリの知らないコードを送った。アップデートを確認してください</td><td>いいえ</td><td>いいえ</td></tr>
+<tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UnknownVcsecError</code>, <code>UnknownResponse</code></td><td>新しいファームウェアがこのライブラリのプロトコル定義にないコードを送った。アップデートを確認してください</td><td>いいえ</td><td>いいえ</td></tr>
 <tr><td><code>NotConnected</code>, <code>NoSession</code>, <code>RequiresKey</code></td><td>呼び出し順が誤っているか、キーなしで呼び出した</td><td>いいえ</td><td>いいえ</td></tr>
 <tr><td><code>BadResponse</code></td><td>応答を読み取れなかった</td><td>いいえ</td><td>VCSEC と Infotainment の応答でははい</td></tr>
 <tr><td><code>KeychainRejected</code>, <code>VcsecRejected</code>, <code>InfotainmentRejected</code></td><td>車両は理解したが拒否した</td><td>いいえ</td><td>いいえ</td></tr>
@@ -96,6 +96,18 @@
 </tbody>
 </table>
 <p>各プロトコルフォールトコードの意味は <a href="09-errors-troubleshooting.html#sec-fault">9. エラーとトラブルシューティング</a> にあります。</p>
+<h3 id="sec-schema-codes">拡張されたプロトコル定義から来るコード</h3>
+<p>2026-10-18 以降、ライブラリのプロトコル定義は Teslemetry/tesla-protocol の固定されたスナップショットから取り込んでいます。このスナップショットは公式の定義にコードを追加したものです（<a href="19-lib-architecture.html#sec-proto">19. アーキテクチャ</a> を参照）。スナップショットにあるコードは、番号を持つ <code>Unknown…</code> 型ではなく、名前のあるエラー型で通知されるようになりました。ライブラリが再試行するかどうかは変わりません。コード名はスナップショット由来で、実車では確認されていません。</p>
+<table>
+<thead><tr><th>コード</th><th>以前</th><th>現在</th></tr></thead>
+<tbody>
+<tr><td>プロトコル fault 29 <code>MESSAGEFAULT_ERROR_COMMAND_REQUIRES_PHYSICAL_PROXIMITY</code></td><td><code>UnknownFault(29)</code></td><td><code>ProtocolFault</code>、再試行しない</td></tr>
+<tr><td>キーリストのコード 29〜32（rider・predelivery キー）</td><td><code>UnknownKeychainCode</code></td><td><code>KeychainRejected</code></td></tr>
+<tr><td>VCSEC エラー 8 <code>GENERICERROR_KEY_NOT_FOUND</code>、9 <code>GENERICERROR_NOT_SUPPORTED</code></td><td><code>UnknownVcsecError</code></td><td><code>VcsecRejected</code></td></tr>
+<tr><td>セッション情報のステータス 2 <code>SESSION_INFO_STATUS_INVALID_HANDLE</code></td><td><code>UnknownResponse</code></td><td><code>UnknownResponse</code>（公式 Go コードもこの値を知りません）</td></tr>
+</tbody>
+</table>
+<p><code>message</code> ではなくエラー型で判断してください。メッセージには番号の代わりにコード名が入るようになりました。</p>
 
 <h2 id="sec-transport">Bluetooth とキーストアのエラー</h2>
 <p>接続は接続タイムアウトまで 1 秒ごとにすでにリトライされます。最後の列はアプリがすべきことです。</p>

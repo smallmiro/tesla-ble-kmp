@@ -85,7 +85,7 @@
 <tr><td><code>KeyNotPaired</code></td><td>The car does not know this key</td><td>no</td><td>no</td></tr>
 <tr><td><code>InsufficientPrivileges</code></td><td>The key role or the car state (driving, valet) does not allow the command</td><td>no</td><td>no</td></tr>
 <tr><td><code>Busy</code></td><td>The car asked to wait</td><td>yes</td><td>no</td></tr>
-<tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UnknownVcsecError</code>, <code>UnknownResponse</code></td><td>Newer firmware sent a code this library does not know; check for an update</td><td>no</td><td>no</td></tr>
+<tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UnknownVcsecError</code>, <code>UnknownResponse</code></td><td>Newer firmware sent a code that is not in this library's protocol definitions; check for an update</td><td>no</td><td>no</td></tr>
 <tr><td><code>NotConnected</code>, <code>NoSession</code>, <code>RequiresKey</code></td><td>Called in the wrong order or without a key</td><td>no</td><td>no</td></tr>
 <tr><td><code>BadResponse</code></td><td>The answer could not be read</td><td>no</td><td>yes for VCSEC and Infotainment answers</td></tr>
 <tr><td><code>KeychainRejected</code>, <code>VcsecRejected</code>, <code>InfotainmentRejected</code></td><td>The car understood but refused</td><td>no</td><td>no</td></tr>
@@ -96,6 +96,18 @@
 </tbody>
 </table>
 <p>The meaning of every protocol fault code is in <a href="09-errors-troubleshooting.html#sec-fault">9. Errors and Troubleshooting</a>.</p>
+<h3 id="sec-schema-codes">Codes from the extended protocol definitions</h3>
+<p>Since 2026-10-18 the library's protocol definitions come from a pinned snapshot of Teslemetry/tesla-protocol, which adds codes to the official ones (see <a href="19-lib-architecture.html#sec-proto">19. Architecture</a>). A code in that snapshot is now reported with its named error type instead of an <code>Unknown…</code> type with a number. Whether the library retries does not change. The code names come from the snapshot and are not confirmed on a real car.</p>
+<table>
+<thead><tr><th>Code</th><th>Before</th><th>Now</th></tr></thead>
+<tbody>
+<tr><td>Protocol fault 29 <code>MESSAGEFAULT_ERROR_COMMAND_REQUIRES_PHYSICAL_PROXIMITY</code></td><td><code>UnknownFault(29)</code></td><td><code>ProtocolFault</code>, not retried</td></tr>
+<tr><td>Key list codes 29 to 32 (rider and predelivery keys)</td><td><code>UnknownKeychainCode</code></td><td><code>KeychainRejected</code></td></tr>
+<tr><td>VCSEC errors 8 <code>GENERICERROR_KEY_NOT_FOUND</code> and 9 <code>GENERICERROR_NOT_SUPPORTED</code></td><td><code>UnknownVcsecError</code></td><td><code>VcsecRejected</code></td></tr>
+<tr><td>Session info status 2 <code>SESSION_INFO_STATUS_INVALID_HANDLE</code></td><td><code>UnknownResponse</code></td><td><code>UnknownResponse</code> (the official Go code does not know it either)</td></tr>
+</tbody>
+</table>
+<p>Check the error type, not <code>message</code>: the message now shows the code name instead of the number.</p>
 
 <h2 id="sec-transport">Bluetooth and key store errors</h2>
 <p>Connecting is already retried every second until the connect timeout. The last column is what the app should do.</p>

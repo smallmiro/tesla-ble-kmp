@@ -147,6 +147,8 @@
 <tr><td><code>from=</code>, <code>to=</code></td><td><code>domain(DOMAIN_X)</code>, <code>address(16B, self|open-request|other)</code>（<code>to=</code> のみ）, <code>none</code>, <code>empty</code></td></tr>
 <tr><td><code>payload=</code></td><td><code>FromVCSECMessage{…}</code>, <code>Response{fields=[…]}</code>, <code>encrypted(NB)</code>, <code>NB</code>, <code>none</code></td></tr>
 <tr><td><code>unknownFields=[n]</code></td><td>通信上にはあったが、生成されたプロトコルが知らないフィールド番号です</td></tr>
+<tr><td><code>uiDesire=</code>, <code>gear=</code></td><td>車両状態のフィールド 6・7 で、拡張されたプロトコル定義が付けた名前です（<code>GEAR_UNKNOWN</code>、<code>GEAR_PARK</code>、<code>GEAR_DRIVE</code>、<code>GEAR_REVERSE</code>、<code>GEAR_NEUTRAL</code>）。分かっているのは名前だけで、車両での意味は確認されていません。enum は欠けると 0 の値として読まれるので、常に記します</td></tr>
+<tr><td><code>authenticationRequest{requestedLevel=…, reasons=[…], token=NB}</code></td><td><code>FromVCSECMessage</code> のフィールド 3 で、拡張されたプロトコル定義が付けた名前です（フィールド名は未確認）。トークンは長さだけを記します</td></tr>
 <tr><td><code>absent=[…]</code></td><td>車が送ってこなかった車両状態の部分です（<code>closureStatuses</code>, <code>detailedClosureStatus</code>）</td></tr>
 <tr><td><code>key=sha1:xxxxxxxx</code></td><td>公開鍵: SHA-1 の先頭4バイトだけを記します</td></tr>
 </tbody>
@@ -166,7 +168,7 @@
 <p>VIN（17文字）は16進を作る前に、テキストと生バイトの両方で伏せます。先頭3文字と末尾4文字だけが残ります。伏せ字化は解析の前に生バイトに対して行うため、伏せたバイトによって表示される値や構造が変わることがあります（漏れはありません）。この出力は探索用にすぎません。フィールドの意味は分からず、ブロードキャストに <code>closureStatuses</code> がなくても、すべて閉まっているとは限りません。</p>
 <h3>制限とルール</h3>
 <ul>
-<li>詳細デコードは狭い例外で、車両が元々平文で送ったフレームにだけ適用します（ライブラリが復号したものには使わないので FR-112 とは衝突しません）。次がすべて成り立つ必要があります: セキュリティドメインから発信、ブロードキャストドメイン宛て、リクエスト UUID なし、署名なし、セッション情報なし、ペイロードが <code>FromVCSECMessage</code> として読める。その場合 <code>FromVCSECMessage</code> の未公開フィールド 48・53 と <code>VehicleStatus</code> の未公開フィールド 7・8 だけを展開します。それ以外のフィールドとフレームは番号だけを記します。</li>
+<li>詳細デコードは狭い例外で、車両が元々平文で送ったフレームにだけ適用します（ライブラリが復号したものには使わないので FR-112 とは衝突しません）。次がすべて成り立つ必要があります: セキュリティドメインから発信、ブロードキャストドメイン宛て、リクエスト UUID なし、署名なし、セッション情報なし、ペイロードが <code>FromVCSECMessage</code> として読める。その場合 <code>FromVCSECMessage</code> の未公開フィールド 48・53 と <code>VehicleStatus</code> の未公開フィールド 8 だけを展開します（フィールド 7 は名前のある <code>gear</code> になり、定義にないギア値は <code>unknownFields=[7]</code> と表示されます）。それ以外のフィールドとフレームは番号だけを記します。</li>
 <li>enum の値が欠けている場合と 0 番の値は区別できません。ロック状態がなければ <code>VEHICLELOCKSTATE_UNLOCKED</code> と読めます（sleep と presence は <code>UNKNOWN</code>）。<code>absent</code> として分かるのはメッセージの部分だけです。</li>
 <li>暗号化された内容とセッション情報は長さだけ、公開鍵は SHA-1 の先頭だけを記します。VIN と復号した内容は出力されません。行を追加するときもこのルールを守ってください。</li>
 <li>BLE トランスポートは接続ごとに受信バッファの溢れを数えます。破棄したメッセージごとに <code>ERROR</code> で <code>Dropping received message because inbox is full (dropped N since connect)</code> を出し、リンクが終わると <code>WARN</code> で <code>BLE inbox overflowed N time(s) during this connection</code> を1行出します（N が 0 より大きいときだけ）。</li>

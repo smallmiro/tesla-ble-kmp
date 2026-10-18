@@ -175,4 +175,6 @@ case .uncertain: print("reply lost, ask again")
 
 Roles (`KeyRole`): `OWNER`, `DRIVER`, `FLEET_MANAGER`, `VEHICLE_MONITOR`, `CHARGING_MANAGER`, `GUEST`, `SERVICE`, `NONE`,
 `UNKNOWN` (newer firmware). Form factors (`KeyFormFactor`): `NFC_CARD`, `IOS_DEVICE`, `ANDROID_DEVICE`, `CLOUD_KEY`,
-`UNKNOWN`. Which commands each role may send: `05-command-catalog.md`.
+`UNKNOWN`. Values that exist only in the Teslemetry proto schema (for example `ROLE_RIDER`, `KEY_FORM_FACTOR_APPLE_WATCH`,
+`KEY_FORM_FACTOR_NFC_CARD_P71`) read as `UNKNOWN` (`19-lib-architecture.md`). Which commands each role may send:
+`05-command-catalog.md`.
