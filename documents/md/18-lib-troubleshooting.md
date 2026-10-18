@@ -95,8 +95,9 @@ Limits and rules:
   does not touch FR-112: it applies only to a frame the vehicle originally sent as plaintext, never to anything the
   library decrypted. The gate is all of: `from=domain(DOMAIN_VEHICLE_SECURITY)`, `to=domain(DOMAIN_BROADCAST)`, empty
   `request_uuid`, no `signature_data`, no `session_info`, and a payload that decodes as `FromVCSECMessage`. For such
-  frames only `FromVCSECMessage` unknown fields 48 and 53 and `VehicleStatus` unknown field 8 are decoded (`VehicleStatus` 7
-  is now the named `gear`; a gear value outside the schema shows as `unknownFields=[7]`); every
+  frames only `FromVCSECMessage` unknown fields 48 and 53 and `VehicleStatus` unknown fields 7 and 8 are decoded (`VehicleStatus`
+  7 is now the named `gear`, so it is unknown only when its value is outside the schema; that raw value is still shown,
+  for example `unknownFields=[7:varint=9(0x9)]`, because the gear meaning is not confirmed); every
   other unknown field, and every other frame (replies, encrypted, addressed to a routing address, unwrapped
   reinterpretations), keeps the number-only form.
 - Ciphertext and `session_info` are logged by length only; public keys by SHA-1 prefix only; the VIN and plaintext
