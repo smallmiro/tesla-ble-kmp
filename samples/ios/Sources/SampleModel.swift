@@ -327,11 +327,24 @@ final class SampleModel: ObservableObject {
     /// 관찰 중일 때만 `[HH:mm:ss +12.3s] <line>`으로 쌓는다(최대 500줄, 넘치면 앞에서 지운다).
     private func observed(_ line: String) {
         guard observing, let start = observeStart else { return }
-        let elapsed = String(format: "%.1f", Date().timeIntervalSince(start))
-        observations.append("[\(Self.clock.string(from: Date())) +\(elapsed)s] \(line)")
+        append("\(ObservationMark.prefix(now: Date(), since: start)) \(line)")
+    }
+
+    private func append(_ line: String) {
+        observations.append(line)
         if observations.count > Self.maxObservations {
             observations.removeFirst(observations.count - Self.maxObservations)
         }
+    }
+
+    /// 사람이 남기는 메모 줄. 관찰 모드에서만, 빈 메모는 무시한다. 차량 요청은 보내지 않는다.
+    /// 성공하면 true(화면이 입력칸을 비운다).
+    @discardableResult
+    func mark(_ memo: String) -> Bool {
+        guard observing, let start = observeStart,
+              let line = ObservationMark.line(memo: memo, now: Date(), since: start) else { return false }
+        append(line)
+        return true
     }
 
     func clearObservations() {
