@@ -24,7 +24,7 @@ kotlin {
         freeCompilerArgs.add("-Xwarning-level=PARAMETER_NAME_CHANGED_ON_OVERRIDE:disabled")
         // Teslemetry 스냅샷(ADR-0002 개정 2026-10-18)의 repeated packed 필드(VehicleDataAck, VehicleState 등)에서
         // Wire 7.0.4가 `mutableList!!`를 생성해 K2가 UNNECESSARY_NOT_NULL_ASSERTION 경고를 낸다. 생성 코드라 고칠 수 없어
-        // 이 진단만 끈다(손으로 쓴 :domain 코드의 `!!`는 detekt UnsafeCallOnNullableType 등이 계속 본다).
+        // 이 진단만 끈다(손으로 쓴 src/*Main 코드의 `!!`는 forbiddenTokens 태스크가 계속 금지한다).
         freeCompilerArgs.add("-Xwarning-level=UNNECESSARY_NOT_NULL_ASSERTION:disabled")
     }
 }
