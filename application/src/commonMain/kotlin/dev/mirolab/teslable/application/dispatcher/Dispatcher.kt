@@ -137,8 +137,9 @@ public class Dispatcher
         /** 같은 연결의 형제 계층이 링크 끊김을 본다. */
         internal val transportState: StateFlow<TransportState> get() = transport.state
 
-        /** 감싸지 않은 프레임을 그대로 보낸다(Go `v.conn.Send`, security.go:356). 재시도하지 않는다(Go와 같음). */
-        public suspend fun sendUnrouted(frame: ByteArray): VehicleResult<Unit> {
+        /** 감싸지 않은 프레임을 그대로 보낸다(Go `v.conn.Send`, security.go:356). 재시도하지 않는다(Go와 같음).
+         * `internal` — VCSEC 직렬화(FR-049)를 우회하지 못하게 같은 모듈의 `Pairing`만 쓴다(락은 호출자가 잡는다). */
+        internal suspend fun sendUnrouted(frame: ByteArray): VehicleResult<Unit> {
             if (!isListening) return VehicleResult.Failure(VehicleError.NotConnected)
             return transport.send(frame.copyOf())
         }

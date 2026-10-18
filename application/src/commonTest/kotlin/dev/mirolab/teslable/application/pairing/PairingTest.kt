@@ -208,4 +208,28 @@ class PairingTest {
             )
             assertEquals(2, h.fake.presentKeys.size)
         }
+
+    @Test
+    fun staleFrameArrivingWhileWaitingForTheLockIsNotThisRequestsResult() =
+        // 이전 페어링(TimedOut)의 늦은 결과가 락 대기 중에 도착해도 이번 요청의 결과로 보지 않는다
+        runTest {
+            val h = dispatcherHarness()
+            val session = VehicleSession(h.dispatcher)
+            h.fake.script(vcsec, emptyList())
+            val query = async { session.info.keySummary(timeout = 5.seconds) }
+            runCurrent()
+            val pairing = async { session.pairing.addKeyRequest(key, KeyRole.OWNER, KeyFormFactor.IOS_DEVICE, 60.seconds).toList() }
+            runCurrent()
+            assertTrue(h.fake.presentKeys.isEmpty())
+            h.transport.deliver(FakeVehicle.presentKeyResult(none)) // 낡은 Accepted
+            runCurrent()
+            val full = WhitelistOperation_information_E.WHITELISTOPERATION_INFORMATION_WHITELIST_FULL
+            h.fake.scriptPresentKey(FakeVehicle.presentKeyResult(full))
+            advanceTimeBy(6.seconds)
+            assertIs<VehicleResult.Uncertain>(query.await())
+            assertEquals(
+                listOf(PairingEvent.Sent, PairingEvent.Rejected(VehicleError.KeychainRejected(full))),
+                pairing.await(),
+            )
+        }
 }

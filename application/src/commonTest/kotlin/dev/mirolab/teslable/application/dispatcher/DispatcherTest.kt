@@ -547,15 +547,6 @@ class DispatcherTest {
             assertTrue(h.logger.contains("Discarding session info because client does not have a private key"))
         }
 
-    private companion object {
-        /** protocol.md client 공개키 hex (SessionInfoRequest.public_key 확인용). */
-        val TestCryptoPublicKeyHex: String =
-            TestCrypto.clientPublicKey
-                .toByteArray()
-                .toByteString()
-                .hex()
-    }
-
     @Test
     fun unroutedFramesAreTappedAndStillDropped() =
         // ADR-0009: 원시 프레임 탭은 파싱 단계에서 분기하고 드롭 규칙은 그대로다
@@ -580,4 +571,13 @@ class DispatcherTest {
             val h = dispatcherHarness(start = false)
             assertEquals(VehicleResult.Failure(VehicleError.NotConnected), h.dispatcher.sendUnrouted(byteArrayOf(1)))
         }
+
+    private companion object {
+        /** protocol.md client 공개키 hex (SessionInfoRequest.public_key 확인용). */
+        val TestCryptoPublicKeyHex: String =
+            TestCrypto.clientPublicKey
+                .toByteArray()
+                .toByteString()
+                .hex()
+    }
 }
