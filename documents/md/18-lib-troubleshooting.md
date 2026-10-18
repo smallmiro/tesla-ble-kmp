@@ -70,10 +70,32 @@ see what the vehicle pushes without being asked. It changes no behaviour: the li
 | `absent=[…]` | Message fields of `vehicleStatus` that were not sent (`closureStatuses`, `detailedClosureStatus`) |
 | `key=sha1:xxxxxxxx` | Public key: first 4 bytes of its SHA-1 only |
 
+Detail form (exploration only): `unknownFields=[48:len(8){1:varint=3(0x3), 2:len(4)"ABCD"}, 9]`. Entries are in arrival
+order, repeated fields repeated. The path number and wire type are kept and no field name is invented.
+
+| Wire type | Shown as |
+|---|---|
+| varint | `varint=<unsigned decimal>(0x<hex>)` |
+| fixed32 / fixed64 | `fixed32=0x<8 hex digits>` / `fixed64=0x<16 hex digits>` |
+| LEN | `len(N){…}` when the whole range parses as protobuf (max depth 3, 64 fields per message, 256 bytes); else `len(N)"text"` for printable ASCII (control characters escaped); else `len(N)0x<hex>` |
+| over a limit | `len(N, truncated)`; corrupt unknown-field buffer: `len(N, invalid)` |
+| key-like LEN | exactly 16, 32, 33, 64 or 65 bytes: `redacted(NB)`; a 65-byte value starting with `0x04`: `sha1:xxxxxxxx` |
+
+VINs (`[A-HJ-NPR-Z0-9]{17}`) are masked in text and in raw bytes before any hex is produced (first 3 and last 4
+characters kept). This output is for exploration. It does not give the meaning of a field, and a missing
+`closureStatuses` in a broadcast does not mean "everything is closed".
+
 Limits and rules:
 
 - proto3 enums cannot tell "missing" from the zero value: an absent lock state reads `VEHICLELOCKSTATE_UNLOCKED`
   (sleep and presence read `UNKNOWN`). Only message fields can be reported as `absent`.
+- Detailed unknown-field decoding (observation log v2) is the one narrow exception to "no plaintext payloads", and it
+  does not touch FR-112: it applies only to a frame the vehicle originally sent as plaintext, never to anything the
+  library decrypted. The gate is all of: `from=domain(DOMAIN_VEHICLE_SECURITY)`, `to=domain(DOMAIN_BROADCAST)`, empty
+  `request_uuid`, no `signature_data`, no `session_info`, and a payload that decodes as `FromVCSECMessage`. For such
+  frames only `FromVCSECMessage` unknown fields 48 and 53 and `VehicleStatus` unknown fields 7 and 8 are decoded; every
+  other unknown field, and every other frame (replies, encrypted, addressed to a routing address, unwrapped
+  reinterpretations), keeps the number-only form.
 - Ciphertext and `session_info` are logged by length only; public keys by SHA-1 prefix only; the VIN and plaintext
   payloads of encrypted messages never appear. Keep the rule when you add lines.
 - The BLE transport counts inbox overflows per connection. Each dropped message logs

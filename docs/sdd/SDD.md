@@ -710,7 +710,7 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 - `protocol.md` 테스트 키는 `:testing`에만 존재하고 `:sdk`에서 참조하지 않는다(detekt `ForbiddenImport`로 `:testing` → 운영 모듈 유입 차단).
 - 비밀 스캔 로컬 게이트(`tools/ci/verify.sh`, ADR-0012): `[A-HJ-NPR-Z0-9]{17}` VIN 패턴은 테스트 VIN(`5YJ30123456789ABC`, `5YJS0000000000000`, `0123456789ABCDEFG`) 허용 목록만 통과.
 - 서버 없음: Android 매니페스트에 `INTERNET` 권한이 없어야 하며, 로컬 게이트가 확인한다.
-- 관찰 로그(M4): `Dispatcher`가 버리는 메시지와 VCSEC 응답마다 요약 한 줄을 `DEBUG`, 태그 `observe`로 남긴다. 바이트 필드는 길이만, 공개키는 SHA-1 앞 4바이트만, 암호문과 세션정보는 길이만 쓰고, 감싸지 않은 프레임은 `FromVCSECMessage`로 다시 해석해 요약한다(평문 페이로드는 쓰지 않는다, FR-112). 형식은 `{{LIB_DOCS_DIR}}18-lib-troubleshooting.md` "Observation log". BLE inbox 넘침은 연결당 횟수를 세어 연결이 끝날 때 한 줄 남긴다.
+- 관찰 로그(M4): `Dispatcher`가 버리는 메시지와 VCSEC 응답마다 요약 한 줄을 `DEBUG`, 태그 `observe`로 남긴다. 바이트 필드는 길이만, 공개키는 SHA-1 앞 4바이트만, 암호문과 세션정보는 길이만 쓰고, 감싸지 않은 프레임은 `FromVCSECMessage`로 다시 해석해 요약한다(복호화한 평문 페이로드는 쓰지 않는다, FR-112). 단 하나의 좁은 예외로, VCSEC가 원래 평문으로 보낸 `DOMAIN_BROADCAST` 프레임(서명·세션정보·요청 UUID 없음)의 `FromVCSECMessage` 미공개 필드 48·53과 `VehicleStatus` 미공개 필드 7·8은 값을 탐색용으로 상세 디코드한다(깊이 3, 필드 64개, LEN 256바이트 제한. 바이트를 포맷하기 전에 VIN을 가리고, 키·서명처럼 보이는 16/32/33/64/65바이트 LEN은 `redacted(NB)`로 남긴다). 복호화한 것이 아니라 원래 평문이므로 FR-112와 충돌하지 않는다. 형식은 `{{LIB_DOCS_DIR}}18-lib-troubleshooting.md` "Observation log". BLE inbox 넘침은 연결당 횟수를 세어 연결이 끝날 때 한 줄 남긴다.
 
 ---
 

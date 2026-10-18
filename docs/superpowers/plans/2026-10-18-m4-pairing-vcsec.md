@@ -39,7 +39,7 @@ SDD·ADR이 비워 두었거나 M3 인계 노트·푸시 관찰 인계 노트가
 - 의존 방향(ADR-0001)은 바꾸지 않는다: `:application`·`:adapter-*` → `:domain`만, `:sdk` → 전부, `samples/*` → `:sdk`만, `:testing`은 테스트 소스셋에서만.
 - 금지: `!!`, `lateinit`(테스트 제외), `GlobalScope`, `runBlocking`(테스트 제외), `println`, 자체 구현 암호, `INTERNET` 권한·네트워크 호출, 개인키 내보내기 API.
 - 예외는 `CancellationException`과 프로그래밍 오류(`IllegalArgumentException`/`IllegalStateException`)에만(ADR-0006). 취소는 값으로 바꾸지 않는다(ADR-0010).
-- 로그(FR-112, SDD §10, 절대 규칙 8): VIN은 `Vin.toString()`(마스킹)만, TX/RX 헥사는 DEBUG에서만(기존 `BleTransport`), **관찰 로그에는 암호문 바이트·세션정보 바이트·공개키 전체를 넣지 않는다**(길이와 `sha1:` 앞 4바이트만). 개인키·공유 X·K·복호화한 평문은 어떤 레벨에서도 금지.
+- 로그(FR-112, SDD §10, 절대 규칙 8): VIN은 `Vin.toString()`(마스킹)만, TX/RX 헥사는 DEBUG에서만(기존 `BleTransport`), **관찰 로그에는 암호문 바이트·세션정보 바이트·공개키 전체를 넣지 않는다**(길이와 `sha1:` 앞 4바이트만. Task 1B의 좁은 예외: 원래 평문 브로드캐스트의 미공개 필드 48·53·7·8은 값을 상세 디코드). 개인키·공유 X·K·복호화한 평문은 어떤 레벨에서도 금지.
 - 포팅 파일 헤더 1행: `// Ported from vehicle-command@a4b43c1 <원본 경로> (Apache-2.0)`(심볼 목록은 2행). 새 포팅 파일은 `tools/ci/ported-files.txt`에 추가. 원본에 대응이 없는 새 파일(관찰 로그, 페어링 이벤트 해석)은 헤더 없이 KDoc 첫 줄에 "원본에 없음"을 적는다. 테스트 VIN은 `5YJ30123456789ABC`, `5YJS0000000000000`, `0123456789ABCDEFG`만.
 - 커밋 접두어 `struct:`/`feat:`/`fix:`/`test:`/`docs:`/`chore:`, 구조 변경 커밋 먼저(Tidy First). `Refs:` 줄은 trailer 블록 안(`Co-Authored-By` 바로 위). 각 Task: 브랜치 `m4/<slug>`(최신 `origin/main`에서) → PR → **`tools/ci/verify.sh` 로컬 통과**(ADR-0012) → AI 리뷰(요약을 PR 본문에) → **rebase merge**. PR 본문 "원본 대응"에 참고한 매뉴얼 절과 Go 파일·줄.
 - 공개 API가 바뀌는 Task는 `./gradlew :<module>:apiDump`(단독 실행)로 `<module>/api/*`를 갱신해 같은 커밋에 넣는다. **Task 1은 `apiDump` 변화가 없어야 한다**(`apiCheck`가 확인).
@@ -915,6 +915,18 @@ Co-Authored-By: Claude Opus 5.5 (1M context) <noreply@anthropic.com>"
 - [ ] **Step 18: 🛑 사용자 실차 관찰(병행).** 사용자에게 빌드 6 설치와 Step 13 시나리오 1~7을 요청하고 **기다리지 않고 Task 2로 넘어간다**. 결과가 오면 Step 13의 형식으로 결과 노트를 쓴다(`docs:` 커밋, 작은 PR).
 
 ---
+
+### Task 1B: 관찰 로그 v2 — 미공개 필드 상세 디코드와 iOS 샘플 "표시" 버튼 (차량 통신·공개 API 변화 없음)
+
+Refs: NFR-006, NFR-003, FR-112. 결정: `.superpowers/sdd/2026-10-18-m4-pairing-vcsec/codex-observation-v2.md`(차주 허락: "자세히 남겨도 되요 제 차입니다").
+1차 실차 관찰에서 `VehicleStatus` 미공개 필드 7·8, `FromVCSECMessage` 미공개 필드 48(20B, 약 5초 주기)·53(54B/220B)이 번호만 보였고 문·트렁크 조작에 `closureStatuses`가 오지 않았다. 값을 봐야 구조를 판단할 수 있다.
+
+- `ObservationLog`(internal): 입구 조건(from=VCSEC, to=BROADCAST, 빈 request_uuid, `signature_data`·`session_info` 없음, `FromVCSECMessage`로 디코드)을 모두 만족할 때만 필드 48·53·7·8을 `unknownFields=[48:len(N){1:varint=3(0x3), 2:len(4)"ABCD"}]`처럼 풀어 쓴다. 나머지는 번호만.
+- 형식: varint는 부호 없는 10진+16진, fixed는 고정 폭 16진, LEN은 전체가 protobuf로 소비되면 재귀(깊이 3, 필드 64개, 256바이트), 아니면 ASCII 텍스트나 헥사. 한계 초과는 `len(N, truncated)`, 손상은 `len(N, invalid)`.
+- 가림: 포맷 전에 VIN 패턴을 가운데 `*`로(텍스트·원시 바이트 모두), 16/32/33/64/65바이트 LEN은 `redacted(NB)`, 0x04로 시작하는 65바이트는 `sha1:` 앞 4바이트. 로거가 DEBUG를 버리면 문자열을 만들지 않는다(기존 `observe {}` 람다).
+- iOS 샘플(빌드 8): 관찰 구역에 메모 칸과 `표시` 버튼. `[HH:mm:ss +12.3s] [mark] <메모>`를 같은 목록(500줄 상한, 결과 전체 복사 포함)에 넣는다. 관찰 모드에서만, 빈 메모 무시, 제어 문자는 공백, 80자 제한, VIN 패턴 마스킹. 차량 요청 없음.
+- 문서: `18-lib-troubleshooting.md`와 HTML 3언어, SDD §10(제한적 예외), 샘플 README(표시 사용법, 2차 시나리오 A-D). 상세 출력은 탐색용이며 `closureStatuses` 부재를 "모두 닫힘"으로 읽지 않는다.
+- 테스트: `ObservationDetailTest`(형식, 한계, VIN, 키 유사, 비대상 프레임), `DispatcherObservationTest`(통합), 샘플 `ObservationMarkTests`.
 
 ### Task 2: 세션 정리 — 오래된 캐시 세션 무효화, 닫힌 세션은 준비 아님
 
