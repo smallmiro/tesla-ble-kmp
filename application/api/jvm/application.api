@@ -120,6 +120,33 @@ public final class dev/mirolab/teslable/application/vcsec/VcsecCommands {
 	public static synthetic fun execute-myKFqkg$default (Ldev/mirolab/teslable/application/vcsec/VcsecCommands;[BLdev/mirolab/teslable/port/AuthMethod;Ldev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalTest;IJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
+public final class dev/mirolab/teslable/application/vcsec/VcsecControl {
+	public final fun actuateTrunk-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun actuateTrunk-VtjQ1oo$default (Ldev/mirolab/teslable/application/vcsec/VcsecControl;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun autoSecureVehicle-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun autoSecureVehicle-VtjQ1oo$default (Ldev/mirolab/teslable/application/vcsec/VcsecControl;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun closeTonneau-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun closeTonneau-VtjQ1oo$default (Ldev/mirolab/teslable/application/vcsec/VcsecControl;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun closeTrunk-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun closeTrunk-VtjQ1oo$default (Ldev/mirolab/teslable/application/vcsec/VcsecControl;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun lock-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun lock-VtjQ1oo$default (Ldev/mirolab/teslable/application/vcsec/VcsecControl;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun openFrunk-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun openFrunk-VtjQ1oo$default (Ldev/mirolab/teslable/application/vcsec/VcsecControl;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun openTonneau-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun openTonneau-VtjQ1oo$default (Ldev/mirolab/teslable/application/vcsec/VcsecControl;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun openTrunk-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun openTrunk-VtjQ1oo$default (Ldev/mirolab/teslable/application/vcsec/VcsecControl;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun remoteDrive-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun remoteDrive-VtjQ1oo$default (Ldev/mirolab/teslable/application/vcsec/VcsecControl;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun stopTonneau-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun stopTonneau-VtjQ1oo$default (Ldev/mirolab/teslable/application/vcsec/VcsecControl;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun unlock-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun unlock-VtjQ1oo$default (Ldev/mirolab/teslable/application/vcsec/VcsecControl;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun wakeUp-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun wakeUp-VtjQ1oo$default (Ldev/mirolab/teslable/application/vcsec/VcsecControl;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+}
+
 public final class dev/mirolab/teslable/application/vcsec/VcsecResponses {
 	public static final field INSTANCE Ldev/mirolab/teslable/application/vcsec/VcsecResponses;
 	public final fun getCOMMAND_STATUS_ABSENT ()Ldev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalTest;
@@ -213,6 +240,7 @@ public final class dev/mirolab/teslable/application/vehicle/VehicleSession {
 	public synthetic fun <init> (Ldev/mirolab/teslable/application/dispatcher/Dispatcher;Ldev/mirolab/teslable/application/vehicle/CommandTimeouts;Ldev/mirolab/teslable/application/cache/SessionCacheSync;Lkotlinx/coroutines/CoroutineScope;ILkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun connect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun disconnect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun getControl ()Ldev/mirolab/teslable/application/vcsec/VcsecControl;
 	public final fun getHandshake ()Ldev/mirolab/teslable/application/dispatcher/HandshakeFlow;
 	public final fun getInfo ()Ldev/mirolab/teslable/application/vcsec/VehicleInfoQueries;
 	public final fun getInfotainment ()Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;

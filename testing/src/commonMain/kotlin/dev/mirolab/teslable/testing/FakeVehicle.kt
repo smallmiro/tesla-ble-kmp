@@ -251,7 +251,10 @@ public class FakeVehicle(
             }
         val verifier = verifierFor(state, domain, clientPublic)
         return when (val result = verifier.verify(message)) {
-            is TestVerifier.VerifyResult.Fault -> listOf(attachSessionInfo(state, faultReply(message, result.fault), result.sessionInfo))
+            is TestVerifier.VerifyResult.Fault -> {
+                listOf(attachSessionInfo(state, faultReply(message, result.fault), result.sessionInfo))
+            }
+
             is TestVerifier.VerifyResult.Ok -> {
                 state.plaintexts += result.plaintext.copyOf()
                 scriptedReplies(state, domain, message, verifier)
