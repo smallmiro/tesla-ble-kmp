@@ -22,8 +22,8 @@ final class ObservationMarkTests: XCTestCase {
     }
 
     func testMemoIsLimitedTo80Characters() throws {
-        let line = try XCTUnwrap(ObservationMark.line(memo: String(repeating: "x", count: 200), now: start, since: start))
-        XCTAssertTrue(line.hasSuffix("[mark] " + String(repeating: "x", count: 80)), line)
+        let line = try XCTUnwrap(ObservationMark.line(memo: String(repeating: "i", count: 200), now: start, since: start))
+        XCTAssertTrue(line.hasSuffix("[mark] " + String(repeating: "i", count: 80)), line)
     }
 
     func testVinPatternIsMasked() throws {
