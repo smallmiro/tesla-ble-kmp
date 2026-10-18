@@ -128,8 +128,8 @@
 <tbody>
 <tr><td><code>addKeyRequest(publicKey, role, formFactor, timeout)</code></td><td><code>Flow&lt;PairingEvent&gt;</code></td><td>Asks the car to add the key (FR-022, FR-023). A cold flow: each collection sends one request. It is not signed, so no session is needed. <code>timeout = null</code> uses <code>pairingTimeout</code> (60 seconds). Requests run one at a time</td></tr>
 <tr><td><code>sessionInfo(publicKey, domain, timeout)</code></td><td><code>VehicleResult&lt;SessionInfoSummary&gt;</code></td><td>Checks enrollment per domain (FR-024); the connection needs no key. <code>Failure(KeyNotPaired)</code> means the car does not list the key. Asking with the connection's own key also creates that domain's session, so <code>sessions</code> shows <code>Ready(fromCache = false)</code></td></tr>
-<tr><td><code>addKey(publicKey, role, formFactor, timeout)</code></td><td><code>VehicleResult&lt;Unit&gt;</code></td><td>An enrolled key with enough privileges adds another key without the NFC card (FR-026). Authenticated VCSEC; needs a VCSEC session</td></tr>
-<tr><td><code>removeKey(publicKey, timeout)</code></td><td><code>VehicleResult&lt;Unit&gt;</code></td><td>Removes a key from the car (FR-027). Authenticated VCSEC; needs a VCSEC session</td></tr>
+<tr><td><code>addKey(publicKey, role, formFactor, timeout)</code></td><td><code>VehicleResult&lt;Unit&gt;</code></td><td>An enrolled key with enough privileges adds another key without the NFC card (FR-027). Authenticated VCSEC; needs a VCSEC session</td></tr>
+<tr><td><code>removeKey(publicKey, timeout)</code></td><td><code>VehicleResult&lt;Unit&gt;</code></td><td>Removes a key from the car (FR-026). Authenticated VCSEC; needs a VCSEC session</td></tr>
 </tbody>
 </table>
 <ul>
@@ -174,7 +174,7 @@ vehicle.<span class="f">addKeyRequest</span>(key.publicKey).<span class="f">coll
         <span class="t">PairingEvent</span>.<span class="t">WaitingForTap</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Waiting for the card"</span>)
         <span class="t">PairingEvent</span>.<span class="t">Accepted</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Accepted, waiting for the car to sync"</span>)
         <span class="k">is</span> <span class="t">PairingEvent</span>.<span class="t">Rejected</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Rejected: ${event.error.message}"</span>)
-        <span class="k">is</span> <span class="t">PairingEvent</span>.<span class="t">Unknown</span> <span class="o">-&gt;</span> <span class="f">report</span>(event.raw.<span class="f">toHex</span>())      <span class="c">// see the warning below</span>
+        <span class="k">is</span> <span class="t">PairingEvent</span>.<span class="t">Unknown</span> <span class="o">-&gt;</span> <span class="f">report</span>(event.raw.<span class="f">joinToString</span>(<span class="s">""</span>) { it.<span class="f">toUByte</span>().<span class="f">toString</span>(<span class="n">16</span>).<span class="f">padStart</span>(<span class="n">2</span>, <span class="s">'0'</span>) })      <span class="c">// see the warning below</span>
         <span class="k">is</span> <span class="t">PairingEvent</span>.<span class="t">Failed</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Failed: ${event.error.message}"</span>)
         <span class="t">PairingEvent</span>.<span class="t">TimedOut</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"No answer, checking enrollment"</span>)
     }
