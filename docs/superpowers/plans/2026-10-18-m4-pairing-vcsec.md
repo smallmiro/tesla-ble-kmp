@@ -2815,7 +2815,18 @@ final class TimeoutsTests: XCTestCase {
 
 - 2026-10-18 codex(GPT-6-Sol high) 2차 검토: 높음 4건(무효화와 대기 중 인가의 경합, `markFresh` 저장 순서, 동시 페어링, 링크 끊김 시 60초 대기), 중간 5건(닫힌 핸들러·큐 넘침 관찰 누락과 넘침 요약 중복, 복사되는 로그 범위, 세션 표시 원천, `TeslaBleConfig.default` 호환, 골든 픽스처의 한계), 낮음 2건(헥사 기대값 이상 없음, D-5와 M4 완료 판정 분리)을 모두 반영했다. 원문은 git-ignored `.superpowers/sdd/codex-m4-plan-review.md`.
 
-## 결정이 필요한 항목 (계획 승인 때 함께 답해 주세요)
+## 결정 (2026-10-18 확정)
+
+사용자 지시("D-1~D-6 모두 codex와 상의해서 결정되는 추천안으로")에 따라 codex와 상의해 확정했다. D-1~D-6 모두 아래 표의 **추천안**이다.
+
+- D-1: 관찰 로깅은 NFR-006과 NFR-003에 연결, 공개 이벤트 FR은 M5 `vehicle.events`에서.
+- D-2: `Timeouts.seconds()` + `TeslaBleConfig.withSeconds(…)` 추가, 기존 `default(logger:)` 유지, XCTest로 검증.
+- D-3: `addKeyRequest`는 공개키를 인자로 받는다.
+- D-4: 오래된 캐시 세션은 무효화 → `NoSession` + `sessions` None → 앱이 `startSession()`.
+- D-5: Go가 가능하면 골든 픽스처 조건부 수집, 불가하면 NFR-002 잔여로 기록, M4 완료 판정(실차)과 분리.
+- D-6: Task 1 관찰은 빌드 6 직후 요청하고 병행, Task 9 실차 확인은 빌드 7, 결과 전까지 Task 11 시작 안 함.
+
+## 결정 항목 (원안 표)
 
 | # | 항목 | 추천 | 다른 안 |
 |---|---|---|---|
@@ -2833,7 +2844,7 @@ final class TimeoutsTests: XCTestCase {
 ```
 tesla-ble-kmp M4(키 등록·VCSEC 제어)를 계획대로 끝까지 실행한다.
 
-계획: docs/superpowers/plans/2026-10-18-m4-pairing-vcsec.md (승인됨, 결정 D-1~D-6은 계획 승인 때 받은 답을 따른다. 계획 승인 전 codex 2차 검토 지적은 이미 반영됨)
+계획: docs/superpowers/plans/2026-10-18-m4-pairing-vcsec.md (승인됨, 결정 D-1~D-6은 계획의 '결정 (2026-10-18 확정)' 절을 따른다. 계획 승인 전 codex 2차 검토 지적은 이미 반영됨)
 먼저 읽을 것: AGENTS.md, CLAUDE.md, docs/PATHS.md, 위 계획 전체, docs/handoff/2026-10-18-m3-transport-keystore.md,
 docs/handoff/2026-10-16-m3-rulings.md, docs/handoff/2026-10-18-m4-push-observation.md, docs/workflow.md §5·§9·§10.
 
