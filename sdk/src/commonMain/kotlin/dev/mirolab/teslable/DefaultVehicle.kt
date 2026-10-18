@@ -31,7 +31,7 @@ import kotlinx.coroutines.withContext
 import kotlin.time.Duration
 
 /** [Vehicle] 구현: [VehicleSession] + 상태 흐름. [scope]는 연결 하나의 수명이며 [disconnect]가 취소하고 [onDisconnected]로 알린다. */
-@Suppress("LongParameterList") // 연결 하나를 이루는 조각들 — TeslaBle.connect만 만든다
+@Suppress("LongParameterList", "TooManyFunctions") // 조각들은 TeslaBle.connect만 만들고, 메서드는 Vehicle 공개 API와 1:1
 internal class DefaultVehicle(
     override val vin: Vin,
     override val hasKey: Boolean,

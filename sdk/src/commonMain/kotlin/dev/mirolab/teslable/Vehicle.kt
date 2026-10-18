@@ -20,6 +20,7 @@ import kotlin.time.Duration
  * 연결된 차량(SDD §2.3). 연결 하나에 객체 하나 — [disconnect] 뒤에는 명령이 `Failure(NotConnected)`이고, 다시 쓰려면
  * `TeslaBle.connect`로 새로 연결한다(설계 구체화 13). M4/M5가 제어·조회 메서드를 더한다. 모든 `timeout`은 null이면 설정 기본값.
  */
+@Suppress("TooManyFunctions") // 공개 API 1:1 — 조회, 키, VCSEC 제어 12종(M5가 더 늘린다)
 public interface Vehicle {
     /** VIN. */
     public val vin: Vin
