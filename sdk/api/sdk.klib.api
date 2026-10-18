@@ -121,7 +121,13 @@ final class dev.mirolab.teslable/TeslaBleConfig { // dev.mirolab.teslable/TeslaB
 
     final object Companion { // dev.mirolab.teslable/TeslaBleConfig.Companion|null[0]
         final fun default(dev.mirolab.teslable.port/TeslaLogger = ...): dev.mirolab.teslable/TeslaBleConfig // dev.mirolab.teslable/TeslaBleConfig.Companion.default|default(dev.mirolab.teslable.port.TeslaLogger){}[0]
+        final fun withSeconds(dev.mirolab.teslable.port/TeslaLogger, kotlin/Double, kotlin/Double, kotlin/Double, kotlin/Double): dev.mirolab.teslable/TeslaBleConfig // dev.mirolab.teslable/TeslaBleConfig.Companion.withSeconds|withSeconds(dev.mirolab.teslable.port.TeslaLogger;kotlin.Double;kotlin.Double;kotlin.Double;kotlin.Double){}[0]
     }
+}
+
+final object dev.mirolab.teslable/Timeouts { // dev.mirolab.teslable/Timeouts|null[0]
+    final fun millisecondsOf(kotlin.time/Duration?): kotlin/Long // dev.mirolab.teslable/Timeouts.millisecondsOf|millisecondsOf(kotlin.time.Duration?){}[0]
+    final fun seconds(kotlin/Double): kotlin.time/Duration? // dev.mirolab.teslable/Timeouts.seconds|seconds(kotlin.Double){}[0]
 }
 
 final fun dev.mirolab.teslable/platformKeyFormFactor(): dev.mirolab.teslable.model/KeyFormFactor // dev.mirolab.teslable/platformKeyFormFactor|platformKeyFormFactor(){}[0]

@@ -176,6 +176,10 @@
     } <span class="k">catch</span> { <span class="f">print</span>(<span class="s">"error: \(error)"</span>) }
 }</code></pre>
 <p>With <code>target: nil</code>, <code>connect</code> scans by itself. Add <code>NSBluetoothAlwaysUsageDescription</code> to <code>Info.plist</code>; see <a href="17-lib-platform-notes.html#sec-ios">Platform Notes</a>.</p>
+<p>To pass a time limit from Swift, use the boxed helper and the seconds-based config factory. Every argument is required, because Swift gets no default-argument overloads.</p>
+<pre><code><span class="k">let</span> status = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">vehicleStatus</span>(timeout: <span class="t">Timeouts</span>.shared.<span class="f">seconds</span>(seconds: <span class="n">10</span>))
+<span class="k">let</span> config = <span class="t">TeslaBleConfig</span>.companion.<span class="f">withSeconds</span>(logger: <span class="t">DebugLogger</span>(), commandTimeoutSeconds: <span class="n">10</span>,
+    handshakeTimeoutSeconds: <span class="n">20</span>, connectTimeoutSeconds: <span class="n">30</span>, pairingTimeoutSeconds: <span class="n">90</span>)</code></pre>
 
 <h2 id="sec-pair">Pair, then lock</h2>
 <p>The first time with a new phone key: enroll it with the key card, wait until the car lists it, start the VCSEC session and send a command. Event handling is explained in <a href="13-lib-pairing.html#sec-flow">13. Keys and Pairing</a>, the commands in <a href="15-lib-commands.html">15. Commands</a>.</p>

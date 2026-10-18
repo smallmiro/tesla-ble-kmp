@@ -82,6 +82,13 @@ public final class dev/mirolab/teslable/TeslaBleConfig {
 public final class dev/mirolab/teslable/TeslaBleConfig$Companion {
 	public final fun default (Ldev/mirolab/teslable/port/TeslaLogger;)Ldev/mirolab/teslable/TeslaBleConfig;
 	public static synthetic fun default$default (Ldev/mirolab/teslable/TeslaBleConfig$Companion;Ldev/mirolab/teslable/port/TeslaLogger;ILjava/lang/Object;)Ldev/mirolab/teslable/TeslaBleConfig;
+	public final fun withSeconds (Ldev/mirolab/teslable/port/TeslaLogger;DDDD)Ldev/mirolab/teslable/TeslaBleConfig;
+}
+
+public final class dev/mirolab/teslable/Timeouts {
+	public static final field INSTANCE Ldev/mirolab/teslable/Timeouts;
+	public final fun millisecondsOf-BwNAW2A (Lkotlin/time/Duration;)J
+	public final fun seconds-LV8wdWc (D)Lkotlin/time/Duration;
 }
 
 public abstract interface class dev/mirolab/teslable/Vehicle {

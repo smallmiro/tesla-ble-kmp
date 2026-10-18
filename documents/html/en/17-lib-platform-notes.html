@@ -65,6 +65,7 @@
 <li><a href="#sec-cache">Session cache</a></li>
 <li><a href="#sec-clock">Clocks</a></li>
 <li><a href="#sec-slots">Connection slots and dropped links</a></li>
+<li><a href="#sec-swift-timeouts">Swift: timeouts</a></li>
 </ol></div>
 
 <h2 id="sec-support">Support</h2>
@@ -133,6 +134,14 @@
 <li>A car accepts <strong>at most three</strong> Bluetooth connections. Call <code>disconnect()</code> when you are done so the slot is free. When all three are taken, connecting returns <code>MaxConnectionsExceeded</code>.</li>
 <li>When the link drops and <code>connection</code> turns <code>Disconnected</code>, <strong>still call <code>disconnect()</code></strong> so the session keys are erased. Calling it again is harmless.</li>
 <li>A disconnected <code>Vehicle</code> cannot be reused; connect again with <code>TeslaBle.connect</code>.</li>
+</ul>
+
+<h2 id="sec-swift-timeouts">Swift: timeouts</h2>
+<p>Kotlin's <code>Duration</code> is an inline value class. Swift sees it only as a boxed <code>Any?</code>, so Swift code cannot build one directly. Two helpers solve this.</p>
+<ul>
+<li><code>Timeouts.shared.seconds(seconds:)</code> returns the boxed value to pass as any <code>timeout:</code> argument. Zero, negative, NaN or infinite input throws <code>IllegalArgumentException</code>. <code>Timeouts.shared.millisecondsOf(timeout:)</code> returns the milliseconds of a boxed value (<code>-1</code> for <code>nil</code>); it exists to check the round trip. The iOS sample's XCTest target runs in <code>tools/ci/verify.sh</code> step (d).</li>
+<li><code>TeslaBleConfig.companion.withSeconds(logger:commandTimeoutSeconds:handshakeTimeoutSeconds:connectTimeoutSeconds:pairingTimeoutSeconds:)</code> builds a config from seconds. Every argument is required; <code>commandLifetime</code> keeps its default. <code>TeslaBleConfig.companion.default(logger:)</code> is unchanged.</li>
+<li><code>timeout: nil</code> still means "use the config default".</li>
 </ul>
 
 <footer class="page-nav">

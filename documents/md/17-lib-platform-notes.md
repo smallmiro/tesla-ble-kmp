@@ -91,3 +91,17 @@ Scope: M3. Items not yet confirmed on a real device are marked so. Go original B
   `Vehicle.disconnect()`** so session keys are wiped and the scope is released. `disconnect()` is safe to call more than
   once.
 - A disconnected `Vehicle` cannot be reused. Connect again with `TeslaBle.connect`.
+
+## Swift: timeouts
+
+- Kotlin `kotlin.time.Duration` is an inline value class. Swift sees it only as a boxed `Any?` (`id`), so Swift code
+  cannot build one directly.
+- `Timeouts.seconds(seconds: Double): Duration?` (Swift: `Timeouts.shared.seconds(seconds: 10)`) returns the boxed
+  value to pass as any `timeout:` argument. It throws `IllegalArgumentException` for zero, negative, NaN or infinite
+  input. `Timeouts.millisecondsOf(timeout:)` returns the milliseconds of a boxed value (`-1` for `nil`); it exists to
+  check the round trip. The iOS sample's XCTest target (`samples/ios/Tests/TimeoutsTests.swift`) runs in
+  `tools/ci/verify.sh` step (d).
+- `TeslaBleConfig.withSeconds(logger:commandTimeoutSeconds:handshakeTimeoutSeconds:connectTimeoutSeconds:pairingTimeoutSeconds:)`
+  (Swift: `TeslaBleConfig.companion.withSeconds(...)`) builds a config from seconds. All arguments are required;
+  `commandLifetime` keeps its default. `TeslaBleConfig.companion.default(logger:)` is unchanged.
+- `timeout: nil` still means "use the config default".

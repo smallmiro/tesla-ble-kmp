@@ -35,9 +35,27 @@ targets:
         ARCHS: "arm64"
         EXCLUDED_ARCHS: "x86_64"
         ONLY_ACTIVE_ARCH: "YES"
+    scheme:
+      testTargets: [TeslableSampleTests]
     dependencies:
       - framework: ../../sdk/build/bin/iosSimulatorArm64/debugFramework/Teslable.framework
         embed: false
+  TeslableSampleTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources: [Tests]
+    dependencies:
+      - target: TeslableSample
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: "YES"
+        SWIFT_VERSION: "6.0"
+        FRAMEWORK_SEARCH_PATHS: "$(inherited) $(SRCROOT)/../../sdk/build/bin/iosSimulatorArm64/debugFramework"
+        ARCHS: "arm64"
+        EXCLUDED_ARCHS: "x86_64"
+        CODE_SIGNING_REQUIRED: "NO"
+        CODE_SIGN_IDENTITY: ""
   TeslableSampleDevice:
     type: application
     platform: iOS
