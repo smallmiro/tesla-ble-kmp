@@ -55,13 +55,14 @@
 </nav>
 <main class="content">
 <h1>12. 라이브러리 시작하기</h1>
-<p class="lead">M3의 전체 흐름을 따라갑니다. 라이브러리를 만들고, 키를 얻고, 차량을 찾고, 연결하고, 상태를 읽고, 연결을 끊습니다. 키 등록은 M4에서 추가되므로, 지금 예제는 등록된 키가 필요 없는 조회만 사용합니다.</p>
+<p class="lead">라이브러리 생성, 키 확보, 차량 찾기, 연결, 상태 읽기, 연결 해제까지 전체 흐름을 따라갑니다. 마지막 절에서는 새 키를 페어링하고 첫 명령을 보내는 방법(M4)을 보여 줍니다.</p>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
 <li><a href="#sec-flow">흐름</a></li>
 <li><a href="#sec-rules">다섯 가지 규칙</a></li>
 <li><a href="#sec-kotlin">Kotlin (Android)</a></li>
 <li><a href="#sec-swift">Swift (iOS)</a></li>
+<li><a href="#sec-pair">페어링 후 잠그기</a></li>
 <li><a href="#sec-next">다음 단계</a></li>
 </ol></div>
 
@@ -176,9 +177,27 @@
 }</code></pre>
 <p><code>target: nil</code>이면 <code>connect</code>가 직접 스캔합니다. <code>Info.plist</code>에 <code>NSBluetoothAlwaysUsageDescription</code>을 추가하세요. <a href="17-lib-platform-notes.html#sec-ios">플랫폼 노트</a>를 참고하세요.</p>
 
+<h2 id="sec-pair">페어링 후 잠그기</h2>
+<p>새 휴대폰 키를 처음 쓸 때는 키카드로 등록하고, 차량 목록에 나타날 때까지 기다린 다음, VCSEC 세션을 시작해 명령을 보냅니다. 이벤트 처리는 <a href="13-lib-pairing.html#sec-flow">13. 키와 페어링</a>, 명령은 <a href="15-lib-commands.html">15. 명령</a>에서 설명합니다.</p>
+<h3>Kotlin</h3>
+<pre><code class="language-kotlin"><span class="c">// vehicle was connected with `key` (see above)</span>
+vehicle.<span class="f">addKeyRequest</span>(key.publicKey).<span class="f">collect</span> { event <span class="o">-&gt;</span> <span class="f">render</span>(event) }      <span class="c">// user taps the key card, confirms on screen</span>
+<span class="k">if</span> (<span class="f">waitUntilEnrolled</span>(vehicle, key)) {                                       <span class="c">// polls sessionInfo(…, INFOTAINMENT), see chapter 13</span>
+    vehicle.<span class="f">startSession</span>(<span class="f">setOf</span>(<span class="t">VehicleDomain</span>.<span class="t">VCSEC</span>))
+    <span class="k">val</span> result = vehicle.<span class="f">lock</span>()                                              <span class="c">// VehicleResult&lt;Unit&gt;; Uncertain: vehicleStatus(), do not resend</span>
+}</code></pre>
+<h3>Swift</h3>
+<pre><code class="language-swift"><span class="k">for</span> <span class="k">await</span> event <span class="k">in</span> vehicle.<span class="f">addKeyRequest</span>(publicKey: key.publicKey, role: .owner, formFactor: .iosDevice, timeout: <span class="n">nil</span>) {
+    <span class="f">render</span>(event)                                                            <span class="c">// user taps the key card, confirms on screen</span>
+}
+<span class="c">// poll vehicle.sessionInfo(publicKey:domain:timeout:) until success (chapter 13), then:</span>
+_ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">startSession</span>(domains: [.vcsec], timeout: <span class="n">nil</span>)
+<span class="k">let</span> result = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">lock</span>(timeout: <span class="n">nil</span>)</code></pre>
+<p>Kotlin의 기본 인자는 Swift 오버로드가 되지 않으므로 Swift에서는 모든 인자를 직접 넘깁니다.</p>
+
 <h2 id="sec-next">다음 단계</h2>
 <ul>
-<li>차량에 키를 등록하는 기능은 M4에서 추가됩니다(<a href="13-lib-pairing.html">13. 키와 페어링</a>). 그때까지는 <code>vehicleStatus()</code>, <code>keySummary()</code>, <code>listKeys()</code>에 <code>connect(vin, key = null)</code>로 충분합니다.</li>
+<li>키 등록과 페어링 이벤트: <a href="13-lib-pairing.html">13. 키와 페어링</a>. <code>vehicleStatus()</code>, <code>keySummary()</code>, <code>listKeys()</code>는 여전히 <code>connect(vin, key = null)</code>만으로 충분합니다.</li>
 <li>링크는 <code>vehicle.connection</code>으로, 세션은 <code>vehicle.sessions</code>로 관찰하세요. 둘 다 <code>StateFlow</code>입니다. 링크가 <code>Disconnected</code>를 알려도 <code>disconnect()</code>는 직접 호출하세요.</li>
 </ul>
 

@@ -99,7 +99,7 @@
 </ul>
 
 <h2 id="sec-path">コマンドの経路</h2>
-<p>予定中の <code>lock()</code> のようなセキュリティコントローラーのコマンドを例にします:</p>
+<p><code>lock()</code> のようなセキュリティコントローラーのコマンドを例にします:</p>
 <ol class="steps">
 <li><strong>直列化します。</strong> <code>VcsecCommands</code> が接続ごとのロックを取得するため、処理中の VCSEC コマンドは常に 1 つだけです。</li>
 <li><strong>リトライループ。</strong> リトライ可能なエラーで失敗した試行は、トランスポートのリトライ間隔の後に再び始まります。</li>

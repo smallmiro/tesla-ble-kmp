@@ -55,11 +55,12 @@
 </nav>
 <main class="content">
 <h1>18. トラブルシューティング</h1>
-<p class="lead">スキャン、接続、キーでよくある問題と、その主な原因および対処法をまとめます。ペアリングとコマンドに固有の問題は M4 と M5 で追加します。開発用の観察ログは末尾で説明します。</p>
+<p class="lead">スキャン、接続、キー、ペアリング、コマンドで起きやすい問題と、その原因および対処法です。最後に開発用の観察ログを説明します。</p>
 
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-scan">スキャンと接続</a></li>
 <li><a href="#sec-keys">キーとセッション</a></li>
+<li><a href="#sec-pairing">ペアリングとコマンド</a></li>
 <li><a href="#sec-other">その他のメッセージ</a></li>
 <li><a href="#sec-logs">デバッグログ</a></li>
 <li><a href="#sec-observe">観察ログ（開発用）</a></li>
@@ -83,10 +84,23 @@
 <thead><tr><th>症状</th><th>考えられる原因</th><th>対処</th></tr></thead>
 <tbody>
 <tr><td><code>startSession()</code> が <code>RequiresKey</code> を返す</td><td>キーなしで接続した</td><td><code>VehicleKey</code> を指定して接続します</td></tr>
-<tr><td><code>startSession()</code> が <code>KeyNotPaired</code> を返す</td><td>車両がこのキーを知らない</td><td>キーを登録します (M4)。<code>listKeys()</code> で確認します。<a href="13-lib-pairing.html#sec-check">13. キーとペアリング</a> を参照してください</td></tr>
+<tr><td><code>startSession()</code> が <code>KeyNotPaired</code> を返す</td><td>車両がこのキーを知りません</td><td><code>addKeyRequest</code> で登録してください (<a href="13-lib-pairing.html#sec-flow">13. キーとペアリング</a>)。<code>listKeys()</code> や <code>sessionInfo</code> で確認します</td></tr>
 <tr><td><code>stored key is corrupted</code></td><td>Android のバックアップがラップ用のキーなしでキーファイルを復元した、またはストレージの破損</td><td>削除して新しいキーを作成し、登録します。キーファイルをバックアップから除外します (<a href="17-lib-platform-notes.html#sec-android">プラットフォームノート</a>)</td></tr>
 <tr><td><code>HardwareUnavailable</code></td><td>StrongBox、TEE、Secure Enclave のいずれもないデバイスでハードウェアを必須にした</td><td><code>PREFER_HARDWARE</code> を使います</td></tr>
 <tr><td>長いスリープ後の最初のコマンドが失敗し、リトライで成功する</td><td>スリープ中にスマートフォンのクロックが止まっていた</td><td>対処不要です。ライブラリが自動で再同期します</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-pairing">ペアリングとコマンド</h2>
+<table>
+<thead><tr><th>症状</th><th>考えられる原因</th><th>対処</th></tr></thead>
+<tbody>
+<tr><td><code>addKeyRequest</code> が <code>TimedOut</code> で終わる</td><td>カードをタッチしていない、時間内 (デフォルト 60 秒) に画面で承認していない、または返信を認識できませんでした</td><td>ユーザーにセンターコンソールでキーカードをタッチし画面で承認するよう案内し、<code>sessionInfo(publicKey, INFOTAINMENT)</code> で確認してください。キーは登録されている可能性があります</td></tr>
+<tr><td><code>addKeyRequest</code> が <code>Rejected(KeychainRejected(WHITELIST_FULL))</code> など別の <code>KeychainRejected</code> コードを出す</td><td>車両が拒否しました。キー一覧が満杯、追加の権限がないなど</td><td>車両のタッチスクリーンか <code>removeKey</code> で使っていないキーを削除してください。<a href="16-lib-errors.html">16. エラー処理</a> を参照</td></tr>
+<tr><td><code>addKeyRequest</code> が <code>Unknown(raw)</code> を出す</td><td>見たことのない返信形式です。実車での動作はまだ確認していません (ADR-0009)</td><td><code>raw</code> を 16 進数で (VIN は含めずに)、車両の動作と一緒に報告してください</td></tr>
+<tr><td><code>addKeyRequest</code> が <code>Failed(NotConnected)</code> を出す</td><td>Vehicle オブジェクトが切断された、またはリンクが切れました</td><td><code>disconnect()</code> を呼び、再接続してやり直してください</td></tr>
+<tr><td><code>lock()</code> (または他のセキュリティコントローラーのコマンド) が <code>NoSession</code> を返す</td><td>VCSEC セッションがまだない、またはキャッシュ済みセッションが古くなっています</td><td>先に <code>startSession(setOf(VehicleDomain.VCSEC))</code> を呼んでください。<code>sessions</code> が <code>Ready(fromCache = true)</code> だった場合、この失敗の後に <code>None</code> に変わります (別のキーや車両のキャッシュだった場合)。<code>startSession</code> で解決します</td></tr>
+<tr><td><code>addKey</code> / <code>removeKey</code> が <code>InsufficientPrivileges</code> を返す</td><td>接続のキーにキー管理の権限がありません (例: Driver キー)</td><td>Owner キーを使ってください</td></tr>
 </tbody>
 </table>
 

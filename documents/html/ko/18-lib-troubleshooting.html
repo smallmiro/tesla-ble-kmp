@@ -55,11 +55,12 @@
 </nav>
 <main class="content">
 <h1>18. 문제 해결</h1>
-<p class="lead">스캔, 연결, 키에서 자주 생기는 문제와 흔한 원인, 대처법을 정리합니다. 페어링과 명령에 관한 문제는 M4와 M5에서 추가됩니다. 개발용 관찰 로그는 끝에서 설명합니다.</p>
+<p class="lead">스캔, 연결, 키, 페어링, 명령에서 자주 겪는 문제와 보통의 원인, 대처 방법입니다. 마지막에는 개발용 관찰 로그를 설명합니다.</p>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
 <li><a href="#sec-scan">스캔과 연결</a></li>
 <li><a href="#sec-keys">키와 세션</a></li>
+<li><a href="#sec-pairing">페어링과 명령</a></li>
 <li><a href="#sec-other">기타 메시지</a></li>
 <li><a href="#sec-logs">디버그 로깅</a></li>
 <li><a href="#sec-observe">관찰 로그 (개발용)</a></li>
@@ -83,10 +84,23 @@
 <thead><tr><th>증상</th><th>가능한 원인</th><th>대처</th></tr></thead>
 <tbody>
 <tr><td><code>startSession()</code>이 <code>RequiresKey</code>를 반환</td><td>키 없이 연결함</td><td><code>VehicleKey</code>로 연결</td></tr>
-<tr><td><code>startSession()</code>이 <code>KeyNotPaired</code>를 반환</td><td>차량이 이 키를 모름</td><td>키를 등록(M4). <code>listKeys()</code>로 확인. <a href="13-lib-pairing.html#sec-check">13. 키와 페어링</a> 참고</td></tr>
+<tr><td><code>startSession()</code>이 <code>KeyNotPaired</code>를 반환</td><td>차량이 이 키를 모릅니다</td><td><code>addKeyRequest</code>로 등록하세요(<a href="13-lib-pairing.html#sec-flow">13. 키와 페어링</a>). <code>listKeys()</code>나 <code>sessionInfo</code>로 확인합니다</td></tr>
 <tr><td><code>stored key is corrupted</code></td><td>Android 백업이 래핑 키 없이 키 파일만 복원했거나, 저장소가 손상됨</td><td>삭제하고 새 키를 생성, 등록. 키 파일을 백업에서 제외(<a href="17-lib-platform-notes.html#sec-android">플랫폼 노트</a>)</td></tr>
 <tr><td><code>HardwareUnavailable</code></td><td>StrongBox, TEE, Secure Enclave가 없는 기기에서 하드웨어를 요구함</td><td><code>PREFER_HARDWARE</code> 사용</td></tr>
 <tr><td>오래 잠든 뒤 첫 명령이 실패하고 재시도는 성공</td><td>휴대폰이 잠든 동안 시계가 멈춤</td><td>할 일 없음. 라이브러리가 알아서 다시 동기화함</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-pairing">페어링과 명령</h2>
+<table>
+<thead><tr><th>증상</th><th>가능한 원인</th><th>대처</th></tr></thead>
+<tbody>
+<tr><td><code>addKeyRequest</code> 가 <code>TimedOut</code>으로 끝남</td><td>카드를 태그하지 않았거나, 시간 안에(기본 60초) 화면에서 승인하지 않았거나, 응답을 인식하지 못했습니다</td><td>사용자에게 센터 콘솔에 키카드를 태그하고 화면에서 승인하도록 안내한 다음 <code>sessionInfo(publicKey, INFOTAINMENT)</code>로 확인하세요. 키가 등록되었을 수도 있습니다</td></tr>
+<tr><td><code>addKeyRequest</code> 가 <code>Rejected(KeychainRejected(WHITELIST_FULL))</code> 또는 다른 <code>KeychainRejected</code> 코드를 냄</td><td>차량이 거부했습니다. 키 목록이 가득 찼거나 추가 권한이 없는 등의 이유입니다</td><td>차량 터치스크린이나 <code>removeKey</code>로 쓰지 않는 키를 제거하세요. <a href="16-lib-errors.html">16. 에러 처리</a>를 참고하세요</td></tr>
+<tr><td><code>addKeyRequest</code> 가 <code>Unknown(raw)</code>를 냄</td><td>처음 보는 응답 형식입니다. 실차 동작은 아직 확인하지 않았습니다(ADR-0009)</td><td><code>raw</code>를 16진수로(VIN 제외) 차량이 한 동작과 함께 알려 주세요</td></tr>
+<tr><td><code>addKeyRequest</code> 가 <code>Failed(NotConnected)</code>를 냄</td><td>Vehicle 객체의 연결이 해제되었거나 링크가 끊겼습니다</td><td><code>disconnect()</code>를 호출하고 다시 연결해서 반복하세요</td></tr>
+<tr><td><code>lock()</code> (또는 다른 보안 컨트롤러 명령)이 <code>NoSession</code>을 반환함</td><td>VCSEC 세션이 아직 없거나 캐시된 세션이 오래되었습니다</td><td>먼저 <code>startSession(setOf(VehicleDomain.VCSEC))</code>를 호출하세요. <code>sessions</code>가 <code>Ready(fromCache = true)</code>였다면 이 실패 뒤 <code>None</code>으로 바뀝니다(다른 키나 차량의 캐시였던 경우). <code>startSession</code>으로 해결됩니다</td></tr>
+<tr><td><code>addKey</code> / <code>removeKey</code> 가 <code>InsufficientPrivileges</code>를 반환함</td><td>연결의 키에 키 관리 권한이 없습니다(예: Driver 키)</td><td>Owner 키를 사용하세요</td></tr>
 </tbody>
 </table>
 

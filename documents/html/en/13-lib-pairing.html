@@ -55,14 +55,16 @@
 </nav>
 <main class="content">
 <h1>13. Keys and Pairing</h1>
-<p class="lead">The phone needs its own key pair, and the car must list the public key before it accepts commands from it. Today the library creates and stores the key and reads the car's key list. Enrolling the key on the car (add-key-request) arrives in M4.</p>
+<p class="lead">The phone needs its own key pair, and the car must list the public key before it accepts commands from it. The library creates and stores the key, reads the car's key list, and enrolls the key on the car: the user taps an NFC key card and confirms on the screen.</p>
 
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#sec-store">The key store</a></li>
 <li><a href="#sec-protection">Where the key lives</a></li>
 <li><a href="#sec-check">Is my key enrolled?</a></li>
 <li><a href="#sec-delete">Deleting or replacing a key</a></li>
-<li><a href="#sec-planned">Coming in M4: enrolling a key</a></li>
+<li><a href="#sec-enroll">Enrolling a key</a></li>
+<li><a href="#sec-events">Pairing events</a></li>
+<li><a href="#sec-flow">The pairing flow</a></li>
 </ol></div>
 
 <h2 id="sec-store">The key store</h2>
@@ -119,21 +121,98 @@
 <li>A <strong>corrupted</strong> stored key (<code>KeyStoreError.PlatformFailure</code>, <code>stored key is corrupted</code>) is never replaced on its own. Tell the user, call <code>delete</code> then <code>getOrCreate</code>, and enroll the new key on the car again. See <a href="17-lib-platform-notes.html#sec-keys">Platform Notes</a>.</li>
 </ul>
 
-<h2 id="sec-planned">Coming in M4: enrolling a key</h2>
-<div class="callout warn">
-<strong>Not available yet</strong>
-<p>The names below are from the requirements document and may change when M4 lands.</p>
-</div>
+<h2 id="sec-enroll">Enrolling a key</h2>
+<p>The Go original sends the add-key request and <strong>does not read the reply</strong>. Reading the reply as <code>PairingEvent</code> values is new behaviour of this library and has not been checked on a real car yet.</p>
 <table>
-<thead><tr><th>Requirement</th><th>Planned API</th><th>What it will do</th></tr></thead>
+<thead><tr><th>Call</th><th>Returns</th><th>What it does</th></tr></thead>
 <tbody>
-<tr><td>FR-022</td><td><code>addKeyRequest(role = OWNER, …)</code></td><td>Asks the car to add the phone key. The user confirms by tapping an NFC key card on the center console</td></tr>
-<tr><td>FR-023</td><td>Progress <code>Flow</code></td><td>Reports the car's waiting and final answers while the user confirms</td></tr>
-<tr><td>FR-024</td><td><code>sessionInfo(publicKey, domain)</code></td><td>Checks enrollment per domain, used to wait until Infotainment has caught up</td></tr>
-<tr><td>FR-026</td><td><code>removeKey(publicKey)</code></td><td>Removes a key from the car</td></tr>
-<tr><td>FR-027</td><td><code>addKeyWithRole(publicKey, role, formFactor)</code></td><td>An enrolled owner key adds another key without the NFC card</td></tr>
+<tr><td><code>addKeyRequest(publicKey, role, formFactor, timeout)</code></td><td><code>Flow&lt;PairingEvent&gt;</code></td><td>Asks the car to add the key (FR-022, FR-023). A cold flow: each collection sends one request. It is not signed, so no session is needed. <code>timeout = null</code> uses <code>pairingTimeout</code> (60 seconds). Requests run one at a time</td></tr>
+<tr><td><code>sessionInfo(publicKey, domain, timeout)</code></td><td><code>VehicleResult&lt;SessionInfoSummary&gt;</code></td><td>Checks enrollment per domain (FR-024); the connection needs no key. <code>Failure(KeyNotPaired)</code> means the car does not list the key. Asking with the connection's own key also creates that domain's session, so <code>sessions</code> shows <code>Ready(fromCache = false)</code></td></tr>
+<tr><td><code>addKey(publicKey, role, formFactor, timeout)</code></td><td><code>VehicleResult&lt;Unit&gt;</code></td><td>An enrolled key with enough privileges adds another key without the NFC card (FR-026). Authenticated VCSEC; needs a VCSEC session</td></tr>
+<tr><td><code>removeKey(publicKey, timeout)</code></td><td><code>VehicleResult&lt;Unit&gt;</code></td><td>Removes a key from the car (FR-027). Authenticated VCSEC; needs a VCSEC session</td></tr>
 </tbody>
 </table>
+<ul>
+<li><code>role</code> defaults to <code>KeyRole.OWNER</code>; <code>formFactor</code> defaults to <code>platformKeyFormFactor()</code>: <code>ANDROID_DEVICE</code> on Android, <code>IOS_DEVICE</code> on iOS, <code>CLOUD_KEY</code> on the JVM (tests).</li>
+<li>In Swift, Kotlin default arguments are not available: pass every argument (<code>role:</code>, <code>formFactor:</code>, <code>timeout:</code>), for example <code>formFactor: .iosDevice</code>.</li>
+<li><code>addKey</code> and <code>removeKey</code> can fail with <code>InsufficientPrivileges</code> (the connection's key may not manage keys, for example a Driver key), <code>KeychainRejected(code)</code> (for example <code>WHITELIST_FULL</code>), <code>NoSession</code> or <code>InvalidArgument</code> (<code>role = UNKNOWN</code>). <code>Uncertain</code> means the car may have changed its key list: check with <code>listKeys()</code> and do not resend.</li>
+</ul>
+
+<h2 id="sec-events">Pairing events</h2>
+<table>
+<thead><tr><th><code>PairingEvent</code></th><th>Meaning</th><th>Last event</th></tr></thead>
+<tbody>
+<tr><td><code>Sent</code></td><td>The request was written. The user must tap an NFC key card on the center console and confirm on the screen</td><td>no</td></tr>
+<tr><td><code>WaitingForTap</code></td><td>The car reports that it is waiting (<code>WAIT</code>)</td><td>no</td></tr>
+<tr><td><code>Accepted</code></td><td>The car accepted the key. Infotainment can take tens of seconds more to learn it</td><td>yes</td></tr>
+<tr><td><code>Rejected(error)</code></td><td>The car refused: <code>KeychainRejected</code>, <code>UnknownKeychainCode</code>, <code>VcsecRejected</code> or <code>UnknownVcsecError</code></td><td>yes</td></tr>
+<tr><td><code>Unknown(raw)</code></td><td>A frame that could not be decoded. <code>raw</code> is a copy of the bytes</td><td>no</td></tr>
+<tr><td><code>Failed(error)</code></td><td>Not sent (<code>NotConnected</code>, write failure, <code>InvalidArgument</code>), or the link dropped while waiting</td><td>yes</td></tr>
+<tr><td><code>TimedOut</code></td><td>No final answer within <code>timeout</code>. The key may still have been enrolled: check with <code>sessionInfo</code></td><td>yes</td></tr>
+</tbody>
+</table>
+<p>After a last event the flow ends (<code>isTerminal</code> is true for them). Frames that carry neither a status nor an error, intermediate <code>OK</code> statuses and frames received before the request was sent are ignored.</p>
+<div class="callout warn">
+<strong>Not verified on a real car</strong>
+<p>The reply format of add-key-request has not been observed on a real car yet (ADR-0009). If you receive <code>Unknown(raw)</code>, please report <code>raw</code> as hex (no VIN) together with what the car did.</p>
+</div>
+
+<h2 id="sec-flow">The pairing flow</h2>
+<ol>
+<li>Create the key (<code>keys.getOrCreate()</code>) and connect with it.</li>
+<li>Collect <code>vehicle.addKeyRequest(key.publicKey)</code>. Tell the user to tap the key card on the center console and confirm on the screen.</li>
+<li>After <code>Accepted</code> (or <code>TimedOut</code>), call <code>sessionInfo(key.publicKey, VehicleDomain.INFOTAINMENT)</code> every 3 seconds for up to 2 minutes. <code>KeyNotPaired</code> means "not yet": keep polling. <code>Success</code> means the key is enrolled and synced.</li>
+<li>Run <code>startSession(setOf(VehicleDomain.VCSEC))</code>, then send commands (<a href="15-lib-commands.html">15. Commands</a>).</li>
+</ol>
+<h3>Kotlin</h3>
+<pre><code class="language-kotlin"><span class="k">val</span> key = (ble.keys.<span class="f">getOrCreate</span>() <span class="k">as</span> <span class="t">VehicleResult</span>.<span class="t">Success</span>).value
+<span class="k">val</span> vehicle = (ble.<span class="f">connect</span>(vin, key) <span class="k">as</span> <span class="t">VehicleResult</span>.<span class="t">Success</span>).value
+
+vehicle.<span class="f">addKeyRequest</span>(key.publicKey).<span class="f">collect</span> { event <span class="o">-&gt;</span>
+    <span class="k">when</span> (event) {
+        <span class="t">PairingEvent</span>.<span class="t">Sent</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Tap the key card on the center console, then confirm on the screen"</span>)
+        <span class="t">PairingEvent</span>.<span class="t">WaitingForTap</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Waiting for the card"</span>)
+        <span class="t">PairingEvent</span>.<span class="t">Accepted</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Accepted, waiting for the car to sync"</span>)
+        <span class="k">is</span> <span class="t">PairingEvent</span>.<span class="t">Rejected</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Rejected: ${event.error.message}"</span>)
+        <span class="k">is</span> <span class="t">PairingEvent</span>.<span class="t">Unknown</span> <span class="o">-&gt;</span> <span class="f">report</span>(event.raw.<span class="f">toHex</span>())      <span class="c">// see the warning below</span>
+        <span class="k">is</span> <span class="t">PairingEvent</span>.<span class="t">Failed</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Failed: ${event.error.message}"</span>)
+        <span class="t">PairingEvent</span>.<span class="t">TimedOut</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"No answer, checking enrollment"</span>)
+    }
+}
+
+<span class="k">suspend</span> <span class="k">fun</span> <span class="f">waitUntilEnrolled</span>(vehicle: <span class="t">Vehicle</span>, key: <span class="t">VehicleKey</span>): <span class="t">Boolean</span> {
+    <span class="k">val</span> deadline = <span class="t">TimeSource</span>.<span class="t">Monotonic</span>.<span class="f">markNow</span>() + <span class="n">2</span>.minutes
+    <span class="k">while</span> (deadline.<span class="f">hasNotPassedNow</span>()) {
+        <span class="k">when</span> (<span class="k">val</span> r = vehicle.<span class="f">sessionInfo</span>(key.publicKey, <span class="t">VehicleDomain</span>.<span class="t">INFOTAINMENT</span>)) {
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> <span class="k">return</span> <span class="n">true</span>
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span> <span class="k">if</span> (r.error <span class="o">!=</span> <span class="t">VehicleError</span>.<span class="t">KeyNotPaired</span>) <span class="k">return</span> <span class="n">false</span>
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Uncertain</span> <span class="o">-&gt;</span> <span class="t">Unit</span>                  <span class="c">// reply lost: ask again</span>
+        }
+        <span class="f">delay</span>(<span class="n">3</span>.seconds)
+    }
+    <span class="k">return</span> <span class="n">false</span>
+}</code></pre>
+<h3>Swift</h3>
+<pre><code class="language-swift"><span class="k">for</span> <span class="k">await</span> event <span class="k">in</span> vehicle.<span class="f">addKeyRequest</span>(publicKey: key.publicKey, role: .owner, formFactor: .iosDevice, timeout: <span class="n">nil</span>) {
+    <span class="k">switch</span> <span class="f">onEnum</span>(of: event) {
+    <span class="k">case</span> .sent: <span class="f">print</span>(<span class="s">"Tap the key card on the center console, then confirm on the screen"</span>)
+    <span class="k">case</span> .waitingForTap: <span class="f">print</span>(<span class="s">"Waiting for the card"</span>)
+    <span class="k">case</span> .accepted: <span class="f">print</span>(<span class="s">"Accepted, waiting for the car to sync"</span>)
+    <span class="k">case</span> .<span class="f">rejected</span>(<span class="k">let</span> r): <span class="f">print</span>(<span class="s">"Rejected: \(r.error.message)"</span>)
+    <span class="k">case</span> .<span class="f">unknown</span>(<span class="k">let</span> u): <span class="f">print</span>(<span class="s">"Unknown frame, \(u.raw.size) bytes"</span>)
+    <span class="k">case</span> .<span class="f">failed</span>(<span class="k">let</span> f): <span class="f">print</span>(<span class="s">"Failed: \(f.error.message)"</span>)
+    <span class="k">case</span> .timedOut: <span class="f">print</span>(<span class="s">"No answer, checking enrollment"</span>)
+    }
+}
+
+<span class="c">// then, every 3 s for up to 2 minutes:</span>
+<span class="k">let</span> r = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">sessionInfo</span>(publicKey: key.publicKey, domain: .infotainment, timeout: <span class="n">nil</span>)
+<span class="k">switch</span> <span class="f">onEnum</span>(of: r) {
+<span class="k">case</span> .success: <span class="f">print</span>(<span class="s">"enrolled"</span>)
+<span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f): <span class="f">print</span>(<span class="s">"not yet or failed: \(f.error.message)"</span>)   <span class="c">// KeyNotPaired: keep polling</span>
+<span class="k">case</span> .uncertain: <span class="f">print</span>(<span class="s">"reply lost, ask again"</span>)
+}</code></pre>
+
 <p>Roles (<code>KeyRole</code>) are <code>OWNER</code>, <code>DRIVER</code>, <code>FLEET_MANAGER</code>, <code>VEHICLE_MONITOR</code>, <code>CHARGING_MANAGER</code>, <code>GUEST</code> and <code>SERVICE</code>. Which commands each role may send is listed in <a href="07-command-reference.html">7. Command Reference</a>.</p>
 
 <footer class="page-nav">
