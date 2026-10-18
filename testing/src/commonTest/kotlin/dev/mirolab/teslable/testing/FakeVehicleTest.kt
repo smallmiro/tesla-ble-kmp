@@ -8,6 +8,10 @@ import com.tesla.generated.universalmessage.MessageFault_E
 import com.tesla.generated.universalmessage.RoutableMessage
 import com.tesla.generated.universalmessage.SessionInfoRequest
 import com.tesla.generated.vcsec.FromVCSECMessage
+import com.tesla.generated.vcsec.SignatureType
+import com.tesla.generated.vcsec.SignedMessage
+import com.tesla.generated.vcsec.ToVCSECMessage
+import com.tesla.generated.vcsec.WhitelistOperation_information_E
 import dev.mirolab.teslable.InternalTeslableApi
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
@@ -517,5 +521,52 @@ class FakeVehicleTest {
             val message = c.encrypt(signer, c.command(domain, byteArrayOf(0x10, 0x01)))
             assertFault(c.exchange(message), MessageFault_E.MESSAGEFAULT_ERROR_NONE, expectSessionInfo = false)
             assertEquals(listOf("1001"), c.fake.authenticatedPayloads(domain).map { it.toHex() })
+        }
+
+    private fun presentKeyEnvelope(): ByteArray =
+        ToVCSECMessage(
+            signedMessage =
+                SignedMessage(
+                    protobufMessageAsBytes = byteArrayOf(1, 2, 3).toByteString(),
+                    signatureType = SignatureType.SIGNATURE_TYPE_PRESENT_KEY,
+                ),
+        ).encode()
+
+    @Test
+    fun presentKeyIsRecordedAndAnsweredWithTheScriptedFramesInOrder() =
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val transport = fake.transport()
+            fake.scriptPresentKey(
+                FakeVehicle.presentKeyWait(),
+                FakeVehicle.presentKeyResult(WhitelistOperation_information_E.WHITELISTOPERATION_INFORMATION_NONE),
+            )
+            assertIs<VehicleResult.Success<Unit>>(transport.send(presentKeyEnvelope()))
+            assertEquals(2, transport.delivered)
+            assertContentEquals(FakeVehicle.presentKeyWait(), transport.incoming.first())
+            assertContentEquals(
+                FakeVehicle.presentKeyResult(WhitelistOperation_information_E.WHITELISTOPERATION_INFORMATION_NONE),
+                transport.incoming.first(),
+            )
+            assertEquals(1, fake.presentKeys.size)
+            assertEquals(
+                SignatureType.SIGNATURE_TYPE_PRESENT_KEY,
+                fake.presentKeys
+                    .single()
+                    .signedMessage
+                    ?.signatureType,
+            )
+            assertTrue(fake.received.isEmpty()) // RoutableMessage 목록에는 들어가지 않는다
+        }
+
+    @Test
+    fun presentKeyWithoutAScriptIsRecordedButNotAnswered() =
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val transport = fake.transport()
+            fake.sleep() // 잠든 도메인과 무관하다
+            assertIs<VehicleResult.Success<Unit>>(transport.send(presentKeyEnvelope()))
+            assertEquals(0, transport.delivered)
+            assertEquals(1, fake.presentKeys.size)
         }
 }
