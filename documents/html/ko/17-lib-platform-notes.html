@@ -65,6 +65,7 @@
 <li><a href="#sec-cache">세션 캐시</a></li>
 <li><a href="#sec-clock">시계</a></li>
 <li><a href="#sec-slots">연결 슬롯과 끊긴 링크</a></li>
+<li><a href="#sec-swift-timeouts">Swift: 시간 제한</a></li>
 </ol></div>
 
 <h2 id="sec-support">지원 범위</h2>
@@ -133,6 +134,14 @@
 <li>차량은 블루투스 연결을 <strong>최대 세 개</strong>까지 받습니다. 다 쓰면 <code>disconnect()</code>를 호출해 슬롯을 비우세요. 세 개가 모두 차 있으면 연결이 <code>MaxConnectionsExceeded</code>를 반환합니다.</li>
 <li>링크가 끊겨 <code>connection</code>이 <code>Disconnected</code>로 바뀌어도, 세션 키가 지워지도록 <strong><code>disconnect()</code>를 호출하세요</strong>. 다시 호출해도 문제없습니다.</li>
 <li>연결이 끊긴 <code>Vehicle</code>은 다시 쓸 수 없습니다. <code>TeslaBle.connect</code>로 다시 연결하세요.</li>
+</ul>
+
+<h2 id="sec-swift-timeouts">Swift: 시간 제한</h2>
+<p>Kotlin의 <code>Duration</code>은 인라인 값 클래스입니다. Swift에서는 박싱된 <code>Any?</code>로만 보여서 Swift 코드가 직접 만들 수 없습니다. 도우미 두 개로 해결합니다.</p>
+<ul>
+<li><code>Timeouts.shared.seconds(seconds:)</code>는 모든 <code>timeout:</code> 인자에 넘길 박싱된 값을 돌려줍니다. 0, 음수, NaN, 무한대를 넣으면 <code>IllegalArgumentException</code>이 발생합니다. <code>Timeouts.shared.millisecondsOf(timeout:)</code>는 박싱된 값의 밀리초를 돌려주며(<code>nil</code>이면 <code>-1</code>) 왕복 확인용입니다. iOS 샘플의 XCTest 타깃은 <code>tools/ci/verify.sh</code> (d) 단계에서 실행됩니다.</li>
+<li><code>TeslaBleConfig.companion.withSeconds(logger:commandTimeoutSeconds:handshakeTimeoutSeconds:connectTimeoutSeconds:pairingTimeoutSeconds:)</code>는 초 단위로 설정을 만듭니다. 모든 인자가 필수이고 <code>commandLifetime</code>은 기본값을 씁니다. <code>TeslaBleConfig.companion.default(logger:)</code>는 그대로입니다.</li>
+<li><code>timeout: nil</code>은 여전히 "설정 기본값 사용"입니다.</li>
 </ul>
 
 <footer class="page-nav">

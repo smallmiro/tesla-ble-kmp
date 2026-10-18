@@ -26,5 +26,28 @@ public data class TeslaBleConfig(
     public companion object {
         /** 모든 값을 기본값으로, 로거만 바꾼다. */
         public fun default(logger: TeslaLogger = TeslaLogger.NoOp): TeslaBleConfig = TeslaBleConfig(logger = logger)
+
+        /**
+         * 시간 제한을 초(Double)로 받는 Swift용 팩토리. 모든 인자 필수(Swift에는 기본 인자 오버로드가 없다).
+         * 0 이하·NaN·무한이면 `IllegalArgumentException`. `commandLifetime`은 기본값을 쓴다.
+         */
+        public fun withSeconds(
+            logger: TeslaLogger,
+            commandTimeoutSeconds: Double,
+            handshakeTimeoutSeconds: Double,
+            connectTimeoutSeconds: Double,
+            pairingTimeoutSeconds: Double,
+        ): TeslaBleConfig = TeslaBleConfig(
+            logger = logger,
+            commandTimeout = positive(commandTimeoutSeconds, "commandTimeoutSeconds"),
+            handshakeTimeout = positive(handshakeTimeoutSeconds, "handshakeTimeoutSeconds"),
+            connectTimeout = positive(connectTimeoutSeconds, "connectTimeoutSeconds"),
+            pairingTimeout = positive(pairingTimeoutSeconds, "pairingTimeoutSeconds"),
+        )
+
+        private fun positive(value: Double, name: String): Duration {
+            require(value > 0 && value.isFinite()) { "$name must be a positive finite number of seconds: $value" }
+            return value.seconds
+        }
     }
 }

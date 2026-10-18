@@ -127,6 +127,15 @@ func run(vinText: String) async {
 With `target: nil`, `connect` scans by itself. `Info.plist` needs `NSBluetoothAlwaysUsageDescription`
 (`17-lib-platform-notes.md` §iOS).
 
+To pass a time limit from Swift, use the boxed helper and the seconds-based config factory (every argument is required;
+Swift gets no default-argument overloads):
+
+```swift
+let status = try await vehicle.vehicleStatus(timeout: Timeouts.shared.seconds(seconds: 10))
+let config = TeslaBleConfig.companion.withSeconds(logger: DebugLogger(), commandTimeoutSeconds: 10,
+    handshakeTimeoutSeconds: 20, connectTimeoutSeconds: 30, pairingTimeoutSeconds: 90)
+```
+
 ## Pair, then lock
 
 First time with a new phone key: enroll it with the key card, wait until the car lists it, then start the VCSEC

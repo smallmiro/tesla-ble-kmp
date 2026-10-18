@@ -266,6 +266,8 @@ public data class TeslaBleConfig(
 ) {
     public companion object {
         public fun default(logger: TeslaLogger = TeslaLogger.NoOp): TeslaBleConfig   // Swift용: 기본 인자·Duration 없이 만든다
+        public fun withSeconds(logger: TeslaLogger, commandTimeoutSeconds: Double, handshakeTimeoutSeconds: Double,
+                               connectTimeoutSeconds: Double, pairingTimeoutSeconds: Double): TeslaBleConfig   // Swift용: 초 단위, 모든 인자 필수
     }
 }
 
