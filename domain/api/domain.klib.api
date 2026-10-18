@@ -1009,6 +1009,69 @@ sealed interface <#A: out kotlin/Any?> dev.mirolab.teslable.protocol/SignerResul
     }
 }
 
+sealed interface dev.mirolab.teslable.model/PairingEvent { // dev.mirolab.teslable.model/PairingEvent|null[0]
+    final class Failed : dev.mirolab.teslable.model/PairingEvent { // dev.mirolab.teslable.model/PairingEvent.Failed|null[0]
+        constructor <init>(dev.mirolab.teslable.model/VehicleError) // dev.mirolab.teslable.model/PairingEvent.Failed.<init>|<init>(dev.mirolab.teslable.model.VehicleError){}[0]
+
+        final val error // dev.mirolab.teslable.model/PairingEvent.Failed.error|{}error[0]
+            final fun <get-error>(): dev.mirolab.teslable.model/VehicleError // dev.mirolab.teslable.model/PairingEvent.Failed.error.<get-error>|<get-error>(){}[0]
+
+        final fun component1(): dev.mirolab.teslable.model/VehicleError // dev.mirolab.teslable.model/PairingEvent.Failed.component1|component1(){}[0]
+        final fun copy(dev.mirolab.teslable.model/VehicleError = ...): dev.mirolab.teslable.model/PairingEvent.Failed // dev.mirolab.teslable.model/PairingEvent.Failed.copy|copy(dev.mirolab.teslable.model.VehicleError){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.model/PairingEvent.Failed.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.mirolab.teslable.model/PairingEvent.Failed.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.mirolab.teslable.model/PairingEvent.Failed.toString|toString(){}[0]
+    }
+
+    final class Rejected : dev.mirolab.teslable.model/PairingEvent { // dev.mirolab.teslable.model/PairingEvent.Rejected|null[0]
+        constructor <init>(dev.mirolab.teslable.model/VehicleError) // dev.mirolab.teslable.model/PairingEvent.Rejected.<init>|<init>(dev.mirolab.teslable.model.VehicleError){}[0]
+
+        final val error // dev.mirolab.teslable.model/PairingEvent.Rejected.error|{}error[0]
+            final fun <get-error>(): dev.mirolab.teslable.model/VehicleError // dev.mirolab.teslable.model/PairingEvent.Rejected.error.<get-error>|<get-error>(){}[0]
+
+        final fun component1(): dev.mirolab.teslable.model/VehicleError // dev.mirolab.teslable.model/PairingEvent.Rejected.component1|component1(){}[0]
+        final fun copy(dev.mirolab.teslable.model/VehicleError = ...): dev.mirolab.teslable.model/PairingEvent.Rejected // dev.mirolab.teslable.model/PairingEvent.Rejected.copy|copy(dev.mirolab.teslable.model.VehicleError){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.model/PairingEvent.Rejected.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.mirolab.teslable.model/PairingEvent.Rejected.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.mirolab.teslable.model/PairingEvent.Rejected.toString|toString(){}[0]
+    }
+
+    final class Unknown : dev.mirolab.teslable.model/PairingEvent { // dev.mirolab.teslable.model/PairingEvent.Unknown|null[0]
+        constructor <init>(kotlin/ByteArray) // dev.mirolab.teslable.model/PairingEvent.Unknown.<init>|<init>(kotlin.ByteArray){}[0]
+
+        final val raw // dev.mirolab.teslable.model/PairingEvent.Unknown.raw|{}raw[0]
+            final fun <get-raw>(): kotlin/ByteArray // dev.mirolab.teslable.model/PairingEvent.Unknown.raw.<get-raw>|<get-raw>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.model/PairingEvent.Unknown.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.mirolab.teslable.model/PairingEvent.Unknown.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.mirolab.teslable.model/PairingEvent.Unknown.toString|toString(){}[0]
+    }
+
+    final object Accepted : dev.mirolab.teslable.model/PairingEvent { // dev.mirolab.teslable.model/PairingEvent.Accepted|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.model/PairingEvent.Accepted.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.mirolab.teslable.model/PairingEvent.Accepted.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.mirolab.teslable.model/PairingEvent.Accepted.toString|toString(){}[0]
+    }
+
+    final object Sent : dev.mirolab.teslable.model/PairingEvent { // dev.mirolab.teslable.model/PairingEvent.Sent|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.model/PairingEvent.Sent.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.mirolab.teslable.model/PairingEvent.Sent.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.mirolab.teslable.model/PairingEvent.Sent.toString|toString(){}[0]
+    }
+
+    final object TimedOut : dev.mirolab.teslable.model/PairingEvent { // dev.mirolab.teslable.model/PairingEvent.TimedOut|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.model/PairingEvent.TimedOut.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.mirolab.teslable.model/PairingEvent.TimedOut.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.mirolab.teslable.model/PairingEvent.TimedOut.toString|toString(){}[0]
+    }
+
+    final object WaitingForTap : dev.mirolab.teslable.model/PairingEvent { // dev.mirolab.teslable.model/PairingEvent.WaitingForTap|null[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.model/PairingEvent.WaitingForTap.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.mirolab.teslable.model/PairingEvent.WaitingForTap.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.mirolab.teslable.model/PairingEvent.WaitingForTap.toString|toString(){}[0]
+    }
+}
+
 sealed interface dev.mirolab.teslable.model/VehicleError { // dev.mirolab.teslable.model/VehicleError|null[0]
     abstract val mayHaveSucceeded // dev.mirolab.teslable.model/VehicleError.mayHaveSucceeded|{}mayHaveSucceeded[0]
         abstract fun <get-mayHaveSucceeded>(): kotlin/Boolean // dev.mirolab.teslable.model/VehicleError.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
@@ -6323,6 +6386,9 @@ final object dev.mirolab.teslable.transport/Framer { // dev.mirolab.teslable.tra
 
     final fun frame(kotlin/ByteArray, kotlin/Int): kotlin.collections/List<kotlin/ByteArray> // dev.mirolab.teslable.transport/Framer.frame|frame(kotlin.ByteArray;kotlin.Int){}[0]
 }
+
+final val dev.mirolab.teslable.model/isTerminal // dev.mirolab.teslable.model/isTerminal|@dev.mirolab.teslable.model.PairingEvent{}isTerminal[0]
+    final fun (dev.mirolab.teslable.model/PairingEvent).<get-isTerminal>(): kotlin/Boolean // dev.mirolab.teslable.model/isTerminal.<get-isTerminal>|<get-isTerminal>@dev.mirolab.teslable.model.PairingEvent(){}[0]
 
 final fun (dev.mirolab.teslable.model/VehicleError).dev.mirolab.teslable.model/shouldRetry(): kotlin/Boolean // dev.mirolab.teslable.model/shouldRetry|shouldRetry@dev.mirolab.teslable.model.VehicleError(){}[0]
 final fun (dev.mirolab.teslable.model/VehicleError).dev.mirolab.teslable.model/toResult(): dev.mirolab.teslable.model/VehicleResult<kotlin/Nothing> // dev.mirolab.teslable.model/toResult|toResult@dev.mirolab.teslable.model.VehicleError(){}[0]

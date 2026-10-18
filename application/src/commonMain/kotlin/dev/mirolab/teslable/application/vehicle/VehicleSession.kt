@@ -9,6 +9,7 @@ import dev.mirolab.teslable.application.dispatcher.SessionEvent
 import dev.mirolab.teslable.application.dispatcher.retryWhileRetriable
 import dev.mirolab.teslable.application.dispatcher.withAttemptTimeout
 import dev.mirolab.teslable.application.infotainment.InfotainmentCommands
+import dev.mirolab.teslable.application.pairing.Pairing
 import dev.mirolab.teslable.application.vcsec.KeyManagement
 import dev.mirolab.teslable.application.vcsec.VcsecCommands
 import dev.mirolab.teslable.application.vcsec.VcsecControl
@@ -67,6 +68,9 @@ public class VehicleSession(
 
     /** 키 등록·삭제·등록 확인(FR-024, FR-026, FR-027). [vcsec]의 직렬화를 공유한다. */
     public val keys: KeyManagement = KeyManagement(dispatcher, vcsec, timeouts)
+
+    /** add-key-request와 진행 상태(FR-022, FR-023, ADR-0009). [vcsec]의 직렬화를 보낼 때만 공유한다. */
+    public val pairing: Pairing = Pairing(dispatcher, vcsec)
 
     /** Go `executeCarServerAction` 계층. */
     public val infotainment: InfotainmentCommands = InfotainmentCommands(send)
