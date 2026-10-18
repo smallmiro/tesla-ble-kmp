@@ -34,9 +34,38 @@ struct ContentView: View {
                         .disabled(model.observing)
                     Button("키 목록") { Task { await model.listKeys() } }
                         .disabled(model.observing)
+                    ForEach(model.keyRows) { row in
+                        HStack {
+                            Text(row.label).font(.footnote.monospaced())
+                            Spacer()
+                            Button("삭제", role: .destructive) { model.pendingRemoval = row }
+                                .disabled(!row.removable || model.observing)
+                                .buttonStyle(.borderless)
+                        }
+                    }
                     Button("연결 끊기", role: .destructive) { Task { await model.disconnect() } }
                 }
                 .disabled(model.busy)
+                Section("페어링") {
+                    Button("키 등록 요청") { Task { await model.pair() } }
+                    Button("등록 확인") { Task { await model.confirmEnrollment() } }
+                }
+                .disabled(model.busy || model.observing)
+                Section("세션") {
+                    Button("핸드셰이크: VCSEC만") { Task { await model.startSession(vcsecOnly: true) } }
+                    Button("핸드셰이크: 전체") { Task { await model.startSession(vcsecOnly: false) } }
+                    Button("세션 상태 보기") { Task { await model.showSessions() } }
+                }
+                .disabled(model.busy || model.observing)
+                Section("제어") {
+                    Button("잠금") { Task { await model.lock() } }
+                    Button("해제") { Task { await model.unlock() } }
+                    Button("트렁크 열기") { Task { await model.openTrunk() } }
+                    Button("트렁크 닫기") { Task { await model.closeTrunk() } }
+                    Button("프렁크 열기") { Task { await model.openFrunk() } }
+                    Button("깨우기") { Task { await model.wakeUp() } }
+                }
+                .disabled(model.busy || model.observing)
                 Section("결과") {
                     Button(copied ? "복사됨 ✓" : "결과 전체 복사") {
                         UIPasteboard.general.string = model.report()
@@ -60,6 +89,19 @@ struct ContentView: View {
                 .font(.footnote.monospaced())
             }
             .navigationTitle("Teslable Sample")
+            .confirmationDialog(
+                "키를 삭제할까요?",
+                isPresented: Binding(get: { model.pendingRemoval != nil }, set: { if !$0 { model.pendingRemoval = nil } }),
+                titleVisibility: .visible,
+                presenting: model.pendingRemoval
+            ) { row in
+                Button(row.isOwn ? "이 기기의 키를 지웁니다" : "삭제", role: .destructive) {
+                    Task { await model.removeKey(row) }
+                }
+                Button("취소", role: .cancel) {}
+            } message: { row in
+                Text(row.isOwn ? "이 기기의 키를 지웁니다. 지우면 이 기기로는 더 이상 차량을 제어할 수 없습니다.\n\(row.label)" : row.label)
+            }
         }
     }
 }

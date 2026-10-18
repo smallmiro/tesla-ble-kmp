@@ -83,7 +83,161 @@ actor BleClient {
     }
 
     func vehicleStatus() async -> String { await run("VehicleStatus") { try await $0.vehicleStatus(timeout: nil) } }
-    func listKeys() async -> String { await run("키 목록") { try await $0.listKeys(timeout: nil) } }
+
+    /// 목록 한 줄(화면용). 삭제는 슬롯으로 고른다 — 공개키는 액터 안(`keyEntries`)에만 둔다.
+    struct KeyRow: Identifiable, Sendable {
+        let slot: Int
+        let label: String
+        let isOwn: Bool
+        let removable: Bool
+        var id: Int { slot }
+    }
+
+    nonisolated(unsafe) private var keyEntries: [Int: WhitelistEntry] = [:]
+
+    /// 키 목록 조회. 결과 한 줄과 항목별 행을 돌려준다(행마다 "삭제" 버튼).
+    func listKeys() async -> (line: String, rows: [KeyRow]) {
+        guard let vehicle else { return ("키 목록: 먼저 연결하세요", []) }
+        do {
+            let result = try await vehicle.listKeys(timeout: nil)
+            switch onEnum(of: result) {
+            case .success(let s):
+                guard let entries = s.value as? [WhitelistEntry] else { return ("키 목록: 예상하지 못한 결과 형식", []) }
+                keyEntries = Dictionary(uniqueKeysWithValues: entries.map { (Int($0.slot), $0) })
+                let rows = entries.map { e in
+                    let own = key.map { k in e.publicKey.map { $0.isEqual(k.publicKey) } ?? false } ?? false
+                    return KeyRow(
+                        slot: Int(e.slot),
+                        label: "슬롯 \(e.slot) \(e.formFactor.name) \(e.role.name)\(own ? " (이 기기)" : "")",
+                        isOwn: own,
+                        removable: e.publicKey != nil
+                    )
+                }
+                return ("키 목록: \(rows.count)개", rows)
+            case .uncertain(let u): return ("키 목록 불확실: \(u.error.message)", [])
+            case .failure(let f): return ("키 목록 실패: \(f.error.message)", [])
+            }
+        } catch { return ("키 목록 오류: \(error)", []) }
+    }
+
+    func startSession(vcsecOnly: Bool) async -> String {
+        let domains: Set<VehicleDomain> = vcsecOnly ? [VehicleDomain.vcsec] : VehicleDomain.companion.ALL
+        let label = vcsecOnly ? "세션(VCSEC만)" : "세션(전체)"
+        let started = Date()
+        let line = await run(label) { try await $0.startSession(domains: domains, timeout: nil) }
+        return "\(line) [\(String(format: "%.1f", Date().timeIntervalSince(started)))초] \(sessionsText())"
+    }
+
+    /// 도메인별 세션 상태 한 줄.
+    func sessionsText() -> String {
+        guard let vehicle else { return "세션: 연결 안 됨" }
+        guard let map = vehicle.sessions.value as? [VehicleDomain: SessionStatus] else { return "세션: 형식 오류" }
+        let parts = map.keys.sorted { $0.name < $1.name }.map { d -> String in
+            let text: String
+            switch onEnum(of: map[d]!) {
+            case .none: text = "None"
+            case .handshaking: text = "Handshaking"
+            case .ready(let r): text = r.fromCache ? "Ready(fromCache)" : "Ready"
+            }
+            return "\(d.name)=\(text)"
+        }
+        return "세션: " + (parts.isEmpty ? "없음" : parts.joined(separator: ", "))
+    }
+
+    /// 키 등록 요청. 이벤트마다 한국어 한 줄을 `onEvent`로 보내고, 끝이 `Accepted`/`TimedOut`이면 등록 확인을 잇는다.
+    func pair(onEvent: @escaping @Sendable (String) async -> ()) async {
+        guard let vehicle else { await onEvent("키 등록: 먼저 연결하세요"); return }
+        guard let key else { await onEvent("키 등록: 먼저 키를 만드세요"); return }
+        var confirm = false
+        for await event in vehicle.addKeyRequest(
+            publicKey: key.publicKey, role: .owner, formFactor: KeyFormFactors_iosKt.platformKeyFormFactor(), timeout: nil
+        ) {
+            switch onEnum(of: event) {
+            case .sent: await onEvent("요청 보냄 — 중앙 콘솔에 키카드를 대고 화면에서 승인하세요")
+            case .waitingForTap: await onEvent("카드 태그 대기 중")
+            case .accepted: await onEvent("차량이 승인함 — Infotainment 동기화 확인 중"); confirm = true
+            case .rejected(let r): await onEvent("거부: \(r.error.message)")
+            case .unknown(let u): await onEvent("모르는 응답 \(hex(u.raw))")
+            case .failed(let f): await onEvent("실패: \(f.error.message)")
+            case .timedOut: await onEvent("시간 초과 — 등록 여부를 확인합니다"); confirm = true
+            }
+        }
+        if confirm { await onEvent(await confirmEnrollment()) }
+    }
+
+    private func hex(_ bytes: KotlinByteArray) -> String {
+        (0..<bytes.size).map { String(format: "%02x", UInt8(bitPattern: bytes.get(index: $0))) }.joined()
+    }
+
+    /// 3초 간격, 최대 2분 동안 Infotainment `sessionInfo`로 등록을 확인한다.
+    func confirmEnrollment() async -> String {
+        guard let vehicle else { return "등록 확인: 먼저 연결하세요" }
+        guard let key else { return "등록 확인: 먼저 키를 만드세요" }
+        var last = "등록 확인: 시도하지 못함"
+        let deadline = Date().addingTimeInterval(120)
+        while Date() < deadline {
+            do {
+                let result = try await vehicle.sessionInfo(
+                    publicKey: key.publicKey, domain: .infotainment, timeout: Timeouts.shared.seconds(seconds: 5)
+                )
+                switch onEnum(of: result) {
+                case .success: return "등록 확인됨(Infotainment)"
+                case .failure(let f):
+                    if f.error is VehicleErrorKeyNotPaired { last = "아직 등록되지 않음(KeyNotPaired) — 2분까지 반복" }
+                    else { last = "등록 확인 실패: \(f.error.message)" }
+                case .uncertain(let u): last = "등록 확인 불확실: \(u.error.message)"
+                }
+            } catch { last = "등록 확인 오류: \(error)" }
+            if Task.isCancelled { break }
+            try? await Task.sleep(for: .seconds(3))
+        }
+        return "\(last) (2분 안에 확인되지 않음)"
+    }
+
+    /// 제어 명령. 결과가 `Uncertain`이면 다시 보내지 않고 곧바로 `vehicleStatus()`로 재조회한다(FR-102).
+    func control(_ title: String, _ call: (Vehicle) async throws -> VehicleResult) async -> String {
+        guard let vehicle else { return "\(title): 먼저 연결하세요" }
+        let started = Date()
+        let line: String
+        do {
+            let result = try await call(vehicle)
+            switch onEnum(of: result) {
+            case .success: line = "\(title): 성공"
+            case .failure(let f): line = "\(title) 실패: \(f.error.message)"
+            case .uncertain(let u):
+                let status = await statusText()
+                line = "\(title) 불확실: \(u.error.message) → 재조회: \(status)"
+            }
+        } catch { line = "\(title) 오류: \(error)" }
+        return "\(line) [\(String(format: "%.1f", Date().timeIntervalSince(started)))초]"
+    }
+
+    private func statusText() async -> String {
+        guard let vehicle else { return "연결 안 됨" }
+        do {
+            let result = try await vehicle.vehicleStatus(timeout: nil)
+            switch onEnum(of: result) {
+            case .success(let s):
+                guard let st = s.value as? VehicleStatus_ else { return "형식 오류" }
+                return "잠금 \(st.lockState.name), 트렁크 \(st.closures.rearTrunk.name), 프렁크 \(st.closures.frontTrunk.name), 수면 \(st.sleepStatus.name)"
+            case .uncertain(let u): return "불확실: \(u.error.message)"
+            case .failure(let f): return "실패: \(f.error.message)"
+            }
+        } catch { return "오류: \(error)" }
+    }
+
+    func lock() async -> String { await control("잠금") { try await $0.lock(timeout: nil) } }
+    func unlock() async -> String { await control("해제") { try await $0.unlock(timeout: nil) } }
+    func openTrunk() async -> String { await control("트렁크 열기") { try await $0.openTrunk(timeout: nil) } }
+    func closeTrunk() async -> String { await control("트렁크 닫기") { try await $0.closeTrunk(timeout: nil) } }
+    func openFrunk() async -> String { await control("프렁크 열기") { try await $0.openFrunk(timeout: nil) } }
+    func wakeUp() async -> String { await control("깨우기") { try await $0.wakeUp(timeout: nil) } }
+
+    /// 슬롯으로 고른 마지막 목록 항목의 공개키로 키를 삭제한다.
+    func removeKey(slot: Int) async -> String {
+        guard let pk = keyEntries[slot]?.publicKey else { return "키 삭제: 목록에서 고른 항목을 찾지 못함(목록을 다시 조회하세요)" }
+        return await control("키 삭제(슬롯 \(slot))") { try await $0.removeKey(publicKey: pk, timeout: nil) }
+    }
 
     private func watchLink(_ v: Vehicle, _ onLinkLoss: @escaping @Sendable (String) async -> ()) {
         nonisolated(unsafe) let connection = v.connection
@@ -103,6 +257,7 @@ actor BleClient {
         linkWatch = nil
         try? await vehicle?.disconnect()
         vehicle = nil
+        keyEntries = [:]
     }
 
     private func run(_ title: String, _ call: (Vehicle) async throws -> VehicleResult) async -> String {
@@ -126,6 +281,10 @@ final class SampleModel: ObservableObject {
     @Published var advertisements: [String] = []
     @Published var connection = "연결 안 됨"
     @Published var output: [String] = []
+    /// 마지막 키 목록 조회 결과(항목마다 "삭제" 버튼).
+    @Published var keyRows: [BleClient.KeyRow] = []
+    /// 삭제 확인 대기 중인 항목.
+    @Published var pendingRemoval: BleClient.KeyRow?
 
     /// 라이브러리 호출이 진행 중이면 true — 모든 버튼을 막아 호출이 겹치지 않게 한다.
     @Published var busy = false
@@ -253,8 +412,44 @@ final class SampleModel: ObservableObject {
 
     func listKeys() async {
         await exclusive { [self] in
-            let line = await client.listKeys()
-            log(line)
+            let result = await client.listKeys()
+            keyRows = result.rows
+            log(result.line)
+        }
+    }
+
+    func startSession(vcsecOnly: Bool) async {
+        await exclusive { [self] in log(await client.startSession(vcsecOnly: vcsecOnly)) }
+    }
+
+    func showSessions() async {
+        await exclusive { [self] in log(await client.sessionsText()) }
+    }
+
+    func pair() async {
+        await exclusive { [self] in
+            await client.pair { [weak self] line in await self?.log(line) }
+        }
+    }
+
+    func confirmEnrollment() async {
+        await exclusive { [self] in log(await client.confirmEnrollment()) }
+    }
+
+    func lock() async { await exclusive { [self] in log(await client.lock()) } }
+    func unlock() async { await exclusive { [self] in log(await client.unlock()) } }
+    func openTrunk() async { await exclusive { [self] in log(await client.openTrunk()) } }
+    func closeTrunk() async { await exclusive { [self] in log(await client.closeTrunk()) } }
+    func openFrunk() async { await exclusive { [self] in log(await client.openFrunk()) } }
+    func wakeUp() async { await exclusive { [self] in log(await client.wakeUp()) } }
+
+    /// 확인 뒤에 호출한다. 삭제가 끝나면 목록을 다시 조회해 화면을 맞춘다.
+    func removeKey(_ row: BleClient.KeyRow) async {
+        await exclusive { [self] in
+            log(await client.removeKey(slot: row.slot))
+            let result = await client.listKeys()
+            keyRows = result.rows
+            log(result.line)
         }
     }
 
@@ -262,6 +457,7 @@ final class SampleModel: ObservableObject {
         await exclusive { [self] in
             await client.disconnect()
             connection = "연결 안 됨"
+            keyRows = []
             log("연결 끊기: 연결 안 됨")
         }
     }
