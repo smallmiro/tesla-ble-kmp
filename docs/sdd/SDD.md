@@ -673,9 +673,11 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 - iOS Keychain: 시뮬레이터 테스트 실행 파일에서는 Keychain을 쓸 수 없다(`SecItemAdd`가 -25291 errSecNotAvailable로 실패). `AppleKeychainItems` 왕복은 단위 테스트 대신 Task 14 iPhone 샘플로 확인하고, 키스토어 로직은 가짜 Keychain·Secure Enclave로 검증한다.
 - **M3 결과(시뮬레이터 Keychain):** 확인됨 — 시뮬레이터의 순수 Kotlin/Native 테스트 바이너리에서는 `SecItemAdd`가 -25291로 실패한다. 실제 Keychain(키·세션 캐시)은 샘플 앱(번들 앱)에서 확인한다.
 - **기기에서만 검증되는 것:** Kable 바인딩(`KableGattConnector`/`KableGattLink`), Android Keystore(StrongBox/TEE/래핑 키), iOS Secure Enclave, BLE 링크 손실 처리, MTU 협상, 권한 흐름은 단위 테스트 대신 샘플 앱 확인(M3 Task 14 표)으로 검증한다. 실차 확인 결과는 M3 인계 노트에 기록한다. Android 실기기 BLE는 아직 미확인이다.
-- Kable 스파이크(M3 첫 작업): 실차에서 0213 구독 방식(notify/indicate)과 MTU 협상 결과를 로그로 확인. 실패 시 ADR-0003 대체 경로.
+- Kable 스파이크(M3 첫 작업): 완료(2026-10-17, iOS). 판정 (b) — Kable 기본 구독(notify)으로 응답 수신, 대체 경로 불필요. 결과는 ADR-0003 "스파이크 결과" 절.
 
 ### 9.6 실차 체크리스트
+
+**M3 iOS 실차 결과 (2026-10-16~18, iPhone 16 Pro / iOS 27.0.1, Model Y):** 키 생성·재실행(Secure Enclave), 스캔, 연결, `vehicleStatus`, `listKeys`(7개), 끊기 후 재연결, Bluetooth 꺼짐·권한 거부 오류, 이동 중 링크 손실 표시를 확인했다. 연결은 첫 빌드에서 DebugLogger NSLog 크래시로 실패했고, 그 크래시와 닫힘 상태 부재 처리, iOS 링크 손실 문구를 고친 뒤 모든 항목이 통과했다. Android 실기기는 미확인이다. 자세한 표와 미결 항목은 `{{HANDOFF_DIR}}2026-10-18-m3-transport-keystore.md`.
 
 `{{WORKFLOW_FILE}}` §8.4의 9개 시나리오에 **페어링 진행 이벤트(D28) 관찰**을 추가한다: `addKeyRequest` 수집 중 `WaitingForTap`/`Accepted`가 실제로 오는지, 오지 않으면 `Unknown(raw)` 바이트를 보고.
 

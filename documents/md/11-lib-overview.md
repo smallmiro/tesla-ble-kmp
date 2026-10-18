@@ -14,7 +14,7 @@ and `ja/` in the same PR (AGENTS.md §3 rule 13).
 | Area | State | Page |
 |---|---|---|
 | Protocol core, dispatcher, sessions, retry, session cache (M0–M2) | Done | `16-lib-errors.md`, `19-lib-architecture.md` |
-| BLE scan and connect (Kable), key store, session cache storage, facade `TeslaBle` / `Vehicle` (M3) | Done in code; real-vehicle check in progress | `12-lib-getting-started.md`, `17-lib-platform-notes.md` |
+| BLE scan and connect (Kable), key store, session cache storage, facade `TeslaBle` / `Vehicle` (M3) | Done (real-vehicle check on iOS 2026-10-18; Android real device not checked) | `12-lib-getting-started.md`, `17-lib-platform-notes.md` |
 | Read-only queries without a key: `vehicleStatus()`, `keySummary()`, `listKeys()` (M3) | Done | `14-lib-reading-state.md` |
 | Key enrollment (add-key-request), VCSEC control (lock, unlock, trunk…) (M4) | **Not implemented** | `13-lib-pairing.md`, `15-lib-commands.md` |
 | Infotainment control and `getState()` (M5) | **Not implemented** | `14-lib-reading-state.md`, `15-lib-commands.md` |

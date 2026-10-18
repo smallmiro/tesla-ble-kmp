@@ -1,5 +1,7 @@
 # Handoff — M3 전송·키스토어·파사드: 코드 완료, 실차 확인 대기 (2026-10-16)
 
+> 이 노트는 `{{HANDOFF_DIR}}2026-10-18-m3-transport-keystore.md` 로 대체되었습니다(superseded).
+
 ## 목표
 `{{PLANS_DIR}}2026-10-15-m3-transport-keystore.md`, FR-001~006, FR-020~021, FR-025, FR-028, FR-030~032, FR-112, NFR-004~006. M3 완료 기준: iPhone 샘플 앱에서 스캔·연결·키 목록·VehicleStatus(실차는 사용자 확인).
 

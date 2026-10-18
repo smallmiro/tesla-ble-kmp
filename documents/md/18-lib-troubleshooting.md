@@ -35,4 +35,4 @@ Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 - The library logs VINs masked (`Vin.toString()`) and never logs private keys, session keys, nonces or plaintext at any
   level. Do not add `vin.value` to your own logs either, and mask VINs before sharing logs.
 
-To report a problem, use the iOS sample's "결과 전체 복사" (copy whole result) log together with `DebugLogger`. There is no probe or diagnostics entry point.
+To report a problem, use the iOS sample's "copy whole result" button log together with `DebugLogger`. There is no probe or diagnostics entry point.

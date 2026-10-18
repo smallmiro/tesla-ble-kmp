@@ -93,7 +93,7 @@
 <li>Add <code>NSBluetoothAlwaysUsageDescription</code> to <code>Info.plist</code>. <strong>The first scan shows the permission prompt</strong>; if the user declines, calls return <code>PermissionDenied</code>.</li>
 <li>Create the library with <code>PlatformContext()</code>.</li>
 <li>The simulator has no Bluetooth. Scanning and connecting can only be tried on a real iPhone.</li>
-<li>iOS has no MTU negotiation API; the library uses the write length the system picks. Whether the response characteristic uses notifications or indications is being confirmed on a real car (ADR-0003).</li>
+<li>iOS has no MTU negotiation API; the library uses the write length the system picks. The observed block length on a real iPhone is 512. The response characteristic supports both notifications and indications; the Kable default subscription (notify) was confirmed on a real car (ADR-0003).</li>
 <li>Swift calls Kotlin through SKIE: <code>suspend</code> functions become <code>async throws</code>, <code>Flow</code> becomes <code>AsyncSequence</code>, sealed types work with <code>switch onEnum(of:)</code>, and companion members are reached through <code>.companion</code>.</li>
 </ul>
 
