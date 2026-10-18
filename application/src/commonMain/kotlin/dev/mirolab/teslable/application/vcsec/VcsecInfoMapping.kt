@@ -136,4 +136,28 @@ internal object VcsecInfoMapping {
             WireFormFactor.KEY_FORM_FACTOR_ANDROID_DEVICE -> KeyFormFactor.ANDROID_DEVICE
             WireFormFactor.KEY_FORM_FACTOR_CLOUD_KEY -> KeyFormFactor.CLOUD_KEY
         }
+
+    /** 모델 역할 → Wire. [KeyRole.UNKNOWN]은 보낼 값이 없어 null. */
+    fun wireRole(role: KeyRole): Role? =
+        when (role) {
+            KeyRole.NONE -> Role.ROLE_NONE
+            KeyRole.SERVICE -> Role.ROLE_SERVICE
+            KeyRole.OWNER -> Role.ROLE_OWNER
+            KeyRole.DRIVER -> Role.ROLE_DRIVER
+            KeyRole.FLEET_MANAGER -> Role.ROLE_FM
+            KeyRole.VEHICLE_MONITOR -> Role.ROLE_VEHICLE_MONITOR
+            KeyRole.CHARGING_MANAGER -> Role.ROLE_CHARGING_MANAGER
+            KeyRole.GUEST -> Role.ROLE_GUEST
+            KeyRole.UNKNOWN -> null
+        }
+
+    /** 모델 형태 → Wire. */
+    fun wireFormFactor(formFactor: KeyFormFactor): WireFormFactor =
+        when (formFactor) {
+            KeyFormFactor.UNKNOWN -> WireFormFactor.KEY_FORM_FACTOR_UNKNOWN
+            KeyFormFactor.NFC_CARD -> WireFormFactor.KEY_FORM_FACTOR_NFC_CARD
+            KeyFormFactor.IOS_DEVICE -> WireFormFactor.KEY_FORM_FACTOR_IOS_DEVICE
+            KeyFormFactor.ANDROID_DEVICE -> WireFormFactor.KEY_FORM_FACTOR_ANDROID_DEVICE
+            KeyFormFactor.CLOUD_KEY -> WireFormFactor.KEY_FORM_FACTOR_CLOUD_KEY
+        }
 }

@@ -143,6 +143,21 @@ final class dev.mirolab.teslable.application.vcsec/VcsecCommands { // dev.mirola
     final suspend fun execute(kotlin/ByteArray, dev.mirolab.teslable.port/AuthMethod, dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalTest, kotlin/Int = ..., kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<com.tesla.generated.vcsec/FromVCSECMessage> // dev.mirolab.teslable.application.vcsec/VcsecCommands.execute|execute(kotlin.ByteArray;dev.mirolab.teslable.port.AuthMethod;dev.mirolab.teslable.application.vcsec.VcsecResponses.TerminalTest;kotlin.Int;kotlin.time.Duration){}[0]
 }
 
+final class dev.mirolab.teslable.application.vcsec/VcsecControl { // dev.mirolab.teslable.application.vcsec/VcsecControl|null[0]
+    final suspend fun actuateTrunk(kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.vcsec/VcsecControl.actuateTrunk|actuateTrunk(kotlin.time.Duration){}[0]
+    final suspend fun autoSecureVehicle(kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.vcsec/VcsecControl.autoSecureVehicle|autoSecureVehicle(kotlin.time.Duration){}[0]
+    final suspend fun closeTonneau(kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.vcsec/VcsecControl.closeTonneau|closeTonneau(kotlin.time.Duration){}[0]
+    final suspend fun closeTrunk(kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.vcsec/VcsecControl.closeTrunk|closeTrunk(kotlin.time.Duration){}[0]
+    final suspend fun lock(kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.vcsec/VcsecControl.lock|lock(kotlin.time.Duration){}[0]
+    final suspend fun openFrunk(kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.vcsec/VcsecControl.openFrunk|openFrunk(kotlin.time.Duration){}[0]
+    final suspend fun openTonneau(kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.vcsec/VcsecControl.openTonneau|openTonneau(kotlin.time.Duration){}[0]
+    final suspend fun openTrunk(kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.vcsec/VcsecControl.openTrunk|openTrunk(kotlin.time.Duration){}[0]
+    final suspend fun remoteDrive(kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.vcsec/VcsecControl.remoteDrive|remoteDrive(kotlin.time.Duration){}[0]
+    final suspend fun stopTonneau(kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.vcsec/VcsecControl.stopTonneau|stopTonneau(kotlin.time.Duration){}[0]
+    final suspend fun unlock(kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.vcsec/VcsecControl.unlock|unlock(kotlin.time.Duration){}[0]
+    final suspend fun wakeUp(kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.vcsec/VcsecControl.wakeUp|wakeUp(kotlin.time.Duration){}[0]
+}
+
 final class dev.mirolab.teslable.application.vcsec/VehicleInfoQueries { // dev.mirolab.teslable.application.vcsec/VehicleInfoQueries|null[0]
     final suspend fun keyInfoBySlot(kotlin/Int, kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.model/WhitelistEntry> // dev.mirolab.teslable.application.vcsec/VehicleInfoQueries.keyInfoBySlot|keyInfoBySlot(kotlin.Int;kotlin.time.Duration){}[0]
     final suspend fun keySummary(kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.model/WhitelistSummary> // dev.mirolab.teslable.application.vcsec/VehicleInfoQueries.keySummary|keySummary(kotlin.time.Duration){}[0]
@@ -190,6 +205,8 @@ final class dev.mirolab.teslable.application.vehicle/SendWithRetry { // dev.miro
 final class dev.mirolab.teslable.application.vehicle/VehicleSession { // dev.mirolab.teslable.application.vehicle/VehicleSession|null[0]
     constructor <init>(dev.mirolab.teslable.application.dispatcher/Dispatcher, dev.mirolab.teslable.application.vehicle/CommandTimeouts = ..., dev.mirolab.teslable.application.cache/SessionCacheSync? = ..., kotlinx.coroutines/CoroutineScope? = ...) // dev.mirolab.teslable.application.vehicle/VehicleSession.<init>|<init>(dev.mirolab.teslable.application.dispatcher.Dispatcher;dev.mirolab.teslable.application.vehicle.CommandTimeouts;dev.mirolab.teslable.application.cache.SessionCacheSync?;kotlinx.coroutines.CoroutineScope?){}[0]
 
+    final val control // dev.mirolab.teslable.application.vehicle/VehicleSession.control|{}control[0]
+        final fun <get-control>(): dev.mirolab.teslable.application.vcsec/VcsecControl // dev.mirolab.teslable.application.vehicle/VehicleSession.control.<get-control>|<get-control>(){}[0]
     final val handshake // dev.mirolab.teslable.application.vehicle/VehicleSession.handshake|{}handshake[0]
         final fun <get-handshake>(): dev.mirolab.teslable.application.dispatcher/HandshakeFlow // dev.mirolab.teslable.application.vehicle/VehicleSession.handshake.<get-handshake>|<get-handshake>(){}[0]
     final val info // dev.mirolab.teslable.application.vehicle/VehicleSession.info|{}info[0]

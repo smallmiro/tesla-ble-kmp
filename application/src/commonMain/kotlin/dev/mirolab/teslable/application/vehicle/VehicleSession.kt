@@ -10,6 +10,7 @@ import dev.mirolab.teslable.application.dispatcher.retryWhileRetriable
 import dev.mirolab.teslable.application.dispatcher.withAttemptTimeout
 import dev.mirolab.teslable.application.infotainment.InfotainmentCommands
 import dev.mirolab.teslable.application.vcsec.VcsecCommands
+import dev.mirolab.teslable.application.vcsec.VcsecControl
 import dev.mirolab.teslable.application.vcsec.VehicleInfoQueries
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.port.LogLevel
@@ -59,6 +60,9 @@ public class VehicleSession(
 
     /** 인증 없는 VCSEC 조회(FR-025, FR-031, FR-032). [vcsec]의 직렬화를 공유한다. */
     public val info: VehicleInfoQueries = VehicleInfoQueries(vcsec, timeouts, dispatcher.clock)
+
+    /** VCSEC 제어 12종(FR-040~047). [vcsec]의 직렬화를 공유한다. */
+    public val control: VcsecControl = VcsecControl(vcsec, timeouts)
 
     /** Go `executeCarServerAction` 계층. */
     public val infotainment: InfotainmentCommands = InfotainmentCommands(send)

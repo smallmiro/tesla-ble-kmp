@@ -50,3 +50,5 @@ adapter-crypto/src/commonMain/kotlin/dev/mirolab/teslable/crypto/SoftwareKeyGene
 application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/VehicleInfoQueries.kt
 adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/BlockLength.kt
 adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/KableGattConnector.kt
+application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/VcsecPayloads.kt
+application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/VcsecControl.kt
