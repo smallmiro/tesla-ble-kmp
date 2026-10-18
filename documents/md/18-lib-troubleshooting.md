@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Scope: M3 (scan, connect, key store, read-only queries). Pairing-time and command-time problems are added with M4/M5.
+Scope: M3–M4 (scan, connect, key store, read-only queries, observation log). Pairing-time and command-time problems are added with M4/M5.
 Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 
 ## Symptom → cause → action
@@ -36,3 +36,41 @@ Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
   level. Do not add `vin.value` to your own logs either, and mask VINs before sharing logs.
 
 To report a problem, use the iOS sample's "copy whole result" button log together with `DebugLogger`. There is no probe or diagnostics entry point.
+
+## Observation log (development)
+
+The dispatcher writes one summary line for every message it drops and for every VCSEC reply. It is for development, to
+see what the vehicle pushes without being asked. It changes no behaviour: the library still drops these messages
+(`vehicle.events` is planned for M5).
+
+- Tag `observe`, level `DEBUG` (a logger that discards `DEBUG` never evaluates the line). Visible through `DebugLogger()`
+  or any custom `TeslaLogger`. The iOS sample's observation mode collects only these lines.
+- Line shape: `[<point>] <N>B from=<dest> to=<dest> request_uuid=<empty|16B> [status=<op>/<fault>] [session_info_request]
+  [session_info=<N>B] payload=<summary>`. `<N>B` is the received frame size.
+
+| Part | Values |
+|---|---|
+| `[drop:unparseable]` | Frame did not decode as `RoutableMessage`. Line is `[drop:unparseable] <N>B reinterpreted=<summary or undecodable>` |
+| `[drop:missing-source]` | No `from_destination`. The line ends with `reinterpreted=<summary>`: the same bytes read as an unwrapped `FromVCSECMessage` |
+| `[drop:missing-destination]` | No `to_destination` (typical vehicle push) |
+| `[drop:to-domain]` | Addressed to a domain, not a routing address |
+| `[drop:malformed]` | Bad request UUID length or bad routing address length |
+| `[drop:no-handler]` | Valid routing address with no open request |
+| `[drop:handler-closed]`, `[drop:queue-full]` | The matching request closed meanwhile, or its response queue was full |
+| `[reply:vcsec]` | A VCSEC reply routed to an open request |
+| `from=`, `to=` | `domain(DOMAIN_X)`, `address(16B, self\|open-request\|other)` (`to=` only), `none`, `empty` |
+| `payload=` | `FromVCSECMessage{…}`, `Response{fields=[…]}`, `encrypted(NB)`, `NB`, `none` |
+| `unknownFields=[n]` | Field numbers present on the wire but unknown to the generated proto |
+| `absent=[…]` | Message fields of `vehicleStatus` that were not sent (`closureStatuses`, `detailedClosureStatus`) |
+| `key=sha1:xxxxxxxx` | Public key: first 4 bytes of its SHA-1 only |
+
+Limits and rules:
+
+- proto3 enums cannot tell "missing" from the zero value: an absent lock state reads `VEHICLELOCKSTATE_UNLOCKED`
+  (sleep and presence read `UNKNOWN`). Only message fields can be reported as `absent`.
+- Ciphertext and `session_info` are logged by length only; public keys by SHA-1 prefix only; the VIN and plaintext
+  payloads of encrypted messages never appear. Keep the rule when you add lines.
+- The BLE transport counts inbox overflows per connection. Each dropped message logs
+  `Dropping received message because inbox is full (dropped N since connect)` at `ERROR`; when the link ends, one line
+  `BLE inbox overflowed N time(s) during this connection` is logged at `WARN` (only if N > 0).
+- `DebugLogger` also prints the BLE `TX:`/`RX:` raw hex at `DEBUG`. Do not share such platform logs.
