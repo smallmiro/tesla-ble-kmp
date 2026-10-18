@@ -13,6 +13,8 @@ actor BleClient {
     )
     nonisolated(unsafe) private var key: VehicleKey?
     nonisolated(unsafe) private var vehicle: Vehicle?
+    /// `Vehicle.connection` 관찰. 연결 해제·재연결 때 취소한다.
+    private var linkWatch: Task<(), Never>?
 
     func createKey() async -> String {
         do {
@@ -54,7 +56,8 @@ actor BleClient {
         return Task.isCancelled ? "스캔 시간 초과 (30초)" : "스캔 종료(광고 없음)"
     }
 
-    func connect(vinText: String) async -> String {
+    /// `onLinkLoss`는 차량이 링크를 끊었을 때(원인이 있는 Disconnected) 표시할 문자열만 받는다.
+    func connect(vinText: String, onLinkLoss: @escaping @Sendable (String) async -> ()) async -> String {
         guard let vin = Vin.companion.parseOrNull(value: vinText) else { return "VIN 형식 오류" }
         await disconnect() // 이미 연결돼 있으면 먼저 끊는다
         do {
@@ -63,6 +66,7 @@ actor BleClient {
             case .success(let s):
                 guard let v = s.value as? Vehicle else { return "실패: 예상하지 못한 결과 형식" }
                 vehicle = v
+                watchLink(v, onLinkLoss)
                 return "연결됨 (키: \(key == nil ? "없음" : "있음"))"
             case .uncertain(let u): return "불확실: \(u.error.message)"
             case .failure(let f): return "실패: \(f.error.message)"
@@ -73,7 +77,22 @@ actor BleClient {
     func vehicleStatus() async -> String { await run("VehicleStatus") { try await $0.vehicleStatus(timeout: nil) } }
     func listKeys() async -> String { await run("키 목록") { try await $0.listKeys(timeout: nil) } }
 
+    private func watchLink(_ v: Vehicle, _ onLinkLoss: @escaping @Sendable (String) async -> ()) {
+        nonisolated(unsafe) let connection = v.connection
+        linkWatch = Task {
+            for await state in connection {
+                if Task.isCancelled { return }
+                if case .disconnected(let d) = onEnum(of: state), d.reason != nil {
+                    await onLinkLoss("연결 끊김 (링크 손실)")
+                    return
+                }
+            }
+        }
+    }
+
     func disconnect() async {
+        linkWatch?.cancel()
+        linkWatch = nil
         try? await vehicle?.disconnect()
         vehicle = nil
     }
@@ -129,9 +148,14 @@ final class SampleModel: ObservableObject {
     func connect() async {
         await exclusive { [self] in
             connection = "연결 중…"
-            let result = await client.connect(vinText: vinText)
+            let result = await client.connect(vinText: vinText) { [weak self] text in await self?.linkLost(text) }
             connection = result
         }
+    }
+
+    /// 연결된 상태일 때만 반영한다(사용자가 이미 끊었다면 덮어쓰지 않는다).
+    private func linkLost(_ text: String) {
+        if connection.hasPrefix("연결됨") { connection = text }
     }
 
     func vehicleStatus() async {
