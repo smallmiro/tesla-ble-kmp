@@ -49,7 +49,8 @@ class ObservationLogTest {
         assertEquals(
             "[drop:missing-destination] 20B from=domain(DOMAIN_VEHICLE_SECURITY) to=none request_uuid=empty " +
                 "payload=FromVCSECMessage{vehicleStatus{lock=VEHICLELOCKSTATE_LOCKED, sleep=VEHICLE_SLEEP_STATUS_ASLEEP, " +
-                "presence=VEHICLE_USER_PRESENCE_NOT_PRESENT, absent=[closureStatuses, detailedClosureStatus]}}",
+                "presence=VEHICLE_USER_PRESENCE_NOT_PRESENT, uiDesire=UI_DESIRE_NONE, gear=GEAR_UNKNOWN, " +
+                "absent=[closureStatuses, detailedClosureStatus]}}",
             line,
         )
     }
@@ -133,5 +134,27 @@ class ObservationLogTest {
     @Test
     fun emptyUnknownFieldsListNothing() {
         assertEquals(emptyList(), unknownFieldNumbers(okio.ByteString.EMPTY))
+    }
+
+    @Test
+    fun authenticationRequestIsNamedWithTokenLengthOnly() {
+        // Teslemetry 스냅샷의 FromVCSECMessage 3(name unverified). 토큰은 길이만 쓴다(절대 규칙 8).
+        val token = "0a10" + "11".repeat(16) // AuthenticationRequestToken.token(1) 16B
+        val body = "1212$token" + "1802" + "22020105" // sessionInfo(2), requestedLevel(3) = 2, reasonsForAuth(4) packed [1, 5]
+        val text = log.reinterpret(("1a1a" + body).hexToBytes())
+        assertEquals(
+            "FromVCSECMessage{authenticationRequest{requestedLevel=AUTHENTICATION_LEVEL_DRIVE, " +
+                "reasons=[AUTHENTICATIONREASON_IDENTIFICATION, AUTHENTICATIONREASON_PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL], token=16B}}",
+            text,
+        )
+        assertFalse(text.contains("1111"), text)
+    }
+
+    @Test
+    fun emptyAuthenticationRequestShowsDefaults() {
+        assertEquals(
+            "FromVCSECMessage{authenticationRequest{requestedLevel=AUTHENTICATION_LEVEL_NONE, reasons=[]}}",
+            log.reinterpret("1a00".hexToBytes()),
+        )
     }
 }

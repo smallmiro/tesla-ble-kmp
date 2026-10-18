@@ -5,6 +5,7 @@ import com.tesla.generated.carserver.server.Response
 import com.tesla.generated.universalmessage.Destination
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
+import com.tesla.generated.vcsec.AuthenticationRequest
 import com.tesla.generated.vcsec.ClosureStatuses
 import com.tesla.generated.vcsec.CommandStatus
 import com.tesla.generated.vcsec.FromVCSECMessage
@@ -95,6 +96,7 @@ internal class ObservationLog(
     ): String {
         val parts = mutableListOf<String>()
         from.vehicleStatus?.let { parts += "vehicleStatus{${vehicleStatus(it, detailed)}}" }
+        from.authenticationRequest?.let { parts += "authenticationRequest{${authenticationRequest(it)}}" }
         from.commandStatus?.let { parts += "commandStatus{${commandStatus(it)}}" }
         from.whitelistInfo?.let {
             parts += "whitelistInfo{entries=${it.numberOfEntries}, slotMask=0x${it.slotMask.toUInt().toString(
@@ -163,6 +165,9 @@ internal class ObservationLog(
             append("lock=").append(s.vehicleLockState.name)
             append(", sleep=").append(s.vehicleSleepStatus.name)
             append(", presence=").append(s.userPresence.name)
+            // Teslemetry 스냅샷 이름(TESLEMETRY-EXT, 실차 의미 미확인 — ADR-0002 개정 2026-10-18)
+            append(", uiDesire=").append(s.uiDesire.name)
+            append(", gear=").append(s.gear.name)
             s.closureStatuses?.let { append(", closures={").append(closures(it)).append('}') }
             s.detailedClosureStatus?.let { append(", tonneauPercentOpen=").append(it.tonneauPercentOpen) }
             val absent =
@@ -187,6 +192,15 @@ internal class ObservationLog(
             "chargePort" to c.chargePort,
             "tonneau" to c.tonneau,
         ).joinToString(", ") { (name, state) -> "$name=${state.name.removePrefix("CLOSURESTATE_")}" }
+
+    /** Teslemetry 스냅샷의 `FromVCSECMessage` 3(TESLEMETRY-EXT, 필드 이름 미확인). 토큰은 길이만(절대 규칙 8). */
+    private fun authenticationRequest(r: AuthenticationRequest): String =
+        buildString {
+            append("requestedLevel=").append(r.requestedLevel.name)
+            append(", reasons=").append(r.reasonsForAuth.map { it.name })
+            r.sessionInfo?.let { append(", token=").append(it.token.size).append('B') }
+            unknownFieldNumbers(r.unknownFields).takeIf { it.isNotEmpty() }?.let { append(", unknownFields=").append(it) }
+        }
 
     private fun commandStatus(s: CommandStatus): String =
         buildString {
@@ -230,7 +244,9 @@ internal class ObservationLog(
         private const val KEY_PREFIX = 4
         private const val HEX = 16
         private val FROM_VCSEC_DETAIL_FIELDS = setOf(48, 53)
-        private val VEHICLE_STATUS_DETAIL_FIELDS = setOf(7, 8)
+
+        // 6(uiDesire)·7(gear)은 Teslemetry 스냅샷이 정의한다. 8은 스냅샷에도 없다.
+        private val VEHICLE_STATUS_DETAIL_FIELDS = setOf(8)
     }
 }
 

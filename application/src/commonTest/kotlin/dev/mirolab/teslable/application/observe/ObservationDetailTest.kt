@@ -114,11 +114,21 @@ class ObservationDetailTest {
     }
 
     @Test
-    fun vehicleStatusField8IsDecodedAndField7IsNoLongerUnknown() {
-        // Teslemetry 스냅샷은 7을 gear(varint enum)로 정의한다: unknownFields에는 8만 남는다
-        val status = VehicleStatus(vehicleLockState = VehicleLockState_E.VEHICLELOCKSTATE_LOCKED).encode() + vint(7, 2) + vint(8, 6)
+    fun vehicleStatusGearAndUiDesireAreNamedAndField8IsDecoded() {
+        // Teslemetry 스냅샷: 6 = uiDesire, 7 = gear. 8은 스냅샷에도 없어 계속 번호·wire type·값으로만 쓴다.
+        val status =
+            VehicleStatus(vehicleLockState = VehicleLockState_E.VEHICLELOCKSTATE_LOCKED).encode() + vint(6, 1) + vint(7, 2) + vint(8, 6)
         val line = top(len(1, status))
+        assertTrue(line.contains("uiDesire=UI_DESIRE_HAS_DATA, gear=GEAR_DRIVE"), line)
         assertTrue(line.contains("unknownFields=[8:varint=6(0x6)]"), line)
+    }
+
+    @Test
+    fun vehicleStatusUnknownGearValueKeepsItsFieldNumber() {
+        // 스냅샷 밖의 gear 값(9)은 Wire가 기본값으로 두고 unknownFields로 옮긴다: 번호만 남는다
+        val line = top(len(1, vint(7, 9)))
+        assertTrue(line.contains("gear=GEAR_UNKNOWN"), line)
+        assertTrue(line.contains("unknownFields=[7]"), line)
     }
 
     @Test
