@@ -346,4 +346,14 @@ class VehicleSessionTest {
             assertEquals(TransportState.Disconnected(reason = null), h.transport.state.value)
             assertFailsWith<IllegalStateException> { session.connect() }
         }
+
+    @Test
+    fun startSessionAfterDisconnectIsNotConnectedEvenForCachedSessions() =
+        runTest {
+            val h = dispatcherHarness()
+            val session = VehicleSession(h.dispatcher)
+            assertIs<VehicleResult.Success<Unit>>(session.startSession(timeout = 1.seconds))
+            session.disconnect()
+            assertEquals(VehicleResult.Failure(VehicleError.NotConnected), session.startSession(timeout = 1.seconds))
+        }
 }

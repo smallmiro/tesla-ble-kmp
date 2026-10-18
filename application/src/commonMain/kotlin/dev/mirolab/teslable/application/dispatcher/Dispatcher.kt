@@ -407,8 +407,17 @@ public class Dispatcher
                 return VehicleResult.Failure(VehicleError.NoSession)
             }
             return when (val result = session.authorize(message, lifetime)) {
-                is SignerResult.Ok -> VehicleResult.Success(result.value)
-                is SignerResult.Fault -> VehicleResult.Failure(result.toVehicleError())
+                is SignerResult.Ok -> {
+                    VehicleResult.Success(result.value)
+                }
+
+                is SignerResult.Fault -> {
+                    if (result.detail == SessionState.NO_SESSION) {
+                        VehicleResult.Failure(VehicleError.NoSession)
+                    } else {
+                        VehicleResult.Failure(result.toVehicleError())
+                    }
+                }
             }
         }
 
@@ -632,6 +641,7 @@ public class Dispatcher
                     logger.log(LogLevel.WARN, TAG) { "[$id] Session info error: ${result.fault.name}: ${result.detail}" }
                     if (wasUnconfirmed) {
                         session.markReportedStale()
+                        session.invalidate()
                         logger.log(LogLevel.WARN, TAG) {
                             "[$id] Cached session for $domain looks stale (vehicle key changed?); dropping it from the cache"
                         }

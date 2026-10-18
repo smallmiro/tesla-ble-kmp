@@ -19,6 +19,7 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -92,9 +93,16 @@ public class VehicleSession(
             withAttemptTimeout(timeout) {
                 retryWhileRetriable(dispatcher.retryInterval) { handshake.startSessions(domains) }
             }
-        if (result is VehicleResult.Success) storeAfterHandshake()
+        if (result is VehicleResult.Success) {
+            // 회복한 도메인을 핸드셰이크 자체의 저장에 넣는다(이벤트 처리 순서·유실과 무관)
+            cacheSync?.let { sync -> domains.forEach { sync.markFresh(it) } }
+            storeAfterHandshake()
+        }
         return result
     }
+
+    /** 파사드가 세션 상태 표시에 쓴다. */
+    public val sessionEvents: SharedFlow<SessionEvent> get() = dispatcher.sessionEvents
 
     /**
      * 핸드셰이크 성공 저장. [disconnect]가 [Dispatcher.close]에 들어갔으면 건너뛴다(최종 리뷰 M5) — 닫힌 뒤의
@@ -172,7 +180,10 @@ public class VehicleSession(
         event: SessionEvent,
     ) {
         try {
-            if (event is SessionEvent.StaleCache) sync.markStale(event.domain)
+            when (event) {
+                is SessionEvent.StaleCache -> sync.markStale(event.domain)
+                is SessionEvent.Updated -> sync.markFresh(event.domain)
+            }
             sync.store(dispatcher)
         } catch (e: CancellationException) {
             throw e

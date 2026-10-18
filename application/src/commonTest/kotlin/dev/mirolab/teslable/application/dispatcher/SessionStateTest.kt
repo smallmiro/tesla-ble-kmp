@@ -161,16 +161,17 @@ class SessionStateTest {
         }
 
     @Test
-    fun closeInvalidatesSignerButKeepsReadySignal() =
+    fun closeInvalidatesSignerAndIsNoLongerReady() =
         runTest {
             val state = state()
             assertIs<SignerResult.Ok<Unit>>(hello(state, verifier()))
             state.close()
-            assertTrue(state.isReady) // close() only zeroizes the signer; it does not reset the ready signal
+            assertFalse(state.isReady) // M4: a closed session is never ready
             assertNull(state.export())
             assertNull(state.decrypt(RoutableMessage(), ByteArray(0)))
             val result = assertIs<SignerResult.Fault>(state.authorize(command(), 5.seconds))
             assertEquals(MessageFault_E.MESSAGEFAULT_ERROR_INTERNAL, result.fault)
+            assertEquals(SessionState.NO_SESSION, result.detail)
         }
 
     @Test
@@ -186,5 +187,39 @@ class SessionStateTest {
             assertIs<SignerResult.Fault>(state.loadFromCache(signed.encoded, Duration.ZERO))
             assertFalse(state.isReady)
             assertNull(state.export())
+        }
+
+    @Test
+    fun closedSessionIsNeverReady() =
+        // M3 최종 리뷰: close()가 준비 신호를 되돌리지 않아 disconnect 뒤 startSession이 캐시 세션에 Success였다
+        runTest {
+            val h = dispatcherHarness()
+            h.manualHandshake(Domain.DOMAIN_VEHICLE_SECURITY)
+            val session = checkNotNull(h.dispatcher.session(Domain.DOMAIN_VEHICLE_SECURITY))
+            assertTrue(session.isReady)
+            session.close()
+            assertFalse(session.isReady)
+        }
+
+    // 다른 디스패처에서 핸드셰이크한 세션을 export()해 이 세션에 캐시로 넣는다.
+    private suspend fun TestScope.loadVcsecSessionFromCache(session: SessionState) {
+        val other = dispatcherHarness()
+        other.manualHandshake(Domain.DOMAIN_VEHICLE_SECURITY)
+        val bytes = checkNotNull(checkNotNull(other.dispatcher.session(Domain.DOMAIN_VEHICLE_SECURITY)).export())
+        assertIs<SignerResult.Ok<Unit>>(session.loadFromCache(bytes, Duration.ZERO))
+    }
+
+    @Test
+    fun authorizeThatWasWaitingWhenTheSessionWasInvalidatedFailsWithNoSession() =
+        // 준비 신호를 이미 받은 authorize가 무효화 뒤에 옛 Signer로 진행하면 안 된다. 단일 스레드 스케줄러로 순서를 고정한다.
+        runTest {
+            val h = dispatcherHarness(start = false)
+            val session = checkNotNull(h.dispatcher.session(Domain.DOMAIN_VEHICLE_SECURITY))
+            val waiting = async { session.authorize(testCommand(Domain.DOMAIN_VEHICLE_SECURITY), 5.seconds) }
+            runCurrent() // authorize가 준비 신호를 기다린다
+            loadVcsecSessionFromCache(session) // 준비 신호 완료 — authorize는 재개 가능하지만 아직 실행되지 않았다
+            session.invalidate() // 재개 전에 무효화
+            val result = assertIs<SignerResult.Fault>(waiting.await())
+            assertEquals(SessionState.NO_SESSION, result.detail)
         }
 }

@@ -11,6 +11,7 @@ import dev.mirolab.teslable.application.vehicle.VehicleSession
 import dev.mirolab.teslable.cache.CachedSession
 import dev.mirolab.teslable.cache.SessionSnapshot
 import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.Vin
 import dev.mirolab.teslable.port.AuthMethod
@@ -76,10 +77,10 @@ class SessionEventsTest {
             val events = mutableListOf<SessionEvent>()
             backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { h.dispatcher.sessionEvents.collect { events += it } }
             h.dispatcher.start()
-            repeat(2) {
-                val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(vcsec), AuthMethod.GCM)).value
-                pending.use { it.receive() }
-            }
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(vcsec), AuthMethod.GCM)).value
+            pending.use { it.receive() }
+            // M4: 판정된 세션은 무효화되어 두 번째 전송은 NoSession이다(헛도는 재시도·재판정 없음)
+            assertEquals(VehicleResult.Failure(VehicleError.NoSession), h.dispatcher.send(testCommand(vcsec), AuthMethod.GCM))
             runCurrent()
             assertEquals(listOf<SessionEvent>(SessionEvent.StaleCache(vcsec)), events)
             assertTrue(h.logger.contains("Cached session for DOMAIN_VEHICLE_SECURITY looks stale"))
@@ -308,5 +309,29 @@ class SessionEventsTest {
             assertTrue(h.logger.contains("Failed to store session cache after session update: IllegalStateException"))
             session.disconnect()
             scopeJob.cancel()
+        }
+
+    @Test
+    fun staleCacheInvalidatesTheSessionAndAHandshakeRecovers() =
+        // 설계 구체화 2, Review Focus 3: 헛도는 재시도 대신 NoSession, startSession 한 번으로 회복, 회복한 세션은 다시 캐시된다
+        runTest {
+            val cache = RecordingSessionCache()
+            val sync = restoreStaleCache(cache)
+            val h = dispatcherHarness(fake = FakeVehicle(timeSource = testTimeSource), start = false)
+            val session = VehicleSession(h.dispatcher, cacheSync = sync, eventScope = backgroundScope)
+            assertEquals(setOf(vcsec, infotainment), session.connect())
+            val lock = byteArrayOf(0x10, 0x01)
+            val first = session.vcsec.execute(lock, AuthMethod.GCM, VcsecResponses.COMMAND_STATUS_ABSENT, timeout = 5.seconds)
+            assertEquals(VehicleResult.Failure(VehicleError.NoSession), first)
+            assertFalse(checkNotNull(h.dispatcher.session(vcsec)).isReady)
+            assertIs<VehicleResult.Success<Unit>>(session.startSession(setOf(vcsec), timeout = 1.seconds))
+            // 핸드셰이크 자체의 저장이 회복한 도메인을 넣는다(이벤트 처리 순서에 기대지 않는다 — runCurrent 전에 단언)
+            assertTrue(
+                cache.stores
+                    .last()
+                    .entries
+                    .any { it.domain == vcsec },
+            )
+            assertIs<VehicleResult.Success<*>>(session.vcsec.execute(lock, AuthMethod.GCM, VcsecResponses.COMMAND_STATUS_ABSENT))
         }
 }
