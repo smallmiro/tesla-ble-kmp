@@ -265,6 +265,7 @@ public final class dev/mirolab/teslable/application/vehicle/VehicleSession {
 	public final fun getSend ()Ldev/mirolab/teslable/application/vehicle/SendWithRetry;
 	public final fun getSessionEvents ()Lkotlinx/coroutines/flow/SharedFlow;
 	public final fun getVcsec ()Ldev/mirolab/teslable/application/vcsec/VcsecCommands;
+	public final fun isReady (Lcom/tesla/generated/universalmessage/Domain;)Z
 	public final fun startSession-8Mi8wO0 (Ljava/util/Set;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun startSession-8Mi8wO0$default (Ldev/mirolab/teslable/application/vehicle/VehicleSession;Ljava/util/Set;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }

@@ -16,11 +16,27 @@ abstract interface dev.mirolab.teslable/Vehicle { // dev.mirolab.teslable/Vehicl
     abstract val vin // dev.mirolab.teslable/Vehicle.vin|{}vin[0]
         abstract fun <get-vin>(): dev.mirolab.teslable.model/Vin // dev.mirolab.teslable/Vehicle.vin.<get-vin>|<get-vin>(){}[0]
 
+    abstract fun addKeyRequest(dev.mirolab.teslable.model/PublicKeyBytes, dev.mirolab.teslable.model/KeyRole = ..., dev.mirolab.teslable.model/KeyFormFactor = ..., kotlin.time/Duration? = ...): kotlinx.coroutines.flow/Flow<dev.mirolab.teslable.model/PairingEvent> // dev.mirolab.teslable/Vehicle.addKeyRequest|addKeyRequest(dev.mirolab.teslable.model.PublicKeyBytes;dev.mirolab.teslable.model.KeyRole;dev.mirolab.teslable.model.KeyFormFactor;kotlin.time.Duration?){}[0]
+    abstract suspend fun actuateTrunk(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable/Vehicle.actuateTrunk|actuateTrunk(kotlin.time.Duration?){}[0]
+    abstract suspend fun addKey(dev.mirolab.teslable.model/PublicKeyBytes, dev.mirolab.teslable.model/KeyRole = ..., dev.mirolab.teslable.model/KeyFormFactor = ..., kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable/Vehicle.addKey|addKey(dev.mirolab.teslable.model.PublicKeyBytes;dev.mirolab.teslable.model.KeyRole;dev.mirolab.teslable.model.KeyFormFactor;kotlin.time.Duration?){}[0]
+    abstract suspend fun autoSecureVehicle(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable/Vehicle.autoSecureVehicle|autoSecureVehicle(kotlin.time.Duration?){}[0]
+    abstract suspend fun closeTonneau(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable/Vehicle.closeTonneau|closeTonneau(kotlin.time.Duration?){}[0]
+    abstract suspend fun closeTrunk(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable/Vehicle.closeTrunk|closeTrunk(kotlin.time.Duration?){}[0]
     abstract suspend fun disconnect() // dev.mirolab.teslable/Vehicle.disconnect|disconnect(){}[0]
     abstract suspend fun keySummary(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.model/WhitelistSummary> // dev.mirolab.teslable/Vehicle.keySummary|keySummary(kotlin.time.Duration?){}[0]
     abstract suspend fun listKeys(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin.collections/List<dev.mirolab.teslable.model/WhitelistEntry>> // dev.mirolab.teslable/Vehicle.listKeys|listKeys(kotlin.time.Duration?){}[0]
+    abstract suspend fun lock(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable/Vehicle.lock|lock(kotlin.time.Duration?){}[0]
+    abstract suspend fun openFrunk(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable/Vehicle.openFrunk|openFrunk(kotlin.time.Duration?){}[0]
+    abstract suspend fun openTonneau(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable/Vehicle.openTonneau|openTonneau(kotlin.time.Duration?){}[0]
+    abstract suspend fun openTrunk(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable/Vehicle.openTrunk|openTrunk(kotlin.time.Duration?){}[0]
+    abstract suspend fun remoteDrive(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable/Vehicle.remoteDrive|remoteDrive(kotlin.time.Duration?){}[0]
+    abstract suspend fun removeKey(dev.mirolab.teslable.model/PublicKeyBytes, kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable/Vehicle.removeKey|removeKey(dev.mirolab.teslable.model.PublicKeyBytes;kotlin.time.Duration?){}[0]
+    abstract suspend fun sessionInfo(dev.mirolab.teslable.model/PublicKeyBytes, dev.mirolab.teslable.model/VehicleDomain, kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.model/SessionInfoSummary> // dev.mirolab.teslable/Vehicle.sessionInfo|sessionInfo(dev.mirolab.teslable.model.PublicKeyBytes;dev.mirolab.teslable.model.VehicleDomain;kotlin.time.Duration?){}[0]
     abstract suspend fun startSession(kotlin.collections/Set<dev.mirolab.teslable.model/VehicleDomain> = ..., kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable/Vehicle.startSession|startSession(kotlin.collections.Set<dev.mirolab.teslable.model.VehicleDomain>;kotlin.time.Duration?){}[0]
+    abstract suspend fun stopTonneau(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable/Vehicle.stopTonneau|stopTonneau(kotlin.time.Duration?){}[0]
+    abstract suspend fun unlock(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable/Vehicle.unlock|unlock(kotlin.time.Duration?){}[0]
     abstract suspend fun vehicleStatus(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.model/VehicleStatus> // dev.mirolab.teslable/Vehicle.vehicleStatus|vehicleStatus(kotlin.time.Duration?){}[0]
+    abstract suspend fun wakeUp(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable/Vehicle.wakeUp|wakeUp(kotlin.time.Duration?){}[0]
 }
 
 sealed interface dev.mirolab.teslable/SessionStatus { // dev.mirolab.teslable/SessionStatus|null[0]
@@ -74,7 +90,7 @@ final class dev.mirolab.teslable/TeslaBle { // dev.mirolab.teslable/TeslaBle|nul
 }
 
 final class dev.mirolab.teslable/TeslaBleConfig { // dev.mirolab.teslable/TeslaBleConfig|null[0]
-    constructor <init>(dev.mirolab.teslable.port/TeslaLogger = ..., dev.mirolab.teslable.port/SessionCache? = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ...) // dev.mirolab.teslable/TeslaBleConfig.<init>|<init>(dev.mirolab.teslable.port.TeslaLogger;dev.mirolab.teslable.port.SessionCache?;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
+    constructor <init>(dev.mirolab.teslable.port/TeslaLogger = ..., dev.mirolab.teslable.port/SessionCache? = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ...) // dev.mirolab.teslable/TeslaBleConfig.<init>|<init>(dev.mirolab.teslable.port.TeslaLogger;dev.mirolab.teslable.port.SessionCache?;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
 
     final val commandLifetime // dev.mirolab.teslable/TeslaBleConfig.commandLifetime|{}commandLifetime[0]
         final fun <get-commandLifetime>(): kotlin.time/Duration // dev.mirolab.teslable/TeslaBleConfig.commandLifetime.<get-commandLifetime>|<get-commandLifetime>(){}[0]
@@ -86,6 +102,8 @@ final class dev.mirolab.teslable/TeslaBleConfig { // dev.mirolab.teslable/TeslaB
         final fun <get-handshakeTimeout>(): kotlin.time/Duration // dev.mirolab.teslable/TeslaBleConfig.handshakeTimeout.<get-handshakeTimeout>|<get-handshakeTimeout>(){}[0]
     final val logger // dev.mirolab.teslable/TeslaBleConfig.logger|{}logger[0]
         final fun <get-logger>(): dev.mirolab.teslable.port/TeslaLogger // dev.mirolab.teslable/TeslaBleConfig.logger.<get-logger>|<get-logger>(){}[0]
+    final val pairingTimeout // dev.mirolab.teslable/TeslaBleConfig.pairingTimeout|{}pairingTimeout[0]
+        final fun <get-pairingTimeout>(): kotlin.time/Duration // dev.mirolab.teslable/TeslaBleConfig.pairingTimeout.<get-pairingTimeout>|<get-pairingTimeout>(){}[0]
     final val sessionCache // dev.mirolab.teslable/TeslaBleConfig.sessionCache|{}sessionCache[0]
         final fun <get-sessionCache>(): dev.mirolab.teslable.port/SessionCache? // dev.mirolab.teslable/TeslaBleConfig.sessionCache.<get-sessionCache>|<get-sessionCache>(){}[0]
 
@@ -95,7 +113,8 @@ final class dev.mirolab.teslable/TeslaBleConfig { // dev.mirolab.teslable/TeslaB
     final fun component4(): kotlin.time/Duration // dev.mirolab.teslable/TeslaBleConfig.component4|component4(){}[0]
     final fun component5(): kotlin.time/Duration // dev.mirolab.teslable/TeslaBleConfig.component5|component5(){}[0]
     final fun component6(): kotlin.time/Duration // dev.mirolab.teslable/TeslaBleConfig.component6|component6(){}[0]
-    final fun copy(dev.mirolab.teslable.port/TeslaLogger = ..., dev.mirolab.teslable.port/SessionCache? = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ...): dev.mirolab.teslable/TeslaBleConfig // dev.mirolab.teslable/TeslaBleConfig.copy|copy(dev.mirolab.teslable.port.TeslaLogger;dev.mirolab.teslable.port.SessionCache?;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
+    final fun component7(): kotlin.time/Duration // dev.mirolab.teslable/TeslaBleConfig.component7|component7(){}[0]
+    final fun copy(dev.mirolab.teslable.port/TeslaLogger = ..., dev.mirolab.teslable.port/SessionCache? = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ..., kotlin.time/Duration = ...): dev.mirolab.teslable/TeslaBleConfig // dev.mirolab.teslable/TeslaBleConfig.copy|copy(dev.mirolab.teslable.port.TeslaLogger;dev.mirolab.teslable.port.SessionCache?;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration;kotlin.time.Duration){}[0]
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable/TeslaBleConfig.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.mirolab.teslable/TeslaBleConfig.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.mirolab.teslable/TeslaBleConfig.toString|toString(){}[0]
@@ -104,3 +123,5 @@ final class dev.mirolab.teslable/TeslaBleConfig { // dev.mirolab.teslable/TeslaB
         final fun default(dev.mirolab.teslable.port/TeslaLogger = ...): dev.mirolab.teslable/TeslaBleConfig // dev.mirolab.teslable/TeslaBleConfig.Companion.default|default(dev.mirolab.teslable.port.TeslaLogger){}[0]
     }
 }
+
+final fun dev.mirolab.teslable/platformKeyFormFactor(): dev.mirolab.teslable.model/KeyFormFactor // dev.mirolab.teslable/platformKeyFormFactor|platformKeyFormFactor(){}[0]
