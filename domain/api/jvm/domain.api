@@ -4786,6 +4786,16 @@ public final class dev/mirolab/teslable/model/VehicleError$InfotainmentRejected 
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class dev/mirolab/teslable/model/VehicleError$InsufficientPrivileges : dev/mirolab/teslable/model/VehicleError {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/VehicleError$InsufficientPrivileges;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class dev/mirolab/teslable/model/VehicleError$InvalidArgument : dev/mirolab/teslable/model/VehicleError {
 	public fun <init> (Ljava/lang/String;)V
 	public final fun component1 ()Ljava/lang/String;
@@ -5033,6 +5043,20 @@ public final class dev/mirolab/teslable/model/VehicleError$UnknownResponse : dev
 	public fun equals (Ljava/lang/Object;)Z
 	public fun getMayHaveSucceeded ()Z
 	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/mirolab/teslable/model/VehicleError$UnknownVcsecError : dev/mirolab/teslable/model/VehicleError {
+	public fun <init> (I)V
+	public final fun component1 ()I
+	public final fun copy (I)Ldev/mirolab/teslable/model/VehicleError$UnknownVcsecError;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/VehicleError$UnknownVcsecError;IILjava/lang/Object;)Ldev/mirolab/teslable/model/VehicleError$UnknownVcsecError;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public final fun getRawCode ()I
 	public fun getTemporary ()Z
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;

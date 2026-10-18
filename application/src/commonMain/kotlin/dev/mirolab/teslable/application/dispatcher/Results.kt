@@ -12,9 +12,13 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration
 
-/** `Signer`의 fault를 공개 오류로. `UNKNOWN_KEY_ID`는 Go `GetError`처럼 [VehicleError.KeyNotPaired]. */
+/** `Signer`의 fault를 공개 오류로: `UNKNOWN_KEY_ID`는 [VehicleError.KeyNotPaired], `INSUFFICIENT_PRIVILEGES`는 전용 타입. */
 internal fun SignerResult.Fault.toVehicleError(): VehicleError =
-    if (fault == MessageFault_E.MESSAGEFAULT_ERROR_UNKNOWN_KEY_ID) VehicleError.KeyNotPaired else VehicleError.ProtocolFault(fault)
+    when (fault) {
+        MessageFault_E.MESSAGEFAULT_ERROR_UNKNOWN_KEY_ID -> VehicleError.KeyNotPaired
+        MessageFault_E.MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES -> VehicleError.InsufficientPrivileges
+        else -> VehicleError.ProtocolFault(fault)
+    }
 
 /** 실패·불확실이면 그 오류, 성공이면 null. */
 internal fun <T> VehicleResult<T>.errorOrNull(): VehicleError? =

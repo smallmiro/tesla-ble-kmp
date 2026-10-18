@@ -473,6 +473,7 @@ public data class ProtocolFault(val fault: MessageFault) : VehicleError
         // temporary = fault in {BUSY, TIMEOUT, INVALID_SIGNATURE, INVALID_TOKEN_OR_COUNTER, INTERNAL, INCORRECT_EPOCH, TIME_EXPIRED, TIME_TO_LIVE_TOO_LONG}
         // mayHaveSucceeded = fault in {NONE, RESPONSE_MTU_EXCEEDED}
 public object KeyNotPaired : VehicleError                 // UNKNOWN_KEY_ID 또는 SessionInfo.status KEY_NOT_ON_WHITELIST
+public object InsufficientPrivileges : VehicleError        // MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES (FR-104): 키 역할이나 차량 상태가 명령을 허용하지 않음. message = fault 이름
 public object Busy : VehicleError                          // operation_status WAIT / VCSEC commandStatus WAIT  (temporary)
 public data class UnknownFault(val rawCode: Int) : VehicleError  // 모르는 signed_message_fault: RoutableMessageError{Code}, "unrecognized error code N"
 public object UnknownResponse : VehicleError               // ErrUnknown: 모르는 session_info.status·operation_status (코드 없음)
@@ -482,6 +483,7 @@ public data class BadResponse(val detail: String) : VehicleError   // 파싱 실
 public data class KeychainRejected(val code: WhitelistOperationInformation) : VehicleError
 public data class UnknownKeychainCode(val rawCode: Int) : VehicleError             // 모르는 whitelistOperationInformation 코드(더 새 펌웨어). Go KeychainError{Code}와 같은 정보
 public data class VcsecRejected(val error: GenericError) : VehicleError            // nominalError
+public data class UnknownVcsecError(val rawCode: Int) : VehicleError               // 모르는 nominalError.genericError 코드(L58). Go NominalVCSECError, "vcsec could not execute command: unrecognized error code N"
 public data class InfotainmentRejected(val reason: String) : VehicleError          // actionStatus ERROR + plain_text ("unspecified error" 기본)
 // 전송·플랫폼 계층 (어댑터가 변환)
 public sealed interface TransportError : VehicleError { ScanTimeout, MaxConnectionsExceeded, ConnectFailed(cause), Disconnected, BluetoothOff, PermissionDenied, WriteFailed(cause, temporary=true) }
@@ -749,7 +751,7 @@ HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 
 - `SessionState.authorize`는 `Signer.encrypt` 실패를 `Failure(ProtocolFault)`로 돌려준다. Go `session.authorize`는 오류를 지우고 즉시 재시도한다(ctx 만료까지 바쁜 루프). 재시도는 `SendWithRetry`/`VcsecCommands`가 `retryInterval` 간격을 두고 한다 — 관찰 결과는 같다.
 - `Dispatcher.loadSessions`는 손상된 항목·모르는 도메인 값의 항목을 건너뛰고 나머지를 복원한다(기존 세션 맵에 병합). Go `LoadCache`는 손상된 항목 하나만 있어도 전체 실패한다. 새 `Dispatcher`(세션이 모두 빈 상태)에서 부르면 병합과 교체의 결과는 같다.
 - 핸드셰이크 시간 초과(`VehicleSession.startSession`)는 항상 `Failure(Timeout(afterSend = false))`다 — `HandshakeFlow`는 `withAttemptTimeout`의 `setAwaiting`을 절대 부르지 않기 때문이다(사용자 승인 답 b — 전용 타입 없음). Go는 `context.DeadlineExceeded`를 그대로 돌려준다.
-- Wire가 모르는 `whitelistOperationInformation`은 `UnknownKeychainCode(rawCode)`(Go `KeychainError{Code}`와 같은 정보 — 원시 코드를 `unknownFields`에서 되찾는다). 모르는 VCSEC `operationStatus`·Infotainment `actionStatus.result`는 Go처럼 그냥 통과(default 분기가 없다). 모르는 VCSEC `nominalError.genericError`는 `VcsecRejected(GENERICERROR_NONE)`으로 뭉개진다(Go `vcsec.go:44-45`는 `GenericError_E`가 등록된 enum이라 항상 실제 코드를 담는다) — M4(L58)에서 재검토.
+- Wire가 모르는 `whitelistOperationInformation`은 `UnknownKeychainCode(rawCode)`(Go `KeychainError{Code}`와 같은 정보 — 원시 코드를 `unknownFields`에서 되찾는다). 모르는 VCSEC `operationStatus`·Infotainment `actionStatus.result`는 Go처럼 그냥 통과(default 분기가 없다). 모르는 VCSEC `nominalError.genericError`는 Wire가 `NONE`으로 읽으므로 `unknownFields`에서 원시 코드를 되찾아 `UnknownVcsecError(rawCode)`로 보존한다(Go `vcsec.go:44-45`는 항상 실제 코드를 담는다; L58 해소, M4).
 - `PendingRequest.close()`는 suspend하지 않고 플래그 + 채널 닫기만 한다(Go `closeHandler`는 즉시 맵에서 제거한다). 맵에서 지우는 것은 `Dispatcher`가 다음 `register`/`lookup` 때 지연 수행한다. 관찰 결과는 같다: 닫힌 요청에 온 응답은 "without registered handler"로 드롭된다.
 - `Dispatcher.send`는 `Domain.DOMAIN_BROADCAST`도 `InvalidArgument`로 거부한다(Go도 `Domain_DOMAIN_BROADCAST`를 거부한다 — 동일 동작, 기록만).
 - `Dispatcher`가 두 도메인(VCSEC, INFOTAINMENT)의 `SessionState`를 미리 만들어 둔다(Go는 `StartSession`이 부를 때 만든다). 그 결과 태그가 맞는 세션정보 응답이 오면 `HandshakeFlow.startSession`을 부르지 않은 도메인도 준비 상태가 된다 — Go는 등록되지 않은 도메인의 세션정보를 드롭한다. 핸드셰이크와 같은 신뢰 수준(HMAC 태그 검증)이라 관찰 가능한 안전 문제는 없다.

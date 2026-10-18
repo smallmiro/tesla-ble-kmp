@@ -35,6 +35,17 @@ class ResponseClassifierTest {
     }
 
     @Test
+    fun insufficientPrivilegesIsItsOwnTypeWithGoMessage() {
+        // FR-104. Go RoutableMessageError.Error()는 fault 이름(error.go:225-230)
+        val message = RoutableMessage(signedMessageStatus = status(fault = MessageFault_E.MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES))
+        val error = assertNotNull(ResponseClassifier.protocolError(message))
+        assertEquals(VehicleError.InsufficientPrivileges, error)
+        assertEquals("MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES", error.message)
+        assertFalse(error.temporary)
+        assertFalse(error.mayHaveSucceeded)
+    }
+
+    @Test
     fun unknownKeyIdBecomesKeyNotPaired() {
         val message = RoutableMessage(signedMessageStatus = status(fault = MessageFault_E.MESSAGEFAULT_ERROR_UNKNOWN_KEY_ID))
         assertEquals(VehicleError.KeyNotPaired, ResponseClassifier.protocolError(message))

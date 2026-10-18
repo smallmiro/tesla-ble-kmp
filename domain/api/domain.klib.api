@@ -1322,6 +1322,25 @@ sealed interface dev.mirolab.teslable.model/VehicleError { // dev.mirolab.teslab
         final fun toString(): kotlin/String // dev.mirolab.teslable.model/VehicleError.UnknownKeychainCode.toString|toString(){}[0]
     }
 
+    final class UnknownVcsecError : dev.mirolab.teslable.model/VehicleError { // dev.mirolab.teslable.model/VehicleError.UnknownVcsecError|null[0]
+        constructor <init>(kotlin/Int) // dev.mirolab.teslable.model/VehicleError.UnknownVcsecError.<init>|<init>(kotlin.Int){}[0]
+
+        final val mayHaveSucceeded // dev.mirolab.teslable.model/VehicleError.UnknownVcsecError.mayHaveSucceeded|{}mayHaveSucceeded[0]
+            final fun <get-mayHaveSucceeded>(): kotlin/Boolean // dev.mirolab.teslable.model/VehicleError.UnknownVcsecError.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+        final val message // dev.mirolab.teslable.model/VehicleError.UnknownVcsecError.message|{}message[0]
+            final fun <get-message>(): kotlin/String // dev.mirolab.teslable.model/VehicleError.UnknownVcsecError.message.<get-message>|<get-message>(){}[0]
+        final val rawCode // dev.mirolab.teslable.model/VehicleError.UnknownVcsecError.rawCode|{}rawCode[0]
+            final fun <get-rawCode>(): kotlin/Int // dev.mirolab.teslable.model/VehicleError.UnknownVcsecError.rawCode.<get-rawCode>|<get-rawCode>(){}[0]
+        final val temporary // dev.mirolab.teslable.model/VehicleError.UnknownVcsecError.temporary|{}temporary[0]
+            final fun <get-temporary>(): kotlin/Boolean // dev.mirolab.teslable.model/VehicleError.UnknownVcsecError.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+        final fun component1(): kotlin/Int // dev.mirolab.teslable.model/VehicleError.UnknownVcsecError.component1|component1(){}[0]
+        final fun copy(kotlin/Int = ...): dev.mirolab.teslable.model/VehicleError.UnknownVcsecError // dev.mirolab.teslable.model/VehicleError.UnknownVcsecError.copy|copy(kotlin.Int){}[0]
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.model/VehicleError.UnknownVcsecError.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.mirolab.teslable.model/VehicleError.UnknownVcsecError.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.mirolab.teslable.model/VehicleError.UnknownVcsecError.toString|toString(){}[0]
+    }
+
     final class VcsecRejected : dev.mirolab.teslable.model/VehicleError { // dev.mirolab.teslable.model/VehicleError.VcsecRejected|null[0]
         constructor <init>(com.tesla.generated.errors/GenericError_E) // dev.mirolab.teslable.model/VehicleError.VcsecRejected.<init>|<init>(com.tesla.generated.errors.GenericError_E){}[0]
 
@@ -1357,6 +1376,19 @@ sealed interface dev.mirolab.teslable.model/VehicleError { // dev.mirolab.teslab
     final object Companion { // dev.mirolab.teslable.model/VehicleError.Companion|null[0]
         final val RETRIABLE_FAULTS // dev.mirolab.teslable.model/VehicleError.Companion.RETRIABLE_FAULTS|{}RETRIABLE_FAULTS[0]
             final fun <get-RETRIABLE_FAULTS>(): kotlin.collections/Set<com.tesla.generated.universalmessage/MessageFault_E> // dev.mirolab.teslable.model/VehicleError.Companion.RETRIABLE_FAULTS.<get-RETRIABLE_FAULTS>|<get-RETRIABLE_FAULTS>(){}[0]
+    }
+
+    final object InsufficientPrivileges : dev.mirolab.teslable.model/VehicleError { // dev.mirolab.teslable.model/VehicleError.InsufficientPrivileges|null[0]
+        final val mayHaveSucceeded // dev.mirolab.teslable.model/VehicleError.InsufficientPrivileges.mayHaveSucceeded|{}mayHaveSucceeded[0]
+            final fun <get-mayHaveSucceeded>(): kotlin/Boolean // dev.mirolab.teslable.model/VehicleError.InsufficientPrivileges.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+        final val message // dev.mirolab.teslable.model/VehicleError.InsufficientPrivileges.message|{}message[0]
+            final fun <get-message>(): kotlin/String // dev.mirolab.teslable.model/VehicleError.InsufficientPrivileges.message.<get-message>|<get-message>(){}[0]
+        final val temporary // dev.mirolab.teslable.model/VehicleError.InsufficientPrivileges.temporary|{}temporary[0]
+            final fun <get-temporary>(): kotlin/Boolean // dev.mirolab.teslable.model/VehicleError.InsufficientPrivileges.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.model/VehicleError.InsufficientPrivileges.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.mirolab.teslable.model/VehicleError.InsufficientPrivileges.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.mirolab.teslable.model/VehicleError.InsufficientPrivileges.toString|toString(){}[0]
     }
 
     final object KeyNotPaired : dev.mirolab.teslable.model/VehicleError { // dev.mirolab.teslable.model/VehicleError.KeyNotPaired|null[0]

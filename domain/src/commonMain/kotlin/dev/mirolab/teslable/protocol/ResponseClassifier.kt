@@ -42,10 +42,10 @@ public object ResponseClassifier {
     private fun faultError(status: MessageStatus?): VehicleError? {
         val fault = status?.signed_message_fault ?: MessageFault_E.MESSAGEFAULT_ERROR_NONE
         if (fault != MessageFault_E.MESSAGEFAULT_ERROR_NONE) {
-            return if (fault == MessageFault_E.MESSAGEFAULT_ERROR_UNKNOWN_KEY_ID) {
-                VehicleError.KeyNotPaired
-            } else {
-                VehicleError.ProtocolFault(fault)
+            return when (fault) {
+                MessageFault_E.MESSAGEFAULT_ERROR_UNKNOWN_KEY_ID -> VehicleError.KeyNotPaired
+                MessageFault_E.MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES -> VehicleError.InsufficientPrivileges
+                else -> VehicleError.ProtocolFault(fault)
             }
         }
         // Go는 등록되지 않은 fault도 &RoutableMessageError{Code: fault}로 코드를 보존한다(error.go 241).
