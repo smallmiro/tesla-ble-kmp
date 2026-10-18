@@ -151,8 +151,22 @@
 <tr><td><code>key=sha1:xxxxxxxx</code></td><td>公開鍵: SHA-1 の先頭4バイトだけを記します</td></tr>
 </tbody>
 </table>
+<h3>詳細形式（探索用）</h3>
+<p>例: <code>unknownFields=[48:len(8){1:varint=3(0x3), 2:len(4)"ABCD"}, 9]</code>。項目は到着順を保ち、繰り返しフィールドは繰り返して記します。フィールド番号と wire type はそのまま残し、フィールド名は作りません。</p>
+<table>
+<thead><tr><th>Wire type</th><th>表示</th></tr></thead>
+<tbody>
+<tr><td>varint</td><td><code>varint=&lt;符号なし10進数&gt;(0x&lt;16進数&gt;)</code></td></tr>
+<tr><td>fixed32 / fixed64</td><td><code>fixed32=0x</code> + 16進数8桁、<code>fixed64=0x</code> + 16進数16桁</td></tr>
+<tr><td>LEN</td><td>範囲全体が protobuf として読めれば <code>len(N){…}</code>（深さ3、メッセージごとにフィールド64個、256バイトまで）。読めなければ、表示可能な ASCII は <code>len(N)"text"</code>（制御文字はエスケープ）、それ以外は <code>len(N)0x…</code> の16進</td></tr>
+<tr><td>上限超過または破損</td><td><code>len(N, truncated)</code> または <code>len(N, invalid)</code></td></tr>
+<tr><td>鍵らしい LEN</td><td>ちょうど16、32、33、64、65バイト: <code>redacted(NB)</code>。<code>0x04</code> で始まる65バイトの値: <code>sha1:xxxxxxxx</code></td></tr>
+</tbody>
+</table>
+<p>VIN（17文字）は16進を作る前に、テキストと生バイトの両方で伏せます。先頭3文字と末尾4文字だけが残ります。この出力は探索用にすぎません。フィールドの意味は分からず、ブロードキャストに <code>closureStatuses</code> がなくても、すべて閉まっているとは限りません。</p>
 <h3>制限とルール</h3>
 <ul>
+<li>詳細デコードは狭い例外で、車両が元々平文で送ったフレームにだけ適用します（ライブラリが復号したものには使わないので FR-112 とは衝突しません）。次がすべて成り立つ必要があります: セキュリティドメインから発信、ブロードキャストドメイン宛て、リクエスト UUID なし、署名なし、セッション情報なし、ペイロードが <code>FromVCSECMessage</code> として読める。その場合 <code>FromVCSECMessage</code> の未公開フィールド 48・53 と <code>VehicleStatus</code> の未公開フィールド 7・8 だけを展開します。それ以外のフィールドとフレームは番号だけを記します。</li>
 <li>enum の値が欠けている場合と 0 番の値は区別できません。ロック状態がなければ <code>VEHICLELOCKSTATE_UNLOCKED</code> と読めます（sleep と presence は <code>UNKNOWN</code>）。<code>absent</code> として分かるのはメッセージの部分だけです。</li>
 <li>暗号化された内容とセッション情報は長さだけ、公開鍵は SHA-1 の先頭だけを記します。VIN と復号した内容は出力されません。行を追加するときもこのルールを守ってください。</li>
 <li>BLE トランスポートは接続ごとに受信バッファの溢れを数えます。破棄したメッセージごとに <code>ERROR</code> で <code>Dropping received message because inbox is full (dropped N since connect)</code> を出し、リンクが終わると <code>WARN</code> で <code>BLE inbox overflowed N time(s) during this connection</code> を1行出します（N が 0 より大きいときだけ）。</li>

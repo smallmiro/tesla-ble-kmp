@@ -151,8 +151,22 @@
 <tr><td><code>key=sha1:xxxxxxxx</code></td><td>A public key: only the first 4 bytes of its SHA-1</td></tr>
 </tbody>
 </table>
+<h3>Detail form (exploration only)</h3>
+<p>Example: <code>unknownFields=[48:len(8){1:varint=3(0x3), 2:len(4)"ABCD"}, 9]</code>. Entries keep their arrival order and repeated fields repeat. The field number and wire type are kept; no field name is invented.</p>
+<table>
+<thead><tr><th>Wire type</th><th>Shown as</th></tr></thead>
+<tbody>
+<tr><td>varint</td><td><code>varint=&lt;unsigned decimal&gt;(0x&lt;hex&gt;)</code></td></tr>
+<tr><td>fixed32 / fixed64</td><td><code>fixed32=0x</code> + 8 hex digits, <code>fixed64=0x</code> + 16 hex digits</td></tr>
+<tr><td>LEN</td><td><code>len(N){…}</code> when the whole range parses as protobuf (depth 3, 64 fields per message, 256 bytes at most). Otherwise <code>len(N)"text"</code> for printable ASCII (control characters escaped), otherwise <code>len(N)0x…</code> hex</td></tr>
+<tr><td>Over a limit or corrupt</td><td><code>len(N, truncated)</code> or <code>len(N, invalid)</code></td></tr>
+<tr><td>Key-like LEN</td><td>Exactly 16, 32, 33, 64 or 65 bytes: <code>redacted(NB)</code>. A 65-byte value that starts with <code>0x04</code>: <code>sha1:xxxxxxxx</code></td></tr>
+</tbody>
+</table>
+<p>VINs (17 characters) are masked in text and in raw bytes before any hex is produced; only the first 3 and last 4 characters stay. This output is for exploration only. It does not tell what a field means, and a missing <code>closureStatuses</code> in a broadcast does not mean that everything is closed.</p>
 <h3>Limits and rules</h3>
 <ul>
+<li>Detailed decoding is a narrow exception, and only for frames the car originally sent as plaintext (never for anything the library decrypted, so FR-112 is unaffected). All of these must hold: from the security domain, to the broadcast domain, empty request UUID, no signature, no session info, and a payload that reads as <code>FromVCSECMessage</code>. Then only <code>FromVCSECMessage</code> unknown fields 48 and 53 and <code>VehicleStatus</code> unknown fields 7 and 8 are decoded. Every other field and frame keeps the number-only form.</li>
 <li>A missing enum value cannot be told from its zero value: an absent lock state reads <code>VEHICLELOCKSTATE_UNLOCKED</code> (sleep and presence read <code>UNKNOWN</code>). Only message parts can be reported as <code>absent</code>.</li>
 <li>Encrypted content and session info appear by length only, public keys by SHA-1 prefix only. The VIN and decrypted content never appear. Keep this rule when you add lines.</li>
 <li>The BLE transport counts inbox overflows per connection. Each dropped message logs <code>Dropping received message because inbox is full (dropped N since connect)</code> at <code>ERROR</code>; when the link ends, one line <code>BLE inbox overflowed N time(s) during this connection</code> is logged at <code>WARN</code> (only if N is above 0).</li>

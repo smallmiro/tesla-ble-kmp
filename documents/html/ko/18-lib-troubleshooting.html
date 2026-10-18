@@ -151,8 +151,22 @@
 <tr><td><code>key=sha1:xxxxxxxx</code></td><td>공개키: SHA-1의 앞 4바이트만 적습니다</td></tr>
 </tbody>
 </table>
+<h3>상세 형식 (탐색용)</h3>
+<p>예: <code>unknownFields=[48:len(8){1:varint=3(0x3), 2:len(4)"ABCD"}, 9]</code>. 항목은 도착 순서를 지키고 반복 필드는 반복해서 적습니다. 필드 번호와 wire type은 그대로 두며 필드 이름은 지어내지 않습니다.</p>
+<table>
+<thead><tr><th>Wire type</th><th>표시</th></tr></thead>
+<tbody>
+<tr><td>varint</td><td><code>varint=&lt;부호 없는 10진수&gt;(0x&lt;16진수&gt;)</code></td></tr>
+<tr><td>fixed32 / fixed64</td><td><code>fixed32=0x</code> + 16진수 8자리, <code>fixed64=0x</code> + 16진수 16자리</td></tr>
+<tr><td>LEN</td><td>전체 범위가 protobuf로 읽히면 <code>len(N){…}</code>(깊이 3, 메시지당 필드 64개, 256바이트까지). 아니면 출력 가능한 ASCII는 <code>len(N)"text"</code>(제어 문자는 이스케이프), 그 밖은 <code>len(N)0x…</code> 헥사</td></tr>
+<tr><td>한계 초과 또는 손상</td><td><code>len(N, truncated)</code> 또는 <code>len(N, invalid)</code></td></tr>
+<tr><td>키처럼 보이는 LEN</td><td>정확히 16, 32, 33, 64, 65바이트: <code>redacted(NB)</code>. <code>0x04</code>로 시작하는 65바이트 값: <code>sha1:xxxxxxxx</code></td></tr>
+</tbody>
+</table>
+<p>VIN(17자)은 헥사를 만들기 전에 텍스트와 원시 바이트 모두에서 가립니다. 앞 3자와 뒤 4자만 남습니다. 이 출력은 탐색용일 뿐입니다. 필드의 뜻을 알려 주지 않으며, 브로드캐스트에 <code>closureStatuses</code>가 없다고 모두 닫힌 것은 아닙니다.</p>
 <h3>한계와 규칙</h3>
 <ul>
+<li>상세 디코드는 좁은 예외이며, 차량이 원래 평문으로 보낸 프레임에만 적용됩니다(라이브러리가 복호화한 것에는 절대 쓰지 않으므로 FR-112와 충돌하지 않습니다). 다음이 모두 맞아야 합니다: 보안 도메인에서 출발, 브로드캐스트 도메인으로 도착, 요청 UUID 없음, 서명 없음, 세션 정보 없음, 페이로드가 <code>FromVCSECMessage</code>로 읽힘. 그때 <code>FromVCSECMessage</code>의 미공개 필드 48·53과 <code>VehicleStatus</code>의 미공개 필드 7·8만 풀어 씁니다. 그 밖의 필드와 프레임은 번호만 적습니다.</li>
 <li>enum 값이 빠진 것과 0번 값은 구분할 수 없습니다. 잠금 상태가 없으면 <code>VEHICLELOCKSTATE_UNLOCKED</code>로 읽힙니다(sleep, presence는 <code>UNKNOWN</code>). <code>absent</code>로 알 수 있는 것은 메시지 부분뿐입니다.</li>
 <li>암호화된 내용과 세션 정보는 길이만, 공개키는 SHA-1 앞부분만 적습니다. VIN과 복호화된 내용은 나오지 않습니다. 줄을 추가할 때도 이 규칙을 지키세요.</li>
 <li>BLE 전송은 연결마다 수신 버퍼 넘침을 셉니다. 버려진 메시지마다 <code>ERROR</code>로 <code>Dropping received message because inbox is full (dropped N since connect)</code>를 남기고, 링크가 끝나면 <code>WARN</code>으로 <code>BLE inbox overflowed N time(s) during this connection</code> 한 줄을 남깁니다(N이 0보다 클 때만).</li>
