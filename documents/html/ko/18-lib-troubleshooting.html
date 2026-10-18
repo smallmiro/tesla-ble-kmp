@@ -110,7 +110,7 @@
 <strong>로그에 절대 나오지 않는 것</strong>
 <p>라이브러리는 VIN을 마스킹하며 개인키, 세션 키, nonce, 복호화된 내용을 기록하지 않습니다. 앱 자체의 로그도 그렇게 유지하세요. <code>vin.value</code>를 출력하지 말고, 로그를 공유하기 전에 VIN을 마스킹하세요.</p>
 </div>
-<p><code>TeslableDiagnostics.probe</code>는 실차 스파이크(ADR-0003)를 위한 임시 도구이며 M3가 끝나면 제거됩니다. 앱에서 사용하지 마세요.</p>
+<p>문제를 보고할 때는 iOS 샘플의 "결과 전체 복사" 로그와 <code>DebugLogger</code>를 사용하세요. 프로브나 진단 진입점은 없습니다.</p>
 
 <footer class="page-nav">
   <a href="17-lib-platform-notes.html"><span>이전</span>17. 플랫폼 노트</a>

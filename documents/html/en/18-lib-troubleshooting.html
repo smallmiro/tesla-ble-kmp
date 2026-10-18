@@ -110,7 +110,7 @@
 <strong>What never appears in logs</strong>
 <p>The library masks VINs and never logs private keys, session keys, nonces or decrypted content. Keep it that way in your own logs: do not print <code>vin.value</code>, and mask VINs before sharing logs.</p>
 </div>
-<p><code>TeslableDiagnostics.probe</code> is a temporary tool for the real-car spike (ADR-0003) and will be removed when M3 is closed. Do not use it in an app.</p>
+<p>To report a problem, use the iOS sample's "결과 전체 복사" (copy whole result) log together with <code>DebugLogger</code>. There is no probe or diagnostics entry point.</p>
 
 <footer class="page-nav">
   <a href="17-lib-platform-notes.html"><span>Previous</span>17. Platform Notes</a>

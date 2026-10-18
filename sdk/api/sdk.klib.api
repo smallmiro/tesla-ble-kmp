@@ -104,7 +104,3 @@ final class dev.mirolab.teslable/TeslaBleConfig { // dev.mirolab.teslable/TeslaB
         final fun default(dev.mirolab.teslable.port/TeslaLogger = ...): dev.mirolab.teslable/TeslaBleConfig // dev.mirolab.teslable/TeslaBleConfig.Companion.default|default(dev.mirolab.teslable.port.TeslaLogger){}[0]
     }
 }
-
-final object dev.mirolab.teslable/TeslableDiagnostics { // dev.mirolab.teslable/TeslableDiagnostics|null[0]
-    final suspend fun probe(kotlin/String, kotlin/Boolean, kotlin/Function1<kotlin/String, kotlin/Unit>) // dev.mirolab.teslable/TeslableDiagnostics.probe|probe(kotlin.String;kotlin.Boolean;kotlin.Function1<kotlin.String,kotlin.Unit>){}[0]
-}

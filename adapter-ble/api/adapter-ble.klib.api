@@ -15,9 +15,5 @@ abstract fun interface dev.mirolab.teslable.ble/BleAvailability { // dev.mirolab
     }
 }
 
-final object dev.mirolab.teslable.ble/GattProbe { // dev.mirolab.teslable.ble/GattProbe|null[0]
-    final suspend fun run(kotlin/String, kotlin/ByteArray, kotlin/Boolean, kotlin/Function1<kotlin/String, kotlin/Unit>, kotlin/Function1<kotlin/ByteArray, kotlin/Unit>, kotlin.time/Duration = ..., kotlin.time/Duration = ...) // dev.mirolab.teslable.ble/GattProbe.run|run(kotlin.String;kotlin.ByteArray;kotlin.Boolean;kotlin.Function1<kotlin.String,kotlin.Unit>;kotlin.Function1<kotlin.ByteArray,kotlin.Unit>;kotlin.time.Duration;kotlin.time.Duration){}[0]
-}
-
 final fun dev.mirolab.teslable.ble/appleBleAvailability(): dev.mirolab.teslable.ble/BleAvailability // dev.mirolab.teslable.ble/appleBleAvailability|appleBleAvailability(){}[0]
 final fun dev.mirolab.teslable.ble/kableTransportFactory(kotlinx.coroutines/CoroutineScope, dev.mirolab.teslable.port/CryptoPrimitives, dev.mirolab.teslable.ble/BleAvailability, dev.mirolab.teslable.port/TeslaLogger = ..., kotlin.time/Duration = ...): dev.mirolab.teslable.port/TransportFactory // dev.mirolab.teslable.ble/kableTransportFactory|kableTransportFactory(kotlinx.coroutines.CoroutineScope;dev.mirolab.teslable.port.CryptoPrimitives;dev.mirolab.teslable.ble.BleAvailability;dev.mirolab.teslable.port.TeslaLogger;kotlin.time.Duration){}[0]
