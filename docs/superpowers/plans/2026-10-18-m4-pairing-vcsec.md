@@ -2830,8 +2830,8 @@ Refs: NFR-008, NFR-017, ADR-0002. 결정: `.superpowers/sdd/2026-10-18-m4-pairin
 - RED: `TeslemetrySchemaWireTest`(VehicleStatus 6 `uiDesire`·7 `gear`, FromVCSECMessage 3 `authenticationRequest`, 8·48·53은 unknownFields로 보존·왕복), 새로 알게 된 오류 코드(`KeychainRejected` 29, `VcsecRejected` 8, `ProtocolFault` 29), 관찰 로그 이름.
 - 교체: `tools/proto/sync-protos.sh <checkout>`(고정 SHA 확인, 9개만, 네트워크 없음). `PROTO_SOURCE.md`, `NOTICE`, `check-license.sh`.
 - 적응: 망라 `when`(`INVALID_HANDLE` → `UnknownResponse`, 새 `Role`·`KeyFormFactor` → `UNKNOWN`), `:domain` `UNNECESSARY_NOT_NULL_ASSERTION` 끔(생성 코드), 기존 "모르는 값" 테스트는 스냅샷에도 없는 값(도메인 6 등)으로.
-- 관찰 로그: `uiDesire=`·`gear=`, `authenticationRequest{requestedLevel, reasons, token=NB}`, VehicleStatus 상세 집합 {8}.
-- 문서: ADR-0002 개정 절, SDD D22·§12, `{{PATHS_FILE}}` 키 2개(별도 `docs:` 커밋), `apiDump`, 라이브러리 사용 문서 11·13·18·19(MD + HTML 3언어).
+- 관찰 로그: `uiDesire=`·`gear=`, `authenticationRequest{requestedLevel, reasons, token=NB}`, VehicleStatus 상세 집합 {7, 8}(정의 밖 gear 값의 원시 varint 유지).
+- 문서: ADR-0002 개정 절, SDD D22·§12, `{{PATHS_FILE}}` 키 2개(별도 `docs:` 커밋), `apiDump`, 라이브러리 사용 문서 13·16·18·19(MD + HTML 3언어).
 - 하지 않을 것: 확장 필드를 쓰는 명령·공개 이벤트 API, 공개 모델 enum 값 추가, `session.proto`.
 
 ---

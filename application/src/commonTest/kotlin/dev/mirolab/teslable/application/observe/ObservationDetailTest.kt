@@ -124,10 +124,16 @@ class ObservationDetailTest {
     }
 
     @Test
-    fun vehicleStatusUnknownGearValueKeepsItsFieldNumber() {
-        // 스냅샷 밖의 gear 값(9)은 Wire가 기본값으로 두고 unknownFields로 옮긴다: 번호만 남는다
+    fun vehicleStatusUnknownGearValueKeepsItsRawVarint() {
+        // 스냅샷 밖의 gear 값(9)은 Wire가 기본값으로 두고 unknownFields로 옮긴다: 상세 집합 {7, 8}이라 원시 값이 남는다
         val line = top(len(1, vint(7, 9)))
         assertTrue(line.contains("gear=GEAR_UNKNOWN"), line)
+        assertTrue(line.contains("unknownFields=[7:varint=9(0x9)]"), line)
+    }
+
+    @Test
+    fun vehicleStatusUnknownGearOnNonBroadcastFrameKeepsNumberOnly() {
+        val line = frame(len(1, vint(7, 9)), to = Destination(routing_address = ByteArray(16).toByteString()))
         assertTrue(line.contains("unknownFields=[7]"), line)
     }
 
