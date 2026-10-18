@@ -124,6 +124,36 @@ final class SampleModel: ObservableObject {
 
     private let client = BleClient()
 
+    private static let clock: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
+
+    /// 결과 칸에 시각과 함께 한 줄을 남긴다(복사해서 실차 확인 기록으로 쓴다).
+    private func log(_ line: String) {
+        output.append("[\(Self.clock.string(from: Date()))] \(line)")
+    }
+
+    /// 실차 확인 기록용 전체 텍스트: 앱 정보, 현재 상태, 결과 기록. VIN은 넣지 않는다.
+    func report() -> String {
+        let stamp = ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withInternetDateTime])
+        var lines = [
+            "Teslable Sample 기록 \(stamp)",
+            "앱: \(AppInfo.bundleID) / \(AppInfo.version) / 빌드 \(AppInfo.build)",
+            "연결: \(connection)",
+            "키: \(keyInfo)",
+        ]
+        lines += advertisements.map { "광고: \($0)" }
+        lines.append("--- 결과 (\(output.count)줄) ---")
+        lines += output
+        return lines.joined(separator: "\n")
+    }
+
+    func clearOutput() {
+        output.removeAll()
+    }
+
     private func exclusive(_ body: @MainActor () async -> ()) async {
         guard !busy else { return }
         busy = true
@@ -135,6 +165,7 @@ final class SampleModel: ObservableObject {
         await exclusive { [self] in
             let info = await client.createKey()
             keyInfo = info
+            log("키: \(info)")
         }
     }
 
@@ -142,6 +173,7 @@ final class SampleModel: ObservableObject {
         await exclusive { [self] in
             let line = await client.scan(vinText: vinText)
             advertisements = [line]
+            log("스캔: \(line)")
         }
     }
 
@@ -150,25 +182,29 @@ final class SampleModel: ObservableObject {
             connection = "연결 중…"
             let result = await client.connect(vinText: vinText) { [weak self] text in await self?.linkLost(text) }
             connection = result
+            log("연결: \(result)")
         }
     }
 
     /// 연결된 상태일 때만 반영한다(사용자가 이미 끊었다면 덮어쓰지 않는다).
     private func linkLost(_ text: String) {
-        if connection.hasPrefix("연결됨") { connection = text }
+        if connection.hasPrefix("연결됨") {
+            connection = text
+            log("연결: \(text)")
+        }
     }
 
     func vehicleStatus() async {
         await exclusive { [self] in
             let line = await client.vehicleStatus()
-            output.append(line)
+            log(line)
         }
     }
 
     func listKeys() async {
         await exclusive { [self] in
             let line = await client.listKeys()
-            output.append(line)
+            log(line)
         }
     }
 
@@ -176,6 +212,7 @@ final class SampleModel: ObservableObject {
         await exclusive { [self] in
             await client.disconnect()
             connection = "연결 안 됨"
+            log("연결 끊기: 연결 안 됨")
         }
     }
 }
