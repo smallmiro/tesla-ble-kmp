@@ -19,3 +19,11 @@ Kable 0.45.0을 `:adapter-ble`에서 `Transport`/`TransportFactory` 포트 구�
 
 ## 대안
 - 처음부터 자체 GATT 구현: 스캔·연결·구독·재시도를 두 플랫폼에서 새로 짜야 한다. Kable이 실패할 때만.
+
+## 스파이크 결과 (2026-10-17, iPhone 16 Pro / iOS 27.0.1, Model Y)
+- 스캔: 광고 발견(rssi -39, connectable=true), 연결 성공.
+- 특성 속성: `…0212` write=true notify=false indicate=false. `…0213` write=false notify=true indicate=true. `…0214` 속성 없음(Go도 쓰지 않음, 관찰만 함).
+- 블록 길이: `maximumWriteValueLength(WithResponse)` = 512 → blockLength 512.
+- 송신 1청크(`GET_WHITELIST_INFO`, Go `list-keys` 와 같은 페이로드)에 대해 Kable 기본 구독(notify)만으로 응답이 도착했다(`whitelistInfo: entries=7 slotMask=0x7f`). **판정 (b)**: 우회(CCCD 직접 쓰기, 자체 GATT 구현) 불필요. `DEFAULT_SUBSCRIPTION = KABLE_DEFAULT` 확정.
+- 다중 청크 응답(244 B + 136 B)이 한 메시지(378 B)로 재조립되었다. 다른 라우팅 주소 앞으로 온 비요청 메시지도 도착했고, 디스패처가 "핸들러 없음"으로 버렸다(정상).
+- Android 실기기는 확인하지 못했다(미결).
