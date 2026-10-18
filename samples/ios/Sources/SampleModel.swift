@@ -7,14 +7,22 @@ import Teslable
 actor BleClient {
     // Kotlin 객체는 Sendable이 아니라 SKIE async 호출로 보낼 수 없다. 액터가 접근을 직렬화하고 화면이 겹침을 막으므로
     // `nonisolated(unsafe)`로 표시한다(문자열만 액터 밖으로 나간다).
-    nonisolated(unsafe) private let ble = TeslaBle.companion.create(
-        platform: PlatformContext(),
-        config: TeslaBleConfig.companion.default(logger: DebugLogger())
-    )
+    nonisolated(unsafe) private let ble: TeslaBle
+    /// 관찰 로그(태그 `observe`)를 화면으로 내보내는 로거(M4 Task 1).
+    nonisolated let observer = ObservingLogger()
     nonisolated(unsafe) private var key: VehicleKey?
     nonisolated(unsafe) private var vehicle: Vehicle?
     /// `Vehicle.connection` 관찰. 연결 해제·재연결 때 취소한다.
     private var linkWatch: Task<(), Never>?
+
+    init() {
+        ble = TeslaBle.companion.create(
+            platform: PlatformContext(),
+            config: TeslaBleConfig.companion.default(logger: observer)
+        )
+    }
+
+    nonisolated var observations: AsyncStream<String> { observer.lines }
 
     func createKey() async -> String {
         do {
@@ -122,7 +130,23 @@ final class SampleModel: ObservableObject {
     /// 라이브러리 호출이 진행 중이면 true — 모든 버튼을 막아 호출이 겹치지 않게 한다.
     @Published var busy = false
 
+    /// 관찰 모드(요청 없이 수신만 기록). 켜져 있는 동안은 차량을 깨우는 요청 버튼을 막는다.
+    /// 샘플에는 주기적 자동 조회가 없다 — 관찰이 차량을 깨우지 않도록 앞으로도 넣지 않는다.
+    @Published var observing = false {
+        didSet { observingChanged() }
+    }
+    @Published var observations: [String] = []
+    private var observeStart: Date?
+    private static let maxObservations = 500
+
     private let client = BleClient()
+
+    init() {
+        let stream = client.observations
+        Task { [weak self] in
+            for await line in stream { await self?.observed(line) }
+        }
+    }
 
     private static let clock: DateFormatter = {
         let f = DateFormatter()
@@ -130,6 +154,30 @@ final class SampleModel: ObservableObject {
         f.dateFormat = "HH:mm:ss"
         return f
     }()
+
+    private func observingChanged() {
+        if observing {
+            observeStart = Date()
+            log("관찰 시작")
+        } else {
+            observeStart = nil
+            log("관찰 종료: \(observations.count)줄")
+        }
+    }
+
+    /// 관찰 중일 때만 `[HH:mm:ss +12.3s] <line>`으로 쌓는다(최대 500줄, 넘치면 앞에서 지운다).
+    private func observed(_ line: String) {
+        guard observing, let start = observeStart else { return }
+        let elapsed = String(format: "%.1f", Date().timeIntervalSince(start))
+        observations.append("[\(Self.clock.string(from: Date())) +\(elapsed)s] \(line)")
+        if observations.count > Self.maxObservations {
+            observations.removeFirst(observations.count - Self.maxObservations)
+        }
+    }
+
+    func clearObservations() {
+        observations.removeAll()
+    }
 
     /// 결과 칸에 시각과 함께 한 줄을 남긴다(복사해서 실차 확인 기록으로 쓴다).
     private func log(_ line: String) {
@@ -148,6 +196,8 @@ final class SampleModel: ObservableObject {
         lines += advertisements.map { "광고: \($0)" }
         lines.append("--- 결과 (\(output.count)줄) ---")
         lines += output
+        lines.append("--- 관찰 (\(observations.count)줄) ---")
+        lines += observations
         return lines.joined(separator: "\n")
     }
 
