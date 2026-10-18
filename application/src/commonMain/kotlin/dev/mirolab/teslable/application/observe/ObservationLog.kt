@@ -139,11 +139,18 @@ internal class ObservationLog(
         if (signature != null && signature.session_info_tag == null) return "encrypted(${bytes.size}B)"
         val raw = bytes.toByteArray()
         return when (message.from_destination?.domain) {
-            Domain.DOMAIN_VEHICLE_SECURITY ->
+            Domain.DOMAIN_VEHICLE_SECURITY -> {
                 FromVCSECMessage.ADAPTER.decodeOrNull(raw)?.let { vcsec(it, detailed = isPlainBroadcast(message)) }
                     ?: "undecodable(${bytes.size}B)"
-            Domain.DOMAIN_INFOTAINMENT -> Response.ADAPTER.decodeOrNull(raw)?.let(::infotainment) ?: "undecodable(${bytes.size}B)"
-            else -> "${bytes.size}B"
+            }
+
+            Domain.DOMAIN_INFOTAINMENT -> {
+                Response.ADAPTER.decodeOrNull(raw)?.let(::infotainment) ?: "undecodable(${bytes.size}B)"
+            }
+
+            else -> {
+                "${bytes.size}B"
+            }
         }
     }
 

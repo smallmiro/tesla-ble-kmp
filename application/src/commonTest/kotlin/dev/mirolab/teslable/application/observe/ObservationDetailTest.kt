@@ -191,7 +191,11 @@ class ObservationDetailTest {
     @Test
     fun uncompressedPublicKeyShowsSha1PrefixOnly() {
         val key = byteArrayOf(0x04) + ByteArray(64) { it.toByte() }
-        val prefix = TestCrypto.primitives.sha1(key).copyOf(4).toHex()
+        val prefix =
+            TestCrypto.primitives
+                .sha1(key)
+                .copyOf(4)
+                .toHex()
         val line = top(len(48, len(1, key)))
         assertTrue(line.contains("1:sha1:$prefix"), line)
         assertFalse(line.contains(key.toHex()), line)
