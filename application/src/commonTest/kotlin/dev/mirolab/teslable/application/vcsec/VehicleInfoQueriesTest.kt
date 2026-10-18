@@ -110,9 +110,9 @@ class VehicleInfoQueriesTest {
             )
             val status = assertIs<VehicleResult.Success<VehicleStatus>>(session.info.vehicleStatus()).value
             assertEquals(LockState.LOCKED, status.lockState)
-            assertEquals(ClosureState.OPEN, status.closures?.frontDriverDoor)
-            assertEquals(ClosureState.CLOSED, status.closures?.rearTrunk)
-            assertEquals(ClosureState.AJAR, status.closures?.tonneau)
+            assertEquals(ClosureState.OPEN, status.closures.frontDriverDoor)
+            assertEquals(ClosureState.CLOSED, status.closures.rearTrunk)
+            assertEquals(ClosureState.AJAR, status.closures.tonneau)
             assertEquals(SleepStatus.AWAKE, status.sleepStatus)
             assertEquals(UserPresence.PRESENT, status.userPresence)
             assertEquals(40, status.tonneauPercentOpen)
@@ -120,6 +120,35 @@ class VehicleInfoQueriesTest {
             assertEquals(vcsec, request.to_destination?.domain)
             assertEquals("0a00", hex(request.protobuf_message_as_bytes))
             assertNull(request.signature_data) // AuthMethod.NONE
+        }
+
+    @Test
+    fun absentClosureStatusesMeanAllClosedLikeGoGetters() =
+        // 실차 확인: 모두 닫히면 차량이 closureStatuses를 생략한다. Go getter는 nil에서 기본값(CLOSED)을 돌려준다.
+        runTest {
+            val h = dispatcherHarness(privateKey = null)
+            h.fake.script(
+                vcsec,
+                reply(
+                    FromVCSECMessage(
+                        vehicleStatus = WireVehicleStatus(vehicleLockState = VehicleLockState_E.VEHICLELOCKSTATE_LOCKED),
+                    ),
+                ),
+            )
+            val status = assertIs<VehicleResult.Success<VehicleStatus>>(VehicleSession(h.dispatcher).info.vehicleStatus()).value
+            val c = status.closures
+            val all =
+                listOf(
+                    c.frontDriverDoor,
+                    c.frontPassengerDoor,
+                    c.rearDriverDoor,
+                    c.rearPassengerDoor,
+                    c.rearTrunk,
+                    c.frontTrunk,
+                    c.chargePort,
+                    c.tonneau,
+                )
+            assertEquals(List(8) { ClosureState.CLOSED }, all)
         }
 
     @Test
@@ -132,7 +161,7 @@ class VehicleInfoQueriesTest {
             h.fake.script(vcsec, listOf(FakeVehicle.ScriptedReply(payload = raw)))
             val status = assertIs<VehicleResult.Success<VehicleStatus>>(VehicleSession(h.dispatcher).info.vehicleStatus()).value
             assertEquals(LockState.UNKNOWN, status.lockState)
-            assertEquals(ClosureState.UNKNOWN, status.closures?.frontDriverDoor)
+            assertEquals(ClosureState.UNKNOWN, status.closures.frontDriverDoor)
         }
 
     @Test

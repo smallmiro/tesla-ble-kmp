@@ -22,7 +22,7 @@ while Infotainment is asleep. **`getState()` (Infotainment, M5) is not implement
 | Field | Type | Notes |
 |---|---|---|
 | `lockState` | `LockState` | `UNLOCKED`, `LOCKED`, `INTERNAL_LOCKED`, `SELECTIVE_UNLOCKED`, `UNKNOWN` |
-| `closures` | `Closures?` | `null` if the vehicle did not send closure statuses |
+| `closures` | `Closures` | All eight are `CLOSED` if the vehicle did not send closure statuses (it omits them when everything is closed, like the Go getters) |
 | `sleepStatus` | `SleepStatus` | `UNKNOWN`, `AWAKE`, `ASLEEP` (Infotainment) |
 | `userPresence` | `UserPresence` | `UNKNOWN`, `NOT_PRESENT`, `PRESENT` |
 | `tonneauPercentOpen` | `Int?` | Cybertruck only; `null` if not reported |

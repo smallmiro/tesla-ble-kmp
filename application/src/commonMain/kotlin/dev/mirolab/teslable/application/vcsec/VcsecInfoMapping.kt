@@ -42,7 +42,7 @@ internal object VcsecInfoMapping {
     fun status(wire: WireVehicleStatus): VehicleStatus =
         VehicleStatus(
             lockState = if (wire.unknownFields.unknownVarint(LOCK_STATE_TAG) != null) LockState.UNKNOWN else lock(wire.vehicleLockState),
-            closures = wire.closureStatuses?.let(::closures),
+            closures = closures(wire.closureStatuses ?: ClosureStatuses()),
             sleepStatus =
                 when (wire.vehicleSleepStatus) {
                     VehicleSleepStatus_E.VEHICLE_SLEEP_STATUS_AWAKE -> SleepStatus.AWAKE

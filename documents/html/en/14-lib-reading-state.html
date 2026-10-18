@@ -85,7 +85,7 @@
 <thead><tr><th>Field</th><th>Values</th></tr></thead>
 <tbody>
 <tr><td><code>lockState</code></td><td><code>UNLOCKED</code>, <code>LOCKED</code>, <code>INTERNAL_LOCKED</code>, <code>SELECTIVE_UNLOCKED</code>, <code>UNKNOWN</code></td></tr>
-<tr><td><code>closures</code></td><td>Eight openings, each a <code>ClosureState</code>; <code>null</code> if the car did not send them</td></tr>
+<tr><td><code>closures</code></td><td>Eight openings, each a <code>ClosureState</code>; all <code>CLOSED</code> if the car did not send them (it omits them when everything is closed, like the Go getters)</td></tr>
 <tr><td><code>sleepStatus</code></td><td><code>AWAKE</code>, <code>ASLEEP</code>, <code>UNKNOWN</code></td></tr>
 <tr><td><code>userPresence</code></td><td><code>PRESENT</code>, <code>NOT_PRESENT</code>, <code>UNKNOWN</code></td></tr>
 <tr><td><code>tonneauPercentOpen</code></td><td>Cybertruck only; <code>null</code> otherwise</td></tr>
