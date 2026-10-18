@@ -90,8 +90,8 @@ public data class Closures(
 public data class VehicleStatus(
     /** 잠금 상태. */
     val lockState: LockState,
-    /** 개폐부. 차량이 보내지 않으면 null. */
-    val closures: Closures?,
+    /** 개폐부. 차량이 보내지 않으면 모두 CLOSED — Go getter 기본값과 같음. */
+    val closures: Closures,
     /** 수면 상태. */
     val sleepStatus: SleepStatus,
     /** 사용자 존재. */

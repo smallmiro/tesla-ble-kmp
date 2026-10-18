@@ -524,7 +524,7 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 
 | 값 객체 | 원본 protobuf | 비고 |
 |---|---|---|
-| `VehicleStatus` | `VCSEC.VehicleStatus` | 잠금 상태, 도어 4, 프렁크·트렁크, 충전구, 톤노(+%), 수면, 탑승자. 알 수 없는 enum은 `UNKNOWN` |
+| `VehicleStatus` | `VCSEC.VehicleStatus` | 잠금 상태, 도어 4, 프렁크·트렁크, 충전구, 톤노(+%), 수면, 탑승자. 알 수 없는 enum은 `UNKNOWN`. `closures`는 non-null — 차량이 `closureStatuses`를 생략하면(모두 닫힘) 전부 `CLOSED`(Go getter 기본값, 실차 확인 2026-10-18) |
 | `WhitelistSummary`, `WhitelistEntry` | `VCSEC.WhitelistInfo`, `WhitelistEntryInfo` | 공개키, 역할, 형태, 슬롯 |
 | `SessionInfoSummary` | `Signatures.SessionInfo` | status, counter, epoch(hex), clockTime |
 | `VehicleData` | `CarServer.VehicleData` (Wire) | 그대로 노출 |

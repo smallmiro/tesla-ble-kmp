@@ -85,7 +85,7 @@
 <thead><tr><th>필드</th><th>값</th></tr></thead>
 <tbody>
 <tr><td><code>lockState</code></td><td><code>UNLOCKED</code>, <code>LOCKED</code>, <code>INTERNAL_LOCKED</code>, <code>SELECTIVE_UNLOCKED</code>, <code>UNKNOWN</code></td></tr>
-<tr><td><code>closures</code></td><td>여덟 개 개폐부, 각각 <code>ClosureState</code>. 차량이 보내지 않으면 <code>null</code></td></tr>
+<tr><td><code>closures</code></td><td>여덟 개 개폐부, 각각 <code>ClosureState</code>. 차량이 보내지 않으면 모두 <code>CLOSED</code> (모두 닫히면 차량이 생략하며, Go getter와 같음)</td></tr>
 <tr><td><code>sleepStatus</code></td><td><code>AWAKE</code>, <code>ASLEEP</code>, <code>UNKNOWN</code></td></tr>
 <tr><td><code>userPresence</code></td><td><code>PRESENT</code>, <code>NOT_PRESENT</code>, <code>UNKNOWN</code></td></tr>
 <tr><td><code>tonneauPercentOpen</code></td><td>Cybertruck 전용, 그 외에는 <code>null</code></td></tr>

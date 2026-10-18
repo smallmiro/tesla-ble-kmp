@@ -85,7 +85,7 @@
 <thead><tr><th>フィールド</th><th>値</th></tr></thead>
 <tbody>
 <tr><td><code>lockState</code></td><td><code>UNLOCKED</code>, <code>LOCKED</code>, <code>INTERNAL_LOCKED</code>, <code>SELECTIVE_UNLOCKED</code>, <code>UNKNOWN</code></td></tr>
-<tr><td><code>closures</code></td><td>8 つの開口部で、それぞれ <code>ClosureState</code> です。車両が送ってこなかった場合は <code>null</code></td></tr>
+<tr><td><code>closures</code></td><td>8 つの開口部で、それぞれ <code>ClosureState</code> です。車両が送ってこなかった場合はすべて <code>CLOSED</code>（すべて閉じていると車両は省略します。Go の getter と同じ）</td></tr>
 <tr><td><code>sleepStatus</code></td><td><code>AWAKE</code>, <code>ASLEEP</code>, <code>UNKNOWN</code></td></tr>
 <tr><td><code>userPresence</code></td><td><code>PRESENT</code>, <code>NOT_PRESENT</code>, <code>UNKNOWN</code></td></tr>
 <tr><td><code>tonneauPercentOpen</code></td><td>Cybertruck のみ。それ以外は <code>null</code></td></tr>
