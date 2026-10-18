@@ -22,6 +22,7 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertNotNull
 import kotlin.test.assertNull
@@ -109,7 +110,7 @@ class SessionCacheSyncTest {
         }
 
     @Test
-    fun staleCachedVehicleKeyLeavesSessionStuckLikeGo() =
+    fun staleCachedVehicleKeyIsRejectedAndTheSessionInvalidated() =
         // Review Focus 4 / 설계 구체화 8: 다른 차량 키로 만든 캐시 → 이 차량은 이 클라이언트를 처음 보므로 새 검증자(새 epoch)가
         // INCORRECT_EPOCH + 세션정보로 답한다. 동봉 세션정보는 우리 K(옛 차량 키)로 태그가 맞지 않아 거부(Session info error:
         // INVALID_SIGNATURE) → 세션은 갇힌다. Go와 동일. 복구는 M3 connect()의 도메인 캐시 삭제(사용자 답 a).
@@ -131,7 +132,8 @@ class SessionCacheSyncTest {
                 )
             }
             assertTrue(second.logger.contains("Session info error: MESSAGEFAULT_ERROR_INVALID_SIGNATURE"))
-            assertTrue(assertNotNull(second.dispatcher.session(vcsec)).isReady) // 여전히 옛 키로 "준비됨"
+            // M4: 오래된 캐시로 판정된 세션은 무효화되어 더는 준비 상태가 아니다(옛 키로 갇히지 않는다)
+            assertFalse(assertNotNull(second.dispatcher.session(vcsec)).isReady)
         }
 
     @Test

@@ -38,7 +38,9 @@ public class SessionState internal constructor(
 ) {
     private val mutex = Mutex()
     private var signer: Signer? = null
-    private val readySignal = CompletableDeferred<Unit>()
+
+    @Volatile
+    private var readySignal = CompletableDeferred<Unit>()
 
     @Volatile
     private var closed = false
@@ -65,7 +67,7 @@ public class SessionState internal constructor(
     public val isClosed: Boolean get() = closed
 
     /** Go `session.ready`: 인가할 수 있는 상태인지. */
-    public val isReady: Boolean get() = readySignal.isCompleted
+    public val isReady: Boolean get() = !closed && readySignal.isCompleted
 
     /** Go `readySignal`: 준비되면 완료되는 신호(`select`용). */
     internal val ready: Deferred<Unit> get() = readySignal
@@ -88,6 +90,7 @@ public class SessionState internal constructor(
             val result = signer?.updateSignedSessionInfo(challenge, encodedInfo, tag) ?: createSigner(challenge, encodedInfo, tag)
             if (result is SignerResult.Ok) {
                 unconfirmedRestore = false
+                reportedStale = false
                 readySignal.complete(Unit)
             }
             result
@@ -120,10 +123,35 @@ public class SessionState internal constructor(
         message: RoutableMessage,
         lifetime: Duration,
     ): SignerResult<RoutableMessage> {
-        readySignal.await()
+        val signal = readySignal
+        signal.await()
         return mutex.withLock {
-            signer?.encrypt(message, lifetime) ?: SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INTERNAL, "session closed")
+            val current = signer
+            if (closed || signal !== readySignal || current == null) {
+                SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INTERNAL, NO_SESSION)
+            } else {
+                current.encrypt(message, lifetime)
+            }
         }
+    }
+
+    /**
+     * 오래된 캐시로 판정된 세션을 버린다(설계 구체화 2): 세션 키를 0으로 덮고 준비 신호를 되돌린다. 이후 인증 전송은 `NoSession`이고,
+     * 다음 핸드셰이크가 새 [Signer]를 만든다. 닫힌 세션에는 아무것도 하지 않는다.
+     */
+    internal suspend fun invalidate(): Unit =
+        mutex.withLock {
+            if (closed) return@withLock
+            signer?.close()
+            signer = null
+            unconfirmedRestore = false
+            if (readySignal.isCompleted) readySignal = CompletableDeferred()
+        }
+
+    /** 상수. */
+    public companion object {
+        /** [authorize]가 세션 없음(닫힘·무효화)으로 실패할 때의 `detail`. 디스패처가 `NoSession`으로 바꾼다. */
+        public const val NO_SESSION: String = "no session"
     }
 
     /** Go `session.decrypt`의 Signer 부분. 세션이 없으면 null(Go `ErrNoDecryptionContext`). 윈도우 검사는 디스패처가 한다. */

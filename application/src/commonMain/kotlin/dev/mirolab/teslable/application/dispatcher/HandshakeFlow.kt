@@ -36,6 +36,7 @@ public class HandshakeFlow(
      */
     public suspend fun startSession(domain: Domain): VehicleResult<Unit> {
         val session = dispatcher.session(domain) ?: return VehicleResult.Failure(VehicleError.RequiresKey)
+        if (session.isClosed) return VehicleResult.Failure(VehicleError.NotConnected)
         if (session.isReady) return VehicleResult.Success(Unit)
         while (true) {
             tryStartSession(session, domain)?.let { return it }

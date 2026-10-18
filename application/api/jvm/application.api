@@ -1,6 +1,7 @@
 public final class dev/mirolab/teslable/application/cache/SessionCacheSync {
 	public fun <init> (Ldev/mirolab/teslable/port/SessionCache;Ldev/mirolab/teslable/model/Vin;Ldev/mirolab/teslable/model/KeyId;)V
 	public final fun load (Ldev/mirolab/teslable/application/dispatcher/Dispatcher;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public final fun markFresh (Lcom/tesla/generated/universalmessage/Domain;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun markStale (Lcom/tesla/generated/universalmessage/Domain;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun store (Ldev/mirolab/teslable/application/dispatcher/Dispatcher;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
@@ -78,6 +79,8 @@ public final class dev/mirolab/teslable/application/dispatcher/SessionEvent$Upda
 }
 
 public final class dev/mirolab/teslable/application/dispatcher/SessionState {
+	public static final field Companion Ldev/mirolab/teslable/application/dispatcher/SessionState$Companion;
+	public static final field NO_SESSION Ljava/lang/String;
 	public final fun authorize-8Mi8wO0 (Lcom/tesla/generated/universalmessage/RoutableMessage;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun awaitReady (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun close (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -91,6 +94,9 @@ public final class dev/mirolab/teslable/application/dispatcher/SessionState {
 	public final fun loadFromCache-8Mi8wO0 ([BJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun processHello ([B[B[BLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun timestamp-gbq4QnA (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+}
+
+public final class dev/mirolab/teslable/application/dispatcher/SessionState$Companion {
 }
 
 public final class dev/mirolab/teslable/application/infotainment/InfotainmentCommands {
@@ -212,6 +218,7 @@ public final class dev/mirolab/teslable/application/vehicle/VehicleSession {
 	public final fun getInfotainment ()Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;
 	public final fun getRetryInterval-UwyO8pc ()J
 	public final fun getSend ()Ldev/mirolab/teslable/application/vehicle/SendWithRetry;
+	public final fun getSessionEvents ()Lkotlinx/coroutines/flow/SharedFlow;
 	public final fun getVcsec ()Ldev/mirolab/teslable/application/vcsec/VcsecCommands;
 	public final fun startSession-8Mi8wO0 (Ljava/util/Set;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun startSession-8Mi8wO0$default (Ldev/mirolab/teslable/application/vehicle/VehicleSession;Ljava/util/Set;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;

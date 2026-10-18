@@ -38,6 +38,7 @@ final class dev.mirolab.teslable.application.cache/SessionCacheSync { // dev.mir
     constructor <init>(dev.mirolab.teslable.port/SessionCache, dev.mirolab.teslable.model/Vin, dev.mirolab.teslable.model/KeyId) // dev.mirolab.teslable.application.cache/SessionCacheSync.<init>|<init>(dev.mirolab.teslable.port.SessionCache;dev.mirolab.teslable.model.Vin;dev.mirolab.teslable.model.KeyId){}[0]
 
     final suspend fun load(dev.mirolab.teslable.application.dispatcher/Dispatcher): kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> // dev.mirolab.teslable.application.cache/SessionCacheSync.load|load(dev.mirolab.teslable.application.dispatcher.Dispatcher){}[0]
+    final suspend fun markFresh(com.tesla.generated.universalmessage/Domain) // dev.mirolab.teslable.application.cache/SessionCacheSync.markFresh|markFresh(com.tesla.generated.universalmessage.Domain){}[0]
     final suspend fun markStale(com.tesla.generated.universalmessage/Domain) // dev.mirolab.teslable.application.cache/SessionCacheSync.markStale|markStale(com.tesla.generated.universalmessage.Domain){}[0]
     final suspend fun store(dev.mirolab.teslable.application.dispatcher/Dispatcher) // dev.mirolab.teslable.application.cache/SessionCacheSync.store|store(dev.mirolab.teslable.application.dispatcher.Dispatcher){}[0]
 }
@@ -119,6 +120,11 @@ final class dev.mirolab.teslable.application.dispatcher/SessionState { // dev.mi
     final suspend fun loadFromCache(kotlin/ByteArray, kotlin.time/Duration): dev.mirolab.teslable.protocol/SignerResult<kotlin/Unit> // dev.mirolab.teslable.application.dispatcher/SessionState.loadFromCache|loadFromCache(kotlin.ByteArray;kotlin.time.Duration){}[0]
     final suspend fun processHello(kotlin/ByteArray, kotlin/ByteArray, kotlin/ByteArray): dev.mirolab.teslable.protocol/SignerResult<kotlin/Unit> // dev.mirolab.teslable.application.dispatcher/SessionState.processHello|processHello(kotlin.ByteArray;kotlin.ByteArray;kotlin.ByteArray){}[0]
     final suspend fun timestamp(): kotlin/UInt? // dev.mirolab.teslable.application.dispatcher/SessionState.timestamp|timestamp(){}[0]
+
+    final object Companion { // dev.mirolab.teslable.application.dispatcher/SessionState.Companion|null[0]
+        final const val NO_SESSION // dev.mirolab.teslable.application.dispatcher/SessionState.Companion.NO_SESSION|{}NO_SESSION[0]
+            final fun <get-NO_SESSION>(): kotlin/String // dev.mirolab.teslable.application.dispatcher/SessionState.Companion.NO_SESSION.<get-NO_SESSION>|<get-NO_SESSION>(){}[0]
+    }
 }
 
 final class dev.mirolab.teslable.application.infotainment/InfotainmentCommands { // dev.mirolab.teslable.application.infotainment/InfotainmentCommands|null[0]
@@ -194,6 +200,8 @@ final class dev.mirolab.teslable.application.vehicle/VehicleSession { // dev.mir
         final fun <get-retryInterval>(): kotlin.time/Duration // dev.mirolab.teslable.application.vehicle/VehicleSession.retryInterval.<get-retryInterval>|<get-retryInterval>(){}[0]
     final val send // dev.mirolab.teslable.application.vehicle/VehicleSession.send|{}send[0]
         final fun <get-send>(): dev.mirolab.teslable.application.vehicle/SendWithRetry // dev.mirolab.teslable.application.vehicle/VehicleSession.send.<get-send>|<get-send>(){}[0]
+    final val sessionEvents // dev.mirolab.teslable.application.vehicle/VehicleSession.sessionEvents|{}sessionEvents[0]
+        final fun <get-sessionEvents>(): kotlinx.coroutines.flow/SharedFlow<dev.mirolab.teslable.application.dispatcher/SessionEvent> // dev.mirolab.teslable.application.vehicle/VehicleSession.sessionEvents.<get-sessionEvents>|<get-sessionEvents>(){}[0]
     final val vcsec // dev.mirolab.teslable.application.vehicle/VehicleSession.vcsec|{}vcsec[0]
         final fun <get-vcsec>(): dev.mirolab.teslable.application.vcsec/VcsecCommands // dev.mirolab.teslable.application.vehicle/VehicleSession.vcsec.<get-vcsec>|<get-vcsec>(){}[0]
 

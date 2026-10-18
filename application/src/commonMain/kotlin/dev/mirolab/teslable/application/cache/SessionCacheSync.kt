@@ -34,6 +34,11 @@ public class SessionCacheSync(
         storeMutex.withLock { staleDomains += domain }
     }
 
+    /** 새 핸드셰이크로 다시 확인된 도메인을 저장 대상에 되돌린다. */
+    public suspend fun markFresh(domain: Domain) {
+        storeMutex.withLock { staleDomains -= domain }
+    }
+
     /** Go `NewVehicle`: `GetEntry(vin)` → `LoadCache`. 복원한 도메인. */
     public suspend fun load(dispatcher: Dispatcher): Set<Domain> = dispatcher.loadSessions(cache.load(vin, keyId))
 
