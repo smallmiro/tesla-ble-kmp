@@ -4702,6 +4702,21 @@ public final class dev/mirolab/teslable/model/PublicKeyBytes {
 public final class dev/mirolab/teslable/model/PublicKeyBytes$Companion {
 }
 
+public final class dev/mirolab/teslable/model/SessionInfoSummary {
+	public synthetic fun <init> (IILdev/mirolab/teslable/model/PublicKeyBytes;Lkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public final fun component1-pVg5ArA ()I
+	public final fun component2-pVg5ArA ()I
+	public final fun component3 ()Ldev/mirolab/teslable/model/PublicKeyBytes;
+	public final fun copy-t3GQkyU (IILdev/mirolab/teslable/model/PublicKeyBytes;)Ldev/mirolab/teslable/model/SessionInfoSummary;
+	public static synthetic fun copy-t3GQkyU$default (Ldev/mirolab/teslable/model/SessionInfoSummary;IILdev/mirolab/teslable/model/PublicKeyBytes;ILjava/lang/Object;)Ldev/mirolab/teslable/model/SessionInfoSummary;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getClockTime-pVg5ArA ()I
+	public final fun getCounter-pVg5ArA ()I
+	public final fun getVehiclePublicKey ()Ldev/mirolab/teslable/model/PublicKeyBytes;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class dev/mirolab/teslable/model/SleepStatus : java/lang/Enum {
 	public static final field ASLEEP Ldev/mirolab/teslable/model/SleepStatus;
 	public static final field AWAKE Ldev/mirolab/teslable/model/SleepStatus;

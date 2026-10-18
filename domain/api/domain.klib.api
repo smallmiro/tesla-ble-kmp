@@ -6013,6 +6013,25 @@ final class dev.mirolab.teslable.model/PublicKeyBytes { // dev.mirolab.teslable.
     }
 }
 
+final class dev.mirolab.teslable.model/SessionInfoSummary { // dev.mirolab.teslable.model/SessionInfoSummary|null[0]
+    constructor <init>(kotlin/UInt, kotlin/UInt, dev.mirolab.teslable.model/PublicKeyBytes?) // dev.mirolab.teslable.model/SessionInfoSummary.<init>|<init>(kotlin.UInt;kotlin.UInt;dev.mirolab.teslable.model.PublicKeyBytes?){}[0]
+
+    final val clockTime // dev.mirolab.teslable.model/SessionInfoSummary.clockTime|{}clockTime[0]
+        final fun <get-clockTime>(): kotlin/UInt // dev.mirolab.teslable.model/SessionInfoSummary.clockTime.<get-clockTime>|<get-clockTime>(){}[0]
+    final val counter // dev.mirolab.teslable.model/SessionInfoSummary.counter|{}counter[0]
+        final fun <get-counter>(): kotlin/UInt // dev.mirolab.teslable.model/SessionInfoSummary.counter.<get-counter>|<get-counter>(){}[0]
+    final val vehiclePublicKey // dev.mirolab.teslable.model/SessionInfoSummary.vehiclePublicKey|{}vehiclePublicKey[0]
+        final fun <get-vehiclePublicKey>(): dev.mirolab.teslable.model/PublicKeyBytes? // dev.mirolab.teslable.model/SessionInfoSummary.vehiclePublicKey.<get-vehiclePublicKey>|<get-vehiclePublicKey>(){}[0]
+
+    final fun component1(): kotlin/UInt // dev.mirolab.teslable.model/SessionInfoSummary.component1|component1(){}[0]
+    final fun component2(): kotlin/UInt // dev.mirolab.teslable.model/SessionInfoSummary.component2|component2(){}[0]
+    final fun component3(): dev.mirolab.teslable.model/PublicKeyBytes? // dev.mirolab.teslable.model/SessionInfoSummary.component3|component3(){}[0]
+    final fun copy(kotlin/UInt = ..., kotlin/UInt = ..., dev.mirolab.teslable.model/PublicKeyBytes? = ...): dev.mirolab.teslable.model/SessionInfoSummary // dev.mirolab.teslable.model/SessionInfoSummary.copy|copy(kotlin.UInt;kotlin.UInt;dev.mirolab.teslable.model.PublicKeyBytes?){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.model/SessionInfoSummary.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.mirolab.teslable.model/SessionInfoSummary.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.mirolab.teslable.model/SessionInfoSummary.toString|toString(){}[0]
+}
+
 final class dev.mirolab.teslable.model/VehicleStatus { // dev.mirolab.teslable.model/VehicleStatus|null[0]
     constructor <init>(dev.mirolab.teslable.model/LockState, dev.mirolab.teslable.model/Closures, dev.mirolab.teslable.model/SleepStatus, dev.mirolab.teslable.model/UserPresence, kotlin/Int?) // dev.mirolab.teslable.model/VehicleStatus.<init>|<init>(dev.mirolab.teslable.model.LockState;dev.mirolab.teslable.model.Closures;dev.mirolab.teslable.model.SleepStatus;dev.mirolab.teslable.model.UserPresence;kotlin.Int?){}[0]
 

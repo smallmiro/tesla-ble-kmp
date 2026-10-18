@@ -767,3 +767,4 @@ HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 
 - 오래된 캐시로 판정된 세션은 무효화되어 `NoSession`을 돌려주고 `startSession()`이 같은 연결에서 새로 핸드셰이크한다(Go는 같은 연결에서 회복하지 못한다). 회복한 도메인은 핸드셰이크 저장에 다시 포함된다(`SessionCacheSync.markFresh`).
 - 닫힌 세션은 준비 상태가 아니다(`SessionState.isReady`는 `close()` 이후 false). 그래서 disconnect 뒤 `startSession()`은 캐시 세션에도 `NotConnected`다.
 - 인증 없는 VCSEC 조회에서 응답에 기대한 필드가 없으면 `BadResponse("missing …")`다(Go `BodyControllerState`/`KeySummary`/`KeyInfoBySlot`은 nil, nil). `listKeys`는 첫 슬롯 실패를 돌려준다(Go `list-keys`는 실패 슬롯을 출력하고 계속한다). Wire가 모르는 잠금·개폐·역할·형태 값은 `UNKNOWN`이다(Wire 기본값으로 보이지 않게 `unknownFields`로 판별).
+- 다른 공개키로 물은 `sessionInfo`(`Dispatcher.querySessionInfo`)의 응답 세션정보는 이 연결의 세션에 반영하지 않는다(`PendingRequest.acceptsSessionInfo = false`). Go는 반영을 시도하고 태그 불일치를 경고한다 — 캐시 복원 세션을 오래된 것으로 오판하는 것을 막는다. 이 연결의 키로 물으면 Go와 같이 반영한다.
