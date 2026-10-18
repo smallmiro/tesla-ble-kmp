@@ -318,6 +318,12 @@ public class Dispatcher
             message: RoutableMessage,
             auth: AuthMethod,
             lifetime: Duration = DEFAULT_LIFETIME,
+        ): VehicleResult<PendingRequest> = sendWith(message, auth, lifetime)
+
+        private suspend fun sendWith(
+            message: RoutableMessage,
+            auth: AuthMethod,
+            lifetime: Duration,
         ): VehicleResult<PendingRequest> {
             if (!isListening) return VehicleResult.Failure(VehicleError.NotConnected)
             val domain = message.to_destination?.domain
