@@ -27,6 +27,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.TestCoroutineScheduler
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -318,12 +319,17 @@ class SessionEventsTest {
             val cache = RecordingSessionCache()
             val sync = restoreStaleCache(cache)
             val h = dispatcherHarness(fake = FakeVehicle(timeSource = testTimeSource), start = false)
-            val session = VehicleSession(h.dispatcher, cacheSync = sync, eventScope = backgroundScope)
+            // 이벤트 수집기는 별도 스케줄러에 둔다: 수동으로 돌릴 때만 실행되므로, 핸드셰이크 구간의 저장은 storeAfterHandshake만 할 수 있다
+            val eventScheduler = TestCoroutineScheduler()
+            val eventScope = CoroutineScope(Job() + StandardTestDispatcher(eventScheduler))
+            val session = VehicleSession(h.dispatcher, cacheSync = sync, eventScope = eventScope)
             assertEquals(setOf(vcsec, infotainment), session.connect())
+            eventScheduler.runCurrent() // 수집기 구독 시작
             val lock = byteArrayOf(0x10, 0x01)
             val first = session.vcsec.execute(lock, AuthMethod.GCM, VcsecResponses.COMMAND_STATUS_ABSENT, timeout = 5.seconds)
             assertEquals(VehicleResult.Failure(VehicleError.NoSession), first)
             assertFalse(checkNotNull(h.dispatcher.session(vcsec)).isReady)
+            eventScheduler.runCurrent() // StaleCache 처리(markStale) — 이후 Updated 처리는 돌리지 않는다
             assertIs<VehicleResult.Success<Unit>>(session.startSession(setOf(vcsec), timeout = 1.seconds))
             // 핸드셰이크 자체의 저장이 회복한 도메인을 넣는다(이벤트 처리 순서에 기대지 않는다 — runCurrent 전에 단언)
             assertTrue(

@@ -406,7 +406,7 @@ public class Dispatcher
                 logger.log(LogLevel.WARN, TAG) { "No session available for $domain" }
                 return VehicleResult.Failure(VehicleError.NoSession)
             }
-            return when (val result = session.authorize(message, lifetime)) {
+            return when (val result = session.authorizeNow(message, lifetime)) {
                 is SignerResult.Ok -> {
                     VehicleResult.Success(result.value)
                 }

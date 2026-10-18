@@ -113,7 +113,7 @@ class SessionCacheSyncTest {
     fun staleCachedVehicleKeyIsRejectedAndTheSessionInvalidated() =
         // Review Focus 4 / 설계 구체화 8: 다른 차량 키로 만든 캐시 → 이 차량은 이 클라이언트를 처음 보므로 새 검증자(새 epoch)가
         // INCORRECT_EPOCH + 세션정보로 답한다. 동봉 세션정보는 우리 K(옛 차량 키)로 태그가 맞지 않아 거부(Session info error:
-        // INVALID_SIGNATURE) → 세션은 갇힌다. Go와 동일. 복구는 M3 connect()의 도메인 캐시 삭제(사용자 답 a).
+        // INVALID_SIGNATURE) → Go는 세션이 갇힌다. 이 라이브러리는 M4부터 세션을 무효화하고(NoSession) startSession()이 새로 핸드셰이크한다.
         runTest {
             val otherCar = FakeVehicle(vehicleKey = TestCrypto.goKnownVerifierKey(), timeSource = testTimeSource)
             val first = dispatcherHarness(fake = otherCar)

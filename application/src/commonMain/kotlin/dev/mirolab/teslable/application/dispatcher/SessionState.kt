@@ -136,6 +136,18 @@ public class SessionState internal constructor(
     }
 
     /**
+     * [authorize]의 비대기 변형: 호출 시점의 준비 신호가 아직 완료되지 않았으면 기다리지 않고 [NO_SESSION] fault를 돌려준다.
+     * 디스패처는 `isReady` 확인과 인가 사이에 세션이 무효화돼도 새 핸드셰이크를 기다리며 매달리지 않도록 이쪽을 쓴다.
+     */
+    internal suspend fun authorizeNow(
+        message: RoutableMessage,
+        lifetime: Duration,
+    ): SignerResult<RoutableMessage> {
+        if (!readySignal.isCompleted) return SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INTERNAL, NO_SESSION)
+        return authorize(message, lifetime)
+    }
+
+    /**
      * 오래된 캐시로 판정된 세션을 버린다(설계 구체화 2): 세션 키를 0으로 덮고 준비 신호를 되돌린다. 이후 인증 전송은 `NoSession`이고,
      * 다음 핸드셰이크가 새 [Signer]를 만든다. 닫힌 세션에는 아무것도 하지 않는다.
      */
