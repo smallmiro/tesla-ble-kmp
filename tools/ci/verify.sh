@@ -7,7 +7,7 @@
 #   (a) Gradle 한 번 호출          → lint, jvm-test, android, ios 잡의 Gradle 부분
 #   (b) 병합 매니페스트 INTERNET 검사 → android 잡의 "Merged manifest must not request INTERNET (NFR-014)" 스텝
 #   (c) MinimumOSVersion 16.0 검사  → ios 잡의 "Teslable.framework must declare MinimumOSVersion 16.0 (NFR-009)" 스텝
-#   (d) xcodegen + xcodebuild      → ios 잡의 샘플 앱 빌드 스텝
+#   (d) xcodegen + xcodebuild      → ios 잡의 샘플 앱 빌드 스텝 + Swift 단위 테스트(XCTest)
 #   (e) tools/ci/check-license.sh  → license 잡
 #   (f) tools/ci/scan-secrets.sh   → secrets 잡
 #   (g) tools/ci/check-manual-i18n.sh → (CI 잡 없음) 매뉴얼 언어 규칙, AGENTS.md §3 규칙 12
@@ -66,14 +66,14 @@ if [ "$min" != "16.0" ]; then
   fail "MinimumOSVersion check"
 fi
 
-# (d) ci.yml ios 잡 — 샘플 iOS 앱이 빌드되는지 확인 (CODE_SIGNING_ALLOWED=NO).
-step "xcodegen generate && xcodebuild samples/ios (CODE_SIGNING_ALLOWED=NO)"
+# (d) ci.yml ios 잡 — 샘플 iOS 앱이 빌드되고 Swift 단위 테스트가 통과하는지 확인 (CODE_SIGNING_ALLOWED=NO).
+step "xcodegen generate && xcodebuild samples/ios 빌드 + Swift 단위 테스트 (CODE_SIGNING_ALLOWED=NO)"
 (
   cd samples/ios
   xcodegen generate
   xcodebuild -project TeslableSample.xcodeproj -scheme TeslableSample \
-    -destination 'generic/platform=iOS Simulator' -configuration Debug \
-    CODE_SIGNING_ALLOWED=NO build -quiet
+    -destination 'platform=iOS Simulator,name=iPhone 17' -configuration Debug \
+    CODE_SIGNING_ALLOWED=NO build test
 ) || fail "xcodebuild samples/ios"
 
 # (e) ci.yml license 잡.
