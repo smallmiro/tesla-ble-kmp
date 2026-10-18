@@ -56,6 +56,8 @@ internal enum class AddressOwner(
 internal class ObservationLog(
     private val crypto: CryptoPrimitives,
 ) {
+    private val detail = ObservationDetail(crypto)
+
     /** RoutableMessage 한 통. [size]는 받은 프레임 바이트 수, [owner]는 목적지가 라우팅 주소일 때만. */
     fun routable(
         at: ObservedAt,
@@ -87,9 +89,12 @@ internal class ObservationLog(
     fun unparseable(bytes: ByteArray): String = "[${ObservedAt.UNPARSEABLE.label}] ${bytes.size}B reinterpreted=${reinterpret(bytes)}"
 
     /** `FromVCSECMessage`의 oneof 종류와 내용 요약. */
-    fun vcsec(from: FromVCSECMessage): String {
+    fun vcsec(
+        from: FromVCSECMessage,
+        detailed: Boolean = false,
+    ): String {
         val parts = mutableListOf<String>()
-        from.vehicleStatus?.let { parts += "vehicleStatus{${vehicleStatus(it)}}" }
+        from.vehicleStatus?.let { parts += "vehicleStatus{${vehicleStatus(it, detailed)}}" }
         from.commandStatus?.let { parts += "commandStatus{${commandStatus(it)}}" }
         from.whitelistInfo?.let {
             parts += "whitelistInfo{entries=${it.numberOfEntries}, slotMask=0x${it.slotMask.toUInt().toString(
@@ -98,9 +103,25 @@ internal class ObservationLog(
         }
         from.whitelistEntryInfo?.let { parts += "whitelistEntryInfo{${entry(it)}}" }
         from.nominalError?.let { parts += "nominalError{${it.genericError.name}}" }
-        unknownFieldNumbers(from.unknownFields).takeIf { it.isNotEmpty() }?.let { parts += "unknownFields=$it" }
+        unknownFields(from.unknownFields, if (detailed) FROM_VCSEC_DETAIL_FIELDS else emptySet()).takeIf { it.isNotEmpty() }?.let {
+            parts += "unknownFields=$it"
+        }
         return "FromVCSECMessage{${parts.joinToString(", ")}}"
     }
+
+    /** 상세 디코드의 입구: VCSEC가 보낸 원래 평문 브로드캐스트(서명·세션 정보·요청 UUID 없음)만. */
+    private fun isPlainBroadcast(message: RoutableMessage): Boolean =
+        message.from_destination?.domain == Domain.DOMAIN_VEHICLE_SECURITY &&
+            message.to_destination?.domain == Domain.DOMAIN_BROADCAST &&
+            message.request_uuid.size == 0 &&
+            message.signature_data == null &&
+            message.session_info == null
+
+    /** 도착 순서의 unknownFields 요약. [detailed] 번호만 값을 풀고 나머지는 번호만. */
+    private fun unknownFields(
+        bytes: ByteString,
+        detailed: Set<Int>,
+    ): List<String> = if (detailed.isEmpty()) unknownFieldNumbers(bytes).map(Int::toString) else detail.unknownFields(bytes, detailed)
 
     private fun destination(
         d: Destination?,
@@ -118,14 +139,19 @@ internal class ObservationLog(
         if (signature != null && signature.session_info_tag == null) return "encrypted(${bytes.size}B)"
         val raw = bytes.toByteArray()
         return when (message.from_destination?.domain) {
-            Domain.DOMAIN_VEHICLE_SECURITY -> FromVCSECMessage.ADAPTER.decodeOrNull(raw)?.let(::vcsec) ?: "undecodable(${bytes.size}B)"
+            Domain.DOMAIN_VEHICLE_SECURITY ->
+                FromVCSECMessage.ADAPTER.decodeOrNull(raw)?.let { vcsec(it, detailed = isPlainBroadcast(message)) }
+                    ?: "undecodable(${bytes.size}B)"
             Domain.DOMAIN_INFOTAINMENT -> Response.ADAPTER.decodeOrNull(raw)?.let(::infotainment) ?: "undecodable(${bytes.size}B)"
             else -> "${bytes.size}B"
         }
     }
 
     // proto3 enum은 빠진 것과 0번 값을 구분할 수 없다(lock=UNLOCKED, sleep/presence=UNKNOWN). 메시지 필드만 absent로 알 수 있다.
-    private fun vehicleStatus(s: VehicleStatus): String =
+    private fun vehicleStatus(
+        s: VehicleStatus,
+        detailed: Boolean,
+    ): String =
         buildString {
             append("lock=").append(s.vehicleLockState.name)
             append(", sleep=").append(s.vehicleSleepStatus.name)
@@ -138,7 +164,9 @@ internal class ObservationLog(
                     "detailedClosureStatus".takeIf { s.detailedClosureStatus == null },
                 )
             if (absent.isNotEmpty()) append(", absent=").append(absent)
-            unknownFieldNumbers(s.unknownFields).takeIf { it.isNotEmpty() }?.let { append(", unknownFields=").append(it) }
+            unknownFields(s.unknownFields, if (detailed) VEHICLE_STATUS_DETAIL_FIELDS else emptySet())
+                .takeIf { it.isNotEmpty() }
+                ?.let { append(", unknownFields=").append(it) }
         }
 
     private fun closures(c: ClosureStatuses): String =
@@ -194,6 +222,8 @@ internal class ObservationLog(
         const val TAG: String = "observe"
         private const val KEY_PREFIX = 4
         private const val HEX = 16
+        private val FROM_VCSEC_DETAIL_FIELDS = setOf(48, 53)
+        private val VEHICLE_STATUS_DETAIL_FIELDS = setOf(7, 8)
     }
 }
 

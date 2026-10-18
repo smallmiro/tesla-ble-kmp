@@ -84,6 +84,24 @@ class DispatcherObservationTest {
         }
 
     @Test
+    fun broadcastUnknownField48IsDetailedAndStillDropped() =
+        runTest {
+            val h = dispatcherHarness()
+            val unknown48 = "820308" + "0803" + "1204" + "41424344" // field 48 LEN(8): {1:varint=3, 2:"ABCD"}
+            val push =
+                RoutableMessage(
+                    from_destination = Destination(domain = vcsec),
+                    to_destination = Destination(domain = Domain.DOMAIN_BROADCAST),
+                    protobuf_message_as_bytes = (locked().encode() + unknown48.hexToBytes()).toByteString(),
+                )
+            h.transport.deliver(RoutableMessage.ADAPTER.encode(push))
+            runCurrent()
+            val line = h.logger.observed().single()
+            assertTrue(line.startsWith("[drop:to-domain] "), line)
+            assertTrue(line.endsWith("unknownFields=[48:len(8){1:varint=3(0x3), 2:len(4)\"ABCD\"}]}"), line)
+        }
+
+    @Test
     fun unwrappedFromVcsecMessageIsReinterpretedAndDropped() =
         runTest {
             val h = dispatcherHarness()
