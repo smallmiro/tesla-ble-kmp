@@ -37,15 +37,19 @@ public data class TeslaBleConfig(
             handshakeTimeoutSeconds: Double,
             connectTimeoutSeconds: Double,
             pairingTimeoutSeconds: Double,
-        ): TeslaBleConfig = TeslaBleConfig(
-            logger = logger,
-            commandTimeout = positive(commandTimeoutSeconds, "commandTimeoutSeconds"),
-            handshakeTimeout = positive(handshakeTimeoutSeconds, "handshakeTimeoutSeconds"),
-            connectTimeout = positive(connectTimeoutSeconds, "connectTimeoutSeconds"),
-            pairingTimeout = positive(pairingTimeoutSeconds, "pairingTimeoutSeconds"),
-        )
+        ): TeslaBleConfig =
+            TeslaBleConfig(
+                logger = logger,
+                commandTimeout = positive(commandTimeoutSeconds, "commandTimeoutSeconds"),
+                handshakeTimeout = positive(handshakeTimeoutSeconds, "handshakeTimeoutSeconds"),
+                connectTimeout = positive(connectTimeoutSeconds, "connectTimeoutSeconds"),
+                pairingTimeout = positive(pairingTimeoutSeconds, "pairingTimeoutSeconds"),
+            )
 
-        private fun positive(value: Double, name: String): Duration {
+        private fun positive(
+            value: Double,
+            name: String,
+        ): Duration {
             require(value > 0 && value.isFinite()) { "$name must be a positive finite number of seconds: $value" }
             return value.seconds
         }
