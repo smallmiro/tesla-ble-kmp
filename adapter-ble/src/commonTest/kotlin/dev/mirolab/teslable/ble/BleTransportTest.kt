@@ -75,6 +75,39 @@ class BleTransportTest {
         }
 
     @Test
+    fun countsInboxOverflowsPerConnection() =
+        // 인계 노트 범위 3: 넘친 횟수를 센다(Go ble.go:78-82는 조용히 버린다)
+        runTest {
+            val link = FakeGattLink()
+            val logger = RecordingLogger()
+            val t = transport(link, logger)
+            repeat(BleTransport.INBOX_CAPACITY + 3) { link.notify(byteArrayOf(0, 1, 7)) }
+            runCurrent()
+            assertTrue(logger.contains("Dropping received message because inbox is full (dropped 1 since connect)"))
+            assertTrue(logger.contains("Dropping received message because inbox is full (dropped 3 since connect)"))
+            assertEquals(0, logger.count("inbox overflowed"))
+            t.close()
+            t.close()
+            runCurrent()
+            val summary = logger.entries.single { it.message.contains("inbox overflowed") }
+            assertEquals(LogLevel.WARN, summary.level)
+            assertEquals("BLE inbox overflowed 3 time(s) during this connection", summary.message)
+        }
+
+    @Test
+    fun noOverflowSummaryWhenInboxNeverOverflowed() =
+        runTest {
+            val link = FakeGattLink()
+            val logger = RecordingLogger()
+            val t = transport(link, logger)
+            link.notify(byteArrayOf(0, 1, 7))
+            runCurrent()
+            t.close()
+            runCurrent()
+            assertEquals(0, logger.count("inbox overflowed"))
+        }
+
+    @Test
     fun dropsWithErrorLogWhenInboxIsFull() =
         // ble.go:80-84: inbox가 가득 차면 버린다(Go는 5, 우리는 64 — SDD §2.4)
         runTest {

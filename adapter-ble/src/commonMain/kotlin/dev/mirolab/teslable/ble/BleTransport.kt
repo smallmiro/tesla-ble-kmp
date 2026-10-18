@@ -52,6 +52,9 @@ internal class BleTransport(
     private val closeMutex = Mutex()
     private var closed = false
 
+    // 수신 코루틴(deliver, linkEnded)에서만 읽고 쓴다 — 연결당 하나뿐이라 경합이 없다
+    private var overflows = 0
+
     override val incoming: Flow<ByteArray> = inbox.receiveAsFlow()
     override val state: StateFlow<TransportState> = stateFlow
     override val retryInterval: Duration = RETRY_INTERVAL
@@ -76,11 +79,15 @@ internal class BleTransport(
     private fun deliver(message: ByteArray) {
         logger.log(LogLevel.DEBUG, TAG) { "RX: ${message.toHex()}" }
         if (inbox.trySend(message).isFailure) {
-            logger.log(LogLevel.ERROR, TAG) { "Dropping received message because inbox is full" }
+            overflows++ // 로거가 지연 평가하므로 람다 밖에서 센다
+            val count = overflows
+            logger.log(LogLevel.ERROR, TAG) { "Dropping received message because inbox is full (dropped $count since connect)" }
         }
     }
 
     private fun linkEnded() {
+        // 원본에 없음: Go(ble.go:78-82)는 조용히 버린다. 요약은 연결당 정확히 한 번, 수신 코루틴의 finally에서만 남긴다
+        if (overflows > 0) logger.log(LogLevel.WARN, TAG) { "BLE inbox overflowed $overflows time(s) during this connection" }
         inbox.close()
         stateFlow.compareAndSet(TransportState.Connected, TransportState.Disconnected(VehicleError.TransportError.Disconnected))
     }
