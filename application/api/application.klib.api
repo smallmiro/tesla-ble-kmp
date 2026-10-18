@@ -64,6 +64,7 @@ final class dev.mirolab.teslable.application.dispatcher/Dispatcher { // dev.miro
     final suspend fun close() // dev.mirolab.teslable.application.dispatcher/Dispatcher.close|close(){}[0]
     final suspend fun exportSessions(): kotlin.collections/List<dev.mirolab.teslable.cache/SessionSnapshot> // dev.mirolab.teslable.application.dispatcher/Dispatcher.exportSessions|exportSessions(){}[0]
     final suspend fun loadSessions(kotlin.collections/List<dev.mirolab.teslable.cache/CachedSession>): kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> // dev.mirolab.teslable.application.dispatcher/Dispatcher.loadSessions|loadSessions(kotlin.collections.List<dev.mirolab.teslable.cache.CachedSession>){}[0]
+    final suspend fun querySessionInfo(com.tesla.generated.universalmessage/Domain, dev.mirolab.teslable.model/PublicKeyBytes): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.application.dispatcher/PendingRequest> // dev.mirolab.teslable.application.dispatcher/Dispatcher.querySessionInfo|querySessionInfo(com.tesla.generated.universalmessage.Domain;dev.mirolab.teslable.model.PublicKeyBytes){}[0]
     final suspend fun requestSessionInfo(com.tesla.generated.universalmessage/Domain): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.application.dispatcher/PendingRequest> // dev.mirolab.teslable.application.dispatcher/Dispatcher.requestSessionInfo|requestSessionInfo(com.tesla.generated.universalmessage.Domain){}[0]
     final suspend fun send(com.tesla.generated.universalmessage/RoutableMessage, dev.mirolab.teslable.port/AuthMethod, kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.application.dispatcher/PendingRequest> // dev.mirolab.teslable.application.dispatcher/Dispatcher.send|send(com.tesla.generated.universalmessage.RoutableMessage;dev.mirolab.teslable.port.AuthMethod;kotlin.time.Duration){}[0]
     final suspend fun stop() // dev.mirolab.teslable.application.dispatcher/Dispatcher.stop|stop(){}[0]
@@ -137,6 +138,12 @@ final class dev.mirolab.teslable.application.logging/SafeLogger : dev.mirolab.te
     constructor <init>(dev.mirolab.teslable.port/TeslaLogger) // dev.mirolab.teslable.application.logging/SafeLogger.<init>|<init>(dev.mirolab.teslable.port.TeslaLogger){}[0]
 
     final fun log(dev.mirolab.teslable.port/LogLevel, kotlin/String, kotlin/Function0<kotlin/String>) // dev.mirolab.teslable.application.logging/SafeLogger.log|log(dev.mirolab.teslable.port.LogLevel;kotlin.String;kotlin.Function0<kotlin.String>){}[0]
+}
+
+final class dev.mirolab.teslable.application.vcsec/KeyManagement { // dev.mirolab.teslable.application.vcsec/KeyManagement|null[0]
+    final suspend fun addKey(dev.mirolab.teslable.model/PublicKeyBytes, dev.mirolab.teslable.model/KeyRole, dev.mirolab.teslable.model/KeyFormFactor, kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.vcsec/KeyManagement.addKey|addKey(dev.mirolab.teslable.model.PublicKeyBytes;dev.mirolab.teslable.model.KeyRole;dev.mirolab.teslable.model.KeyFormFactor;kotlin.time.Duration){}[0]
+    final suspend fun removeKey(dev.mirolab.teslable.model/PublicKeyBytes, kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.vcsec/KeyManagement.removeKey|removeKey(dev.mirolab.teslable.model.PublicKeyBytes;kotlin.time.Duration){}[0]
+    final suspend fun sessionInfo(dev.mirolab.teslable.model/PublicKeyBytes, com.tesla.generated.universalmessage/Domain, kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.model/SessionInfoSummary> // dev.mirolab.teslable.application.vcsec/KeyManagement.sessionInfo|sessionInfo(dev.mirolab.teslable.model.PublicKeyBytes;com.tesla.generated.universalmessage.Domain;kotlin.time.Duration){}[0]
 }
 
 final class dev.mirolab.teslable.application.vcsec/VcsecCommands { // dev.mirolab.teslable.application.vcsec/VcsecCommands|null[0]
@@ -213,6 +220,8 @@ final class dev.mirolab.teslable.application.vehicle/VehicleSession { // dev.mir
         final fun <get-info>(): dev.mirolab.teslable.application.vcsec/VehicleInfoQueries // dev.mirolab.teslable.application.vehicle/VehicleSession.info.<get-info>|<get-info>(){}[0]
     final val infotainment // dev.mirolab.teslable.application.vehicle/VehicleSession.infotainment|{}infotainment[0]
         final fun <get-infotainment>(): dev.mirolab.teslable.application.infotainment/InfotainmentCommands // dev.mirolab.teslable.application.vehicle/VehicleSession.infotainment.<get-infotainment>|<get-infotainment>(){}[0]
+    final val keys // dev.mirolab.teslable.application.vehicle/VehicleSession.keys|{}keys[0]
+        final fun <get-keys>(): dev.mirolab.teslable.application.vcsec/KeyManagement // dev.mirolab.teslable.application.vehicle/VehicleSession.keys.<get-keys>|<get-keys>(){}[0]
     final val retryInterval // dev.mirolab.teslable.application.vehicle/VehicleSession.retryInterval|{}retryInterval[0]
         final fun <get-retryInterval>(): kotlin.time/Duration // dev.mirolab.teslable.application.vehicle/VehicleSession.retryInterval.<get-retryInterval>|<get-retryInterval>(){}[0]
     final val send // dev.mirolab.teslable.application.vehicle/VehicleSession.send|{}send[0]

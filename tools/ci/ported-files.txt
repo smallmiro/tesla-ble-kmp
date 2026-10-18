@@ -14,6 +14,7 @@ application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/Re
 application/src/commonMain/kotlin/dev/mirolab/teslable/application/dispatcher/SessionState.kt
 application/src/commonMain/kotlin/dev/mirolab/teslable/application/infotainment/InfotainmentCommands.kt
 application/src/commonMain/kotlin/dev/mirolab/teslable/application/infotainment/InfotainmentResponses.kt
+application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/KeyManagement.kt
 application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/VcsecCommands.kt
 application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/VcsecResponses.kt
 application/src/commonMain/kotlin/dev/mirolab/teslable/application/vehicle/SendWithRetry.kt

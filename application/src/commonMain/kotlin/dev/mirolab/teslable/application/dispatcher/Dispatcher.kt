@@ -318,12 +318,13 @@ public class Dispatcher
             message: RoutableMessage,
             auth: AuthMethod,
             lifetime: Duration = DEFAULT_LIFETIME,
-        ): VehicleResult<PendingRequest> = sendWith(message, auth, lifetime)
+        ): VehicleResult<PendingRequest> = sendWith(message, auth, lifetime, acceptsSessionInfo = true)
 
         private suspend fun sendWith(
             message: RoutableMessage,
             auth: AuthMethod,
             lifetime: Duration,
+            acceptsSessionInfo: Boolean,
         ): VehicleResult<PendingRequest> {
             if (!isListening) return VehicleResult.Failure(VehicleError.NotConnected)
             val domain = message.to_destination?.domain
@@ -336,9 +337,24 @@ public class Dispatcher
             val key = PendingKey(routingAddress, if (isVcsec) ByteString.EMPTY else uuid, domain)
             val addressed = message.copy(uuid = uuid, from_destination = Destination(routing_address = routingAddress))
             val outgoing = authorize(addressed, domain, auth, lifetime).valueOr { return it.toResult() }
-            val request = register(key, RequestHash.of(outgoing))
+            val request = register(key, RequestHash.of(outgoing), acceptsSessionInfo)
             return transmit(request, RoutableMessage.ADAPTER.encode(outgoing), uuid)
         }
+
+        /**
+         * Go `Vehicle.SessionInfo`의 전송(vehicle.go:120-125): 임의 공개키의 세션정보 요청을 인증 없이 보낸다. 개인키가 없어도 된다.
+         * 이 연결의 키가 아니면 응답의 세션정보로 세션을 갱신하지 않는다(설계 구체화 3 — Go는 갱신을 시도하고 태그 불일치를 경고한다).
+         */
+        public suspend fun querySessionInfo(
+            domain: Domain,
+            publicKey: PublicKeyBytes,
+        ): VehicleResult<PendingRequest> =
+            sendWith(
+                sessionInfoRequest(domain, publicKey),
+                AuthMethod.NONE,
+                DEFAULT_LIFETIME,
+                acceptsSessionInfo = publicKey == privateKey?.publicKey,
+            )
 
         /** Go `RequestSessionInfo`: 개인키가 없으면 [VehicleError.RequiresKey]. 인증 없이 보낸다. */
         public suspend fun requestSessionInfo(domain: Domain): VehicleResult<PendingRequest> {
@@ -458,10 +474,11 @@ public class Dispatcher
         private suspend fun register(
             key: PendingKey,
             requestHash: ByteArray?,
+            acceptsSessionInfo: Boolean = true,
         ): PendingRequest =
             pendingMutex.withLock {
                 pending.values.removeAll { it.isClosed }
-                PendingRequest(key, requestHash, timeSource.markNow()).also { pending[key] = it }
+                PendingRequest(key, requestHash, timeSource.markNow(), acceptsSessionInfo).also { pending[key] = it }
             }
 
         private suspend fun lookup(key: PendingKey): PendingRequest? =
@@ -595,6 +612,28 @@ public class Dispatcher
             }
         }
 
+        /** [checkForSessionUpdate]의 폐기 조건 셋(개인키 없음, 다른 공개키로 물은 질의, 지연 초과). 버리면 true. */
+        private fun discardsSessionInfo(
+            id: String,
+            handler: PendingRequest,
+        ): Boolean {
+            if (privateKey == null) {
+                logger.log(LogLevel.WARN, TAG) { "[$id] Discarding session info because client does not have a private key" }
+                return true
+            }
+            if (!handler.acceptsSessionInfo) {
+                logger.log(LogLevel.DEBUG, TAG) { "[$id] Not applying session info from a query for another public key" }
+                return true
+            }
+            if (handler.expired(maxLatency)) {
+                logger.log(LogLevel.WARN, TAG) {
+                    "[$id] Discarding session info because it was received more than $maxLatency after request"
+                }
+                return true
+            }
+            return false
+        }
+
         /** Go `checkForSessionUpdate`: 폐기 조건(FR-014)을 지나면 [SessionState.processHello]. challenge = `request_uuid`. */
         private suspend fun checkForSessionUpdate(
             message: RoutableMessage,
@@ -602,16 +641,7 @@ public class Dispatcher
         ) {
             val info = message.session_info ?: return
             val id = message.request_uuid.hex()
-            if (privateKey == null) {
-                logger.log(LogLevel.WARN, TAG) { "[$id] Discarding session info because client does not have a private key" }
-                return
-            }
-            if (handler.expired(maxLatency)) {
-                logger.log(LogLevel.WARN, TAG) {
-                    "[$id] Discarding session info because it was received more than $maxLatency after request"
-                }
-                return
-            }
+            if (discardsSessionInfo(id, handler)) return
             // Wire proto3 bytes 필드는 기본값이 null이 아니라 ByteString.EMPTY다.
             // session_info_tag가 실려 있지만 태그가 비어 있으면 Go의 GetTag() == nil과 같은 뜻이므로 없는 것으로 본다.
             val tag =

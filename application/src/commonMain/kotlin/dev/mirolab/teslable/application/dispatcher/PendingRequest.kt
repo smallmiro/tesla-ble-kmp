@@ -30,6 +30,8 @@ public class PendingRequest internal constructor(
     internal val key: PendingKey,
     requestHash: ByteArray?,
     private val sentAt: TimeMark,
+    /** false면 응답의 세션정보로 세션을 갱신하지 않는다 — 다른 공개키로 물은 `sessionInfo`(설계 구체화 3). */
+    internal val acceptsSessionInfo: Boolean = true,
 ) : AutoCloseable {
     private val channel = Channel<RoutableMessage>(BUFFER_SIZE)
     private val requestHashBytes: ByteArray? = requestHash?.copyOf()
