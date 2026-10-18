@@ -18,12 +18,22 @@ struct ContentView: View {
                     Text(model.keyInfo).font(.footnote.monospaced())
                 }
                 .disabled(model.busy)
+                Section("관찰 (요청 없이 수신만 기록)") {
+                    Toggle("관찰 모드", isOn: $model.observing)
+                    Text("받은 메시지 \(model.observations.count)줄")
+                    Button("관찰 기록 지우기", role: .destructive) { model.clearObservations() }
+                    ForEach(Array(model.observations.suffix(200).enumerated()), id: \.offset) {
+                        Text($0.element).font(.caption2.monospaced()).textSelection(.enabled)
+                    }
+                }
                 Section("BLE") {
                     Button("스캔") { Task { await model.scan() } }
                     ForEach(model.advertisements, id: \.self) { Text($0).font(.footnote) }
                     Button("연결") { Task { await model.connect() } }
                     Button("VehicleStatus") { Task { await model.vehicleStatus() } }
+                        .disabled(model.observing)
                     Button("키 목록") { Task { await model.listKeys() } }
+                        .disabled(model.observing)
                     Button("연결 끊기", role: .destructive) { Task { await model.disconnect() } }
                 }
                 .disabled(model.busy)
