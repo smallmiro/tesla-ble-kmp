@@ -77,8 +77,8 @@ Go original: `SendAddKeyRequestWithRole` sends the request and **does not read t
 |---|---|---|
 | `addKeyRequest(publicKey, role = KeyRole.OWNER, formFactor = platformKeyFormFactor(), timeout = null)` | `Flow<PairingEvent>` | FR-022, FR-023. Cold: every collection sends one request. Unsigned VCSEC message, no session needed. `timeout = null` uses `TeslaBleConfig.pairingTimeout` (60 s). Requests are serialized: a second collector waits for the first to reach a terminal event |
 | `sessionInfo(publicKey, domain, timeout = null)` | `VehicleResult<SessionInfoSummary>` | FR-024. Per-domain enrollment check, no key needed on the connection. `Failure(KeyNotPaired)` when the vehicle does not list the key. Asking with the connection's own key also creates that domain's session, so `sessions` shows `Ready(fromCache = false)` |
-| `addKey(publicKey, role = KeyRole.OWNER, formFactor = platformKeyFormFactor(), timeout = null)` | `VehicleResult<Unit>` | FR-026. Authenticated VCSEC (GCM): an enrolled key with enough privileges adds another key, no NFC step. Needs a VCSEC session |
-| `removeKey(publicKey, timeout = null)` | `VehicleResult<Unit>` | FR-027. Authenticated VCSEC (GCM). Needs a VCSEC session |
+| `addKey(publicKey, role = KeyRole.OWNER, formFactor = platformKeyFormFactor(), timeout = null)` | `VehicleResult<Unit>` | FR-027. Authenticated VCSEC (GCM): an enrolled key with enough privileges adds another key, no NFC step. Needs a VCSEC session |
+| `removeKey(publicKey, timeout = null)` | `VehicleResult<Unit>` | FR-026. Authenticated VCSEC (GCM). Needs a VCSEC session |
 
 `platformKeyFormFactor()` is `ANDROID_DEVICE` on Android, `IOS_DEVICE` on iOS and `CLOUD_KEY` on the JVM (tests). In
 Swift, Kotlin default arguments are not available: pass every argument (`role:`, `formFactor:`, `timeout:`), for
@@ -126,7 +126,7 @@ vehicle.addKeyRequest(key.publicKey).collect { event ->
         PairingEvent.WaitingForTap -> show("Waiting for the card")
         PairingEvent.Accepted -> show("Accepted, waiting for the car to sync")
         is PairingEvent.Rejected -> show("Rejected: ${event.error.message}")
-        is PairingEvent.Unknown -> report(event.raw.toHex())      // see the warning below
+        is PairingEvent.Unknown -> report(event.raw.joinToString("") { it.toUByte().toString(16).padStart(2, '0') })      // see the warning below
         is PairingEvent.Failed -> show("Failed: ${event.error.message}")
         PairingEvent.TimedOut -> show("No answer, checking enrollment")
     }

@@ -18,7 +18,7 @@ import kotlin.time.Duration
 
 /**
  * 연결된 차량(SDD §2.3). 연결 하나에 객체 하나 — [disconnect] 뒤에는 명령이 `Failure(NotConnected)`이고, 다시 쓰려면
- * `TeslaBle.connect`로 새로 연결한다(설계 구체화 13). M4/M5가 제어·조회 메서드를 더한다. 모든 `timeout`은 null이면 설정 기본값.
+ * `TeslaBle.connect`로 새로 연결한다(설계 구체화 13). M5가 Infotainment 제어·조회 메서드를 더한다. 모든 `timeout`은 null이면 설정 기본값.
  */
 @Suppress("TooManyFunctions") // 공개 API 1:1 — 조회, 키, VCSEC 제어 12종(M5가 더 늘린다)
 public interface Vehicle {
@@ -74,7 +74,7 @@ public interface Vehicle {
         timeout: Duration? = null,
     ): Flow<PairingEvent>
 
-    /** 키를 바로 등록한다(FR-026, 이미 승인된 세션에서). VCSEC(GCM). 실패는 `InsufficientPrivileges`/`KeychainRejected`. */
+    /** 키를 바로 등록한다(FR-027, 이미 승인된 세션에서). VCSEC(GCM). 세션이 없으면 `NoSession`. 실패는 `InsufficientPrivileges`/`KeychainRejected`. `Uncertain`이면 `listKeys()`로 확인. */
     public suspend fun addKey(
         publicKey: PublicKeyBytes,
         role: KeyRole = KeyRole.OWNER,
@@ -82,7 +82,7 @@ public interface Vehicle {
         timeout: Duration? = null,
     ): VehicleResult<Unit>
 
-    /** 키를 삭제한다(FR-027). VCSEC(GCM). 실패는 `InsufficientPrivileges`/`KeychainRejected`. `Uncertain`이면 `listKeys()`로 확인. */
+    /** 키를 삭제한다(FR-026). VCSEC(GCM). 실패는 `InsufficientPrivileges`/`KeychainRejected`. `Uncertain`이면 `listKeys()`로 확인. */
     public suspend fun removeKey(
         publicKey: PublicKeyBytes,
         timeout: Duration? = null,
@@ -91,34 +91,34 @@ public interface Vehicle {
     /** 잠금 (FR-040). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
     public suspend fun lock(timeout: Duration? = null): VehicleResult<Unit>
 
-    /** 잠금 해제 (FR-040). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
+    /** 잠금 해제 (FR-041). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
     public suspend fun unlock(timeout: Duration? = null): VehicleResult<Unit>
 
-    /** 차량 깨우기(VCSEC 세션만 필요) (FR-041). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
+    /** 차량 깨우기(VCSEC 세션만 필요) (FR-042). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
     public suspend fun wakeUp(timeout: Duration? = null): VehicleResult<Unit>
 
-    /** 원격 주행 허용 (FR-042). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
+    /** 원격 주행 허용 (FR-043). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
     public suspend fun remoteDrive(timeout: Duration? = null): VehicleResult<Unit>
 
-    /** 자동 잠금(Auto Secure) (FR-043). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
+    /** 자동 잠금(Auto Secure) (FR-044). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
     public suspend fun autoSecureVehicle(timeout: Duration? = null): VehicleResult<Unit>
 
-    /** 트렁크 열기(`actuateTrunk`와 같다 — 토글) (FR-044). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
+    /** 트렁크 열기(`actuateTrunk`와 같다 — 토글) (FR-045). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
     public suspend fun openTrunk(timeout: Duration? = null): VehicleResult<Unit>
 
-    /** 트렁크 토글 (FR-044). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
+    /** 트렁크 토글 (FR-045). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
     public suspend fun actuateTrunk(timeout: Duration? = null): VehicleResult<Unit>
 
-    /** 트렁크 닫기 (FR-044). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
+    /** 트렁크 닫기 (FR-045). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
     public suspend fun closeTrunk(timeout: Duration? = null): VehicleResult<Unit>
 
-    /** 프렁크 열기(닫기 명령은 없다) (FR-045). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
+    /** 프렁크 열기(닫기 명령은 없다) (FR-046). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
     public suspend fun openFrunk(timeout: Duration? = null): VehicleResult<Unit>
 
-    /** 토노 커버 열기(Cybertruck) (FR-046). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
+    /** 토노 커버 열기(Cybertruck) (FR-047). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
     public suspend fun openTonneau(timeout: Duration? = null): VehicleResult<Unit>
 
-    /** 토노 커버 닫기(Cybertruck) (FR-046). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
+    /** 토노 커버 닫기(Cybertruck) (FR-047). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
     public suspend fun closeTonneau(timeout: Duration? = null): VehicleResult<Unit>
 
     /** 토노 커버 멈춤(Cybertruck) (FR-047). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */

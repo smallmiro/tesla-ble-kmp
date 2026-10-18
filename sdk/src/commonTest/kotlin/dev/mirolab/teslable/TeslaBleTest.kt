@@ -586,8 +586,8 @@ class TeslaBleTest {
         }
 
     @Test
-    fun noSessionResultReconcilesTheShownStatusEvenIfTheEventWasMissed() =
-        // codex 검토: 표시는 사건만이 아니라 실제 세션 상태를 원천으로 한다
+    fun noSessionResultKeepsAnUnreadyDomainNone() =
+        // 사건이 유실된 경우의 보정(.reconciling)은 FakeVehicle로는 결정적으로 만들 수 없다(사건은 명령이 끝나기 전에 수집된다). 여기서는 None 유지만 확인한다
         runTest {
             val r = rig()
             val vehicle = r.connected()
@@ -609,7 +609,7 @@ class TeslaBleTest {
             val vehicle = r.connected()
             assertEquals(SessionStatus.Ready(fromCache = true), vehicle.sessions.value[VehicleDomain.VCSEC])
             assertEquals(VehicleResult.Failure(VehicleError.NoSession), vehicle.lock())
-            runCurrent()
+            // runCurrent() 전에 확인한다: 사건 수집기가 아직 돌지 못했어도 NoSession 결과가 직접 표시를 맞춘다
             assertEquals(SessionStatus.None, vehicle.sessions.value[VehicleDomain.VCSEC])
             assertIs<VehicleResult.Success<Unit>>(vehicle.startSession(setOf(VehicleDomain.VCSEC), timeout = 1.seconds))
             assertEquals(VehicleResult.Success(Unit), vehicle.lock())

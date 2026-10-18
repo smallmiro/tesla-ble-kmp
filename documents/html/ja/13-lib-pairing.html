@@ -128,8 +128,8 @@
 <tbody>
 <tr><td><code>addKeyRequest(publicKey, role, formFactor, timeout)</code></td><td><code>Flow&lt;PairingEvent&gt;</code></td><td>車両にキーの追加を依頼します (FR-022, FR-023)。コールドフローで、収集するたびにリクエストを 1 回送ります。署名しないのでセッションは不要です。<code>timeout = null</code> のときは <code>pairingTimeout</code> (60 秒) を使います。リクエストは 1 つずつ実行されます</td></tr>
 <tr><td><code>sessionInfo(publicKey, domain, timeout)</code></td><td><code>VehicleResult&lt;SessionInfoSummary&gt;</code></td><td>ドメインごとに登録を確認します (FR-024)。接続にキーは不要です。<code>Failure(KeyNotPaired)</code> は車両の一覧にキーがないという意味です。接続自身のキーで問い合わせるとそのドメインのセッションも作られ、<code>sessions</code> に <code>Ready(fromCache = false)</code> と表示されます</td></tr>
-<tr><td><code>addKey(publicKey, role, formFactor, timeout)</code></td><td><code>VehicleResult&lt;Unit&gt;</code></td><td>十分な権限を持つ登録済みキーが、NFC カードなしで別のキーを追加します (FR-026)。認証付きの VCSEC コマンドで、VCSEC セッションが必要です</td></tr>
-<tr><td><code>removeKey(publicKey, timeout)</code></td><td><code>VehicleResult&lt;Unit&gt;</code></td><td>車両からキーを削除します (FR-027)。認証付きの VCSEC コマンドで、VCSEC セッションが必要です</td></tr>
+<tr><td><code>addKey(publicKey, role, formFactor, timeout)</code></td><td><code>VehicleResult&lt;Unit&gt;</code></td><td>十分な権限を持つ登録済みキーが、NFC カードなしで別のキーを追加します (FR-027)。認証付きの VCSEC コマンドで、VCSEC セッションが必要です</td></tr>
+<tr><td><code>removeKey(publicKey, timeout)</code></td><td><code>VehicleResult&lt;Unit&gt;</code></td><td>車両からキーを削除します (FR-026)。認証付きの VCSEC コマンドで、VCSEC セッションが必要です</td></tr>
 </tbody>
 </table>
 <ul>
@@ -174,7 +174,7 @@ vehicle.<span class="f">addKeyRequest</span>(key.publicKey).<span class="f">coll
         <span class="t">PairingEvent</span>.<span class="t">WaitingForTap</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Waiting for the card"</span>)
         <span class="t">PairingEvent</span>.<span class="t">Accepted</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Accepted, waiting for the car to sync"</span>)
         <span class="k">is</span> <span class="t">PairingEvent</span>.<span class="t">Rejected</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Rejected: ${event.error.message}"</span>)
-        <span class="k">is</span> <span class="t">PairingEvent</span>.<span class="t">Unknown</span> <span class="o">-&gt;</span> <span class="f">report</span>(event.raw.<span class="f">toHex</span>())      <span class="c">// see the warning below</span>
+        <span class="k">is</span> <span class="t">PairingEvent</span>.<span class="t">Unknown</span> <span class="o">-&gt;</span> <span class="f">report</span>(event.raw.<span class="f">joinToString</span>(<span class="s">""</span>) { it.<span class="f">toUByte</span>().<span class="f">toString</span>(<span class="n">16</span>).<span class="f">padStart</span>(<span class="n">2</span>, <span class="s">'0'</span>) })      <span class="c">// see the warning below</span>
         <span class="k">is</span> <span class="t">PairingEvent</span>.<span class="t">Failed</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Failed: ${event.error.message}"</span>)
         <span class="t">PairingEvent</span>.<span class="t">TimedOut</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"No answer, checking enrollment"</span>)
     }

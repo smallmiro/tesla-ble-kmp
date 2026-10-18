@@ -83,6 +83,7 @@ internal class DefaultVehicle(
         if (closed.value) return
         val ready = session.isReady(domain.wire)
         states.update { current ->
+            if (closed.value) return@update current // disconnect와 겹쳐도 Ready를 되쓰지 않는다
             when (current[domain]) {
                 SessionStatus.Handshaking -> current
                 is SessionStatus.Ready -> if (ready) current else current + (domain to SessionStatus.None)

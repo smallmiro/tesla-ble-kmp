@@ -33,17 +33,17 @@ All VCSEC commands are authenticated with AES-GCM over the VCSEC session. Withou
 | Method | FR | Payload (`UnsignedMessage`, hex) | Notes |
 |---|---|---|---|
 | `lock()` | FR-040 | `1001` | `RKEAction` LOCK |
-| `unlock()` | FR-040 | `1000` | `RKEAction` UNLOCK |
-| `wakeUp()` | FR-041 | `101e` | `RKEAction` WAKE_VEHICLE. Needs the VCSEC session only (Go `wakeupRKE`) |
-| `remoteDrive()` | FR-042 | `1014` | `RKEAction` REMOTE_DRIVE |
-| `autoSecureVehicle()` | FR-043 | `101d` | `RKEAction` AUTO_SECURE_VEHICLE (Model X) |
-| `openTrunk()` | FR-044 | `22022801` | Same payload as `actuateTrunk()`: a **toggle** (`rearTrunk = MOVE`) |
-| `actuateTrunk()` | FR-044 | `22022801` | Toggle |
-| `closeTrunk()` | FR-044 | `22022804` | `rearTrunk = CLOSE`. Powered trunks only |
-| `openFrunk()` | FR-045 | `22023001` | `frontTrunk = MOVE`. There is no remote close |
-| `openTonneau()` | FR-046 | `22024003` | Cybertruck. `tonneau = OPEN` |
-| `closeTonneau()` | FR-046 | `22024004` | Cybertruck. `tonneau = CLOSE` |
-| `stopTonneau()` | FR-046 | `22024002` | Cybertruck. `tonneau = STOP` |
+| `unlock()` | FR-041 | `1000` | `RKEAction` UNLOCK |
+| `wakeUp()` | FR-042 | `101e` | `RKEAction` WAKE_VEHICLE. Needs the VCSEC session only (Go `wakeupRKE`) |
+| `remoteDrive()` | FR-043 | `1014` | `RKEAction` REMOTE_DRIVE |
+| `autoSecureVehicle()` | FR-044 | `101d` | `RKEAction` AUTO_SECURE_VEHICLE (Model X) |
+| `openTrunk()` | FR-045 | `22022801` | Same payload as `actuateTrunk()`: a **toggle** (`rearTrunk = MOVE`) |
+| `actuateTrunk()` | FR-045 | `22022801` | Toggle |
+| `closeTrunk()` | FR-045 | `22022804` | `rearTrunk = CLOSE`. Powered trunks only |
+| `openFrunk()` | FR-046 | `22023001` | `frontTrunk = MOVE`. There is no remote close |
+| `openTonneau()` | FR-047 | `22024003` | Cybertruck. `tonneau = OPEN` |
+| `closeTonneau()` | FR-047 | `22024004` | Cybertruck. `tonneau = CLOSE` |
+| `stopTonneau()` | FR-047 | `22024002` | Cybertruck. `tonneau = STOP` |
 | Key enrollment and removal | FR-022–027 | | See `13-lib-pairing.md` |
 
 All return `VehicleResult<Unit>`. Failures to expect: `NoSession`, `NotConnected`, `InsufficientPrivileges` (for example
