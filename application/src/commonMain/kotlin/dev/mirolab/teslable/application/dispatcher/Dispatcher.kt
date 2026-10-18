@@ -8,6 +8,9 @@ import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
 import com.tesla.generated.universalmessage.SessionInfoRequest
 import dev.mirolab.teslable.InternalTeslableApi
+import dev.mirolab.teslable.application.observe.AddressOwner
+import dev.mirolab.teslable.application.observe.ObservationLog
+import dev.mirolab.teslable.application.observe.ObservedAt
 import dev.mirolab.teslable.cache.CachedSession
 import dev.mirolab.teslable.cache.SessionSnapshot
 import dev.mirolab.teslable.model.PublicKeyBytes
@@ -131,6 +134,54 @@ public class Dispatcher
 
         private val pending = HashMap<PendingKey, PendingRequest>()
         private val pendingMutex = Mutex()
+        private val observation = ObservationLog(crypto)
+
+        /** 관찰 로그(DEBUG, 태그 `observe`). 로거가 DEBUG를 버리면 [line]은 평가되지 않는다. */
+        private inline fun observe(crossinline line: () -> String) {
+            logger.log(LogLevel.DEBUG, ObservationLog.TAG) { line() }
+        }
+
+        /** 라우팅 주소의 주인(관찰 로그용). */
+        private suspend fun ownerOf(routingAddress: ByteString): AddressOwner {
+            if (routingAddress == address) return AddressOwner.SELF
+            return pendingMutex.withLock {
+                if (pending.values.any {
+                        !it.isClosed && it.key.address == routingAddress
+                    }
+                ) {
+                    AddressOwner.OPEN_REQUEST
+                } else {
+                    AddressOwner.OTHER
+                }
+            }
+        }
+
+        private fun observeDrop(
+            reason: DropReason,
+            message: RoutableMessage,
+            bytes: ByteArray,
+        ) {
+            when (reason) {
+                DropReason.MISSING_SOURCE -> {
+                    observe {
+                        observation.routable(ObservedAt.MISSING_SOURCE, message, bytes.size, owner = null) +
+                            " reinterpreted=" + observation.reinterpret(bytes)
+                    }
+                }
+
+                DropReason.MISSING_DESTINATION -> {
+                    observe { observation.routable(ObservedAt.MISSING_DESTINATION, message, bytes.size, owner = null) }
+                }
+
+                DropReason.TO_DOMAIN -> {
+                    observe { observation.routable(ObservedAt.TO_DOMAIN, message, bytes.size, owner = null) }
+                }
+
+                DropReason.BAD_UUID_LENGTH, DropReason.BAD_ADDRESS_LENGTH -> {
+                    observe { observation.routable(ObservedAt.MALFORMED, message, bytes.size, owner = null) }
+                }
+            }
+        }
 
         // Go는 Start/Stop을 doneLock으로 직렬화한다(dispatcher.go:333-341, 369-375,
         // 380-382). start()는 suspend가 아니므로(공개 API 유지) lock()이 아닌 tryLock/unlock으로 receiveJob 필드를
@@ -416,13 +467,18 @@ public class Dispatcher
             val message =
                 RoutableMessage.ADAPTER.decodeOrNull(bytes) ?: run {
                     logger.log(LogLevel.WARN, TAG) { "Dropping unparseable message" }
+                    observe { observation.unparseable(bytes) }
                     return
                 }
             val key =
                 when (val routing = route(message)) {
-                    is Routing.Matched -> routing.key
+                    is Routing.Matched -> {
+                        routing.key
+                    }
+
                     is Routing.Dropped -> {
                         logDrop(routing.reason, message)
+                        observeDrop(routing.reason, message, bytes)
                         return
                     }
                 }
@@ -430,7 +486,12 @@ public class Dispatcher
             val handler = lookup(key)
             if (handler == null) {
                 logger.log(LogLevel.WARN, TAG) { "[$id] Dropping message without registered handler $key" }
+                val owner = ownerOf(key.address)
+                observe { observation.routable(ObservedAt.NO_HANDLER, message, bytes.size, owner) }
                 return
+            }
+            if (key.domain == Domain.DOMAIN_VEHICLE_SECURITY) {
+                observe { observation.routable(ObservedAt.VCSEC_REPLY, message, bytes.size, AddressOwner.OPEN_REQUEST) }
             }
             // 차량은 desync가 의심되면 오류 응답에 세션정보를 동봉한다. 반영한 뒤에도 응답은 핸들러로 전달한다.
             checkForSessionUpdate(message, handler)
@@ -444,8 +505,10 @@ public class Dispatcher
             if (!delivered) {
                 if (handler.isClosed) {
                     logger.log(LogLevel.WARN, TAG) { "[$id] Dropping message without registered handler $key" }
+                    observe { observation.routable(ObservedAt.HANDLER_CLOSED, message, bytes.size, AddressOwner.OPEN_REQUEST) }
                 } else {
                     logger.log(LogLevel.ERROR, TAG) { "[$id] Dropping response to command because response handler queue is full" }
+                    observe { observation.routable(ObservedAt.QUEUE_FULL, message, bytes.size, AddressOwner.OPEN_REQUEST) }
                 }
             }
         }
@@ -501,7 +564,13 @@ public class Dispatcher
                 DropReason.TO_DOMAIN -> {
                     val toDomain = message.to_destination?.domain
                     logger.log(LogLevel.DEBUG, TAG) {
-                        if (toDomain != null) "[$id] Dropping message to $toDomain" else "[$id] Dropping message with unrecognized destination type"
+                        if (toDomain !=
+                            null
+                        ) {
+                            "[$id] Dropping message to $toDomain"
+                        } else {
+                            "[$id] Dropping message with unrecognized destination type"
+                        }
                     }
                 }
 
