@@ -114,10 +114,11 @@ class ObservationDetailTest {
     }
 
     @Test
-    fun vehicleStatusFields7And8AreDecoded() {
-        val status = VehicleStatus(vehicleLockState = VehicleLockState_E.VEHICLELOCKSTATE_LOCKED).encode() + len(7, vint(1, 2)) + vint(8, 6)
+    fun vehicleStatusField8IsDecodedAndField7IsNoLongerUnknown() {
+        // Teslemetry 스냅샷은 7을 gear(varint enum)로 정의한다: unknownFields에는 8만 남는다
+        val status = VehicleStatus(vehicleLockState = VehicleLockState_E.VEHICLELOCKSTATE_LOCKED).encode() + vint(7, 2) + vint(8, 6)
         val line = top(len(1, status))
-        assertTrue(line.contains("unknownFields=[7:len(2){1:varint=2(0x2)}, 8:varint=6(0x6)]"), line)
+        assertTrue(line.contains("unknownFields=[8:varint=6(0x6)]"), line)
     }
 
     @Test

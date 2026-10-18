@@ -78,14 +78,27 @@ class SessionCacheCodecTest {
 
     @Test
     fun skipsEntriesWithUnknownDomainValue() {
-        // 신형 펌웨어 도메인 7 — Go LoadCache는 universal.Domain(7)을 그대로 세션 맵에 넣지만 우리는 세션을 만들 수 없어 건너뛴다(설계 구체화 6)
+        // 스냅샷에도 없는 도메인 6 — Go LoadCache는 universal.Domain(6)을 그대로 세션 맵에 넣지만 우리는 세션을 만들 수 없어 건너뛴다(설계 구체화 6)
         val withUnknown =
+            expectedHex.replace(
+                "01" + "02" + "0000018bcfe56800",
+                "02" + "06" + "0000018bcfe56800" + "0002" + "0806" + "02" + "0000018bcfe56800",
+            )
+        val decoded = assertNotNull(SessionCacheCodec.decode(withUnknown.hexToBytes(), keyId))
+        assertEquals(listOf(Domain.DOMAIN_VEHICLE_SECURITY), decoded.map { it.domain })
+    }
+
+    @Test
+    fun snapshotDomainValuesDecode() {
+        // ADR-0002 개정(2026-10-18): Teslemetry 스냅샷이 아는 도메인 7(DOMAIN_ENERGY_DEVICE)은 이제 항목으로 남는다.
+        // 세션이 없는 도메인이라 Dispatcher.loadSessions가 WARN 후 건너뛴다(복원 결과는 교체 전과 같다).
+        val withSnapshotDomain =
             expectedHex.replace(
                 "01" + "02" + "0000018bcfe56800",
                 "02" + "07" + "0000018bcfe56800" + "0002" + "0806" + "02" + "0000018bcfe56800",
             )
-        val decoded = assertNotNull(SessionCacheCodec.decode(withUnknown.hexToBytes(), keyId))
-        assertEquals(listOf(Domain.DOMAIN_VEHICLE_SECURITY), decoded.map { it.domain })
+        val decoded = assertNotNull(SessionCacheCodec.decode(withSnapshotDomain.hexToBytes(), keyId))
+        assertEquals(listOf(Domain.DOMAIN_ENERGY_DEVICE, Domain.DOMAIN_VEHICLE_SECURITY), decoded.map { it.domain })
     }
 
     @Test

@@ -225,16 +225,31 @@ class DispatcherTest {
 
     @Test
     fun dropsResponseFromDomainUnknownToWire() =
-        // 설계 구체화 10: 모르는 from 도메인(raw varint 4)은 Wire에서 domain == null이지만
+        // 설계 구체화 10: 모르는 from 도메인(raw varint 6, Teslemetry 스냅샷에도 없음)은 Wire에서 domain == null이지만
         // from_destination 자체는 있으므로 "누락된 소스"가 아니다. Go GetDomain()이 0(DOMAIN_BROADCAST)을 돌려주는 것처럼
         // domain을 DOMAIN_BROADCAST로 취급하고, 그 도메인으로 등록된 핸들러가 없어 "핸들러 없음"으로 드롭한다.
         runTest {
             val h = dispatcherHarness()
             h.fake.script(infotainment, emptyList())
             val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), AuthMethod.NONE)).value
-            val unknownDomain = Destination.ADAPTER.decode(byteArrayOf(0x08, 0x04)) // 태그 1(domain) varint 4
+            val unknownDomain = Destination.ADAPTER.decode(byteArrayOf(0x08, 0x06)) // 태그 1(domain) varint 6
             assertNull(unknownDomain.domain)
             h.transport.deliver(encode(replyTo(h.lastRequest(), "x".encodeToByteArray()).copy(from_destination = unknownDomain)))
+            runCurrent()
+            pending.use { assertNull(it.tryReceive()) }
+            assertTrue(h.logger.contains("Dropping message without registered handler"))
+        }
+
+    @Test
+    fun dropsResponseFromSnapshotOnlyDomain() =
+        // ADR-0002 개정(2026-10-18): raw 4는 이제 Wire가 DOMAIN_AUTOPILOT으로 읽는다. 그 도메인의 핸들러가 없어 결과는 같다(핸들러 없음 드롭).
+        runTest {
+            val h = dispatcherHarness()
+            h.fake.script(infotainment, emptyList())
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), AuthMethod.NONE)).value
+            val autopilot = Destination.ADAPTER.decode(byteArrayOf(0x08, 0x04))
+            assertEquals(Domain.DOMAIN_AUTOPILOT, autopilot.domain)
+            h.transport.deliver(encode(replyTo(h.lastRequest(), "x".encodeToByteArray()).copy(from_destination = autopilot)))
             runCurrent()
             pending.use { assertNull(it.tryReceive()) }
             assertTrue(h.logger.contains("Dropping message without registered handler"))

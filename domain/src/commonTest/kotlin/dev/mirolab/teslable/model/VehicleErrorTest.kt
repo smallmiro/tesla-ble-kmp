@@ -27,7 +27,8 @@ class VehicleErrorTest {
 
     @Test
     fun classifiesEveryMessageFaultLikeGo() {
-        assertEquals(29, MessageFault_E.entries.size, "proto에 fault가 추가되면 이 표를 갱신한다")
+        // 공식 Go 29개(0..28) + Teslemetry 스냅샷 29(COMMAND_REQUIRES_PHYSICAL_PROXIMITY, UNCONFIRMED). Go는 29를 모르므로 재시도 대상이 아니다.
+        assertEquals(30, MessageFault_E.entries.size, "proto에 fault가 추가되면 이 표를 갱신한다")
         for (fault in MessageFault_E.entries) {
             val error = VehicleError.ProtocolFault(fault)
             assertEquals(fault in retriable, error.temporary, "temporary for $fault")

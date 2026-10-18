@@ -189,4 +189,26 @@ class VcsecResponsesTest {
             )
         assertEquals(VehicleError.UnknownKeychainCode(99), unknownCodeFail.error)
     }
+
+    // ADR-0002 개정(2026-10-18): Teslemetry 스냅샷이 아는 코드는 이름 있는 오류가 된다(전에는 Unknown*의 원시 코드).
+
+    @Test
+    fun snapshotWhitelistInformationCodeIsKeychainRejected() {
+        // commandStatus{ operationStatus = ERROR(2), whitelistOperationStatus(3){ information(1) = 29 } }
+        val raw = byteArrayOf(0x22, 0x06, 0x08, 0x02, 0x1a, 0x02, 0x08, 0x1d)
+        val result = assertIs<VehicleResult.Failure>(VcsecResponses.interpret(message(raw)))
+        val error = assertIs<VehicleError.KeychainRejected>(result.error)
+        assertEquals(29, error.code.value)
+        assertEquals("keychain operation failed: WHITELISTOPERATION_INFORMATION_NON_SERVICE_KEY_ATTEMPTING_TO_ADD_RIDER_KEY", error.message)
+    }
+
+    @Test
+    fun snapshotGenericErrorCodeIsVcsecRejected() {
+        // FromVCSECMessage.nominalError(46, LEN 2){ genericError(1) = 8 }: tag 46<<3|2 = 0xf2 0x02
+        val raw = byteArrayOf(0xf2.toByte(), 0x02, 0x02, 0x08, 0x08)
+        val result = assertIs<VehicleResult.Failure>(VcsecResponses.interpret(message(raw)))
+        val error = assertIs<VehicleError.VcsecRejected>(result.error)
+        assertEquals(8, error.error.value)
+        assertEquals("vcsec could not execute command: GENERICERROR_KEY_NOT_FOUND", error.message)
+    }
 }

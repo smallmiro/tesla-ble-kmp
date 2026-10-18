@@ -1,3 +1,7 @@
+// UPSTREAM-SOURCE: teslamotors/vehicle-command
+// UPSTREAM-PATH:   pkg/protocol/protobuf/vcsec.proto
+// UPSTREAM-COMMIT: see upstream.json
+// This file = upstream base + Teslemetry extensions marked TESLEMETRY-EXT.
 syntax = "proto3";
 
 package VCSEC;
@@ -10,7 +14,10 @@ import "errors.proto";
 enum SignatureType
 {
     SIGNATURE_TYPE_NONE = 0;
+    SIGNATURE_TYPE_ECDSA = 1;  // TESLEMETRY-EXT UNCONFIRMED: not yet confirmed on a live vehicle
     SIGNATURE_TYPE_PRESENT_KEY  = 2;
+    SIGNATURE_TYPE_AES_GCM_TOKEN = 3;  // TESLEMETRY-EXT UNCONFIRMED: not yet confirmed on a live vehicle
+    SIGNATURE_TYPE_UNSIGNED = 4;  // TESLEMETRY-EXT UNCONFIRMED: not yet confirmed on a live vehicle
 }
 
 message SignedMessage {
@@ -30,9 +37,24 @@ enum KeyFormFactor
 {
     KEY_FORM_FACTOR_UNKNOWN                 = 0;
     KEY_FORM_FACTOR_NFC_CARD                = 1;
+    KEY_FORM_FACTOR_3_BUTTON_BLE_CAR_KEYFOB = 2;  // TESLEMETRY-EXT
+    KEY_FORM_FACTOR_BLE_DEVICE              = 3;  // TESLEMETRY-EXT
+    KEY_FORM_FACTOR_NFC_DEVICE              = 4;  // TESLEMETRY-EXT
+    KEY_FORM_FACTOR_BLE_AND_NFC_DEVICE      = 5;  // TESLEMETRY-EXT
     KEY_FORM_FACTOR_IOS_DEVICE              = 6;
     KEY_FORM_FACTOR_ANDROID_DEVICE          = 7;
+    KEY_FORM_FACTOR_3_BUTTON_BLE_CAR_KEYFOB_P60 = 8;  // TESLEMETRY-EXT
     KEY_FORM_FACTOR_CLOUD_KEY               = 9;
+    KEY_FORM_FACTOR_3_BUTTON_GEN2_CAR_KEYFOB_P60 = 10;  // TESLEMETRY-EXT
+    KEY_FORM_FACTOR_5_BUTTON_GEN2_CAR_KEYFOB_P60 = 11;  // TESLEMETRY-EXT
+    KEY_FORM_FACTOR_3_BUTTON_GEN2_CAR_KEYFOB_P60_V2 = 12;  // TESLEMETRY-EXT
+    KEY_FORM_FACTOR_3_BUTTON_GEN2_CAR_KEYFOB_P60_V3 = 13;  // TESLEMETRY-EXT
+    KEY_FORM_FACTOR_NFC_CARD_P71            = 14;  // TESLEMETRY-EXT
+    KEY_FORM_FACTOR_NFC_CARD_METAL_CARD     = 15;  // TESLEMETRY-EXT
+    KEY_FORM_FACTOR_NFC_CARD_PLASTIC_CARD   = 16;  // TESLEMETRY-EXT
+    KEY_FORM_FACTOR_APPLE_WATCH             = 17;  // TESLEMETRY-EXT
+    KEY_FORM_FACTOR_NFC_CARD_WD_PLASTIC_CARD = 18;  // TESLEMETRY-EXT
+    KEY_FORM_FACTOR_HARMONY_OS_NEXT_DEVICE  = 19;  // TESLEMETRY-EXT
 }
 
 message KeyMetadata
@@ -46,8 +68,16 @@ message PublicKey {
 
 enum InformationRequestType {
     INFORMATION_REQUEST_TYPE_GET_STATUS = 0;
+    INFORMATION_REQUEST_TYPE_GET_TOKEN = 1;  // TESLEMETRY-EXT
+    INFORMATION_REQUEST_TYPE_GET_COUNTER = 2;  // TESLEMETRY-EXT
+    INFORMATION_REQUEST_TYPE_GET_EPHEMERAL_PUBLIC_KEY = 3;  // TESLEMETRY-EXT
+    INFORMATION_REQUEST_TYPE_GET_SESSION_DATA = 4;  // TESLEMETRY-EXT
     INFORMATION_REQUEST_TYPE_GET_WHITELIST_INFO = 5;
     INFORMATION_REQUEST_TYPE_GET_WHITELIST_ENTRY_INFO = 6;
+    INFORMATION_REQUEST_TYPE_GET_PERSONALIZATION_INFO = 7;  // TESLEMETRY-EXT
+    INFORMATION_REQUEST_TYPE_GET_KEYSTATUS_INFO = 8;  // TESLEMETRY-EXT
+    INFORMATION_REQUEST_TYPE_GET_ACTIVE_KEY = 9;  // TESLEMETRY-EXT
+    INFORMATION_REQUEST_TYPE_GET_CAPABILITIES = 16;  // TESLEMETRY-EXT
 }
 
 message WhitelistInfo {
@@ -76,9 +106,17 @@ message InformationRequest {
 enum RKEAction_E {
     RKE_ACTION_UNLOCK = 0;
     RKE_ACTION_LOCK = 1;
-    RKE_ACTION_REMOTE_DRIVE       = 20;
+    RKE_ACTION_OPEN_TRUNK = 2;  // TESLEMETRY-EXT
+    RKE_ACTION_OPEN_FRUNK = 3;  // TESLEMETRY-EXT
+    RKE_ACTION_OPEN_CHARGE_PORT = 4;  // TESLEMETRY-EXT
+    RKE_ACTION_CLOSE_CHARGE_PORT = 5;  // TESLEMETRY-EXT
+    RKE_ACTION_CANCEL_EXTERNAL_AUTHENTICATE = 6;  // TESLEMETRY-EXT
+    RKE_ACTION_UNKNOWN = 19;  // TESLEMETRY-EXT
+    RKE_ACTION_REMOTE_DRIVE = 20;
     RKE_ACTION_AUTO_SECURE_VEHICLE = 29;
     RKE_ACTION_WAKE_VEHICLE = 30;
+    RKE_ACTION_UNLOCK_AND_REMOTE_DRIVE = 31;  // TESLEMETRY-EXT
+    RKE_ACTION_UNLOCK_UNRESTRICTED_CLOSURES = 32;  // TESLEMETRY-EXT
 }
 
 enum ClosureMoveType_E{
@@ -88,6 +126,8 @@ enum ClosureMoveType_E{
     CLOSURE_MOVE_TYPE_STOP = 2;
     CLOSURE_MOVE_TYPE_OPEN = 3;
     CLOSURE_MOVE_TYPE_CLOSE = 4;
+    CLOSURE_MOVE_TYPE_OVERRIDE_OPEN = 5;  // TESLEMETRY-EXT
+    CLOSURE_MOVE_TYPE_OVERRIDE_CLOSE = 6;  // TESLEMETRY-EXT
 }
 
 message ClosureMoveRequest {
@@ -197,6 +237,10 @@ enum WhitelistOperation_information_E
     WHITELISTOPERATION_INFORMATION_LOCAL_ENTITY_AUTH_FAILED_TIMED_OUT_WAITING_FOR_UI_ACK = 26;
     WHITELISTOPERATION_INFORMATION_LOCAL_ENTITY_AUTH_FAILED_VALET_MODE = 27;
     WHITELISTOPERATION_INFORMATION_LOCAL_ENTITY_AUTH_FAILED_CANCELLED = 28;
+    WHITELISTOPERATION_INFORMATION_NON_SERVICE_KEY_ATTEMPTING_TO_ADD_RIDER_KEY = 29;  // TESLEMETRY-EXT
+    WHITELISTOPERATION_INFORMATION_ATTEMPTING_TO_ADD_RIDER_KEY_OUTSIDE_FLEET_MODE = 30;  // TESLEMETRY-EXT
+    WHITELISTOPERATION_INFORMATION_NON_SERVICE_KEY_ATTEMPTING_TO_ADD_PREDELIVERY_KEY = 31;  // TESLEMETRY-EXT
+    WHITELISTOPERATION_INFORMATION_SERVICE_KEY_ATTEMPTING_TO_ADD_PREDELIVERY_KEY_WHEN_ALREADY_DELIVERED = 32;  // TESLEMETRY-EXT
 }
 
 message WhitelistOperation_status
@@ -221,13 +265,71 @@ message CommandStatus
     }
 }
 
+message AutonomyCommand {  // TESLEMETRY-EXT
+    // Remote "pull over" request for a vehicle driving under autonomy - a trigger, no parameters.
+    message PullOverCommand {}
+
+    oneof sub_message {
+        PullOverCommand pullOverCommand = 1;
+    }
+}
+
+// Vehicle walk-up Bluetooth authentication challenge. Field numbers and types
+// are verified against a live vehicle; unverified field names are marked inline.
+enum AuthenticationLevel_E {  // TESLEMETRY-EXT
+    AUTHENTICATION_LEVEL_NONE = 0;
+    AUTHENTICATION_LEVEL_UNLOCK = 1;
+    AUTHENTICATION_LEVEL_DRIVE = 2;
+}
+
+enum AuthenticationReason_E {  // TESLEMETRY-EXT
+    AUTHENTICATIONREASON_NOT_DOCUMENTED = 0;
+    AUTHENTICATIONREASON_IDENTIFICATION = 1;
+    AUTHENTICATIONREASON_POWER_ON_VEHICLE_REQUEST = 2;
+    AUTHENTICATIONREASON_GTW_REQUEST = 3;
+    AUTHENTICATIONREASON_UI_UNLOCK_PASSIVE_AUTH = 4;
+    AUTHENTICATIONREASON_PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL = 5;
+    AUTHENTICATIONREASON_PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL = 6;
+    AUTHENTICATIONREASON_PASSIVE_UNLOCK_AUTOPRESENT_DOOR = 7;
+    AUTHENTICATIONREASON_ENTERED_HIGHER_AUTH_ZONE = 8;
+    AUTHENTICATIONREASON_WALK_UP_UNLOCK = 9;
+    AUTHENTICATIONREASON_IMMOBILIZER = 10;
+}
+
+enum AuthenticationRejection_E {  // TESLEMETRY-EXT
+    AUTHENTICATIONREJECTION_NONE = 0;
+    AUTHENTICATIONREJECTION_DEVICE_STATIONARY = 1;
+    AUTHENTICATIONREJECTION_PASSIVE_DISABLED = 2;
+    AUTHENTICATIONREJECTION_NO_TOKEN = 3;
+    AUTHENTICATIONREJECTION_PASSIVE_DISABLED_AUTOMATION = 4;
+    AUTHENTICATIONREJECTION_DEVICE_NOT_UNLOCKED_ON_WRIST = 5;
+}
+
+message AuthenticationRequestToken {  // TESLEMETRY-EXT
+    bytes token = 1;  // name unverified
+}
+
+message AuthenticationRequest {  // TESLEMETRY-EXT
+    AuthenticationRequestToken sessionInfo = 2;  // name unverified
+    AuthenticationLevel_E requestedLevel = 3;  // name unverified
+    repeated AuthenticationReason_E reasonsForAuth = 4;  // name unverified
+}
+
+message AuthenticationResponse {  // TESLEMETRY-EXT
+    AuthenticationLevel_E authenticationLevel = 1;  // name unverified
+    uint32 estimatedDistance = 2;  // name unverified
+    AuthenticationRejection_E authenticationRejection = 3;  // name unverified
+}
+
 message UnsignedMessage {
     reserved 6,7,10,12,13;
     oneof sub_message {
         InformationRequest           InformationRequest = 1;
         RKEAction_E                  RKEAction = 2;
+        AuthenticationResponse       authenticationResponse = 3;  // TESLEMETRY-EXT
         ClosureMoveRequest           closureMoveRequest = 4;
         WhitelistOperation           WhitelistOperation = 16;
+        AutonomyCommand              autonomyCommand = 66;  // TESLEMETRY-EXT
     }
 }
 
@@ -276,18 +378,34 @@ enum UserPresence_E {
     VEHICLE_USER_PRESENCE_PRESENT = 2;
 }
 
+enum UIDesire_E {  // TESLEMETRY-EXT
+    UI_DESIRE_NONE = 0;
+    UI_DESIRE_HAS_DATA = 1;
+}
+
+enum Gear_E {  // TESLEMETRY-EXT
+    GEAR_UNKNOWN = 0;
+    GEAR_PARK = 1;
+    GEAR_DRIVE = 2;
+    GEAR_REVERSE = 3;
+    GEAR_NEUTRAL = 4;
+}
+
 message VehicleStatus {
     ClosureStatuses        closureStatuses = 1;
     VehicleLockState_E     vehicleLockState = 2;
     VehicleSleepStatus_E   vehicleSleepStatus = 3;
     UserPresence_E         userPresence = 4;
     DetailedClosureStatus  detailedClosureStatus = 5;
+    UIDesire_E             uiDesire = 6;  // TESLEMETRY-EXT
+    Gear_E                 gear = 7;  // TESLEMETRY-EXT
 }
 
 message FromVCSECMessage {
     reserved 6 to 10;
     oneof sub_message {
         VehicleStatus               vehicleStatus = 1;
+        AuthenticationRequest       authenticationRequest = 3;  // TESLEMETRY-EXT
         CommandStatus               commandStatus = 4;
         WhitelistInfo               whitelistInfo = 16;
         WhitelistEntryInfo          whitelistEntryInfo = 17;

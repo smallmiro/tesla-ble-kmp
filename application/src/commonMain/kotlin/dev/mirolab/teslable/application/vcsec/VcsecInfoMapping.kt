@@ -119,22 +119,58 @@ internal object VcsecInfoMapping {
     private fun role(role: Role): KeyRole =
         when (role) {
             Role.ROLE_NONE -> KeyRole.NONE
+
             Role.ROLE_SERVICE -> KeyRole.SERVICE
+
             Role.ROLE_OWNER -> KeyRole.OWNER
+
             Role.ROLE_DRIVER -> KeyRole.DRIVER
+
             Role.ROLE_FM -> KeyRole.FLEET_MANAGER
+
             Role.ROLE_VEHICLE_MONITOR -> KeyRole.VEHICLE_MONITOR
+
             Role.ROLE_CHARGING_MANAGER -> KeyRole.CHARGING_MANAGER
+
             Role.ROLE_GUEST -> KeyRole.GUEST
+
+            // TESLEMETRY-EXT UNCONFIRMED(ADR-0002 개정): 공개 모델 값이 없다. 교체 전(unknownFields 경로)과 같이 UNKNOWN
+            Role.ROLE_SERVICE_TECH,
+            Role.ROLE_RIDER,
+            Role.ROLE_PREDELIVERY,
+            Role.ROLE_INFOTAINMENT,
+            -> KeyRole.UNKNOWN
         }
 
     private fun formFactor(value: WireFormFactor): KeyFormFactor =
         when (value) {
             WireFormFactor.KEY_FORM_FACTOR_UNKNOWN -> KeyFormFactor.UNKNOWN
+
             WireFormFactor.KEY_FORM_FACTOR_NFC_CARD -> KeyFormFactor.NFC_CARD
+
             WireFormFactor.KEY_FORM_FACTOR_IOS_DEVICE -> KeyFormFactor.IOS_DEVICE
+
             WireFormFactor.KEY_FORM_FACTOR_ANDROID_DEVICE -> KeyFormFactor.ANDROID_DEVICE
+
             WireFormFactor.KEY_FORM_FACTOR_CLOUD_KEY -> KeyFormFactor.CLOUD_KEY
+
+            // TESLEMETRY-EXT(ADR-0002 개정): 공개 모델에 정확히 같은 값이 없다. 교체 전(unknownFields 경로)과 같이 UNKNOWN
+            WireFormFactor.KEY_FORM_FACTOR_3_BUTTON_BLE_CAR_KEYFOB,
+            WireFormFactor.KEY_FORM_FACTOR_BLE_DEVICE,
+            WireFormFactor.KEY_FORM_FACTOR_NFC_DEVICE,
+            WireFormFactor.KEY_FORM_FACTOR_BLE_AND_NFC_DEVICE,
+            WireFormFactor.KEY_FORM_FACTOR_3_BUTTON_BLE_CAR_KEYFOB_P60,
+            WireFormFactor.KEY_FORM_FACTOR_3_BUTTON_GEN2_CAR_KEYFOB_P60,
+            WireFormFactor.KEY_FORM_FACTOR_5_BUTTON_GEN2_CAR_KEYFOB_P60,
+            WireFormFactor.KEY_FORM_FACTOR_3_BUTTON_GEN2_CAR_KEYFOB_P60_V2,
+            WireFormFactor.KEY_FORM_FACTOR_3_BUTTON_GEN2_CAR_KEYFOB_P60_V3,
+            WireFormFactor.KEY_FORM_FACTOR_NFC_CARD_P71,
+            WireFormFactor.KEY_FORM_FACTOR_NFC_CARD_METAL_CARD,
+            WireFormFactor.KEY_FORM_FACTOR_NFC_CARD_PLASTIC_CARD,
+            WireFormFactor.KEY_FORM_FACTOR_APPLE_WATCH,
+            WireFormFactor.KEY_FORM_FACTOR_NFC_CARD_WD_PLASTIC_CARD,
+            WireFormFactor.KEY_FORM_FACTOR_HARMONY_OS_NEXT_DEVICE,
+            -> KeyFormFactor.UNKNOWN
         }
 
     /** 모델 역할 → Wire. [KeyRole.UNKNOWN]은 보낼 값이 없어 null. */

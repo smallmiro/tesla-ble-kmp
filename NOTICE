@@ -7,8 +7,17 @@ This product includes software developed by Tesla, Inc.:
   Ported files carry a header of the form
   "Ported from vehicle-command@<commit> <path> (Apache-2.0)".
 
-This product includes protobuf definitions from the same repository
-(pkg/protocol/protobuf/*.proto), used without modification.
+This product includes protobuf definitions from Teslemetry tesla-protocol:
+  tesla-protocol (https://github.com/Teslemetry/tesla-protocol)
+  Copyright 2026 Teslemetry
+  Licensed under the Apache License, Version 2.0.
+  Commit e6f7afb1b633d7215e34d0cdac66dab983c6ae78, proto/command/ (9 files:
+  car_server, common, errors, keys, managed_charging, signatures,
+  universal_message, vcsec, vehicle), copied byte-for-byte into
+  domain/src/commonMain/proto/. These files extend the
+  teslamotors/vehicle-command protobuf definitions
+  (pkg/protocol/protobuf/*.proto, Copyright Tesla, Inc., Apache-2.0);
+  Teslemetry additions are marked TESLEMETRY-EXT in the files.
 
 This is an unofficial, community project and is not affiliated with,
-endorsed by, or sponsored by Tesla, Inc.
+endorsed by, or sponsored by Tesla, Inc. or Teslemetry.

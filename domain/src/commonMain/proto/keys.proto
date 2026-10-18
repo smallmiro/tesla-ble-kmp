@@ -1,3 +1,7 @@
+// UPSTREAM-SOURCE: teslamotors/vehicle-command
+// UPSTREAM-PATH:   pkg/protocol/protobuf/keys.proto
+// UPSTREAM-COMMIT: see upstream.json
+// This file = upstream base + Teslemetry extensions marked TESLEMETRY-EXT.
 syntax = "proto3";
 
 package Keys;
@@ -13,5 +17,9 @@ enum Role
     ROLE_FM              = 4;
     ROLE_VEHICLE_MONITOR = 5;
     ROLE_CHARGING_MANAGER = 6;
+    ROLE_SERVICE_TECH    = 7;  // TESLEMETRY-EXT UNCONFIRMED: not yet confirmed on a live vehicle
     ROLE_GUEST           = 8;
+    ROLE_RIDER           = 9;  // TESLEMETRY-EXT UNCONFIRMED: not yet confirmed on a live vehicle
+    ROLE_PREDELIVERY     = 10;  // TESLEMETRY-EXT UNCONFIRMED: not yet confirmed on a live vehicle
+    ROLE_INFOTAINMENT    = 11;  // TESLEMETRY-EXT UNCONFIRMED: not yet confirmed on a live vehicle
 }
