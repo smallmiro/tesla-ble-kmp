@@ -113,6 +113,9 @@ public class VehicleSession(
         return result
     }
 
+    /** [domain]의 세션이 준비됐는지. 파사드 표시의 원천(사건은 신호일 뿐이다). */
+    public fun isReady(domain: Domain): Boolean = dispatcher.session(domain)?.isReady == true
+
     /** 파사드가 세션 상태 표시에 쓴다. */
     public val sessionEvents: SharedFlow<SessionEvent> get() = dispatcher.sessionEvents
 

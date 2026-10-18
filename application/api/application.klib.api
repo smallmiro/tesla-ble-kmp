@@ -239,6 +239,7 @@ final class dev.mirolab.teslable.application.vehicle/VehicleSession { // dev.mir
     final val vcsec // dev.mirolab.teslable.application.vehicle/VehicleSession.vcsec|{}vcsec[0]
         final fun <get-vcsec>(): dev.mirolab.teslable.application.vcsec/VcsecCommands // dev.mirolab.teslable.application.vehicle/VehicleSession.vcsec.<get-vcsec>|<get-vcsec>(){}[0]
 
+    final fun isReady(com.tesla.generated.universalmessage/Domain): kotlin/Boolean // dev.mirolab.teslable.application.vehicle/VehicleSession.isReady|isReady(com.tesla.generated.universalmessage.Domain){}[0]
     final suspend fun connect(): kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> // dev.mirolab.teslable.application.vehicle/VehicleSession.connect|connect(){}[0]
     final suspend fun disconnect() // dev.mirolab.teslable.application.vehicle/VehicleSession.disconnect|disconnect(){}[0]
     final suspend fun startSession(kotlin.collections/Set<com.tesla.generated.universalmessage/Domain> = ..., kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.application.vehicle/VehicleSession.startSession|startSession(kotlin.collections.Set<com.tesla.generated.universalmessage.Domain>;kotlin.time.Duration){}[0]

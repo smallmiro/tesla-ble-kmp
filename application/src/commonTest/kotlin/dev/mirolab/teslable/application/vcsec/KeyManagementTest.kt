@@ -2,12 +2,15 @@ package dev.mirolab.teslable.application.vcsec
 
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
+import com.tesla.generated.universalmessage.RoutableMessage
 import com.tesla.generated.vcsec.WhitelistOperation_information_E
 import dev.mirolab.teslable.InternalTeslableApi
 import dev.mirolab.teslable.application.cache.SessionCacheSync
 import dev.mirolab.teslable.application.dispatcher.HandshakeFlow
 import dev.mirolab.teslable.application.dispatcher.SessionEvent
 import dev.mirolab.teslable.application.dispatcher.dispatcherHarness
+import dev.mirolab.teslable.application.dispatcher.encode
+import dev.mirolab.teslable.application.dispatcher.replyTo
 import dev.mirolab.teslable.application.vehicle.VehicleSession
 import dev.mirolab.teslable.model.KeyFormFactor
 import dev.mirolab.teslable.model.KeyId
@@ -123,6 +126,23 @@ class KeyManagementTest {
             h.fake.scriptHandshake(infotainment, MessageFault_E.MESSAGEFAULT_ERROR_UNKNOWN_KEY_ID)
             assertEquals(
                 VehicleResult.Failure(VehicleError.KeyNotPaired),
+                VehicleSession(h.dispatcher).keys.sessionInfo(friend, infotainment),
+            )
+        }
+
+    @Test
+    fun replyWithoutSessionInfoIsBadResponse() =
+        // Go SessionInfo: GetError 다음 session_info가 없으면 ErrBadResponse (status 필드는 보지 않는다)
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val transport = fake.transport()
+            transport.onSend = { bytes ->
+                val request = RoutableMessage.ADAPTER.decode(bytes)
+                transport.deliver(encode(replyTo(request, ByteArray(0)).copy(protobuf_message_as_bytes = null)))
+            }
+            val h = dispatcherHarness(fake = fake, transport = transport)
+            assertEquals(
+                VehicleResult.Failure(VehicleError.BadResponse("missing session_info")),
                 VehicleSession(h.dispatcher).keys.sessionInfo(friend, infotainment),
             )
         }

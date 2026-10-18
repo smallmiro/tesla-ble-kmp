@@ -19,6 +19,8 @@ public data class TeslaBleConfig(
     val handshakeTimeout: Duration = 20.seconds,
     /** 스캔·연결 기본 시간 제한. */
     val connectTimeout: Duration = 30.seconds,
+    /** add-key-request 진행 이벤트를 기다리는 기본 시간(설계 구체화 4). */
+    val pairingTimeout: Duration = 60.seconds,
 ) {
     /** Swift용 생성 도우미(기본 인자·`Duration`을 쓰지 않고 만든다). */
     public companion object {

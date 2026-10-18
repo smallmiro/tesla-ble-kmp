@@ -3,6 +3,10 @@ public final class dev/mirolab/teslable/DebugLogger : dev/mirolab/teslable/port/
 	public fun log (Ldev/mirolab/teslable/port/LogLevel;Ljava/lang/String;Lkotlin/jvm/functions/Function0;)V
 }
 
+public final class dev/mirolab/teslable/KeyFormFactors_jvmKt {
+	public static final fun platformKeyFormFactor ()Ldev/mirolab/teslable/model/KeyFormFactor;
+}
+
 public final class dev/mirolab/teslable/PlatformContext {
 	public fun <init> ()V
 }
@@ -52,22 +56,24 @@ public final class dev/mirolab/teslable/TeslaBle$Companion {
 public final class dev/mirolab/teslable/TeslaBleConfig {
 	public static final field Companion Ldev/mirolab/teslable/TeslaBleConfig$Companion;
 	public fun <init> ()V
-	public synthetic fun <init> (Ldev/mirolab/teslable/port/TeslaLogger;Ldev/mirolab/teslable/port/SessionCache;JJJJILkotlin/jvm/internal/DefaultConstructorMarker;)V
-	public synthetic fun <init> (Ldev/mirolab/teslable/port/TeslaLogger;Ldev/mirolab/teslable/port/SessionCache;JJJJLkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ldev/mirolab/teslable/port/TeslaLogger;Ldev/mirolab/teslable/port/SessionCache;JJJJJILkotlin/jvm/internal/DefaultConstructorMarker;)V
+	public synthetic fun <init> (Ldev/mirolab/teslable/port/TeslaLogger;Ldev/mirolab/teslable/port/SessionCache;JJJJJLkotlin/jvm/internal/DefaultConstructorMarker;)V
 	public final fun component1 ()Ldev/mirolab/teslable/port/TeslaLogger;
 	public final fun component2 ()Ldev/mirolab/teslable/port/SessionCache;
 	public final fun component3-UwyO8pc ()J
 	public final fun component4-UwyO8pc ()J
 	public final fun component5-UwyO8pc ()J
 	public final fun component6-UwyO8pc ()J
-	public final fun copy-zafqVYQ (Ldev/mirolab/teslable/port/TeslaLogger;Ldev/mirolab/teslable/port/SessionCache;JJJJ)Ldev/mirolab/teslable/TeslaBleConfig;
-	public static synthetic fun copy-zafqVYQ$default (Ldev/mirolab/teslable/TeslaBleConfig;Ldev/mirolab/teslable/port/TeslaLogger;Ldev/mirolab/teslable/port/SessionCache;JJJJILjava/lang/Object;)Ldev/mirolab/teslable/TeslaBleConfig;
+	public final fun component7-UwyO8pc ()J
+	public final fun copy-d03ysd4 (Ldev/mirolab/teslable/port/TeslaLogger;Ldev/mirolab/teslable/port/SessionCache;JJJJJ)Ldev/mirolab/teslable/TeslaBleConfig;
+	public static synthetic fun copy-d03ysd4$default (Ldev/mirolab/teslable/TeslaBleConfig;Ldev/mirolab/teslable/port/TeslaLogger;Ldev/mirolab/teslable/port/SessionCache;JJJJJILjava/lang/Object;)Ldev/mirolab/teslable/TeslaBleConfig;
 	public fun equals (Ljava/lang/Object;)Z
 	public final fun getCommandLifetime-UwyO8pc ()J
 	public final fun getCommandTimeout-UwyO8pc ()J
 	public final fun getConnectTimeout-UwyO8pc ()J
 	public final fun getHandshakeTimeout-UwyO8pc ()J
 	public final fun getLogger ()Ldev/mirolab/teslable/port/TeslaLogger;
+	public final fun getPairingTimeout-UwyO8pc ()J
 	public final fun getSessionCache ()Ldev/mirolab/teslable/port/SessionCache;
 	public fun hashCode ()I
 	public fun toString ()Ljava/lang/String;
@@ -79,6 +85,18 @@ public final class dev/mirolab/teslable/TeslaBleConfig$Companion {
 }
 
 public abstract interface class dev/mirolab/teslable/Vehicle {
+	public abstract fun actuateTrunk-dnQKTGw (Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun actuateTrunk-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun addKey-51bEbmg (Ldev/mirolab/teslable/model/PublicKeyBytes;Ldev/mirolab/teslable/model/KeyRole;Ldev/mirolab/teslable/model/KeyFormFactor;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun addKey-51bEbmg$default (Ldev/mirolab/teslable/Vehicle;Ldev/mirolab/teslable/model/PublicKeyBytes;Ldev/mirolab/teslable/model/KeyRole;Ldev/mirolab/teslable/model/KeyFormFactor;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun addKeyRequest-Q2Q30fc (Ldev/mirolab/teslable/model/PublicKeyBytes;Ldev/mirolab/teslable/model/KeyRole;Ldev/mirolab/teslable/model/KeyFormFactor;Lkotlin/time/Duration;)Lkotlinx/coroutines/flow/Flow;
+	public static synthetic fun addKeyRequest-Q2Q30fc$default (Ldev/mirolab/teslable/Vehicle;Ldev/mirolab/teslable/model/PublicKeyBytes;Ldev/mirolab/teslable/model/KeyRole;Ldev/mirolab/teslable/model/KeyFormFactor;Lkotlin/time/Duration;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
+	public abstract fun autoSecureVehicle-dnQKTGw (Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun autoSecureVehicle-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun closeTonneau-dnQKTGw (Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun closeTonneau-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun closeTrunk-dnQKTGw (Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun closeTrunk-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public abstract fun disconnect (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public abstract fun getConnection ()Lkotlinx/coroutines/flow/StateFlow;
 	public abstract fun getHasKey ()Z
@@ -88,16 +106,52 @@ public abstract interface class dev/mirolab/teslable/Vehicle {
 	public static synthetic fun keySummary-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public abstract fun listKeys-dnQKTGw (Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun listKeys-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun lock-dnQKTGw (Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun lock-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun openFrunk-dnQKTGw (Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun openFrunk-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun openTonneau-dnQKTGw (Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun openTonneau-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun openTrunk-dnQKTGw (Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun openTrunk-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun remoteDrive-dnQKTGw (Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun remoteDrive-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun removeKey-Kx4hsE0 (Ldev/mirolab/teslable/model/PublicKeyBytes;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun removeKey-Kx4hsE0$default (Ldev/mirolab/teslable/Vehicle;Ldev/mirolab/teslable/model/PublicKeyBytes;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun sessionInfo-5_5nbZA (Ldev/mirolab/teslable/model/PublicKeyBytes;Ldev/mirolab/teslable/model/VehicleDomain;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun sessionInfo-5_5nbZA$default (Ldev/mirolab/teslable/Vehicle;Ldev/mirolab/teslable/model/PublicKeyBytes;Ldev/mirolab/teslable/model/VehicleDomain;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public abstract fun startSession-Kx4hsE0 (Ljava/util/Set;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun startSession-Kx4hsE0$default (Ldev/mirolab/teslable/Vehicle;Ljava/util/Set;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun stopTonneau-dnQKTGw (Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun stopTonneau-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun unlock-dnQKTGw (Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun unlock-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public abstract fun vehicleStatus-dnQKTGw (Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun vehicleStatus-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public abstract fun wakeUp-dnQKTGw (Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun wakeUp-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public final class dev/mirolab/teslable/Vehicle$DefaultImpls {
+	public static synthetic fun actuateTrunk-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun addKey-51bEbmg$default (Ldev/mirolab/teslable/Vehicle;Ldev/mirolab/teslable/model/PublicKeyBytes;Ldev/mirolab/teslable/model/KeyRole;Ldev/mirolab/teslable/model/KeyFormFactor;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun addKeyRequest-Q2Q30fc$default (Ldev/mirolab/teslable/Vehicle;Ldev/mirolab/teslable/model/PublicKeyBytes;Ldev/mirolab/teslable/model/KeyRole;Ldev/mirolab/teslable/model/KeyFormFactor;Lkotlin/time/Duration;ILjava/lang/Object;)Lkotlinx/coroutines/flow/Flow;
+	public static synthetic fun autoSecureVehicle-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun closeTonneau-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun closeTrunk-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static synthetic fun keySummary-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static synthetic fun listKeys-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun lock-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun openFrunk-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun openTonneau-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun openTrunk-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun remoteDrive-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun removeKey-Kx4hsE0$default (Ldev/mirolab/teslable/Vehicle;Ldev/mirolab/teslable/model/PublicKeyBytes;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun sessionInfo-5_5nbZA$default (Ldev/mirolab/teslable/Vehicle;Ldev/mirolab/teslable/model/PublicKeyBytes;Ldev/mirolab/teslable/model/VehicleDomain;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static synthetic fun startSession-Kx4hsE0$default (Ldev/mirolab/teslable/Vehicle;Ljava/util/Set;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun stopTonneau-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun unlock-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static synthetic fun vehicleStatus-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun wakeUp-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 

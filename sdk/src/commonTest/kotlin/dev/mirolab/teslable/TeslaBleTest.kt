@@ -2,12 +2,17 @@ package dev.mirolab.teslable
 
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.vcsec.FromVCSECMessage
+import com.tesla.generated.vcsec.UnsignedMessage
 import com.tesla.generated.vcsec.VehicleLockState_E
 import com.tesla.generated.vcsec.WhitelistInfo
+import dev.mirolab.teslable.InternalTeslableApi
 import dev.mirolab.teslable.cache.CachedSession
 import dev.mirolab.teslable.cache.SessionSnapshot
+import dev.mirolab.teslable.model.KeyFormFactor
 import dev.mirolab.teslable.model.KeyId
 import dev.mirolab.teslable.model.LockState
+import dev.mirolab.teslable.model.PairingEvent
+import dev.mirolab.teslable.model.SessionInfoSummary
 import dev.mirolab.teslable.model.VehicleDomain
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
@@ -27,6 +32,7 @@ import dev.mirolab.teslable.testing.FakeVehicleKeyStore
 import dev.mirolab.teslable.testing.RecordingSessionCache
 import dev.mirolab.teslable.testing.TestCrypto
 import dev.mirolab.teslable.transport.LocalName
+import dev.mirolab.teslable.util.toHex
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -40,6 +46,7 @@ import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
@@ -50,9 +57,10 @@ import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import com.tesla.generated.vcsec.KeyFormFactor as WireFormFactor
 import com.tesla.generated.vcsec.VehicleStatus as WireVehicleStatus
 
-@OptIn(ExperimentalCoroutinesApi::class)
+@OptIn(ExperimentalCoroutinesApi::class, InternalTeslableApi::class)
 class TeslaBleTest {
     private val vcsec = Domain.DOMAIN_VEHICLE_SECURITY
 
@@ -513,5 +521,97 @@ class TeslaBleTest {
             r.ble.close()
             assertEquals(VehicleResult.Failure(VehicleError.NotConnected), r.ble.connect(r.fake.vin, key))
             assertEquals(0, r.factory.connectAttempts)
+        }
+
+    @Test
+    fun lockUnlockAndTrunkGoThroughTheVcsecSession() =
+        runTest {
+            val r = rig()
+            val vehicle = r.connected()
+            assertEquals(VehicleResult.Failure(VehicleError.NoSession), vehicle.lock()) // 핸드셰이크는 앱 몫
+            assertIs<VehicleResult.Success<Unit>>(vehicle.startSession(setOf(VehicleDomain.VCSEC), timeout = 1.seconds))
+            assertEquals(VehicleResult.Success(Unit), vehicle.lock())
+            assertEquals(VehicleResult.Success(Unit), vehicle.unlock())
+            assertEquals(VehicleResult.Success(Unit), vehicle.openTrunk())
+            assertEquals(listOf("1001", "1000", "22022801"), r.fake.authenticatedPayloads(vcsec).map { it.toHex() })
+        }
+
+    @Test
+    fun commandsAfterDisconnectAreNotConnectedAndPairingFails() =
+        runTest {
+            val r = rig()
+            val vehicle = r.connected()
+            vehicle.disconnect()
+            assertEquals(VehicleResult.Failure(VehicleError.NotConnected), vehicle.unlock())
+            assertEquals(
+                listOf<PairingEvent>(PairingEvent.Failed(VehicleError.NotConnected)),
+                vehicle.addKeyRequest(r.key().publicKey).toList(),
+            )
+        }
+
+    @Test
+    fun addKeyRequestUsesThePlatformFormFactorAndConfiguredTimeout() =
+        runTest {
+            val r = rig(config = TeslaBleConfig(pairingTimeout = 10.seconds))
+            val vehicle = r.connected(withKey = false)
+            val start = currentTime
+            assertEquals(listOf(PairingEvent.Sent, PairingEvent.TimedOut), vehicle.addKeyRequest(r.key().publicKey).toList())
+            assertEquals(10_000, currentTime - start)
+            val inner =
+                UnsignedMessage.ADAPTER.decode(
+                    r.fake.presentKeys
+                        .single()
+                        .signedMessage!!
+                        .protobufMessageAsBytes,
+                )
+            val expected =
+                when (platformKeyFormFactor()) {
+                    KeyFormFactor.ANDROID_DEVICE -> WireFormFactor.KEY_FORM_FACTOR_ANDROID_DEVICE
+                    KeyFormFactor.IOS_DEVICE -> WireFormFactor.KEY_FORM_FACTOR_IOS_DEVICE
+                    KeyFormFactor.CLOUD_KEY -> WireFormFactor.KEY_FORM_FACTOR_CLOUD_KEY
+                    else -> error("unexpected platform default")
+                }
+            assertEquals(expected, inner.VCSEC_WhitelistOperation!!.metadataForKey!!.keyFormFactor)
+        }
+
+    @Test
+    fun sessionInfoWithOwnKeyMakesTheDomainReady() =
+        // 설계 구체화 3: 페어링 확인 폴링이 세션을 만들면 sessions에도 보인다
+        runTest {
+            val r = rig()
+            val vehicle = r.connected()
+            assertIs<VehicleResult.Success<SessionInfoSummary>>(vehicle.sessionInfo(r.key().publicKey, VehicleDomain.INFOTAINMENT))
+            runCurrent()
+            assertEquals(SessionStatus.Ready(fromCache = false), vehicle.sessions.value[VehicleDomain.INFOTAINMENT])
+        }
+
+    @Test
+    fun noSessionResultReconcilesTheShownStatusEvenIfTheEventWasMissed() =
+        // codex 검토: 표시는 사건만이 아니라 실제 세션 상태를 원천으로 한다
+        runTest {
+            val r = rig()
+            val vehicle = r.connected()
+            assertEquals(SessionStatus.None, vehicle.sessions.value[VehicleDomain.VCSEC])
+            assertEquals(VehicleResult.Failure(VehicleError.NoSession), vehicle.lock())
+            assertEquals(SessionStatus.None, vehicle.sessions.value[VehicleDomain.VCSEC]) // 바뀌지 않음(원래 None)
+        }
+
+    @Test
+    fun staleCacheTurnsTheDomainBackToNone() =
+        // Review Focus 3: 다른 차량 키로 저장된 캐시 → 첫 명령 NoSession, 표시 None, startSession으로 회복
+        runTest {
+            val cache = RecordingSessionCache()
+            val other = rig(fake = FakeVehicle(vehicleKey = TestCrypto.goKnownVerifierKey(), timeSource = testTimeSource), cache = cache)
+            val first = other.connected()
+            first.startSession(timeout = 1.seconds)
+            first.disconnect()
+            val r = rig(cache = cache)
+            val vehicle = r.connected()
+            assertEquals(SessionStatus.Ready(fromCache = true), vehicle.sessions.value[VehicleDomain.VCSEC])
+            assertEquals(VehicleResult.Failure(VehicleError.NoSession), vehicle.lock())
+            runCurrent()
+            assertEquals(SessionStatus.None, vehicle.sessions.value[VehicleDomain.VCSEC])
+            assertIs<VehicleResult.Success<Unit>>(vehicle.startSession(setOf(VehicleDomain.VCSEC), timeout = 1.seconds))
+            assertEquals(VehicleResult.Success(Unit), vehicle.lock())
         }
 }
