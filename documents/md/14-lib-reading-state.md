@@ -63,5 +63,5 @@ These are `StateFlow`s on `Vehicle`, not vehicle queries:
 - Planned (M5, not implemented): `getState(category)` for the 12 Infotainment categories (charge, climate, drive,
   location, closures, charge schedule, preconditioning schedule, tire pressure, media, media detail, software update,
   parental controls) returning Wire generated types (FR-033). It needs an authenticated Infotainment session and an
-  awake vehicle. The planned `wakeUp()` (FR-042, M4) uses only the VCSEC session.
+  awake vehicle. `wakeUp()` (FR-042, M4) uses only the VCSEC session.
 - After an `Uncertain` VCSEC command result (M4), re-read with `vehicleStatus()` instead of resending.

@@ -66,21 +66,21 @@
 </ol></div>
 
 <h2 id="sec-status">現在できること</h2>
-<p>ライブラリはマイルストーンごとに作られています。これらのページは <code>main</code> のコードを説明しており、現在は <strong>M3</strong> の段階です。</p>
+<p>ライブラリはマイルストーンごとに作られています。これらのページは <code>main</code> のコードを説明しており、現在は <strong>M4</strong> の段階です。</p>
 <table>
 <thead><tr><th>領域</th><th>マイルストーン</th><th>状態</th><th>ページ</th></tr></thead>
 <tbody>
 <tr><td>プロトコルコア、ディスパッチャー、セッション、リトライ、セッションキャッシュ</td><td>M0–M2</td><td><span class="badge ok">完了</span></td><td><a href="16-lib-errors.html">16</a>, <a href="19-lib-architecture.html">19</a></td></tr>
 <tr><td>BLE スキャンと接続 (Kable)、キーストア、セッションキャッシュの保存、<code>TeslaBle</code> / <code>Vehicle</code></td><td>M3</td><td><span class="badge ok">完了</span> iOS 実車確認 2026-10-18、Android 実機は未確認</td><td><a href="12-lib-getting-started.html">12</a>, <a href="17-lib-platform-notes.html">17</a></td></tr>
 <tr><td>キー不要の読み取り専用クエリ: <code>vehicleStatus()</code>、<code>keySummary()</code>、<code>listKeys()</code></td><td>M3</td><td><span class="badge ok">完了</span></td><td><a href="14-lib-reading-state.html">14</a></td></tr>
-<tr><td>キーの登録 (add-key-request)、VCSEC 制御 (ロック、ロック解除、トランク…)</td><td>M4</td><td><span class="badge warn">予定</span></td><td><a href="13-lib-pairing.html">13</a>, <a href="15-lib-commands.html">15</a></td></tr>
+<tr><td>キーの登録 (<code>addKeyRequest</code>、<code>sessionInfo</code>、<code>addKey</code>、<code>removeKey</code>)、VCSEC 制御 (ロック、ロック解除、トランクなど)</td><td>M4</td><td><span class="badge ok">完了</span> 実車での確認はこれから</td><td><a href="13-lib-pairing.html">13</a>, <a href="15-lib-commands.html">15</a></td></tr>
 <tr><td>インフォテインメント制御と <code>getState()</code></td><td>M5</td><td><span class="badge warn">予定</span></td><td><a href="14-lib-reading-state.html">14</a>, <a href="15-lib-commands.html">15</a></td></tr>
 <tr><td>パッケージ: GitHub Packages と Swift Package Manager</td><td>M6</td><td><span class="badge warn">予定</span></td><td><a href="#sec-install">インストール</a></td></tr>
 </tbody>
 </table>
 <div class="callout warn">
-<strong>予定中の API はまだ使えません</strong>
-<p>予定中のメソッド名は要件文書 (<code>docs/prd/PRD.md</code>) に基づくもので、そのマイルストーンの実装時に変わる可能性があります。それまでの間、アプリはスキャン、接続、状態の読み取りはできますが、キーの登録や制御コマンドの送信はできません。</p>
+<strong>予定の API はまだ使えません</strong>
+<p>予定のメソッド名は要件ドキュメント (<code>docs/prd/PRD.md</code>) に基づいており、マイルストーンの実装時に変わる可能性があります。それまでは、アプリはスキャン、接続、状態の読み取り、キーの登録、VCSEC 制御コマンドの送信ができますが、インフォテインメントのコマンドは送れません。ペアリングと VCSEC コマンドは実車ではまだ確認していません。</p>
 </div>
 
 <h2 id="sec-platforms">プラットフォームとパッケージ</h2>

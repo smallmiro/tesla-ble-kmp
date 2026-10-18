@@ -55,11 +55,12 @@
 </nav>
 <main class="content">
 <h1>18. Troubleshooting</h1>
-<p class="lead">Common problems with scanning, connecting and keys, what usually causes them, and what to do. Problems specific to pairing and commands are added with M4 and M5. A development-only observation log is described at the end.</p>
+<p class="lead">Common problems with scanning, connecting, keys, pairing and commands, what usually causes them, and what to do. A development-only observation log is described at the end.</p>
 
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#sec-scan">Scanning and connecting</a></li>
 <li><a href="#sec-keys">Keys and sessions</a></li>
+<li><a href="#sec-pairing">Pairing and commands</a></li>
 <li><a href="#sec-other">Other messages</a></li>
 <li><a href="#sec-logs">Debug logging</a></li>
 <li><a href="#sec-observe">Observation log (development)</a></li>
@@ -83,10 +84,23 @@
 <thead><tr><th>Symptom</th><th>Likely cause</th><th>What to do</th></tr></thead>
 <tbody>
 <tr><td><code>startSession()</code> returns <code>RequiresKey</code></td><td>Connected without a key</td><td>Connect with a <code>VehicleKey</code></td></tr>
-<tr><td><code>startSession()</code> returns <code>KeyNotPaired</code></td><td>The car does not know this key</td><td>Enroll it (M4). Check with <code>listKeys()</code>; see <a href="13-lib-pairing.html#sec-check">13. Keys and Pairing</a></td></tr>
+<tr><td><code>startSession()</code> returns <code>KeyNotPaired</code></td><td>The car does not know this key</td><td>Enroll it with <code>addKeyRequest</code> (<a href="13-lib-pairing.html#sec-flow">13. Keys and Pairing</a>). Check with <code>listKeys()</code> or <code>sessionInfo</code></td></tr>
 <tr><td><code>stored key is corrupted</code></td><td>Android backup restored the key file without its wrapping key, or storage damage</td><td>Delete, create and enroll a new key; exclude the key files from backup (<a href="17-lib-platform-notes.html#sec-android">Platform Notes</a>)</td></tr>
 <tr><td><code>HardwareUnavailable</code></td><td>Hardware required on a device without StrongBox, TEE or Secure Enclave</td><td>Use <code>PREFER_HARDWARE</code></td></tr>
 <tr><td>First command after a long sleep fails, the retry succeeds</td><td>The phone's clock paused while it slept</td><td>Nothing; the library resynchronizes on its own</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-pairing">Pairing and commands</h2>
+<table>
+<thead><tr><th>Symptom</th><th>Likely cause</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td><code>addKeyRequest</code> ends with <code>TimedOut</code></td><td>The card was not tapped, the on-screen confirmation was not given in time (60 seconds by default), or the reply was not recognized</td><td>Ask the user to tap the key card on the center console and confirm on the screen, then check <code>sessionInfo(publicKey, INFOTAINMENT)</code>: the key may still have been enrolled</td></tr>
+<tr><td><code>addKeyRequest</code> emits <code>Rejected(KeychainRejected(WHITELIST_FULL))</code> or another <code>KeychainRejected</code> code</td><td>The car refused: its key list is full, no permission to add…</td><td>Remove an unused key on the car's touchscreen or with <code>removeKey</code>; see <a href="16-lib-errors.html">16. Error Handling</a></td></tr>
+<tr><td><code>addKeyRequest</code> emits <code>Unknown(raw)</code></td><td>A reply format not seen before; real-car behaviour is not verified yet (ADR-0009)</td><td>Report <code>raw</code> as hex (no VIN) and what the car did</td></tr>
+<tr><td><code>addKeyRequest</code> emits <code>Failed(NotConnected)</code></td><td>The vehicle object was disconnected or the link dropped</td><td>Call <code>disconnect()</code>, connect again and repeat</td></tr>
+<tr><td><code>lock()</code> (or any security-controller command) returns <code>NoSession</code></td><td>No VCSEC session yet, or the cached session is stale</td><td>Call <code>startSession(setOf(VehicleDomain.VCSEC))</code> first. If <code>sessions</code> showed <code>Ready(fromCache = true)</code>, it changes to <code>None</code> after this failure (the cache belonged to another key or car); <code>startSession</code> fixes it</td></tr>
+<tr><td><code>addKey</code> / <code>removeKey</code> return <code>InsufficientPrivileges</code></td><td>The connection's key may not manage keys (for example a Driver key)</td><td>Use an Owner key</td></tr>
 </tbody>
 </table>
 

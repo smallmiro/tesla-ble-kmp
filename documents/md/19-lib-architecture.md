@@ -24,7 +24,7 @@ App (Android Compose / iOS SwiftUI)
 Dependencies always point towards `:domain`, and the Gradle convention plugins enforce it. `:testing` holds test
 fixtures such as `FakeVehicle` and `FakeTransport` and is referenced only from other modules' test code.
 
-## The path of one command (example: `lock()`, planned for M4)
+## The path of one command (example: `lock()`, M4)
 
 **Sending**
 

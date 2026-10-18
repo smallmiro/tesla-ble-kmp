@@ -55,14 +55,16 @@
 </nav>
 <main class="content">
 <h1>13. 키와 페어링</h1>
-<p class="lead">휴대폰에는 자체 키 쌍이 필요하고, 차량은 그 공개키를 목록에 올려야 해당 키의 명령을 받아들입니다. 현재 라이브러리는 키를 생성, 저장하고 차량의 키 목록을 읽습니다. 차량에 키를 등록하는 기능(add-key-request)은 M4에서 추가됩니다.</p>
+<p class="lead">휴대폰은 자신만의 키 쌍이 필요하고, 차량은 그 공개키가 목록에 있어야 해당 키의 명령을 받아 줍니다. 라이브러리는 키를 만들어 저장하고, 차량의 키 목록을 읽고, 차량에 키를 등록합니다. 사용자가 NFC 키카드를 태그하고 화면에서 승인합니다.</p>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
 <li><a href="#sec-store">키 보관소</a></li>
 <li><a href="#sec-protection">키가 저장되는 위치</a></li>
 <li><a href="#sec-check">내 키가 등록되어 있나요?</a></li>
 <li><a href="#sec-delete">키 삭제와 교체</a></li>
-<li><a href="#sec-planned">M4 예정: 키 등록</a></li>
+<li><a href="#sec-enroll">키 등록</a></li>
+<li><a href="#sec-events">페어링 이벤트</a></li>
+<li><a href="#sec-flow">페어링 절차</a></li>
 </ol></div>
 
 <h2 id="sec-store">키 보관소</h2>
@@ -119,21 +121,98 @@
 <li><strong>손상된</strong> 저장 키(<code>KeyStoreError.PlatformFailure</code>, <code>stored key is corrupted</code>)는 자동으로 교체되지 않습니다. 사용자에게 알리고, <code>delete</code> 후 <code>getOrCreate</code>를 호출한 다음, 새 키를 차량에 다시 등록하세요. <a href="17-lib-platform-notes.html#sec-keys">플랫폼 노트</a>를 참고하세요.</li>
 </ul>
 
-<h2 id="sec-planned">M4 예정: 키 등록</h2>
-<div class="callout warn">
-<strong>아직 사용할 수 없습니다</strong>
-<p>아래 이름은 요구사항 문서에서 가져온 것이며, M4가 완료될 때 바뀔 수 있습니다.</p>
-</div>
+<h2 id="sec-enroll">키 등록</h2>
+<p>Go 원본은 키 등록 요청을 보내기만 하고 <strong>응답을 읽지 않습니다</strong>. 응답을 <code>PairingEvent</code> 값으로 읽는 것은 이 라이브러리에서 새로 추가한 동작이며, 아직 실차에서 확인하지 않았습니다.</p>
 <table>
-<thead><tr><th>요구사항</th><th>예정 API</th><th>예정 동작</th></tr></thead>
+<thead><tr><th>호출</th><th>반환</th><th>동작</th></tr></thead>
 <tbody>
-<tr><td>FR-022</td><td><code>addKeyRequest(role = OWNER, …)</code></td><td>차량에 휴대폰 키 추가를 요청합니다. 사용자는 센터 콘솔에 NFC 키 카드를 태그해 확인합니다</td></tr>
-<tr><td>FR-023</td><td>진행 상황 <code>Flow</code></td><td>사용자가 확인하는 동안 차량의 대기 응답과 최종 응답을 알려 줍니다</td></tr>
-<tr><td>FR-024</td><td><code>sessionInfo(publicKey, domain)</code></td><td>도메인별 등록 여부를 확인합니다. Infotainment가 반영될 때까지 기다리는 데 씁니다</td></tr>
-<tr><td>FR-026</td><td><code>removeKey(publicKey)</code></td><td>차량에서 키를 제거합니다</td></tr>
-<tr><td>FR-027</td><td><code>addKeyWithRole(publicKey, role, formFactor)</code></td><td>등록된 소유자 키가 NFC 카드 없이 다른 키를 추가합니다</td></tr>
+<tr><td><code>addKeyRequest(publicKey, role, formFactor, timeout)</code></td><td><code>Flow&lt;PairingEvent&gt;</code></td><td>차량에 키 추가를 요청합니다(FR-022, FR-023). 콜드 플로우로, 수집할 때마다 요청을 한 번 보냅니다. 서명하지 않으므로 세션이 필요 없습니다. <code>timeout = null</code>이면 <code>pairingTimeout</code>(60초)을 씁니다. 요청은 한 번에 하나씩 실행됩니다</td></tr>
+<tr><td><code>sessionInfo(publicKey, domain, timeout)</code></td><td><code>VehicleResult&lt;SessionInfoSummary&gt;</code></td><td>도메인별로 등록 여부를 확인합니다(FR-024). 연결에 키가 필요 없습니다. <code>Failure(KeyNotPaired)</code>는 차량 목록에 키가 없다는 뜻입니다. 연결 자신의 키로 물으면 그 도메인의 세션도 만들어져 <code>sessions</code>에 <code>Ready(fromCache = false)</code>로 표시됩니다</td></tr>
+<tr><td><code>addKey(publicKey, role, formFactor, timeout)</code></td><td><code>VehicleResult&lt;Unit&gt;</code></td><td>충분한 권한이 있는 등록된 키가 NFC 카드 없이 다른 키를 추가합니다(FR-026). 인증된 VCSEC 명령이며 VCSEC 세션이 필요합니다</td></tr>
+<tr><td><code>removeKey(publicKey, timeout)</code></td><td><code>VehicleResult&lt;Unit&gt;</code></td><td>차량에서 키를 제거합니다(FR-027). 인증된 VCSEC 명령이며 VCSEC 세션이 필요합니다</td></tr>
 </tbody>
 </table>
+<ul>
+<li><code>role</code>의 기본값은 <code>KeyRole.OWNER</code>, <code>formFactor</code>의 기본값은 <code>platformKeyFormFactor()</code>입니다. Android는 <code>ANDROID_DEVICE</code>, iOS는 <code>IOS_DEVICE</code>, JVM(테스트)은 <code>CLOUD_KEY</code>입니다.</li>
+<li>Swift에서는 Kotlin의 기본 인자를 쓸 수 없습니다. 모든 인자(<code>role:</code>, <code>formFactor:</code>, <code>timeout:</code>)를 직접 넘기세요. 예: <code>formFactor: .iosDevice</code>.</li>
+<li><code>addKey</code>와 <code>removeKey</code>는 <code>InsufficientPrivileges</code>(연결의 키가 키 관리 권한이 없는 경우, 예: Driver 키), <code>KeychainRejected(code)</code>(예: <code>WHITELIST_FULL</code>), <code>NoSession</code>, <code>InvalidArgument</code>(<code>role = UNKNOWN</code>)로 실패할 수 있습니다. <code>Uncertain</code>은 차량의 키 목록이 바뀌었을 수 있다는 뜻입니다. <code>listKeys()</code>로 확인하고 다시 보내지 마세요.</li>
+</ul>
+
+<h2 id="sec-events">페어링 이벤트</h2>
+<table>
+<thead><tr><th><code>PairingEvent</code></th><th>의미</th><th>마지막 이벤트</th></tr></thead>
+<tbody>
+<tr><td><code>Sent</code></td><td>요청을 전송했습니다. 사용자가 센터 콘솔에 NFC 키카드를 태그하고 화면에서 승인해야 합니다</td><td>아니요</td></tr>
+<tr><td><code>WaitingForTap</code></td><td>차량이 대기 중(<code>WAIT</code>)이라고 알립니다</td><td>아니요</td></tr>
+<tr><td><code>Accepted</code></td><td>차량이 키를 받아들였습니다. 인포테인먼트가 키를 알게 되기까지 수십 초가 더 걸릴 수 있습니다</td><td>예</td></tr>
+<tr><td><code>Rejected(error)</code></td><td>차량이 거부했습니다: <code>KeychainRejected</code>, <code>UnknownKeychainCode</code>, <code>VcsecRejected</code>, <code>UnknownVcsecError</code></td><td>예</td></tr>
+<tr><td><code>Unknown(raw)</code></td><td>해석하지 못한 프레임입니다. <code>raw</code>는 바이트의 사본입니다</td><td>아니요</td></tr>
+<tr><td><code>Failed(error)</code></td><td>전송하지 못했거나(<code>NotConnected</code>, 쓰기 실패, <code>InvalidArgument</code>) 기다리는 동안 링크가 끊겼습니다</td><td>예</td></tr>
+<tr><td><code>TimedOut</code></td><td><code>timeout</code> 안에 마지막 응답이 오지 않았습니다. 키가 등록되었을 수도 있으니 <code>sessionInfo</code>로 확인하세요</td><td>예</td></tr>
+</tbody>
+</table>
+<p>마지막 이벤트 뒤에는 플로우가 끝납니다(<code>isTerminal</code>이 true). 상태도 오류도 없는 프레임, 중간 <code>OK</code> 상태, 요청을 보내기 전에 받은 프레임은 무시합니다.</p>
+<div class="callout warn">
+<strong>실차에서 확인하지 않았습니다</strong>
+<p>키 등록 요청의 응답 형식은 아직 실차에서 관찰하지 못했습니다(ADR-0009). <code>Unknown(raw)</code>를 받으면 <code>raw</code>를 16진수로(VIN 제외) 차량이 한 동작과 함께 알려 주세요.</p>
+</div>
+
+<h2 id="sec-flow">페어링 절차</h2>
+<ol>
+<li>키를 만들고(<code>keys.getOrCreate()</code>) 그 키로 연결합니다.</li>
+<li><code>vehicle.addKeyRequest(key.publicKey)</code>를 수집합니다. 사용자에게 센터 콘솔에 키카드를 태그하고 화면에서 승인하도록 안내합니다.</li>
+<li><code>Accepted</code>(또는 <code>TimedOut</code>) 뒤에 <code>sessionInfo(key.publicKey, VehicleDomain.INFOTAINMENT)</code>를 3초마다 최대 2분 동안 호출합니다. <code>KeyNotPaired</code>는 "아직"이라는 뜻이니 계속 호출하세요. <code>Success</code>면 키가 등록되고 동기화된 것입니다.</li>
+<li><code>startSession(setOf(VehicleDomain.VCSEC))</code>를 실행한 다음 명령을 보냅니다(<a href="15-lib-commands.html">15. 명령</a>).</li>
+</ol>
+<h3>Kotlin</h3>
+<pre><code class="language-kotlin"><span class="k">val</span> key = (ble.keys.<span class="f">getOrCreate</span>() <span class="k">as</span> <span class="t">VehicleResult</span>.<span class="t">Success</span>).value
+<span class="k">val</span> vehicle = (ble.<span class="f">connect</span>(vin, key) <span class="k">as</span> <span class="t">VehicleResult</span>.<span class="t">Success</span>).value
+
+vehicle.<span class="f">addKeyRequest</span>(key.publicKey).<span class="f">collect</span> { event <span class="o">-&gt;</span>
+    <span class="k">when</span> (event) {
+        <span class="t">PairingEvent</span>.<span class="t">Sent</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Tap the key card on the center console, then confirm on the screen"</span>)
+        <span class="t">PairingEvent</span>.<span class="t">WaitingForTap</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Waiting for the card"</span>)
+        <span class="t">PairingEvent</span>.<span class="t">Accepted</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Accepted, waiting for the car to sync"</span>)
+        <span class="k">is</span> <span class="t">PairingEvent</span>.<span class="t">Rejected</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Rejected: ${event.error.message}"</span>)
+        <span class="k">is</span> <span class="t">PairingEvent</span>.<span class="t">Unknown</span> <span class="o">-&gt;</span> <span class="f">report</span>(event.raw.<span class="f">toHex</span>())      <span class="c">// see the warning below</span>
+        <span class="k">is</span> <span class="t">PairingEvent</span>.<span class="t">Failed</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"Failed: ${event.error.message}"</span>)
+        <span class="t">PairingEvent</span>.<span class="t">TimedOut</span> <span class="o">-&gt;</span> <span class="f">show</span>(<span class="s">"No answer, checking enrollment"</span>)
+    }
+}
+
+<span class="k">suspend</span> <span class="k">fun</span> <span class="f">waitUntilEnrolled</span>(vehicle: <span class="t">Vehicle</span>, key: <span class="t">VehicleKey</span>): <span class="t">Boolean</span> {
+    <span class="k">val</span> deadline = <span class="t">TimeSource</span>.<span class="t">Monotonic</span>.<span class="f">markNow</span>() + <span class="n">2</span>.minutes
+    <span class="k">while</span> (deadline.<span class="f">hasNotPassedNow</span>()) {
+        <span class="k">when</span> (<span class="k">val</span> r = vehicle.<span class="f">sessionInfo</span>(key.publicKey, <span class="t">VehicleDomain</span>.<span class="t">INFOTAINMENT</span>)) {
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> <span class="k">return</span> <span class="n">true</span>
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span> <span class="k">if</span> (r.error <span class="o">!=</span> <span class="t">VehicleError</span>.<span class="t">KeyNotPaired</span>) <span class="k">return</span> <span class="n">false</span>
+            <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Uncertain</span> <span class="o">-&gt;</span> <span class="t">Unit</span>                  <span class="c">// reply lost: ask again</span>
+        }
+        <span class="f">delay</span>(<span class="n">3</span>.seconds)
+    }
+    <span class="k">return</span> <span class="n">false</span>
+}</code></pre>
+<h3>Swift</h3>
+<pre><code class="language-swift"><span class="k">for</span> <span class="k">await</span> event <span class="k">in</span> vehicle.<span class="f">addKeyRequest</span>(publicKey: key.publicKey, role: .owner, formFactor: .iosDevice, timeout: <span class="n">nil</span>) {
+    <span class="k">switch</span> <span class="f">onEnum</span>(of: event) {
+    <span class="k">case</span> .sent: <span class="f">print</span>(<span class="s">"Tap the key card on the center console, then confirm on the screen"</span>)
+    <span class="k">case</span> .waitingForTap: <span class="f">print</span>(<span class="s">"Waiting for the card"</span>)
+    <span class="k">case</span> .accepted: <span class="f">print</span>(<span class="s">"Accepted, waiting for the car to sync"</span>)
+    <span class="k">case</span> .<span class="f">rejected</span>(<span class="k">let</span> r): <span class="f">print</span>(<span class="s">"Rejected: \(r.error.message)"</span>)
+    <span class="k">case</span> .<span class="f">unknown</span>(<span class="k">let</span> u): <span class="f">print</span>(<span class="s">"Unknown frame, \(u.raw.size) bytes"</span>)
+    <span class="k">case</span> .<span class="f">failed</span>(<span class="k">let</span> f): <span class="f">print</span>(<span class="s">"Failed: \(f.error.message)"</span>)
+    <span class="k">case</span> .timedOut: <span class="f">print</span>(<span class="s">"No answer, checking enrollment"</span>)
+    }
+}
+
+<span class="c">// then, every 3 s for up to 2 minutes:</span>
+<span class="k">let</span> r = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">sessionInfo</span>(publicKey: key.publicKey, domain: .infotainment, timeout: <span class="n">nil</span>)
+<span class="k">switch</span> <span class="f">onEnum</span>(of: r) {
+<span class="k">case</span> .success: <span class="f">print</span>(<span class="s">"enrolled"</span>)
+<span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f): <span class="f">print</span>(<span class="s">"not yet or failed: \(f.error.message)"</span>)   <span class="c">// KeyNotPaired: keep polling</span>
+<span class="k">case</span> .uncertain: <span class="f">print</span>(<span class="s">"reply lost, ask again"</span>)
+}</code></pre>
+
 <p>역할(<code>KeyRole</code>)은 <code>OWNER</code>, <code>DRIVER</code>, <code>FLEET_MANAGER</code>, <code>VEHICLE_MONITOR</code>, <code>CHARGING_MANAGER</code>, <code>GUEST</code>, <code>SERVICE</code>입니다. 역할별로 보낼 수 있는 명령은 <a href="07-command-reference.html">7. 명령 레퍼런스</a>에 정리되어 있습니다.</p>
 
 <footer class="page-nav">

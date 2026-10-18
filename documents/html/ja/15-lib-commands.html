@@ -55,12 +55,12 @@
 </nav>
 <main class="content">
 <h1>15. コマンド</h1>
-<p class="lead">現在、<code>Vehicle</code> はセッションの開始と終了ができます。制御コマンドは M4 (セキュリティコントローラー: ロック、トランク、ウェイクアップ) と M5 (インフォテインメント: 空調、充電、メディアなど) で追加されます。アプリの計画に役立つよう、このページでは両方を一覧にします。</p>
+<p class="lead"><code>Vehicle</code> はセッションの開始と終了、そして 12 個のセキュリティコントローラーコマンド (ロック、トランク、ウェイクアップ) を送れます。インフォテインメントのコマンド (空調、充電、メディアなど) は M5 で追加されます。このページでは両方を一覧にします。</p>
 
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-now">現在使えるもの</a></li>
 <li><a href="#sec-rules">すべてのコマンドに共通する動作</a></li>
-<li><a href="#sec-m4">M4 で追加予定: セキュリティコントローラー</a></li>
+<li><a href="#sec-m4">セキュリティコントローラー (M4)</a></li>
 <li><a href="#sec-m5">M5 で追加予定: インフォテインメント</a></li>
 <li><a href="#sec-later">その後</a></li>
 </ol></div>
@@ -76,7 +76,6 @@
 <p><code>startSession</code> の実行中、<code>vehicle.sessions</code> は <code>Handshaking</code> を示します。終了後は <code>Ready</code> に、失敗またはキャンセルされた場合は再び <code>None</code> になります。</p>
 
 <h2 id="sec-rules">すべてのコマンドに共通する動作</h2>
-<p>コマンドを支える仕組みはすでに実装済みなので、以下のルールは確定しています:</p>
 <ul>
 <li>コマンドはドメインのセッション上で AES-GCM により暗号化と認証が行われ、5 秒で失効します。</li>
 <li>一時的な失敗は 1 秒ごとに自動でリトライされます。すでに実行された可能性のあるコマンドが再送されることは <strong>決して</strong> ありません。</li>
@@ -84,18 +83,31 @@
 <li><code>Uncertain</code> の結果は「状態を読み取り、再送しない」という意味です。<a href="16-lib-errors.html">16. エラー処理</a> を参照してください。</li>
 </ul>
 
-<h2 id="sec-m4">M4 で追加予定: セキュリティコントローラー</h2>
+<h2 id="sec-m4">セキュリティコントローラー (M4)</h2>
+<p>12 個のメソッドはすべて認証付きで VCSEC セッションが必要です。セッションがないと <code>Failure(NoSession)</code> を返すので、先に <code>startSession(setOf(VehicleDomain.VCSEC))</code> を実行してください。各メソッドは任意の <code>timeout</code> (デフォルト 5 秒) を受け取り、<code>VehicleResult&lt;Unit&gt;</code> を返します。</p>
 <table>
-<thead><tr><th>要件</th><th>予定メソッド</th><th>優先度</th></tr></thead>
+<thead><tr><th>メソッド</th><th>要件</th><th>ペイロード (16 進数)</th><th>備考</th></tr></thead>
 <tbody>
-<tr><td>FR-040, FR-041</td><td><code>lock()</code>, <code>unlock()</code></td><td><span class="badge ok">P0</span></td></tr>
-<tr><td>FR-042</td><td><code>wakeUp()</code></td><td><span class="badge ok">P0</span></td></tr>
-<tr><td>FR-045, FR-046</td><td><code>openTrunk()</code>, <code>closeTrunk()</code>, <code>openFrunk()</code></td><td><span class="badge ok">P0</span></td></tr>
-<tr><td>FR-043, FR-044</td><td><code>remoteDrive()</code>, <code>autoSecureVehicle()</code> (Model X)</td><td><span class="badge info">P1</span></td></tr>
-<tr><td>FR-047</td><td><code>openTonneau()</code>, <code>closeTonneau()</code>, <code>stopTonneau()</code> (Cybertruck)</td><td><span class="badge info">P1</span></td></tr>
-<tr><td>FR-022–027</td><td>キーの登録と削除</td><td><a href="13-lib-pairing.html#sec-planned">13. キーとペアリング</a> を参照</td></tr>
+<tr><td><code>lock()</code></td><td>FR-040</td><td><code>1001</code></td><td>ロック</td></tr>
+<tr><td><code>unlock()</code></td><td>FR-040</td><td><code>1000</code></td><td>ロック解除</td></tr>
+<tr><td><code>wakeUp()</code></td><td>FR-041</td><td><code>101e</code></td><td>VCSEC セッションだけで使えます</td></tr>
+<tr><td><code>remoteDrive()</code></td><td>FR-042</td><td><code>1014</code></td><td>リモートドライブ</td></tr>
+<tr><td><code>autoSecureVehicle()</code></td><td>FR-043</td><td><code>101d</code></td><td>Model X</td></tr>
+<tr><td><code>openTrunk()</code></td><td>FR-044</td><td><code>22022801</code></td><td><code>actuateTrunk()</code> と同じ<strong>トグル</strong>です</td></tr>
+<tr><td><code>actuateTrunk()</code></td><td>FR-044</td><td><code>22022801</code></td><td>トグル</td></tr>
+<tr><td><code>closeTrunk()</code></td><td>FR-044</td><td><code>22022804</code></td><td>電動トランクのみ</td></tr>
+<tr><td><code>openFrunk()</code></td><td>FR-045</td><td><code>22023001</code></td><td>リモートで閉じるコマンドはありません</td></tr>
+<tr><td><code>openTonneau()</code></td><td>FR-046</td><td><code>22024003</code></td><td>Cybertruck</td></tr>
+<tr><td><code>closeTonneau()</code></td><td>FR-046</td><td><code>22024004</code></td><td>Cybertruck</td></tr>
+<tr><td><code>stopTonneau()</code></td><td>FR-046</td><td><code>22024002</code></td><td>Cybertruck</td></tr>
+<tr><td>キーの登録と削除</td><td>FR-022–027</td><td></td><td>参照: <a href="13-lib-pairing.html#sec-enroll">13. キーとペアリング</a></td></tr>
 </tbody>
 </table>
+<ul>
+<li>想定される失敗: <code>NoSession</code>、<code>NotConnected</code>、<code>InsufficientPrivileges</code> (例: Vehicle Monitor キー、または車両の状態が許可しない場合)、<code>VcsecRejected</code>、<code>UnknownVcsecError</code>。</li>
+<li><code>Uncertain</code> は車両が実行した可能性を示します。<strong>再送せず</strong>、<code>vehicleStatus()</code> でロック状態と開閉部を読み取ってください。トグルである <code>openTrunk()</code> と <code>actuateTrunk()</code> では特に重要です。<a href="16-lib-errors.html#sec-requery">16. エラー処理</a> を参照してください。</li>
+<li><code>sessions</code> は実際のセッション状態に従います。コマンドが <code>NoSession</code> で終わったときやセッションイベントが届いたときに、ライブラリがそのドメインを再確認します。車両がもう受け付けないキャッシュ済みセッション (例: 別のキーのキャッシュ) は、最初のコマンドが失敗した後に <code>None</code> と表示され、<code>startSession</code> で回復します。</li>
+</ul>
 
 <h2 id="sec-m5">M5 で追加予定: インフォテインメント</h2>
 <table>

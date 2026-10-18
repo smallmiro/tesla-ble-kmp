@@ -126,7 +126,7 @@
 <ul>
 <li>None of the three queries wakes the car. Use <code>sleepStatus</code> to show whether it is asleep.</li>
 <li>Coming in M5: <code>getState(category)</code> reads the twelve infotainment categories (charge, climate, drive, location, closures, charge schedule, preconditioning schedule, tire pressure, media, media detail, software update, parental controls). It needs an enrolled key and an awake car.</li>
-<li>Coming in M4: <code>wakeUp()</code>, which needs only the VCSEC session.</li>
+<li><code>wakeUp()</code> (M4) needs only the VCSEC session.</li>
 <li>When a lock or trunk command (M4) comes back <code>Uncertain</code>, read <code>vehicleStatus()</code> again instead of sending the command a second time.</li>
 </ul>
 

@@ -99,7 +99,7 @@
 </ul>
 
 <h2 id="sec-path">명령이 거치는 경로</h2>
-<p>예정된 <code>lock()</code> 같은 보안 컨트롤러 명령을 예로 듭니다.</p>
+<p><code>lock()</code> 같은 보안 컨트롤러 명령을 예로 듭니다.</p>
 <ol class="steps">
 <li><strong>직렬화.</strong> <code>VcsecCommands</code>가 연결별 잠금을 잡으므로 진행 중인 VCSEC 명령은 하나뿐입니다.</li>
 <li><strong>재시도 루프.</strong> 재시도 가능한 오류로 실패한 시도는 전송 계층의 재시도 간격이 지난 뒤 다시 시작합니다.</li>

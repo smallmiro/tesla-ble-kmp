@@ -99,7 +99,7 @@
 </ul>
 
 <h2 id="sec-path">The path of a command</h2>
-<p>Using a security-controller command such as the planned <code>lock()</code> as the example:</p>
+<p>Using a security-controller command such as <code>lock()</code> as the example:</p>
 <ol class="steps">
 <li><strong>Serialize.</strong> <code>VcsecCommands</code> takes the per-connection lock, so only one VCSEC command is in flight.</li>
 <li><strong>Retry loop.</strong> Each attempt that fails with a retryable error starts again after the transport's retry interval.</li>
