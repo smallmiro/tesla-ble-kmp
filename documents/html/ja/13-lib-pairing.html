@@ -213,7 +213,7 @@ vehicle.<span class="f">addKeyRequest</span>(key.publicKey).<span class="f">coll
 <span class="k">case</span> .uncertain: <span class="f">print</span>(<span class="s">"reply lost, ask again"</span>)
 }</code></pre>
 
-<p>ロール (<code>KeyRole</code>) は <code>OWNER</code>、<code>DRIVER</code>、<code>FLEET_MANAGER</code>、<code>VEHICLE_MONITOR</code>、<code>CHARGING_MANAGER</code>、<code>GUEST</code>、<code>SERVICE</code> です。各ロールが送信できるコマンドは <a href="07-command-reference.html">7. コマンドリファレンス</a> に記載しています。</p>
+<p>ロール (<code>KeyRole</code>) は <code>OWNER</code>、<code>DRIVER</code>、<code>FLEET_MANAGER</code>、<code>VEHICLE_MONITOR</code>、<code>CHARGING_MANAGER</code>、<code>GUEST</code>、<code>SERVICE</code> です。各ロールが送信できるコマンドは <a href="07-command-reference.html">7. コマンドリファレンス</a> に記載しています。 拡張されたプロトコル定義にだけあるロールとキー形態（例: <code>ROLE_RIDER</code>、<code>KEY_FORM_FACTOR_APPLE_WATCH</code>）は <code>UNKNOWN</code> として読まれます。</p>
 
 <footer class="page-nav">
   <a href="12-lib-getting-started.html"><span>前へ</span>12. ライブラリ入門</a>

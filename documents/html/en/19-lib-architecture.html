@@ -64,6 +64,7 @@
 <li><a href="#sec-ble">Bluetooth adapter</a></li>
 <li><a href="#sec-facade">Facade</a></li>
 <li><a href="#sec-cache">Session cache</a></li>
+<li><a href="#sec-proto">Protocol definitions</a></li>
 </ol></div>
 
 <h2 id="sec-modules">Modules</h2>
@@ -126,6 +127,17 @@
 
 <h2 id="sec-cache">Session cache</h2>
 <p>Sessions are saved in a small binary format (version 1) so the next connection can send commands without a new handshake. They are tied to the client key (SHA-1 of its public key); sessions of other keys are ignored and deleted. They are saved when a handshake finishes, when session information changes, and on disconnect. Private keys, session encryption keys and raw VINs are never saved. Damaged or unrecognized entries are skipped and the rest restored.</p>
+
+<h2 id="sec-proto">Protocol definitions</h2>
+<p>The <code>:domain</code> module generates Kotlin from 9 <code>.proto</code> files with Wire 7.0.4. Since 2026-10-18 these files are an unmodified copy of Teslemetry/tesla-protocol at a pinned commit (<code>e6f7afb1</code>, Apache-2.0). That snapshot holds the official vehicle-command definitions plus additions marked <code>TESLEMETRY-EXT</code>; some are also marked <code>UNCONFIRMED</code> or <code>name unverified</code>. The sources are recorded in <code>NOTICE</code> and <code>PROTO_SOURCE.md</code>.</p>
+<table>
+<thead><tr><th>Topic</th><th>Rule</th></tr></thead>
+<tbody>
+<tr><td>What counts as correct</td><td>The official Go code (vehicle-command <code>a4b43c1</code>) for meaning, cryptography, routing and errors. If the two disagree, the Go code wins.</td></tr>
+<tr><td>Added fields and values</td><td>They exist as generated types only. No command, event or public value uses them until a real car or the Go code confirms them. <code>KeyRole</code> and <code>KeyFormFactor</code> read them as <code>UNKNOWN</code>.</td></tr>
+<tr><td>Updating</td><td>Check out tesla-protocol at the pinned commit, run <code>tools/proto/sync-protos.sh &lt;checkout&gt;</code> (no network; it refuses any other commit), regenerate, then run <code>apiDump</code> and the tests. Change the pinned commit in the script and in <code>docs/PATHS.md</code> in the same PR.</td></tr>
+</tbody>
+</table>
 
 <footer class="page-nav">
   <a href="18-lib-troubleshooting.html"><span>Previous</span>18. Troubleshooting</a>

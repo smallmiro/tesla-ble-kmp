@@ -86,3 +86,21 @@ connection can send commands without a new handshake. The cache belongs to the c
 caches of other keys are ignored and deleted. It is stored when a handshake completes, when session info is updated,
 and on disconnect (wired up by the facade in M3). Private keys, session encryption keys and raw VINs are never stored.
 Corrupted entries or entries with unrecognized values are skipped and the rest restored.
+
+## Protobuf schema
+
+- `:domain` generates Kotlin from `domain/src/commonMain/proto/` with Wire 7.0.4. Generated packages follow each file's
+  `java_package` (`com.tesla.generated.*`; `managed_charging.proto` has none and becomes `ManagedCharging`).
+- Since 2026-10-18 (ADR-0002 revision) the 9 files (`car_server`, `common`, `errors`, `keys`, `managed_charging`,
+  `signatures`, `universal_message`, `vcsec`, `vehicle`) are a byte-for-byte copy of
+  Teslemetry/tesla-protocol@`e6f7afb1b633d7215e34d0cdac66dab983c6ae78` `proto/command/`: the official vehicle-command
+  protos plus additions marked `TESLEMETRY-EXT` (some also `UNCONFIRMED` or `name unverified`). `session.proto` and the
+  telemetry, energy and dashcam families are not used. Provenance: `PROTO_SOURCE.md` next to the files, and `NOTICE`.
+- The ground truth for meaning, cryptography, routing and error classification stays the official Go code
+  (vehicle-command@`a4b43c1`). When the two disagree, the Go code wins.
+- Extension fields and values exist as generated types only. No command, event or public model value is built on them
+  until a real-vehicle capture or the official Go code confirms them. Public model enums (`KeyRole`, `KeyFormFactor`)
+  map extension values to `UNKNOWN`. The observation log (`18-lib-troubleshooting.md`) prints their schema names.
+- To update: check out tesla-protocol at the pinned commit, run `tools/proto/sync-protos.sh <checkout>` (no network; it
+  refuses any other commit), then `./gradlew :domain:generateCommonMainProtos`, `./gradlew :domain:apiDump` and the
+  tests. The pinned commit is in the script and in `docs/PATHS.md` (`PROTO_SCHEMA_COMMIT`); change both in one PR.

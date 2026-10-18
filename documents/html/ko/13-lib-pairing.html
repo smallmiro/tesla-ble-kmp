@@ -213,7 +213,7 @@ vehicle.<span class="f">addKeyRequest</span>(key.publicKey).<span class="f">coll
 <span class="k">case</span> .uncertain: <span class="f">print</span>(<span class="s">"reply lost, ask again"</span>)
 }</code></pre>
 
-<p>역할(<code>KeyRole</code>)은 <code>OWNER</code>, <code>DRIVER</code>, <code>FLEET_MANAGER</code>, <code>VEHICLE_MONITOR</code>, <code>CHARGING_MANAGER</code>, <code>GUEST</code>, <code>SERVICE</code>입니다. 역할별로 보낼 수 있는 명령은 <a href="07-command-reference.html">7. 명령 레퍼런스</a>에 정리되어 있습니다.</p>
+<p>역할(<code>KeyRole</code>)은 <code>OWNER</code>, <code>DRIVER</code>, <code>FLEET_MANAGER</code>, <code>VEHICLE_MONITOR</code>, <code>CHARGING_MANAGER</code>, <code>GUEST</code>, <code>SERVICE</code>입니다. 역할별로 보낼 수 있는 명령은 <a href="07-command-reference.html">7. 명령 레퍼런스</a>에 정리되어 있습니다. 확장된 프로토콜 정의에만 있는 역할과 키 형태(예: <code>ROLE_RIDER</code>, <code>KEY_FORM_FACTOR_APPLE_WATCH</code>)는 <code>UNKNOWN</code>으로 읽힙니다.</p>
 
 <footer class="page-nav">
   <a href="12-lib-getting-started.html"><span>이전</span>12. 라이브러리 시작하기</a>

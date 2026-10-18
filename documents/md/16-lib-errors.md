@@ -27,10 +27,10 @@ write retry loops.
 | `KeyNotPaired` | `UNKNOWN_KEY_ID`, or session_info `KEY_NOT_ON_WHITELIST` | false | false |
 | `InsufficientPrivileges` | `INSUFFICIENT_PRIVILEGES` (fault 7): the key's role or the vehicle state does not allow the command (Driver managing keys, Vehicle Monitor sending control commands, driving, valet) | false | false |
 | `Busy` | `operation_status WAIT` | true | false |
-| `UnknownFault(rawCode)` | A `MessageFault` code this library does not know (newer firmware). `message` is `unrecognized error code <rawCode>`; check for a library update | false | false |
-| `UnknownKeychainCode(rawCode)` | A `whitelistOperationInformation` code this library does not know. `message` is `keychain operation failed: unrecognized code <rawCode>` | false | false |
-| `UnknownVcsecError(rawCode)` | A VCSEC `nominalError` code this library does not know. `message` is `vcsec could not execute command: unrecognized error code <rawCode>` | false | false |
-| `UnknownResponse` | Unrecognized `session_info.status` or `operation_status` value (no code) | false | false |
+| `UnknownFault(rawCode)` | A `MessageFault` code that is not in this library's proto schema (newer firmware). `message` is `unrecognized error code <rawCode>`; check for a library update | false | false |
+| `UnknownKeychainCode(rawCode)` | A `whitelistOperationInformation` code that is not in this library's proto schema. `message` is `keychain operation failed: unrecognized code <rawCode>` | false | false |
+| `UnknownVcsecError(rawCode)` | A VCSEC `nominalError` code that is not in this library's proto schema. `message` is `vcsec could not execute command: unrecognized error code <rawCode>` | false | false |
+| `UnknownResponse` | Unrecognized `session_info.status` or `operation_status` value (no code). Includes session_info status 2 `SESSION_INFO_STATUS_INVALID_HANDLE`, which exists only in the Teslemetry schema (the Go code treats it as unknown) | false | false |
 | `NotConnected`, `NoSession`, `RequiresKey` | Call order error | false | false |
 | `BadResponse(detail)` | Response could not be parsed | false | true for VCSEC and Infotainment responses |
 | `KeychainRejected(code)` | Key add or remove rejected | false | false |
@@ -38,6 +38,19 @@ write retry loops.
 | `InfotainmentRejected(reason)` | `actionStatus ERROR` | false | false |
 | `TransportError.*` | Scan, connect, write (M3) | true only for `ScanTimeout`, `ConnectFailed`, `WriteFailed` | false |
 | `KeyStoreError.*` | Key store (M3) | false | false |
+
+**Proto schema and error codes (2026-10-18, ADR-0002 revision).** "In the proto schema" means the pinned
+Teslemetry/tesla-protocol snapshot (`19-lib-architecture.md`), a superset of the official protos. Codes it defines are no
+longer reported as `Unknown*` with a raw code but as the named type, with the same `temporary = false` and
+`mayHaveSucceeded = false`. The names of these codes come from the schema and are not confirmed on a real vehicle:
+
+| Code | Was | Now |
+|---|---|---|
+| `MessageFault` 29 `MESSAGEFAULT_ERROR_COMMAND_REQUIRES_PHYSICAL_PROXIMITY` | `UnknownFault(29)` | `ProtocolFault(fault)`, not retried |
+| `whitelistOperationInformation` 29–32 (rider and predelivery key rules) | `UnknownKeychainCode(n)` | `KeychainRejected(code)` |
+| `GenericError` 8 `GENERICERROR_KEY_NOT_FOUND`, 9 `GENERICERROR_NOT_SUPPORTED` | `UnknownVcsecError(n)` | `VcsecRejected(error)` |
+
+Match on the error type, not on `message`: `message` now carries the code name instead of the number.
 | `Timeout(afterSend)` | Command timed out | true | `afterSend` |
 | `InvalidArgument(detail)` | Bad call argument | false | false |
 
