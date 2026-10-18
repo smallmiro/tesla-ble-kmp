@@ -1,7 +1,9 @@
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     @StateObject private var model = SampleModel()
+    @State private var copied = false
 
     var body: some View {
         NavigationStack {
@@ -25,7 +27,18 @@ struct ContentView: View {
                 }
                 .disabled(model.busy)
                 Section("결과") {
-                    ForEach(Array(model.output.enumerated()), id: \.offset) { Text($0.element).font(.footnote.monospaced()) }
+                    Button(copied ? "복사됨 ✓" : "결과 전체 복사") {
+                        UIPasteboard.general.string = model.report()
+                        copied = true
+                        Task {
+                            try? await Task.sleep(nanoseconds: 1_500_000_000)
+                            copied = false
+                        }
+                    }
+                    Button("결과 지우기", role: .destructive) { model.clearOutput() }
+                    ForEach(Array(model.output.enumerated()), id: \.offset) {
+                        Text($0.element).font(.footnote.monospaced()).textSelection(.enabled)
+                    }
                 }
                 Section("진단") {
                     NavigationLink("BLE 진단 (스파이크)") { DiagnosticsView() }
