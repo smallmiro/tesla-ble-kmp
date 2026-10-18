@@ -89,7 +89,7 @@ internal class ObservationDetail(
         val bytes = maskVin(raw)
         val parsed = if (n == 0) null else parse(bytes)
         if (parsed != null) {
-            if (depth + 1 >= MAX_DEPTH || parsed.overLimit) return "len($n, truncated)"
+            if (depth > MAX_DEPTH || parsed.overLimit) return "len($n, truncated)"
             return "len($n){" + parsed.fields.joinToString(", ") { "${it.tag}:${format(it.value, depth + 1)}" } + "}"
         }
         if (n == 0) return "len(0)"

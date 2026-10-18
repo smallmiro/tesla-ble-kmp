@@ -135,6 +135,17 @@ class ObservationDetailTest {
     }
 
     @Test
+    fun depthBoundaryDecodesThreeNestedLevelsAndTruncatesTheFourth() {
+        val three = len(1, len(1, len(1, vint(1, 1))))
+        val d3 = detail(top(len(48, three)))
+        assertEquals("[48:len(${three.size}){1:len(${three.size - 2}){1:len(${three.size - 4}){1:len(2){1:varint=1(0x1)}}}}]}", d3)
+        val four = len(1, three)
+        val d4 = detail(top(len(48, four)))
+        assertTrue(d4.contains("1:len(2, truncated)"), d4)
+        assertFalse(d4.contains("varint=1"), d4)
+    }
+
+    @Test
     fun fieldCountLimitIsTruncated() {
         val many = (1..65).map { vint(it, 1) }.reduce { a, b -> a + b }
         val d = detail(top(len(48, many)))

@@ -82,7 +82,7 @@ order, repeated fields repeated. The path number and wire type are kept and no f
 | key-like LEN | exactly 16, 32, 33, 64 or 65 bytes: `redacted(NB)`; a 65-byte value starting with `0x04`: `sha1:xxxxxxxx` |
 
 VINs (`[A-HJ-NPR-Z0-9]{17}`) are masked in text and in raw bytes before any hex is produced (first 3 and last 4
-characters kept). This output is for exploration. It does not give the meaning of a field, and a missing
+characters kept). Masking runs on the raw bytes before they are parsed, so masked bytes can change the value or structure that is shown (nothing leaks). This output is for exploration. It does not give the meaning of a field, and a missing
 `closureStatuses` in a broadcast does not mean "everything is closed".
 
 Limits and rules:
