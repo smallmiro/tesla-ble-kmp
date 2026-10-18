@@ -16,7 +16,9 @@ import com.tesla.generated.universalmessage.OperationStatus_E
 import com.tesla.generated.universalmessage.RoutableMessage
 import com.tesla.generated.vcsec.CommandStatus
 import com.tesla.generated.vcsec.FromVCSECMessage
+import com.tesla.generated.vcsec.SignatureType
 import com.tesla.generated.vcsec.SignedMessage_status
+import com.tesla.generated.vcsec.ToVCSECMessage
 import com.tesla.generated.vcsec.WhitelistOperation_information_E
 import com.tesla.generated.vcsec.WhitelistOperation_status
 import dev.mirolab.teslable.InternalTeslableApi
@@ -83,6 +85,16 @@ public class FakeVehicle(
     private var dropRemaining = 0
     private var sessionInfoRequestCount = 0
     private var connectableFlag = true
+    private val presentKeyRequests = mutableListOf<ToVCSECMessage>()
+    private val presentKeyScript = ArrayDeque<List<ByteArray>>()
+
+    /** 받은 add-key-request 봉투(`ToVCSECMessage{PRESENT_KEY}`). */
+    public val presentKeys: List<ToVCSECMessage> get() = presentKeyRequests.toList()
+
+    /** 다음 add-key-request에 감싸지 않은 프레임들로 답한다(요청 하나에 호출 하나). 대본이 없으면 답하지 않는다(Go 차량도 사용자가 태그할 때까지 기다린다). */
+    public fun scriptPresentKey(vararg frames: ByteArray) {
+        presentKeyScript.addLast(frames.map { it.copyOf() })
+    }
 
     /** 지금까지 받은(디코딩된) 요청. Go `inbox`. */
     public val received: List<RoutableMessage> get() = receivedMessages.toList()
@@ -197,6 +209,13 @@ public class FakeVehicle(
         transport: FakeTransport,
         bytes: ByteArray,
     ) {
+        // ToVCSECMessage(필드 1)는 RoutableMessage의 모르는 필드로도 읽히므로 먼저 판별한다(빌드 사실)
+        val presentKey = ToVCSECMessage.ADAPTER.decodeOrNull(bytes)
+        if (presentKey?.signedMessage?.signatureType == SignatureType.SIGNATURE_TYPE_PRESENT_KEY) {
+            presentKeyRequests += presentKey
+            presentKeyScript.removeFirstOrNull()?.forEach { transport.deliver(it) }
+            return
+        }
         // Task 3 decodeOrNull: RoutableMessage가 아닌 프레임(M4 ToVCSECMessage)이나 손상된 바이트는 조용히 무시한다.
         val message = RoutableMessage.ADAPTER.decodeOrNull(bytes) ?: return
         receivedMessages += message
@@ -390,6 +409,13 @@ public class FakeVehicle(
 
         /** VCSEC + INFOTAINMENT. */
         public val ALL_DOMAINS: Set<Domain> = setOf(Domain.DOMAIN_VEHICLE_SECURITY, Domain.DOMAIN_INFOTAINMENT)
+
+        /** 카드 태그 대기 프레임(감싸지 않은 `FromVCSECMessage{commandStatus{WAIT}}`). */
+        public fun presentKeyWait(): ByteArray =
+            FromVCSECMessage(commandStatus = CommandStatus(operationStatus = VcsecOperationStatus.OPERATIONSTATUS_WAIT)).encode()
+
+        /** 페어링 결과 프레임(감싸지 않은 `whitelistOperationStatus{info}`; NONE이면 OK). */
+        public fun presentKeyResult(info: WhitelistOperation_information_E): ByteArray = checkNotNull(vcsecWhitelistStatus(info).payload)
 
         /** payload 없는 VCSEC 응답(RKE/closure 최종 성공). */
         public fun vcsecEmpty(): ScriptedReply = ScriptedReply()
