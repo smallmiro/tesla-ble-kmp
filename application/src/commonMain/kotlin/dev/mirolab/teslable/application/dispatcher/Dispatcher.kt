@@ -418,7 +418,14 @@ public class Dispatcher
                     logger.log(LogLevel.WARN, TAG) { "Dropping unparseable message" }
                     return
                 }
-            val key = matchKey(message) ?: return
+            val key =
+                when (val routing = route(message)) {
+                    is Routing.Matched -> routing.key
+                    is Routing.Dropped -> {
+                        logDrop(routing.reason, message)
+                        return
+                    }
+                }
             val id = message.request_uuid.hex()
             val handler = lookup(key)
             if (handler == null) {
@@ -443,47 +450,65 @@ public class Dispatcher
             }
         }
 
-        /** Go `process`의 검증 부분: 드롭이면 사유를 남기고 null. */
-        private fun matchKey(message: RoutableMessage): PendingKey? {
-            val id = message.request_uuid.hex()
-            // 설계 구체화 10: "누락된 소스"는 from_destination 자체가 없을 때만이다. Go
-            // `message.GetFromDestination().GetDomain()`은 non-domain oneof에도 0(DOMAIN_BROADCAST)을 돌려준다 —
-            // Wire에서 모르는 domain 원시값도 domain == null이 되므로 같은 취급으로 BROADCAST로 떨어진다. 그 결과
-            // 이런 메시지는 등록된 핸들러가 없어 "핸들러 없음"으로 드롭된다(아래에서).
-            val fromDestination = message.from_destination
-            if (fromDestination == null) {
-                logger.log(LogLevel.WARN, TAG) { "[xxx] Dropping message with missing source" }
-                return null
-            }
+        /** [route]의 결과: 짝을 찾을 키, 또는 드롭 사유. */
+        private sealed interface Routing {
+            class Matched(
+                val key: PendingKey,
+            ) : Routing
+
+            class Dropped(
+                val reason: DropReason,
+            ) : Routing
+        }
+
+        /** Go `process`의 드롭 사유(dispatcher.go:269-293). 로그 문구와 레벨은 [logDrop]이 M3와 똑같이 남긴다. */
+        private enum class DropReason { MISSING_SOURCE, BAD_UUID_LENGTH, MISSING_DESTINATION, TO_DOMAIN, BAD_ADDRESS_LENGTH }
+
+        /** Go `process`의 검증 부분: 짝을 찾을 키 또는 드롭 사유. 로그는 남기지 않는다. */
+        private fun route(message: RoutableMessage): Routing {
+            // 설계 구체화 10(M2): "누락된 소스"는 from_destination 자체가 없을 때만이다. 모르는 domain 원시값은 BROADCAST로 떨어져
+            // 등록된 핸들러가 없어 "핸들러 없음"으로 드롭된다.
+            val fromDestination = message.from_destination ?: return Routing.Dropped(DropReason.MISSING_SOURCE)
             val fromDomain = fromDestination.domain ?: Domain.DOMAIN_BROADCAST
             val requestUuid = message.request_uuid
-            if (requestUuid.size != UUID_LENGTH && requestUuid.size != 0) {
-                logger.log(LogLevel.WARN, TAG) { "[xxx] Dropping message with invalid request UUID length" }
-                return null
-            }
-            val destination = message.to_destination
-            if (destination == null) {
-                logger.log(LogLevel.WARN, TAG) { "[$id] Dropping message with missing destination" }
-                return null
-            }
-            val routingAddress = destination.routing_address
-            if (routingAddress == null) {
-                val toDomain = destination.domain
-                logger.log(LogLevel.DEBUG, TAG) {
-                    if (toDomain != null) {
-                        "[$id] Dropping message to $toDomain"
-                    } else {
-                        "[$id] Dropping message with unrecognized destination type"
+            if (requestUuid.size != UUID_LENGTH && requestUuid.size != 0) return Routing.Dropped(DropReason.BAD_UUID_LENGTH)
+            val destination = message.to_destination ?: return Routing.Dropped(DropReason.MISSING_DESTINATION)
+            val routingAddress = destination.routing_address ?: return Routing.Dropped(DropReason.TO_DOMAIN)
+            if (routingAddress.size != ADDRESS_LENGTH) return Routing.Dropped(DropReason.BAD_ADDRESS_LENGTH)
+            val uuid = if (fromDomain == Domain.DOMAIN_VEHICLE_SECURITY) ByteString.EMPTY else requestUuid
+            return Routing.Matched(PendingKey(routingAddress, uuid, fromDomain))
+        }
+
+        /** [route]가 드롭한 메시지의 기존 로그(문구·레벨은 M3와 같다). */
+        private fun logDrop(
+            reason: DropReason,
+            message: RoutableMessage,
+        ) {
+            val id = message.request_uuid.hex()
+            when (reason) {
+                DropReason.MISSING_SOURCE -> {
+                    logger.log(LogLevel.WARN, TAG) { "[xxx] Dropping message with missing source" }
+                }
+
+                DropReason.BAD_UUID_LENGTH -> {
+                    logger.log(LogLevel.WARN, TAG) { "[xxx] Dropping message with invalid request UUID length" }
+                }
+
+                DropReason.MISSING_DESTINATION -> {
+                    logger.log(LogLevel.WARN, TAG) { "[$id] Dropping message with missing destination" }
+                }
+
+                DropReason.TO_DOMAIN -> {
+                    val toDomain = message.to_destination?.domain
+                    logger.log(LogLevel.DEBUG, TAG) {
+                        if (toDomain != null) "[$id] Dropping message to $toDomain" else "[$id] Dropping message with unrecognized destination type"
                     }
                 }
-                return null
+
+                DropReason.BAD_ADDRESS_LENGTH -> {
+                    logger.log(LogLevel.WARN, TAG) { "[$id] Dropping message with invalid address length" }
+                }
             }
-            if (routingAddress.size != ADDRESS_LENGTH) {
-                logger.log(LogLevel.WARN, TAG) { "[$id] Dropping message with invalid address length" }
-                return null
-            }
-            val uuid = if (fromDomain == Domain.DOMAIN_VEHICLE_SECURITY) ByteString.EMPTY else requestUuid
-            return PendingKey(routingAddress, uuid, fromDomain)
         }
 
         /** Go `checkForSessionUpdate`: 폐기 조건(FR-014)을 지나면 [SessionState.processHello]. challenge = `request_uuid`. */
