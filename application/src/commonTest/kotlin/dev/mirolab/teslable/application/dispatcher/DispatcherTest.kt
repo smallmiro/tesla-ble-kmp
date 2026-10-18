@@ -15,8 +15,11 @@ import dev.mirolab.teslable.protocol.RequestHash
 import dev.mirolab.teslable.protocol.ResponseClassifier
 import dev.mirolab.teslable.testing.FakeVehicle
 import dev.mirolab.teslable.testing.TestCrypto
+import dev.mirolab.teslable.util.toHex
 import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -552,4 +555,29 @@ class DispatcherTest {
                 .toByteString()
                 .hex()
     }
+
+    @Test
+    fun unroutedFramesAreTappedAndStillDropped() =
+        // ADR-0009: 원시 프레임 탭은 파싱 단계에서 분기하고 드롭 규칙은 그대로다
+        runTest {
+            val h = dispatcherHarness()
+            val tapped = mutableListOf<String>()
+            backgroundScope.launch(start = CoroutineStart.UNDISPATCHED) { h.dispatcher.unroutedFrames.collect { tapped += it.toHex() } }
+            h.transport.deliver(FakeVehicle.presentKeyWait()) // 출발지 없음
+            h.transport.deliver(byteArrayOf(0xFF.toByte())) // 해석 불가
+            h.transport.deliver(
+                RoutableMessage.ADAPTER.encode(RoutableMessage(from_destination = Destination(domain = Domain.DOMAIN_VEHICLE_SECURITY))),
+            )
+            runCurrent()
+            assertEquals(listOf(FakeVehicle.presentKeyWait().toHex(), "ff"), tapped) // 출발지가 있는 메시지는 탭하지 않는다
+            assertTrue(h.logger.contains("Dropping message with missing source"))
+            assertTrue(h.logger.contains("Dropping unparseable message"))
+        }
+
+    @Test
+    fun sendUnroutedNeedsAListeningDispatcher() =
+        runTest {
+            val h = dispatcherHarness(start = false)
+            assertEquals(VehicleResult.Failure(VehicleError.NotConnected), h.dispatcher.sendUnrouted(byteArrayOf(1)))
+        }
 }

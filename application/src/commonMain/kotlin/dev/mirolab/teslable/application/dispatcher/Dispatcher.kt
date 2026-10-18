@@ -26,6 +26,7 @@ import dev.mirolab.teslable.port.LogLevel
 import dev.mirolab.teslable.port.RandomSource
 import dev.mirolab.teslable.port.TeslaLogger
 import dev.mirolab.teslable.port.Transport
+import dev.mirolab.teslable.port.TransportState
 import dev.mirolab.teslable.protocol.RequestHash
 import dev.mirolab.teslable.protocol.SignerResult
 import dev.mirolab.teslable.protocol.decodeOrNull
@@ -40,6 +41,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -123,6 +125,24 @@ public class Dispatcher
             } else {
                 ALL_DOMAINS.associateWith { SessionState(vin, privateKey, crypto, random, timeSource) }
             }
+        private val unrouted =
+            MutableSharedFlow<ByteArray>(extraBufferCapacity = EVENT_BUFFER, onBufferOverflow = BufferOverflow.DROP_OLDEST)
+
+        /**
+         * RoutableMessage로 해석되지 않거나 출발지가 없는 프레임(사본). add-key-request 진행 상태(ADR-0009)가 구독한다. 구독자가 없으면 버려지고,
+         * 이 프레임의 드롭 규칙·로그는 그대로다. 수신 코루틴은 `tryEmit`만 한다(SDD §5).
+         */
+        public val unroutedFrames: SharedFlow<ByteArray> = unrouted.asSharedFlow()
+
+        /** 같은 연결의 형제 계층이 링크 끊김을 본다. */
+        internal val transportState: StateFlow<TransportState> get() = transport.state
+
+        /** 감싸지 않은 프레임을 그대로 보낸다(Go `v.conn.Send`, security.go:356). 재시도하지 않는다(Go와 같음). */
+        public suspend fun sendUnrouted(frame: ByteArray): VehicleResult<Unit> {
+            if (!isListening) return VehicleResult.Failure(VehicleError.NotConnected)
+            return transport.send(frame.copyOf())
+        }
+
         private val events =
             MutableSharedFlow<SessionEvent>(
                 extraBufferCapacity = EVENT_BUFFER,
@@ -500,6 +520,7 @@ public class Dispatcher
                 RoutableMessage.ADAPTER.decodeOrNull(bytes) ?: run {
                     logger.log(LogLevel.WARN, TAG) { "Dropping unparseable message" }
                     observe { observation.unparseable(bytes) }
+                    unrouted.tryEmit(bytes.copyOf())
                     return
                 }
             val key =
@@ -511,6 +532,7 @@ public class Dispatcher
                     is Routing.Dropped -> {
                         logDrop(routing.reason, message)
                         observeDrop(routing.reason, message, bytes)
+                        if (routing.reason == DropReason.MISSING_SOURCE) unrouted.tryEmit(bytes.copyOf())
                         return
                     }
                 }

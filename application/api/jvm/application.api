@@ -15,6 +15,7 @@ public final class dev/mirolab/teslable/application/dispatcher/Dispatcher {
 	public final fun getMaxLatency-UwyO8pc ()J
 	public final fun getRetryInterval-UwyO8pc ()J
 	public final fun getSessionEvents ()Lkotlinx/coroutines/flow/SharedFlow;
+	public final fun getUnroutedFrames ()Lkotlinx/coroutines/flow/SharedFlow;
 	public final fun getVin ()Ldev/mirolab/teslable/model/Vin;
 	public final fun isListening ()Z
 	public final fun loadSessions (Ljava/util/List;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -22,6 +23,7 @@ public final class dev/mirolab/teslable/application/dispatcher/Dispatcher {
 	public final fun requestSessionInfo (Lcom/tesla/generated/universalmessage/Domain;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun send-exY8QGI (Lcom/tesla/generated/universalmessage/RoutableMessage;Ldev/mirolab/teslable/port/AuthMethod;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun send-exY8QGI$default (Ldev/mirolab/teslable/application/dispatcher/Dispatcher;Lcom/tesla/generated/universalmessage/RoutableMessage;Ldev/mirolab/teslable/port/AuthMethod;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun sendUnrouted ([BLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun session (Lcom/tesla/generated/universalmessage/Domain;)Ldev/mirolab/teslable/application/dispatcher/SessionState;
 	public final fun setMaxLatency-LRDsOJo (J)V
 	public final fun start ()V
@@ -114,6 +116,10 @@ public final class dev/mirolab/teslable/application/infotainment/InfotainmentRes
 public final class dev/mirolab/teslable/application/logging/SafeLogger : dev/mirolab/teslable/port/TeslaLogger {
 	public fun <init> (Ldev/mirolab/teslable/port/TeslaLogger;)V
 	public fun log (Ldev/mirolab/teslable/port/LogLevel;Ljava/lang/String;Lkotlin/jvm/functions/Function0;)V
+}
+
+public final class dev/mirolab/teslable/application/pairing/Pairing {
+	public final fun addKeyRequest-Wn2Vu4Y (Ldev/mirolab/teslable/model/PublicKeyBytes;Ldev/mirolab/teslable/model/KeyRole;Ldev/mirolab/teslable/model/KeyFormFactor;J)Lkotlinx/coroutines/flow/Flow;
 }
 
 public final class dev/mirolab/teslable/application/vcsec/KeyManagement {
@@ -255,6 +261,7 @@ public final class dev/mirolab/teslable/application/vehicle/VehicleSession {
 	public final fun getInfo ()Ldev/mirolab/teslable/application/vcsec/VehicleInfoQueries;
 	public final fun getInfotainment ()Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;
 	public final fun getKeys ()Ldev/mirolab/teslable/application/vcsec/KeyManagement;
+	public final fun getPairing ()Ldev/mirolab/teslable/application/pairing/Pairing;
 	public final fun getRetryInterval-UwyO8pc ()J
 	public final fun getSend ()Ldev/mirolab/teslable/application/vehicle/SendWithRetry;
 	public final fun getSessionEvents ()Lkotlinx/coroutines/flow/SharedFlow;

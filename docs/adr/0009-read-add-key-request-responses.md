@@ -15,6 +15,7 @@ Go `SendAddKeyRequestWithRole`은 `ToVCSECMessage{PRESENT_KEY}`를 `conn.Send`�
 ## 결과
 - 원본에 없는 동작이므로 실차 검증 전까지 `Unknown(raw)`로 원시 바이트를 노출하고 M4 실차 체크리스트에 항목을 둔다.
 - 응답 형식이 예상과 다르면 이벤트 매핑만 수정하면 된다.
+- M4: 이벤트 집합(`Failed`, `TimedOut` 추가)과 무시 규칙(브로드캐스트·중간 OK·legacy ERROR 무시, 링크 끊김은 즉시 `Failed`)은 설계 구체화 4와 SDD §4에 기록했다.
 
 ## 대안
 - Go와 동일하게 즉시 반환: 앱이 진행 상태를 알 수 없다. 기각(FR-023).

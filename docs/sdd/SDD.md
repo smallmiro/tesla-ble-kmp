@@ -282,7 +282,7 @@ public interface Vehicle {
     public suspend fun disconnect()
 
     // 키 (FR-022~027) — M3에서 구현된 것은 listKeys, keySummary뿐(인증 없음). 나머지는 M4
-    public fun addKeyRequest(role: KeyRole = KeyRole.OWNER, formFactor: KeyFormFactor = KeyFormFactor.platformDefault()): Flow<PairingEvent>
+    public fun addKeyRequest(publicKey: PublicKeyBytes, role: KeyRole = KeyRole.OWNER, formFactor: KeyFormFactor = KeyFormFactor.platformDefault(), timeout: Duration = 60.seconds): Flow<PairingEvent>
     public suspend fun listKeys(timeout: Duration? = null): VehicleResult<List<WhitelistEntry>>
     public suspend fun keySummary(...): VehicleResult<WhitelistSummary>
     public suspend fun addKey(publicKey: PublicKeyBytes, role: KeyRole, formFactor: KeyFormFactor, ...): VehicleResult<Unit>
@@ -303,7 +303,7 @@ public interface Vehicle {
 - **M3 구현 범위:** `Vehicle`에는 `vin`, `hasKey`, `connection`, `sessions`, `startSession`, `disconnect`, `vehicleStatus`, `keySummary`, `listKeys`가 있다. 위 코드 블록의 나머지(`sessionInfo`, `addKeyRequest`, `addKey`, `removeKey`, `getState`, `ping`, 제어 명령)는 M4~M5 설계이며 아직 없다.
 - **링크 손실:** BLE 링크가 끊기면 전송은 수신 흐름을 닫고 `connection`을 `Disconnected`로 바꾸며(M3에서 전송 자원은 풀린다), 진행 중이던 명령은 `Uncertain`/`NotConnected`로 끝난다. 세션 키와 스코프는 앱이 `Vehicle.disconnect()`를 불러야 풀린다. `connect`가 늦게 실패하거나 취소돼도 전송과 스코프를 풀고 다시 던진다.
 - `Vehicle`은 연결 하나에 객체 하나다. `disconnect()` 뒤 명령은 `Failure(NotConnected)`이고 세션 캐시는 유지된다(설계 구체화 13).
-- `PairingEvent`: `Sent`, `WaitingForTap`, `Accepted`, `Rejected(KeychainError)`, `Unknown(raw)`. 실차에서 응답 형식이 확인되기 전까지 `Unknown`을 통해 원시 바이트를 노출한다(M4 실차 검증 항목).
+- `PairingEvent`: `Sent`, `WaitingForTap`, `Accepted`, `Rejected(VehicleError)`, `Unknown(raw)`, `Failed(VehicleError)`, `TimedOut`(끝 이벤트는 `isTerminal`). 실차에서 응답 형식이 확인되기 전까지 `Unknown`을 통해 원시 바이트를 노출한다(M4 실차 검증 항목).
 - `VehicleStatus`, `WhitelistEntry`, `WhitelistSummary`, `SessionInfoSummary`, `VehicleAdvertisement`는 **수기 값 객체**다(작고 안정적). `VehicleData`(GetState 12 카테고리, 200여 필드)와 그 하위 타입은 **Wire 생성 타입을 그대로 노출**한다(FR-033). 이유: 필드가 많고 펌웨어에 따라 늘어나며, 래핑하면 손실·지연이 생긴다. 생성 타입은 `@TeslableGenerated` 문서 주석으로 표시하고 `apiDump`에 포함한다.
 - iOS: SKIE가 `suspend` → `async throws`, `Flow` → `AsyncSequence`로 바꾸고, `sealed`는 `onEnum(of:)`로 Swift `switch`에서 다룬다. `VehicleResult`는 Swift에서 `switch onEnum(of: result) { case .success(let s): ... case .uncertain(let u): ... case .failure(let f): ... }`(실제 코드는 `samples/ios/Sources/SampleModel.swift`).
 - **Android 공개 API와 `apiCheck`:** `androidVehicleKeyStore`, `androidSessionCache`, `androidBleAvailability`는 공개 함수지만, 어느 모듈에도 Android용 BCV 덤프가 없어 `apiCheck`가 다루지 않는다. Android 변형의 공개 API 호환성 검사는 보류(deferred)한다.
@@ -429,17 +429,22 @@ Infotainment(`climateOn`)는 `serial` 락 없이 같은 경로를 타며(`Infota
 ## 4. 키 등록 시퀀스 (FR-022~024, D28)
 
 ```
-App ─ vehicle.addKeyRequest(role=OWNER, formFactor=ANDROID_DEVICE|IOS_DEVICE).collect { event -> UI }
-  1. Pairing: inner = UnsignedMessage{WhitelistOperation{addKeyToWhitelistAndAddPermissions{key, keyRole}, metadataForKey{keyFormFactor}}}
+App ─ vehicle.addKeyRequest(publicKey, role=OWNER, formFactor=ANDROID_DEVICE|IOS_DEVICE, timeout=60s).collect { event -> UI }
+  1. Pairing: inner = UnsignedMessage{WhitelistOperation{addKeyToWhitelistAndAddPermissions{key=publicKey, keyRole}, metadataForKey{keyFormFactor}}}
      envelope = ToVCSECMessage{signedMessage{protobufMessageAsBytes=inner, signatureType=PRESENT_KEY}}
-     dispatcher.rawFrames 구독 시작 → transport.send(envelope)  (RoutableMessage 아님, 인증 없음)  → emit(Sent)
+     UNKNOWN role → Failed(InvalidArgument), 전송 없음. 페어링끼리는 연결당 pairingMutex로 직렬화.
+     dispatcher.unroutedFrames 구독 시작 + transportState 감시 → VCSEC 직렬화 락 안에서 sendUnrouted(envelope)만 (응답 대기는 락 밖, FR-049)
+     (RoutableMessage 아님, 인증 없음, 재시도 없음)  → 전송 실패면 emit(Failed), 성공(Uncertain 포함)이면 emit(Sent)
   2. 차량 화면에 승인 요청. 사용자가 NFC 키카드를 태그하고 확인.
-  3. 수신 프레임 중 RoutableMessage로 파싱되지 않거나 from_destination이 없는 프레임을 FromVCSECMessage로 시도 파싱:
-       commandStatus.operationStatus == WAIT                       → emit(WaitingForTap)
-       commandStatus.whitelistOperationStatus.information == NONE  → emit(Accepted), 종료
-       ... != NONE                                                  → emit(Rejected(KeychainError)), 종료
-       파싱 불가                                                    → emit(Unknown(raw))
-     타임아웃(기본 60초) → 종료 (결과는 4로 확인)
+  3. unroutedFrames(RoutableMessage로 파싱되지 않거나 from_destination이 없는 프레임)를 FromVCSECMessage로 해석(PairingEvents.interpret):
+       파싱 불가                                                    → emit(Unknown(raw)), 계속
+       nominalError                                                 → emit(Rejected(VcsecRejected|UnknownVcsecError)), 종료
+       commandStatus.whitelistOperationStatus.information == NONE   → emit(Accepted), 종료
+       ... != NONE                                                  → emit(Rejected(KeychainRejected|UnknownKeychainCode)), 종료
+       commandStatus.operationStatus == WAIT                        → emit(WaitingForTap)
+       그 밖(브로드캐스트 vehicleStatus, authenticationRequest, 중간 OK, legacy ERROR) → 무시
+     링크 끊김(transportState Disconnected)                         → emit(Failed(원인 또는 NotConnected)), 즉시 종료
+     타임아웃(기본 60초, 전송 뒤부터) → emit(TimedOut), 종료 (결과는 4로 확인)
   4. App ─ vehicle.sessionInfo(myPublicKey, INFOTAINMENT) 를 수 초 간격으로 폴링 → status == OK 이면 등록·동기화 완료
 ```
 

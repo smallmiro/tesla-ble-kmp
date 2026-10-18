@@ -38,6 +38,9 @@ public class VcsecCommands internal constructor(
 ) {
     private val serial = Mutex()
 
+    /** [block]을 VCSEC 직렬화 락 안에서 실행한다(add-key-request 전송용 — 응답 대기는 락 밖). */
+    internal suspend fun <T> exclusive(block: suspend () -> T): T = serial.withLock { block() }
+
     /** 페이로드(`UnsignedMessage` 바이트)를 보내고 [done]이 최종으로 판정한 메시지를 돌려준다. */
     public suspend fun execute(
         payload: ByteArray,

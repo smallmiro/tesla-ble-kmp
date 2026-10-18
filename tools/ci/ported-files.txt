@@ -53,3 +53,4 @@ adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/BlockLength.kt
 adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/KableGattConnector.kt
 application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/VcsecPayloads.kt
 application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/VcsecControl.kt
+application/src/commonMain/kotlin/dev/mirolab/teslable/application/pairing/Pairing.kt

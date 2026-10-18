@@ -4687,6 +4687,71 @@ public final class dev/mirolab/teslable/model/LockState : java/lang/Enum {
 	public static fun values ()[Ldev/mirolab/teslable/model/LockState;
 }
 
+public abstract interface class dev/mirolab/teslable/model/PairingEvent {
+}
+
+public final class dev/mirolab/teslable/model/PairingEvent$Accepted : dev/mirolab/teslable/model/PairingEvent {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/PairingEvent$Accepted;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/mirolab/teslable/model/PairingEvent$Failed : dev/mirolab/teslable/model/PairingEvent {
+	public fun <init> (Ldev/mirolab/teslable/model/VehicleError;)V
+	public final fun component1 ()Ldev/mirolab/teslable/model/VehicleError;
+	public final fun copy (Ldev/mirolab/teslable/model/VehicleError;)Ldev/mirolab/teslable/model/PairingEvent$Failed;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/PairingEvent$Failed;Ldev/mirolab/teslable/model/VehicleError;ILjava/lang/Object;)Ldev/mirolab/teslable/model/PairingEvent$Failed;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Ldev/mirolab/teslable/model/VehicleError;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/mirolab/teslable/model/PairingEvent$Rejected : dev/mirolab/teslable/model/PairingEvent {
+	public fun <init> (Ldev/mirolab/teslable/model/VehicleError;)V
+	public final fun component1 ()Ldev/mirolab/teslable/model/VehicleError;
+	public final fun copy (Ldev/mirolab/teslable/model/VehicleError;)Ldev/mirolab/teslable/model/PairingEvent$Rejected;
+	public static synthetic fun copy$default (Ldev/mirolab/teslable/model/PairingEvent$Rejected;Ldev/mirolab/teslable/model/VehicleError;ILjava/lang/Object;)Ldev/mirolab/teslable/model/PairingEvent$Rejected;
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getError ()Ldev/mirolab/teslable/model/VehicleError;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/mirolab/teslable/model/PairingEvent$Sent : dev/mirolab/teslable/model/PairingEvent {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/PairingEvent$Sent;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/mirolab/teslable/model/PairingEvent$TimedOut : dev/mirolab/teslable/model/PairingEvent {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/PairingEvent$TimedOut;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/mirolab/teslable/model/PairingEvent$Unknown : dev/mirolab/teslable/model/PairingEvent {
+	public fun <init> ([B)V
+	public fun equals (Ljava/lang/Object;)Z
+	public final fun getRaw ()[B
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/mirolab/teslable/model/PairingEvent$WaitingForTap : dev/mirolab/teslable/model/PairingEvent {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/PairingEvent$WaitingForTap;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/mirolab/teslable/model/PairingEventKt {
+	public static final fun isTerminal (Ldev/mirolab/teslable/model/PairingEvent;)Z
+}
+
 public final class dev/mirolab/teslable/model/PublicKeyBytes {
 	public static final field Companion Ldev/mirolab/teslable/model/PublicKeyBytes$Companion;
 	public static final field SIZE I
