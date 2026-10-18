@@ -20,7 +20,7 @@
 |---|---|---|---|
 | D20 | 명령·조회 결과 표현 | **sealed `VehicleResult<T>` 반환** (Success / Uncertain / Failure). 예외는 취소와 프로그래밍 오류에만 | 0006 |
 | D21 | 모듈 경계 | **헥사고날 6모듈 + 테스트 픽스처 모듈**: `:domain`, `:application`, `:adapter-ble`, `:adapter-crypto`, `:adapter-storage`, `:sdk`, `:testing`. Gradle이 의존 방향을 강제 | 0001 |
-| D22 | protobuf | **Wire 5.x** (Gradle 플러그인, commonMain 생성). `.proto` 9개 무수정. 생성 패키지는 `java_package` 옵션 그대로 `com.tesla.generated.*` | 0002 |
+| D22 | protobuf | **Wire 7.0.4** (Gradle 플러그인, commonMain 생성). `.proto` 9개 무수정. 생성 패키지는 `java_package` 옵션 그대로 `com.tesla.generated.*`. **2026-10-18 개정:** 스키마 출처는 `{{PROTO_SCHEMA_REPO}}`@`{{PROTO_SCHEMA_COMMIT}}` `proto/command/`의 같은 9개(공식 proto의 상위 집합, `TESLEMETRY-EXT`). 의미·암호·라우팅 기준은 계속 공식 Go. 미검증 항목은 스키마로만 존재 | 0002 |
 | D23 | BLE 스택 | **Kable**을 `Transport` 포트 뒤에 둠. indication·MTU가 실기기에서 기대와 다르면 같은 포트를 CoreBluetooth/BluetoothGatt로 직접 구현 | 0003 |
 | D24 | iOS AES-GCM | **cryptography-kotlin 0.6.0 CryptoKit 프로바이더**를 AES-GCM에만 사용(Swift 브리지 플러그인). SHA·HMAC·난수는 CommonCrypto/Security, 키·ECDH는 Security.framework 직접 구현. M0에서 실패하면 SPM Swift 타깃 주입으로 전환 | 0004 |
 | D25 | Swift 표면 | **SKIE** (`:sdk`에만 적용) | 0005 |
@@ -92,7 +92,7 @@ Go SDK의 BLE 경로(`pkg/connector/ble` → `internal/dispatcher` → `internal
 | `pkg/cache/cache.go`, `session.go` `CacheEntry` | 113+ | `:domain` `port/SessionCache.kt`, `cache/CachedSession.kt`, `cache/SessionCacheCodec.kt` + `:adapter-storage` `storage/InMemorySessionCache.kt` + `:application` `cache/SessionCacheSync.kt` | 포맷은 자체(D26) |
 | `internal/authentication/verifier.go` | 328 | `:testing` `TestVerifier.kt`(M1, GCM 경로만), `FakeVehicle.kt`(M2, 도메인마다 `TestVerifier` 하나를 감싼다) | 차량 측 검증·응답 암호화 재현 |
 | `internal/log` | – | `:domain` `port/TeslaLogger.kt` | Go `internal/log`(Error/Warning/Info/Debug) → `LogLevel`, `TeslaLogger` 함수형 인터페이스, 기본 `NoOp` |
-| `pkg/protocol/protobuf/*.proto` | 1,930 | `:domain` `src/commonMain/proto/` (복사본, 무수정) | Wire 입력. 파일 헤더에 출처 커밋 표기 |
+| `pkg/protocol/protobuf/*.proto` | 1,930 | `:domain` `src/commonMain/proto/` (2026-10-18부터 `{{PROTO_SCHEMA_REPO}}` 스냅샷의 무수정 복사본, ADR-0002 개정) | Wire 입력. 출처는 `PROTO_SOURCE.md`와 `NOTICE` |
 
 ---
 
@@ -747,6 +747,8 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 | 7 | `00-agent-guide.md`:142 | `ble.go:345` | 표 머리 "Read/notify" — 원본은 indication 구독 | **원본을 따름**(ADR-0003 스파이크로 실기기 확인). 매뉴얼은 승인 전 수정하지 않음 |
 | 8 | `10-porting-guide.md` §12 보안 체크리스트 | `pkg/connector/ble/ble.go` `-debug` 로그(TX/RX 암호문 헥사) | 매뉴얼은 "복호화 전 페이로드를 로그에 남기지 말 것" — 복호화 전은 암호문이라 같은 줄 설명과 충돌. 뜻은 평문 | 평문 페이로드를 어떤 레벨에서도 로그에 쓰지 않음(FR-112). 2026-10-17 사용자 승인으로 매뉴얼 수정 완료(PRD FR-112, 이 문서 §보안도 같은 표현으로 정정) |
 | 9 | `03-ble-transport.html` `#sec-ids` (ko/en/ja) | `pkg/connector/ble/ble.go:291-300` | 매뉴얼은 "이름이 일치하지만 다른 값을 가진 광고"에서 `unexpected local name` 오류가 난다고 설명. 원본은 호출자가 넘긴 `ScanResult`의 이름이 VIN에서 계산한 이름과 다를 때 재시도 불가 오류 | **원본을 따름**. 2026-10-17 사용자 승인으로 HTML 세 언어 수정 완료(MD `02-ble-transport.md`는 원래 맞음) |
+
+**스키마 출처와 원본(ADR-0002 개정 2026-10-18).** `.proto`는 `{{PROTO_SCHEMA_REPO}}`@`{{PROTO_SCHEMA_COMMIT}}` 스냅샷이지만 동작 기준은 공식 Go다. 공식 Go에 없는 스냅샷 값의 처리: `Session_Info_Status` 2(`INVALID_HANDLE`)는 Go `default: ErrUnknown`처럼 `UnknownResponse`; `MessageFault_E` 29는 `ProtocolFault`(Go는 `RoutableMessageError{Code: 29}`, 메시지 "unrecognized error code 29" — 우리 메시지는 enum 이름)이며 재시도 대상 아님; `WhitelistOperation_information_E` 29~32와 `GenericError_E` 8·9는 이름 있는 `KeychainRejected`·`VcsecRejected`(Go는 코드 숫자만); 새 `Role`·`KeyFormFactor` 값은 모델 `UNKNOWN`; `Domain` 4·5·7·8은 이름 있는 도메인으로 읽히고 핸들러가 없어 드롭(Go와 결과 같음). 응답 AAD의 도메인 값은 Go처럼 원시 값이 된다(전에는 0으로 대체; 이 도메인들은 세션이 없어 복호화하지 않는다).
 
 HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 나머지 내용은 이번 설계에서 인용한 범위(`01`, `02`, `03`, `05`, `08`, `10`)에서 원본과 일치했다.
 

@@ -2821,6 +2821,19 @@ final class TimeoutsTests: XCTestCase {
 - [ ] **Step 5: 인계 노트.** `{{HANDOFF_DIR}}<날짜>-m4-pairing-vcsec.md`(`{{WORKFLOW_FILE}}` §10 형식: 목표, 완료(PR 목록), 실차 표, 진행 중, 결정, 막힌 점 — M5로 넘기는 것: `vehicle.events`·응답/푸시 구분 ADR(후보 A+B+C+D+F), #71 규칙 재검토, `VehicleAsleep`, 골든 미수집이면 그 사실, 범위 밖 항목 목록), 다음 한 걸음(M5 상세 계획), 읽을 파일). 판정 기록은 `{{HANDOFF_DIR}}<날짜>-m4-rulings.md`(원장 `.superpowers/sdd/2026-10-18-m4-pairing-vcsec/progress.md`의 `Ruling:` 전체).
 - [ ] **Step 6: 최종 리뷰·병합.** 새 컨텍스트 리뷰어(opus)로 M4 전체 브랜치 범위(`git diff <M4 시작 커밋>..origin/main`)를 DoD + 문서·코드 일치로 검토 → 지적 처리 → verify.sh → `docs: M4 complete …` PR → rebase merge → `/clear` 제안.
 
+### Task 12: Teslemetry command proto 스냅샷 도입 — 9개 교체, ADR-0002 개정 (공개 API: 생성 타입 증가)
+
+Refs: NFR-008, NFR-017, ADR-0002. 결정: `.superpowers/sdd/2026-10-18-m4-pairing-vcsec/codex-proto-ext.md`(선택지 A) + 사용자 요청 "Teslemetry/tesla-protocol 에 정의된 것들부터 정의해 달라". 브랜치 `m4/teslemetry-protos`.
+참고: `{{MANUAL_DIR}}03-protocol.md`, `10-porting-guide.md`, 공식 Go proto(`{{REF_REPO_COMMIT}}`), `{{PROTO_SCHEMA_REPO}}`@`{{PROTO_SCHEMA_COMMIT}}`.
+
+- 호환성 비교 먼저: 9개 파일의 package/`java_package`/import, 기존 번호의 이름·타입·oneof, 예약 번호. 우리가 쓰는 필드에 타입·oneof·번호 변화가 있으면 중단(결과: 없음, `GetVehicleData` 예약 5·6·12·13 해제는 새 필드뿐).
+- RED: `TeslemetrySchemaWireTest`(VehicleStatus 6 `uiDesire`·7 `gear`, FromVCSECMessage 3 `authenticationRequest`, 8·48·53은 unknownFields로 보존·왕복), 새로 알게 된 오류 코드(`KeychainRejected` 29, `VcsecRejected` 8, `ProtocolFault` 29), 관찰 로그 이름.
+- 교체: `tools/proto/sync-protos.sh <checkout>`(고정 SHA 확인, 9개만, 네트워크 없음). `PROTO_SOURCE.md`, `NOTICE`, `check-license.sh`.
+- 적응: 망라 `when`(`INVALID_HANDLE` → `UnknownResponse`, 새 `Role`·`KeyFormFactor` → `UNKNOWN`), `:domain` `UNNECESSARY_NOT_NULL_ASSERTION` 끔(생성 코드), 기존 "모르는 값" 테스트는 스냅샷에도 없는 값(도메인 6 등)으로.
+- 관찰 로그: `uiDesire=`·`gear=`, `authenticationRequest{requestedLevel, reasons, token=NB}`, VehicleStatus 상세 집합 {8}.
+- 문서: ADR-0002 개정 절, SDD D22·§12, `{{PATHS_FILE}}` 키 2개(별도 `docs:` 커밋), `apiDump`, 라이브러리 사용 문서 11·13·18·19(MD + HTML 3언어).
+- 하지 않을 것: 확장 필드를 쓰는 명령·공개 이벤트 API, 공개 모델 enum 값 추가, `session.proto`.
+
 ---
 
 ## 계획 검토 기록
