@@ -75,6 +75,7 @@ public class FakeVehicle(
         var attachSessionInfoOnce = false
         var lastReply: Pair<FakeTransport, ByteArray>? = null
         var asleep = false
+        val plaintexts = mutableListOf<ByteArray>()
     }
 
     private val domains = ALL_DOMAINS.associateWith { DomainState() }
@@ -97,6 +98,9 @@ public class FakeVehicle(
 
     /** 도메인의 검증자. 핸드셰이크나 인증 명령을 한 번 받아야 존재한다. */
     public fun verifier(domain: Domain): TestVerifier = checkNotNull(domains.getValue(domain).verifier) { "no verifier for $domain yet" }
+
+    /** 검증에 성공한 인증 명령의 평문 페이로드(받은 순서, 사본). 명령 빌더가 Go와 같은 바이트를 보냈는지 확인하는 데 쓴다. */
+    public fun authenticatedPayloads(domain: Domain): List<ByteArray> = domains.getValue(domain).plaintexts.map { it.copyOf() }
 
     /** 도메인의 현재 epoch. */
     public fun epoch(domain: Domain): ByteArray = verifier(domain).epoch
@@ -248,7 +252,10 @@ public class FakeVehicle(
         val verifier = verifierFor(state, domain, clientPublic)
         return when (val result = verifier.verify(message)) {
             is TestVerifier.VerifyResult.Fault -> listOf(attachSessionInfo(state, faultReply(message, result.fault), result.sessionInfo))
-            is TestVerifier.VerifyResult.Ok -> scriptedReplies(state, domain, message, verifier)
+            is TestVerifier.VerifyResult.Ok -> {
+                state.plaintexts += result.plaintext.copyOf()
+                scriptedReplies(state, domain, message, verifier)
+            }
         }
     }
 

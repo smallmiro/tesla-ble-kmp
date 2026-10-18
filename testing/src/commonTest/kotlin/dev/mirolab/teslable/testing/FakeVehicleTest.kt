@@ -17,6 +17,7 @@ import dev.mirolab.teslable.protocol.RequestHash
 import dev.mirolab.teslable.protocol.Session
 import dev.mirolab.teslable.protocol.Signer
 import dev.mirolab.teslable.protocol.SignerResult
+import dev.mirolab.teslable.util.toHex
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.TestScope
@@ -506,5 +507,15 @@ class FakeVehicleTest {
             val message = c.encrypt(signer, c.command(domain, plaintext))
             c.fake.shiftClock(domain, -1.hours)
             assertFault(c.exchange(message), MessageFault_E.MESSAGEFAULT_ERROR_NONE, expectSessionInfo = false)
+        }
+
+    @Test
+    fun recordsPlaintextOfVerifiedCommands() =
+        runTest {
+            val c = client()
+            val signer = c.handshake(domain)
+            val message = c.encrypt(signer, c.command(domain, byteArrayOf(0x10, 0x01)))
+            assertFault(c.exchange(message), MessageFault_E.MESSAGEFAULT_ERROR_NONE, expectSessionInfo = false)
+            assertEquals(listOf("1001"), c.fake.authenticatedPayloads(domain).map { it.toHex() })
         }
 }
