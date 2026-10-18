@@ -38,6 +38,8 @@ write retry loops.
 | `InfotainmentRejected(reason)` | `actionStatus ERROR` | false | false |
 | `TransportError.*` | Scan, connect, write (M3) | true only for `ScanTimeout`, `ConnectFailed`, `WriteFailed` | false |
 | `KeyStoreError.*` | Key store (M3) | false | false |
+| `Timeout(afterSend)` | Command timed out | true | `afterSend` |
+| `InvalidArgument(detail)` | Bad call argument | false | false |
 
 **Proto schema and error codes (2026-10-18, ADR-0002 revision).** "In the proto schema" means the pinned
 Teslemetry/tesla-protocol snapshot (`19-lib-architecture.md`), a superset of the official protos. Codes it defines are no
@@ -49,10 +51,9 @@ longer reported as `Unknown*` with a raw code but as the named type, with the sa
 | `MessageFault` 29 `MESSAGEFAULT_ERROR_COMMAND_REQUIRES_PHYSICAL_PROXIMITY` | `UnknownFault(29)` | `ProtocolFault(fault)`, not retried |
 | `whitelistOperationInformation` 29–32 (rider and predelivery key rules) | `UnknownKeychainCode(n)` | `KeychainRejected(code)` |
 | `GenericError` 8 `GENERICERROR_KEY_NOT_FOUND`, 9 `GENERICERROR_NOT_SUPPORTED` | `UnknownVcsecError(n)` | `VcsecRejected(error)` |
+| session_info status 2 `SESSION_INFO_STATUS_INVALID_HANDLE` | `UnknownResponse` | `UnknownResponse` (the official Go code does not know it either) |
 
 Match on the error type, not on `message`: `message` now carries the code name instead of the number.
-| `Timeout(afterSend)` | Command timed out | true | `afterSend` |
-| `InvalidArgument(detail)` | Bad call argument | false | false |
 
 ## Transport and key store errors (M3)
 
