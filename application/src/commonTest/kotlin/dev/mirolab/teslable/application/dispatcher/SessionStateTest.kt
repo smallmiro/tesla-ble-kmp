@@ -219,7 +219,17 @@ class SessionStateTest {
             runCurrent() // authorize가 준비 신호를 기다린다
             loadVcsecSessionFromCache(session) // 준비 신호 완료 — authorize는 재개 가능하지만 아직 실행되지 않았다
             session.invalidate() // 재개 전에 무효화
+            loadVcsecSessionFromCache(session) // 새 Signer·새 신호 — 옛 신호 식별 검사가 막아야 한다(signer는 null이 아니다)
             val result = assertIs<SignerResult.Fault>(waiting.await())
+            assertEquals(SessionState.NO_SESSION, result.detail)
+        }
+
+    @Test
+    fun authorizeNowOnANeverReadySessionFailsWithNoSessionWithoutWaiting() =
+        runTest {
+            val h = dispatcherHarness(start = false)
+            val session = checkNotNull(h.dispatcher.session(Domain.DOMAIN_VEHICLE_SECURITY))
+            val result = assertIs<SignerResult.Fault>(session.authorizeNow(testCommand(Domain.DOMAIN_VEHICLE_SECURITY), 5.seconds))
             assertEquals(SessionState.NO_SESSION, result.detail)
         }
 }
