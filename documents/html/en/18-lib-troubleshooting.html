@@ -163,7 +163,7 @@
 <tr><td>Key-like LEN</td><td>Exactly 16, 32, 33, 64 or 65 bytes: <code>redacted(NB)</code>. A 65-byte value that starts with <code>0x04</code>: <code>sha1:xxxxxxxx</code></td></tr>
 </tbody>
 </table>
-<p>VINs (17 characters) are masked in text and in raw bytes before any hex is produced; only the first 3 and last 4 characters stay. This output is for exploration only. It does not tell what a field means, and a missing <code>closureStatuses</code> in a broadcast does not mean that everything is closed.</p>
+<p>VINs (17 characters) are masked in text and in raw bytes before any hex is produced; only the first 3 and last 4 characters stay. Masking runs on the raw bytes before they are parsed, so masked bytes can change the value or structure that is shown (nothing leaks). This output is for exploration only. It does not tell what a field means, and a missing <code>closureStatuses</code> in a broadcast does not mean that everything is closed.</p>
 <h3>Limits and rules</h3>
 <ul>
 <li>Detailed decoding is a narrow exception, and only for frames the car originally sent as plaintext (never for anything the library decrypted, so FR-112 is unaffected). All of these must hold: from the security domain, to the broadcast domain, empty request UUID, no signature, no session info, and a payload that reads as <code>FromVCSECMessage</code>. Then only <code>FromVCSECMessage</code> unknown fields 48 and 53 and <code>VehicleStatus</code> unknown fields 7 and 8 are decoded. Every other field and frame keeps the number-only form.</li>
