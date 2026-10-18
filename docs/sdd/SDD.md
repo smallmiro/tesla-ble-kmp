@@ -681,6 +681,8 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 
 `{{WORKFLOW_FILE}}` §8.4의 9개 시나리오에 **페어링 진행 이벤트(D28) 관찰**을 추가한다: `addKeyRequest` 수집 중 `WaitingForTap`/`Accepted`가 실제로 오는지, 오지 않으면 `Unknown(raw)` 바이트를 보고.
 
+푸시 관찰 7개 시나리오(M4 Task 1)는 `samples/ios/README.md`의 "실차 푸시 관찰" 절.
+
 ---
 
 ## 10. 로깅과 보안 (FR-112, NFR-004~006)
@@ -693,6 +695,7 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 - `protocol.md` 테스트 키는 `:testing`에만 존재하고 `:sdk`에서 참조하지 않는다(detekt `ForbiddenImport`로 `:testing` → 운영 모듈 유입 차단).
 - 비밀 스캔 로컬 게이트(`tools/ci/verify.sh`, ADR-0012): `[A-HJ-NPR-Z0-9]{17}` VIN 패턴은 테스트 VIN(`5YJ30123456789ABC`, `5YJS0000000000000`, `0123456789ABCDEFG`) 허용 목록만 통과.
 - 서버 없음: Android 매니페스트에 `INTERNET` 권한이 없어야 하며, 로컬 게이트가 확인한다.
+- 관찰 로그(M4): `Dispatcher`가 버리는 메시지와 VCSEC 응답마다 요약 한 줄을 `DEBUG`, 태그 `observe`로 남긴다. 바이트 필드는 길이만, 공개키는 SHA-1 앞 4바이트만, 암호문과 세션정보는 길이만 쓰고, 감싸지 않은 프레임은 `FromVCSECMessage`로 다시 해석해 요약한다(평문 페이로드는 쓰지 않는다, FR-112). 형식은 `{{LIB_DOCS_DIR}}18-lib-troubleshooting.md` "Observation log". BLE inbox 넘침은 연결당 횟수를 세어 연결이 끝날 때 한 줄 남긴다.
 
 ---
 
@@ -734,6 +737,7 @@ HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 
 
 ### 원본과 다른 동작 (의도)
 
+- `Dispatcher`가 버리는 메시지·VCSEC 응답의 요약을 DEBUG로 남긴다(Go는 조용히 버린다, `dispatcher.go:269-293`); BLE inbox 넘침을 센다(`ble.go:78-82`). 버리는 동작은 같다.
 - `Framer.frame`는 1024바이트를 넘는 메시지를 `IllegalArgumentException`으로 거부한다. Go `Connection.Send`(`pkg/connector/ble/ble.go`)는 검사하지 않지만 차량이 1024바이트 초과 메시지를 버리므로(`maxBLEMessageSize`) 정상 입력의 wire 바이트는 동일하다. 근거: NFR-017, 최종 리뷰 M-5.
 - `Signer.encrypt`는 `expiresIn`으로 계산한 만료 초가 음수이거나 2^30(`CommandMetadata.EPOCH_LENGTH_SECONDS`)을 넘으면 `BAD_PARAMETER`로 거부한다. Go는 먼저 `uint32`로 잘라서 2^32 이상이면 wrap된 값으로 검사한다. 정상 수명에서는 도달 불가.
 - `Signer.decrypt`의 인증 실패는 `SignerResult.Fault(INVALID_SIGNATURE)`다. Go는 AEAD 오류를 그대로 돌려준다(둘 다 드롭 대상이라는 결과는 같다).

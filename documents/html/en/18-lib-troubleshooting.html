@@ -55,13 +55,14 @@
 </nav>
 <main class="content">
 <h1>18. Troubleshooting</h1>
-<p class="lead">Common problems with scanning, connecting and keys, what usually causes them, and what to do. Problems specific to pairing and commands are added with M4 and M5.</p>
+<p class="lead">Common problems with scanning, connecting and keys, what usually causes them, and what to do. Problems specific to pairing and commands are added with M4 and M5. A development-only observation log is described at the end.</p>
 
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#sec-scan">Scanning and connecting</a></li>
 <li><a href="#sec-keys">Keys and sessions</a></li>
 <li><a href="#sec-other">Other messages</a></li>
 <li><a href="#sec-logs">Debug logging</a></li>
+<li><a href="#sec-observe">Observation log (development)</a></li>
 </ol></div>
 
 <h2 id="sec-scan">Scanning and connecting</h2>
@@ -111,6 +112,38 @@
 <p>The library masks VINs and never logs private keys, session keys, nonces or decrypted content. Keep it that way in your own logs: do not print <code>vin.value</code>, and mask VINs before sharing logs.</p>
 </div>
 <p>To report a problem, use the iOS sample's "copy whole result" button log together with <code>DebugLogger</code>. There is no probe or diagnostics entry point.</p>
+
+<h2 id="sec-observe">Observation log (development)</h2>
+<p>While you develop, the library can write one summary line for every message it drops and for every reply from the vehicle security domain. It shows what the car sends without being asked. It changes no behaviour: the library still drops those messages (<code>vehicle.events</code> is planned for M5).</p>
+<ul>
+<li>Tag <code>observe</code>, level <code>DEBUG</code>. A logger that discards <code>DEBUG</code> never builds the line. Visible through <code>DebugLogger()</code> or your own <code>TeslaLogger</code>. The iOS sample's observation mode collects only these lines.</li>
+<li>Shape: <code>[point] NB from=… to=… request_uuid=… payload=…</code>, where <code>NB</code> is the size of the received frame.</li>
+</ul>
+<table>
+<thead><tr><th>Part</th><th>Values</th></tr></thead>
+<tbody>
+<tr><td><code>[drop:unparseable]</code></td><td>The frame did not decode as a routable message. The line ends with <code>reinterpreted=…</code> (or <code>undecodable</code>)</td></tr>
+<tr><td><code>[drop:missing-source]</code></td><td>No source. The line ends with <code>reinterpreted=…</code>: the same bytes read as an unwrapped <code>FromVCSECMessage</code></td></tr>
+<tr><td><code>[drop:missing-destination]</code></td><td>No destination (the typical push from the car)</td></tr>
+<tr><td><code>[drop:to-domain]</code></td><td>Addressed to a domain, not to a client address</td></tr>
+<tr><td><code>[drop:malformed]</code></td><td>Wrong request UUID length or wrong address length</td></tr>
+<tr><td><code>[drop:no-handler]</code></td><td>A valid address, but no open request owns it</td></tr>
+<tr><td><code>[drop:handler-closed]</code>, <code>[drop:queue-full]</code></td><td>The matching request closed meanwhile, or its answer queue was full</td></tr>
+<tr><td><code>[reply:vcsec]</code></td><td>A security-domain reply delivered to an open request</td></tr>
+<tr><td><code>from=</code>, <code>to=</code></td><td><code>domain(DOMAIN_X)</code>, <code>address(16B, self|open-request|other)</code> (<code>to=</code> only), <code>none</code>, <code>empty</code></td></tr>
+<tr><td><code>payload=</code></td><td><code>FromVCSECMessage{…}</code>, <code>Response{fields=[…]}</code>, <code>encrypted(NB)</code>, <code>NB</code>, <code>none</code></td></tr>
+<tr><td><code>unknownFields=[n]</code></td><td>Field numbers on the wire that the generated protocol does not know</td></tr>
+<tr><td><code>absent=[…]</code></td><td>Parts of the vehicle status the car did not send (<code>closureStatuses</code>, <code>detailedClosureStatus</code>)</td></tr>
+<tr><td><code>key=sha1:xxxxxxxx</code></td><td>A public key: only the first 4 bytes of its SHA-1</td></tr>
+</tbody>
+</table>
+<h3>Limits and rules</h3>
+<ul>
+<li>A missing enum value cannot be told from its zero value: an absent lock state reads <code>VEHICLELOCKSTATE_UNLOCKED</code> (sleep and presence read <code>UNKNOWN</code>). Only message parts can be reported as <code>absent</code>.</li>
+<li>Encrypted content and session info appear by length only, public keys by SHA-1 prefix only. The VIN and decrypted content never appear. Keep this rule when you add lines.</li>
+<li>The BLE transport counts inbox overflows per connection. Each dropped message logs <code>Dropping received message because inbox is full (dropped N since connect)</code> at <code>ERROR</code>; when the link ends, one line <code>BLE inbox overflowed N time(s) during this connection</code> is logged at <code>WARN</code> (only if N is above 0).</li>
+<li><code>DebugLogger</code> also prints the raw BLE bytes (<code>TX:</code> and <code>RX:</code>) at <code>DEBUG</code>. Do not share such platform logs.</li>
+</ul>
 
 <footer class="page-nav">
   <a href="17-lib-platform-notes.html"><span>Previous</span>17. Platform Notes</a>

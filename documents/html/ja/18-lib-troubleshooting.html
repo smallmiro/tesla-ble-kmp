@@ -55,13 +55,14 @@
 </nav>
 <main class="content">
 <h1>18. トラブルシューティング</h1>
-<p class="lead">スキャン、接続、キーでよくある問題と、その主な原因および対処法をまとめます。ペアリングとコマンドに固有の問題は M4 と M5 で追加します。</p>
+<p class="lead">スキャン、接続、キーでよくある問題と、その主な原因および対処法をまとめます。ペアリングとコマンドに固有の問題は M4 と M5 で追加します。開発用の観察ログは末尾で説明します。</p>
 
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-scan">スキャンと接続</a></li>
 <li><a href="#sec-keys">キーとセッション</a></li>
 <li><a href="#sec-other">その他のメッセージ</a></li>
 <li><a href="#sec-logs">デバッグログ</a></li>
+<li><a href="#sec-observe">観察ログ（開発用）</a></li>
 </ol></div>
 
 <h2 id="sec-scan">スキャンと接続</h2>
@@ -111,6 +112,38 @@
 <p>ライブラリは VIN をマスクし、秘密鍵、セッションキー、ノンス、復号した内容を決してログに出しません。自分のログでもこれを守ってください。<code>vin.value</code> を出力せず、ログを共有する前に VIN をマスクしてください。</p>
 </div>
 <p>問題を報告するときは、iOS サンプルの「結果全体をコピー」ボタンで得たログと <code>DebugLogger</code> を使ってください。プローブや診断用のエントリポイントはありません。</p>
+
+<h2 id="sec-observe">観察ログ（開発用）</h2>
+<p>開発中、ライブラリは破棄するメッセージごと、および車両セキュリティドメインの応答ごとに、要約を1行ログに出せます。車が要求なしに送ってくるものを確認できます。動作は変わりません。ライブラリはこれらのメッセージを今も破棄します（<code>vehicle.events</code> は M5 で計画）。</p>
+<ul>
+<li>タグ <code>observe</code>、レベル <code>DEBUG</code>。<code>DEBUG</code> を捨てるロガーはこの行を組み立てもしません。<code>DebugLogger()</code> または自作の <code>TeslaLogger</code> で見られます。iOS サンプルの観察モードはこの行だけを集めます。</li>
+<li>形式: <code>[地点] NB from=… to=… request_uuid=… payload=…</code>。<code>NB</code> は受信したフレームのサイズです。</li>
+</ul>
+<table>
+<thead><tr><th>項目</th><th>値</th></tr></thead>
+<tbody>
+<tr><td><code>[drop:unparseable]</code></td><td>フレームがルーティングメッセージとして解釈できませんでした。行末に <code>reinterpreted=…</code>（または <code>undecodable</code>）が付きます</td></tr>
+<tr><td><code>[drop:missing-source]</code></td><td>送信元がありません。行末の <code>reinterpreted=…</code> は同じバイト列をラップされていない <code>FromVCSECMessage</code> として読んだ結果です</td></tr>
+<tr><td><code>[drop:missing-destination]</code></td><td>宛先がありません（車からのプッシュの典型）</td></tr>
+<tr><td><code>[drop:to-domain]</code></td><td>クライアントのアドレスではなくドメイン宛てです</td></tr>
+<tr><td><code>[drop:malformed]</code></td><td>リクエスト UUID の長さまたはアドレスの長さが不正です</td></tr>
+<tr><td><code>[drop:no-handler]</code></td><td>正しいアドレスですが、そのアドレスの開いたリクエストがありません</td></tr>
+<tr><td><code>[drop:handler-closed]</code>, <code>[drop:queue-full]</code></td><td>対応するリクエストがその間に閉じた、または応答キューが満杯でした</td></tr>
+<tr><td><code>[reply:vcsec]</code></td><td>開いたリクエストに渡されたセキュリティドメインの応答です</td></tr>
+<tr><td><code>from=</code>, <code>to=</code></td><td><code>domain(DOMAIN_X)</code>, <code>address(16B, self|open-request|other)</code>（<code>to=</code> のみ）, <code>none</code>, <code>empty</code></td></tr>
+<tr><td><code>payload=</code></td><td><code>FromVCSECMessage{…}</code>, <code>Response{fields=[…]}</code>, <code>encrypted(NB)</code>, <code>NB</code>, <code>none</code></td></tr>
+<tr><td><code>unknownFields=[n]</code></td><td>通信上にはあったが、生成されたプロトコルが知らないフィールド番号です</td></tr>
+<tr><td><code>absent=[…]</code></td><td>車が送ってこなかった車両状態の部分です（<code>closureStatuses</code>, <code>detailedClosureStatus</code>）</td></tr>
+<tr><td><code>key=sha1:xxxxxxxx</code></td><td>公開鍵: SHA-1 の先頭4バイトだけを記します</td></tr>
+</tbody>
+</table>
+<h3>制限とルール</h3>
+<ul>
+<li>enum の値が欠けている場合と 0 番の値は区別できません。ロック状態がなければ <code>VEHICLELOCKSTATE_UNLOCKED</code> と読めます（sleep と presence は <code>UNKNOWN</code>）。<code>absent</code> として分かるのはメッセージの部分だけです。</li>
+<li>暗号化された内容とセッション情報は長さだけ、公開鍵は SHA-1 の先頭だけを記します。VIN と復号した内容は出力されません。行を追加するときもこのルールを守ってください。</li>
+<li>BLE トランスポートは接続ごとに受信バッファの溢れを数えます。破棄したメッセージごとに <code>ERROR</code> で <code>Dropping received message because inbox is full (dropped N since connect)</code> を出し、リンクが終わると <code>WARN</code> で <code>BLE inbox overflowed N time(s) during this connection</code> を1行出します（N が 0 より大きいときだけ）。</li>
+<li><code>DebugLogger</code> は <code>DEBUG</code> で BLE の生バイト（<code>TX:</code>、<code>RX:</code>）も出力します。このようなプラットフォームのログは共有しないでください。</li>
+</ul>
 
 <footer class="page-nav">
   <a href="17-lib-platform-notes.html"><span>前へ</span>17. プラットフォームノート</a>
