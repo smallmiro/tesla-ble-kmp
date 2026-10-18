@@ -27,6 +27,8 @@
 | `REF_REPO_DIR` | `vehicle-command/` | 공식 Go 저장소 로컬 클론. **git-ignored, 읽기 전용** |
 | `REF_REPO_URL` | `https://github.com/teslamotors/vehicle-command` | 원본 저장소 |
 | `REF_REPO_COMMIT` | `a4b43c1eff0e09d77deb9f2dce97031141fe8c8a` | 포팅 기준 커밋 (2026-09-25) |
+| `PROTO_SCHEMA_REPO` | `https://github.com/Teslemetry/tesla-protocol` | protobuf 스키마 출처 (Apache-2.0, `proto/command/` 9개만 사용). 의미·암호·라우팅의 정답 기준은 계속 `{{REF_REPO_URL}}` (ADR-0002 개정 2026-10-18) |
+| `PROTO_SCHEMA_COMMIT` | `e6f7afb1b633d7215e34d0cdac66dab983c6ae78` | 스키마 고정 커밋. `tools/proto/sync-protos.sh` 의 `EXPECTED_COMMIT` 과 같아야 함 |
 | `POC_DIR` | `reference/poc/` | 검증된 PoC 코드 |
 | `LIB_NAME` | `tesla-ble-kmp` | 라이브러리 / Gradle 루트 이름 (= GitHub 저장소 이름, 2026-09-26 확정) |
 | `REPO_URL` | `https://github.com/smallmiro/tesla-ble-kmp` | 공개 저장소 (Apache-2.0). 브랜치 `main` 보호 |
