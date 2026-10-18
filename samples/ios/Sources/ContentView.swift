@@ -3,6 +3,7 @@ import UIKit
 
 struct ContentView: View {
     @StateObject private var model = SampleModel()
+    @State private var memo = ""
     @State private var copied = false
     @State private var copyReset: Task<(), Never>?
 
@@ -21,6 +22,10 @@ struct ContentView: View {
                 Section("관찰 (요청 없이 수신만 기록)") {
                     Toggle("관찰 모드", isOn: $model.observing)
                     Text("받은 메시지 \(model.observations.count)줄")
+                    TextField("메모 (행동 직전/직후 적기, 비밀 입력 금지)", text: $memo)
+                        .disabled(!model.observing)
+                    Button("표시") { if model.mark(memo) { memo = "" } }
+                        .disabled(!model.observing || memo.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                     Button("관찰 기록 지우기", role: .destructive) { model.clearObservations() }
                     ForEach(Array(model.observations.suffix(200).enumerated()), id: \.offset) {
                         Text($0.element).font(.caption2.monospaced()).textSelection(.enabled)
