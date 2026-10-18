@@ -86,7 +86,11 @@ public class Pairing internal constructor(
         timeout: Duration,
         inputs: Channel<Input>,
     ) {
-        val sent = vcsec.exclusive { dispatcher.sendUnrouted(envelope) }
+        val sent =
+            vcsec.exclusive {
+                discardStaleFrames(inputs)
+                dispatcher.sendUnrouted(envelope)
+            }
         if (sent is VehicleResult.Failure) {
             send(PairingEvent.Failed(sent.error))
             return
@@ -106,5 +110,17 @@ public class Pairing internal constructor(
                 false
             }
         if (finished != true) send(PairingEvent.TimedOut)
+    }
+
+    /** 락을 기다리는 동안 들어온 프레임은 이전 페어링의 늦은 결과일 수 있다 — 버린다(탭은 이미 구독 중). 링크 끊김은 남긴다. */
+    private fun discardStaleFrames(inputs: Channel<Input>) {
+        var linkLost: Input.LinkLost? = null
+        while (true) {
+            when (val stale = inputs.tryReceive().getOrNull() ?: break) {
+                is Input.Frame -> Unit
+                is Input.LinkLost -> linkLost = stale
+            }
+        }
+        linkLost?.let { inputs.trySend(it) }
     }
 }

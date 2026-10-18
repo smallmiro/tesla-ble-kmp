@@ -23,7 +23,6 @@ public final class dev/mirolab/teslable/application/dispatcher/Dispatcher {
 	public final fun requestSessionInfo (Lcom/tesla/generated/universalmessage/Domain;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun send-exY8QGI (Lcom/tesla/generated/universalmessage/RoutableMessage;Ldev/mirolab/teslable/port/AuthMethod;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun send-exY8QGI$default (Ldev/mirolab/teslable/application/dispatcher/Dispatcher;Lcom/tesla/generated/universalmessage/RoutableMessage;Ldev/mirolab/teslable/port/AuthMethod;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public final fun sendUnrouted ([BLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun session (Lcom/tesla/generated/universalmessage/Domain;)Ldev/mirolab/teslable/application/dispatcher/SessionState;
 	public final fun setMaxLatency-LRDsOJo (J)V
 	public final fun start ()V
