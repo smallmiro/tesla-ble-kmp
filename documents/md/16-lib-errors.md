@@ -1,6 +1,6 @@
 # Error Handling
 
-Scope: M1 error model, M2 retries and timeouts, M3 transport and key store errors. Per-command re-query guidance is
+Scope: M1 error model, M2 retries and timeouts, M3 transport and key store errors, M4 `InsufficientPrivileges` and `UnknownVcsecError`. Per-command re-query guidance is
 added with M4/M5. Go original: `08-errors.md` (MessageFault meanings and remedies in §3.1).
 
 ## Three outcomes (`VehicleResult<T>`)
@@ -24,11 +24,13 @@ write retry loops.
 
 | Type | When | temporary | mayHaveSucceeded |
 |---|---|---|---|
-| `ProtocolFault(fault)` | The vehicle sent a `MessageFault` code | true only for BUSY, TIMEOUT, INVALID_SIGNATURE, INVALID_TOKEN_OR_COUNTER, INTERNAL, INCORRECT_EPOCH, TIME_EXPIRED, TIME_TO_LIVE_TOO_LONG | true only for NONE, RESPONSE_MTU_EXCEEDED |
+| `ProtocolFault(fault)` | The vehicle sent a `MessageFault` code (except `UNKNOWN_KEY_ID` → `KeyNotPaired`, `INSUFFICIENT_PRIVILEGES` → `InsufficientPrivileges`) | true only for BUSY, TIMEOUT, INVALID_SIGNATURE, INVALID_TOKEN_OR_COUNTER, INTERNAL, INCORRECT_EPOCH, TIME_EXPIRED, TIME_TO_LIVE_TOO_LONG | true only for NONE, RESPONSE_MTU_EXCEEDED |
 | `KeyNotPaired` | `UNKNOWN_KEY_ID`, or session_info `KEY_NOT_ON_WHITELIST` | false | false |
+| `InsufficientPrivileges` | `INSUFFICIENT_PRIVILEGES` (fault 7): the key's role or the vehicle state does not allow the command (Driver managing keys, Vehicle Monitor sending control commands, driving, valet) | false | false |
 | `Busy` | `operation_status WAIT` | true | false |
 | `UnknownFault(rawCode)` | A `MessageFault` code this library does not know (newer firmware). `message` is `unrecognized error code <rawCode>`; check for a library update | false | false |
 | `UnknownKeychainCode(rawCode)` | A `whitelistOperationInformation` code this library does not know. `message` is `keychain operation failed: unrecognized code <rawCode>` | false | false |
+| `UnknownVcsecError(rawCode)` | A VCSEC `nominalError` code this library does not know. `message` is `vcsec could not execute command: unrecognized error code <rawCode>` | false | false |
 | `UnknownResponse` | Unrecognized `session_info.status` or `operation_status` value (no code) | false | false |
 | `NotConnected`, `NoSession`, `RequiresKey` | Call order error | false | false |
 | `BadResponse(detail)` | Response could not be parsed | false | true for VCSEC and Infotainment responses |

@@ -2,6 +2,7 @@
 // isWhitelistOperationComplete, executeRKEAction/getVCSECInfo done
 package dev.mirolab.teslable.application.vcsec
 
+import com.tesla.generated.errors.NominalError
 import com.tesla.generated.universalmessage.RoutableMessage
 import com.tesla.generated.vcsec.CommandStatus
 import com.tesla.generated.vcsec.FromVCSECMessage
@@ -22,6 +23,7 @@ import dev.mirolab.teslable.protocol.unknownVarint
 @OptIn(InternalTeslableApi::class)
 public object VcsecResponses {
     private const val TAG_WHITELIST_OPERATION_INFORMATION = 1
+    private const val TAG_GENERIC_ERROR = 1 // errors.proto NominalError.genericError
 
     /** Go `isTerminalTest`: 이 메시지로 끝낼지. */
     public fun interface TerminalTest {
@@ -63,10 +65,8 @@ public object VcsecResponses {
      * payload가 없으면 빈 메시지(성공), 다른 oneof(세션정보)면 `BadResponse(mayHaveSucceeded = true)`, 파싱 실패도 `mayHaveSucceeded = true`
      * (Wire는 메시지 타입 필드가 손상되면 `okio.IOException`뿐 아니라 `IllegalStateException`도 던지므로 `decodeOrNull`로 값으로 받는다, ADR-0006).
      *
-     * 의도적 차이(설계 구체화 11): 등록되지 않은 `nominalError.genericError`도 실패로 유지하지만, 원시 코드는 보존하지 못하고
-     * [VehicleError.VcsecRejected]`(GENERICERROR_NONE)`으로 뭉개진다 — Wire가 모르는 enum 값을 이 필드의 기본값(`NONE`)으로
-     * 디코딩하기 때문이다. Go(vcsec.go 44~45행)는 `GenericError_E`가 등록된 enum이라 항상 실제 코드를 담는다. 코드 보존 여부는
-     * M4(L58)에서 재검토한다.
+     * 등록되지 않은 `nominalError.genericError`는 Wire가 `NONE`으로 읽으므로 `unknownFields`에서 되찾아
+     * [VehicleError.UnknownVcsecError]`(rawCode)`로 보존한다(L58). Go(vcsec.go 44~45행)는 항상 실제 코드를 담는다.
      */
     public fun interpret(message: RoutableMessage): VehicleResult<FromVCSECMessage> {
         ResponseClassifier.protocolError(message)?.let { return it.toResult() }
@@ -78,7 +78,7 @@ public object VcsecResponses {
         val from =
             FromVCSECMessage.ADAPTER.decodeOrNull(payload.toByteArray())
                 ?: return VehicleError.BadResponse("vcsec: undecodable response", mayHaveSucceeded = true).toResult()
-        from.nominalError?.let { return VehicleResult.Failure(VehicleError.VcsecRejected(it.genericError)) }
+        from.nominalError?.let { return VehicleResult.Failure(nominalError(it)) }
         val status = from.commandStatus ?: return VehicleResult.Success(from)
         return commandStatusError(status)?.toResult() ?: VehicleResult.Success(from)
     }
@@ -123,8 +123,13 @@ public object VcsecResponses {
             }
         }
 
+    /** Go `NominalError{NominalVCSECError}`. Wire가 모르는 코드는 `unknownFields`에서 되찾아 [VehicleError.UnknownVcsecError]. */
+    internal fun nominalError(error: NominalError): VehicleError =
+        error.unknownFields.unknownVarint(TAG_GENERIC_ERROR)?.let { VehicleError.UnknownVcsecError(it) }
+            ?: VehicleError.VcsecRejected(error.genericError)
+
     /** Go `code != NONE → KeychainError{Code}`. Wire가 모르는 코드는 `unknownFields`에서 되찾아 [VehicleError.UnknownKeychainCode]. */
-    private fun keychainError(status: WhitelistOperation_status): VehicleError? {
+    internal fun keychainError(status: WhitelistOperation_status): VehicleError? {
         status.unknownFields.unknownVarint(TAG_WHITELIST_OPERATION_INFORMATION)?.let { return VehicleError.UnknownKeychainCode(it) }
         val code = status.whitelistOperationInformation
         val none = WhitelistOperation_information_E.WHITELISTOPERATION_INFORMATION_NONE

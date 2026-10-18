@@ -39,6 +39,13 @@ public sealed interface VehicleError {
         override val temporary: Boolean = false
     }
 
+    /** `MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES`: 키 역할이나 차량 상태(주행 중, 발레 등)가 명령을 허용하지 않음(FR-104). Go `RoutableMessageError`. */
+    public data object InsufficientPrivileges : VehicleError {
+        override val message: String = "MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES"
+        override val mayHaveSucceeded: Boolean = false
+        override val temporary: Boolean = false
+    }
+
     /** `operation_status == WAIT` 또는 VCSEC `commandStatus WAIT`. Go `ErrBusy`. */
     public data object Busy : VehicleError {
         override val message: String = "vehicle busy or finishing wake-up"
@@ -123,6 +130,16 @@ public sealed interface VehicleError {
         public val error: GenericError_E,
     ) : VehicleError {
         override val message: String get() = "vcsec could not execute command: ${error.name}"
+        override val mayHaveSucceeded: Boolean get() = false
+        override val temporary: Boolean get() = false
+    }
+
+    /** 이 라이브러리의 proto 스냅샷에 없는 VCSEC `nominalError.genericError` 코드. Go `NominalVCSECError`(등록되지 않은 코드). */
+    public data class UnknownVcsecError(
+        /** 차량이 보낸 `GenericError_E` 원시 varint. */
+        public val rawCode: Int,
+    ) : VehicleError {
+        override val message: String get() = "vcsec could not execute command: unrecognized error code $rawCode"
         override val mayHaveSucceeded: Boolean get() = false
         override val temporary: Boolean get() = false
     }

@@ -82,8 +82,9 @@
 <tbody>
 <tr><td><code>ProtocolFault</code></td><td>車両がプロトコルのフォールトコードを送った</td><td>busy、timeout、署名、カウンター、内部、エポック、有効期限のフォールトのみ</td><td><code>NONE</code> と <code>RESPONSE_MTU_EXCEEDED</code> のみ</td></tr>
 <tr><td><code>KeyNotPaired</code></td><td>車両がこのキーを知らない</td><td>いいえ</td><td>いいえ</td></tr>
+<tr><td><code>InsufficientPrivileges</code></td><td>キーの役割や車両の状態(走行中、バレー)がコマンドを許可していない</td><td>いいえ</td><td>いいえ</td></tr>
 <tr><td><code>Busy</code></td><td>車両が待つよう求めた</td><td>はい</td><td>いいえ</td></tr>
-<tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UnknownResponse</code></td><td>新しいファームウェアがこのライブラリの知らないコードを送った。アップデートを確認してください</td><td>いいえ</td><td>いいえ</td></tr>
+<tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UnknownVcsecError</code>, <code>UnknownResponse</code></td><td>新しいファームウェアがこのライブラリの知らないコードを送った。アップデートを確認してください</td><td>いいえ</td><td>いいえ</td></tr>
 <tr><td><code>NotConnected</code>, <code>NoSession</code>, <code>RequiresKey</code></td><td>呼び出し順が誤っているか、キーなしで呼び出した</td><td>いいえ</td><td>いいえ</td></tr>
 <tr><td><code>BadResponse</code></td><td>応答を読み取れなかった</td><td>いいえ</td><td>VCSEC と Infotainment の応答でははい</td></tr>
 <tr><td><code>KeychainRejected</code>, <code>VcsecRejected</code>, <code>InfotainmentRejected</code></td><td>車両は理解したが拒否した</td><td>いいえ</td><td>いいえ</td></tr>

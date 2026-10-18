@@ -82,8 +82,9 @@
 <tbody>
 <tr><td><code>ProtocolFault</code></td><td>The car sent a protocol fault code</td><td>Only for busy, timeout, signature, counter, internal, epoch and expiry faults</td><td>Only for <code>NONE</code> and <code>RESPONSE_MTU_EXCEEDED</code></td></tr>
 <tr><td><code>KeyNotPaired</code></td><td>The car does not know this key</td><td>no</td><td>no</td></tr>
+<tr><td><code>InsufficientPrivileges</code></td><td>The key role or the car state (driving, valet) does not allow the command</td><td>no</td><td>no</td></tr>
 <tr><td><code>Busy</code></td><td>The car asked to wait</td><td>yes</td><td>no</td></tr>
-<tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UnknownResponse</code></td><td>Newer firmware sent a code this library does not know; check for an update</td><td>no</td><td>no</td></tr>
+<tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UnknownVcsecError</code>, <code>UnknownResponse</code></td><td>Newer firmware sent a code this library does not know; check for an update</td><td>no</td><td>no</td></tr>
 <tr><td><code>NotConnected</code>, <code>NoSession</code>, <code>RequiresKey</code></td><td>Called in the wrong order or without a key</td><td>no</td><td>no</td></tr>
 <tr><td><code>BadResponse</code></td><td>The answer could not be read</td><td>no</td><td>yes for VCSEC and Infotainment answers</td></tr>
 <tr><td><code>KeychainRejected</code>, <code>VcsecRejected</code>, <code>InfotainmentRejected</code></td><td>The car understood but refused</td><td>no</td><td>no</td></tr>

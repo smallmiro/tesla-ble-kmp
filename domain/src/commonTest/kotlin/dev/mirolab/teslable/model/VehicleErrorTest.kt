@@ -41,6 +41,16 @@ class VehicleErrorTest {
     }
 
     @Test
+    fun newErrorTypesAreNeitherTemporaryNorMaybeSucceeded() {
+        val unknown = VehicleError.UnknownVcsecError(99)
+        for (error in listOf(VehicleError.InsufficientPrivileges, unknown)) {
+            assertFalse(error.temporary)
+            assertFalse(error.mayHaveSucceeded)
+        }
+        assertEquals("vcsec could not execute command: unrecognized error code 99", unknown.message)
+    }
+
+    @Test
     fun shouldRetryIsFalseWhenCommandMayHaveSucceeded() { // Go TestWrappedErrorClassification
         assertTrue(VehicleError.Busy.shouldRetry())
         val possiblySucceeded = VehicleError.Timeout(afterSend = true)

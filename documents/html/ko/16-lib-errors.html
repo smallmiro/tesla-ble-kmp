@@ -82,8 +82,9 @@
 <tbody>
 <tr><td><code>ProtocolFault</code></td><td>차량이 프로토콜 fault 코드를 보냄</td><td>busy, timeout, signature, counter, internal, epoch, expiry fault만</td><td><code>NONE</code>과 <code>RESPONSE_MTU_EXCEEDED</code>만</td></tr>
 <tr><td><code>KeyNotPaired</code></td><td>차량이 이 키를 모름</td><td>아니요</td><td>아니요</td></tr>
+<tr><td><code>InsufficientPrivileges</code></td><td>키 역할이나 차량 상태(주행 중, 발레)가 명령을 허용하지 않음</td><td>아니요</td><td>아니요</td></tr>
 <tr><td><code>Busy</code></td><td>차량이 대기를 요청함</td><td>예</td><td>아니요</td></tr>
-<tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UnknownResponse</code></td><td>새 펌웨어가 이 라이브러리가 모르는 코드를 보냄. 업데이트를 확인하세요</td><td>아니요</td><td>아니요</td></tr>
+<tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UnknownVcsecError</code>, <code>UnknownResponse</code></td><td>새 펌웨어가 이 라이브러리가 모르는 코드를 보냄. 업데이트를 확인하세요</td><td>아니요</td><td>아니요</td></tr>
 <tr><td><code>NotConnected</code>, <code>NoSession</code>, <code>RequiresKey</code></td><td>잘못된 순서로 또는 키 없이 호출함</td><td>아니요</td><td>아니요</td></tr>
 <tr><td><code>BadResponse</code></td><td>응답을 읽을 수 없음</td><td>아니요</td><td>VCSEC와 Infotainment 응답이면 예</td></tr>
 <tr><td><code>KeychainRejected</code>, <code>VcsecRejected</code>, <code>InfotainmentRejected</code></td><td>차량이 이해했지만 거부함</td><td>아니요</td><td>아니요</td></tr>

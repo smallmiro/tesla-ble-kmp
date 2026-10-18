@@ -126,7 +126,7 @@ class SendWithRetryTest {
                 assertIs<VehicleResult.Failure>(
                     SendWithRetry(h.dispatcher).send(infotainment, payload, AuthMethod.NONE, timeout = 5.seconds),
                 )
-            assertEquals(VehicleError.ProtocolFault(MessageFault_E.MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES), result.error)
+            assertEquals(VehicleError.InsufficientPrivileges, result.error)
             assertEquals(9, h.transport.sent.size)
             assertEquals(h.dispatcher.retryInterval * 8, start.elapsedNow())
         }

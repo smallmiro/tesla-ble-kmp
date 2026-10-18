@@ -75,7 +75,7 @@ class VcsecResponsesTest {
                 commandStatus(OperationStatus_E.OPERATIONSTATUS_OK),
             ).copy(signedMessageStatus = MessageStatus(signed_message_fault = MessageFault_E.MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES))
         assertEquals(
-            VehicleError.ProtocolFault(MessageFault_E.MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES),
+            VehicleError.InsufficientPrivileges,
             assertIs<VehicleResult.Failure>(VcsecResponses.interpret(faulted)).error,
         )
     }
@@ -146,11 +146,11 @@ class VcsecResponsesTest {
     }
 
     @Test
-    fun unknownNominalErrorCodeStillFails() {
-        // nominalError 존재 자체가 실패(Go GetNominalError() != nil). 코드는 M4(L58)에서 보존 여부 재검토.
-        val raw = byteArrayOf(0xF2.toByte(), 0x02, 0x02, 0x08, 0x63) // FromVCSECMessage.nominalError(46, LEN 2){ genericError(1) = 99 }
-        val result = assertIs<VehicleResult.Failure>(VcsecResponses.interpret(message(raw)))
-        assertEquals(VehicleError.VcsecRejected(GenericError_E.GENERICERROR_NONE), result.error)
+    fun unknownGenericErrorKeepsItsRawCode() {
+        // L58: Go는 GenericError_E에 실제 코드를 담는다(vcsec.go:44-45). Wire는 NONE + unknownFields로 읽는다
+        val nominal = NominalError(unknownFields = byteArrayOf(0x08, 0x63).toByteString())
+        val reply = RoutableMessage(protobuf_message_as_bytes = FromVCSECMessage(nominalError = nominal).encode().toByteString())
+        assertEquals(VehicleResult.Failure(VehicleError.UnknownVcsecError(99)), VcsecResponses.interpret(reply))
     }
 
     @Test
