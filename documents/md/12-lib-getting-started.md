@@ -1,7 +1,7 @@
 # Getting Started with tesla-ble-kmp
 
-Scope: M3 (scan, connect, key list, vehicle status). Key enrollment arrives in M4, so at this stage an app can only run
-the unauthenticated queries. Installation: `11-lib-overview.md` §Installation. Permissions: `17-lib-platform-notes.md`.
+Scope: M3 (scan, connect, key list, vehicle status) and M4 (pairing, VCSEC commands: see "Pair, then lock"). The main
+examples below use only the unauthenticated queries. Installation: `11-lib-overview.md` §Installation. Permissions: `17-lib-platform-notes.md`.
 Errors: `16-lib-errors.md`.
 
 ## Flow
@@ -127,9 +127,32 @@ func run(vinText: String) async {
 With `target: nil`, `connect` scans by itself. `Info.plist` needs `NSBluetoothAlwaysUsageDescription`
 (`17-lib-platform-notes.md` §iOS).
 
+## Pair, then lock
+
+First time with a new phone key: enroll it with the key card, wait until the car lists it, then start the VCSEC
+session and send a command. Details and event handling: `13-lib-pairing.md`; commands: `15-lib-commands.md`.
+
+```kotlin
+// vehicle was connected with `key` (see above)
+vehicle.addKeyRequest(key.publicKey).collect { event -> render(event) }      // user taps the key card, confirms on screen
+if (waitUntilEnrolled(vehicle, key)) {                                       // polls sessionInfo(…, INFOTAINMENT) (13-lib-pairing.md)
+    vehicle.startSession(setOf(VehicleDomain.VCSEC))
+    val result = vehicle.lock()                                              // VehicleResult<Unit>; Uncertain: vehicleStatus(), do not resend
+}
+```
+
+```swift
+for await event in vehicle.addKeyRequest(publicKey: key.publicKey, role: .owner, formFactor: .iosDevice, timeout: nil) {
+    render(event)                                                            // user taps the key card, confirms on screen
+}
+// poll vehicle.sessionInfo(publicKey:domain:timeout:) until success (13-lib-pairing.md), then:
+_ = try await vehicle.startSession(domains: [.vcsec], timeout: nil)
+let result = try await vehicle.lock(timeout: nil)
+```
+
 ## Next steps
 
-- Key enrollment: M4 (`13-lib-pairing.md`). Until then `connect(vin, key = null)` is enough for `vehicleStatus()`,
-  `keySummary()` and `listKeys()`.
+- Key enrollment and the pairing events: `13-lib-pairing.md`. `connect(vin, key = null)` is still enough for
+  `vehicleStatus()`, `keySummary()` and `listKeys()`.
 - Observe the link with `vehicle.connection` (`StateFlow<TransportState>`) and sessions with `vehicle.sessions`
   (`StateFlow<Map<VehicleDomain, SessionStatus>>`). Call `disconnect()` yourself when `Disconnected` arrives.

@@ -1,7 +1,6 @@
 # Error Handling
 
-Scope: M1 error model, M2 retries and timeouts, M3 transport and key store errors, M4 `InsufficientPrivileges` and `UnknownVcsecError`. Per-command re-query guidance is
-added with M4/M5. Go original: `08-errors.md` (MessageFault meanings and remedies in §3.1).
+Scope: M1 error model, M2 retries and timeouts, M3 transport and key store errors, M4 `InsufficientPrivileges`, `UnknownVcsecError` and per-command re-query for VCSEC (Infotainment is added with M5). Go original: `08-errors.md` (MessageFault meanings and remedies in §3.1).
 
 ## Three outcomes (`VehicleResult<T>`)
 
@@ -77,4 +76,16 @@ The library retries with the same rules as Go `vehicle-command`.
 | Caller coroutine cancelled | `CancellationException` propagates (not turned into a value) |
 
 Defaults come from `TeslaBleConfig`: `commandTimeout` 5 s, `commandLifetime` 5 s, `handshakeTimeout` 20 s,
-`connectTimeout` 30 s.
+`connectTimeout` 30 s, `pairingTimeout` 60 s (`addKeyRequest`).
+
+## Per-command re-query (FR-102)
+
+After `Uncertain`, never resend. Read the state the command changes:
+
+| Command | Re-query with | What to look at |
+|---|---|---|
+| `lock`, `unlock`, `wakeUp`, `remoteDrive`, `autoSecureVehicle`, `openTrunk`, `actuateTrunk`, `closeTrunk`, `openFrunk`, `openTonneau`, `closeTonneau`, `stopTonneau` | `vehicleStatus()` | Lock state, closure states, sleep status. `openTrunk` / `actuateTrunk` toggle: compare the closure state before deciding to send again |
+| `addKey`, `removeKey` | `listKeys()` | Whether the public key is in the whitelist |
+| `addKeyRequest` (`TimedOut`, or a `Flow` that ended without a terminal reply) | `sessionInfo(publicKey, VehicleDomain.INFOTAINMENT)` | `Success` = enrolled; `Failure(KeyNotPaired)` = not (yet) |
+
+Infotainment commands (M5) will be added to this table.

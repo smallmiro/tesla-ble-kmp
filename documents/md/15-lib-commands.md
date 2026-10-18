@@ -1,8 +1,8 @@
 # Commands
 
-Scope: on `main` (M3) the only session-level calls are `startSession()` and `disconnect()`. **No control command is
-implemented yet.** VCSEC control arrives in M4, Infotainment control in M5. The planned table below is copied from
-`docs/prd/PRD.md` §5; names may change when the milestone lands. Go original for every command:
+Scope: on `main` (M4) the session calls are `startSession()` and `disconnect()`, and the 12 VCSEC control commands are
+implemented. **Infotainment control (M5) is not implemented yet**; its table below is copied from `docs/prd/PRD.md` §5
+and names may change when the milestone lands. Go original for every command:
 `05-command-catalog.md`.
 
 ## Implemented
@@ -15,28 +15,48 @@ implemented yet.** VCSEC control arrives in M4, Infotainment control in M5. The 
 `sessions` reports `Handshaking` while `startSession` runs, then `Ready(fromCache = false)` or back to `None` on failure,
 cancellation or disconnect.
 
-## Rules every control command will follow
+## Rules every control command follows
 
-These are already implemented in the dispatcher (M2) and apply as soon as a command is exposed:
+These are implemented in the dispatcher (M2) and apply to every command:
 
 - Authenticated with AES-GCM over the domain session; `expires_at` lifetime is `commandLifetime` (5 s).
 - Retried automatically at 1 s intervals while `error.shouldRetry()`; never resent when `mayHaveSucceeded`.
 - VCSEC commands are serialized per connection; Infotainment commands may run in parallel.
 - An `Uncertain` result means "query state, do not resend" (`16-lib-errors.md`).
 
-## Planned: VCSEC (M4)
+## Implemented: VCSEC (M4)
 
-| FR | Method | Priority |
-|---|---|---|
-| FR-040 | `lock()` | P0 |
-| FR-041 | `unlock()` | P0 |
-| FR-042 | `wakeUp()` (VCSEC session only) | P0 |
-| FR-043 | `remoteDrive()` | P1 |
-| FR-044 | `autoSecureVehicle()` (Model X) | P1 |
-| FR-045 | `openTrunk()` / `actuateTrunk()`, `closeTrunk()` | P0 |
-| FR-046 | `openFrunk()` | P0 |
-| FR-047 | `openTonneau()`, `closeTonneau()`, `stopTonneau()` (Cybertruck) | P1 |
-| FR-022–027 | Key enrollment and removal | see `13-lib-pairing.md` |
+All VCSEC commands are authenticated with AES-GCM over the VCSEC session. Without a VCSEC session they return
+`Failure(NoSession)`: the app runs `startSession(setOf(VehicleDomain.VCSEC))` first. Success is a reply without
+`commandStatus`. `timeout = null` uses `commandTimeout` (5 s) for every method.
+
+| Method | FR | Payload (`UnsignedMessage`, hex) | Notes |
+|---|---|---|---|
+| `lock()` | FR-040 | `1001` | `RKEAction` LOCK |
+| `unlock()` | FR-040 | `1000` | `RKEAction` UNLOCK |
+| `wakeUp()` | FR-041 | `101e` | `RKEAction` WAKE_VEHICLE. Needs the VCSEC session only (Go `wakeupRKE`) |
+| `remoteDrive()` | FR-042 | `1014` | `RKEAction` REMOTE_DRIVE |
+| `autoSecureVehicle()` | FR-043 | `101d` | `RKEAction` AUTO_SECURE_VEHICLE (Model X) |
+| `openTrunk()` | FR-044 | `22022801` | Same payload as `actuateTrunk()`: a **toggle** (`rearTrunk = MOVE`) |
+| `actuateTrunk()` | FR-044 | `22022801` | Toggle |
+| `closeTrunk()` | FR-044 | `22022804` | `rearTrunk = CLOSE`. Powered trunks only |
+| `openFrunk()` | FR-045 | `22023001` | `frontTrunk = MOVE`. There is no remote close |
+| `openTonneau()` | FR-046 | `22024003` | Cybertruck. `tonneau = OPEN` |
+| `closeTonneau()` | FR-046 | `22024004` | Cybertruck. `tonneau = CLOSE` |
+| `stopTonneau()` | FR-046 | `22024002` | Cybertruck. `tonneau = STOP` |
+| Key enrollment and removal | FR-022–027 | | See `13-lib-pairing.md` |
+
+All return `VehicleResult<Unit>`. Failures to expect: `NoSession`, `NotConnected`, `InsufficientPrivileges` (for example
+a Vehicle Monitor key, or the vehicle state forbids it), `VcsecRejected(error)`, `UnknownVcsecError(rawCode)`.
+
+`Uncertain` (timeout after sending, unreadable reply) means the vehicle may have acted. **Do not resend**; read
+`vehicleStatus()` to see the lock state and closures (`16-lib-errors.md` §Per-command re-query). This matters most for
+the toggles `openTrunk()` / `actuateTrunk()`.
+
+`sessions` follows the real session state: after a command ends with `NoSession`, or when a session event arrives
+(refreshed session info, a stale cache entry), the library re-checks the domain and `sessions` shows `Ready` or `None`
+accordingly. A session restored from the cache that the vehicle no longer accepts (for example the cache was stored for
+another vehicle's key) shows `None` after the first command fails with `NoSession`; `startSession` recovers it.
 
 ## Planned: Infotainment (M5)
 

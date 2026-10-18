@@ -262,6 +262,7 @@ public data class TeslaBleConfig(
     val commandLifetime: Duration = 5.seconds,   // expires_at
     val handshakeTimeout: Duration = 20.seconds,
     val connectTimeout: Duration = 30.seconds,
+    val pairingTimeout: Duration = 60.seconds,   // add-key-request 진행 이벤트를 기다리는 시간(설계 구체화 4)
 ) {
     public companion object {
         public fun default(logger: TeslaLogger = TeslaLogger.NoOp): TeslaBleConfig   // Swift용: 기본 인자·Duration 없이 만든다
@@ -281,26 +282,31 @@ public interface Vehicle {
     public suspend fun sessionInfo(publicKey: PublicKeyBytes, domain: VehicleDomain, timeout: Duration? = null): VehicleResult<SessionInfoSummary>  // FR-024
     public suspend fun disconnect()
 
-    // 키 (FR-022~027) — M3에서 구현된 것은 listKeys, keySummary뿐(인증 없음). 나머지는 M4
-    public fun addKeyRequest(publicKey: PublicKeyBytes, role: KeyRole = KeyRole.OWNER, formFactor: KeyFormFactor = KeyFormFactor.platformDefault(), timeout: Duration = 60.seconds): Flow<PairingEvent>
+    // 키 (FR-022~027) — M4까지 구현됨(listKeys·keySummary는 인증 없음, addKey·removeKey는 VCSEC GCM)
+    public fun addKeyRequest(publicKey: PublicKeyBytes, role: KeyRole = KeyRole.OWNER, formFactor: KeyFormFactor = platformKeyFormFactor(), timeout: Duration? = null): Flow<PairingEvent>   // null이면 pairingTimeout
     public suspend fun listKeys(timeout: Duration? = null): VehicleResult<List<WhitelistEntry>>
     public suspend fun keySummary(...): VehicleResult<WhitelistSummary>
-    public suspend fun addKey(publicKey: PublicKeyBytes, role: KeyRole, formFactor: KeyFormFactor, ...): VehicleResult<Unit>
-    public suspend fun removeKey(publicKey: PublicKeyBytes, ...): VehicleResult<Unit>
+    public suspend fun addKey(publicKey: PublicKeyBytes, role: KeyRole = KeyRole.OWNER, formFactor: KeyFormFactor = platformKeyFormFactor(), timeout: Duration? = null): VehicleResult<Unit>
+    public suspend fun removeKey(publicKey: PublicKeyBytes, timeout: Duration? = null): VehicleResult<Unit>
 
     // 조회 (FR-031~034) — M3에서 구현된 것은 vehicleStatus뿐(인증 없음). 나머지는 M5
     public suspend fun vehicleStatus(...): VehicleResult<VehicleStatus>              // 수기 값 객체
     public suspend fun getState(category: StateCategory, ...): VehicleResult<VehicleData>   // Wire 생성 타입 그대로
     public suspend fun ping(...): VehicleResult<Unit>
 
-    // VCSEC 제어 (FR-040~047), Infotainment 제어 (FR-050~094): PRD §5의 메서드명 그대로, 모두 suspend + VehicleResult<Unit>
+    // VCSEC 제어 (FR-040~047, M4): lock, unlock, wakeUp, remoteDrive, autoSecureVehicle, openTrunk, actuateTrunk, closeTrunk,
+    // openFrunk, openTonneau, closeTonneau, stopTonneau — 모두 suspend + VehicleResult<Unit>
     public suspend fun lock(timeout: Duration? = null): VehicleResult<Unit>
+    // Infotainment 제어 (FR-050~094, M5): PRD §5의 메서드명 그대로
     ...
 }
+
+// expect fun platformKeyFormFactor(): KeyFormFactor  — Android ANDROID_DEVICE, iOS IOS_DEVICE, JVM CLOUD_KEY(테스트·실험용). FR-022
 ```
 
 - 모든 `timeout: Duration? = null`은 `TeslaBleConfig.commandTimeout`을 기본으로 쓴다.
-- **M3 구현 범위:** `Vehicle`에는 `vin`, `hasKey`, `connection`, `sessions`, `startSession`, `disconnect`, `vehicleStatus`, `keySummary`, `listKeys`가 있다. 위 코드 블록의 나머지(`sessionInfo`, `addKeyRequest`, `addKey`, `removeKey`, `getState`, `ping`, 제어 명령)는 M4~M5 설계이며 아직 없다.
+- **M4 구현 범위:** `Vehicle`에는 `vin`, `hasKey`, `connection`, `sessions`, `startSession`, `disconnect`, `vehicleStatus`, `keySummary`, `listKeys`(M3)와 `sessionInfo`, `addKeyRequest`, `addKey`, `removeKey`, VCSEC 제어 12종(M4)이 있다. 위 코드 블록의 나머지(`getState`, `ping`, Infotainment 제어)는 M5 설계이며 아직 없다.
+- **세션 표시:** `sessions`는 사건만 따르지 않고 `VehicleSession.isReady(domain)`을 원천으로 한다. 세션 사건(`Updated`/`StaleCache`)은 신호일 뿐이라 그 도메인을 다시 맞추고, 명령이 `NoSession`으로 끝나도 다시 맞춘다(사건이 유실돼도 회복). 핸드셰이크 중(`Handshaking`)이거나 `disconnect()` 뒤에는 건드리지 않는다. 이 연결의 키로 한 `sessionInfo`가 세션을 만들면 `Ready(fromCache = false)`로 보이고, 다른 차량 키로 저장된 오래된 캐시는 첫 명령이 `NoSession`으로 끝난 뒤 `None`으로 바뀐다.
 - **링크 손실:** BLE 링크가 끊기면 전송은 수신 흐름을 닫고 `connection`을 `Disconnected`로 바꾸며(M3에서 전송 자원은 풀린다), 진행 중이던 명령은 `Uncertain`/`NotConnected`로 끝난다. 세션 키와 스코프는 앱이 `Vehicle.disconnect()`를 불러야 풀린다. `connect`가 늦게 실패하거나 취소돼도 전송과 스코프를 풀고 다시 던진다.
 - `Vehicle`은 연결 하나에 객체 하나다. `disconnect()` 뒤 명령은 `Failure(NotConnected)`이고 세션 캐시는 유지된다(설계 구체화 13).
 - `PairingEvent`: `Sent`, `WaitingForTap`, `Accepted`, `Rejected(VehicleError)`, `Unknown(raw)`, `Failed(VehicleError)`, `TimedOut`(끝 이벤트는 `isTerminal`). 실차에서 응답 형식이 확인되기 전까지 `Unknown`을 통해 원시 바이트를 노출한다(M4 실차 검증 항목).

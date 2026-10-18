@@ -9,14 +9,14 @@ These pages describe the code on `main`. They are maintained by agents: every PR
 public API or milestone status updates the affected `1x-lib-*.md` page **and** the matching HTML page in `ko/`, `en/`
 and `ja/` in the same PR (AGENTS.md §3 rule 13).
 
-## Status (M3)
+## Status (M4)
 
 | Area | State | Page |
 |---|---|---|
 | Protocol core, dispatcher, sessions, retry, session cache (M0–M2) | Done | `16-lib-errors.md`, `19-lib-architecture.md` |
 | BLE scan and connect (Kable), key store, session cache storage, facade `TeslaBle` / `Vehicle` (M3) | Done (real-vehicle check on iOS 2026-10-18; Android real device not checked) | `12-lib-getting-started.md`, `17-lib-platform-notes.md` |
 | Read-only queries without a key: `vehicleStatus()`, `keySummary()`, `listKeys()` (M3) | Done | `14-lib-reading-state.md` |
-| Key enrollment (add-key-request), VCSEC control (lock, unlock, trunk…) (M4) | **Not implemented** | `13-lib-pairing.md`, `15-lib-commands.md` |
+| Key enrollment (`addKeyRequest`, `sessionInfo`, `addKey`, `removeKey`), VCSEC control (lock, unlock, trunk…) (M4) | Done (real-vehicle check pending) | `13-lib-pairing.md`, `15-lib-commands.md` |
 | Infotainment control and `getState()` (M5) | **Not implemented** | `14-lib-reading-state.md`, `15-lib-commands.md` |
 | Packaging: GitHub Packages + Swift Package Manager (M6) | **Not implemented** | this page, "Installation" |
 
@@ -59,9 +59,9 @@ Not published yet (M6 adds GitHub Packages + SPM). Build from source:
 |---|---|
 | `11-lib-overview.md` | This page: status, platforms, installation, reading order |
 | `12-lib-getting-started.md` | End-to-end flow and full Kotlin / Swift examples |
-| `13-lib-pairing.md` | `VehicleKeyStore`, `KeyPolicy`, `KeyProtection`, public key bytes, enrollment check, planned add-key-request |
+| `13-lib-pairing.md` | `VehicleKeyStore`, `KeyPolicy`, `KeyProtection`, public key bytes, enrollment check, `addKeyRequest` and `PairingEvent`, `sessionInfo`, `addKey`, `removeKey` |
 | `14-lib-reading-state.md` | `vehicleStatus()`, `keySummary()`, `listKeys()`, result types, wake behaviour, planned `getState()` |
-| `15-lib-commands.md` | Implemented session API and the planned control API table (method ↔ FR ↔ domain ↔ milestone) |
+| `15-lib-commands.md` | Session API, the implemented VCSEC control commands (method ↔ FR ↔ payload) and the planned Infotainment table |
 | `16-lib-errors.md` | `VehicleResult`, `VehicleError` hierarchy, transport and key store errors, retry and timeouts |
 | `17-lib-platform-notes.md` | Android / iOS requirements, key storage, session cache, clocks, connection slots |
 | `18-lib-troubleshooting.md` | Symptom → cause → action table, debug logging |
