@@ -67,7 +67,11 @@ public object ResponseClassifier {
         }
         return when (info.status) {
             Session_Info_Status.SESSION_INFO_STATUS_OK -> null
+
             Session_Info_Status.SESSION_INFO_STATUS_KEY_NOT_ON_WHITELIST -> VehicleError.KeyNotPaired
+
+            // TESLEMETRY-EXT UNCONFIRMED(ADR-0002 개정): 공식 Go에는 없는 값이라 Go처럼 `default: ErrUnknown`
+            Session_Info_Status.SESSION_INFO_STATUS_INVALID_HANDLE -> VehicleError.UnknownResponse
         }
     }
 

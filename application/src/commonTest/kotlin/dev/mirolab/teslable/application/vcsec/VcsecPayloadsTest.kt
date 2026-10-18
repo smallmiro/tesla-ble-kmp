@@ -7,6 +7,7 @@ import com.tesla.generated.vcsec.RKEAction_E
 import com.tesla.generated.vcsec.SignatureType
 import com.tesla.generated.vcsec.ToVCSECMessage
 import com.tesla.generated.vcsec.UnsignedMessage
+import com.tesla.generated.vcsec.WhitelistEntryInfo
 import dev.mirolab.teslable.InternalTeslableApi
 import dev.mirolab.teslable.model.KeyFormFactor
 import dev.mirolab.teslable.model.KeyRole
@@ -81,5 +82,17 @@ class VcsecPayloadsTest {
         for (role in KeyRole.entries - KeyRole.UNKNOWN) {
             assertEquals(role.name.replace("FLEET_MANAGER", "FM"), checkNotNull(VcsecInfoMapping.wireRole(role)).name.removePrefix("ROLE_"))
         }
+    }
+
+    @Test
+    fun snapshotOnlyRolesAndFormFactorsStayUnknownInTheModel() {
+        // ADR-0002 개정(2026-10-18): 스냅샷의 TESLEMETRY-EXT 값(Role 9 RIDER, KeyFormFactor 14 NFC_CARD_P71)은
+        // 공개 모델 값이 없으므로 교체 전(unknownFields 경로)과 같이 UNKNOWN이다.
+        // metadataForKey(4){ keyFormFactor(1) = 14 }, slot(6) = 3, keyRole(7) = 9
+        val raw = byteArrayOf(0x22, 0x02, 0x08, 0x0e, 0x30, 0x03, 0x38, 0x09)
+        val entry = VcsecInfoMapping.entry(WhitelistEntryInfo.ADAPTER.decode(raw))
+        assertEquals(3, entry.slot)
+        assertEquals(KeyRole.UNKNOWN, entry.role)
+        assertEquals(KeyFormFactor.UNKNOWN, entry.formFactor)
     }
 }

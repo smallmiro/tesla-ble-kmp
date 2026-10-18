@@ -122,4 +122,24 @@ class ResponseClassifierTest {
         val message = RoutableMessage(signedMessageStatus = status)
         assertEquals(VehicleError.ProtocolFault(MessageFault_E.MESSAGEFAULT_ERROR_BUSY), ResponseClassifier.protocolError(message))
     }
+
+    // ADR-0002 개정(2026-10-18): Teslemetry 스냅샷이 아는 코드는 더 이상 unknownFields로 가지 않는다.
+
+    @Test
+    fun snapshotFault29IsANamedProtocolFault() {
+        // tag=2(signed_message_fault) value=29(TESLEMETRY-EXT UNCONFIRMED COMMAND_REQUIRES_PHYSICAL_PROXIMITY): 0x10 0x1d
+        val status = MessageStatus.ADAPTER.decode("101d".decodeHex())
+        val error = assertIs<VehicleError.ProtocolFault>(ResponseClassifier.protocolError(RoutableMessage(signedMessageStatus = status)))
+        assertEquals(29, error.fault.value)
+        assertEquals("MESSAGEFAULT_ERROR_COMMAND_REQUIRES_PHYSICAL_PROXIMITY", error.message)
+        assertFalse(error.temporary)
+        assertFalse(error.mayHaveSucceeded)
+    }
+
+    @Test
+    fun snapshotSessionInfoStatusInvalidHandleStaysUnknownResponse() {
+        // Go GetError: OK·KEY_NOT_ON_WHITELIST 외에는 default ErrUnknown. 스냅샷의 2(INVALID_HANDLE)도 같다.
+        val message = RoutableMessage(session_info = "2802".decodeHex())
+        assertEquals(VehicleError.UnknownResponse, ResponseClassifier.protocolError(message))
+    }
 }

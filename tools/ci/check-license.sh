@@ -6,6 +6,7 @@ cd "$ROOT"
 test -f LICENSE || { echo "LICENSE missing"; exit 1; }
 test -f NOTICE || { echo "NOTICE missing"; exit 1; }
 grep -q "vehicle-command" NOTICE || { echo "NOTICE must credit vehicle-command"; exit 1; }
+grep -q "Teslemetry/tesla-protocol" NOTICE || { echo "NOTICE must credit Teslemetry tesla-protocol (proto schema, ADR-0002)"; exit 1; }
 
 HEADER="Ported from vehicle-command@"
 status=0
