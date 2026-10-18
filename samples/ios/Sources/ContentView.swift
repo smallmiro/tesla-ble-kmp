@@ -4,6 +4,7 @@ import UIKit
 struct ContentView: View {
     @StateObject private var model = SampleModel()
     @State private var copied = false
+    @State private var copyReset: Task<(), Never>?
 
     var body: some View {
         NavigationStack {
@@ -30,9 +31,10 @@ struct ContentView: View {
                     Button(copied ? "복사됨 ✓" : "결과 전체 복사") {
                         UIPasteboard.general.string = model.report()
                         copied = true
-                        Task {
+                        copyReset?.cancel()
+                        copyReset = Task {
                             try? await Task.sleep(nanoseconds: 1_500_000_000)
-                            copied = false
+                            if !Task.isCancelled { copied = false }
                         }
                     }
                     Button("결과 지우기", role: .destructive) { model.clearOutput() }

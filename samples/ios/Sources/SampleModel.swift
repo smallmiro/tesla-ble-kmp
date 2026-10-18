@@ -126,6 +126,7 @@ final class SampleModel: ObservableObject {
 
     private static let clock: DateFormatter = {
         let f = DateFormatter()
+        f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "HH:mm:ss"
         return f
     }()
@@ -165,7 +166,6 @@ final class SampleModel: ObservableObject {
         await exclusive { [self] in
             let info = await client.createKey()
             keyInfo = info
-            log("키: \(info)")
         }
     }
 
