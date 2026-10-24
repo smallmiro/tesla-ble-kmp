@@ -30,6 +30,9 @@ public class SessionCacheSync(
     private val keyId: KeyId,
 ) {
     private val staleDomains = mutableSetOf<Domain>()
+
+    /** 잠금 보존을 한 번 포기하고 썼으면 막힌 항목은 이미 지워졌다 — 이 연결에서는 다시 보존하지 않는다(#96 후속). */
+    private var lockKeepAbandoned = false
     private val storeMutex = Mutex()
 
     /** 오래된 캐시로 보고된 도메인을 이후 모든 [store]에서 뺀다(사용자 답 a — 포트에 도메인 단위 삭제가 없으므로 나머지를 다시 저장). */
@@ -52,18 +55,20 @@ public class SessionCacheSync(
      * 예외(Go에 없음, FR-037·#96): 이 연결에서 기기 잠금 때문에 복원하지 못한 도메인에 아직 세션이 없으면 아무것도 쓰지 않는다. 그 항목은
      * 아직 유효한데, 포트는 목록 전체를 덮어쓰고 저장 시각을 새로 붙이므로 옛 항목만 남겨 둘 수 없다(나이가 틀려진다). 잠금이 풀려 그
      * 도메인에 세션이 생기면 다시 평소처럼 쓴다. 단 [markStale]한 도메인이 있으면 이 예외를 쓰지 않는다 — 옛 목록을 남기면 이미 오래됐다고
-     * 판정된 항목도 남아 다음 연결이 그것을 또 복원한다. 막힌 도메인의 항목을 잃는 비용(핸드셰이크 한 번)이 더 작다.
+     * 판정된 항목도 남아 다음 연결이 그것을 또 복원한다. 막힌 도메인의 항목을 잃는 비용(핸드셰이크 한 번)이 더 작다. 그렇게 한 번 쓴
+     * 뒤에는 지킬 항목이 없으므로 그 연결이 끝날 때까지 이 예외를 다시 쓰지 않는다(오래된 도메인이 새 세션으로 돌아와도).
      */
     public suspend fun store(dispatcher: Dispatcher) {
         storeMutex.withLock {
             val sessions = dispatcher.exportSessions()
             val keptForLock = dispatcher.restoresBlockedByLock.filter { blocked -> sessions.none { it.domain == blocked } }
-            if (keptForLock.isNotEmpty() && staleDomains.isEmpty()) {
+            if (keptForLock.isNotEmpty() && staleDomains.isEmpty() && !lockKeepAbandoned) {
                 dispatcher.log.log(LogLevel.INFO, TAG) {
                     "Keeping the session cache: cached sessions for $keptForLock were not restored while the device was locked"
                 }
                 return@withLock
             }
+            if (keptForLock.isNotEmpty()) lockKeepAbandoned = true
             cache.store(vin, keyId, sessions.filter { it.domain !in staleDomains })
         }
     }
