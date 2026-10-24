@@ -15,6 +15,10 @@ struct KeyStatus: Sendable, Equatable {
     var text = "키 없음"
     /// 키가 있는데 잠금 중 사용이 안 될 때 사용자에게 알릴 문장.
     var warning: String?
+    /// 키를 읽을 수 있다(키·제어 탭의 1단계).
+    var ready = false
+    /// 폰 잠금 때문에 키를 읽을 수 없다(키는 멀쩡하다).
+    var locked = false
 }
 
 /// 엔진이 화면(`MonitorModel`)에 알리는 변화. 한 줄기(AsyncStream)로 보내서 순서가 바뀌지 않는다.
@@ -293,7 +297,7 @@ final class MonitorEngine: @unchecked Sendable {
                 return .ready(k)
             case .failure(let f):
                 if f.error is VehicleErrorKeyStoreErrorLocked {
-                    emit.yield(.key(KeyStatus(text: "키 잠김: 폰을 잠금 해제하면 다시 읽습니다(키는 지우지 않음)")))
+                    emit.yield(.key(KeyStatus(text: "키 잠김: 폰을 잠금 해제하면 다시 읽습니다(키는 지우지 않음)", locked: true)))
                     return .locked
                 }
                 emit.yield(.key(KeyStatus(text: "키 오류: \(f.error.message)")))
@@ -313,7 +317,7 @@ final class MonitorEngine: @unchecked Sendable {
         let warning = k.accessibility == .afterFirstUnlock
             ? nil
             : "이 키는 폰이 잠긴 동안 쓸 수 없습니다(WHEN_UNLOCKED). 키를 지우고 새로 만든 뒤 차량에 다시 등록해야 합니다."
-        return KeyStatus(text: text, warning: warning)
+        return KeyStatus(text: text, warning: warning, ready: true)
     }
 
     // MARK: - 연결 루프에 끼우는 함수

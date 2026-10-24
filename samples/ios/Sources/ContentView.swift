@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// 네 탭(SFR-010): Live, Query, Log, Control. 화면이 보이는 동안(scene 이 active)만 화면을 켜 둔다(SFR-013).
+/// 다섯 탭(SFR-010, SFR-018): Live, Query, Log, Control, 키·제어. 화면이 보이는 동안(scene 이 active)만 화면을 켜 둔다(SFR-013).
 struct ContentView: View {
     @ObservedObject var monitor: MonitorModel
     @Environment(\.scenePhase) private var scenePhase
@@ -16,6 +16,8 @@ struct ContentView: View {
                 .tabItem { Label("Log", systemImage: "doc.text") }
             NavigationStack { ControlTab(monitor: monitor, model: monitor.control).navigationTitle("Control") }
                 .tabItem { Label("Control", systemImage: "slider.horizontal.3") }
+            NavigationStack { KeyControlTab(monitor: monitor, model: monitor.keyControl).navigationTitle("키·제어") }
+                .tabItem { Label("키·제어", systemImage: "key.fill") }
         }
         .onAppear {
             monitor.start()
