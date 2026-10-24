@@ -17,7 +17,7 @@
 - 원본 Go는 브로드캐스트를 버린다. drop 판정·응답 매칭은 바꾸지 않고, 방출은 "원본과 다른 의도적 동작"으로 SDD §12에 적는다.
 - 이벤트 게이트 = `ObservationLog.isPlainBroadcast`와 같은 조건(from `DOMAIN_VEHICLE_SECURITY`, to `DOMAIN_BROADCAST`, `request_uuid` 비어 있음, `signature_data == null`, `session_info == null`). 복호화한 평문은 절대 내보내지 않는다(FR-112).
 - `raw`는 수신 `RoutableMessage` 프레임 바이트 전체의 방어 복사본, VIN 마스킹 없음(앱이 저장 전 마스킹).
-- 디스패처는 이벤트 때문에 기다리지 않는다(`tryEmit`). 버퍼 64, 가득 차면 새 프레임을 버리고 연결별 카운트, 첫 drop과 이후 100건마다 `WARN`.
+- 디스패처는 이벤트 때문에 기다리지 않는다(`tryEmit`). 버퍼 64, 가득 차면 **새 프레임을 버리고**(설계 §5.3의 `DROP_OLDEST` 예시를 이 계획이 대체: `tryEmit` 실패로 버린 수를 정확히 셀 수 있고, 이미 버퍼에 든 프레임의 순서가 보존된다) 연결별 카운트, 첫 drop과 이후 100건마다 `WARN`.
 - `events`는 `connection`이 `Disconnected`가 되거나 `disconnect()`가 불리면 **정상 완료**(예외 없음). replay 0.
 - 키 접근성 기본값은 `WHEN_UNLOCKED`(지금과 같음). 샘플만 `AFTER_FIRST_UNLOCK`. 기존 키 마이그레이션 없음.
 - 공개 API: `explicitApi`, KDoc, `apiDump`, `ByteArray` 방어 복사. `VehicleStatus`에 필드 추가는 배포 전이라 허용(PR에 명시).
@@ -38,20 +38,12 @@
 
 **Files:**
 - Create: `samples/documents/md/04-monitor-app.md`, `samples/documents/html/{ko,en,ja}/04-monitor-app.html`
-- Modify: `samples/documents/md/README.md`, `01-requirements.md`(SFR-010~017), 각 HTML 사이드바(4쪽 → 5쪽), `docs/superpowers/specs/2026-10-24-vehicle-events-monitor-design.md` §6을 "→ `04-monitor-app.md`" 포인터로
+- Modify: `samples/documents/md/README.md`, `01-requirements.md`(SFR-010~017), 각 HTML 사이드바(4쪽 → 5쪽), `docs/superpowers/specs/2026-10-24-vehicle-events-monitor-design.md` §6 머리에 "정본은 `04-monitor-app.md`" 메모(본문은 승인 기록으로 유지), §7·§8의 FR-113/114·PATHS 키 항목 정리
 
 **Interfaces:**
-- Produces: SFR-010 탭 구조, SFR-011 VIN 저장·자동 연결·수동 연결, SFR-012 자동 재연결(백그라운드 포함)·수동 끊기 시 중지, SFR-013 포그라운드 화면 유지, SFR-014 실시간 상태(events), SFR-015 주기 조회(30 s, 변경 가능), SFR-016 로그 파일(JSON Lines, 줄 종류 `event`/`observe`/`query`/`link`/`mark`, VIN 마스킹, 회전), SFR-017 Mac 가져오기 스크립트. 로그 줄 스키마(아래)는 Task 9·10이 같은 이름으로 쓴다.
+- Produces: SFR-010 탭 구조, SFR-011 VIN 저장·자동 연결·수동 연결, SFR-012 자동 재연결(백그라운드 포함)·수동 끊기 시 중지, SFR-013 포그라운드 화면 유지, SFR-014 실시간 상태(events), SFR-015 주기 조회(30 s, 변경 가능), SFR-016 로그 파일(JSON Lines, 스키마는 아래 정본, VIN 마스킹, 회전), SFR-017 Mac 가져오기 스크립트. 로그 줄 스키마(아래)는 Task 9·10이 같은 이름으로 쓴다.
 
-```json
-{"ts":"2026-10-24T10:00:00.123+09:00","kind":"event","platform":"ios","app":"0.2.0(9)",
- "type":"Status|AuthenticationRequest|Unrecognized","summary":"...","unknownFields":["53"],
- "unrecognized":true,"raw":"<hex, VIN masked>"}
-{"ts":"…","kind":"observe","line":"[drop:to-domain] …"}
-{"ts":"…","kind":"query","call":"vehicleStatus|keySummary|listKeys","result":"Success|Uncertain|Failure","summary":"…"}
-{"ts":"…","kind":"link","state":"connecting|connected|disconnected|backoff","reason":"…","attempt":3}
-{"ts":"…","kind":"mark","memo":"before: open driver door"}
-```
+로그 줄 스키마의 정본은 `samples/documents/md/04-monitor-app.md` §Log format이다(첫 줄 `session`, 종류 `session`/`event`/`observe`/`query`/`link`/`mark`, `link.state`에 `stopped`, `delayMs`). Task 9·10과 테스트는 그 절을 그대로 따른다.
 
 - [ ] **Step 1:** MD 작성(영어) — 설계 §6 내용 + 위 스키마 + 로그 위치(Android `getExternalFilesDir("logs")`, iOS `Documents/logs/` + `UIFileSharingEnabled`·`LSSupportsOpeningDocumentsInPlace`) + 파일 회전(파일 20 MB, 전체 200 MB) + mark 버튼(로그 탭, 메모 80자, VIN 모양 마스킹) + 백그라운드 설정 + 잠긴 폰 키(`AFTER_FIRST_UNLOCK` 새 별칭 `teslable-monitor`, 재등록 안내).
 - [ ] **Step 2:** HTML en, `docs-translator`로 ko/ja, 빌더로 사이드바 5쪽, `tools/ci/check-manual-i18n.sh` OK.
@@ -91,7 +83,7 @@
 - Produces: `Dispatcher.plainBroadcasts: SharedFlow<ByteArray>` (public on `:application`, `@InternalTeslableApi` 아님 — `:application`은 공개 API 표면이 아님을 확인하고 BCV 덤프만 갱신). 원소는 수신 프레임 바이트 복사본.
 
 - [ ] **Step 1: 구조 커밋** — 게이트 함수를 `BroadcastGate.kt`로 옮기기만(`struct: extract plain broadcast gate`). `./gradlew :application:jvmTest` PASS.
-- [ ] **Step 2: 실패 테스트**(`dispatcherHarness`, `transport.deliver`, `runCurrent`): `plainBroadcastIsEmitted`(게이트 통과 프레임 → 같은 바이트 1건); `signedOrAddressedFrameIsNotEmitted`(`signature_data` 있음, `routing_address` 있음, `request_uuid` 16 B 각각 → 0건); `broadcastStillDroppedFromRouting`(observe 로그에 `[drop:to-domain]` 유지); `slowCollectorDoesNotDelayReplies`(구독자가 `awaitCancellation`으로 멈춘 상태에서 브로드캐스트 100건 + VCSEC 응답 → 응답 정상 완료); `overflowCountsAndWarns`(구독 중단 상태 65건 → `WARN` 1줄, 카운트 1).
+- [ ] **Step 2: 실패 테스트**(`dispatcherHarness`, `transport.deliver`, `runCurrent`): `plainBroadcastIsEmitted`(게이트 통과 프레임 → 같은 바이트 1건); `signedOrAddressedFrameIsNotEmitted`(`signature_data` 있음, `routing_address` 있음, `request_uuid` 16 B 각각 → 0건); `broadcastStillDroppedFromRouting`(observe 로그에 `[drop:to-domain]` 유지); `slowCollectorDoesNotDelayReplies`(구독자가 `awaitCancellation`으로 멈춘 상태에서 브로드캐스트 100건 + VCSEC 응답 → 응답 정상 완료); `overflowCountsAndWarns`(수집기가 첫 값을 받은 뒤 멈춘 상태에서 66건 → 버퍼 64 + 수집기 1, 66번째에서 첫 drop → `WARN` 1줄, 카운트 1).
 - [ ] **Step 3:** `./gradlew :application:jvmTest --tests '*DispatcherBroadcast*'` → FAIL.
 - [ ] **Step 4:** 구현: `MutableSharedFlow<ByteArray>(extraBufferCapacity = 64)`(기본 SUSPEND) + `tryEmit` 실패 시 카운트·로그. 디코딩은 이미 `process`에서 끝났으므로 재사용.
 - [ ] **Step 5:** PASS, `apiDump`, 커밋 `feat: dispatcher emits plain VCSEC broadcasts` (Refs: FR-035).

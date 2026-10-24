@@ -23,9 +23,9 @@ Mac에 케이블로 연결해 로그를 가져와 라이브러리 강건화(새 
 **목표**
 1. 라이브러리: `Vehicle.events` 공개 `Flow`. 평문 브로드캐스트를 해석한 이벤트 + 해석 못 한 부분은 **원본 바이트**까지 (FR-035).
 2. 라이브러리: 공개 `VehicleStatus`에 `gear` 추가 (FR-036). 질의 응답과 브로드캐스트 모두에서 채운다.
-3. 샘플(Android + iOS): 탭 구조. 실시간 상태, 주기 조회, 관찰 로그, 기존 제어/페어링 (FR-113).
-4. 샘플: VIN 저장, 앱 시작 시 자동 스캔·연결, 수동 연결 버튼, 끊기면 백그라운드에서도 자동 재연결, 포그라운드일 때 화면 꺼짐 방지 (FR-113).
-5. 샘플: 폰에 로그 파일 저장 + Mac에서 케이블로 가져오는 스크립트 (FR-114).
+3. 샘플(Android + iOS): 탭 구조. 실시간 상태, 주기 조회, 관찰 로그, 기존 제어/페어링 (SFR-010~017).
+4. 샘플: VIN 저장, 앱 시작 시 자동 스캔·연결, 수동 연결 버튼, 끊기면 백그라운드에서도 자동 재연결, 포그라운드일 때 화면 꺼짐 방지 (SFR-010~017).
+5. 샘플: 폰에 로그 파일 저장 + Mac에서 케이블로 가져오는 스크립트 (SFR-016~017).
 6. 문서: 라이브러리 사용 문서(MD + HTML ko/en/ja), PRD, SDD를 같은 PR에서 갱신 (절대 규칙 11, 13).
 
 **비목표 (이번 범위 밖)**
@@ -196,14 +196,14 @@ public sealed interface VehicleEvent {
 - `tools/samples/pull-monitor-logs.sh [android|ios]`: 연결된 기기에서 로그 폴더를 저장소의 git-ignored 폴더(`samples/logs/<platform>/<날짜>/`)로 복사.
   - Android: `adb pull /sdcard/Android/data/dev.mirolab.teslable.sample/files/logs/ …`
   - iOS: `xcrun devicectl device copy from --device <id> --domain-type appDataContainer --domain-identifier <bundle id> --source Documents/logs --destination …`
-- 경로 키: `PATHS.md`에 `SAMPLE_LOGS_DIR` 키를 추가하는 `docs:` 커밋(경로 하드코딩 금지 규칙 10). `.gitignore`에 추가.
+- 경로 키: `SAMPLE_LOGS_DIR`(PR #92에서 추가됨, git-ignored).
 - 가져온 로그는 커밋하지 않는다. 픽스처로 쓰려면 기존 규칙대로 VIN 마스킹본을 Kotlin 상수로 옮긴다(ADR-0011).
 
 ## 7. 문서 갱신 (같은 PR, 절대 규칙 11·13)
 
 | 문서 | 바뀌는 내용 |
 |---|---|
-| PRD | FR-035(`events`, 평문 브로드캐스트 원본 노출 예외), FR-036(`gear`), FR-037(iOS 키 접근성 선택), FR-113(모니터링 샘플: 탭, 자동 연결·재연결, 화면 유지, 백그라운드), FR-114(로그 저장·가져오기). §3.2 "백그라운드" 문구 정리(Phone-as-Key는 계속 v2), M5 표에서 `events` 이동 |
+| PRD | FR-035(`events`, 평문 브로드캐스트 원본 노출 예외), FR-036(`gear`), FR-037(iOS 키 접근성 선택), ~~FR-113, FR-114~~(샘플 요구사항은 SFR-010~017로 `samples/documents`에서 관리). §3.2 "백그라운드" 문구 정리(Phone-as-Key는 계속 v2), M5 표에서 `events` 이동 |
 | SDD | §2.3 `Vehicle.events`, `VehicleEvent`, `Gear`. §3.3 디스패처의 브로드캐스트 분기. §8.4 백그라운드. §12 원본과 다른 동작(브로드캐스트 방출) |
 | ADR | **필수 1건**: iOS 키 접근성 선택(§5.6). `events`는 모듈 의존성을 바꾸지 않으므로 SDD §12 기록으로 충분하다(설계자 판단) |
 | `13-lib-pairing` | 키 접근성 옵션, `VehicleKey`의 접근성, 잠긴 폰 오류, 재생성·재등록 절차 |
