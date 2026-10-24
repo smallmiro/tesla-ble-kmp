@@ -1,4 +1,4 @@
-# iOS 샘플 (모니터 앱, 빌드 10)
+# iOS 샘플 (모니터 앱, 빌드 11)
 
 > 샘플 스펙과 제약: `samples/documents/md/`(에이전트용) · `samples/documents/html/`(사람용). 에이전트 지침: `samples/ios/AGENTS.md`.
 > 이 README는 빌드 절차와 실차 확인 절차(runbook)를 담습니다.
@@ -92,9 +92,9 @@ VIN은 가려지고 키·서명처럼 보이는 값은 `redacted(NB)`로만 남�
 
 참고: 제어 결과가 `불확실`이면 샘플이 다시 보내지 않고 `vehicleStatus`로 재조회해 `→ 재조회: 잠금 …, 트렁크 …`를 덧붙인다(FR-102). 이 기기의 키를 삭제하려 하면 확인 창에 "이 기기의 키를 지웁니다"가 뜬다.
 
-## 모니터 앱 실기기 확인 (SFR-010~017, 빌드 10)
+## 모니터 앱 실기기 확인 (SFR-010~017, 빌드 11)
 
-빌드 10(`TeslableSampleDevice`, 버전 0.4.0)을 설치한다. 탭은 Live / Query / Log / Control. 화면 설명과 로그 형식은 `samples/documents/md/04-monitor-app.md`.
+빌드 11(`TeslableSampleDevice`, 버전 0.4.0)을 설치한다. 탭은 Live / Query / Log / Control. 화면 설명과 로그 형식은 `samples/documents/md/04-monitor-app.md`.
 결과에는 VIN·공개키 전문을 적지 않는다. 시뮬레이터에는 블루투스가 없으므로 아래는 모두 실기기에서만 확인한다.
 
 사전 준비: 실기기 실행 절차(위)로 설치 → Live 탭에서 VIN 저장(화면에는 가린 VIN만 보인다). 모니터 키는 별칭 `teslable-monitor`, 접근성 `afterFirstUnlock`으로 만들어진다.
@@ -111,14 +111,14 @@ VIN은 가려지고 키·서명처럼 보이는 값은 `redacted(NB)`로만 남�
 | 7 | 끊기 | Live 탭 "연결 끊기" | 배너 `연결 끊음 (자동 재연결 중지)`, 2분 동안 연결 시도 없음(`link` 줄 `stopped` 뒤 `connecting` 없음). "연결"을 누르면 바로 다시 시작 |
 | 8 | 화면 유지 | 앱을 보는 동안 자동 잠금 시간(예: 30초)이 지나도록 두기, 그다음 홈 화면으로 나가기 | 보는 동안 화면이 꺼지지 않음. 앱을 나가면 평소처럼 꺼짐 |
 | 9 | Mark | Log 탭 메모에 `before: open driver door` → Mark | 줄 수에 `mark`가 늘고 마지막 줄에 보임. VIN 모양 글자를 넣으면 `*`로 가려짐 |
-| 10 | 로그 가져오기 | `tools/samples/pull-monitor-logs.sh ios` (USB 연결, 폰 잠금 해제) | `samples/logs/ios/<날짜>/logs/`에 `monitor-*.jsonl`. 첫 줄은 `session`(`platform: ios`, 앱 `0.4.0(10)`). `grep -rE '[A-HJ-NPR-Z0-9]{17}' samples/logs/ios/<날짜>/`에 아무것도 안 나옴. Finder(기기 → 파일)와 파일 앱에서도 `Documents/logs`가 보임 |
+| 10 | 로그 가져오기 | `tools/samples/pull-monitor-logs.sh ios` (USB 연결, 폰 잠금 해제) | `samples/logs/ios/<날짜>/logs/`에 `monitor-*.jsonl`. 첫 줄은 `session`(`platform: ios`, 앱 `0.4.0(11)`). `grep -rE '[A-HJ-NPR-Z0-9]{17}' samples/logs/ios/<날짜>/`에 아무것도 안 나옴. Finder(기기 → 파일)와 파일 앱에서도 `Documents/logs`가 보임 |
 
 ### 잠긴 폰과 키 (계획 Task 11)
 
 | # | 확인 | 할 일 | 기대 |
 |---|---|---|---|
 | K1 | 접근성 보고 | 위 사전 준비로 키를 만든 뒤 앱을 종료하고 다시 실행해 Control 탭 키 줄을 읽기 | `teslable-monitor: SECURE_ENCLAVE, 접근성 AFTER_FIRST_UNLOCK`(Secure Enclave가 아니면 `SOFTWARE`). 경고 문구 없음. `WHEN_UNLOCKED`로 나오면 결과를 그대로 보고(Keychain이 등급을 알려 주지 않을 때의 `keystore` WARN 포함) |
-| K2 | 잠긴 폰 핸드셰이크 | 키가 차량에 등록된 상태에서 폰을 잠그고 1분 둔 뒤, 차에서 멀어져 링크를 끊었다가 잠근 채 돌아오기 | 재연결(배너 `연결됨`) 뒤 폰을 열어 Control 탭 "핸드셰이크: VCSEC만"을 누르는 대신, 잠금 화면에서 차량 쪽 동작(키가 등록된 폰으로 문 잠금 해제 등)이 되는지 기록. 앱에서 핸드셰이크를 시도한 결과가 `Failure(Timeout(afterSend = false))`인지 `Locked`인지 그대로 보고 |
+| K2 | 잠긴 폰 핸드셰이크 | 키가 차량에 등록된 상태에서 폰을 잠그고 1분 둔 뒤, 차에서 멀어져 링크를 끊었다가 잠근 채 돌아오기 | 모니터 키는 `AFTER_FIRST_UNLOCK`이라 잠긴 채로 재연결(배너 `연결됨`)되고 핸드셰이크가 성공해 `event`/`query` 줄이 이어짐(폰을 열기 전 시각의 줄). 실패하면 잠금 해제 뒤 Log 탭에서 그 연결의 `link`·오류 줄을 그대로 보고: `Locked`(+ `Dispatcher` WARN `…the private key is locked (device locked)`)면 키가 실제로는 `WHEN_UNLOCKED`, `Timeout`(+ `invalid public key` WARN)이면 iOS가 -25308이 아닌 오류를 냄(`18-lib-troubleshooting.md`, #96) |
 | K3 | 재시작 직후 | 폰을 재시동하고 **잠금 해제 전에** 앱 동작 관찰 | 키 읽기가 `Locked`("키 잠김…")이고 키는 지워지지 않음. 잠금 해제 직후 기다리던 재연결이 곧바로 이어짐 |
 | K4 | 잠긴 폰 키 생성 실패 | (가능하면) 재시동 후 잠금 해제 전에 앱을 처음 설치·실행해 키를 만들어 보기 | 실패하면 정확한 오류 문구를 그대로 복사(`KeyStoreError.Locked`인지 일반 `PlatformFailure`인지). 소프트웨어 키로 몰래 바뀌지 않아야 함 |
 

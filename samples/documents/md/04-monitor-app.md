@@ -1,6 +1,6 @@
 # Monitor App (SFR-010 to SFR-017)
 
-Status: **Android implemented** (build `0.2.0 (2)`) and **iOS implemented** (build `0.4.0 (10)`); unit tests and builds
+Status: **Android implemented** (build `0.2.0 (2)`) and **iOS implemented** (build `0.4.0 (11)`); unit tests and builds
 pass, **real-device checks pending** for both (iOS background reconnect is unconfirmed until the plan Task 2 spike).
 Issue #91. The library APIs it needs are available: `Vehicle.events`
 (`12-lib-getting-started.md` §Broadcast events, `14-lib-reading-state.md` B2) and the key accessibility `KeyAccessibility`
@@ -52,7 +52,7 @@ One JSON object per line. Common fields: `ts` (ISO-8601 with offset, device cloc
 is a `session` line with `platform`, `app` (version and build), `os`, `phone` model.
 
 ```json
-{"ts":"2026-10-24T10:00:00.123+09:00","kind":"session","platform":"ios","app":"0.4.0(10)","os":"27.0.1","phone":"iPhone"}
+{"ts":"2026-10-24T10:00:00.123+09:00","kind":"session","platform":"ios","app":"0.4.0(11)","os":"27.0.1","phone":"iPhone"}
 {"ts":"…","kind":"event","type":"Status","summary":"lock=LOCKED gear=PARK presence=NOT_PRESENT","unknownFields":["1.8"],"unrecognized":true,"raw":"<hex>"}
 {"ts":"…","kind":"observe","line":"[drop:no-handler] 83B from=domain(DOMAIN_VEHICLE_SECURITY) …"}
 {"ts":"…","kind":"query","call":"vehicleStatus","result":"Success","summary":"…"}
