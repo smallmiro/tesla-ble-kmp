@@ -8,38 +8,34 @@ actor BleClient {
     // Kotlin 객체는 Sendable이 아니라 SKIE async 호출로 보낼 수 없다. 액터가 접근을 직렬화하고 화면이 겹침을 막으므로
     // `nonisolated(unsafe)`로 표시한다(문자열만 액터 밖으로 나간다).
     nonisolated(unsafe) private let ble: TeslaBle
-    /// 관찰 로그(태그 `observe`)를 화면으로 내보내는 로거(M4 Task 1).
-    nonisolated let observer = ObservingLogger()
-    nonisolated(unsafe) private var key: VehicleKey?
+    /// 연결·키·로그는 모니터 엔진이 가진 것을 쓴다(`TeslaBle`은 프로세스당 하나, 차의 연결은 3개뿐).
+    private let engine: MonitorEngine
+
+    init(engine: MonitorEngine) {
+        self.engine = engine
+        ble = engine.ble
+    }
+
+    // 연결 루프가 `Vehicle` 을 바꾸므로 동작을 시작할 때마다 `refresh()` 로 현재 것을 가져온다(Kotlin 객체라 `nonisolated(unsafe)`).
     nonisolated(unsafe) private var vehicle: Vehicle?
-    /// `Vehicle.connection` 관찰. 연결 해제·재연결 때 취소한다.
-    private var linkWatch: Task<(), Never>?
+    nonisolated(unsafe) private var key: VehicleKey?
 
-    init() {
-        ble = TeslaBle.companion.create(
-            platform: PlatformContext(),
-            config: TeslaBleConfig.companion.default(logger: observer)
-        )
+    private func refresh() {
+        vehicle = engine.currentVehicle()
+        key = engine.currentKey()
     }
 
-    nonisolated var observations: AsyncStream<String> { observer.lines }
-
+    /// 모니터 키(`teslable-monitor`)를 읽거나 만든다. 결과 문장은 화면용이다.
     func createKey() async -> String {
-        do {
-            let result = try await ble.keys.getOrCreate(alias: VehicleKeyStoreCompanion.shared.DEFAULT_ALIAS, policy: .preferHardware)
-            switch onEnum(of: result) {
-            case .success(let s):
-                guard let k = s.value as? VehicleKey else { return "실패: 예상하지 못한 결과 형식" }
-                key = k
-                return "\(k.protection.name) \(String(describing: k.publicKey))"
-            case .uncertain(let u): return "불확실: \(u.error.message)"
-            case .failure(let f): return "실패: \(f.error.message)"
-            }
-        } catch { return "오류: \(error)" }
+        switch await engine.ensureKey() {
+        case .ready(let k): return "\(k.alias) \(k.protection.name) \(k.accessibility.name) \(String(describing: k.publicKey))"
+        case .locked: return "키 잠김: 폰을 잠금 해제한 뒤 다시 누르세요(키는 지우지 않음)"
+        case .failed(let why): return "실패: \(why)"
+        }
     }
 
-    func scan(vinText: String) async -> String {
-        guard let vin = Vin.companion.parseOrNull(value: vinText) else { return "VIN 형식 오류" }
+    func scan() async -> String {
+        guard let vin = engine.parsedVin() else { return "저장된 VIN이 없습니다(Live 탭에서 저장)" }
         let scanning = Task { await self.firstAdvertisement(vin) }
         let timer = Task {
             try? await Task.sleep(for: .seconds(30))
@@ -64,25 +60,10 @@ actor BleClient {
         return Task.isCancelled ? "스캔 시간 초과 (30초)" : "스캔 종료(광고 없음)"
     }
 
-    /// `onLinkLoss`는 차량이 링크를 끊었을 때(원인이 있는 Disconnected) 표시할 문자열만 받는다.
-    func connect(vinText: String, onLinkLoss: @escaping @Sendable (String) async -> ()) async -> String {
-        guard let vin = Vin.companion.parseOrNull(value: vinText) else { return "VIN 형식 오류" }
-        await disconnect() // 이미 연결돼 있으면 먼저 끊는다
-        do {
-            let result = try await ble.connect(vin: vin, key: key, target: nil, options: ConnectOptions(timeout: nil))
-            switch onEnum(of: result) {
-            case .success(let s):
-                guard let v = s.value as? Vehicle else { return "실패: 예상하지 못한 결과 형식" }
-                vehicle = v
-                watchLink(v, onLinkLoss)
-                return "연결됨 (키: \(key == nil ? "없음" : "있음"))"
-            case .uncertain(let u): return "불확실: \(u.error.message)"
-            case .failure(let f): return "실패: \(f.error.message)"
-            }
-        } catch { return "오류: \(error)" }
+    func vehicleStatus() async -> String {
+        refresh()
+        return await run("VehicleStatus") { try await $0.vehicleStatus(timeout: nil) }
     }
-
-    func vehicleStatus() async -> String { await run("VehicleStatus") { try await $0.vehicleStatus(timeout: nil) } }
 
     /// 목록 한 줄(화면용). 삭제는 슬롯으로 고른다 — 공개키는 액터 안(`keyEntries`)에만 둔다.
     struct KeyRow: Identifiable, Sendable {
@@ -97,6 +78,7 @@ actor BleClient {
 
     /// 키 목록 조회. 결과 한 줄과 항목별 행을 돌려준다(행마다 "삭제" 버튼).
     func listKeys() async -> (line: String, rows: [KeyRow]) {
+        refresh()
         guard let vehicle else { return ("키 목록: 먼저 연결하세요", []) }
         do {
             let result = try await vehicle.listKeys(timeout: nil)
@@ -121,6 +103,7 @@ actor BleClient {
     }
 
     func startSession(vcsecOnly: Bool) async -> String {
+        refresh()
         let domains: Set<VehicleDomain> = vcsecOnly ? [VehicleDomain.vcsec] : VehicleDomain.companion.ALL
         let label = vcsecOnly ? "세션(VCSEC만)" : "세션(전체)"
         let started = Date()
@@ -130,22 +113,14 @@ actor BleClient {
 
     /// 도메인별 세션 상태 한 줄.
     func sessionsText() -> String {
+        refresh()
         guard let vehicle else { return "세션: 연결 안 됨" }
-        guard let map = vehicle.sessions.value as? [VehicleDomain: SessionStatus] else { return "세션: 형식 오류" }
-        let parts = map.keys.sorted { $0.name < $1.name }.map { d -> String in
-            let text: String
-            switch onEnum(of: map[d]!) {
-            case .none: text = "None"
-            case .handshaking: text = "Handshaking"
-            case .ready(let r): text = r.fromCache ? "Ready(fromCache)" : "Ready"
-            }
-            return "\(d.name)=\(text)"
-        }
-        return "세션: " + (parts.isEmpty ? "없음" : parts.joined(separator: ", "))
+        return engine.sessionsText(vehicle)
     }
 
     /// 키 등록 요청. 이벤트마다 한국어 한 줄을 `onEvent`로 보내고, 끝이 `Accepted`/`TimedOut`이면 등록 확인을 잇는다.
     func pair(onEvent: @escaping @Sendable (String) async -> ()) async {
+        refresh()
         guard let vehicle else { await onEvent("키 등록: 먼저 연결하세요"); return }
         guard let key else { await onEvent("키 등록: 먼저 키를 만드세요"); return }
         var confirm = false
@@ -171,6 +146,7 @@ actor BleClient {
 
     /// 3초 간격, 최대 2분 동안 Infotainment `sessionInfo`로 등록을 확인한다.
     func confirmEnrollment() async -> String {
+        refresh()
         guard let vehicle else { return "등록 확인: 먼저 연결하세요" }
         guard let key else { return "등록 확인: 먼저 키를 만드세요" }
         var last = "등록 확인: 시도하지 못함"
@@ -196,6 +172,7 @@ actor BleClient {
 
     /// 제어 명령. 결과가 `Uncertain`이면 다시 보내지 않고 곧바로 `vehicleStatus()`로 재조회한다(FR-102).
     func control(_ title: String, _ call: (Vehicle) async throws -> VehicleResult) async -> String {
+        refresh()
         guard let vehicle else { return "\(title): 먼저 연결하세요" }
         let started = Date()
         let line: String
@@ -235,30 +212,13 @@ actor BleClient {
 
     /// 슬롯으로 고른 마지막 목록 항목의 공개키로 키를 삭제한다.
     func removeKey(slot: Int) async -> String {
+        refresh()
         guard let pk = keyEntries[slot]?.publicKey else { return "키 삭제: 목록에서 고른 항목을 찾지 못함(목록을 다시 조회하세요)" }
         return await control("키 삭제(슬롯 \(slot))") { try await $0.removeKey(publicKey: pk, timeout: nil) }
     }
 
-    private func watchLink(_ v: Vehicle, _ onLinkLoss: @escaping @Sendable (String) async -> ()) {
-        nonisolated(unsafe) let connection = v.connection
-        linkWatch = Task {
-            for await state in connection {
-                if Task.isCancelled { return }
-                if case .disconnected(let d) = onEnum(of: state), d.reason != nil {
-                    await onLinkLoss("연결 끊김 (링크 손실)")
-                    return
-                }
-            }
-        }
-    }
-
-    func disconnect() async {
-        linkWatch?.cancel()
-        linkWatch = nil
-        try? await vehicle?.disconnect()
-        vehicle = nil
-        keyEntries = [:]
-    }
+    /// 연결이 바뀌면 지난 목록의 공개키를 버린다.
+    func resetEntries() { keyEntries = [:] }
 
     private func run(_ title: String, _ call: (Vehicle) async throws -> VehicleResult) async -> String {
         guard let vehicle else { return "\(title): 먼저 연결하세요" }
@@ -273,13 +233,11 @@ actor BleClient {
     }
 }
 
-/// 샘플 화면 상태.
+/// Control 탭 화면 상태. 연결과 모니터 키는 `MonitorEngine` 이 가진 것을 쓴다(`MonitorModel` 이 만든다).
 @MainActor
 final class SampleModel: ObservableObject {
-    @Published var vinText = ""
     @Published var keyInfo = "키 없음"
     @Published var advertisements: [String] = []
-    @Published var connection = "연결 안 됨"
     @Published var output: [String] = []
     /// 마지막 키 목록 조회 결과(항목마다 "삭제" 버튼).
     @Published var keyRows: [BleClient.KeyRow] = []
@@ -289,22 +247,12 @@ final class SampleModel: ObservableObject {
     /// 라이브러리 호출이 진행 중이면 true — 모든 버튼을 막아 호출이 겹치지 않게 한다.
     @Published var busy = false
 
-    /// 관찰 모드(요청 없이 수신만 기록). 켜져 있는 동안은 차량을 깨우는 요청 버튼을 막는다.
-    /// 샘플에는 주기적 자동 조회가 없다 — 관찰이 차량을 깨우지 않도록 앞으로도 넣지 않는다.
-    @Published var observing = false {
-        didSet { observingChanged() }
-    }
-    @Published var observations: [String] = []
-    private var observeStart: Date?
-    private static let maxObservations = 500
+    private let engine: MonitorEngine
+    private let client: BleClient
 
-    private let client = BleClient()
-
-    init() {
-        let stream = client.observations
-        Task { [weak self] in
-            for await line in stream { await self?.observed(line) }
-        }
+    init(engine: MonitorEngine) {
+        self.engine = engine
+        client = BleClient(engine: engine)
     }
 
     private static let clock: DateFormatter = {
@@ -314,62 +262,26 @@ final class SampleModel: ObservableObject {
         return f
     }()
 
-    private func observingChanged() {
-        if observing {
-            observeStart = Date()
-            log("관찰 시작")
-        } else {
-            observeStart = nil
-            log("관찰 종료: \(observations.count)줄")
-        }
-    }
-
-    /// 관찰 중일 때만 `[HH:mm:ss +12.3s] <line>`으로 쌓는다(최대 500줄, 넘치면 앞에서 지운다).
-    private func observed(_ line: String) {
-        guard observing, let start = observeStart else { return }
-        append("\(ObservationMark.prefix(now: Date(), since: start)) \(line)")
-    }
-
-    private func append(_ line: String) {
-        observations.append(line)
-        if observations.count > Self.maxObservations {
-            observations.removeFirst(observations.count - Self.maxObservations)
-        }
-    }
-
-    /// 사람이 남기는 메모 줄. 관찰 모드에서만, 빈 메모는 무시한다. 차량 요청은 보내지 않는다.
-    /// 성공하면 true(화면이 입력칸을 비운다).
-    @discardableResult
-    func mark(_ memo: String) -> Bool {
-        guard observing, let start = observeStart,
-              let line = ObservationMark.line(memo: memo, now: Date(), since: start) else { return false }
-        append(line)
-        return true
-    }
-
-    func clearObservations() {
-        observations.removeAll()
-    }
-
     /// 결과 칸에 시각과 함께 한 줄을 남긴다(복사해서 실차 확인 기록으로 쓴다).
     private func log(_ line: String) {
         output.append("[\(Self.clock.string(from: Date()))] \(line)")
     }
 
-    /// 실차 확인 기록용 전체 텍스트: 앱 정보, 현재 상태, 결과 기록. VIN은 넣지 않는다.
+    /// 실차 확인 기록용 전체 텍스트: 앱 정보, 현재 상태, 결과 기록, 로그 마지막 줄. VIN은 넣지 않는다(로그 줄은 이미 가려져 있다).
     func report() -> String {
         let stamp = ISO8601DateFormatter.string(from: Date(), timeZone: .current, formatOptions: [.withInternetDateTime])
         var lines = [
             "Teslable Sample 기록 \(stamp)",
             "앱: \(AppInfo.bundleID) / \(AppInfo.version) / 빌드 \(AppInfo.build)",
-            "연결: \(connection)",
+            "연결: \(LinkText.of(engine.link))",
             "키: \(keyInfo)",
         ]
         lines += advertisements.map { "광고: \($0)" }
         lines.append("--- 결과 (\(output.count)줄) ---")
         lines += output
-        lines.append("--- 관찰 (\(observations.count)줄) ---")
-        lines += observations
+        let last = engine.log.stats.lastLines
+        lines.append("--- 로그 마지막 줄 (\(last.count)줄) ---")
+        lines += last
         return lines.joined(separator: "\n")
     }
 
@@ -393,26 +305,20 @@ final class SampleModel: ObservableObject {
 
     func scan() async {
         await exclusive { [self] in
-            let line = await client.scan(vinText: vinText)
+            let line = await client.scan()
             advertisements = [line]
             log("스캔: \(line)")
         }
     }
 
+    /// 모니터의 연결 루프를 바로 시작한다(기다리던 재연결은 건너뛴다). 상태는 배너와 Live 탭에 나온다.
     func connect() async {
         await exclusive { [self] in
-            connection = "연결 중…"
-            let result = await client.connect(vinText: vinText) { [weak self] text in await self?.linkLost(text) }
-            connection = result
-            log("연결: \(result)")
-        }
-    }
-
-    /// 연결된 상태일 때만 반영한다(사용자가 이미 끊었다면 덮어쓰지 않는다).
-    private func linkLost(_ text: String) {
-        if connection.hasPrefix("연결됨") {
-            connection = text
-            log("연결: \(text)")
+            if engine.connectNow() {
+                log("연결: 시작함 (상태는 위 배너)")
+            } else {
+                log("연결: 저장된 VIN이 없거나 형식이 틀립니다")
+            }
         }
     }
 
@@ -466,12 +372,13 @@ final class SampleModel: ObservableObject {
         }
     }
 
+    /// 자동 재연결도 멈춘다(SFR-012). 다시 연결 버튼을 누를 때까지 재연결하지 않는다.
     func disconnect() async {
         await exclusive { [self] in
-            await client.disconnect()
-            connection = "연결 안 됨"
+            await engine.disconnect()
+            await client.resetEntries()
             keyRows = []
-            log("연결 끊기: 연결 안 됨")
+            log("연결 끊기: 자동 재연결 중지")
         }
     }
 }
