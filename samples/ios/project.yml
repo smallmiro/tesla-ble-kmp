@@ -4,8 +4,8 @@ options:
 settings:
   base:
     # 샘플 앱 버전(앱 정보 화면에 표시). 실차 확인 빌드마다 CURRENT_PROJECT_VERSION을 올린다.
-    MARKETING_VERSION: "0.3.0"
-    CURRENT_PROJECT_VERSION: "8"
+    MARKETING_VERSION: "0.2.0"
+    CURRENT_PROJECT_VERSION: "10"
   deploymentTarget:
     iOS: "16.0"
 targets:
@@ -22,6 +22,11 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         NSBluetoothAlwaysUsageDescription: 차량과 BLE로 통신하기 위해 블루투스가 필요합니다.
+        # 모니터 앱(SFR-012): 백그라운드에서도 링크가 살아 있는 동안 수신을 이어 간다. 백그라운드 스캔·재연결은 실기기 스파이크 전까지 미확인.
+        UIBackgroundModes: [bluetooth-central]
+        # 로그 폴더(Documents/logs)를 Finder와 파일 앱에서 본다(SFR-016, SFR-017).
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
     settings:
       base:
         FRAMEWORK_SEARCH_PATHS: "$(inherited) $(SRCROOT)/../../sdk/build/bin/iosSimulatorArm64/debugFramework"
@@ -72,6 +77,11 @@ targets:
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         UILaunchScreen: {}
         NSBluetoothAlwaysUsageDescription: 차량과 BLE로 통신하기 위해 블루투스가 필요합니다.
+        # 모니터 앱(SFR-012): 백그라운드에서도 링크가 살아 있는 동안 수신을 이어 간다. 백그라운드 스캔·재연결은 실기기 스파이크 전까지 미확인.
+        UIBackgroundModes: [bluetooth-central]
+        # 로그 폴더(Documents/logs)를 Finder와 파일 앱에서 본다(SFR-016, SFR-017).
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: dev.mirolab.TeslableSampleDevice

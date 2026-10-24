@@ -32,8 +32,8 @@ struct BackoffPolicy: Sendable {
     }
 }
 
-/// 한 번만 열리는 문. `fire()` 가 `wait()` 보다 먼저 와도 기억한다.
-private final class Gate: @unchecked Sendable {
+/// 한 번만 열리는 문(재연결 대기와 주기 조회 대기가 쓴다). `fire()` 가 `wait()` 보다 먼저 와도 기억한다.
+final class Gate: @unchecked Sendable {
     private let lock = NSLock()
     private var fired = false
     private var continuation: CheckedContinuation<Void, Never>?
