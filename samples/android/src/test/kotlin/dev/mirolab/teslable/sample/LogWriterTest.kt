@@ -35,7 +35,7 @@ private class TestClock(
 
 class LogWriterTest {
     // 실제 VIN이 아닌 가짜 값(형식만 같다)
-    private val vin = "5YJAAAA1111222333"
+    private val vin = "5YJS0000000000000"
     private val session = SessionInfo(platform = "android", app = "0.2.0(2)", os = "16", phone = "Pixel")
     private val iso = Regex("""\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}[+-]\d{2}:\d{2}""")
     private val fileName = Regex("""monitor-\d{8}-\d{6}\.jsonl""")
@@ -122,7 +122,7 @@ class LogWriterTest {
             assertEquals(listOf("1.8"), o.getJSONArray("unknownFields").let { a -> (0 until a.length()).map { a.getString(it) } })
             assertTrue(o.getBoolean("unrecognized"))
             // raw: 소문자 16진수, VIN은 같은 길이로 가려진다
-            val expected = (byteArrayOf(0x0a, 0x11) + "5YJ**********2333".toByteArray(Charsets.US_ASCII) + byteArrayOf(0x7f))
+            val expected = (byteArrayOf(0x0a, 0x11) + "5YJ**********0000".toByteArray(Charsets.US_ASCII) + byteArrayOf(0x7f))
                 .joinToString("") { "%02x".format(it) }
             assertEquals(expected, o.getString("raw"))
             assertFalse(file(dir).readText().contains(vin))
@@ -146,7 +146,7 @@ class LogWriterTest {
             val observe = all[1]
             assertEquals(setOf("ts", "kind", "line"), observe.keys().asSequence().toSet())
             assertEquals("observe", observe.getString("kind"))
-            assertEquals("[drop:no-handler] 83B from=domain(X) vin=5YJ**********2333", observe.getString("line"))
+            assertEquals("[drop:no-handler] 83B from=domain(X) vin=5YJ**********0000", observe.getString("line"))
             val query = all[2]
             assertEquals(setOf("ts", "kind", "call", "result", "summary"), query.keys().asSequence().toSet())
             val backoff = all[3]
