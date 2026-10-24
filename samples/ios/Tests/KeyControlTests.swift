@@ -74,11 +74,13 @@ final class KeyControlStepsTests: XCTestCase {
         XCTAssertFalse(steps(vinSaved: true, busy: true).connect.buttonEnabled)
     }
 
-    func testConnectedWithoutAKeyIsNotDoneAndTellsToReconnect() {
+    func testConnectedWithoutAKeyIsToDoAndTheButtonReconnects() {
         let s = steps(keyReady: true, vinSaved: true, connected: true, hasKey: false).connect
-        XCTAssertNotEqual(s.state, .done)
+        XCTAssertEqual(s.state, .todo)
         XCTAssertEqual(s.hint, "키 없이 연결됨 — 연결 끊기 후 다시 연결하세요")
-        XCTAssertFalse(s.buttonEnabled)
+        XCTAssertTrue(s.buttonEnabled, "이 탭에서 바로 끊고 다시 연결할 수 있어야 한다")
+        XCTAssertTrue(KeyControlSteps(inputs(keyReady: true, vinSaved: true, connected: true, hasKey: false)).reconnectNeeded)
+        XCTAssertFalse(steps(keyReady: true, vinSaved: true, connected: true, hasKey: false, busy: true).connect.buttonEnabled)
     }
 
     func testStepsThreeAndFourNeedAKeyedConnection() {
