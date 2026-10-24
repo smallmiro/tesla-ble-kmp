@@ -5,11 +5,13 @@ import dev.mirolab.teslable.port.KeyProtection
 import dev.mirolab.teslable.port.VehicleKey
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.IntVar
+import kotlinx.cinterop.MemScope
 import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.value
 import platform.CoreFoundation.CFDataRef
+import platform.CoreFoundation.CFDictionaryRef
 import platform.CoreFoundation.CFErrorRefVar
 import platform.CoreFoundation.CFNumberCreate
 import platform.CoreFoundation.CFNumberRef
@@ -128,7 +130,7 @@ internal class AppleSecureEnclaveKeys : SecureEnclaveKeys {
                         error.takeDescription()
                         null
                     } else {
-                        releasing(access) { createKey(alias, tag, bitsNumber, access, error) }
+                        releasing(access) { createKey(alias, tag, bitsNumber, access) }
                     }
                 }
             }
@@ -140,7 +142,6 @@ internal class AppleSecureEnclaveKeys : SecureEnclaveKeys {
         tag: CFDataRef,
         bitsNumber: CFNumberRef,
         access: SecAccessControlRef,
-        error: CFErrorRefVar,
     ): VehicleKey? {
         val privateAttrs =
             cfDictionary(
@@ -157,9 +158,8 @@ internal class AppleSecureEnclaveKeys : SecureEnclaveKeys {
                     kSecPrivateKeyAttrs to privateAttrs,
                 )
             releasing(attributes) {
-                val key = SecKeyCreateRandomKey(attributes, error.ptr)
+                val key = memScoped { createRandomKey(attributes) }
                 if (key == null) {
-                    error.takeDescription() // CFError 해제. 시뮬레이터: Secure Enclave 없음 -> null -> 소프트웨어로
                     null
                 } else {
                     try {
@@ -172,6 +172,14 @@ internal class AppleSecureEnclaveKeys : SecureEnclaveKeys {
                 }
             }
         }
+    }
+
+    /** 시뮬레이터처럼 Secure Enclave가 없으면 null(소프트웨어로). 채워진 CFError는 여기서 해제한다. */
+    private fun MemScope.createRandomKey(attributes: CFDictionaryRef): SecKeyRef? {
+        val error = alloc<CFErrorRefVar>()
+        val key = SecKeyCreateRandomKey(attributes, error.ptr)
+        if (key == null) error.takeDescription()
+        return key
     }
 
     override fun delete(alias: String): Int {
