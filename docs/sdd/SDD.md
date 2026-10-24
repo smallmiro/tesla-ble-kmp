@@ -587,6 +587,7 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 | ECDH | `KeyAgreement.getInstance("ECDH", "AndroidKeyStore").init(priv); doPhase(peerPub, true); generateSecret()` → 32바이트 X | `SecKeyCopyKeyExchangeResult(priv, kSecKeyAlgorithmECDHKeyExchangeStandard, peerPub, params{})` → 32바이트 X. peerPub는 `SecKeyCreateWithData`(65바이트, `kSecAttrKeyClassPublic`) |
 | 삭제 | `KeyStore.deleteEntry(alias)` + 대체 키 파일 삭제 | `SecItemDelete` |
 | 스레드 | `Dispatchers.IO` | 기본 디스패처(Security.framework는 스레드 안전) |
+| 핸들 수명(#97) | JVM 객체(`PrivateKey`)라 GC가 관리 | 키 객체(`SecureEnclaveKey`, `AppleSoftwareEcdhKey`)가 생성자에서 `SecKeyRef`의 +1 참조를 맡고(생성자가 실패해도), 객체가 수거되면 첫 필드의 `ReleaseWhenCollected`(Kotlin/Native `createCleaner`)가 정확히 한 번 `CFRelease`. 넘긴 쪽은 해제하지 않는다. 호출 하나 안의 임시 참조(질의 딕셔너리, 상대 공개키, `CFData`, `CFError`)는 `releasing`/`use`로 즉시 해제. `VehicleKey`에 `close()` 없음(Go `ECDHPrivateKey`와 같음) |
 
 소프트웨어 대체 키(Android): `KeyPairGenerator("EC")`로 만든 개인키를 `04‖X‖Y‖d`(97바이트)로 직렬화하고, Keystore의 AES-256-GCM 키(`teslable.wrap:<alias>`)로 감싸 `TBK1` 파일 `filesDir/teslable/keys/<alias>.enc`에 저장(설계 구체화 10). 하드웨어 키의 Keystore 별칭은 `teslable.key:<alias>`. 파일이 손상됐거나 래핑 키가 없으면 자동 교체 없이 `PlatformFailure("stored key is corrupted")`. iOS: Secure Enclave 조회 실패(`find` 실패)는 "없음"으로 취급하지 않고 오류로 돌려준다(없을 때만 Keychain 소프트웨어 키를 찾는다). ECDH는 JCA 소프트웨어 `KeyAgreement`. `KeyProtection.SOFTWARE`로 보고.
 

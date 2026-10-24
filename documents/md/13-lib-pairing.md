@@ -27,6 +27,18 @@ issue #91). Real-vehicle check of pairing is pending. Go original behaviour: `09
 
 There is no API to export a private key (NFR-004, ADR-0008). ECDH runs inside the platform key store.
 
+Handle lifetime (issue #97):
+
+- `VehicleKey` has no `close()` and needs none. Keep the key while you use it, then drop the reference.
+- `get` and `getOrCreate` return a new handle to the same stored key on every call. Reading the key again, for example
+  right before each connection (§Key accessibility), does not accumulate handles.
+- A `Vehicle` keeps a reference to the key it was connected with, so the app may drop its own reference after
+  `connect`.
+- iOS: each key object owns one platform reference (`SecKeyRef`) and releases it exactly once after the object is
+  garbage collected (a Kotlin/Native `Cleaner`, some time after the last reference is gone, on another thread). It is
+  never released while the app or a `Vehicle` still references the key. In Swift, dropping the last reference makes the
+  object collectable. Android and JVM keys are ordinary garbage-collected objects.
+
 ## Policies and protection levels
 
 | `KeyPolicy` | Behaviour |

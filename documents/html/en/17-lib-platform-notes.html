@@ -133,6 +133,7 @@
 <li>Software keys are wrapped by an Android Keystore AES key, or stored as an iOS Keychain item that never leaves the device and is protected according to the key's accessibility setting.</li>
 <li>On iOS, a failed Secure Enclave lookup is reported as an error, not as "no key", so a working key is never overwritten by mistake.</li>
 <li>There is no API to export a private key.</li>
+<li>Key handles are released automatically. On iOS each key object holds one Security framework reference (<code>SecKeyRef</code>). It is released once neither the app nor a connected <code>Vehicle</code> uses the key any more and the Kotlin/Native garbage collector has run. There is nothing to close, and reading the key again does not pile up handles.</li>
 </ul>
 <h3>Using the key while the phone is locked</h3>
 <p>Each key has an accessibility setting, <code>VehicleKey.accessibility</code>. How to choose it and switch keys is in <a href="13-lib-pairing.html#sec-accessibility">13. Keys and Pairing</a>.</p>
