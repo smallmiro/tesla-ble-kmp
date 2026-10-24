@@ -51,6 +51,15 @@ final class ObserveLogger: NSObject, TeslaLogger, @unchecked Sendable {
     }
 }
 
+/// 다른 Task 가 채워 주는 값 한 칸.
+final class ResultBox<T: Sendable>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: T?
+
+    func set(_ new: T) { lock.withLock { value = new } }
+    func get() -> T? { lock.withLock { value } }
+}
+
 /// 신호가 올 때까지(또는 시간이 다할 때까지) 기다린다. 기다리기 전에 온 신호는 하나만 기억한다(Android 의 CONFLATED 채널).
 final class WakeSignal: @unchecked Sendable {
     private let lock = NSLock()
@@ -298,7 +307,23 @@ final class MonitorEngine: @unchecked Sendable {
         }
     }
 
+    /// 링크가 끊길 때까지 기다리고 이유를 돌려준다. 호출한 Task 가 취소되면(사용자가 끊었다) 바로 돌아온다:
+    /// Kotlin 흐름이 취소에 늦게 반응해도 `stop()` 이 매달리지 않도록 관찰은 별도 Task 에서 하고 문(`Gate`)으로 기다린다.
     private func awaitLoss(_ box: VehicleBox) async -> String? {
+        let gate = Gate()
+        let reason = ResultBox<String?>()
+        let watcher = Task { [self] in
+            reason.set(await watchDisconnect(box))
+            gate.fire()
+        }
+        await withTaskCancellationHandler { await gate.wait() } onCancel: {
+            watcher.cancel()
+            gate.fire()
+        }
+        return reason.get() ?? nil
+    }
+
+    private func watchDisconnect(_ box: VehicleBox) async -> String? {
         nonisolated(unsafe) let connection = box.vehicle.connection
         for await state in connection {
             if case .disconnected(let d) = onEnum(of: state) {
