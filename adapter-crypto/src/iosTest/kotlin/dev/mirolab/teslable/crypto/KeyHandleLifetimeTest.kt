@@ -3,6 +3,7 @@ package dev.mirolab.teslable.crypto
 import dev.mirolab.teslable.model.PublicKeyBytes
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.port.KeyAccessibility
+import dev.mirolab.teslable.port.KeyProtection
 import dev.mirolab.teslable.port.VehicleKey
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.IntVar
@@ -10,6 +11,10 @@ import kotlinx.cinterop.alloc
 import kotlinx.cinterop.memScoped
 import kotlinx.cinterop.ptr
 import kotlinx.cinterop.value
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.cancelAndJoin
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.runTest
 import platform.CoreFoundation.CFDictionaryRef
@@ -35,12 +40,14 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertIs
+import kotlin.test.assertTrue
 import kotlin.test.fail
 
 private const val P384_BITS = 384
-private const val MAX_GC_ROUNDS = 500
+private const val MAX_GC_ROUNDS = 1000
 private const val STABLE_GC_ROUNDS = 5
 private const val ROUND_PAUSE_SECONDS = 0.01
+private const val EXCHANGE_ROUNDS = 300
 
 /**
  * #97 (FR-020, ADR-0008): 키 객체가 가진 SecKeyRef의 수명. 키 객체는 생성자에 넘어온 +1 참조 하나를 맡고(생성자가 실패해도),
@@ -80,7 +87,8 @@ class KeyHandleLifetimeTest {
         val ref = keyReferenceIn(result)
         holdForObservation(ref)
         val before = CFGetRetainCount(ref)
-        useAndDropFoundKey(result)
+        // 살아 있는 동안 키 몫이 있어야 한다 — retain과 해제가 함께 빠져도 수거 뒤 숫자만 보면 통과해 버린다
+        assertEquals(before + 1, useAndDropFoundKey(result, ref), "the found key holds its own reference")
         awaitRetainCount(ref, before)
         assertRetainCountStays(ref, before)
         CFRelease(result)
@@ -95,7 +103,7 @@ class KeyHandleLifetimeTest {
         val ref = keyReferenceIn(result)
         holdForObservation(ref)
         val before = CFGetRetainCount(ref)
-        runBlocking { readAndDrop(AppleVehicleKeyStore(UnusedKeychain, QueryResultEnclave(result)), times = 20) }
+        runBlocking { readAndDrop(AppleVehicleKeyStore(UnusedKeychain, QueryResultEnclave(result)), ref, before, times = 20) }
         awaitRetainCount(ref, before)
         assertRetainCountStays(ref, before)
         CFRelease(result)
@@ -120,6 +128,26 @@ class KeyHandleLifetimeTest {
             assertContentEquals(softwareKey.sharedX(peer), enclaveKey.sharedX(peer))
             releaseObservation(enclaveRef)
             releaseObservation(softwareRef)
+        }
+
+    @Test
+    fun exchangeOnAKeyThatOnlyTheCallHoldsSurvivesConcurrentCollections() =
+        runBlocking {
+            // 리뷰: 소유자가 네이티브 ECDH 도중 수거되면 Cleaner가 쓰는 중인 참조를 놓는가. 호출식만 키를 붙잡는 가장 약한 경우(임시 키에
+            // 바로 sharedX)에도 호출이 끝날 때까지 호출자의 스택 칸이 키를 붙잡는다. 라이브러리 경로는 이보다 강하다: Session.establish가
+            // sharedX 뒤에 publicKey를 읽고 SessionState가 키를 필드로 가진다. 다른 스레드가 GC를 계속 돌리는 동안 되풀이한다.
+            val pair = generateSoftwareKeyPair()
+            val peer = generateSoftwareKeyPair().publicKey
+            val expected = newSoftwareKey(pair).sharedX(peer)
+            val collector = launch(Dispatchers.Default) { while (isActive) GC.collect() }
+            try {
+                repeat(EXCHANGE_ROUNDS) {
+                    assertContentEquals(expected, newSoftwareKey(pair).sharedX(peer))
+                    assertContentEquals(expected, newEnclaveKey(pair).sharedX(peer))
+                }
+            } finally {
+                collector.cancelAndJoin()
+            }
         }
 
     @Test
@@ -174,12 +202,25 @@ class KeyHandleLifetimeTest {
         override fun delete(account: String): Int = fail("not expected: delete")
     }
 
+    /** [store]에서 키를 [times]번 읽고 버린다. 읽은 키는 살아 있는 동안 [ref]에 자기 몫을 가진다(참조 수가 [before]보다 크다). */
     private suspend fun readAndDrop(
         store: AppleVehicleKeyStore,
+        ref: SecKeyRef,
+        before: Long,
         times: Int,
     ) {
-        repeat(times) { assertIs<VehicleResult.Success<VehicleKey?>>(store.get("monitor")) }
+        repeat(times) {
+            val key = assertIs<VehicleResult.Success<VehicleKey?>>(store.get("monitor")).value
+            assertTrue(CFGetRetainCount(ref) > before, "a key read from the store holds its own reference")
+            assertEquals(KeyProtection.SECURE_ENCLAVE, key?.protection)
+        }
     }
+
+    private fun newSoftwareKey(pair: SoftwareKeyPair): AppleSoftwareEcdhKey =
+        AppleSoftwareEcdhKey(createSecKey(pair.toExternal(), kSecAttrKeyClassPrivate), pair.publicKey)
+
+    private fun newEnclaveKey(pair: SoftwareKeyPair): SecureEnclaveKey =
+        SecureEnclaveKey("a", createSecKey(pair.toExternal(), kSecAttrKeyClassPrivate), KeyAccessibility.WHEN_UNLOCKED)
 
     /** [ref]를 넘겨받은 키를 쓰고 버린다. 키가 살아 있는 동안의 참조 수를 돌려준다. */
     private fun useAndDropSecureEnclaveKey(ref: SecKeyRef): Long {
@@ -197,8 +238,15 @@ class KeyHandleLifetimeTest {
         return CFGetRetainCount(ref)
     }
 
-    private fun useAndDropFoundKey(result: CFDictionaryRef) {
-        assertEquals(KeyAccessibility.AFTER_FIRST_UNLOCK, enclaveFoundOf("a", result).key.accessibility)
+    /** 질의 결과에서 키를 찾아 쓰고 버린다. 키가 살아 있는 동안 [ref]의 참조 수를 돌려준다. */
+    private fun useAndDropFoundKey(
+        result: CFDictionaryRef,
+        ref: SecKeyRef,
+    ): Long {
+        val key = enclaveFoundOf("a", result).key
+        val alive = CFGetRetainCount(ref)
+        assertEquals(KeyAccessibility.AFTER_FIRST_UNLOCK, key.accessibility)
+        return alive
     }
 
     private fun constructSecureEnclaveKeyExpectingFailure(ref: SecKeyRef): Throwable? =
