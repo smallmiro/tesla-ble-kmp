@@ -62,7 +62,7 @@ final class MonitorModel: ObservableObject {
         case .sessions(let text): sessions = text
         case .key(let status):
             keyStatus = status
-            keyControl.keyChanged(ready: status.ready, locked: status.locked)
+            keyControl.keyChanged(status.state)
         case .vin(let vin):
             savedVin = vin
             keyControl.vinChanged(saved: vin != nil)

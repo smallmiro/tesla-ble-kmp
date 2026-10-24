@@ -10,15 +10,24 @@ struct QueryResult: Sendable, Equatable {
     let summary: String
 }
 
+/// 모니터 키가 지금 어떤 상태인가(키·제어 탭의 1단계).
+enum KeyState: Sendable, Equatable {
+    /// 아직 읽지 않았다.
+    case none
+    /// 키를 읽을 수 있다.
+    case ready
+    /// 폰 잠금 때문에 키를 읽을 수 없다(키는 멀쩡하다).
+    case locked
+    /// 읽거나 만들지 못했다.
+    case error
+}
+
 /// 모니터 키의 상태(Control 탭).
 struct KeyStatus: Sendable, Equatable {
     var text = "키 없음"
     /// 키가 있는데 잠금 중 사용이 안 될 때 사용자에게 알릴 문장.
     var warning: String?
-    /// 키를 읽을 수 있다(키·제어 탭의 1단계).
-    var ready = false
-    /// 폰 잠금 때문에 키를 읽을 수 없다(키는 멀쩡하다).
-    var locked = false
+    var state = KeyState.none
 }
 
 /// 엔진이 화면(`MonitorModel`)에 알리는 변화. 한 줄기(AsyncStream)로 보내서 순서가 바뀌지 않는다.
@@ -289,7 +298,7 @@ final class MonitorEngine: @unchecked Sendable {
             switch onEnum(of: result) {
             case .success(let s):
                 guard let k = s.value as? VehicleKey else {
-                    emit.yield(.key(KeyStatus(text: "키 오류: 예상하지 못한 결과 형식")))
+                    emit.yield(.key(KeyStatus(text: "키 오류: 예상하지 못한 결과 형식", state: .error)))
                     return .failed("예상하지 못한 결과 형식")
                 }
                 lock.withLock { key = k }
@@ -297,17 +306,17 @@ final class MonitorEngine: @unchecked Sendable {
                 return .ready(k)
             case .failure(let f):
                 if f.error is VehicleErrorKeyStoreErrorLocked {
-                    emit.yield(.key(KeyStatus(text: "키 잠김: 폰을 잠금 해제하면 다시 읽습니다(키는 지우지 않음)", locked: true)))
+                    emit.yield(.key(KeyStatus(text: "키 잠김: 폰을 잠금 해제하면 다시 읽습니다(키는 지우지 않음)", state: .locked)))
                     return .locked
                 }
-                emit.yield(.key(KeyStatus(text: "키 오류: \(f.error.message)")))
+                emit.yield(.key(KeyStatus(text: "키 오류: \(f.error.message)", state: .error)))
                 return .failed(f.error.message)
             case .uncertain(let u): // 키 저장소는 돌려주지 않는다
-                emit.yield(.key(KeyStatus(text: "키 불확실: \(u.error.message)")))
+                emit.yield(.key(KeyStatus(text: "키 불확실: \(u.error.message)", state: .error)))
                 return .failed(u.error.message)
             }
         } catch {
-            emit.yield(.key(KeyStatus(text: "키 오류: \(error)")))
+            emit.yield(.key(KeyStatus(text: "키 오류: \(error)", state: .error)))
             return .failed("\(error)")
         }
     }
@@ -317,7 +326,7 @@ final class MonitorEngine: @unchecked Sendable {
         let warning = k.accessibility == .afterFirstUnlock
             ? nil
             : "이 키는 폰이 잠긴 동안 쓸 수 없습니다(WHEN_UNLOCKED). 키를 지우고 새로 만든 뒤 차량에 다시 등록해야 합니다."
-        return KeyStatus(text: text, warning: warning, ready: true)
+        return KeyStatus(text: text, warning: warning, state: .ready)
     }
 
     // MARK: - 연결 루프에 끼우는 함수

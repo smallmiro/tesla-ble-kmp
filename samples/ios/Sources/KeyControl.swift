@@ -11,13 +11,6 @@ enum Enrollment: Sendable, Equatable {
     case enrolled
 }
 
-/// 키 준비(1단계) 결과. Kotlin 의 `VehicleKey` 는 액터 밖으로 내보내지 않는다.
-enum KeyPrep: Sendable, Equatable {
-    case ready
-    case locked
-    case failed(String)
-}
-
 // MARK: - 단계 표
 
 enum StepState: Sendable, Equatable {
@@ -120,10 +113,22 @@ enum ControlButton: CaseIterable, Sendable, Hashable, Identifiable {
     case autoSecure
     case openTonneau, closeTonneau, stopTonneau
 
-    enum Group: Sendable, Equatable {
-        case doors, trunk, drive
-        /// 접힌 "다른 차종" 칸: Model X, Cybertruck.
-        case otherModels
+    /// 화면의 버튼 묶음. 앞의 셋은 늘 보이고, `modelX`·`cybertruck` 은 접힌 "다른 차종" 칸에 있다.
+    enum Group: CaseIterable, Sendable, Equatable {
+        case doors, trunk, drive, modelX, cybertruck
+
+        static let primary: [Group] = [.doors, .trunk, .drive]
+        static let otherModels: [Group] = [.modelX, .cybertruck]
+
+        var title: String {
+            switch self {
+            case .doors: return "문"
+            case .trunk: return "트렁크"
+            case .drive: return "주행"
+            case .modelX: return "Model X"
+            case .cybertruck: return "Cybertruck"
+            }
+        }
     }
 
     struct Confirmation: Sendable, Equatable {
@@ -171,7 +176,8 @@ enum ControlButton: CaseIterable, Sendable, Hashable, Identifiable {
         case .lock, .unlock, .wakeUp: return .doors
         case .actuateTrunk, .closeTrunk, .openFrunk: return .trunk
         case .remoteDrive: return .drive
-        case .autoSecure, .openTonneau, .closeTonneau, .stopTonneau: return .otherModels
+        case .autoSecure: return .modelX
+        case .openTonneau, .closeTonneau, .stopTonneau: return .cybertruck
         }
     }
 
@@ -197,6 +203,19 @@ struct StatusCard: Sendable, Equatable {
     let frunk: String
     let sleep: String
     let at: Date
+
+    /// 매핑은 `StatusSnapshot(_: VehicleStatus_)` 한 곳에서 하고, 카드는 거기서 네 값만 고른다.
+    init(_ s: StatusSnapshot, at: Date) {
+        self.init(lock: s.lock, trunk: s.trunk, frunk: s.frunk, sleep: s.sleep, at: at)
+    }
+
+    init(lock: String, trunk: String, frunk: String, sleep: String, at: Date) {
+        self.lock = lock
+        self.trunk = trunk
+        self.frunk = frunk
+        self.sleep = sleep
+        self.at = at
+    }
 
     var lockText: String {
         Self.label(lock, ["LOCKED": "잠김", "UNLOCKED": "잠금 해제", "INTERNAL_LOCKED": "내부 잠김", "SELECTIVE_UNLOCKED": "일부 해제", "UNKNOWN": "알 수 없음"])

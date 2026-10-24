@@ -4,15 +4,12 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import dev.mirolab.teslable.TeslaBle
 import dev.mirolab.teslable.Vehicle
-import dev.mirolab.teslable.model.PairingEvent
 import dev.mirolab.teslable.model.VehicleDomain
-import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.Vin
 import dev.mirolab.teslable.model.WhitelistEntry
 import dev.mirolab.teslable.port.ScanEvent
 import dev.mirolab.teslable.port.VehicleKey
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.seconds
@@ -111,7 +108,7 @@ class SampleState(
     }
 
     /** 이 기기의 키인지. */
-    fun isOwn(entry: WhitelistEntry): Boolean = entry.publicKey != null && entry.publicKey == key?.publicKey
+    fun isOwn(entry: WhitelistEntry): Boolean = entry.publicKey.isSameKeyAs(key?.publicKey)
 
     fun entryLabel(entry: WhitelistEntry): String =
         "슬롯 ${entry.slot} ${entry.formFactor} ${entry.role}${if (isOwn(entry)) " (이 기기)" else ""}"
@@ -142,51 +139,17 @@ class SampleState(
     }
 
     /** 키 등록 요청. 이벤트마다 한 줄을 `output`에 남기고, `Accepted`/`TimedOut`이면 등록 확인을 잇는다. */
-    @Suppress("CyclomaticComplexMethod") // PairingEvent 7종을 한 `when` 으로 문장에 옮기는 표라 갈래 수가 곧 복잡도다
     suspend fun pair() {
         val v = vehicle ?: return run { output.add("키 등록: 먼저 연결하세요") }
         val k = key ?: return run { output.add("키 등록: 먼저 키를 만드세요") }
-        var confirm = false
-        v.addKeyRequest(k.publicKey).collect { event ->
-            output.add(
-                when (event) {
-                    PairingEvent.Sent -> "요청 보냄 — 중앙 콘솔에 키카드를 대고 화면에서 승인하세요"
-                    PairingEvent.WaitingForTap -> "카드 태그 대기 중"
-                    PairingEvent.Accepted -> "차량이 승인함 — Infotainment 동기화 확인 중".also { confirm = true }
-                    is PairingEvent.Rejected -> "거부: ${event.error.message}"
-                    is PairingEvent.Unknown -> "모르는 응답 ${event.raw.joinToString("") { "%02x".format(it) }}"
-                    is PairingEvent.Failed -> "실패: ${event.error.message}"
-                    PairingEvent.TimedOut -> "시간 초과 — 등록 여부를 확인합니다".also { confirm = true }
-                },
-            )
-        }
-        if (confirm) confirmEnrollment()
+        requestAndConfirmEnrollment(v, k.publicKey) { output.add(it) }
     }
 
     /** 3초 간격, 최대 2분 동안 Infotainment `sessionInfo`로 등록을 확인한다. */
     suspend fun confirmEnrollment() {
         val v = vehicle ?: return run { output.add("등록 확인: 먼저 연결하세요") }
         val k = key ?: return run { output.add("등록 확인: 먼저 키를 만드세요") }
-        var last = "등록 확인: 시도하지 못함"
-        val mark = TimeSource.Monotonic.markNow()
-        while (mark.elapsedNow() < ENROLL_WINDOW) {
-            when (val r = v.sessionInfo(k.publicKey, VehicleDomain.INFOTAINMENT, ENROLL_CALL_TIMEOUT)) {
-                is VehicleResult.Success -> {
-                    return run { output.add("등록 확인됨(Infotainment)") }
-                }
-
-                is VehicleResult.Failure -> {
-                    last =
-                        if (r.error is VehicleError.KeyNotPaired) "아직 등록되지 않음(KeyNotPaired) — 2분까지 반복" else "등록 확인 실패: ${r.error.message}"
-                }
-
-                is VehicleResult.Uncertain -> {
-                    last = "등록 확인 불확실: ${r.error.message}"
-                }
-            }
-            delay(ENROLL_INTERVAL)
-        }
-        output.add("$last (2분 안에 확인되지 않음)")
+        output.add(confirmEnrollment(v, k.publicKey).line)
     }
 
     /** 제어 명령. `Uncertain`이면 다시 보내지 않고 곧바로 `vehicleStatus()`로 재조회한다(FR-102). */
@@ -259,9 +222,6 @@ class SampleState(
 
     private companion object {
         val SCAN_TIMEOUT = 30.seconds
-        val ENROLL_WINDOW = 120.seconds
-        val ENROLL_INTERVAL = 3.seconds
-        val ENROLL_CALL_TIMEOUT = 5.seconds
         const val MS_PER_SECOND = 1000.0
     }
 }

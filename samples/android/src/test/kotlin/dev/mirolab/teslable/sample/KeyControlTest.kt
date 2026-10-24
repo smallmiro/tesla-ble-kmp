@@ -148,6 +148,14 @@ class KeyControlTest {
     }
 
     @Test
+    fun refreshButtonNeedsConnectionAndNoBusyCall() {
+        assertTrue(KeyControlSteps.refreshEnabled(connected = true, busy = false))
+        assertFalse(KeyControlSteps.refreshEnabled(connected = false, busy = false))
+        assertFalse(KeyControlSteps.refreshEnabled(connected = true, busy = true))
+        assertFalse(KeyControlSteps.refreshEnabled(connected = false, busy = true))
+    }
+
+    @Test
     fun checkButtonFollowsKeyConnectionAndBusyButNotEnrollment() {
         assertTrue(KeyControlSteps.of(inputs(enrollment = Enrollment.ENROLLED)).checkEnabled) // 다시 확인할 수 있다
         assertTrue(KeyControlSteps.of(inputs(enrollment = Enrollment.UNKNOWN)).checkEnabled)
@@ -253,11 +261,9 @@ class KeyControlTest {
             val out = f.run()
 
             assertEquals(listOf("session", "command", "requery"), f.calls)
-            assertEquals(CommandKind.SUCCESS, out.kind)
             assertEquals("성공", out.message)
             assertEquals(statusOk, out.status)
             assertNull(out.enrollment)
-            assertTrue(out.sent)
         }
 
     @Test
@@ -268,8 +274,6 @@ class KeyControlTest {
             val out = f.run()
 
             assertEquals(listOf("session"), f.calls)
-            assertEquals(CommandKind.SESSION_FAILED, out.kind)
-            assertFalse(out.sent)
             assertNull(out.status)
             assertNull(out.enrollment)
             assertTrue(out.message.startsWith("세션 실패"), out.message)
@@ -287,8 +291,8 @@ class KeyControlTest {
             val out = f.run()
 
             assertEquals(listOf("session"), f.calls)
-            assertEquals(CommandKind.SESSION_FAILED, out.kind)
-            assertFalse(out.sent)
+            assertTrue(out.message.startsWith("세션 실패"), out.message)
+            assertNull(out.status)
         }
 
     @Test
@@ -300,7 +304,6 @@ class KeyControlTest {
 
             assertEquals(listOf("session"), f.calls)
             assertEquals(Enrollment.NOT_ENROLLED, out.enrollment)
-            assertEquals(CommandKind.SESSION_FAILED, out.kind)
             assertTrue(out.message.contains("등록"), out.message)
         }
 
@@ -329,9 +332,7 @@ class KeyControlTest {
             val out = f.run()
 
             assertEquals(listOf("session", "command", "requery"), f.calls)
-            assertEquals(CommandKind.FAILURE, out.kind)
             assertEquals("실패: ${VehicleError.InsufficientPrivileges.message}", out.message)
-            assertTrue(out.sent)
         }
 
     @Test
@@ -344,10 +345,8 @@ class KeyControlTest {
 
             assertEquals(1, f.calls.count { it == "command" })
             assertEquals(listOf("session", "command", "requery"), f.calls)
-            assertEquals(CommandKind.UNCERTAIN, out.kind)
             assertEquals("불확실: ${error.message}", out.message)
             assertEquals(statusOk, out.status)
-            assertTrue(out.sent)
         }
 
     @Test
@@ -361,7 +360,6 @@ class KeyControlTest {
 
             val out = f.run()
 
-            assertEquals(CommandKind.UNCERTAIN, out.kind)
             assertNull(out.status)
             assertNotNull(out.requeryMessage)
             assertTrue(out.requeryMessage.orEmpty().startsWith("재조회 실패"), out.requeryMessage)
@@ -425,6 +423,15 @@ class KeyControlTest {
             KeyControlRunner.enrollmentFrom(VehicleResult.Uncertain(VehicleError.Timeout(afterSend = true)), mine),
         )
         assertEquals(Enrollment.UNKNOWN, KeyControlRunner.enrollmentFrom(VehicleResult.Failure(VehicleError.NotConnected), mine))
+    }
+
+    @Test
+    fun publicKeysMatchByContentAndNeverWhenMissing() {
+        assertTrue(keyBytes(1).isSameKeyAs(keyBytes(1)))
+        assertFalse(keyBytes(1).isSameKeyAs(keyBytes(2)))
+        assertFalse(null.isSameKeyAs(null))
+        assertFalse(keyBytes(1).isSameKeyAs(null))
+        assertFalse(null.isSameKeyAs(keyBytes(1)))
     }
 
     // --- 연결마다 한 번 자동 확인 ------------------------------------------------------------------------------------------

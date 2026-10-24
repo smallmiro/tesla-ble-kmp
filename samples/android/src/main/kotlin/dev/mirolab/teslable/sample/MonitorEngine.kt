@@ -40,15 +40,15 @@ data class QueryResult(
     val summary: String,
 )
 
-/** 모니터 키의 상태(Control 탭). */
+/** 모니터 키를 읽은 결과: 아직 없음, 읽을 수 있음, 폰 잠금 때문에 못 읽음(키는 지우지 않음), 그 밖의 오류·불확실. */
+enum class KeyState { NONE, READY, LOCKED, ERROR }
+
+/** 모니터 키의 상태(Control 탭, 키·제어 탭의 1단계). */
 data class KeyStatus(
     val text: String = "키 없음",
     /** 키가 있는데 잠금 중 사용이 안 될 때 사용자에게 알릴 문장. */
     val warning: String? = null,
-    /** 키가 있고 읽을 수 있다(키·제어 탭의 1단계). */
-    val ready: Boolean = false,
-    /** 폰 잠금 때문에 키를 읽지 못했다(키는 지우지 않았다). */
-    val locked: Boolean = false,
+    val state: KeyState = KeyState.NONE,
 )
 
 /** 로그 `observe` 줄만 골라 [sink]에 넘기고, 나머지(와 observe 줄도)는 Logcat용 [delegate]로 그대로 넘긴다. BLE `TX:`/`RX:` 줄은 파일에 쓰지 않는다. */
@@ -206,14 +206,14 @@ class MonitorEngine(
             is VehicleResult.Failure -> {
                 keyStatus.value =
                     if (result.error == VehicleError.KeyStoreError.Locked) {
-                        KeyStatus("키 잠김: 폰을 잠금 해제하면 다시 읽습니다(키는 지우지 않음)", locked = true)
+                        KeyStatus("키 잠김: 폰을 잠금 해제하면 다시 읽습니다(키는 지우지 않음)", state = KeyState.LOCKED)
                     } else {
-                        KeyStatus("키 오류: ${result.error.message}")
+                        KeyStatus("키 오류: ${result.error.message}", state = KeyState.ERROR)
                     }
             }
 
             is VehicleResult.Uncertain -> {
-                keyStatus.value = KeyStatus("키 불확실: ${result.error.message}")
+                keyStatus.value = KeyStatus("키 불확실: ${result.error.message}", state = KeyState.ERROR)
             }
         }
         return result
@@ -227,7 +227,7 @@ class MonitorEngine(
             } else {
                 null
             }
-        return KeyStatus(text, warning, ready = true)
+        return KeyStatus(text, warning, KeyState.READY)
     }
 
     // --- 연결 루프에 끼우는 함수 -------------------------------------------------------------------------------------------

@@ -151,10 +151,23 @@ final class ControlButtonTests: XCTestCase {
         XCTAssertTrue(ControlButton.openFrunk.confirmation?.message.contains("원격으로 닫을 수 없습니다") == true)
     }
 
-    func testOtherModelsGroupHoldsModelXAndCybertruckButtons() {
-        XCTAssertEqual(Set(ControlButton.allCases.filter { $0.group == .otherModels }), [
-            .autoSecure, .openTonneau, .closeTonneau, .stopTonneau,
-        ])
+    func testModelXAndCybertruckGroupsHoldTheirButtons() {
+        XCTAssertEqual(ControlButton.allCases.filter { $0.group == .modelX }, [.autoSecure])
+        XCTAssertEqual(ControlButton.allCases.filter { $0.group == .cybertruck }, [.openTonneau, .closeTonneau, .stopTonneau])
+    }
+
+    func testGroupsHoldTheButtonsTheViewShowsInOrder() {
+        XCTAssertEqual(ControlButton.allCases.filter { $0.group == .doors }, [.lock, .unlock, .wakeUp])
+        XCTAssertEqual(ControlButton.allCases.filter { $0.group == .trunk }, [.actuateTrunk, .closeTrunk, .openFrunk])
+        XCTAssertEqual(ControlButton.allCases.filter { $0.group == .drive }, [.remoteDrive])
+    }
+
+    func testEveryGroupHasATitleAndIsShownExactlyOnce() {
+        XCTAssertEqual(ControlButton.Group.primary + ControlButton.Group.otherModels, ControlButton.Group.allCases)
+        XCTAssertEqual(ControlButton.Group.allCases.map(\.title), ["문", "트렁크", "주행", "Model X", "Cybertruck"])
+        for g in ControlButton.Group.allCases {
+            XCTAssertFalse(ControlButton.allCases.filter { $0.group == g }.isEmpty, "\(g)")
+        }
     }
 
     func testEverySpecButtonExists() {
@@ -175,6 +188,12 @@ final class StatusCardTests: XCTestCase {
         XCTAssertEqual(odd.trunkText, "살짝 열림")
         XCTAssertEqual(odd.frunkText, "알 수 없음")
         XCTAssertEqual(odd.sleepText, "깨어 있음")
+    }
+
+    func testBuiltFromAStatusSnapshotPicksLockTrunkFrunkAndSleep() {
+        let snapshot = StatusSnapshot(lock: "UNLOCKED", sleep: "ASLEEP", frunk: "OPEN", trunk: "AJAR")
+        let at = Date(timeIntervalSince1970: 5)
+        XCTAssertEqual(StatusCard(snapshot, at: at), StatusCard(lock: "UNLOCKED", trunk: "AJAR", frunk: "OPEN", sleep: "ASLEEP", at: at))
     }
 }
 

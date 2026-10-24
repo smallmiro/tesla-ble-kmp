@@ -58,6 +58,12 @@ data class KeyControlSteps(
             )
         }
 
+        /** "상태 새로고침" 버튼: 연결돼 있고 이 탭의 호출이 진행 중이 아니다. */
+        fun refreshEnabled(
+            connected: Boolean,
+            busy: Boolean,
+        ): Boolean = connected && !busy
+
         private fun keyStep(i: KeyControlInputs): StepView =
             when {
                 i.keyReady -> StepView(StepStatus.DONE, "키 준비됨", !i.busy)
@@ -151,20 +157,23 @@ enum class KeyCommand(
     STOP_TONNEAU("톤노 정지", KeyGroup.CYBERTRUCK),
 }
 
-enum class CommandKind { SUCCESS, FAILURE, UNCERTAIN, SESSION_FAILED }
-
 /**
- * 명령 한 번의 결과. [sent]가 false이면 명령은 보내지 않았다(세션 실패). [enrollment]는 이 결과로 알게 된 등록 상태(없으면 null),
- * [status]는 재조회로 읽은 상태, [requeryMessage]는 재조회가 실패했을 때의 한 줄.
+ * 명령 한 번의 결과. [enrollment]는 이 결과로 알게 된 등록 상태(없으면 null), [status]는 재조회로 읽은 상태,
+ * [requeryMessage]는 재조회가 실패했을 때의 한 줄. 세션 실패면 명령을 보내지 않았고 [status]도 없다.
  */
 data class CommandOutcome(
-    val kind: CommandKind,
     val message: String,
-    val sent: Boolean,
     val enrollment: Enrollment? = null,
     val status: VehicleStatus? = null,
     val requeryMessage: String? = null,
 )
+
+private fun VehicleResult<*>.errorOrNull(): VehicleError? =
+    when (this) {
+        is VehicleResult.Success -> null
+        is VehicleResult.Failure -> error
+        is VehicleResult.Uncertain -> error
+    }
 
 /** 명령 실행 규칙(`05-key-control-tab.md` §Running a command). 호출은 모두 람다로 받아 차량 없이 시험한다. */
 object KeyControlRunner {
@@ -177,44 +186,34 @@ object KeyControlRunner {
         command: suspend () -> VehicleResult<Unit>,
         requery: suspend () -> VehicleResult<VehicleStatus>,
     ): CommandOutcome {
-        val sessionError =
-            when (val s = ensureSession()) {
-                is VehicleResult.Success -> null
-                is VehicleResult.Failure -> s.error
-                is VehicleResult.Uncertain -> s.error
-            }
-        if (sessionError != null) return sessionFailed(sessionError)
+        ensureSession().errorOrNull()?.let { return sessionFailed(it) }
 
-        val (kind, message) =
+        val message =
             when (val r = command()) {
-                is VehicleResult.Success -> CommandKind.SUCCESS to "성공"
-                is VehicleResult.Failure -> CommandKind.FAILURE to "실패: ${r.error.message}"
-                is VehicleResult.Uncertain -> CommandKind.UNCERTAIN to "불확실: ${r.error.message}"
+                is VehicleResult.Success -> "성공"
+                is VehicleResult.Failure -> "실패: ${r.error.message}"
+                is VehicleResult.Uncertain -> "불확실: ${r.error.message}"
             }
-        return when (val q = requery()) {
-            is VehicleResult.Success -> CommandOutcome(kind, message, sent = true, status = q.value)
-            is VehicleResult.Failure -> CommandOutcome(kind, message, sent = true, requeryMessage = "재조회 실패: ${q.error.message}")
-            is VehicleResult.Uncertain -> CommandOutcome(kind, message, sent = true, requeryMessage = "재조회 실패: ${q.error.message}")
+        val q = requery()
+        return if (q is VehicleResult.Success) {
+            CommandOutcome(message, status = q.value)
+        } else {
+            CommandOutcome(message, requeryMessage = "재조회 실패: ${q.errorOrNull()?.message}")
         }
     }
 
     private fun sessionFailed(error: VehicleError): CommandOutcome =
         when (error) {
             VehicleError.KeyNotPaired -> {
-                CommandOutcome(
-                    CommandKind.SESSION_FAILED,
-                    "세션 실패: 이 키가 차량에 등록되어 있지 않습니다(명령은 보내지 않음)",
-                    sent = false,
-                    enrollment = Enrollment.NOT_ENROLLED,
-                )
+                CommandOutcome("세션 실패: 이 키가 차량에 등록되어 있지 않습니다(명령은 보내지 않음)", enrollment = Enrollment.NOT_ENROLLED)
             }
 
             VehicleError.KeyStoreError.Locked -> {
-                CommandOutcome(CommandKind.SESSION_FAILED, "세션 실패: 폰을 잠금 해제한 뒤 다시 누르세요(명령은 보내지 않음)", sent = false)
+                CommandOutcome("세션 실패: 폰을 잠금 해제한 뒤 다시 누르세요(명령은 보내지 않음)")
             }
 
             else -> {
-                CommandOutcome(CommandKind.SESSION_FAILED, "세션 실패: ${error.message}(명령은 보내지 않음)", sent = false)
+                CommandOutcome("세션 실패: ${error.message}(명령은 보내지 않음)")
             }
         }
 
@@ -225,12 +224,7 @@ object KeyControlRunner {
     ): Enrollment =
         when (result) {
             is VehicleResult.Success -> {
-                val mineBytes = mine.toByteArray()
-                if (result.value.any { it.publicKey?.toByteArray()?.contentEquals(mineBytes) == true }) {
-                    Enrollment.ENROLLED
-                } else {
-                    Enrollment.NOT_ENROLLED
-                }
+                if (result.value.any { it.publicKey.isSameKeyAs(mine) }) Enrollment.ENROLLED else Enrollment.NOT_ENROLLED
             }
 
             is VehicleResult.Uncertain, is VehicleResult.Failure -> {
