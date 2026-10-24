@@ -252,6 +252,17 @@ class AppleVehicleKeyStoreTest {
         }
 
     @Test
+    fun deleteReportsLockedWhenEitherCopyIsLocked() =
+        // 한쪽이 잠겨 지우지 못했으면 다른 쪽이 다른 이유로 실패했어도 Locked를 먼저 알린다: 잠금 해제 뒤 다시 부르면 남은 실패가 드러난다
+        runTest {
+            val locked = VehicleResult.Failure(VehicleError.KeyStoreError.Locked)
+            val enclaveFails = FakeEnclave(false).apply { deleteStatus = NOT_AVAILABLE }
+            assertEquals(locked, AppleVehicleKeyStore(FakeKeychain().apply { deleteStatus = LOCKED }, enclaveFails).delete())
+            val enclaveLocked = FakeEnclave(false).apply { deleteStatus = LOCKED }
+            assertEquals(locked, AppleVehicleKeyStore(FakeKeychain().apply { deleteStatus = NOT_AVAILABLE }, enclaveLocked).delete())
+        }
+
+    @Test
     fun creatingAKeyWhileLockedIsLockedAndLeavesNoSoftwareKey() =
         // 일시적인 잠금 때문에 PREFER_HARDWARE가 영구 SOFTWARE 키를 남기면 안 된다(KeyCreationChain이 다음 수준으로 넘어가지 않음)
         runTest {

@@ -171,7 +171,10 @@ internal class AppleVehicleKeyStore(
         VehicleKeyStore.requireValidAlias(alias)
         return guarded {
             val statuses = listOf(enclave.delete(alias), keychain.delete(alias))
-            val failed = statuses.firstOrNull { it != errSecSuccess && it != errSecItemNotFound }
+            // 한쪽이라도 잠겨 지우지 못했으면 Locked를 먼저 알린다 — 잠금 해제 뒤 다시 부르면 남은 실패가 드러난다(FR-037)
+            val failed =
+                statuses.firstOrNull { it == errSecInteractionNotAllowed }
+                    ?: statuses.firstOrNull { it != errSecSuccess && it != errSecItemNotFound }
             if (failed == null) VehicleResult.Success(Unit) else VehicleResult.Failure(keychainFailure(failed))
         }
     }
