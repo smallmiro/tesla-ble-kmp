@@ -71,7 +71,7 @@
 </table>
 
 <h2 id="sec-ios">iOS</h2>
-<p>The monitor app (<a href="04-monitor-app.html">4. Monitor App</a>, SFR-010 to SFR-017): four tabs and one monitor object for the app's lifetime. Build <code>0.2.0 (10)</code>; the unit tests pass and the real-device check is pending.</p>
+<p>The monitor app (<a href="04-monitor-app.html">4. Monitor App</a>, SFR-010 to SFR-017): four tabs and one monitor object for the app's lifetime. Build <code>0.4.0 (10)</code>; the unit tests pass and the real-device check is pending.</p>
 <p>XcodeGen project (<code>project.yml</code>) with the schemes <code>TeslableSample</code> (simulator) and <code>TeslableSampleDevice</code> (phone). <code>project.yml</code> sets <code>UIBackgroundModes: [bluetooth-central]</code>, <code>UIFileSharingEnabled</code> and <code>LSSupportsOpeningDocumentsInPlace</code> in <code>Info.plist</code>. <code>MonitorModel.swift</code> and <code>MonitorEngine.swift</code> run the connection, the events, the queries and the logs; <code>ConnectionLoop.swift</code>, <code>LogLine.swift</code>, <code>LogWriter.swift</code>, <code>VinMask.swift</code>, <code>LiveState.swift</code> and <code>VehicleMapping.swift</code> are the pieces behind them (see <a href="04-monitor-app.html#sec-ios">iOS implementation</a>). <code>SampleModel.swift</code> holds the Control tab state and runs every action through <code>exclusive { }</code>, so only one library call runs at a time. The tabs are in <code>ContentView.swift</code> and <code>Views/</code>. Swift unit tests are in <code>Tests/</code> (<code>VinMaskTests</code>, <code>LogWriterTests</code>, <code>ConnectionLoopTests</code>, <code>LiveStateTests</code>, <code>TimeoutsTests</code>).</p>
 <table>
 <thead><tr><th>Tab</th><th>Contents</th></tr></thead>

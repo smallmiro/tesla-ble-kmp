@@ -33,7 +33,7 @@ private final class FailingAfterFirstWrite: LogOutput, @unchecked Sendable {
 final class LogWriterTests: XCTestCase {
     // 실제 VIN이 아닌 가짜 값(형식만 같다)
     private let vin = "5YJS0000000000000"
-    private let session = SessionInfo(platform: "ios", app: "0.2.0(10)", os: "27.0.1", phone: "iPhone")
+    private let session = SessionInfo(platform: "ios", app: "0.4.0(10)", os: "27.0.1", phone: "iPhone")
     private let tz = TimeZone(secondsFromGMT: 9 * 3600)!
     private var dirs: [URL] = []
 
@@ -109,7 +109,7 @@ final class LogWriterTests: XCTestCase {
         let first = try XCTUnwrap(lines(file).first)
         XCTAssertEqual(first["kind"] as? String, "session")
         XCTAssertEqual(first["platform"] as? String, "ios")
-        XCTAssertEqual(first["app"] as? String, "0.2.0(10)")
+        XCTAssertEqual(first["app"] as? String, "0.4.0(10)")
         XCTAssertEqual(first["os"] as? String, "27.0.1")
         XCTAssertEqual(first["phone"] as? String, "iPhone")
         XCTAssertEqual(first["ts"] as? String, "2026-10-24T10:00:00.123+09:00")
