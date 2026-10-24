@@ -157,7 +157,7 @@
 <tr><td>1</td><td><code>closureStatuses</code></td><td><code>ClosureStatuses</code></td><td>개폐부별 상태. <strong>무언가 열려 있을 때만 전송</strong></td><td><code>closures</code>. 없으면 모두 <code>CLOSED</code></td></tr>
 <tr><td>2</td><td><code>vehicleLockState</code></td><td><code>VehicleLockState_E</code></td><td>잠금 상태</td><td><code>lockState</code></td></tr>
 <tr><td>3</td><td><code>vehicleSleepStatus</code></td><td><code>VehicleSleepStatus_E</code></td><td>인포테인먼트 절전 상태</td><td><code>sleepStatus</code></td></tr>
-<tr><td>4</td><td><code>userPresence</code></td><td><code>UserPresence_E</code></td><td>차 안의 사람</td><td><code>userPresence</code></td></tr>
+<tr><td>4</td><td><code>userPresence</code></td><td><code>UserPresence_E</code></td><td>차 안이나 차 곁의 사람(문을 열고 밖에 서 있어도 <code>PRESENT</code>, B3.1)</td><td><code>userPresence</code></td></tr>
 <tr><td>5</td><td><code>detailedClosureStatus</code></td><td><code>DetailedClosureStatus</code></td><td><code>tonneauPercentOpen</code>(1, uint32), Cybertruck</td><td><code>tonneauPercentOpen</code>(없으면 <code>null</code>)</td></tr>
 <tr><td>6</td><td><code>uiDesire</code></td><td><code>UIDesire_E</code>(Teslemetry)</td><td>스키마에만 있음</td><td><strong>노출하지 않음</strong>(M5 예정)</td></tr>
 <tr><td>7</td><td><code>gear</code></td><td><code>Gear_E</code>(Teslemetry, 브로드캐스트에서만 실차 확정, 조회 응답은 미확인)</td><td>현재 기어</td><td><code>gear</code>. 없거나 스키마 밖의 값이면 <code>UNKNOWN</code></td></tr>
@@ -167,7 +167,7 @@
 <p><code>ClosureStatuses</code>에는 1~8번의 <code>ClosureState_E</code> 필드 여덟 개가 있습니다: <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code>, <code>tonneau</code>.</p>
 <div class="callout">
 <strong>변환 규칙</strong>
-<p>스키마 밖의 값은 0번 값이 아니라 <code>UNKNOWN</code>으로 바꿉니다. proto3에서는 빠진 enum과 0번 값을 구분할 수 없으므로 잠금 상태가 빠지면 <code>UNLOCKED</code>로 읽히며, 조회에서는 Go 동작을 그대로 따릅니다. <code>gear</code>는 Go에 대응하는 것이 없습니다(공식 Go 스키마는 필드 5까지). 0번 값이 <code>GEAR_UNKNOWN</code>이므로 기어가 빠지면 <code>UNKNOWN</code>으로 읽힙니다. 기어는 브로드캐스트로 확인했으며, 차량이 조회 응답에 기어를 채우는지는 실차로 확인하지 않았습니다. 실차 결과상 차량은 모든 필드가 <code>CLOSED</code>(0번 값)이면 <code>closureStatuses</code>를 생략하고 하나라도 아니면 보내므로(앞뒤 운전석 문, 뒷트렁크, 충전구에서 확인) "없으면 모두 닫힘"은 관찰과 맞습니다. 유일한 예외는 실내 버튼으로 조작한 트렁크로, 브로드캐스트가 전혀 없었으며 이 조회는 그것을 그대로 보고합니다.</p>
+<p>스키마 밖의 값은 0번 값이 아니라 <code>UNKNOWN</code>으로 바꿉니다. proto3에서는 빠진 enum과 0번 값을 구분할 수 없으므로 잠금 상태가 빠지면 <code>UNLOCKED</code>로 읽히며, 조회에서는 Go 동작을 그대로 따릅니다. <code>gear</code>는 Go에 대응하는 것이 없습니다(공식 Go 스키마는 필드 5까지). 0번 값이 <code>GEAR_UNKNOWN</code>이므로 기어가 빠지면 <code>UNKNOWN</code>으로 읽힙니다. 기어는 브로드캐스트로 확인했으며, 차량이 조회 응답에 기어를 채우는지는 실차로 확인하지 않았습니다. 실차 결과상 차량은 모든 필드가 <code>CLOSED</code>(0번 값)이면 <code>closureStatuses</code>를 생략하고 하나라도 아니면 보내므로(앞뒤 운전석 문, 뒷트렁크, 충전구에서 확인) "없으면 모두 닫힘"은 관찰과 맞습니다. 유일한 예외는 실내 버튼으로 조작한 트렁크로, 브로드캐스트가 전혀 없었으며, 이 조회로는 보일 것입니다(실차로는 아직 확인하지 않음).</p>
 </div>
 
 <h2 id="sec-a-summary">A3. keySummary()</h2>
@@ -421,8 +421,8 @@
 <h3>앱이 지킬 규칙</h3>
 <ul>
 <li><strong>반복은 변화가 아닙니다.</strong> 차량은 바뀐 것이 없어도 1~25초마다, 때로는 1초 안에 여러 번 상태를 다시 보냅니다. 라이브러리는 반복을 거르지 않으므로 이전 값과 직접 비교하세요.</li>
-<li><strong>트렁크:</strong> 밖에서 손으로 트렁크를 열고 닫았을 때는 브로드캐스트가 왔습니다(<code>rearTrunk = OPEN</code>, 이후 <code>closureStatuses</code> 없음). 실내 버튼으로는 <strong>전혀 오지 않았으므로</strong>, 그렇게 움직인 트렁크는 다른 브로드캐스트가 올 때까지 <code>events</code>에서 <code>CLOSED</code>로 남습니다. 트렁크 상태가 중요하면 <code>vehicleStatus()</code>로 확인하세요.</li>
-<li><strong>깨어나는 차량:</strong> 잠든 차량의 첫 프레임은 닫힘 상태가 <code>UNKNOWN</code>, <code>gear = UNKNOWN</code>으로 보일 수 있으며, 약 0.5초 안에 실제 값이 따라옵니다(B3.1). 그 <code>UNKNOWN</code> 값을 변경으로 취급하지 마세요.</li>
+<li><strong>트렁크:</strong> 밖에서 손으로 트렁크를 열고 닫았을 때는 브로드캐스트가 왔습니다(<code>rearTrunk = OPEN</code>, 이후 <code>closureStatuses</code> 없음). 실내 버튼으로는 <strong>전혀 오지 않았으므로</strong>, <code>events</code>로 트렁크를 추적하는 앱에는 계속 <code>CLOSED</code>로 보입니다. 트렁크 상태가 중요하면 <code>vehicleStatus()</code>로 확인하세요.</li>
+<li><strong>깨어나는 차량:</strong> 잠든 차량의 첫 프레임은 닫힘 상태가 <code>UNKNOWN</code>, <code>gear = UNKNOWN</code>으로 보일 수 있으며, 약 0.5초 안에 실제 값이 따라옵니다(B3.1). 그 <code>UNKNOWN</code> 값을 변경으로 취급하지 마세요. 이 프레임에서는 잠금 상태도 <code>UNLOCKED</code>로 읽히는데, <code>UNLOCKED</code>는 인코딩되지 않는 값이라 차가 아직 잠겨 있었는지 알 수 없습니다. 중요하면 <code>vehicleStatus()</code>로 확인하세요.</li>
 <li><strong>구독:</strong> 수집은 시작한 순간부터 받습니다. 그 전의 브로드캐스트는 다시 오지 않습니다. 여러 곳에서 수집하면 각자 모든 이벤트를 받습니다.</li>
 <li><strong>끝:</strong> <code>connection</code>이 이유와 상관없이 <code>Disconnected</code>가 되거나 <code>disconnect()</code>를 호출하면, 먼저 온 쪽에서 흐름이 예외 없이 정상적으로 끝납니다. 그 뒤에 시작한 수집은 바로 끝납니다. 그 순간 전달 중이던 프레임은 잃을 수 있습니다. 재연결 판단은 <code>connection</code>으로 하고, 링크가 끊긴 뒤에도 <code>disconnect()</code>는 호출하세요. 새 연결은 자기 <code>events</code>를 가진 새 <code>Vehicle</code>입니다.</li>
 <li><strong>느린 수집자:</strong> 라이브러리는 뒤처진 수집자를 위해 프레임을 64개까지 보관합니다. 그 이상이면 그 연결의 모든 수집자에게서 새 프레임이 빠지고, 버린 수를 세며, 첫 번째와 100번째마다 <code>WARN</code> 줄을 남깁니다. 오류가 아닙니다(<a href="16-lib-errors.html">16. 에러 처리</a>). 수집 코드는 가볍게 유지하세요.</li>

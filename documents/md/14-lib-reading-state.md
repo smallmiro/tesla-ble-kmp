@@ -96,7 +96,7 @@ suspend fun vehicleStatus(timeout: Duration? = null): VehicleResult<VehicleStatu
 | 1 | `closureStatuses` | `ClosureStatuses` | Per-opening state; **only sent while something is open** (see below) | `closures`; absent becomes all `CLOSED` |
 | 2 | `vehicleLockState` | `VehicleLockState_E` | Lock state | `lockState` |
 | 3 | `vehicleSleepStatus` | `VehicleSleepStatus_E` | Infotainment sleep state | `sleepStatus` |
-| 4 | `userPresence` | `UserPresence_E` | Person in the vehicle | `userPresence` |
+| 4 | `userPresence` | `UserPresence_E` | Person in or at the vehicle (also `PRESENT` while standing outside with a door open, B3.1) | `userPresence` |
 | 5 | `detailedClosureStatus` | `DetailedClosureStatus` | `tonneauPercentOpen` (1, uint32), Cybertruck | `tonneauPercentOpen` (`null` if absent) |
 | 6 | `uiDesire` | `UIDesire_E` (TESLEMETRY-EXT) | In schema only | **Not surfaced** (planned M5) |
 | 7 | `gear` | `Gear_E` (TESLEMETRY-EXT; confirmed in broadcasts only, not yet checked in query replies) | Current gear | `gear`; absent or outside the schema becomes `UNKNOWN` |
@@ -112,8 +112,8 @@ ends at field 5); its zero value is `GEAR_UNKNOWN`, so a missing `gear` reads as
 broadcasts (B3.1); whether the vehicle fills it in a query reply has not been checked on a real car. The real-car
 results show that the vehicle omits `closureStatuses` when every field is `CLOSED` (the zero value) and sends it while
 any field is not (front and rear driver doors, rear trunk, charge port seen), so "absent = all `CLOSED`" matches what we
-saw. The one exception is the trunk operated with the interior button, which sent no broadcast at all; the query
-still reports it.
+saw. The one exception is the trunk operated with the interior button, which sent no broadcast at all; this query
+should still report it (not yet checked on a real car).
 
 ## A3. `keySummary()`
 
@@ -425,11 +425,13 @@ Each entry is a dot path from `FromVCSECMessage` to a field the schema does not 
 - **A repeat is not a change.** The vehicle resends `vehicleStatus` every 1 to 25 s without a change, sometimes several
   times within one second (B3.1). The library does not filter duplicates; compare with the previous value yourself.
 - **Trunk:** opening and closing the trunk by hand from outside produced broadcasts (`rearTrunk = OPEN`, then
-  `closureStatuses` absent). Opening or closing it with the interior button produced **no** broadcast, so a trunk moved
-  that way stays `CLOSED` in `events` until some other broadcast arrives. When the trunk state matters, confirm it with
+  `closureStatuses` absent). Opening or closing it with the interior button produced **no** broadcast, so an app that
+  tracks the trunk from `events` keeps seeing it `CLOSED`. When the trunk state matters, confirm it with
   `vehicleStatus()`.
 - **Waking vehicle:** the first frames of a sleeping vehicle can carry `UNKNOWN` closures and `gear = UNKNOWN`; they
-  become real values within about 0.5 s (B3.1). Do not treat those `UNKNOWN` values as a change.
+  become real values within about 0.5 s (B3.1). Do not treat those `UNKNOWN` values as a change. The lock state
+  reads `UNLOCKED` in them too, and since `UNLOCKED` is never encoded you cannot tell whether the vehicle was still
+  locked; confirm with `vehicleStatus()` if it matters.
 - **Subscription:** each collection subscribes when it starts. There is no replay: a broadcast that arrived earlier is
   not delivered. Several collectors each get every event.
 - **Completion:** the flow completes normally (no exception) when `connection` becomes `Disconnected`, whatever the

@@ -54,7 +54,7 @@ public enum class SleepStatus {
     ASLEEP,
 }
 
-/** 차 안 사용자 존재. */
+/** 사용자 존재. 차 안에 앉아 있을 때만이 아니라 문을 열고 차 밖에 서 있을 때도 `PRESENT`였다(실차). */
 public enum class UserPresence {
     /** 알 수 없음. */
     UNKNOWN,

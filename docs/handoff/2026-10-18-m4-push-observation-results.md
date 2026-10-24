@@ -85,7 +85,7 @@
 ### 시각별 결과 (관찰 시작 기준 +초)
 | +초 | 관찰 | 해석 |
 |---|---|---|
-| 2.8 | `sleep=ASLEEP`, 문 4개·`rearTrunk`·`frontTrunk` = `UNKNOWN`(값 3), `gear=GEAR_UNKNOWN` (38B, 다음 줄은 `rearTrunk=CLOSED` 36B) | 잠든 차가 외부 손잡이로 깨어나는 첫 프레임 |
+| 2.8 | `sleep=ASLEEP`, 문 4개·`rearTrunk`·`frontTrunk` = `UNKNOWN`(값 3), `gear=GEAR_UNKNOWN` (38B, 다음 줄도 `ASLEEP`이며 `rearTrunk=CLOSED` 36B) | 잠든 차가 외부 손잡이로 깨어나는 첫 프레임 |
 | 2.9 | `AWAKE`, `frontTrunk`만 `UNKNOWN` → `closureStatuses` 없음 → `rearDriverDoor=OPEN` | 깨어남, 뒷문 열림 |
 | 3.3 | `chargePort=OPEN`, 이어서 `gear=GEAR_PARK` | 손잡이를 잡아 충전 단자 잠금 해제 |
 | 5.5 | `presence=PRESENT` | 차 밖에서 문을 열고 서 있음 |
@@ -95,6 +95,8 @@
 | 34.0 | `closureStatuses` 없음 | 트렁크 닫음 |
 | 36.9 / 37.0 | `frontDriverDoor=OPEN` / `PRESENT` | 운전석을 밖에서 엶 |
 | 40.2 | `closureStatuses` 없음 | 운전석 닫음 |
+
+표에 없는 줄은 변화 없는 반복이다: 2.9~3.3초 사이 여러 줄(깨어날 때 2.8~3.3초에 모두 9줄), +7.2·7.3·27.9·30.3·37.5·39.7초(하위 1만 바뀜). 따라서 간격은 최대 약 7.7초(14.1→21.8).
 
 `lock`은 25줄 모두 `UNLOCKED`(0번 값이라 인코딩되지 않으므로 "빠짐"과 구분 불가). 하위 1은 이전처럼 1↔2를 오감.
 
@@ -109,5 +111,6 @@
 
 ### 라이브러리 영향
 - 코드 동작 변경 없음. `VehicleEvent.Status`는 조회와 같은 매핑(부재 = 모두 `CLOSED`, 스키마 밖·값 3 = `UNKNOWN`)이라 이번 프레임을 그대로 `rearTrunk=OPEN` 등으로 낸다.
+- 시나리오의 "손잡이를 계속 잡고"는 뒷문을 연 직후이므로 문 손잡이로 해석했다.
 - 문서·KDoc의 "트렁크 주의"를 "밖에서 손으로는 옴, 실내 버튼으로는 안 옴"으로 좁히고, 깨어나는 차의 `UNKNOWN`·`PRESENT`의 뜻·`chargePort` 주의를 `14-lib-reading-state` Part B에 추가했다.
 - 샘플 Live 탭의 안내 문구("실내 버튼으로 트렁크를 열고 닫으면 방송이 오지 않을 수 있습니다")는 여전히 맞으므로 그대로 둔다.
