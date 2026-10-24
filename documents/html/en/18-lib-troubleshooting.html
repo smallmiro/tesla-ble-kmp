@@ -128,7 +128,7 @@
 <p>To report a problem, use the iOS sample's "copy whole result" button log together with <code>DebugLogger</code>. There is no probe or diagnostics entry point.</p>
 
 <h2 id="sec-observe">Observation log (development)</h2>
-<p>While you develop, the library can write one summary line for every message it drops and for every reply from the vehicle security domain. It shows what the car sends without being asked. It changes no behaviour: the library still drops those messages (<code>vehicle.events</code> is planned for M5).</p>
+<p>While you develop, the library can write one summary line for every message it drops and for every reply from the vehicle security domain. It shows what the car sends without being asked. It changes no behaviour: the library still drops those messages (<code>vehicle.events</code> is planned for M5). What each pushed message means is in <a href="14-lib-reading-state.html">14. Reading Vehicle State</a>, Part B.</p>
 <ul>
 <li>Tag <code>observe</code>, level <code>DEBUG</code>. A logger that discards <code>DEBUG</code> never builds the line. Visible through <code>DebugLogger()</code> or your own <code>TeslaLogger</code>. The iOS sample's observation mode collects only these lines.</li>
 <li>Shape: <code>[point] NB from=… to=… request_uuid=… payload=…</code>, where <code>NB</code> is the size of the received frame.</li>
@@ -138,8 +138,8 @@
 <tbody>
 <tr><td><code>[drop:unparseable]</code></td><td>The frame did not decode as a routable message. The line ends with <code>reinterpreted=…</code> (or <code>undecodable</code>)</td></tr>
 <tr><td><code>[drop:missing-source]</code></td><td>No source. The line ends with <code>reinterpreted=…</code>: the same bytes read as an unwrapped <code>FromVCSECMessage</code></td></tr>
-<tr><td><code>[drop:missing-destination]</code></td><td>No destination (the typical push from the car)</td></tr>
-<tr><td><code>[drop:to-domain]</code></td><td>Addressed to a domain, not to a client address</td></tr>
+<tr><td><code>[drop:missing-destination]</code></td><td>No destination (not seen from the real car)</td></tr>
+<tr><td><code>[drop:to-domain]</code></td><td>Addressed to a domain, not to a client address (the car's broadcasts use <code>DOMAIN_BROADCAST</code>)</td></tr>
 <tr><td><code>[drop:malformed]</code></td><td>Wrong request UUID length or wrong address length</td></tr>
 <tr><td><code>[drop:no-handler]</code></td><td>A valid address, but no open request owns it</td></tr>
 <tr><td><code>[drop:handler-closed]</code>, <code>[drop:queue-full]</code></td><td>The matching request closed meanwhile, or its answer queue was full</td></tr>
@@ -147,7 +147,7 @@
 <tr><td><code>from=</code>, <code>to=</code></td><td><code>domain(DOMAIN_X)</code>, <code>address(16B, self|open-request|other)</code> (<code>to=</code> only), <code>none</code>, <code>empty</code></td></tr>
 <tr><td><code>payload=</code></td><td><code>FromVCSECMessage{…}</code>, <code>Response{fields=[…]}</code>, <code>encrypted(NB)</code>, <code>NB</code>, <code>none</code></td></tr>
 <tr><td><code>unknownFields=[n]</code></td><td>Field numbers on the wire that the generated protocol does not know</td></tr>
-<tr><td><code>uiDesire=</code>, <code>gear=</code></td><td>Vehicle status fields 6 and 7, named by the extended protocol definitions (<code>GEAR_UNKNOWN</code>, <code>GEAR_PARK</code>, <code>GEAR_DRIVE</code>, <code>GEAR_REVERSE</code>, <code>GEAR_NEUTRAL</code>). Only the names are known; what the car means by them is not confirmed. Always printed, because a missing enum reads as its zero value</td></tr>
+<tr><td><code>uiDesire=</code>, <code>gear=</code></td><td>Vehicle status fields 6 and 7, named by the extended protocol definitions (<code>GEAR_UNKNOWN</code>, <code>GEAR_PARK</code>, <code>GEAR_DRIVE</code>, <code>GEAR_REVERSE</code>, <code>GEAR_NEUTRAL</code>). <code>gear</code> is confirmed on a real car (see <a href="14-lib-reading-state.html">14. Reading Vehicle State</a>); the meaning of <code>uiDesire</code> is not. Always printed, because a missing enum reads as its zero value</td></tr>
 <tr><td><code>authenticationRequest{requestedLevel=…, reasons=[…], token=NB}</code></td><td><code>FromVCSECMessage</code> field 3, named by the extended protocol definitions (field names unverified). The token is shown by length only</td></tr>
 <tr><td><code>absent=[…]</code></td><td>Parts of the vehicle status the car did not send (<code>closureStatuses</code>, <code>detailedClosureStatus</code>)</td></tr>
 <tr><td><code>key=sha1:xxxxxxxx</code></td><td>A public key: only the first 4 bytes of its SHA-1</td></tr>
@@ -168,7 +168,7 @@
 <p>VINs (17 characters) are masked in text and in raw bytes before any hex is produced; only the first 3 and last 4 characters stay. Masking runs on the raw bytes before they are parsed, so masked bytes can change the value or structure that is shown (nothing leaks). This output is for exploration only. It does not tell what a field means, and a missing <code>closureStatuses</code> in a broadcast does not mean that everything is closed.</p>
 <h3>Limits and rules</h3>
 <ul>
-<li>Detailed decoding is a narrow exception, and only for frames the car originally sent as plaintext (never for anything the library decrypted, so FR-112 is unaffected). All of these must hold: from the security domain, to the broadcast domain, empty request UUID, no signature, no session info, and a payload that reads as <code>FromVCSECMessage</code>. Then only <code>FromVCSECMessage</code> unknown fields 48 and 53 and <code>VehicleStatus</code> unknown fields 7 and 8 are decoded (field 7 is now the named <code>gear</code>, so it is unknown only when its value is outside the definitions; that raw value is still shown, for example <code>unknownFields=[7:varint=9(0x9)]</code>, because the gear meaning is not confirmed). Every other field and frame keeps the number-only form.</li>
+<li>Detailed decoding is a narrow exception, and only for frames the car originally sent as plaintext (never for anything the library decrypted, so FR-112 is unaffected). All of these must hold: from the security domain, to the broadcast domain, empty request UUID, no signature, no session info, and a payload that reads as <code>FromVCSECMessage</code>. Then only <code>FromVCSECMessage</code> unknown fields 48 and 53 and <code>VehicleStatus</code> unknown fields 7 and 8 are decoded (field 7 is now the named <code>gear</code>, so it is unknown only when its value is outside the definitions; that raw value is still shown, for example <code>unknownFields=[7:varint=9(0x9)]</code>, because that value is outside the definitions). Every other field and frame keeps the number-only form.</li>
 <li>A missing enum value cannot be told from its zero value: an absent lock state reads <code>VEHICLELOCKSTATE_UNLOCKED</code> (sleep and presence read <code>UNKNOWN</code>). Only message parts can be reported as <code>absent</code>.</li>
 <li>Encrypted content and session info appear by length only, public keys by SHA-1 prefix only. The VIN and decrypted content never appear. Keep this rule when you add lines.</li>
 <li>The BLE transport counts inbox overflows per connection. Each dropped message logs <code>Dropping received message because inbox is full (dropped N since connect)</code> at <code>ERROR</code>; when the link ends, one line <code>BLE inbox overflowed N time(s) during this connection</code> is logged at <code>WARN</code> (only if N is above 0).</li>

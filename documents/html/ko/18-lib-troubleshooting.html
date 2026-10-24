@@ -128,7 +128,7 @@
 <p>문제를 보고할 때는 iOS 샘플의 "결과 전체 복사" 버튼으로 얻은 로그와 <code>DebugLogger</code>를 사용하세요. 프로브나 진단 진입점은 없습니다.</p>
 
 <h2 id="sec-observe">관찰 로그 (개발용)</h2>
-<p>개발하는 동안 라이브러리는 버리는 메시지마다, 그리고 차량 보안 도메인의 응답마다 요약 한 줄을 남길 수 있습니다. 차량이 요청 없이 보내는 것이 무엇인지 보여 줍니다. 동작은 바뀌지 않습니다. 라이브러리는 그 메시지를 여전히 버립니다(<code>vehicle.events</code>는 M5에서 계획).</p>
+<p>개발하는 동안 라이브러리는 버리는 메시지마다, 그리고 차량 보안 도메인의 응답마다 요약 한 줄을 남길 수 있습니다. 차량이 요청 없이 보내는 것이 무엇인지 보여 줍니다. 동작은 바뀌지 않습니다. 라이브러리는 그 메시지를 여전히 버립니다(<code>vehicle.events</code>는 M5에서 계획). 푸시된 각 메시지의 의미는 <a href="14-lib-reading-state.html">14. 차량 상태 조회</a>의 B부에 있습니다.</p>
 <ul>
 <li>태그 <code>observe</code>, 레벨 <code>DEBUG</code>. <code>DEBUG</code>를 버리는 로거는 이 줄을 만들지도 않습니다. <code>DebugLogger()</code>나 직접 만든 <code>TeslaLogger</code>로 볼 수 있습니다. iOS 샘플의 관찰 모드는 이 줄만 모읍니다.</li>
 <li>형식: <code>[지점] NB from=… to=… request_uuid=… payload=…</code>. <code>NB</code>는 받은 프레임의 크기입니다.</li>
@@ -138,8 +138,8 @@
 <tbody>
 <tr><td><code>[drop:unparseable]</code></td><td>프레임이 라우팅 메시지로 해석되지 않았습니다. 줄 끝에 <code>reinterpreted=…</code>(또는 <code>undecodable</code>)이 붙습니다</td></tr>
 <tr><td><code>[drop:missing-source]</code></td><td>출발지가 없습니다. 줄 끝의 <code>reinterpreted=…</code>는 같은 바이트를 감싸지 않은 <code>FromVCSECMessage</code>로 읽은 결과입니다</td></tr>
-<tr><td><code>[drop:missing-destination]</code></td><td>목적지가 없습니다(차량이 먼저 보내는 푸시의 전형)</td></tr>
-<tr><td><code>[drop:to-domain]</code></td><td>클라이언트 주소가 아니라 도메인으로 보낸 메시지입니다</td></tr>
+<tr><td><code>[drop:missing-destination]</code></td><td>목적지가 없습니다(실차에서는 보이지 않았습니다)</td></tr>
+<tr><td><code>[drop:to-domain]</code></td><td>클라이언트 주소가 아니라 도메인으로 보낸 메시지입니다(차량의 브로드캐스트는 <code>DOMAIN_BROADCAST</code>를 씁니다)</td></tr>
 <tr><td><code>[drop:malformed]</code></td><td>요청 UUID 길이 또는 주소 길이가 잘못되었습니다</td></tr>
 <tr><td><code>[drop:no-handler]</code></td><td>올바른 주소지만 그 주소의 열린 요청이 없습니다</td></tr>
 <tr><td><code>[drop:handler-closed]</code>, <code>[drop:queue-full]</code></td><td>짝이 되는 요청이 그사이 닫혔거나 응답 큐가 가득 찼습니다</td></tr>
@@ -147,7 +147,7 @@
 <tr><td><code>from=</code>, <code>to=</code></td><td><code>domain(DOMAIN_X)</code>, <code>address(16B, self|open-request|other)</code>(<code>to=</code>만), <code>none</code>, <code>empty</code></td></tr>
 <tr><td><code>payload=</code></td><td><code>FromVCSECMessage{…}</code>, <code>Response{fields=[…]}</code>, <code>encrypted(NB)</code>, <code>NB</code>, <code>none</code></td></tr>
 <tr><td><code>unknownFields=[n]</code></td><td>전송 중에는 있었지만 생성된 프로토콜이 모르는 필드 번호입니다</td></tr>
-<tr><td><code>uiDesire=</code>, <code>gear=</code></td><td>차량 상태 필드 6·7이며, 확장된 프로토콜 정의가 붙인 이름입니다(<code>GEAR_UNKNOWN</code>, <code>GEAR_PARK</code>, <code>GEAR_DRIVE</code>, <code>GEAR_REVERSE</code>, <code>GEAR_NEUTRAL</code>). 이름만 알 뿐 차량에서의 의미는 확인되지 않았습니다. enum은 빠지면 0번 값으로 읽히므로 항상 적습니다</td></tr>
+<tr><td><code>uiDesire=</code>, <code>gear=</code></td><td>차량 상태 필드 6·7이며, 확장된 프로토콜 정의가 붙인 이름입니다(<code>GEAR_UNKNOWN</code>, <code>GEAR_PARK</code>, <code>GEAR_DRIVE</code>, <code>GEAR_REVERSE</code>, <code>GEAR_NEUTRAL</code>). <code>gear</code>는 실차로 확정되었고(<a href="14-lib-reading-state.html">14. 차량 상태 조회</a> 참고) <code>uiDesire</code>의 의미는 확인되지 않았습니다. enum은 빠지면 0번 값으로 읽히므로 항상 적습니다</td></tr>
 <tr><td><code>authenticationRequest{requestedLevel=…, reasons=[…], token=NB}</code></td><td><code>FromVCSECMessage</code> 필드 3이며, 확장된 프로토콜 정의가 붙인 이름입니다(필드 이름 미확인). 토큰은 길이만 적습니다</td></tr>
 <tr><td><code>absent=[…]</code></td><td>차량이 보내지 않은 차량 상태의 부분입니다(<code>closureStatuses</code>, <code>detailedClosureStatus</code>)</td></tr>
 <tr><td><code>key=sha1:xxxxxxxx</code></td><td>공개키: SHA-1의 앞 4바이트만 적습니다</td></tr>
@@ -168,7 +168,7 @@
 <p>VIN(17자)은 헥사를 만들기 전에 텍스트와 원시 바이트 모두에서 가립니다. 앞 3자와 뒤 4자만 남습니다. 가리기는 바이트를 해석하기 전에 원시 바이트에서 일어나므로, 가려진 바이트 때문에 보이는 값이나 구조가 달라질 수 있습니다(유출은 없습니다). 이 출력은 탐색용일 뿐입니다. 필드의 뜻을 알려 주지 않으며, 브로드캐스트에 <code>closureStatuses</code>가 없다고 모두 닫힌 것은 아닙니다.</p>
 <h3>한계와 규칙</h3>
 <ul>
-<li>상세 디코드는 좁은 예외이며, 차량이 원래 평문으로 보낸 프레임에만 적용됩니다(라이브러리가 복호화한 것에는 절대 쓰지 않으므로 FR-112와 충돌하지 않습니다). 다음이 모두 맞아야 합니다: 보안 도메인에서 출발, 브로드캐스트 도메인으로 도착, 요청 UUID 없음, 서명 없음, 세션 정보 없음, 페이로드가 <code>FromVCSECMessage</code>로 읽힘. 그때 <code>FromVCSECMessage</code>의 미공개 필드 48·53과 <code>VehicleStatus</code>의 미공개 필드 7·8만 풀어 씁니다(필드 7은 이제 이름이 있는 <code>gear</code>이므로 값이 정의 밖일 때만 미공개 필드가 됩니다. 기어의 의미가 확인되지 않았으므로 그 원시 값을 <code>unknownFields=[7:varint=9(0x9)]</code>처럼 계속 보여 줍니다). 그 밖의 필드와 프레임은 번호만 적습니다.</li>
+<li>상세 디코드는 좁은 예외이며, 차량이 원래 평문으로 보낸 프레임에만 적용됩니다(라이브러리가 복호화한 것에는 절대 쓰지 않으므로 FR-112와 충돌하지 않습니다). 다음이 모두 맞아야 합니다: 보안 도메인에서 출발, 브로드캐스트 도메인으로 도착, 요청 UUID 없음, 서명 없음, 세션 정보 없음, 페이로드가 <code>FromVCSECMessage</code>로 읽힘. 그때 <code>FromVCSECMessage</code>의 미공개 필드 48·53과 <code>VehicleStatus</code>의 미공개 필드 7·8만 풀어 씁니다(필드 7은 이제 이름이 있는 <code>gear</code>이므로 값이 정의 밖일 때만 미공개 필드가 됩니다. 정의 밖의 값이므로 그 원시 값을 <code>unknownFields=[7:varint=9(0x9)]</code>처럼 계속 보여 줍니다). 그 밖의 필드와 프레임은 번호만 적습니다.</li>
 <li>enum 값이 빠진 것과 0번 값은 구분할 수 없습니다. 잠금 상태가 없으면 <code>VEHICLELOCKSTATE_UNLOCKED</code>로 읽힙니다(sleep, presence는 <code>UNKNOWN</code>). <code>absent</code>로 알 수 있는 것은 메시지 부분뿐입니다.</li>
 <li>암호화된 내용과 세션 정보는 길이만, 공개키는 SHA-1 앞부분만 적습니다. VIN과 복호화된 내용은 나오지 않습니다. 줄을 추가할 때도 이 규칙을 지키세요.</li>
 <li>BLE 전송은 연결마다 수신 버퍼 넘침을 셉니다. 버려진 메시지마다 <code>ERROR</code>로 <code>Dropping received message because inbox is full (dropped N since connect)</code>를 남기고, 링크가 끝나면 <code>WARN</code>으로 <code>BLE inbox overflowed N time(s) during this connection</code> 한 줄을 남깁니다(N이 0보다 클 때만).</li>

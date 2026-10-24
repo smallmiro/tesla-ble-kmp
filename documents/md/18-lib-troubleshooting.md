@@ -47,7 +47,8 @@ To report a problem, use the iOS sample's "copy whole result" button log togethe
 
 The dispatcher writes one summary line for every message it drops and for every VCSEC reply. It is for development, to
 see what the vehicle pushes without being asked. It changes no behaviour: the library still drops these messages
-(`vehicle.events` is planned for M5).
+(`vehicle.events` is planned for M5). What each pushed message means (confirmed on a real car or not) is in
+`14-lib-reading-state.md` Part B.
 
 - Tag `observe`, level `DEBUG` (a logger that discards `DEBUG` never evaluates the line). Visible through `DebugLogger()`
   or any custom `TeslaLogger`. The iOS sample's observation mode collects only these lines.
@@ -58,8 +59,8 @@ see what the vehicle pushes without being asked. It changes no behaviour: the li
 |---|---|
 | `[drop:unparseable]` | Frame did not decode as `RoutableMessage`. Line is `[drop:unparseable] <N>B reinterpreted=<summary or undecodable>` |
 | `[drop:missing-source]` | No `from_destination`. The line ends with `reinterpreted=<summary>`: the same bytes read as an unwrapped `FromVCSECMessage` |
-| `[drop:missing-destination]` | No `to_destination` (typical vehicle push) |
-| `[drop:to-domain]` | Addressed to a domain, not a routing address |
+| `[drop:missing-destination]` | No `to_destination` (not seen from the real vehicle) |
+| `[drop:to-domain]` | Addressed to a domain, not a routing address (the vehicle's broadcasts, `DOMAIN_BROADCAST`) |
 | `[drop:malformed]` | Bad request UUID length or bad routing address length |
 | `[drop:no-handler]` | Valid routing address with no open request |
 | `[drop:handler-closed]`, `[drop:queue-full]` | The matching request closed meanwhile, or its response queue was full |
@@ -67,7 +68,7 @@ see what the vehicle pushes without being asked. It changes no behaviour: the li
 | `from=`, `to=` | `domain(DOMAIN_X)`, `address(16B, self\|open-request\|other)` (`to=` only), `none`, `empty` |
 | `payload=` | `FromVCSECMessage{…}`, `Response{fields=[…]}`, `encrypted(NB)`, `NB`, `none` |
 | `unknownFields=[n]` | Field numbers present on the wire but unknown to the generated proto |
-| `uiDesire=`, `gear=` | `vehicleStatus` fields 6 and 7, named by the Teslemetry proto schema (`UI_DESIRE_*`, `GEAR_UNKNOWN\|PARK\|DRIVE\|REVERSE\|NEUTRAL`). Schema names only: the vehicle meaning is not confirmed. Always printed (proto3 enum: absent reads as the zero value) |
+| `uiDesire=`, `gear=` | `vehicleStatus` fields 6 and 7, named by the Teslemetry proto schema (`UI_DESIRE_*`, `GEAR_UNKNOWN\|PARK\|DRIVE\|REVERSE\|NEUTRAL`). `gear` is confirmed on a real car (see `14-lib-reading-state.md` Part B); `uiDesire` meaning is not. Always printed (proto3 enum: absent reads as the zero value) |
 | `authenticationRequest{requestedLevel=…, reasons=[…], token=NB}` | `FromVCSECMessage` field 3, named by the Teslemetry proto schema (field names unverified). The token is shown by length only |
 | `absent=[…]` | Message fields of `vehicleStatus` that were not sent (`closureStatuses`, `detailedClosureStatus`) |
 | `key=sha1:xxxxxxxx` | Public key: first 4 bytes of its SHA-1 only |
@@ -97,7 +98,7 @@ Limits and rules:
   `request_uuid`, no `signature_data`, no `session_info`, and a payload that decodes as `FromVCSECMessage`. For such
   frames only `FromVCSECMessage` unknown fields 48 and 53 and `VehicleStatus` unknown fields 7 and 8 are decoded (`VehicleStatus`
   7 is now the named `gear`, so it is unknown only when its value is outside the schema; that raw value is still shown,
-  for example `unknownFields=[7:varint=9(0x9)]`, because the gear meaning is not confirmed); every
+  for example `unknownFields=[7:varint=9(0x9)]`, because that value is outside the schema); every
   other unknown field, and every other frame (replies, encrypted, addressed to a routing address, unwrapped
   reinterpretations), keeps the number-only form.
 - Ciphertext and `session_info` are logged by length only; public keys by SHA-1 prefix only; the VIN and plaintext

@@ -60,7 +60,7 @@ Not published yet (M6 adds GitHub Packages + SPM). Build from source:
 | `11-lib-overview.md` | This page: status, platforms, installation, reading order |
 | `12-lib-getting-started.md` | End-to-end flow and full Kotlin / Swift examples |
 | `13-lib-pairing.md` | `VehicleKeyStore`, `KeyPolicy`, `KeyProtection`, public key bytes, enrollment check, `addKeyRequest` and `PairingEvent`, `sessionInfo`, `addKey`, `removeKey` |
-| `14-lib-reading-state.md` | `vehicleStatus()`, `keySummary()`, `listKeys()`, result types, wake behaviour, planned `getState()` |
+| `14-lib-reading-state.md` | Part A, data you request: `vehicleStatus()`, `keySummary()`, `listKeys()`, `sessionInfo()` with protocol payloads and enum tables. Part B, data the vehicle broadcasts (confirmed on a real car), result types, wake behaviour, planned `getState()` and `vehicle.events` |
 | `15-lib-commands.md` | Session API, the implemented VCSEC control commands (method ↔ FR ↔ payload) and the planned Infotainment table |
 | `16-lib-errors.md` | `VehicleResult`, `VehicleError` hierarchy, transport and key store errors, retry and timeouts |
 | `17-lib-platform-notes.md` | Android / iOS requirements, key storage, session cache, clocks, connection slots |

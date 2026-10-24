@@ -55,79 +55,409 @@
 </nav>
 <main class="content">
 <h1>14. 車両状態の取得</h1>
-<p class="lead">3 つのクエリが BLE で車両のセキュリティコントローラー (VCSEC) を読み取ります。インフォテインメントコンピューターがスリープしていても VCSEC は応答するため、キー、セッション、ウェイクアップはいずれも不要です。</p>
+<p class="lead">ライブラリが BLE で車両から読み取れるすべての情報を 2 部構成でまとめます。A 部は要求して受け取るデータ（セキュリティコントローラーへの 4 つのクエリ）、B 部は車両が自分から送ってくるデータ（ブロードキャスト）です。クエリは、インフォテインメントコンピューターがスリープしていても VCSEC が応答するため、キー、セッション、ウェイクアップのいずれも不要です。</p>
+
+<div class="callout warn">
+<strong>現在の実装範囲</strong>
+<p>A 部の 4 つのクエリは実装済みです。ブロードキャスト（B 部）はライブラリが破棄するため、観察ログでしか見られません。公開 <code>vehicle.events</code> API と <code>getState()</code>（インフォテインメント）は M5 の予定で、まだ存在しません。</p>
+</div>
 
 <div class="toc"><strong>このページの内容</strong><ol>
-<li><a href="#sec-calls">3 つのクエリ</a></li>
-<li><a href="#sec-status">vehicleStatus() の戻り値</a></li>
-<li><a href="#sec-keys">キークエリの戻り値</a></li>
+<li><a href="#sec-calls">4 つのクエリ</a></li>
+<li><a href="#sec-a-transport">A1. 要求の届き方</a></li>
+<li><a href="#sec-a-status">A2. vehicleStatus()</a></li>
+<li><a href="#sec-a-summary">A3. keySummary()</a></li>
+<li><a href="#sec-a-list">A4. listKeys()</a></li>
+<li><a href="#sec-a-session">A5. sessionInfo()</a></li>
+<li><a href="#sec-a-enums">A6. enum 値の表</a></li>
+<li><a href="#sec-a-other">A7. スキーマにあるその他の要求種別</a></li>
+<li><a href="#sec-status">結果の型</a></li>
 <li><a href="#sec-flows">接続とセッションの状態</a></li>
 <li><a href="#sec-wake">スリープとウェイクアップ</a></li>
+<li><a href="#sec-b-wire">B1. ブロードキャストのワイヤ上の形</a></li>
+<li><a href="#sec-b-library">B2. ライブラリのブロードキャスト処理</a></li>
+<li><a href="#sec-b-catalogue">B3. メッセージ一覧</a></li>
+<li><a href="#sec-b-absent">B4. ブロードキャストでは受け取れないもの</a></li>
+<li><a href="#sec-b-method">B5. 観察方法と環境</a></li>
+<li><a href="#sec-b-provenance">B6. 出典</a></li>
 </ol></div>
 
-<h2 id="sec-calls">3 つのクエリ</h2>
+<h2 id="sec-calls">4 つのクエリ</h2>
 <table>
-<thead><tr><th>呼び出し</th><th>戻り値</th><th>Go 原本</th></tr></thead>
+<thead><tr><th>呼び出し</th><th>戻り値</th><th>Go 原本</th><th>FR</th></tr></thead>
 <tbody>
-<tr><td><code>vehicleStatus()</code></td><td>ロック、ドア、トランク、充電ポート、スリープ状態、在車状態</td><td><code>BodyControllerState</code></td></tr>
-<tr><td><code>keySummary()</code></td><td>登録済みキーの数と使用中のスロット</td><td><code>KeySummary</code></td></tr>
-<tr><td><code>listKeys()</code></td><td>登録済みのすべてのキーと、その公開鍵、ロール、フォームファクター</td><td><code>KeySummary</code> + <code>KeyInfoBySlot</code></td></tr>
+<tr><td><code>vehicleStatus(timeout = null)</code></td><td><code>VehicleResult&lt;VehicleStatus&gt;</code></td><td><code>BodyControllerState</code> (<code>InformationRequest{GET_STATUS}</code>)</td><td>FR-031</td></tr>
+<tr><td><code>keySummary(timeout = null)</code></td><td><code>VehicleResult&lt;WhitelistSummary&gt;</code></td><td><code>KeySummary</code> (<code>GET_WHITELIST_INFO</code>)</td><td>FR-032</td></tr>
+<tr><td><code>listKeys(timeout = null)</code></td><td><code>VehicleResult&lt;List&lt;WhitelistEntry&gt;&gt;</code></td><td><code>KeySummary</code> + 使用中のスロットごとに <code>KeyInfoBySlot</code></td><td>FR-025</td></tr>
+<tr><td><code>sessionInfo(publicKey, domain, timeout = null)</code></td><td><code>VehicleResult&lt;SessionInfoSummary&gt;</code></td><td><code>SessionInfo</code> (<code>session_info_request</code>)</td><td>FR-024</td></tr>
 </tbody>
 </table>
 <ul>
-<li>いずれも省略可能な <code>timeout</code> を受け取ります。指定しない場合はデフォルトのコマンドタイムアウト (5 秒) が適用されます。<code>listKeys()</code> では、このタイムアウトがすべてのリクエストの合計にかかります。</li>
-<li>車両は接続ごとに VCSEC リクエストを 1 つずつ処理します。別のクエリを待つ必要があるクエリは、タイムアウトの一部を待ち時間に使います。</li>
+<li>各クエリは省略可能な <code>timeout</code> を受け取ります。指定しなければ既定のコマンドタイムアウト（5 秒）が適用されます。<code>listKeys()</code> のタイムアウトは内部のリクエスト全体に共通です。</li>
+<li>車両は接続ごとに VCSEC リクエストを 1 つずつ処理します。別のクエリを待つ必要があるクエリは、タイムアウトの一部を待機に使います。</li>
 <li>これらはクエリなので、<code>Uncertain</code> の結果はそのまま再度問い合わせて構いません。</li>
+<li>制御ペイロード（ロック、トランク、ウェイクアップ）は <a href="15-lib-commands.html">15. コマンド</a> にあります。</li>
 </ul>
 
-<h2 id="sec-status">vehicleStatus() の戻り値</h2>
+<h2 id="sec-a-transport">A1. 要求の届き方</h2>
 <table>
-<thead><tr><th>フィールド</th><th>値</th></tr></thead>
+<thead><tr><th>項目</th><th>値</th></tr></thead>
 <tbody>
-<tr><td><code>lockState</code></td><td><code>UNLOCKED</code>, <code>LOCKED</code>, <code>INTERNAL_LOCKED</code>, <code>SELECTIVE_UNLOCKED</code>, <code>UNKNOWN</code></td></tr>
-<tr><td><code>closures</code></td><td>8 つの開口部で、それぞれ <code>ClosureState</code> です。車両が送ってこなかった場合はすべて <code>CLOSED</code>（すべて閉じていると車両は省略します。Go の getter と同じ）</td></tr>
-<tr><td><code>sleepStatus</code></td><td><code>AWAKE</code>, <code>ASLEEP</code>, <code>UNKNOWN</code></td></tr>
-<tr><td><code>userPresence</code></td><td><code>PRESENT</code>, <code>NOT_PRESENT</code>, <code>UNKNOWN</code></td></tr>
+<tr><td>GATT サービス</td><td><code>00000211-b2d1-43f0-9b88-960cebf8b91e</code></td></tr>
+<tr><td>書き込み characteristic（スマートフォンから車両へ）</td><td><code>00000212-b2d1-43f0-9b88-960cebf8b91e</code></td></tr>
+<tr><td>notify/indicate characteristic（車両からスマートフォンへ）</td><td><code>00000213-b2d1-43f0-9b88-960cebf8b91e</code></td></tr>
+<tr><td>フレーミング</td><td>2 バイトのビッグエンディアン長プレフィックスに続けて、シリアライズした <code>RoutableMessage</code>。メッセージの最大は 1024 バイトで、超えると <code>InvalidArgument</code> で失敗します</td></tr>
+<tr><td>書き込みブロック長</td><td><code>min(ATT MTU, 1024) - 3</code>。MTU 交換に失敗すると 20</td></tr>
+</tbody>
+</table>
+<p>両方向のすべてのフレームは <code>RoutableMessage</code>（<code>universal_message.proto</code>）です。</p>
+<table>
+<thead><tr><th>フィールド</th><th>番号</th><th>型</th><th>意味</th></tr></thead>
+<tbody>
+<tr><td><code>to_destination</code></td><td>6</td><td><code>Destination</code></td><td><code>domain</code>（1、enum <code>Domain</code>）または <code>routing_address</code>（2、bytes）のどちらか</td></tr>
+<tr><td><code>from_destination</code></td><td>7</td><td><code>Destination</code></td><td>同じ形。要求にはこちらのルーティングアドレス、車両の応答には車両のドメインが入ります</td></tr>
+<tr><td><code>protobuf_message_as_bytes</code></td><td>10</td><td>bytes</td><td>ペイロード（択一）: シリアライズしたドメインメッセージ（車両へは <code>UnsignedMessage</code> または <code>ToVCSECMessage</code>、戻りは <code>FromVCSECMessage</code>）</td></tr>
+<tr><td><code>session_info_request</code></td><td>14</td><td><code>SessionInfoRequest</code></td><td>ペイロード（択一）: <code>public_key</code>（1）、<code>challenge</code>（2）</td></tr>
+<tr><td><code>session_info</code></td><td>15</td><td>bytes</td><td>ペイロード（択一）: シリアライズした <code>Signatures.SessionInfo</code></td></tr>
+<tr><td><code>signature_data</code></td><td>13</td><td><code>Signatures.SignatureData</code></td><td>認証済み（AES-GCM）のコマンドと応答にあります</td></tr>
+<tr><td><code>signedMessageStatus</code></td><td>12</td><td><code>MessageStatus</code></td><td><code>operation_status</code>（1）、<code>signed_message_fault</code>（2、<code>MessageFault_E</code>）</td></tr>
+<tr><td><code>request_uuid</code></td><td>50</td><td>bytes</td><td>要求の <code>uuid</code> のエコー（16 バイト）。インフォテインメントの応答の対応付けに使います</td></tr>
+<tr><td><code>uuid</code></td><td>51</td><td>bytes</td><td>要求 ID、ランダムな 16 バイト</td></tr>
+<tr><td><code>flags</code></td><td>52</td><td>uint32</td><td><code>Flags</code> のビットマスク（<code>FLAG_USER_COMMAND</code> 0、<code>FLAG_ENCRYPT_RESPONSE</code> 1。2〜4 は Teslemetry スキーマにのみ存在）</td></tr>
+</tbody>
+</table>
+<p><code>Domain</code> の値: <code>DOMAIN_BROADCAST</code> 0、<code>DOMAIN_VEHICLE_SECURITY</code> 2（VCSEC）、<code>DOMAIN_INFOTAINMENT</code> 3。Teslemetry スキーマには 4、5、7、8 もありますが、ライブラリは使いません。同スキーマのフィールド 53 <code>message_frame</code> は未確認で、使いません。</p>
+<p>VCSEC 要求のルーティング規則:</p>
+<ul>
+<li><code>to_destination.domain</code> は <code>DOMAIN_VEHICLE_SECURITY</code>、<code>from_destination.routing_address</code> は<strong>要求ごとに新しく作るランダムな 16 バイトのアドレス</strong>です。応答はそのアドレス宛てに戻り、ライブラリはアドレス（と車両のドメイン）で対応付けます。VCSEC の応答の対応付けに <code>request_uuid</code> は<strong>使いません</strong>。<code>uuid</code>（51）にはランダムな 16 バイトを引き続き入れます。</li>
+<li>別のルーティングアドレス宛ての応答は自分のものではなく、<code>no-handler</code> として破棄されます（B3 参照）。</li>
+<li>クエリは<strong>認証しません</strong>。<code>signature_data</code> はなく、<code>protobuf_message_as_bytes</code> は平文の <code>UnsignedMessage</code> です。コマンドは同じ封筒に <code>signature_data</code> と AES-GCM で保護したペイロードを入れます。</li>
+<li><code>sessionInfo</code> のペイロードは <code>session_info_request</code>（14）で、<code>to_destination.domain</code> は問い合わせるドメインです。応答は <code>session_info</code>（15）に入って戻ります。</li>
+</ul>
+
+<h2 id="sec-a-status">A2. vehicleStatus()</h2>
+<pre><code class="language-kotlin"><span class="k">suspend</span> <span class="k">fun</span> <span class="f">vehicleStatus</span>(timeout: <span class="t">Duration</span>? = <span class="n">null</span>): <span class="t">VehicleResult</span>&lt;<span class="t">VehicleStatus</span>&gt;
+</code></pre>
+<table>
+<thead><tr><th>項目</th><th>値</th></tr></thead>
+<tbody>
+<tr><td>認証</td><td>なし（未登録のキーでも、セッションなしでも動作）</td></tr>
+<tr><td>ドメイン</td><td><code>DOMAIN_VEHICLE_SECURITY</code></td></tr>
+<tr><td>要求ペイロード</td><td><code>UnsignedMessage{InformationRequest{GET_STATUS}}</code> = 16 進 <code>0a00</code>（フィールド 1、長さ 0。タイプ 0 は proto3 の既定値なのでエンコードしません）</td></tr>
+<tr><td>終了条件</td><td>応答の最初のメッセージ</td></tr>
+<tr><td>応答</td><td><code>FromVCSECMessage.vehicleStatus</code>（フィールド 1）</td></tr>
+<tr><td>フィールド欠落</td><td><code>Failure(BadResponse("missing vehicleStatus"))</code></td></tr>
+<tr><td>エラー</td><td><code>nominalError</code>（46）は <code>Failure(VcsecRejected(...))</code> になり、応答の消失は <code>Uncertain(Timeout(afterSend = true))</code> です</td></tr>
+</tbody>
+</table>
+<p><code>VCSEC.VehicleStatus</code>（<code>vcsec.proto</code>）:</p>
+<table>
+<thead><tr><th>#</th><th>フィールド</th><th>型</th><th>意味</th><th>公開 <code>VehicleStatus</code> での扱い</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>closureStatuses</code></td><td><code>ClosureStatuses</code></td><td>開口部ごとの状態。<strong>何かが開いているときだけ送信</strong></td><td><code>closures</code>。なければすべて <code>CLOSED</code></td></tr>
+<tr><td>2</td><td><code>vehicleLockState</code></td><td><code>VehicleLockState_E</code></td><td>ロック状態</td><td><code>lockState</code></td></tr>
+<tr><td>3</td><td><code>vehicleSleepStatus</code></td><td><code>VehicleSleepStatus_E</code></td><td>インフォテインメントのスリープ状態</td><td><code>sleepStatus</code></td></tr>
+<tr><td>4</td><td><code>userPresence</code></td><td><code>UserPresence_E</code></td><td>車内の人</td><td><code>userPresence</code></td></tr>
+<tr><td>5</td><td><code>detailedClosureStatus</code></td><td><code>DetailedClosureStatus</code></td><td><code>tonneauPercentOpen</code>（1、uint32）、Cybertruck</td><td><code>tonneauPercentOpen</code>（なければ <code>null</code>）</td></tr>
+<tr><td>6</td><td><code>uiDesire</code></td><td><code>UIDesire_E</code>（Teslemetry）</td><td>スキーマにのみ存在</td><td><strong>公開しない</strong>（M5 予定）</td></tr>
+<tr><td>7</td><td><code>gear</code></td><td><code>Gear_E</code>（Teslemetry、実車で確認）</td><td>現在のギア</td><td><strong>公開しない</strong>（M5 予定）</td></tr>
+<tr><td>8</td><td>（不明、スキーマになし）</td><td>message</td><td>実車で観測: <code>{1: 1|2, 2: 1|2, 3: 1}</code>。意味は不明</td><td>公開しない</td></tr>
+</tbody>
+</table>
+<p><code>ClosureStatuses</code> には 1〜8 番の <code>ClosureState_E</code> フィールドが 8 つあります: <code>frontDriverDoor</code>、<code>frontPassengerDoor</code>、<code>rearDriverDoor</code>、<code>rearPassengerDoor</code>、<code>rearTrunk</code>、<code>frontTrunk</code>、<code>chargePort</code>、<code>tonneau</code>。</p>
+<div class="callout">
+<strong>変換規則</strong>
+<p>スキーマ外の値は 0 番の値ではなく <code>UNKNOWN</code> に変換します。proto3 では欠けた enum と 0 番の値を区別できないため、ロック状態が欠けると <code>UNLOCKED</code> と読まれ、クエリでは Go の動作をそのまま踏襲しています。実車の結果では、車両はすべて閉じると <code>closureStatuses</code> を省き、何かが開いていると送ってくるため（運転席ドアと充電ポートで確認）、「なければすべて閉」は観測と合っています。室内ボタンで開けたトランクはブロードキャストに現れなかったので、トランクはこのクエリで読んでください。</p>
+</div>
+
+<h2 id="sec-a-summary">A3. keySummary()</h2>
+<pre><code class="language-kotlin"><span class="k">suspend</span> <span class="k">fun</span> <span class="f">keySummary</span>(timeout: <span class="t">Duration</span>? = <span class="n">null</span>): <span class="t">VehicleResult</span>&lt;<span class="t">WhitelistSummary</span>&gt;
+</code></pre>
+<table>
+<thead><tr><th>項目</th><th>値</th></tr></thead>
+<tbody>
+<tr><td>認証、ドメイン</td><td>なし、<code>DOMAIN_VEHICLE_SECURITY</code></td></tr>
+<tr><td>要求ペイロード</td><td><code>UnsignedMessage{InformationRequest{GET_WHITELIST_INFO}}</code> = 16 進 <code>0a020805</code>（タイプ 5）</td></tr>
+<tr><td>終了条件</td><td>応答の最初のメッセージ</td></tr>
+<tr><td>応答</td><td><code>FromVCSECMessage.whitelistInfo</code>（フィールド 16）。なければ <code>BadResponse("missing whitelistInfo")</code></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>#</th><th>フィールド（<code>WhitelistInfo</code>）</th><th>型</th><th>意味</th><th>公開モデル</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>numberOfEntries</code></td><td>uint32</td><td>登録済みキーの数</td><td><code>WhitelistSummary.numberOfEntries</code></td></tr>
+<tr><td>2</td><td><code>whitelistEntries</code></td><td>repeated <code>KeyIdentifier{publicKeySHA1 = 1}</code></td><td>キー ID</td><td>公開しない</td></tr>
+<tr><td>3</td><td><code>slotMask</code></td><td>uint32</td><td><em>i</em> ビット目が 1 ならスロット <em>i</em> が使用中</td><td><code>slotMask</code>、<code>occupiedSlots</code></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-a-list">A4. listKeys()</h2>
+<pre><code class="language-kotlin"><span class="k">suspend</span> <span class="k">fun</span> <span class="f">listKeys</span>(timeout: <span class="t">Duration</span>? = <span class="n">null</span>): <span class="t">VehicleResult</span>&lt;<span class="t">List</span>&lt;<span class="t">WhitelistEntry</span>&gt;&gt;
+</code></pre>
+<table>
+<thead><tr><th>項目</th><th>値</th></tr></thead>
+<tbody>
+<tr><td>認証、ドメイン</td><td>なし、<code>DOMAIN_VEHICLE_SECURITY</code></td></tr>
+<tr><td>リクエスト</td><td>サマリーの要求を 1 回、続けて使用中のスロットごとに <code>GET_WHITELIST_ENTRY_INFO</code> を 1 つずつ順に</td></tr>
+<tr><td>スロット要求のペイロード</td><td><code>UnsignedMessage{InformationRequest{GET_WHITELIST_ENTRY_INFO, slot = N}}</code> = 16 進 <code>0a04080620NN</code>。例: スロット 0 は <code>0a0408062000</code>、スロット 2 は <code>0a0408062002</code>（タイプ 6、<code>slot</code> はフィールド 4）。<code>NN</code> は varint で、128 以上のスロットは 2 バイト必要です</td></tr>
+<tr><td>終了条件</td><td>各応答の最初のメッセージ</td></tr>
+<tr><td>応答</td><td><code>FromVCSECMessage.whitelistEntryInfo</code>（フィールド 17）。なければ <code>BadResponse("missing whitelistEntryInfo")</code></td></tr>
+<tr><td>時間予算</td><td>全体で <code>timeout</code> 1 つ。最初の <code>Failure</code> または <code>Uncertain</code> を返し、残り時間がなければ <code>Timeout(afterSend = false)</code></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>#</th><th>フィールド（<code>WhitelistEntryInfo</code>）</th><th>型</th><th>意味</th><th>公開モデル</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>keyId</code></td><td><code>KeyIdentifier{publicKeySHA1 = 1}</code></td><td>公開鍵の SHA-1</td><td><code>keyIdSha1Hex</code>（空なら <code>null</code>）</td></tr>
+<tr><td>2</td><td><code>publicKey</code></td><td><code>PublicKey{PublicKeyRaw = 1}</code></td><td>65 バイトのキー</td><td><code>publicKey</code>（なし、または不正なら <code>null</code>）</td></tr>
+<tr><td>4</td><td><code>metadataForKey</code></td><td><code>KeyMetadata{keyFormFactor = 1}</code></td><td>フォームファクター</td><td><code>formFactor</code></td></tr>
+<tr><td>6</td><td><code>slot</code></td><td>uint32</td><td>スロット</td><td><code>slot</code> はこのフィールドではなく<strong>要求した</strong>スロットです（Go の <code>list-keys</code> と同じ）</td></tr>
+<tr><td>7</td><td><code>keyRole</code></td><td><code>Keys.Role</code></td><td>ロール</td><td><code>role</code></td></tr>
+</tbody>
+</table>
+<p>スロット 1 つだけを問い合わせるクエリは内部のクエリクラスにあり、<code>Vehicle</code> にはありません。</p>
+
+<h2 id="sec-a-session">A5. sessionInfo()</h2>
+<pre><code class="language-kotlin"><span class="k">suspend</span> <span class="k">fun</span> <span class="f">sessionInfo</span>(publicKey: <span class="t">PublicKeyBytes</span>, domain: <span class="t">VehicleDomain</span>, timeout: <span class="t">Duration</span>? = <span class="n">null</span>): <span class="t">VehicleResult</span>&lt;<span class="t">SessionInfoSummary</span>&gt;
+</code></pre>
+<table>
+<thead><tr><th>項目</th><th>値</th></tr></thead>
+<tbody>
+<tr><td>認証</td><td>なし。接続自身のキーだけでなく、65 バイトの公開鍵ならどれでも問い合わせられます</td></tr>
+<tr><td>ドメイン</td><td><code>domain</code>: <code>VCSEC</code>（<code>DOMAIN_VEHICLE_SECURITY</code>）または <code>INFOTAINMENT</code>（<code>DOMAIN_INFOTAINMENT</code>）</td></tr>
+<tr><td>リクエスト</td><td><code>RoutableMessage{to_destination{domain}, from_destination{routing_address = 16 バイト}, session_info_request{public_key}, uuid}</code>。アドレスは <code>VCSEC</code> では要求ごとに新しく作り、<code>INFOTAINMENT</code> では接続固有の固定アドレスを使います。省略可能な <code>challenge</code>（2）は送りません</td></tr>
+<tr><td>終了条件</td><td>最初の応答。1 回だけ送り、再送しません</td></tr>
+<tr><td>応答</td><td><code>RoutableMessage.session_info</code>（15）= シリアライズした <code>Signatures.SessionInfo</code></td></tr>
+<tr><td>エラー</td><td>フォールト <code>UNKNOWN_KEY_ID</code>、または <code>status = KEY_NOT_ON_WHITELIST</code> は <code>Failure(KeyNotPaired)</code>、<code>session_info</code> がない、またはデコードできなければ <code>Failure(BadResponse)</code>、時間内に応答がなければ <code>Uncertain(Timeout(afterSend = true))</code></td></tr>
+<tr><td>副作用</td><td>接続自身のキーで問い合わせると、そのドメインのセッションも作られるため、<code>sessions</code> に <code>Ready(fromCache = false)</code> が表示されます</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>#</th><th>フィールド（<code>Signatures.SessionInfo</code>）</th><th>型</th><th>公開 <code>SessionInfoSummary</code></th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>counter</code></td><td>uint32</td><td><code>counter</code></td></tr>
+<tr><td>2</td><td><code>publicKey</code></td><td>bytes</td><td><code>vehiclePublicKey</code>（有効な 65 バイトのキーでなければ <code>null</code>）</td></tr>
+<tr><td>3</td><td><code>epoch</code></td><td>bytes</td><td>公開しない</td></tr>
+<tr><td>4</td><td><code>clock_time</code></td><td>fixed32</td><td><code>clockTime</code>（秒）</td></tr>
+<tr><td>5</td><td><code>status</code></td><td><code>Session_Info_Status</code></td><td>検査しない: <code>OK</code> 0、<code>KEY_NOT_ON_WHITELIST</code> 1、<code>INVALID_HANDLE</code> 2（Teslemetry のみ）</td></tr>
+<tr><td>6</td><td><code>handle</code></td><td>uint32</td><td>公開しない（Teslemetry のみ）</td></tr>
+</tbody>
+</table>
+<p>ペアリング後の登録確認に使います: <code>sessionInfo(publicKey, INFOTAINMENT)</code>（<a href="13-lib-pairing.html">13. キーとペアリング</a> 参照）。</p>
+
+<h2 id="sec-a-enums">A6. enum 値の表</h2>
+<p>値は <code>vcsec.proto</code> と <code>universal_message.proto</code> によります。ライブラリが知らない値は <code>UNKNOWN</code> になります。</p>
+<table>
+<thead><tr><th>enum</th><th>値</th><th>ワイヤ上の名前</th><th>公開値</th></tr></thead>
+<tbody>
+<tr><td rowspan="4"><code>VehicleLockState_E</code>（フィールド 2）</td><td>0</td><td><code>VEHICLELOCKSTATE_UNLOCKED</code></td><td><code>UNLOCKED</code></td></tr>
+<tr><td>1</td><td><code>VEHICLELOCKSTATE_LOCKED</code></td><td><code>LOCKED</code></td></tr>
+<tr><td>2</td><td><code>VEHICLELOCKSTATE_INTERNAL_LOCKED</code></td><td><code>INTERNAL_LOCKED</code></td></tr>
+<tr><td>3</td><td><code>VEHICLELOCKSTATE_SELECTIVE_UNLOCKED</code></td><td><code>SELECTIVE_UNLOCKED</code></td></tr>
+<tr><td rowspan="3"><code>VehicleSleepStatus_E</code>（フィールド 3）</td><td>0</td><td><code>VEHICLE_SLEEP_STATUS_UNKNOWN</code></td><td><code>UNKNOWN</code></td></tr>
+<tr><td>1</td><td><code>VEHICLE_SLEEP_STATUS_AWAKE</code></td><td><code>AWAKE</code></td></tr>
+<tr><td>2</td><td><code>VEHICLE_SLEEP_STATUS_ASLEEP</code></td><td><code>ASLEEP</code></td></tr>
+<tr><td rowspan="3"><code>UserPresence_E</code>（フィールド 4）</td><td>0</td><td><code>VEHICLE_USER_PRESENCE_UNKNOWN</code></td><td><code>UNKNOWN</code></td></tr>
+<tr><td>1</td><td><code>VEHICLE_USER_PRESENCE_NOT_PRESENT</code></td><td><code>NOT_PRESENT</code></td></tr>
+<tr><td>2</td><td><code>VEHICLE_USER_PRESENCE_PRESENT</code></td><td><code>PRESENT</code></td></tr>
+<tr><td rowspan="7"><code>ClosureState_E</code>（各開口部）</td><td>0</td><td><code>CLOSURESTATE_CLOSED</code></td><td><code>CLOSED</code></td></tr>
+<tr><td>1</td><td><code>CLOSURESTATE_OPEN</code></td><td><code>OPEN</code></td></tr>
+<tr><td>2</td><td><code>CLOSURESTATE_AJAR</code></td><td><code>AJAR</code></td></tr>
+<tr><td>3</td><td><code>CLOSURESTATE_UNKNOWN</code></td><td><code>UNKNOWN</code></td></tr>
+<tr><td>4</td><td><code>CLOSURESTATE_FAILED_UNLATCH</code></td><td><code>FAILED_UNLATCH</code></td></tr>
+<tr><td>5</td><td><code>CLOSURESTATE_OPENING</code></td><td><code>OPENING</code></td></tr>
+<tr><td>6</td><td><code>CLOSURESTATE_CLOSING</code></td><td><code>CLOSING</code></td></tr>
+<tr><td rowspan="5"><code>Gear_E</code>（フィールド 7、Teslemetry、実車で確認）</td><td>0</td><td><code>GEAR_UNKNOWN</code></td><td>公開しない</td></tr>
+<tr><td>1</td><td><code>GEAR_PARK</code></td><td>公開しない</td></tr>
+<tr><td>2</td><td><code>GEAR_DRIVE</code></td><td>公開しない</td></tr>
+<tr><td>3</td><td><code>GEAR_REVERSE</code></td><td>公開しない</td></tr>
+<tr><td>4</td><td><code>GEAR_NEUTRAL</code></td><td>公開しない</td></tr>
+<tr><td rowspan="2"><code>UIDesire_E</code>（フィールド 6、Teslemetry、スキーマにのみ存在）</td><td>0</td><td><code>UI_DESIRE_NONE</code></td><td>公開しない</td></tr>
+<tr><td>1</td><td><code>UI_DESIRE_HAS_DATA</code></td><td>公開しない</td></tr>
+<tr><td rowspan="9"><code>Keys.Role</code>（<code>keyRole</code>）</td><td>0</td><td><code>ROLE_NONE</code></td><td><code>NONE</code></td></tr>
+<tr><td>1</td><td><code>ROLE_SERVICE</code></td><td><code>SERVICE</code></td></tr>
+<tr><td>2</td><td><code>ROLE_OWNER</code></td><td><code>OWNER</code></td></tr>
+<tr><td>3</td><td><code>ROLE_DRIVER</code></td><td><code>DRIVER</code></td></tr>
+<tr><td>4</td><td><code>ROLE_FM</code></td><td><code>FLEET_MANAGER</code></td></tr>
+<tr><td>5</td><td><code>ROLE_VEHICLE_MONITOR</code></td><td><code>VEHICLE_MONITOR</code></td></tr>
+<tr><td>6</td><td><code>ROLE_CHARGING_MANAGER</code></td><td><code>CHARGING_MANAGER</code></td></tr>
+<tr><td>8</td><td><code>ROLE_GUEST</code></td><td><code>GUEST</code></td></tr>
+<tr><td>7、9、10、11</td><td><code>ROLE_SERVICE_TECH</code>、<code>ROLE_RIDER</code>、<code>ROLE_PREDELIVERY</code>、<code>ROLE_INFOTAINMENT</code>（Teslemetry、未確認）</td><td><code>UNKNOWN</code></td></tr>
+</tbody>
+</table>
+<p><code>Gear_E</code> は実車で確認しました。P、R、N、D のそれぞれが、対応する値のブロードキャストを 1 回ずつ生成し、<code>GEAR_UNKNOWN</code> は見ていません。<code>UIDesire_E</code> は実車での意味が確立していません。</p>
+<p><code>KeyFormFactor</code>: 公開モデルには <code>UNKNOWN</code>、<code>NFC_CARD</code>、<code>IOS_DEVICE</code>、<code>ANDROID_DEVICE</code>、<code>CLOUD_KEY</code> しかありません。ワイヤ値 0、1、6、7、9 がこれらに対応します。<strong>Teslemetry スナップショットの値は <code>UNKNOWN</code> になります:</strong> 2 <code>3_BUTTON_BLE_CAR_KEYFOB</code>、3 <code>BLE_DEVICE</code>、4 <code>NFC_DEVICE</code>、5 <code>BLE_AND_NFC_DEVICE</code>、8 <code>3_BUTTON_BLE_CAR_KEYFOB_P60</code>、10 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60</code>、11 <code>5_BUTTON_GEN2_CAR_KEYFOB_P60</code>、12 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60_V2</code>、13 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60_V3</code>、14 <code>NFC_CARD_P71</code>、15 <code>NFC_CARD_METAL_CARD</code>、16 <code>NFC_CARD_PLASTIC_CARD</code>、17 <code>APPLE_WATCH</code>、18 <code>NFC_CARD_WD_PLASTIC_CARD</code>、19 <code>HARMONY_OS_NEXT_DEVICE</code>（すべて接頭辞 <code>KEY_FORM_FACTOR_</code> 付き）。</p>
+
+<h2 id="sec-a-other">A7. スキーマにあるその他の要求種別</h2>
+<p><code>InformationRequestType</code> には <code>GET_TOKEN</code> 1、<code>GET_COUNTER</code> 2、<code>GET_EPHEMERAL_PUBLIC_KEY</code> 3、<code>GET_SESSION_DATA</code> 4、<code>GET_PERSONALIZATION_INFO</code> 7、<code>GET_KEYSTATUS_INFO</code> 8、<code>GET_ACTIVE_KEY</code> 9、<code>GET_CAPABILITIES</code> 16（Teslemetry のみ）も定義されています。ライブラリはどれも送らず、API もありません。<code>getState(category)</code>（インフォテインメント）は M5 の予定で、API はまだありません。</p>
+
+<h2 id="sec-status">結果の型</h2>
+<table>
+<thead><tr><th><code>VehicleStatus</code> のフィールド</th><th>値</th></tr></thead>
+<tbody>
+<tr><td><code>lockState</code></td><td><code>UNLOCKED</code>、<code>LOCKED</code>、<code>INTERNAL_LOCKED</code>、<code>SELECTIVE_UNLOCKED</code>、<code>UNKNOWN</code></td></tr>
+<tr><td><code>closures</code></td><td>8 つの開口部、それぞれ <code>ClosureState</code>。車両が送らなければすべて <code>CLOSED</code>（すべて閉じていると車両が省略します。Go のゲッターと同じ）</td></tr>
+<tr><td><code>sleepStatus</code></td><td><code>AWAKE</code>、<code>ASLEEP</code>、<code>UNKNOWN</code></td></tr>
+<tr><td><code>userPresence</code></td><td><code>PRESENT</code>、<code>NOT_PRESENT</code>、<code>UNKNOWN</code></td></tr>
 <tr><td><code>tonneauPercentOpen</code></td><td>Cybertruck のみ。それ以外は <code>null</code></td></tr>
 </tbody>
 </table>
-<p>8 つの開口部は <code>frontDriverDoor</code>、<code>frontPassengerDoor</code>、<code>rearDriverDoor</code>、<code>rearPassengerDoor</code>、<code>rearTrunk</code>、<code>frontTrunk</code>、<code>chargePort</code>、<code>tonneau</code> です。それぞれ <code>CLOSED</code>、<code>OPEN</code>、<code>AJAR</code>、<code>OPENING</code>、<code>CLOSING</code>、<code>FAILED_UNLATCH</code>、<code>UNKNOWN</code> のいずれかです。</p>
+<p>8 つの開口部は <code>frontDriverDoor</code>、<code>frontPassengerDoor</code>、<code>rearDriverDoor</code>、<code>rearPassengerDoor</code>、<code>rearTrunk</code>、<code>frontTrunk</code>、<code>chargePort</code>、<code>tonneau</code> です。それぞれ <code>CLOSED</code>、<code>OPEN</code>、<code>AJAR</code>、<code>OPENING</code>、<code>CLOSING</code>、<code>FAILED_UNLATCH</code>、<code>UNKNOWN</code> のいずれかです。<code>gear</code> と <code>uiDesire</code> はまだこのモデルにありません（M5 予定）。</p>
 <div class="callout">
-<strong>未知の値でも失敗しません</strong>
-<p>新しい車両ファームウェアがライブラリの知らない値を送ってきた場合、クエリを失敗させずに、そのフィールドは <code>UNKNOWN</code> になります。</p>
+<strong>未知の値は失敗になりません</strong>
+<p>新しい車両ファームウェアがライブラリのまだ知らない値を送ってきても、クエリを失敗させず、そのフィールドを <code>UNKNOWN</code> として読みます。</p>
 </div>
-
-<h2 id="sec-keys">キークエリの戻り値</h2>
 <table>
 <thead><tr><th>型</th><th>フィールド</th><th>意味</th></tr></thead>
 <tbody>
-<tr><td><code>WhitelistSummary</code></td><td><code>numberOfEntries</code></td><td>登録されているキーの数</td></tr>
-<tr><td></td><td><code>slotMask</code>, <code>occupiedSlots</code></td><td>使用中のスロット。ビットマスクとソート済みリストの両方</td></tr>
+<tr><td><code>WhitelistSummary</code></td><td><code>numberOfEntries</code></td><td>登録済みキーの数</td></tr>
+<tr><td></td><td><code>slotMask</code>、<code>occupiedSlots</code></td><td>使用中のスロット。ビットマスクと整列済みリスト</td></tr>
 <tr><td><code>WhitelistEntry</code></td><td><code>slot</code></td><td>スロット番号</td></tr>
-<tr><td></td><td><code>publicKey</code></td><td>65 バイトの公開鍵。欠落または不正な場合は <code>null</code></td></tr>
-<tr><td></td><td><code>keyIdSha1Hex</code></td><td>公開鍵の SHA-1 (16 進数)、または <code>null</code></td></tr>
-<tr><td></td><td><code>role</code>, <code>formFactor</code></td><td>例えば <code>OWNER</code> と <code>IOS_DEVICE</code>。<a href="13-lib-pairing.html">13. キーとペアリング</a> を参照してください</td></tr>
+<tr><td></td><td><code>publicKey</code></td><td>65 バイトの公開鍵。なし、または不正なら <code>null</code></td></tr>
+<tr><td></td><td><code>keyIdSha1Hex</code></td><td>公開鍵の SHA-1 の 16 進表記、または <code>null</code></td></tr>
+<tr><td></td><td><code>role</code>、<code>formFactor</code></td><td>例: <code>OWNER</code>、<code>IOS_DEVICE</code>。<a href="13-lib-pairing.html">13. キーとペアリング</a> 参照</td></tr>
+<tr><td><code>SessionInfoSummary</code></td><td><code>counter</code>、<code>clockTime</code>、<code>vehiclePublicKey</code></td><td>A5 参照</td></tr>
 </tbody>
 </table>
 
 <h2 id="sec-flows">接続とセッションの状態</h2>
-<p>これらは車両に送る問い合わせではなく、監視する <code>Vehicle</code> のプロパティです:</p>
+<p>次は車両に送る問い合わせではなく、観察する <code>Vehicle</code> のプロパティです。</p>
 <table>
 <thead><tr><th>プロパティ</th><th>値</th></tr></thead>
 <tbody>
-<tr><td><code>connection</code></td><td><code>Connected</code>、または <code>Disconnected</code> (わかる場合はその理由付き)</td></tr>
-<tr><td><code>sessions</code></td><td><code>VCSEC</code> と <code>INFOTAINMENT</code> それぞれについて <code>None</code>、<code>Handshaking</code>、<code>Ready</code> (<code>fromCache</code> 付き)</td></tr>
+<tr><td><code>connection</code></td><td><code>Connected</code>、または <code>Disconnected</code>（分かっていれば理由付き）</td></tr>
+<tr><td><code>sessions</code></td><td><code>VCSEC</code> と <code>INFOTAINMENT</code> それぞれ: <code>None</code>、<code>Handshaking</code>、<code>Ready</code>（<code>fromCache</code> 付き）</td></tr>
 <tr><td><code>hasKey</code></td><td>キーを使って接続したかどうか</td></tr>
-<tr><td><code>vin</code></td><td>VIN です。出力するとマスクされた形式になります。<code>vin.value</code> は生の VIN なので、ログに出さないでください</td></tr>
+<tr><td><code>vin</code></td><td>VIN。出力するとマスクされた形が表示されます。<code>vin.value</code> は生の VIN なので、ログに残してはいけません</td></tr>
 </tbody>
 </table>
 
 <h2 id="sec-wake">スリープとウェイクアップ</h2>
 <ul>
-<li>3 つのクエリはいずれも車両をウェイクアップしません。スリープ中かどうかの表示には <code>sleepStatus</code> を使います。</li>
-<li>M5 で追加予定: <code>getState(category)</code> は 12 のインフォテインメントカテゴリ (充電、空調、走行、位置、開閉部、充電スケジュール、プレコンディショニングスケジュール、タイヤ空気圧、メディア、メディア詳細、ソフトウェアアップデート、ペアレンタルコントロール) を読み取ります。登録済みキーと起きている車両が必要です。</li>
-<li><code>wakeUp()</code> (M4) は VCSEC セッションだけで使えます。</li>
-<li>ロックやトランクのコマンド (M4) が <code>Uncertain</code> を返した場合は、コマンドを再送せずに <code>vehicleStatus()</code> をもう一度読み取ってください。</li>
+<li>どのクエリも車両を起こしません。スリープ中かどうかを表示するには <code>sleepStatus</code> を使います。</li>
+<li>M5 で追加予定: <code>getState(category)</code> は、インフォテインメントの 12 カテゴリ（充電、空調、走行、位置、開口部、充電スケジュール、プレコンディショニングスケジュール、タイヤ空気圧、メディア、メディア詳細、ソフトウェア更新、ペアレンタルコントロール）を読みます。登録済みのキーと起きている車両が必要です。</li>
+<li><code>wakeUp()</code>（M4）は VCSEC セッションだけで動きます。</li>
+<li>ロックやトランクのコマンド（M4）が <code>Uncertain</code> で返ったら、コマンドを再送せず <code>vehicleStatus()</code> を読み直してください。</li>
+</ul>
+
+<h2 id="sec-b-wire">B1. ブロードキャストのワイヤ上の形</h2>
+<p>ブロードキャストは応答と同じ <code>00000213-...</code> の購読で届きます。次の性質を持つ <code>RoutableMessage</code> です。</p>
+<table>
+<thead><tr><th>フィールド</th><th>値</th></tr></thead>
+<tbody>
+<tr><td><code>from_destination.domain</code></td><td><code>DOMAIN_VEHICLE_SECURITY</code> (2)</td></tr>
+<tr><td><code>to_destination.domain</code></td><td><code>DOMAIN_BROADCAST</code> (0)、ルーティングアドレスなし</td></tr>
+<tr><td><code>request_uuid</code></td><td>空</td></tr>
+<tr><td><code>signature_data</code></td><td>なし（平文、認証されない）</td></tr>
+<tr><td><code>protobuf_message_as_bytes</code></td><td>シリアライズした <code>FromVCSECMessage</code></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>#</th><th><code>FromVCSECMessage</code> のフィールド（6〜10 は予約）</th><th>型</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>vehicleStatus</code></td><td><code>VehicleStatus</code></td><td>クエリ応答と同じメッセージ（A2）</td></tr>
+<tr><td>3</td><td><code>authenticationRequest</code></td><td><code>AuthenticationRequest</code></td><td>Teslemetry 拡張</td></tr>
+<tr><td>4</td><td><code>commandStatus</code></td><td><code>CommandStatus</code></td><td>コマンドへの応答</td></tr>
+<tr><td>16</td><td><code>whitelistInfo</code></td><td><code>WhitelistInfo</code></td><td>クエリ応答</td></tr>
+<tr><td>17</td><td><code>whitelistEntryInfo</code></td><td><code>WhitelistEntryInfo</code></td><td>クエリ応答</td></tr>
+<tr><td>46</td><td><code>nominalError</code></td><td><code>Errors.NominalError</code></td><td>エラー応答</td></tr>
+<tr><td>48、53</td><td>不明</td><td></td><td>実車で観測したが、どのスキーマにもない（B3）</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-b-library">B2. ライブラリのブロードキャスト処理</h2>
+<ul>
+<li>ディスパッチャーは Go 原本と同様、すべてのブロードキャストを<strong>破棄します</strong>。ルーティングアドレスがないため、ルーティングは破棄理由 <code>TO_DOMAIN</code> を返します。ブロードキャストは待機中の要求に届かず、こちらのルーティングアドレスで対応付ける応答と混ざりません。</li>
+<li>見る方法は観察ログだけです: <code>DEBUG</code>、タグ <code>observe</code>、行頭 <code>[drop:to-domain]</code>。行の形式とフィールド名は <a href="18-lib-troubleshooting.html">18. トラブルシューティング</a> に、各メッセージの意味は B3 にあります。</li>
+<li><strong>公開 <code>vehicle.events</code> API は M5 の予定で、実装されていません。</strong> 現在、ブロードキャスト向けの公開コールバック、Flow、モデル型はありません。それまでは、ロック、開口部、スリープ、在車状態を <code>vehicleStatus()</code> で読んでください。</li>
+</ul>
+
+<h2 id="sec-b-catalogue">B3. メッセージ一覧</h2>
+<p>状態ラベル: <span class="badge ok">確認済み</span> 実車で確認、<span class="badge info">スキーマのみ</span> proto ファイルに定義されているが自分では見ていない、<span class="badge warn">不明</span> ワイヤ上で見たが意味は不明。</p>
+<table>
+<thead><tr><th>メッセージ</th><th>状態</th></tr></thead>
+<tbody>
+<tr><td><code>vehicleStatus</code>（フィールド 1）</td><td><span class="badge ok">確認済み</span></td></tr>
+<tr><td><code>authenticationRequest</code>（フィールド 3）</td><td><span class="badge ok">確認済み</span>（フィールド名は未検証）</td></tr>
+<tr><td>フィールド 53</td><td><span class="badge warn">不明</span></td></tr>
+<tr><td>フィールド 48</td><td><span class="badge warn">不明</span></td></tr>
+<tr><td>他のクライアント宛ての応答（ブロードキャストではない）</td><td><span class="badge ok">確認済み</span></td></tr>
+</tbody>
+</table>
+
+<h3>B3.1 vehicleStatus</h3>
+<p>フィールドは A2 と同じです。実車の観察結果です（iPhone、Model Y。1 回目は 71 行、2 回目はシナリオごとの記録）。</p>
+<table>
+<thead><tr><th>フィールド</th><th>状態</th><th>観察内容</th></tr></thead>
+<tbody>
+<tr><td><code>vehicleLockState</code> (2)</td><td><span class="badge ok">確認済み</span></td><td>接続直後は <code>UNLOCKED</code>、ドアを閉めて着席している間は <code>INTERNAL_LOCKED</code> が繰り返され、降りた後は <code>LOCKED</code>、接続を保ったまま歩いて離れると <code>UNLOCKED</code> から <code>LOCKED</code> へ（約 30 秒後にリンク切断）</td></tr>
+<tr><td><code>vehicleSleepStatus</code> (3)</td><td><span class="badge ok">確認済み</span></td><td>すべての行が <code>AWAKE</code>。スリープ中の車両は観察<strong>できていません</strong></td></tr>
+<tr><td><code>userPresence</code> (4)</td><td><span class="badge ok">確認済み</span></td><td>着席中は <code>PRESENT</code>、降りた後は <code>NOT_PRESENT</code></td></tr>
+<tr><td><code>gear</code> (7)</td><td><span class="badge ok">確認済み</span></td><td>P/R/N/D を変えるたびにブロードキャストがちょうど 1 つ届き、<code>gear</code> が操作順と一致しました（<code>GEAR_REVERSE</code>、<code>GEAR_NEUTRAL</code>、<code>GEAR_DRIVE</code>、<code>GEAR_PARK</code>、2 回続けて）。操作どおり約 10 秒間隔でした。インフォテインメントのセッションなしで、未登録のキーでも届きます</td></tr>
+<tr><td><code>closureStatuses</code> (1)</td><td>運転席ドアと充電ポートで <span class="badge ok">確認済み</span></td><td><strong>何かが開いているときだけ存在</strong>し、すべて閉じるとなくなります。運転席ドアを室内ハンドルで開けると <code>frontDriverDoor = OPEN</code>、閉めて約 6 秒後にまた消えます。充電ポートを開けると <code>chargePort = OPEN</code>。トランクを室内ボタンで操作したときは<strong>ブロードキャストがまったくありませんでした</strong>。他のトランク操作（外から手で、カードキー、スマートフォンキー、アプリ）は試していません</td></tr>
+<tr><td><code>uiDesire</code> (6)</td><td><span class="badge info">スキーマのみ</span></td><td>意味は未確立</td></tr>
+<tr><td><code>detailedClosureStatus</code> (5)</td><td><span class="badge info">スキーマのみ</span></td><td>Cybertruck のトノカバー。Model Y ではデータなし</td></tr>
+<tr><td>フィールド 8（スキーマになし）</td><td><span class="badge warn">不明</span></td><td><code>{1: 1|2, 2: 1|2, 3: 1}</code>。下位 1 は周期的に 1 と 2 を行き来し、下位 2 は充電ポートを開けて充電が始まったときに 2 から 1 に変わり、下位 3 は常に 1 でした。意味は不明。ウインカーやライトとは無関係です</td></tr>
+</tbody>
+</table>
+<p>確認した発生契機: ギア変更、ロック変更（着席中の室内ロック、離れるときのロック）、室内ハンドルでのドアの開閉、充電ポートを開けることと充電開始、在車状態の変化。</p>
+<p>頻度: 変化がなくても繰り返し届きます。1 回目は起きている間 1〜25 秒ごと（<code>UNLOCKED</code> は 26 バイト、それ以外は 28 バイト）、2 回目は 1 秒以内に複数届くこともありました。繰り返しを変化として扱わないでください。</p>
+
+<h3>B3.2 authenticationRequest（フィールド 3）</h3>
+<p>状態: 発生は <span class="badge ok">確認済み</span>、下位フィールド名は未検証（Teslemetry スキーマ）。</p>
+<table>
+<thead><tr><th>#</th><th>フィールド（<code>AuthenticationRequest</code>）</th><th>型</th><th>意味</th></tr></thead>
+<tbody>
+<tr><td>2</td><td><code>sessionInfo</code>（名前は未検証）</td><td><code>AuthenticationRequestToken{token = 1}</code></td><td><code>token</code>: 20 バイト</td></tr>
+<tr><td>3</td><td><code>requestedLevel</code>（名前は未検証）</td><td><code>AuthenticationLevel_E</code></td><td>0 <code>NONE</code>、1 <code>UNLOCK</code>、2 <code>DRIVE</code>（接頭辞 <code>AUTHENTICATION_LEVEL_</code>）</td></tr>
+<tr><td>4</td><td><code>reasonsForAuth</code>（名前は未検証）</td><td>repeated <code>AuthenticationReason_E</code></td><td>車両が認証を求める理由</td></tr>
+</tbody>
+</table>
+<p><code>AuthenticationReason_E</code>（接頭辞 <code>AUTHENTICATIONREASON_</code>）: 0 <code>NOT_DOCUMENTED</code>、1 <code>IDENTIFICATION</code>、2 <code>POWER_ON_VEHICLE_REQUEST</code>、3 <code>GTW_REQUEST</code>、4 <code>UI_UNLOCK_PASSIVE_AUTH</code>、5 <code>PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL</code>、6 <code>PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL</code>、7 <code>PASSIVE_UNLOCK_AUTOPRESENT_DOOR</code>、8 <code>ENTERED_HIGHER_AUTH_ZONE</code>、9 <code>WALK_UP_UNLOCK</code>、10 <code>IMMOBILIZER</code>。関連する <code>AuthenticationResponse</code>（<code>UnsignedMessage</code> のフィールド 3、スマートフォンキーが送る）と <code>AuthenticationRejection_E</code> はスキーマにあり、ライブラリは送りません。</p>
+<p>観察: 室内ハンドルを引くと <code>requestedLevel = DRIVE</code>、<code>reasons = [PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL]</code>。充電ポートを開けて充電が始まるときは <code>ENTERED_HIGHER_AUTH_ZONE</code> が加わりました。同じ瞬間に <code>vehicleStatus</code>（とフィールド 53）が一緒に届きました。他の理由は観察できていません。</p>
+<div class="callout">
+<strong>包まれており、裸ではない</strong>
+<p>この車両はこれを <code>RoutableMessage</code> に包んで（上記のブロードキャスト形式）送ってきました。約 1.1 秒ごとに包まれていない <code>FromVCSECMessage{authenticationRequest}</code> が届くという他の報告（Teslemetry PR #179）とは異なります。この車両では包まれていないフレームは見えませんでした（<code>drop:missing-source</code>、<code>drop:unparseable</code>: 0 行）。</p>
+</div>
+
+<h3>B3.3 フィールド 53（不明）</h3>
+<p>状態: <span class="badge warn">不明</span>。<code>FromVCSECMessage</code> のフィールド 53: <code>{1: 小さな整数, 2: 35 バイト}</code> の繰り返し。</p>
+<ul>
+<li>接続直後と充電ポートのイベントでは合計 54 バイト（項目 1 つ、id 4）、ドアとロックのイベントでは 205〜220 バイト（項目 5 つ、id 1、3、4、6、7）。1 つのメッセージ内の 35 バイトのブロブは最後の 2 バイトだけが異なります。</li>
+<li>認証イベントと一緒に届きます。id 1、3、4、6、7 は登録済みキーのスロット番号（M3 で 7 本確認）と重なるため、キーごとの認証チャレンジと推測しています。<strong>未確定。</strong></li>
+</ul>
+
+<h3>B3.4 フィールド 48（不明）</h3>
+<p>状態: <span class="badge warn">不明</span>。<code>FromVCSECMessage</code> のフィールド 48、20 バイト。車両が起きていて人がいるとき、約 5.0 秒ごと（途切れる区間あり）。1 回目にだけ見え、2 回目には現れませんでした。ハートビートと推測しますが、条件は不明です。</p>
+
+<h3>B3.5 他のクライアント宛ての応答</h3>
+<p>ブロードキャストではありません。署名された 83 バイトの応答（<code>to_destination.routing_address</code> が別のクライアントの 16 バイトのアドレス、16 バイトの <code>request_uuid</code>、本文は空）は、別のスマートフォンの VCSEC 要求への応答です。こちらのリンクにも約 1〜2 分ごとに、またドアのイベント直後に届きます。ライブラリはこれを <code>no-handler</code>（持ち主 <code>other</code>）として破棄します。</p>
+
+<h2 id="sec-b-absent">B4. ブロードキャストでは受け取れないもの</h2>
+<table>
+<thead><tr><th>項目</th><th>結果</th></tr></thead>
+<tbody>
+<tr><td>ウインカー（左、右）、ハザード、ヘッドライト、ハイビーム</td><td>操作しても<strong>メッセージがまったくなく</strong>、BLE スキーマにも該当フィールドがありません（<code>vcsec.proto</code>、<code>vehicle.proto</code>、<code>car_server.proto</code>）。知られている経路は Tesla Fleet Telemetry（<code>LightsTurnSignal</code> 240、<code>LightsHazardsActive</code> 239、<code>LightsHighBeams</code> 241）だけで、これはインターネット上のサーバー経由なので、このライブラリのサーバーなしという範囲の外です</td></tr>
+<tr><td>室内ボタンで開けたトランク</td><td>ブロードキャストなし（他の方法は未検証）</td></tr>
+<tr><td>スリープ中の車両</td><td>観察できていない</td></tr>
+<tr><td>充電ケーブル、他のスマートフォンキーが近づくとき</td><td>記録していない</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-b-method">B5. 観察方法と環境</h2>
+<ul>
+<li>iPhone 16 Pro、iOS 27、Model Y（ファームウェアは未記録）。サンプル <code>dev.mirolab.TeslableSampleDevice</code> ビルド 7 と 8、キー <code>SECURE_ENCLAVE</code>。観察にキーの登録は不要です。</li>
+<li>1 回目 2026-10-18（ビルド 7、連続した記録 1 本、71 行）。2 回目 2026-10-24（ビルド 8、未知フィールドの詳細デコード、シナリオごとの記録）。</li>
+<li>再現手順: サンプルの観察モードをオンにし、シナリオを実行してから、表示ボタン（と「結果全体をコピー」）を押します。詳細とログの書式は <a href="18-lib-troubleshooting.html">18. トラブルシューティング</a> を参照してください。</li>
+</ul>
+
+<h2 id="sec-b-provenance">B6. 出典</h2>
+<ul>
+<li>公式 <code>vehicle-command</code> <code>a4b43c1</code>（Apache-2.0）: ルーティング、フレーミング、VCSEC クエリ。</li>
+<li>Teslemetry <code>tesla-protocol</code> <code>e6f7afb1</code>（Apache-2.0）: 拡張フィールド（<code>gear</code>、<code>uiDesire</code>、<code>authenticationRequest</code>、追加の enum 値）を含む proto スナップショット。ADR-0002（2026-10-18 改訂）。</li>
+<li>Teslemetry <code>python-tesla-fleet-api</code> PR #178、#179: 事実のみ参照。</li>
+<li>自前の収集: 実車の結果ノート <code>docs/handoff/2026-10-18-m4-push-observation-results.md</code>。</li>
+<li>AGPL のリポジトリは使用していません。</li>
 </ul>
 
 <footer class="page-nav">

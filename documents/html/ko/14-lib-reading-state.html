@@ -55,34 +55,245 @@
 </nav>
 <main class="content">
 <h1>14. 차량 상태 조회</h1>
-<p class="lead">세 가지 조회는 BLE로 차량의 보안 컨트롤러(VCSEC)를 읽습니다. 인포테인먼트 컴퓨터가 잠들어 있어도 VCSEC는 응답하므로, 키도 세션도 깨우기도 필요 없습니다.</p>
+<p class="lead">라이브러리가 BLE로 차량에서 읽을 수 있는 모든 정보를 두 부분으로 정리합니다. A부는 요청해서 받는 데이터(보안 컨트롤러 조회 4가지), B부는 차량이 스스로 보내는 데이터(브로드캐스트)입니다. 조회는 인포테인먼트 컴퓨터가 잠들어 있어도 VCSEC가 응답하므로 키도 세션도 깨우기도 필요 없습니다.</p>
+
+<div class="callout warn">
+<strong>현재 구현 범위</strong>
+<p>A부의 조회 4가지는 구현되어 있습니다. 브로드캐스트(B부)는 라이브러리가 버리므로 관찰 로그에서만 볼 수 있습니다. 공개 <code>vehicle.events</code> API와 <code>getState()</code>(인포테인먼트)는 M5 예정이며 아직 없습니다.</p>
+</div>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
-<li><a href="#sec-calls">세 가지 조회</a></li>
-<li><a href="#sec-status">vehicleStatus()가 반환하는 값</a></li>
-<li><a href="#sec-keys">키 조회가 반환하는 값</a></li>
+<li><a href="#sec-calls">네 가지 조회</a></li>
+<li><a href="#sec-a-transport">A1. 요청이 전달되는 방식</a></li>
+<li><a href="#sec-a-status">A2. vehicleStatus()</a></li>
+<li><a href="#sec-a-summary">A3. keySummary()</a></li>
+<li><a href="#sec-a-list">A4. listKeys()</a></li>
+<li><a href="#sec-a-session">A5. sessionInfo()</a></li>
+<li><a href="#sec-a-enums">A6. enum 값 표</a></li>
+<li><a href="#sec-a-other">A7. 스키마의 다른 요청 종류</a></li>
+<li><a href="#sec-status">결과 타입</a></li>
 <li><a href="#sec-flows">연결 상태와 세션 상태</a></li>
 <li><a href="#sec-wake">절전과 깨우기</a></li>
+<li><a href="#sec-b-wire">B1. 브로드캐스트의 전송 형태</a></li>
+<li><a href="#sec-b-library">B2. 라이브러리의 브로드캐스트 처리</a></li>
+<li><a href="#sec-b-catalogue">B3. 메시지 목록</a></li>
+<li><a href="#sec-b-absent">B4. 브로드캐스트로 받을 수 없는 것</a></li>
+<li><a href="#sec-b-method">B5. 관찰 방법과 환경</a></li>
+<li><a href="#sec-b-provenance">B6. 출처</a></li>
 </ol></div>
 
-<h2 id="sec-calls">세 가지 조회</h2>
+<h2 id="sec-calls">네 가지 조회</h2>
 <table>
-<thead><tr><th>호출</th><th>반환</th><th>Go 원본</th></tr></thead>
+<thead><tr><th>호출</th><th>반환</th><th>Go 원본</th><th>FR</th></tr></thead>
 <tbody>
-<tr><td><code>vehicleStatus()</code></td><td>잠금, 문, 트렁크, 충전 포트, 절전 상태, 탑승자 감지</td><td><code>BodyControllerState</code></td></tr>
-<tr><td><code>keySummary()</code></td><td>등록된 키 개수와 사용 중인 슬롯</td><td><code>KeySummary</code></td></tr>
-<tr><td><code>listKeys()</code></td><td>등록된 모든 키와 각 키의 공개키, 역할, 폼 팩터</td><td><code>KeySummary</code> + <code>KeyInfoBySlot</code></td></tr>
+<tr><td><code>vehicleStatus(timeout = null)</code></td><td><code>VehicleResult&lt;VehicleStatus&gt;</code></td><td><code>BodyControllerState</code> (<code>InformationRequest{GET_STATUS}</code>)</td><td>FR-031</td></tr>
+<tr><td><code>keySummary(timeout = null)</code></td><td><code>VehicleResult&lt;WhitelistSummary&gt;</code></td><td><code>KeySummary</code> (<code>GET_WHITELIST_INFO</code>)</td><td>FR-032</td></tr>
+<tr><td><code>listKeys(timeout = null)</code></td><td><code>VehicleResult&lt;List&lt;WhitelistEntry&gt;&gt;</code></td><td><code>KeySummary</code> + 사용 중인 슬롯마다 <code>KeyInfoBySlot</code></td><td>FR-025</td></tr>
+<tr><td><code>sessionInfo(publicKey, domain, timeout = null)</code></td><td><code>VehicleResult&lt;SessionInfoSummary&gt;</code></td><td><code>SessionInfo</code> (<code>session_info_request</code>)</td><td>FR-024</td></tr>
 </tbody>
 </table>
 <ul>
 <li>각 조회는 선택 인자 <code>timeout</code>을 받습니다. 지정하지 않으면 기본 명령 시간 제한(5초)이 적용됩니다. <code>listKeys()</code>의 시간 제한은 내부 요청 전체에 함께 적용됩니다.</li>
 <li>차량은 연결마다 VCSEC 요청을 한 번에 하나씩 처리합니다. 다른 조회를 기다려야 하는 조회는 시간 제한의 일부를 대기에 씁니다.</li>
 <li>이들은 조회이므로 <code>Uncertain</code> 결과가 나오면 그냥 다시 조회하면 됩니다.</li>
+<li>제어 페이로드(잠금, 트렁크, 깨우기)는 <a href="15-lib-commands.html">15. 명령</a>에 있습니다.</li>
 </ul>
 
-<h2 id="sec-status">vehicleStatus()가 반환하는 값</h2>
+<h2 id="sec-a-transport">A1. 요청이 전달되는 방식</h2>
 <table>
-<thead><tr><th>필드</th><th>값</th></tr></thead>
+<thead><tr><th>항목</th><th>값</th></tr></thead>
+<tbody>
+<tr><td>GATT 서비스</td><td><code>00000211-b2d1-43f0-9b88-960cebf8b91e</code></td></tr>
+<tr><td>쓰기 특성 (폰에서 차량으로)</td><td><code>00000212-b2d1-43f0-9b88-960cebf8b91e</code></td></tr>
+<tr><td>notify/indicate 특성 (차량에서 폰으로)</td><td><code>00000213-b2d1-43f0-9b88-960cebf8b91e</code></td></tr>
+<tr><td>프레이밍</td><td>2바이트 빅엔디언 길이 접두사 뒤에 직렬화한 <code>RoutableMessage</code>. 메시지 최대 1024바이트이며, 넘으면 <code>InvalidArgument</code>로 실패합니다</td></tr>
+<tr><td>쓰기 블록 길이</td><td><code>min(ATT MTU, 1024) - 3</code>. MTU 교환에 실패하면 20</td></tr>
+</tbody>
+</table>
+<p>양방향 모든 프레임은 <code>RoutableMessage</code>(<code>universal_message.proto</code>)입니다.</p>
+<table>
+<thead><tr><th>필드</th><th>번호</th><th>타입</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td><code>to_destination</code></td><td>6</td><td><code>Destination</code></td><td><code>domain</code>(1, enum <code>Domain</code>) 또는 <code>routing_address</code>(2, bytes) 중 하나</td></tr>
+<tr><td><code>from_destination</code></td><td>7</td><td><code>Destination</code></td><td>같은 형태. 요청에는 우리 라우팅 주소가, 차량의 응답에는 차량의 도메인이 들어갑니다</td></tr>
+<tr><td><code>protobuf_message_as_bytes</code></td><td>10</td><td>bytes</td><td>페이로드(택일): 직렬화한 도메인 메시지(차량으로는 <code>UnsignedMessage</code> 또는 <code>ToVCSECMessage</code>, 돌아올 때는 <code>FromVCSECMessage</code>)</td></tr>
+<tr><td><code>session_info_request</code></td><td>14</td><td><code>SessionInfoRequest</code></td><td>페이로드(택일): <code>public_key</code>(1), <code>challenge</code>(2)</td></tr>
+<tr><td><code>session_info</code></td><td>15</td><td>bytes</td><td>페이로드(택일): 직렬화한 <code>Signatures.SessionInfo</code></td></tr>
+<tr><td><code>signature_data</code></td><td>13</td><td><code>Signatures.SignatureData</code></td><td>인증된(AES-GCM) 명령과 응답에 있습니다</td></tr>
+<tr><td><code>signedMessageStatus</code></td><td>12</td><td><code>MessageStatus</code></td><td><code>operation_status</code>(1), <code>signed_message_fault</code>(2, <code>MessageFault_E</code>)</td></tr>
+<tr><td><code>request_uuid</code></td><td>50</td><td>bytes</td><td>요청 <code>uuid</code>의 반향(16바이트). 인포테인먼트 응답을 짝짓는 데 씁니다</td></tr>
+<tr><td><code>uuid</code></td><td>51</td><td>bytes</td><td>요청 식별자, 무작위 16바이트</td></tr>
+<tr><td><code>flags</code></td><td>52</td><td>uint32</td><td><code>Flags</code>의 비트 마스크(<code>FLAG_USER_COMMAND</code> 0, <code>FLAG_ENCRYPT_RESPONSE</code> 1. 2~4는 Teslemetry 스키마에만 있음)</td></tr>
+</tbody>
+</table>
+<p><code>Domain</code> 값: <code>DOMAIN_BROADCAST</code> 0, <code>DOMAIN_VEHICLE_SECURITY</code> 2(VCSEC), <code>DOMAIN_INFOTAINMENT</code> 3. Teslemetry 스키마에는 4, 5, 7, 8도 있지만 라이브러리는 쓰지 않습니다. 그 스키마의 필드 53 <code>message_frame</code>은 확인되지 않았고 쓰지 않습니다.</p>
+<p>VCSEC 요청의 라우팅 규칙:</p>
+<ul>
+<li><code>to_destination.domain</code>은 <code>DOMAIN_VEHICLE_SECURITY</code>이고 <code>from_destination.routing_address</code>는 <strong>요청마다 새로 만든 무작위 16바이트 주소</strong>입니다. 응답은 그 주소로 돌아오며 라이브러리는 주소(와 차량 도메인)로 짝을 찾습니다. VCSEC 응답을 짝지을 때 <code>request_uuid</code>는 <strong>쓰지 않습니다</strong>. <code>uuid</code>(51)에는 무작위 16바이트를 계속 채웁니다.</li>
+<li>다른 라우팅 주소 앞으로 온 응답은 우리 것이 아니며 <code>no-handler</code>로 버립니다(B3 참고).</li>
+<li>조회는 <strong>인증하지 않습니다</strong>. <code>signature_data</code>가 없고 <code>protobuf_message_as_bytes</code>는 평문 <code>UnsignedMessage</code>입니다. 명령은 같은 봉투에 <code>signature_data</code>와 AES-GCM으로 보호한 페이로드를 담습니다.</li>
+<li><code>sessionInfo</code>의 페이로드는 <code>session_info_request</code>(14)이고 <code>to_destination.domain</code>은 요청한 도메인입니다. 응답은 <code>session_info</code>(15)에 담겨 옵니다.</li>
+</ul>
+
+<h2 id="sec-a-status">A2. vehicleStatus()</h2>
+<pre><code class="language-kotlin"><span class="k">suspend</span> <span class="k">fun</span> <span class="f">vehicleStatus</span>(timeout: <span class="t">Duration</span>? = <span class="n">null</span>): <span class="t">VehicleResult</span>&lt;<span class="t">VehicleStatus</span>&gt;
+</code></pre>
+<table>
+<thead><tr><th>항목</th><th>값</th></tr></thead>
+<tbody>
+<tr><td>인증</td><td>없음(등록되지 않은 키로도, 세션 없이도 동작)</td></tr>
+<tr><td>도메인</td><td><code>DOMAIN_VEHICLE_SECURITY</code></td></tr>
+<tr><td>요청 페이로드</td><td><code>UnsignedMessage{InformationRequest{GET_STATUS}}</code> = 16진수 <code>0a00</code>(필드 1, 길이 0. 타입 0은 proto3 기본값이라 인코딩하지 않음)</td></tr>
+<tr><td>종료 조건</td><td>응답의 첫 메시지</td></tr>
+<tr><td>응답</td><td><code>FromVCSECMessage.vehicleStatus</code>(필드 1)</td></tr>
+<tr><td>필드 누락</td><td><code>Failure(BadResponse("missing vehicleStatus"))</code></td></tr>
+<tr><td>오류</td><td><code>nominalError</code>(46)는 <code>Failure(VcsecRejected(...))</code>가 되고, 응답 유실은 <code>Uncertain(Timeout(afterSend = true))</code>입니다</td></tr>
+</tbody>
+</table>
+<p><code>VCSEC.VehicleStatus</code>(<code>vcsec.proto</code>):</p>
+<table>
+<thead><tr><th>#</th><th>필드</th><th>타입</th><th>의미</th><th>공개 <code>VehicleStatus</code>에서</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>closureStatuses</code></td><td><code>ClosureStatuses</code></td><td>개폐부별 상태. <strong>무언가 열려 있을 때만 전송</strong></td><td><code>closures</code>. 없으면 모두 <code>CLOSED</code></td></tr>
+<tr><td>2</td><td><code>vehicleLockState</code></td><td><code>VehicleLockState_E</code></td><td>잠금 상태</td><td><code>lockState</code></td></tr>
+<tr><td>3</td><td><code>vehicleSleepStatus</code></td><td><code>VehicleSleepStatus_E</code></td><td>인포테인먼트 절전 상태</td><td><code>sleepStatus</code></td></tr>
+<tr><td>4</td><td><code>userPresence</code></td><td><code>UserPresence_E</code></td><td>차 안의 사람</td><td><code>userPresence</code></td></tr>
+<tr><td>5</td><td><code>detailedClosureStatus</code></td><td><code>DetailedClosureStatus</code></td><td><code>tonneauPercentOpen</code>(1, uint32), Cybertruck</td><td><code>tonneauPercentOpen</code>(없으면 <code>null</code>)</td></tr>
+<tr><td>6</td><td><code>uiDesire</code></td><td><code>UIDesire_E</code>(Teslemetry)</td><td>스키마에만 있음</td><td><strong>노출하지 않음</strong>(M5 예정)</td></tr>
+<tr><td>7</td><td><code>gear</code></td><td><code>Gear_E</code>(Teslemetry, 실차로 확정)</td><td>현재 기어</td><td><strong>노출하지 않음</strong>(M5 예정)</td></tr>
+<tr><td>8</td><td>(미확인, 스키마에 없음)</td><td>message</td><td>실차에서 관찰: <code>{1: 1|2, 2: 1|2, 3: 1}</code>. 의미 미확인</td><td>노출하지 않음</td></tr>
+</tbody>
+</table>
+<p><code>ClosureStatuses</code>에는 1~8번의 <code>ClosureState_E</code> 필드 여덟 개가 있습니다: <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code>, <code>tonneau</code>.</p>
+<div class="callout">
+<strong>변환 규칙</strong>
+<p>스키마 밖의 값은 0번 값이 아니라 <code>UNKNOWN</code>으로 바꿉니다. proto3에서는 빠진 enum과 0번 값을 구분할 수 없으므로 잠금 상태가 빠지면 <code>UNLOCKED</code>로 읽히며, 조회에서는 Go 동작을 그대로 따릅니다. 실차 결과상 차량은 모두 닫히면 <code>closureStatuses</code>를 생략하고 무언가 열려 있으면 보내므로(운전석 문과 충전구에서 확인) "없으면 모두 닫힘"은 관찰과 맞습니다. 실내 버튼으로 연 트렁크는 브로드캐스트로 보이지 않았으므로, 트렁크는 이 조회로 읽으세요.</p>
+</div>
+
+<h2 id="sec-a-summary">A3. keySummary()</h2>
+<pre><code class="language-kotlin"><span class="k">suspend</span> <span class="k">fun</span> <span class="f">keySummary</span>(timeout: <span class="t">Duration</span>? = <span class="n">null</span>): <span class="t">VehicleResult</span>&lt;<span class="t">WhitelistSummary</span>&gt;
+</code></pre>
+<table>
+<thead><tr><th>항목</th><th>값</th></tr></thead>
+<tbody>
+<tr><td>인증, 도메인</td><td>없음, <code>DOMAIN_VEHICLE_SECURITY</code></td></tr>
+<tr><td>요청 페이로드</td><td><code>UnsignedMessage{InformationRequest{GET_WHITELIST_INFO}}</code> = 16진수 <code>0a020805</code>(타입 5)</td></tr>
+<tr><td>종료 조건</td><td>응답의 첫 메시지</td></tr>
+<tr><td>응답</td><td><code>FromVCSECMessage.whitelistInfo</code>(필드 16). 없으면 <code>BadResponse("missing whitelistInfo")</code></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>#</th><th>필드(<code>WhitelistInfo</code>)</th><th>타입</th><th>의미</th><th>공개 모델</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>numberOfEntries</code></td><td>uint32</td><td>등록된 키 수</td><td><code>WhitelistSummary.numberOfEntries</code></td></tr>
+<tr><td>2</td><td><code>whitelistEntries</code></td><td>repeated <code>KeyIdentifier{publicKeySHA1 = 1}</code></td><td>키 식별자</td><td>노출하지 않음</td></tr>
+<tr><td>3</td><td><code>slotMask</code></td><td>uint32</td><td><em>i</em>번 비트가 1이면 슬롯 <em>i</em> 사용 중</td><td><code>slotMask</code>, <code>occupiedSlots</code></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-a-list">A4. listKeys()</h2>
+<pre><code class="language-kotlin"><span class="k">suspend</span> <span class="k">fun</span> <span class="f">listKeys</span>(timeout: <span class="t">Duration</span>? = <span class="n">null</span>): <span class="t">VehicleResult</span>&lt;<span class="t">List</span>&lt;<span class="t">WhitelistEntry</span>&gt;&gt;
+</code></pre>
+<table>
+<thead><tr><th>항목</th><th>값</th></tr></thead>
+<tbody>
+<tr><td>인증, 도메인</td><td>없음, <code>DOMAIN_VEHICLE_SECURITY</code></td></tr>
+<tr><td>요청</td><td>요약 요청 한 번, 이어서 사용 중인 슬롯마다 <code>GET_WHITELIST_ENTRY_INFO</code>를 차례로 한 번씩</td></tr>
+<tr><td>슬롯 요청 페이로드</td><td><code>UnsignedMessage{InformationRequest{GET_WHITELIST_ENTRY_INFO, slot = N}}</code> = 16진수 <code>0a04080620NN</code>. 예: 슬롯 0 <code>0a0408062000</code>, 슬롯 2 <code>0a0408062002</code>(타입 6, <code>slot</code> 필드 4). <code>NN</code>은 varint이며 128 이상의 슬롯은 2바이트가 필요합니다</td></tr>
+<tr><td>종료 조건</td><td>각 응답의 첫 메시지</td></tr>
+<tr><td>응답</td><td><code>FromVCSECMessage.whitelistEntryInfo</code>(필드 17). 없으면 <code>BadResponse("missing whitelistEntryInfo")</code></td></tr>
+<tr><td>시간 예산</td><td>전체에 <code>timeout</code> 하나. 첫 <code>Failure</code> 또는 <code>Uncertain</code>을 돌려주며, 남은 시간이 없으면 <code>Timeout(afterSend = false)</code></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>#</th><th>필드(<code>WhitelistEntryInfo</code>)</th><th>타입</th><th>의미</th><th>공개 모델</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>keyId</code></td><td><code>KeyIdentifier{publicKeySHA1 = 1}</code></td><td>공개키의 SHA-1</td><td><code>keyIdSha1Hex</code>(비어 있으면 <code>null</code>)</td></tr>
+<tr><td>2</td><td><code>publicKey</code></td><td><code>PublicKey{PublicKeyRaw = 1}</code></td><td>65바이트 키</td><td><code>publicKey</code>(없거나 형식이 틀리면 <code>null</code>)</td></tr>
+<tr><td>4</td><td><code>metadataForKey</code></td><td><code>KeyMetadata{keyFormFactor = 1}</code></td><td>폼 팩터</td><td><code>formFactor</code></td></tr>
+<tr><td>6</td><td><code>slot</code></td><td>uint32</td><td>슬롯</td><td><code>slot</code>은 이 필드가 아니라 <strong>요청한</strong> 슬롯입니다(Go <code>list-keys</code>와 같음)</td></tr>
+<tr><td>7</td><td><code>keyRole</code></td><td><code>Keys.Role</code></td><td>역할</td><td><code>role</code></td></tr>
+</tbody>
+</table>
+<p>슬롯 하나만 묻는 조회는 내부 조회 클래스에 있으며 <code>Vehicle</code>에는 없습니다.</p>
+
+<h2 id="sec-a-session">A5. sessionInfo()</h2>
+<pre><code class="language-kotlin"><span class="k">suspend</span> <span class="k">fun</span> <span class="f">sessionInfo</span>(publicKey: <span class="t">PublicKeyBytes</span>, domain: <span class="t">VehicleDomain</span>, timeout: <span class="t">Duration</span>? = <span class="n">null</span>): <span class="t">VehicleResult</span>&lt;<span class="t">SessionInfoSummary</span>&gt;
+</code></pre>
+<table>
+<thead><tr><th>항목</th><th>값</th></tr></thead>
+<tbody>
+<tr><td>인증</td><td>없음. 연결의 키뿐 아니라 65바이트 공개키라면 무엇이든 물을 수 있습니다</td></tr>
+<tr><td>도메인</td><td><code>domain</code>: <code>VCSEC</code>(<code>DOMAIN_VEHICLE_SECURITY</code>) 또는 <code>INFOTAINMENT</code>(<code>DOMAIN_INFOTAINMENT</code>)</td></tr>
+<tr><td>요청</td><td><code>RoutableMessage{to_destination{domain}, from_destination{routing_address = 16바이트}, session_info_request{public_key}, uuid}</code>. 주소는 <code>VCSEC</code>에서는 요청마다 새로 만들고 <code>INFOTAINMENT</code>에서는 연결 고유의 고정 주소를 씁니다. 선택 필드 <code>challenge</code>(2)는 보내지 않습니다</td></tr>
+<tr><td>종료 조건</td><td>첫 응답. 한 번만 보내며 다시 보내지 않습니다</td></tr>
+<tr><td>응답</td><td><code>RoutableMessage.session_info</code>(15) = 직렬화한 <code>Signatures.SessionInfo</code></td></tr>
+<tr><td>오류</td><td>오류 코드 <code>UNKNOWN_KEY_ID</code> 또는 <code>status = KEY_NOT_ON_WHITELIST</code>는 <code>Failure(KeyNotPaired)</code>, <code>session_info</code>가 없거나 해독할 수 없으면 <code>Failure(BadResponse)</code>, 시간 안에 응답이 없으면 <code>Uncertain(Timeout(afterSend = true))</code></td></tr>
+<tr><td>부수 효과</td><td>연결 자신의 키로 물으면 그 도메인의 세션도 만들어지므로 <code>sessions</code>에 <code>Ready(fromCache = false)</code>가 표시됩니다</td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>#</th><th>필드(<code>Signatures.SessionInfo</code>)</th><th>타입</th><th>공개 <code>SessionInfoSummary</code></th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>counter</code></td><td>uint32</td><td><code>counter</code></td></tr>
+<tr><td>2</td><td><code>publicKey</code></td><td>bytes</td><td><code>vehiclePublicKey</code>(유효한 65바이트 키가 아니면 <code>null</code>)</td></tr>
+<tr><td>3</td><td><code>epoch</code></td><td>bytes</td><td>노출하지 않음</td></tr>
+<tr><td>4</td><td><code>clock_time</code></td><td>fixed32</td><td><code>clockTime</code>(초)</td></tr>
+<tr><td>5</td><td><code>status</code></td><td><code>Session_Info_Status</code></td><td>검사하지 않음: <code>OK</code> 0, <code>KEY_NOT_ON_WHITELIST</code> 1, <code>INVALID_HANDLE</code> 2(Teslemetry 전용)</td></tr>
+<tr><td>6</td><td><code>handle</code></td><td>uint32</td><td>노출하지 않음(Teslemetry 전용)</td></tr>
+</tbody>
+</table>
+<p>페어링 뒤 등록 확인에 씁니다: <code>sessionInfo(publicKey, INFOTAINMENT)</code>(<a href="13-lib-pairing.html">13. 키와 페어링</a> 참고).</p>
+
+<h2 id="sec-a-enums">A6. enum 값 표</h2>
+<p>값은 <code>vcsec.proto</code>와 <code>universal_message.proto</code>에서 가져왔습니다. 라이브러리가 모르는 값은 <code>UNKNOWN</code>이 됩니다.</p>
+<table>
+<thead><tr><th>enum</th><th>값</th><th>와이어 이름</th><th>공개 값</th></tr></thead>
+<tbody>
+<tr><td rowspan="4"><code>VehicleLockState_E</code> (필드 2)</td><td>0</td><td><code>VEHICLELOCKSTATE_UNLOCKED</code></td><td><code>UNLOCKED</code></td></tr>
+<tr><td>1</td><td><code>VEHICLELOCKSTATE_LOCKED</code></td><td><code>LOCKED</code></td></tr>
+<tr><td>2</td><td><code>VEHICLELOCKSTATE_INTERNAL_LOCKED</code></td><td><code>INTERNAL_LOCKED</code></td></tr>
+<tr><td>3</td><td><code>VEHICLELOCKSTATE_SELECTIVE_UNLOCKED</code></td><td><code>SELECTIVE_UNLOCKED</code></td></tr>
+<tr><td rowspan="3"><code>VehicleSleepStatus_E</code> (필드 3)</td><td>0</td><td><code>VEHICLE_SLEEP_STATUS_UNKNOWN</code></td><td><code>UNKNOWN</code></td></tr>
+<tr><td>1</td><td><code>VEHICLE_SLEEP_STATUS_AWAKE</code></td><td><code>AWAKE</code></td></tr>
+<tr><td>2</td><td><code>VEHICLE_SLEEP_STATUS_ASLEEP</code></td><td><code>ASLEEP</code></td></tr>
+<tr><td rowspan="3"><code>UserPresence_E</code> (필드 4)</td><td>0</td><td><code>VEHICLE_USER_PRESENCE_UNKNOWN</code></td><td><code>UNKNOWN</code></td></tr>
+<tr><td>1</td><td><code>VEHICLE_USER_PRESENCE_NOT_PRESENT</code></td><td><code>NOT_PRESENT</code></td></tr>
+<tr><td>2</td><td><code>VEHICLE_USER_PRESENCE_PRESENT</code></td><td><code>PRESENT</code></td></tr>
+<tr><td rowspan="7"><code>ClosureState_E</code> (각 개폐부)</td><td>0</td><td><code>CLOSURESTATE_CLOSED</code></td><td><code>CLOSED</code></td></tr>
+<tr><td>1</td><td><code>CLOSURESTATE_OPEN</code></td><td><code>OPEN</code></td></tr>
+<tr><td>2</td><td><code>CLOSURESTATE_AJAR</code></td><td><code>AJAR</code></td></tr>
+<tr><td>3</td><td><code>CLOSURESTATE_UNKNOWN</code></td><td><code>UNKNOWN</code></td></tr>
+<tr><td>4</td><td><code>CLOSURESTATE_FAILED_UNLATCH</code></td><td><code>FAILED_UNLATCH</code></td></tr>
+<tr><td>5</td><td><code>CLOSURESTATE_OPENING</code></td><td><code>OPENING</code></td></tr>
+<tr><td>6</td><td><code>CLOSURESTATE_CLOSING</code></td><td><code>CLOSING</code></td></tr>
+<tr><td rowspan="5"><code>Gear_E</code> (필드 7, Teslemetry, 실차로 확정)</td><td>0</td><td><code>GEAR_UNKNOWN</code></td><td>노출하지 않음</td></tr>
+<tr><td>1</td><td><code>GEAR_PARK</code></td><td>노출하지 않음</td></tr>
+<tr><td>2</td><td><code>GEAR_DRIVE</code></td><td>노출하지 않음</td></tr>
+<tr><td>3</td><td><code>GEAR_REVERSE</code></td><td>노출하지 않음</td></tr>
+<tr><td>4</td><td><code>GEAR_NEUTRAL</code></td><td>노출하지 않음</td></tr>
+<tr><td rowspan="2"><code>UIDesire_E</code> (필드 6, Teslemetry, 스키마에만 있음)</td><td>0</td><td><code>UI_DESIRE_NONE</code></td><td>노출하지 않음</td></tr>
+<tr><td>1</td><td><code>UI_DESIRE_HAS_DATA</code></td><td>노출하지 않음</td></tr>
+<tr><td rowspan="9"><code>Keys.Role</code> (<code>keyRole</code>)</td><td>0</td><td><code>ROLE_NONE</code></td><td><code>NONE</code></td></tr>
+<tr><td>1</td><td><code>ROLE_SERVICE</code></td><td><code>SERVICE</code></td></tr>
+<tr><td>2</td><td><code>ROLE_OWNER</code></td><td><code>OWNER</code></td></tr>
+<tr><td>3</td><td><code>ROLE_DRIVER</code></td><td><code>DRIVER</code></td></tr>
+<tr><td>4</td><td><code>ROLE_FM</code></td><td><code>FLEET_MANAGER</code></td></tr>
+<tr><td>5</td><td><code>ROLE_VEHICLE_MONITOR</code></td><td><code>VEHICLE_MONITOR</code></td></tr>
+<tr><td>6</td><td><code>ROLE_CHARGING_MANAGER</code></td><td><code>CHARGING_MANAGER</code></td></tr>
+<tr><td>8</td><td><code>ROLE_GUEST</code></td><td><code>GUEST</code></td></tr>
+<tr><td>7, 9, 10, 11</td><td><code>ROLE_SERVICE_TECH</code>, <code>ROLE_RIDER</code>, <code>ROLE_PREDELIVERY</code>, <code>ROLE_INFOTAINMENT</code>(Teslemetry, 미확정)</td><td><code>UNKNOWN</code></td></tr>
+</tbody>
+</table>
+<p><code>Gear_E</code>는 실차로 확정했습니다. P, R, N, D 각각이 일치하는 값의 브로드캐스트를 한 번씩 만들었고 <code>GEAR_UNKNOWN</code>은 보지 못했습니다. <code>UIDesire_E</code>는 실차에서의 의미가 확립되지 않았습니다.</p>
+<p><code>KeyFormFactor</code>: 공개 모델에는 <code>UNKNOWN</code>, <code>NFC_CARD</code>, <code>IOS_DEVICE</code>, <code>ANDROID_DEVICE</code>, <code>CLOUD_KEY</code>만 있습니다. 와이어 값 0, 1, 6, 7, 9가 여기에 대응합니다. <strong>Teslemetry 스냅샷의 값은 <code>UNKNOWN</code>이 됩니다:</strong> 2 <code>3_BUTTON_BLE_CAR_KEYFOB</code>, 3 <code>BLE_DEVICE</code>, 4 <code>NFC_DEVICE</code>, 5 <code>BLE_AND_NFC_DEVICE</code>, 8 <code>3_BUTTON_BLE_CAR_KEYFOB_P60</code>, 10 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60</code>, 11 <code>5_BUTTON_GEN2_CAR_KEYFOB_P60</code>, 12 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60_V2</code>, 13 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60_V3</code>, 14 <code>NFC_CARD_P71</code>, 15 <code>NFC_CARD_METAL_CARD</code>, 16 <code>NFC_CARD_PLASTIC_CARD</code>, 17 <code>APPLE_WATCH</code>, 18 <code>NFC_CARD_WD_PLASTIC_CARD</code>, 19 <code>HARMONY_OS_NEXT_DEVICE</code>(모두 접두어 <code>KEY_FORM_FACTOR_</code>가 붙습니다).</p>
+
+<h2 id="sec-a-other">A7. 스키마의 다른 요청 종류</h2>
+<p><code>InformationRequestType</code>에는 <code>GET_TOKEN</code> 1, <code>GET_COUNTER</code> 2, <code>GET_EPHEMERAL_PUBLIC_KEY</code> 3, <code>GET_SESSION_DATA</code> 4, <code>GET_PERSONALIZATION_INFO</code> 7, <code>GET_KEYSTATUS_INFO</code> 8, <code>GET_ACTIVE_KEY</code> 9, <code>GET_CAPABILITIES</code> 16(Teslemetry 전용)도 정의되어 있습니다. 라이브러리는 어느 것도 보내지 않으며 API도 없습니다. <code>getState(category)</code>(인포테인먼트)는 M5 예정이고 API가 아직 없습니다.</p>
+
+<h2 id="sec-status">결과 타입</h2>
+<table>
+<thead><tr><th><code>VehicleStatus</code>의 필드</th><th>값</th></tr></thead>
 <tbody>
 <tr><td><code>lockState</code></td><td><code>UNLOCKED</code>, <code>LOCKED</code>, <code>INTERNAL_LOCKED</code>, <code>SELECTIVE_UNLOCKED</code>, <code>UNKNOWN</code></td></tr>
 <tr><td><code>closures</code></td><td>여덟 개 개폐부, 각각 <code>ClosureState</code>. 차량이 보내지 않으면 모두 <code>CLOSED</code> (모두 닫히면 차량이 생략하며, Go getter와 같음)</td></tr>
@@ -91,13 +302,11 @@
 <tr><td><code>tonneauPercentOpen</code></td><td>Cybertruck 전용, 그 외에는 <code>null</code></td></tr>
 </tbody>
 </table>
-<p>여덟 개 개폐부는 <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code>, <code>tonneau</code>입니다. 각각 <code>CLOSED</code>, <code>OPEN</code>, <code>AJAR</code>, <code>OPENING</code>, <code>CLOSING</code>, <code>FAILED_UNLATCH</code>, <code>UNKNOWN</code> 중 하나입니다.</p>
+<p>여덟 개 개폐부는 <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code>, <code>tonneau</code>입니다. 각각 <code>CLOSED</code>, <code>OPEN</code>, <code>AJAR</code>, <code>OPENING</code>, <code>CLOSING</code>, <code>FAILED_UNLATCH</code>, <code>UNKNOWN</code> 중 하나입니다. <code>gear</code>와 <code>uiDesire</code>는 아직 이 모델에 없습니다(M5 예정).</p>
 <div class="callout">
 <strong>알 수 없는 값은 실패로 처리하지 않습니다</strong>
 <p>새 차량 펌웨어가 라이브러리가 아직 모르는 값을 보내면, 조회를 실패시키지 않고 해당 필드를 <code>UNKNOWN</code>으로 읽습니다.</p>
 </div>
-
-<h2 id="sec-keys">키 조회가 반환하는 값</h2>
 <table>
 <thead><tr><th>타입</th><th>필드</th><th>의미</th></tr></thead>
 <tbody>
@@ -107,6 +316,7 @@
 <tr><td></td><td><code>publicKey</code></td><td>65바이트 공개키, 없거나 형식이 잘못되면 <code>null</code></td></tr>
 <tr><td></td><td><code>keyIdSha1Hex</code></td><td>공개키의 SHA-1 16진수 값, 또는 <code>null</code></td></tr>
 <tr><td></td><td><code>role</code>, <code>formFactor</code></td><td>예: <code>OWNER</code>, <code>IOS_DEVICE</code>. <a href="13-lib-pairing.html">13. 키와 페어링</a> 참고</td></tr>
+<tr><td><code>SessionInfoSummary</code></td><td><code>counter</code>, <code>clockTime</code>, <code>vehiclePublicKey</code></td><td>A5 참고</td></tr>
 </tbody>
 </table>
 
@@ -124,10 +334,130 @@
 
 <h2 id="sec-wake">절전과 깨우기</h2>
 <ul>
-<li>세 가지 조회 모두 차량을 깨우지 않습니다. 잠들어 있는지 보여 주려면 <code>sleepStatus</code>를 사용하세요.</li>
+<li>조회는 어느 것도 차량을 깨우지 않습니다. 잠들어 있는지 보여 주려면 <code>sleepStatus</code>를 사용하세요.</li>
 <li>M5 예정: <code>getState(category)</code>는 인포테인먼트의 12개 카테고리(충전, 공조, 주행, 위치, 개폐부, 충전 일정, 사전 공조 일정, 타이어 공기압, 미디어, 미디어 상세, 소프트웨어 업데이트, 자녀 보호)를 읽습니다. 등록된 키와 깨어 있는 차량이 필요합니다.</li>
 <li><code>wakeUp()</code>(M4)은 VCSEC 세션만 있으면 됩니다.</li>
 <li>잠금이나 트렁크 명령(M4)이 <code>Uncertain</code>으로 돌아오면, 명령을 다시 보내지 말고 <code>vehicleStatus()</code>를 다시 읽으세요.</li>
+</ul>
+
+<h2 id="sec-b-wire">B1. 브로드캐스트의 전송 형태</h2>
+<p>브로드캐스트는 응답과 같은 <code>00000213-...</code> 구독으로 도착합니다. 다음 속성을 가진 <code>RoutableMessage</code>입니다.</p>
+<table>
+<thead><tr><th>필드</th><th>값</th></tr></thead>
+<tbody>
+<tr><td><code>from_destination.domain</code></td><td><code>DOMAIN_VEHICLE_SECURITY</code> (2)</td></tr>
+<tr><td><code>to_destination.domain</code></td><td><code>DOMAIN_BROADCAST</code> (0), 라우팅 주소 없음</td></tr>
+<tr><td><code>request_uuid</code></td><td>비어 있음</td></tr>
+<tr><td><code>signature_data</code></td><td>없음(평문, 인증되지 않음)</td></tr>
+<tr><td><code>protobuf_message_as_bytes</code></td><td>직렬화한 <code>FromVCSECMessage</code></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>#</th><th><code>FromVCSECMessage</code>의 필드 (6~10 예약)</th><th>타입</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>vehicleStatus</code></td><td><code>VehicleStatus</code></td><td>조회 응답과 같은 메시지(A2)</td></tr>
+<tr><td>3</td><td><code>authenticationRequest</code></td><td><code>AuthenticationRequest</code></td><td>Teslemetry 확장</td></tr>
+<tr><td>4</td><td><code>commandStatus</code></td><td><code>CommandStatus</code></td><td>명령에 대한 응답</td></tr>
+<tr><td>16</td><td><code>whitelistInfo</code></td><td><code>WhitelistInfo</code></td><td>조회 응답</td></tr>
+<tr><td>17</td><td><code>whitelistEntryInfo</code></td><td><code>WhitelistEntryInfo</code></td><td>조회 응답</td></tr>
+<tr><td>46</td><td><code>nominalError</code></td><td><code>Errors.NominalError</code></td><td>오류 응답</td></tr>
+<tr><td>48, 53</td><td>미확인</td><td></td><td>실차에서 관찰했으나 어느 스키마에도 없음(B3)</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-b-library">B2. 라이브러리의 브로드캐스트 처리</h2>
+<ul>
+<li>디스패처는 Go 원본과 같이 모든 브로드캐스트를 <strong>버립니다</strong>. 라우팅 주소가 없으므로 라우팅이 드롭 사유 <code>TO_DOMAIN</code>을 돌려줍니다. 브로드캐스트는 대기 중인 요청에 닿지 않으며, 우리 라우팅 주소로 짝짓는 응답과 섞이지 않습니다.</li>
+<li>볼 수 있는 유일한 방법은 관찰 로그입니다: <code>DEBUG</code>, 태그 <code>observe</code>, 줄 머리 <code>[drop:to-domain]</code>. 줄 형식과 필드 이름은 <a href="18-lib-troubleshooting.html">18. 문제 해결</a>에, 각 메시지의 의미는 B3에 있습니다.</li>
+<li><strong>공개 <code>vehicle.events</code> API는 M5 예정이며 구현되어 있지 않습니다.</strong> 현재 브로드캐스트를 위한 공개 콜백, Flow, 모델 타입은 없습니다. 그때까지 잠금, 개폐부, 절전, 탑승 여부는 <code>vehicleStatus()</code>로 읽으세요.</li>
+</ul>
+
+<h2 id="sec-b-catalogue">B3. 메시지 목록</h2>
+<p>상태 표시: <span class="badge ok">확인됨</span> 실차에서 봄, <span class="badge info">스키마에만 있음</span> proto 파일에 정의됐으나 직접 본 적 없음, <span class="badge warn">미확인</span> 와이어에서 봤지만 의미를 모름.</p>
+<table>
+<thead><tr><th>메시지</th><th>상태</th></tr></thead>
+<tbody>
+<tr><td><code>vehicleStatus</code> (필드 1)</td><td><span class="badge ok">확인됨</span></td></tr>
+<tr><td><code>authenticationRequest</code> (필드 3)</td><td><span class="badge ok">확인됨</span> (필드 이름은 미검증)</td></tr>
+<tr><td>필드 53</td><td><span class="badge warn">미확인</span></td></tr>
+<tr><td>필드 48</td><td><span class="badge warn">미확인</span></td></tr>
+<tr><td>다른 클라이언트 앞 응답 (브로드캐스트 아님)</td><td><span class="badge ok">확인됨</span></td></tr>
+</tbody>
+</table>
+
+<h3>B3.1 vehicleStatus</h3>
+<p>필드는 A2와 같습니다. 실차 관찰 결과입니다(iPhone, Model Y. 1차 71줄, 2차는 시나리오별 기록).</p>
+<table>
+<thead><tr><th>필드</th><th>상태</th><th>관찰 내용</th></tr></thead>
+<tbody>
+<tr><td><code>vehicleLockState</code> (2)</td><td><span class="badge ok">확인됨</span></td><td>연결 직후 <code>UNLOCKED</code>, 문을 닫고 앉아 있는 동안 <code>INTERNAL_LOCKED</code> 반복, 내린 뒤 <code>LOCKED</code>, 연결을 유지한 채 걸어서 멀어지면 <code>UNLOCKED</code>에서 <code>LOCKED</code>로(약 30초 뒤 링크 손실)</td></tr>
+<tr><td><code>vehicleSleepStatus</code> (3)</td><td><span class="badge ok">확인됨</span></td><td>모든 줄이 <code>AWAKE</code>. 잠든 차량은 관찰하지 <strong>못했습니다</strong></td></tr>
+<tr><td><code>userPresence</code> (4)</td><td><span class="badge ok">확인됨</span></td><td>앉아 있으면 <code>PRESENT</code>, 내린 뒤 <code>NOT_PRESENT</code></td></tr>
+<tr><td><code>gear</code> (7)</td><td><span class="badge ok">확인됨</span></td><td>P/R/N/D를 바꿀 때마다 브로드캐스트가 정확히 하나씩 왔고 <code>gear</code>가 조작 순서와 일치했습니다(<code>GEAR_REVERSE</code>, <code>GEAR_NEUTRAL</code>, <code>GEAR_DRIVE</code>, <code>GEAR_PARK</code>, 두 번 연속). 조작한 대로 약 10초 간격이었습니다. 인포테인먼트 세션 없이, 등록되지 않은 키로도 옵니다</td></tr>
+<tr><td><code>closureStatuses</code> (1)</td><td>운전석 문과 충전구에서 <span class="badge ok">확인됨</span></td><td><strong>무언가 열려 있을 때만 있고</strong> 모두 닫히면 없습니다. 운전석 문을 실내 손잡이로 열면 <code>frontDriverDoor = OPEN</code>, 닫고 약 6초 뒤 다시 빠집니다. 충전구를 열면 <code>chargePort = OPEN</code>. 트렁크를 실내 버튼으로 조작하면 <strong>브로드캐스트가 전혀 없었습니다</strong>. 다른 트렁크 조작(밖에서 손으로, 키카드, 폰 키, 앱)은 시험하지 않았습니다</td></tr>
+<tr><td><code>uiDesire</code> (6)</td><td><span class="badge info">스키마에만 있음</span></td><td>의미 미확립</td></tr>
+<tr><td><code>detailedClosureStatus</code> (5)</td><td><span class="badge info">스키마에만 있음</span></td><td>Cybertruck 톤노. Model Y에서는 데이터 없음</td></tr>
+<tr><td>필드 8 (스키마에 없음)</td><td><span class="badge warn">미확인</span></td><td><code>{1: 1|2, 2: 1|2, 3: 1}</code>. 하위 1은 주기적으로 1과 2를 오가고, 하위 2는 충전구를 열고 충전이 시작될 때 2에서 1로 바뀌었으며, 하위 3은 항상 1이었습니다. 의미 미확인. 방향지시등이나 라이트와는 무관합니다</td></tr>
+</tbody>
+</table>
+<p>확인한 발생 계기: 기어 변경, 잠금 변경(앉은 채 실내 잠금, 멀어질 때 잠금), 실내 손잡이로 문 열고 닫기, 충전구 열기와 충전 시작, 탑승 여부 변경.</p>
+<p>빈도: 바뀐 것이 없어도 반복해서 옵니다. 1차는 깨어 있는 동안 1~25초마다(<code>UNLOCKED</code>는 26바이트, 그 외 28바이트), 2차는 1초 안에 여러 개가 오기도 했습니다. 반복을 변경으로 취급하지 마세요.</p>
+
+<h3>B3.2 authenticationRequest (필드 3)</h3>
+<p>상태: 발생은 <span class="badge ok">확인됨</span>, 하위 필드 이름은 미검증(Teslemetry 스키마).</p>
+<table>
+<thead><tr><th>#</th><th>필드(<code>AuthenticationRequest</code>)</th><th>타입</th><th>의미</th></tr></thead>
+<tbody>
+<tr><td>2</td><td><code>sessionInfo</code>(이름 미검증)</td><td><code>AuthenticationRequestToken{token = 1}</code></td><td><code>token</code>: 20바이트</td></tr>
+<tr><td>3</td><td><code>requestedLevel</code>(이름 미검증)</td><td><code>AuthenticationLevel_E</code></td><td>0 <code>NONE</code>, 1 <code>UNLOCK</code>, 2 <code>DRIVE</code> (접두어 <code>AUTHENTICATION_LEVEL_</code>)</td></tr>
+<tr><td>4</td><td><code>reasonsForAuth</code>(이름 미검증)</td><td>repeated <code>AuthenticationReason_E</code></td><td>차량이 인증을 요구하는 이유</td></tr>
+</tbody>
+</table>
+<p><code>AuthenticationReason_E</code>(접두어 <code>AUTHENTICATIONREASON_</code>): 0 <code>NOT_DOCUMENTED</code>, 1 <code>IDENTIFICATION</code>, 2 <code>POWER_ON_VEHICLE_REQUEST</code>, 3 <code>GTW_REQUEST</code>, 4 <code>UI_UNLOCK_PASSIVE_AUTH</code>, 5 <code>PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL</code>, 6 <code>PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL</code>, 7 <code>PASSIVE_UNLOCK_AUTOPRESENT_DOOR</code>, 8 <code>ENTERED_HIGHER_AUTH_ZONE</code>, 9 <code>WALK_UP_UNLOCK</code>, 10 <code>IMMOBILIZER</code>. 관련된 <code>AuthenticationResponse</code>(<code>UnsignedMessage</code> 필드 3, 폰 키가 보냄)와 <code>AuthenticationRejection_E</code>는 스키마에 있으며 라이브러리는 보내지 않습니다.</p>
+<p>관찰: 실내 손잡이를 당기면 <code>requestedLevel = DRIVE</code>, <code>reasons = [PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL]</code>. 충전구를 열고 충전이 시작될 때는 <code>ENTERED_HIGHER_AUTH_ZONE</code>이 추가되었습니다. 같은 순간 <code>vehicleStatus</code>(와 필드 53)가 함께 왔습니다. 다른 이유는 관찰하지 못했습니다.</p>
+<div class="callout">
+<strong>감싼 형태이며 맨몸이 아님</strong>
+<p>이 차량은 이것을 <code>RoutableMessage</code> 안에 담아(위의 브로드캐스트 형태) 보냈습니다. 약 1.1초마다 감싸지 않은 <code>FromVCSECMessage{authenticationRequest}</code>가 온다는 다른 보고(Teslemetry PR #179)와 다릅니다. 이 차량에서는 감싸지 않은 프레임이 보이지 않았습니다(<code>drop:missing-source</code>, <code>drop:unparseable</code>: 0줄).</p>
+</div>
+
+<h3>B3.3 필드 53 (미확인)</h3>
+<p>상태: <span class="badge warn">미확인</span>. <code>FromVCSECMessage</code> 필드 53: <code>{1: 작은 정수, 2: 35바이트}</code>의 반복.</p>
+<ul>
+<li>연결 직후와 충전구 사건에서는 총 54바이트(항목 1개, id 4), 문과 잠금 사건에서는 205~220바이트(항목 5개, id 1, 3, 4, 6, 7). 한 메시지 안의 35바이트 블롭은 마지막 2바이트만 다릅니다.</li>
+<li>인증 사건과 함께 옵니다. id 1, 3, 4, 6, 7은 등록된 키 슬롯 번호(M3에서 키 7개 확인)와 겹치므로 키마다의 인증 챌린지로 추정합니다. <strong>미확정.</strong></li>
+</ul>
+
+<h3>B3.4 필드 48 (미확인)</h3>
+<p>상태: <span class="badge warn">미확인</span>. <code>FromVCSECMessage</code> 필드 48, 20바이트. 차량이 깨어 있고 사람이 있을 때 약 5.0초마다(끊긴 구간 있음). 1차에서만 보였고 2차에서는 나타나지 않았습니다. 하트비트로 추정하며 조건은 모릅니다.</p>
+
+<h3>B3.5 다른 클라이언트 앞으로 온 응답</h3>
+<p>브로드캐스트가 아닙니다. 서명된 83바이트 응답(<code>to_destination.routing_address</code>가 다른 클라이언트의 16바이트 주소, 16바이트 <code>request_uuid</code>, 빈 본문)은 다른 폰의 VCSEC 요청에 대한 응답입니다. 우리 링크로도 약 1~2분마다, 그리고 문 사건 직후에 옵니다. 라이브러리는 이를 <code>no-handler</code>(주인 <code>other</code>)로 버립니다.</p>
+
+<h2 id="sec-b-absent">B4. 브로드캐스트로 받을 수 없는 것</h2>
+<table>
+<thead><tr><th>항목</th><th>결과</th></tr></thead>
+<tbody>
+<tr><td>방향지시등(좌, 우), 비상등, 전조등, 상향등</td><td>조작해도 <strong>메시지가 전혀 없고</strong> BLE 스키마에도 해당 필드가 없습니다(<code>vcsec.proto</code>, <code>vehicle.proto</code>, <code>car_server.proto</code>). 알려진 경로는 Tesla Fleet Telemetry(<code>LightsTurnSignal</code> 240, <code>LightsHazardsActive</code> 239, <code>LightsHighBeams</code> 241)뿐이며, 이는 인터넷 서버 경로라 이 라이브러리의 서버 없음 범위 밖입니다</td></tr>
+<tr><td>실내 버튼으로 연 트렁크</td><td>브로드캐스트 없음(다른 조작 방법은 미시험)</td></tr>
+<tr><td>잠든 차량</td><td>관찰하지 못함</td></tr>
+<tr><td>충전 케이블, 다른 폰 키가 다가올 때</td><td>기록하지 않음</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-b-method">B5. 관찰 방법과 환경</h2>
+<ul>
+<li>iPhone 16 Pro, iOS 27, Model Y(펌웨어 미기록). 샘플 <code>dev.mirolab.TeslableSampleDevice</code> 빌드 7, 8, 키 <code>SECURE_ENCLAVE</code>. 관찰에는 키가 등록되어 있을 필요가 없습니다.</li>
+<li>1차 2026-10-18(빌드 7, 연속 기록 하나, 71줄). 2차 2026-10-24(빌드 8, 미확인 필드 상세 해독, 시나리오별 기록).</li>
+<li>재현 방법: 샘플의 관찰 모드를 켜고 시나리오를 수행한 뒤 표시 버튼(과 "결과 전체 복사")을 누릅니다. 자세한 내용과 로그 문법은 <a href="18-lib-troubleshooting.html">18. 문제 해결</a>을 참고하세요.</li>
+</ul>
+
+<h2 id="sec-b-provenance">B6. 출처</h2>
+<ul>
+<li>공식 <code>vehicle-command</code> <code>a4b43c1</code>(Apache-2.0): 라우팅, 프레이밍, VCSEC 조회.</li>
+<li>Teslemetry <code>tesla-protocol</code> <code>e6f7afb1</code>(Apache-2.0): 확장 필드(<code>gear</code>, <code>uiDesire</code>, <code>authenticationRequest</code>, 추가 enum 값)를 포함한 proto 스냅샷. ADR-0002(2026-10-18 개정).</li>
+<li>Teslemetry <code>python-tesla-fleet-api</code> PR #178, #179: 사실만 참고.</li>
+<li>자체 수집: 실차 결과 노트 <code>docs/handoff/2026-10-18-m4-push-observation-results.md</code>.</li>
+<li>AGPL 저장소는 사용하지 않았습니다.</li>
 </ul>
 
 <footer class="page-nav">
