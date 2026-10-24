@@ -32,6 +32,6 @@
 - 이 세션에서는 새 역할 에이전트와 Codex MCP 도구가 로드되지 않아 general-purpose 에이전트에 정의를 읽혀 썼고, Codex는 `codex exec` CLI로 대신함. **새 세션에서 Codex MCP 서버 승인 필요**
 - 2026-10-24 세션 2: Codex MCP 연결 실패(CONNECTION_CLOSED). 빌드 번호·문서만 바꾼 PR #108은 협의 생략
 
-## 다음 한 걸음  : 사용자에게서 빌드 11 체크리스트 결과(iOS 1~10 + K1~K4, Android PR #100)와 `pull-monitor-logs.sh` 로그, (선택) 스파이크 결과(시나리오 A~E 복사본)를 받아 `docs/handoff/`에 정리하고 Task 8 필요 여부를 판단한다. 검증: 결과 문서 + 판단을 #91에 기록
+## 다음 한 걸음  : 빌드 10 기기 로그(22:36~23:02 스캔 27번 모두 광고 없음, 차 위치·앱 상태 미상)는 `docs/handoff/2026-10-24-monitor-device-log-build10.md`. 사용자에게서 빌드 11 체크리스트 결과(iOS 1~10 + K1~K4, Android PR #100)와 `pull-monitor-logs.sh` 로그, (선택) 스파이크 결과(시나리오 A~E 복사본)를 받아 `docs/handoff/`에 정리하고 Task 8 필요 여부를 판단한다. 검증: 결과 문서 + 판단을 #91에 기록
 
 ## 읽을 파일     : `{{PLANS_DIR}}2026-10-24-vehicle-events-monitor.md`, `{{SAMPLES_DOCS_DIR}}04-monitor-app.md`, `{{ADR_DIR}}0014-ios-key-accessibility.md`, `{{LIB_DOCS_DIR}}14-lib-reading-state.md` Part B, `{{LIB_DOCS_DIR}}17-lib-platform-notes.md`, `AGENTS.md` §9
