@@ -3,6 +3,7 @@ package dev.mirolab.teslable.application.vcsec
 import com.tesla.generated.keys.Role
 import com.tesla.generated.vcsec.ClosureState_E
 import com.tesla.generated.vcsec.ClosureStatuses
+import com.tesla.generated.vcsec.Gear_E
 import com.tesla.generated.vcsec.UserPresence_E
 import com.tesla.generated.vcsec.VehicleLockState_E
 import com.tesla.generated.vcsec.VehicleSleepStatus_E
@@ -11,6 +12,7 @@ import com.tesla.generated.vcsec.WhitelistInfo
 import dev.mirolab.teslable.InternalTeslableApi
 import dev.mirolab.teslable.model.ClosureState
 import dev.mirolab.teslable.model.Closures
+import dev.mirolab.teslable.model.Gear
 import dev.mirolab.teslable.model.KeyFormFactor
 import dev.mirolab.teslable.model.KeyRole
 import dev.mirolab.teslable.model.LockState
@@ -26,8 +28,10 @@ import com.tesla.generated.vcsec.VehicleStatus as WireVehicleStatus
 
 /** Wire VCSEC 응답 → 공개 값 객체(SDD §7.3). 모르는 enum 값은 `unknownFields`로 찾아 `UNKNOWN`으로(Wire 기본값으로 보이지 않게). */
 @OptIn(InternalTeslableApi::class)
+@Suppress("TooManyFunctions") // Wire enum마다 매핑 함수 하나씩(잠금·개폐부·기어·역할·형태와 역방향): 합치면 오히려 읽기 어렵다
 internal object VcsecInfoMapping {
     private const val LOCK_STATE_TAG = 2 // vcsec.proto VehicleStatus.vehicleLockState
+    private const val GEAR_TAG = 7 // vcsec.proto VehicleStatus.gear (TESLEMETRY-EXT, 공식 Go 스키마에 없음 — FR-036)
     private const val KEY_ROLE_TAG = 7 // WhitelistEntryInfo.keyRole
     private const val FORM_FACTOR_TAG = 1 // KeyMetadata.keyFormFactor
     private const val FRONT_DRIVER_DOOR_TAG = 1 // ClosureStatuses.frontDriverDoor
@@ -56,7 +60,17 @@ internal object VcsecInfoMapping {
                     else -> UserPresence.UNKNOWN
                 },
             tonneauPercentOpen = wire.detailedClosureStatus?.tonneauPercentOpen,
+            gear = if (wire.unknownFields.unknownVarint(GEAR_TAG) != null) Gear.UNKNOWN else gear(wire.gear),
         )
+
+    private fun gear(value: Gear_E): Gear =
+        when (value) {
+            Gear_E.GEAR_UNKNOWN -> Gear.UNKNOWN
+            Gear_E.GEAR_PARK -> Gear.PARK
+            Gear_E.GEAR_DRIVE -> Gear.DRIVE
+            Gear_E.GEAR_REVERSE -> Gear.REVERSE
+            Gear_E.GEAR_NEUTRAL -> Gear.NEUTRAL
+        }
 
     private fun lock(state: VehicleLockState_E): LockState =
         when (state) {

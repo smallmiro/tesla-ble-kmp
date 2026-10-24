@@ -1575,6 +1575,20 @@ final enum class dev.mirolab.teslable.model/ClosureState : kotlin/Enum<dev.mirol
     final fun values(): kotlin/Array<dev.mirolab.teslable.model/ClosureState> // dev.mirolab.teslable.model/ClosureState.values|values#static(){}[0]
 }
 
+final enum class dev.mirolab.teslable.model/Gear : kotlin/Enum<dev.mirolab.teslable.model/Gear> { // dev.mirolab.teslable.model/Gear|null[0]
+    enum entry DRIVE // dev.mirolab.teslable.model/Gear.DRIVE|null[0]
+    enum entry NEUTRAL // dev.mirolab.teslable.model/Gear.NEUTRAL|null[0]
+    enum entry PARK // dev.mirolab.teslable.model/Gear.PARK|null[0]
+    enum entry REVERSE // dev.mirolab.teslable.model/Gear.REVERSE|null[0]
+    enum entry UNKNOWN // dev.mirolab.teslable.model/Gear.UNKNOWN|null[0]
+
+    final val entries // dev.mirolab.teslable.model/Gear.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.mirolab.teslable.model/Gear> // dev.mirolab.teslable.model/Gear.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.mirolab.teslable.model/Gear // dev.mirolab.teslable.model/Gear.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.mirolab.teslable.model/Gear> // dev.mirolab.teslable.model/Gear.values|values#static(){}[0]
+}
+
 final enum class dev.mirolab.teslable.model/KeyFormFactor : kotlin/Enum<dev.mirolab.teslable.model/KeyFormFactor> { // dev.mirolab.teslable.model/KeyFormFactor|null[0]
     enum entry ANDROID_DEVICE // dev.mirolab.teslable.model/KeyFormFactor.ANDROID_DEVICE|null[0]
     enum entry CLOUD_KEY // dev.mirolab.teslable.model/KeyFormFactor.CLOUD_KEY|null[0]
@@ -12376,10 +12390,12 @@ final class dev.mirolab.teslable.model/SessionInfoSummary { // dev.mirolab.tesla
 }
 
 final class dev.mirolab.teslable.model/VehicleStatus { // dev.mirolab.teslable.model/VehicleStatus|null[0]
-    constructor <init>(dev.mirolab.teslable.model/LockState, dev.mirolab.teslable.model/Closures, dev.mirolab.teslable.model/SleepStatus, dev.mirolab.teslable.model/UserPresence, kotlin/Int?) // dev.mirolab.teslable.model/VehicleStatus.<init>|<init>(dev.mirolab.teslable.model.LockState;dev.mirolab.teslable.model.Closures;dev.mirolab.teslable.model.SleepStatus;dev.mirolab.teslable.model.UserPresence;kotlin.Int?){}[0]
+    constructor <init>(dev.mirolab.teslable.model/LockState, dev.mirolab.teslable.model/Closures, dev.mirolab.teslable.model/SleepStatus, dev.mirolab.teslable.model/UserPresence, kotlin/Int?, dev.mirolab.teslable.model/Gear) // dev.mirolab.teslable.model/VehicleStatus.<init>|<init>(dev.mirolab.teslable.model.LockState;dev.mirolab.teslable.model.Closures;dev.mirolab.teslable.model.SleepStatus;dev.mirolab.teslable.model.UserPresence;kotlin.Int?;dev.mirolab.teslable.model.Gear){}[0]
 
     final val closures // dev.mirolab.teslable.model/VehicleStatus.closures|{}closures[0]
         final fun <get-closures>(): dev.mirolab.teslable.model/Closures // dev.mirolab.teslable.model/VehicleStatus.closures.<get-closures>|<get-closures>(){}[0]
+    final val gear // dev.mirolab.teslable.model/VehicleStatus.gear|{}gear[0]
+        final fun <get-gear>(): dev.mirolab.teslable.model/Gear // dev.mirolab.teslable.model/VehicleStatus.gear.<get-gear>|<get-gear>(){}[0]
     final val lockState // dev.mirolab.teslable.model/VehicleStatus.lockState|{}lockState[0]
         final fun <get-lockState>(): dev.mirolab.teslable.model/LockState // dev.mirolab.teslable.model/VehicleStatus.lockState.<get-lockState>|<get-lockState>(){}[0]
     final val sleepStatus // dev.mirolab.teslable.model/VehicleStatus.sleepStatus|{}sleepStatus[0]
@@ -12394,7 +12410,8 @@ final class dev.mirolab.teslable.model/VehicleStatus { // dev.mirolab.teslable.m
     final fun component3(): dev.mirolab.teslable.model/SleepStatus // dev.mirolab.teslable.model/VehicleStatus.component3|component3(){}[0]
     final fun component4(): dev.mirolab.teslable.model/UserPresence // dev.mirolab.teslable.model/VehicleStatus.component4|component4(){}[0]
     final fun component5(): kotlin/Int? // dev.mirolab.teslable.model/VehicleStatus.component5|component5(){}[0]
-    final fun copy(dev.mirolab.teslable.model/LockState = ..., dev.mirolab.teslable.model/Closures = ..., dev.mirolab.teslable.model/SleepStatus = ..., dev.mirolab.teslable.model/UserPresence = ..., kotlin/Int? = ...): dev.mirolab.teslable.model/VehicleStatus // dev.mirolab.teslable.model/VehicleStatus.copy|copy(dev.mirolab.teslable.model.LockState;dev.mirolab.teslable.model.Closures;dev.mirolab.teslable.model.SleepStatus;dev.mirolab.teslable.model.UserPresence;kotlin.Int?){}[0]
+    final fun component6(): dev.mirolab.teslable.model/Gear // dev.mirolab.teslable.model/VehicleStatus.component6|component6(){}[0]
+    final fun copy(dev.mirolab.teslable.model/LockState = ..., dev.mirolab.teslable.model/Closures = ..., dev.mirolab.teslable.model/SleepStatus = ..., dev.mirolab.teslable.model/UserPresence = ..., kotlin/Int? = ..., dev.mirolab.teslable.model/Gear = ...): dev.mirolab.teslable.model/VehicleStatus // dev.mirolab.teslable.model/VehicleStatus.copy|copy(dev.mirolab.teslable.model.LockState;dev.mirolab.teslable.model.Closures;dev.mirolab.teslable.model.SleepStatus;dev.mirolab.teslable.model.UserPresence;kotlin.Int?;dev.mirolab.teslable.model.Gear){}[0]
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.model/VehicleStatus.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.mirolab.teslable.model/VehicleStatus.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.mirolab.teslable.model/VehicleStatus.toString|toString(){}[0]
