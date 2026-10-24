@@ -83,7 +83,7 @@
 <li>デフォルトのエイリアスは <code>"teslable-default"</code> です (<code>VehicleKeyStore.DEFAULT_ALIAS</code>、Swift では <code>VehicleKeyStoreCompanion.shared.DEFAULT_ALIAS</code>)。</li>
 <li>エイリアスには英字、数字、<code>.</code>、<code>_</code>、<code>-</code> を 64 文字まで使えます。ただし <code>.</code> や <code>..</code> にはできません。</li>
 <li><code>VehicleKey</code> はハンドルです。<code>alias</code>、<code>protection</code>、<code>accessibility</code>、<code>publicKey</code> (65 バイト、<code>0x04 ‖ X ‖ Y</code>) を公開します。秘密鍵はプラットフォームのキーストアから出ることはなく、エクスポート API もありません。</li>
-<li><code>VehicleKey</code> には閉じるものがありません。使っている間は保持し、使い終わったらそのまま手放してください。<code>get</code> や <code>getOrCreate</code> は呼ぶたびに同じ保存済みキーの新しいハンドルを返し、どこからも参照されなくなったハンドルは自動的に片付けられるため、接続のたびにキーを読み直してもハンドルはたまりません。接続した <code>Vehicle</code> は、自分のキーへの参照を自分で保持します。</li>
+<li><code>VehicleKey</code> には閉じるものがありません。使っている間は保持し、使い終わったらそのまま手放してください。iOS と Android では <code>get</code> や <code>getOrCreate</code> は呼ぶたびに同じ保存済みキーの新しいハンドルを返し（メモリ上のストアは同じものを返します）、どこからも参照されなくなったハンドルは自動的に片付けられるため、接続のたびにキーを読み直してもハンドルはたまりません。接続した <code>Vehicle</code> は、自分のキーへの参照を自分で保持します。</li>
 </ul>
 
 <h2 id="sec-protection">キーの保存場所</h2>
