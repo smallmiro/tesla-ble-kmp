@@ -62,6 +62,7 @@
 <li><a href="#sec-android">Android</a></li>
 <li><a href="#sec-android-bg">샘플 앱의 Android 백그라운드 사용</a></li>
 <li><a href="#sec-ios">iOS</a></li>
+<li><a href="#sec-ios-bg">샘플 앱의 iOS 백그라운드 사용</a></li>
 <li><a href="#sec-keys">키 저장</a></li>
 <li><a href="#sec-cache">세션 캐시</a></li>
 <li><a href="#sec-clock">시계</a></li>
@@ -109,6 +110,15 @@
 <li>Swift에서 공개 <code>VehicleStatus</code>는 <code>VehicleStatus_</code>라는 이름이 됩니다. 생성된 VCSEC 메시지 타입이 원래 이름을 이미 쓰기 때문입니다. <code>vehicleStatus()</code>의 결과와 <code>VehicleEvent.Status.status</code>가 이 타입입니다.</li>
 </ul>
 
+<h2 id="sec-ios-bg">샘플 앱의 iOS 백그라운드 사용</h2>
+<p>라이브러리는 포그라운드 사용을 지원합니다(지원 범위 참고). iOS 샘플의 모니터 앱은 <code>UIBackgroundModes: [bluetooth-central]</code>를 선언하고 Android 샘플과 같은 재연결 루프를 실행합니다. 아직 실제 iPhone에서 확인하지 <strong>않았으므로</strong>, 백그라운드에서의 라이브러리 동작은 확인되지 않은 것으로 보세요.</p>
+<ul>
+<li><code>Info.plist</code>(<code>project.yml</code>을 통해): <code>UIBackgroundModes: [bluetooth-central]</code>. <code>UIFileSharingEnabled</code>와 <code>LSSupportsOpeningDocumentsInPlace</code>는 샘플의 로그 폴더를 위해서만 둡니다.</li>
+<li>앱이 라이브러리 인스턴스 하나를 앱 수명 동안 소유하고, 링크가 끊길 때마다 <code>vehicle.disconnect()</code>를 부른 뒤 새 <code>Vehicle</code>로 다시 연결합니다(2초 대기, 최대 30초까지 두 배씩). 재시도는 라이브러리가 아니라 앱이 할 일입니다.</li>
+<li><strong>확인되지 않음:</strong> 앱이 백그라운드에 있거나 휴대폰이 잠겨 있을 때 iOS가 앱의 스캔과 재연결을 허용하는지 여부(라이브러리는 현재 기기 이름으로 스캔하며, iOS의 백그라운드 스캔에는 보통 서비스 UUID 필터가 필요합니다. 계획 Task 2와 8). 실차 스파이크를 실행하기 전까지 지원하는 백그라운드 경우는 링크가 유지되는 경우뿐입니다. iOS가 앱을 계속 실행해 주는 동안에는 이벤트가 계속 도착합니다.</li>
+<li>키 저장소: 샘플은 <code>KeyAccessibility.AFTER_FIRST_UNLOCK</code>으로 키를 만듭니다. 휴대폰이 잠겨 있어 키 저장소가 <code>KeyStoreError.Locked</code>를 돌려주는 동안 샘플은 기다렸다가 다시 시도하며, 키를 지우지 않습니다.</li>
+</ul>
+
 <h2 id="sec-keys">키 저장</h2>
 <table>
 <thead><tr><th><code>protection</code></th><th>의미</th></tr></thead>
@@ -136,7 +146,7 @@
 </table>
 <ul>
 <li>잠긴 iPhone에서 키체인 오류 <code>errSecInteractionNotAllowed</code>(-25308)는 <code>KeyStoreError.Locked</code>가 됩니다. <code>WHEN_UNLOCKED</code> 키는 휴대폰이 잠긴 동안 읽거나 핸드셰이크에 쓸 수 없고, <code>AFTER_FIRST_UNLOCK</code> 키는 마지막 재시동 뒤 한 번 잠금을 푼 다음부터 쓸 수 있습니다. 첫 잠금 해제 전에는 모든 키가 잠겨 있습니다. 휴대폰이 잠겨 만들지 못한 키를 소프트웨어 키로 대신하지 않습니다.</li>
-<li>실기기에서 아직 확인하지 않은 것: 두 설정의 키체인 왕복, 설정 다시 읽기, 잠긴 iPhone에서 <code>AFTER_FIRST_UNLOCK</code> Secure Enclave 키로 하는 핸드셰이크. 샘플 앱으로 확인합니다. 휴대폰이 잠긴 동안 키를 쓰려면 앱이 백그라운드에서 계속 실행되어야 하며, 이 내용은 아직 이 문서에서 다루지 않습니다.</li>
+<li>실기기에서 아직 확인하지 않은 것: 두 설정의 키체인 왕복, 설정 다시 읽기, 잠긴 iPhone에서 <code>AFTER_FIRST_UNLOCK</code> Secure Enclave 키로 하는 핸드셰이크. 샘플 앱으로 확인합니다(빌드 10이 준비되었고, 확인은 계획 Task 11입니다). 휴대폰이 잠긴 동안 키를 쓰려면 앱이 백그라운드에서 계속 실행되어야 하며, 이 내용은 아직 이 문서에서 다루지 않습니다.</li>
 </ul>
 <div class="callout danger">
 <strong>손상된 키는 자동으로 교체되지 않습니다</strong>

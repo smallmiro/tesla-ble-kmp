@@ -41,8 +41,8 @@
 <p class="lead">차 안이나 근처에 켜 둔 휴대폰이 스스로 연결하고, 연결을 유지하며, 차량 상태를 실시간으로 보여 주고, 라이브러리가 읽을 수 있는 모든 것을 조회하며, 모든 브로드캐스트를 원시 바이트와 함께 기록해 두어 알 수 없는 프로토콜 필드를 나중에 분석할 수 있게 합니다.</p>
 
 <div class="callout warn">
-<strong>Android 구현 완료, 실기기 확인 대기</strong>
-<p>Android 앱은 구현되어 있고(빌드 <code>0.2.0 (2)</code>, 단위 테스트 통과) 실차 확인을 기다립니다. iOS 앱은 예정입니다(계획 Task 10). 필요한 라이브러리 API를 모두 쓸 수 있습니다: <code>Vehicle.events</code>(라이브러리 매뉴얼 12장 "브로드캐스트 이벤트", 14장 B2)와 iOS의 키 접근성 선택(13장 "휴대폰이 잠겨 있을 때 키 쓰기", FR-037).</p>
+<strong>Android와 iOS 구현 완료, 실기기 확인 대기</strong>
+<p>Android 앱(빌드 <code>0.2.0 (2)</code>)과 iOS 앱(빌드 <code>0.2.0 (10)</code>)은 구현되어 있고 단위 테스트를 통과했으며, 둘 다 실차 확인을 기다립니다. iOS의 백그라운드 재연결은 계획 Task 2 스파이크 전까지 확인되지 않았습니다. 필요한 라이브러리 API를 모두 쓸 수 있습니다: <code>Vehicle.events</code>(라이브러리 매뉴얼 12장 "브로드캐스트 이벤트", 14장 B2)와 iOS의 키 접근성 선택(13장 "휴대폰이 잠겨 있을 때 키 쓰기", FR-037).</p>
 </div>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
@@ -51,6 +51,7 @@
 <li><a href="#sec-bg">백그라운드 실행</a></li>
 <li><a href="#sec-log">로그 파일</a></li>
 <li><a href="#sec-android">Android 구현</a></li>
+<li><a href="#sec-ios">iOS 구현</a></li>
 <li><a href="#sec-check">실차 체크리스트</a></li>
 </ol></div>
 
@@ -77,8 +78,8 @@
 <thead><tr><th></th><th>Android</th><th>iOS</th></tr></thead>
 <tbody>
 <tr><td>연결을 소유하는 주체</td><td>포그라운드 서비스가 라이브러리 인스턴스, 재연결 루프, 이벤트 구독, 로그 기록기를 소유합니다. 서비스의 알림에 연결 상태와 Stop 버튼이 표시됩니다.</td><td>앱이 살아 있는 동안 유지되는 모니터 객체 하나.</td></tr>
-<tr><td>선언</td><td><code>FOREGROUND_SERVICE</code>, <code>FOREGROUND_SERVICE_CONNECTED_DEVICE</code>, <code>POST_NOTIFICATIONS</code>(런타임에 요청). <code>INTERNET</code>은 여전히 없습니다.</td><td><code>UIBackgroundModes: [bluetooth-central]</code></td></tr>
-<tr><td>백그라운드에서 재연결</td><td>포그라운드와 같은 루프.</td><td>실차 테스트 뒤에 결정합니다(계획 Task 2). 그때까지는 연결이 유지되는 동안 계속 수신하는 것이 목표입니다.</td></tr>
+<tr><td>선언</td><td><code>FOREGROUND_SERVICE</code>, <code>FOREGROUND_SERVICE_CONNECTED_DEVICE</code>, <code>POST_NOTIFICATIONS</code>(런타임에 요청). <code>INTERNET</code>은 여전히 없습니다.</td><td><code>UIBackgroundModes: [bluetooth-central]</code>, <code>UIFileSharingEnabled</code>, <code>LSSupportsOpeningDocumentsInPlace</code>(모두 <code>project.yml</code>의 <code>info:</code> 블록에)</td></tr>
+<tr><td>백그라운드에서 재연결</td><td>포그라운드와 같은 루프.</td><td>포그라운드와 같은 루프. <strong>iOS가 백그라운드에서 앱의 스캔과 재연결을 허용하는지는 확인되지 않았으며</strong> 실차 테스트(계획 Task 2)를 해 봐야 압니다. 그때까지는 연결이 유지되는 동안 계속 수신하는 것이 목표입니다(<code>bluetooth-central</code>은 살아 있는 링크가 데이터를 계속 전달하게 합니다).</td></tr>
 </tbody>
 </table>
 
@@ -152,6 +153,48 @@
 <li><strong>검증 게이트가 보지 않는 곳.</strong> <code>lintKotlin</code>과 <code>detekt</code>는 라이브러리 모듈에만 돌고 <code>samples/</code>에는 돌지 않습니다.</li>
 </ul>
 
+<h2 id="sec-ios">iOS 구현</h2>
+<p><code>samples/ios/Sources/</code>의 파일(테스트는 <code>samples/ios/Tests/</code>에 있고 Android 테스트와 같은 이름을 씁니다):</p>
+<table>
+<thead><tr><th>파일</th><th>역할</th></tr></thead>
+<tbody>
+<tr><td><code>MonitorModel.swift</code></td><td>앱 수명 동안 유지되는 객체 하나(<code>TeslableSampleApp</code>의 <code>@StateObject</code>). 화면이 읽는 값을 보관하고, 엔진을 한 번 시작하며(VIN이 저장되어 있으면 스스로 연결하고 XCTest에서는 연결하지 않음) Control 탭의 <code>SampleModel</code>을 만듭니다.</td></tr>
+<tr><td><code>MonitorEngine.swift</code></td><td>라이브러리 인스턴스, <code>ConnectionLoop</code>, <code>Vehicle.events</code> Task, 조회 주기 Task, 저장된 VIN(<code>UserDefaults</code>), 모니터 키, <code>LogWriter</code>를 소유합니다. 변경 사항은 순서가 유지되도록 <code>AsyncStream</code> 하나로 모델에 보냅니다. <code>observe</code> 줄은 모든 것을 <code>DebugLogger</code>로 넘기는 <code>TeslaLogger</code>인 <code>ObserveLogger</code>를 통해 들어옵니다.</td></tr>
+<tr><td><code>ConnectionLoop.swift</code></td><td>상태 기계 <code>idle</code>, <code>connecting(n)</code>, <code>connected(V)</code>, <code>backoff(attempt:delay:reason:)</code>, <code>stopped</code>. 라이브러리를 전혀 모르며, 시계와 sleeper를 바꿔 끼울 수 있습니다(테스트는 수동 시계를 씁니다).</td></tr>
+<tr><td><code>LogLine.swift</code>, <code>LogWriter.swift</code>, <code>VinMask.swift</code></td><td>로그 줄 형식, 자체 직렬 큐에서 <code>LogSink</code> 프로토콜 뒤에 있는 파일 쓰기, VIN 가리기.</td></tr>
+<tr><td><code>LiveState.swift</code></td><td>이벤트를 Live 탭 상태(항목별 마지막으로 바뀐 시각)로 바꿉니다.</td></tr>
+<tr><td><code>VehicleMapping.swift</code></td><td><code>VehicleEvent</code>와 <code>VehicleStatus_</code>를 Swift 값(<code>MonitorEvent</code>, <code>StatusSnapshot</code>)으로 바꾸는 유일한 곳입니다. <code>VehicleBox</code>는 <code>Vehicle</code>을 Task 사이에서 전달합니다.</td></tr>
+<tr><td><code>SampleModel.swift</code>, <code>Views/ControlTab.swift</code></td><td>모니터의 연결과 키를 쓰는 Control 탭(예전의 단일 화면).</td></tr>
+<tr><td><code>ContentView.swift</code>, <code>Views/</code></td><td>Live, Query, Log, Control이 있는 <code>TabView</code>. <code>isIdleTimerDisabled</code>는 <code>scenePhase == .active</code>를 따릅니다.</td></tr>
+</tbody>
+</table>
+<p>사용한 라이브러리 호출(Swift 형태)과 따른 매뉴얼 장:</p>
+<table>
+<thead><tr><th>호출</th><th>위치</th><th>매뉴얼</th></tr></thead>
+<tbody>
+<tr><td><code>TeslaBle.companion.create(platform:config:)</code>, <code>connect(vin:key:target:options:)</code>, 링크가 끊길 때마다 <code>vehicle.disconnect()</code></td><td><code>MonitorEngine</code></td><td>12장 "흐름", 17장 "연결 슬롯과 끊긴 링크"와 "iOS"</td></tr>
+<tr><td><code>vehicle.connection</code>(<code>for await</code>, <code>.disconnected</code>가 될 때까지 대기)</td><td><code>MonitorEngine.awaitLoss</code></td><td>12장 "다음 단계", 14장 "연결 상태와 세션 상태"</td></tr>
+<tr><td>자기 Task에서 수집하는 <code>vehicle.events</code>(<code>for await</code>, <code>onEnum(of:)</code>). <code>raw</code>는 한 번만 읽고 저장하기 전에 가립니다</td><td><code>MonitorEngine.collectEvents</code>, <code>MonitorEvent.init</code></td><td>12장 "브로드캐스트 이벤트", 14장 B2, B2.4</td></tr>
+<tr><td>30초마다 <code>vehicleStatus(timeout: nil)</code>, <code>keySummary(timeout: nil)</code>, <code>listKeys(timeout: nil)</code>, <code>sessions</code>. <code>Uncertain</code>과 <code>Failure</code>는 그대로 보여 줍니다</td><td><code>MonitorEngine.runQueries</code></td><td>14장 "네 가지 조회", 16장 "세 가지 결과"</td></tr>
+<tr><td><code>keys.getOrCreate(alias:policy:accessibility:)</code>에 <code>"teslable-monitor"</code>, <code>.preferHardware</code>, <code>.afterFirstUnlock</code>. <code>VehicleErrorKeyStoreErrorLocked</code>이면 기다렸다 다시 시도하고 키는 지우지 않습니다</td><td><code>MonitorEngine.ensureKey</code></td><td>13장 "휴대폰이 잠겨 있을 때 키 쓰기", 16장 "블루투스와 키 보관소 오류"</td></tr>
+<tr><td><code>TeslaLogger</code>(태그 <code>observe</code>)</td><td><code>ObserveLogger</code></td><td>18장 "관찰 로그 (개발용)"</td></tr>
+<tr><td><code>Vin.companion.parseOrNull</code>, <code>scan</code>, <code>addKeyRequest</code>, <code>sessionInfo</code>, <code>startSession</code>, VCSEC 명령, <code>removeKey</code></td><td>Control 탭(<code>BleClient</code>)</td><td>12, 13, 15, 16장</td></tr>
+</tbody>
+</table>
+<p>동작 방식과 설계에서 남겨 둔 부분:</p>
+<ul>
+<li><strong>Android와 같은 동작.</strong> 로그 스키마, 위의 필드 노트, 백오프 숫자, 10초 안정 리셋, VIN 연속 구간, 쓰기 오류 규칙, "새 연결은 이전 차량이 해제된 뒤에 기다렸다가 시작한다"는 Swift에서도 같은 로직이며, 같은 이름의 테스트가 있습니다(<code>VinMaskTests</code>, <code>LogWriterTests</code>, <code>ConnectionLoopTests</code>, <code>LiveStateTests</code>).</li>
+<li><strong>연결은 하나.</strong> Control 탭은 모니터의 연결과 키를 씁니다. 연결과 연결 끊기 버튼은 모니터의 루프를 시작하고 멈춥니다. VIN은 Live 탭에서 입력하고 지우며, Control 탭은 가려서 보여 줍니다.</li>
+<li><strong>키 오류.</strong> <code>Locked</code>이면 그 시도가 실패하므로 루프가 기다렸다가 키를 다시 읽습니다. <code>UIApplication.protectedDataDidBecomeAvailableNotification</code>이 오면 앱이 곧바로 다시 시도하기도 합니다. 키는 지우지 않습니다. 그 밖의 키 오류는 키 없이 연결합니다(방송과 세 조회는 키가 필요 없습니다). Control 탭은 <code>protection</code>과 <code>accessibility</code>를 보여 주고, 키가 <code>WHEN_UNLOCKED</code>이면 경고합니다(삭제하고 새로 만들어 다시 등록하세요).</li>
+<li><strong>발견한 라이브러리 공백.</strong> 없습니다. 라이브러리 요청을 올리지 않았습니다.</li>
+<li><strong>Log 탭.</strong> 예전의 관찰 모드는 없어졌습니다. <code>observe</code> 줄은 항상 로그 파일에 기록되고, 메모와 Mark 버튼은 <code>mark</code> 줄을 기록합니다. "마지막 줄 복사"와 Control 탭의 "모든 결과 복사"(이제 마지막 로그 줄들로 끝납니다)가 예전의 복사 버튼을 대신합니다.</li>
+<li><strong>로그 파일.</strong> Android와 같은 규칙입니다(십진 MB, 정리는 쓰고 있는 파일을 지우지 않음, 이름은 1초 간격, 큐는 4096줄, 쓰기 오류는 그 줄을 버리고 세며 다음 줄에서 파일을 다시 엶). 줄은 도착하는 대로 파일에 씁니다(버퍼링 없음). 파일은 <code>Documents/logs/</code>에 기본 파일 보호(첫 잠금 해제 뒤 읽기 가능)로 있습니다.</li>
+<li><strong>화면 켜짐.</strong> <code>isIdleTimerDisabled</code>는 씬이 활성 상태일 때만 true이며, 백그라운드와 비활성 상태에서는 시스템 기본값으로 돌아갑니다.</li>
+<li><strong>백그라운드.</strong> iOS가 앱을 계속 실행해 주는 동안에는 같은 루프가 백그라운드에서도 돕니다. 링크가 끊긴 뒤 iOS가 앱을 깨워 스캔하고 재연결하는지는 <strong>확인되지 않았습니다</strong>(계획 Task 2 스파이크). iOS가 앱을 일시 중단해 두는 동안에는 루프가 돌지 않으며, 두 <code>link</code> 줄 사이의 간격이 그 시간이 얼마였는지 보여 줍니다.</li>
+<li><strong>가져오기.</strong> <code>tools/samples/pull-monitor-logs.sh ios [--device &lt;id&gt;]</code>는 실기기 빌드(<code>dev.mirolab.TeslableSampleDevice</code>)의 <code>Documents/logs</code>를 <code>xcrun devicectl device copy from</code>으로 <code>samples/logs/ios/&lt;date&gt;/</code>에 복사합니다.</li>
+<li><strong>버전.</strong> <code>project.yml</code>에는 <code>MARKETING_VERSION 0.2.0</code>과 <code>CURRENT_PROJECT_VERSION 10</code>이 있으며, 실기기 시험 차수마다 빌드 번호를 올립니다.</li>
+</ul>
+
 <h2 id="sec-check">실차 체크리스트</h2>
 <ol>
 <li>새로 설치: VIN을 입력하고, 모니터 키를 만들고, 등록합니다. 앱을 다시 시작하면 스스로 연결합니다.</li>
@@ -160,6 +203,12 @@
 <li>잠긴 휴대폰을 차 근처에 30분 동안 둡니다. 계속 연결되어 있거나 다시 연결되었고, 로그가 계속 늘어납니다.</li>
 <li>Disconnect를 누릅니다. 2분 동안 재연결 시도가 없습니다.</li>
 <li>Mac에서 스크립트로 로그를 가져옵니다. 첫 줄은 <code>session</code> 줄이고, 17자 VIN을 검색해도 아무것도 나오지 않습니다.</li>
+</ol>
+<p>iOS만 해당(기대 결과가 있는 전체 절차는 <code>samples/ios/README.md</code>의 "Monitor app: real-device checklist"에 있습니다):</p>
+<ol start="7">
+<li>앱을 다시 시작한 뒤 모니터 키가 <code>afterFirstUnlock</code>으로 보고됩니다(Secure Enclave 키, 계획 Task 11).</li>
+<li>잠긴 iPhone에서 모니터 키로 핸드셰이크합니다(계획 Task 11). 휴대폰이 잠긴 동안 Secure Enclave 키 생성이 실패하면 정확한 오류 문구를 복사해 둡니다.</li>
+<li>백그라운드: 휴대폰을 잠그고 멀어졌다가 돌아온 뒤, <code>link</code> 줄을 읽어 iOS가 스스로 재연결했는지 확인합니다(계획 Task 2 스파이크의 결과).</li>
 </ol>
 
 <footer class="page-nav">

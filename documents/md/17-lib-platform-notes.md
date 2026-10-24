@@ -60,6 +60,23 @@ the background as unconfirmed:
 - Name clash: the public `VehicleStatus` value object is exported to Swift as `VehicleStatus_`, because a generated
   VCSEC message type takes the plain name. `vehicleStatus()` results and `VehicleEvent.Status.status` are `VehicleStatus_`.
 
+### iOS background use by the sample
+
+The library supports use in the foreground (see Support). The iOS sample's monitor app declares
+`UIBackgroundModes: [bluetooth-central]` and runs the same reconnect loop as the Android sample, and has **not** been
+checked on a real iPhone yet, so treat the library behaviour in the background as unconfirmed:
+
+- `Info.plist` (through `project.yml`): `UIBackgroundModes: [bluetooth-central]`; `UIFileSharingEnabled` and
+  `LSSupportsOpeningDocumentsInPlace` only for the sample's log folder.
+- The app owns the single `TeslaBle` for its lifetime and calls `vehicle.disconnect()` after every link loss, then connects
+  again with a new `Vehicle` (2 s wait, doubling to 30 s). It is the app's job, not the library's, to retry.
+- **Unconfirmed:** whether iOS lets the app scan and reconnect while it is in the background or the phone is locked
+  (the library currently scans by device name and iOS usually needs a service UUID filter for background scans; plan Tasks 2 and 8). Until the real-car
+  spike runs, the only supported background case is a link that stays up: events keep arriving while iOS keeps the app
+  running.
+- Key store: the sample creates its key with `KeyAccessibility.AFTER_FIRST_UNLOCK`. While the phone is locked and the key
+  store answers `KeyStoreError.Locked`, the sample waits, retries, and never deletes the key.
+
 ## Key storage
 
 | `VehicleKey.protection` | Meaning |
@@ -84,7 +101,7 @@ the background as unconfirmed:
   Enclave key creation, becomes `KeyStoreError.Locked`. A `WHEN_UNLOCKED` key cannot be read or used for a handshake
   while the phone is locked; an `AFTER_FIRST_UNLOCK` key can, once the phone was unlocked after the last restart. Before
   that first unlock every key is `Locked`. A key creation that fails with `Locked` does not fall back to a software key.
-- Not yet confirmed on a device (sample app, plan Task 10 and 11): the Keychain round trip of both classes, the class
+- Not yet confirmed on a device (sample app build 10 is ready; checks are plan Task 11): the Keychain round trip of both classes, the class
   read-back, and a handshake on a locked iPhone with an `AFTER_FIRST_UNLOCK` Secure Enclave key. Using the key while the
   phone is locked also needs the app to keep running in the background; background BLE is not documented yet (see
   §Support).

@@ -66,14 +66,14 @@
 <thead><tr><th></th><th>Android</th><th>iOS</th></tr></thead>
 <tbody>
 <tr><td>Bluetooth permission</td><td><code>BLUETOOTH_SCAN</code> (<code>neverForLocation</code>) and <code>BLUETOOTH_CONNECT</code>, asked for at runtime</td><td><code>NSBluetoothAlwaysUsageDescription</code> in the <code>info:</code> block of <code>project.yml</code></td></tr>
-<tr><td>Background (monitor app)</td><td>Foreground service of type <code>connectedDevice</code>: <code>FOREGROUND_SERVICE</code>, <code>FOREGROUND_SERVICE_CONNECTED_DEVICE</code>, <code>POST_NOTIFICATIONS</code> (asked at runtime). The service starts only after <code>BLUETOOTH_CONNECT</code> is granted</td><td><code>UIBackgroundModes: [bluetooth-central]</code></td></tr>
+<tr><td>Background (monitor app)</td><td>Foreground service of type <code>connectedDevice</code>: <code>FOREGROUND_SERVICE</code>, <code>FOREGROUND_SERVICE_CONNECTED_DEVICE</code>, <code>POST_NOTIFICATIONS</code> (asked at runtime). The service starts only after <code>BLUETOOTH_CONNECT</code> is granted</td><td><code>UIBackgroundModes: [bluetooth-central]</code>; <code>UIFileSharingEnabled</code> and <code>LSSupportsOpeningDocumentsInPlace</code> for the log folder <code>Documents/logs/</code></td></tr>
 <tr><td>Network</td><td>No <code>INTERNET</code> permission (PRD NFR-014)</td><td>No network calls</td></tr>
 <tr><td>Backup</td><td><code>android:allowBackup="false"</code>: a software key restored without its wrapping key would be unusable</td><td>Keys are Keychain items that never leave the device</td></tr>
 <tr><td>Generated files</td><td>–</td><td><code>TeslableSample.xcodeproj</code> and <code>Sources/Info.plist</code> come from <code>xcodegen generate</code>. Never commit them</td></tr>
 <tr><td>Signing</td><td>–</td><td><code>Local.xcconfig</code> holds <code>DEVELOPMENT_TEAM</code>. Never commit it</td></tr>
 </tbody>
 </table>
-<p>The library manual does not cover background use yet (chapter 17). A sample that needs it writes down the platform setup it uses on these pages and in chapter 17 in the same pull request. The Android monitor app does this (table above, chapter 17 "Android background use by the sample"); its real-device check is pending.</p>
+<p>The library manual does not cover background use yet (chapter 17). A sample that needs it writes down the platform setup it uses on these pages and in chapter 17 in the same pull request. The Android monitor app does this (table above, chapter 17 "Android background use by the sample"); its real-device check is pending. The iOS monitor app keeps <code>bluetooth-central</code> and runs the same reconnect loop; whether iOS scans and reconnects in the background is unconfirmed until the plan Task 2 spike runs on the car (chapter 17 "iOS background use by the sample").</p>
 
 <h2 id="sec-secrets">Logs, secrets and vehicle data</h2>
 <ul>

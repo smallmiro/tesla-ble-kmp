@@ -38,7 +38,7 @@
 </nav>
 <main class="content">
 <h1>3. Current Apps</h1>
-<p class="lead">What the two apps do as of 2026-10-24 (milestone M4). The iOS app is still a single-screen tool: each button runs one library call and adds a result line. The Android app is the monitor app; its former single screen is the Control tab.</p>
+<p class="lead">What the two apps do as of 2026-10-24 (milestone M4). Both are the monitor app (<a href="04-monitor-app.html">4. Monitor App</a>); the former single screen of each is its Control tab.</p>
 
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#sec-android">Android</a></li>
@@ -71,25 +71,33 @@
 </table>
 
 <h2 id="sec-ios">iOS</h2>
-<p>XcodeGen project (<code>project.yml</code>) with the schemes <code>TeslableSample</code> (simulator) and <code>TeslableSampleDevice</code> (phone). <code>ContentView.swift</code> is the screen, <code>SampleModel.swift</code> makes the library calls, <code>ObservingLogger.swift</code> passes library logs to <code>DebugLogger</code> and streams the <code>observe</code> lines, <code>ObservationMark.swift</code> formats mark lines, and <code>Tests/</code> holds Swift unit tests.</p>
+<p>The monitor app (<a href="04-monitor-app.html">4. Monitor App</a>, SFR-010 to SFR-017): four tabs and one monitor object for the app's lifetime. Build <code>0.2.0 (10)</code>; the unit tests pass and the real-device check is pending.</p>
+<p>XcodeGen project (<code>project.yml</code>) with the schemes <code>TeslableSample</code> (simulator) and <code>TeslableSampleDevice</code> (phone). <code>project.yml</code> sets <code>UIBackgroundModes: [bluetooth-central]</code>, <code>UIFileSharingEnabled</code> and <code>LSSupportsOpeningDocumentsInPlace</code> in <code>Info.plist</code>. <code>MonitorModel.swift</code> and <code>MonitorEngine.swift</code> run the connection, the events, the queries and the logs; <code>ConnectionLoop.swift</code>, <code>LogLine.swift</code>, <code>LogWriter.swift</code>, <code>VinMask.swift</code>, <code>LiveState.swift</code> and <code>VehicleMapping.swift</code> are the pieces behind them (see <a href="04-monitor-app.html#sec-ios">iOS implementation</a>). <code>SampleModel.swift</code> holds the Control tab state and runs every action through <code>exclusive { }</code>, so only one library call runs at a time. The tabs are in <code>ContentView.swift</code> and <code>Views/</code>. Swift unit tests are in <code>Tests/</code> (<code>VinMaskTests</code>, <code>LogWriterTests</code>, <code>ConnectionLoopTests</code>, <code>LiveStateTests</code>, <code>TimeoutsTests</code>).</p>
 <table>
-<thead><tr><th>Section</th><th>Contents</th><th>Library calls</th></tr></thead>
+<thead><tr><th>Tab</th><th>Contents</th></tr></thead>
 <tbody>
-<tr><td>Vehicle</td><td>VIN input</td><td><code>Vin.parseOrNull</code></td></tr>
-<tr><td>Key</td><td>Create or load key, key protection and fingerprint</td><td><code>keys.getOrCreate()</code></td></tr>
-<tr><td>Observation</td><td>Observation mode switch, memo and Mark button, clear</td><td>A custom <code>TeslaLogger</code> that keeps the <code>observe</code> lines (chapter 18)</td></tr>
-<tr><td>BLE</td><td>Scan, Connect, VehicleStatus, Key list (Delete on each row), Disconnect</td><td>Same as Android</td></tr>
-<tr><td>Pairing</td><td>Request enrollment, Confirm enrollment</td><td>Same as Android</td></tr>
-<tr><td>Session</td><td>Handshake VCSEC only or all, Show session state</td><td>Same as Android</td></tr>
-<tr><td>Control</td><td>Lock, Unlock, Open or close trunk, Open frunk, Wake up</td><td>Same as Android</td></tr>
-<tr><td>Result</td><td>Copy all results (app info, connection, key, timed results, observation lines, no VIN), Clear</td><td>–</td></tr>
-<tr><td>App info</td><td>Version, build</td><td>–</td></tr>
+<tr><td>Live</td><td>Connection banner, VIN save and clear, Connect and Disconnect, the latest broadcast status per item with its last-changed time, recent events</td></tr>
+<tr><td>Query</td><td><code>vehicleStatus()</code>, <code>keySummary()</code> and <code>listKeys()</code> every 30 seconds (adjustable), results with outcome and time, sessions, "query now"</td></tr>
+<tr><td>Log</td><td>Line counts, unrecognized count, last lines and copy, file path, memo and Mark, new file</td></tr>
+<tr><td>Control</td><td>The former single screen (below). It uses the monitor's connection and key</td></tr>
 </tbody>
 </table>
-<p>While observation mode is on, VehicleStatus, Key list and the control buttons are disabled, so the app sends nothing that could wake the car.</p>
+<p>The Control tab (same groups as Android):</p>
+<table>
+<thead><tr><th>Group</th><th>Buttons</th><th>Library calls</th></tr></thead>
+<tbody>
+<tr><td>Key</td><td>Create or load key (<code>teslable-monitor</code>, shows protection and accessibility)</td><td><code>keys.getOrCreate(alias:policy:accessibility:)</code></td></tr>
+<tr><td>BLE</td><td>Scan, Connect, VehicleStatus, Key list (Delete on each row), Disconnect</td><td><code>scan(vin:)</code>, the monitor's connection, <code>vehicleStatus()</code>, <code>listKeys()</code>, <code>removeKey()</code>, <code>disconnect()</code></td></tr>
+<tr><td>Pairing</td><td>Request enrollment, Confirm enrollment</td><td><code>addKeyRequest()</code> with progress events. Confirmation calls <code>sessionInfo(publicKey, INFOTAINMENT)</code> every 3 seconds for up to 2 minutes</td></tr>
+<tr><td>Session</td><td>Handshake VCSEC only, Handshake all, Show session state</td><td><code>startSession(domains:)</code>, <code>sessions</code></td></tr>
+<tr><td>Control</td><td>Lock, Unlock, Open or close trunk, Open frunk, Wake up</td><td>VCSEC commands. An <code>Uncertain</code> result is followed by a <code>vehicleStatus()</code> re-query</td></tr>
+<tr><td>Result</td><td>Copy all results (app info, link, key, timed results, last log lines, no VIN), Clear</td><td>–</td></tr>
+</tbody>
+</table>
+<p>The old observation mode (a switch that blocked requests, memo and Mark, copy) is merged into the Log tab: the <code>observe</code> lines are always written to the log file, and Mark writes a <code>mark</code> line.</p>
 
 <h2 id="sec-runbooks">Real-car checklists</h2>
-<p>The step-by-step real-car checks (scan and connect, push observation rounds 1 and 2, M4 pairing and VCSEC control) stay in <code>samples/ios/README.md</code>, together with the build number used for each round. Results are written to <code>docs/handoff/&lt;date&gt;-*.md</code>.</p>
+<p>The step-by-step real-car checks (scan and connect, push observation rounds 1 and 2, M4 pairing and VCSEC control, the monitor app checklist) stay in <code>samples/ios/README.md</code>, together with the build number used for each round. Results are written to <code>docs/handoff/&lt;date&gt;-*.md</code>.</p>
 
 <footer class="page-nav">
   <a href="02-constraints.html"><span>Previous</span>2. Constraints</a>
