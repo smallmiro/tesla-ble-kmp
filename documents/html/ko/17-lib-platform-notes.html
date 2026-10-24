@@ -133,6 +133,7 @@
 <li>소프트웨어 키는 Android Keystore AES 키로 래핑되거나, 기기를 벗어나지 않고 키의 접근성 설정에 따라 보호되는 iOS 키체인 항목으로 저장됩니다.</li>
 <li>iOS에서 Secure Enclave 조회가 실패하면 "키 없음"이 아니라 오류로 보고하므로, 정상 키를 실수로 덮어쓰는 일이 없습니다.</li>
 <li>개인키를 내보내는 API는 없습니다.</li>
+<li>키 핸들은 자동으로 해제됩니다. iOS에서는 키 객체마다 Security 프레임워크 참조(<code>SecKeyRef</code>)를 하나씩 가집니다. 이 참조는 앱도 연결된 <code>Vehicle</code>도 더는 그 키를 쓰지 않고 Kotlin/Native 가비지 컬렉터가 돈 뒤에 해제됩니다. 닫을 것이 없고, 키를 다시 읽어도 핸들이 쌓이지 않습니다.</li>
 </ul>
 <h3>휴대폰이 잠겨 있을 때 키 쓰기</h3>
 <p>키마다 접근성 설정 <code>VehicleKey.accessibility</code>가 있습니다. 고르는 방법과 키를 바꾸는 절차는 <a href="13-lib-pairing.html#sec-accessibility">13. 키와 페어링</a>에 있습니다.</p>

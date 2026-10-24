@@ -112,6 +112,10 @@ checked on a real iPhone yet, so treat the library behaviour in the background a
 - On iOS, a failed Secure Enclave lookup (`Failed`) is not "no key". The library returns an error instead of
   overwriting the alias with a new key.
 - There is no private key export API (ADR-0008).
+- Key handles need no `close()` (issue #97). On iOS each `VehicleKey` object owns one `SecKeyRef`; a Kotlin/Native
+  `Cleaner` releases it exactly once after the object is garbage collected, never while the app or a `Vehicle` still
+  references the key. Reading the key again does not accumulate handles. Android and JVM keys are ordinary
+  garbage-collected objects. Rules: `13-lib-pairing.md` §Key store API (handle lifetime).
 - Simulator Keychain: **plain Kotlin/Native test binaries** running on the simulator cannot use the Keychain
   (`SecItemAdd` fails with -25291). Real Keychain round trips, including the accessibility read-back, are therefore
   checked in the **sample app** (an app bundle), not in unit tests. Unit tests cover the class mapping, the parsing of

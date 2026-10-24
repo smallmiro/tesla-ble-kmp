@@ -83,6 +83,7 @@
 <li>기본 별칭은 <code>"teslable-default"</code>입니다(<code>VehicleKeyStore.DEFAULT_ALIAS</code>, Swift에서는 <code>VehicleKeyStoreCompanion.shared.DEFAULT_ALIAS</code>).</li>
 <li>별칭에는 영문자, 숫자, <code>.</code>, <code>_</code>, <code>-</code>를 최대 64자까지 쓸 수 있으며, <code>.</code>이나 <code>..</code>은 쓸 수 없습니다.</li>
 <li><code>VehicleKey</code>는 핸들입니다. <code>alias</code>, <code>protection</code>, <code>accessibility</code>, <code>publicKey</code>(65바이트, <code>0x04 ‖ X ‖ Y</code>)를 제공합니다. 개인키는 플랫폼 키 보관소를 벗어나지 않으며, 내보내기 API는 없습니다.</li>
+<li><code>VehicleKey</code>는 닫을 것이 없습니다. 쓰는 동안 들고 있다가 다 쓰면 그냥 놓으면 됩니다. <code>get</code>이나 <code>getOrCreate</code>는 부를 때마다 같은 저장된 키의 새 핸들을 돌려주고, 더는 아무것도 참조하지 않는 핸들은 자동으로 정리되므로, 연결할 때마다 키를 다시 읽어도 핸들이 쌓이지 않습니다. 연결된 <code>Vehicle</code>은 자기 키를 스스로 참조해 둡니다.</li>
 </ul>
 
 <h2 id="sec-protection">키가 저장되는 위치</h2>
