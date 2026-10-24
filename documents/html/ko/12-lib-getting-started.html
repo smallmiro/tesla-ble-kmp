@@ -205,7 +205,7 @@ _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class=
 <ul>
 <li><strong>따로 수집하세요.</strong> 별도의 코루틴(Swift에서는 별도의 <code>Task</code>)을 씁니다. 흐름은 링크가 끊기거나 <code>disconnect()</code>가 불리면 <strong>스스로 끝나며</strong>, 그 뒤에 시작한 수집은 바로 끝납니다. 그다음 <code>connection</code>을 확인하고 <code>disconnect()</code>를 호출하세요. 새로 연결하면 새 <code>Vehicle</code>과 새 <code>events</code>를 받습니다.</li>
 <li><strong>듣고 있는 동안 온 것만 받습니다.</strong> 그 전의 브로드캐스트는 다시 보내 주지 않습니다. <strong>반복은 변화가 아닙니다</strong>. 차량은 같은 상태를 몇 초마다 다시 보내므로 마지막 값과 비교하세요.</li>
-<li><strong>트렁크:</strong> 실내 버튼으로 연 트렁크는 브로드캐스트를 보내지 않습니다. 트렁크는 <code>vehicleStatus()</code>로 읽으세요.</li>
+<li><strong>트렁크:</strong> 밖에서 손으로 열거나 닫은 트렁크는 브로드캐스트되지만, 실내 버튼으로 조작한 트렁크는 브로드캐스트되지 않습니다. 트렁크 상태가 중요하면 <code>vehicleStatus()</code>로 읽으세요.</li>
 <li><strong><code>raw</code>는 프레임 전체입니다.</strong> VIN을 가리지 않았고 읽을 때마다 새 복사본을 만듭니다. 한 번만 읽고, 저장하거나 공유하기 전에 VIN을 가리세요.</li>
 </ul>
 <h3>Kotlin</h3>

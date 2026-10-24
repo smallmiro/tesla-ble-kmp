@@ -170,7 +170,8 @@ without being asked. `vehicle.events` (`Flow<VehicleEvent>`) delivers them; no k
   `disconnect()`. A new connection gives a new `Vehicle` with new `events`.
 - Only broadcasts that arrive while you collect are delivered (no replay). **A repeat is not a change**: the vehicle
   resends the same status every few seconds, so compare with the last value.
-- The trunk opened with the interior button sends no broadcast; read it with `vehicleStatus()`.
+- The trunk opened or closed by hand from outside is broadcast, but with the interior button it is not; when the trunk
+  state matters, read it with `vehicleStatus()`.
 - `raw` is the whole received frame, **not VIN-masked**, and every access returns a new copy: read it once and mask the
   VIN before you store or share it.
 

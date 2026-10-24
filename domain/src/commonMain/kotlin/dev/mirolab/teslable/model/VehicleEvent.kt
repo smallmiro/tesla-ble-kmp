@@ -31,8 +31,9 @@ public sealed interface VehicleEvent {
 
     /**
      * `FromVCSECMessage.vehicleStatus`(1). [status]는 `vehicleStatus()` 조회와 같은 규칙으로 만든다: 차량은 열린 곳이 있을 때만
-     * `closureStatuses`를 보내므로 없으면 모두 `CLOSED`, 모르는 enum 값은 `UNKNOWN`, `gear`도 같은 규칙. **트렁크 주의:** 실내 버튼으로
-     * 트렁크를 열고 닫았을 때는 브로드캐스트가 오지 않았다(다른 방법은 미확인). 트렁크는 `vehicleStatus()`로 읽는다.
+     * `closureStatuses`를 보내므로 없으면 모두 `CLOSED`, 모르는 enum 값은 `UNKNOWN`, `gear`도 같은 규칙. **트렁크 주의:** 밖에서 손으로
+     * 열고 닫은 트렁크는 브로드캐스트로 왔지만, 실내 버튼으로 열고 닫았을 때는 오지 않았다. 트렁크 상태가 중요하면 `vehicleStatus()`로
+     * 확인한다. 잠든 차가 깨어나는 첫 프레임들은 개폐 상태와 `gear`가 `UNKNOWN`일 수 있다.
      *
      * @param raw 받은 프레임. 복사해서 보관한다.
      * @param unknownFields [VehicleEvent.unknownFields].
