@@ -78,7 +78,7 @@
 <p>Swift에서는 <code>switch onEnum(of: result)</code>로 <code>.success</code>, <code>.uncertain</code>, <code>.failure</code>를 모두 다룹니다. <a href="12-lib-getting-started.html#sec-swift">12. 라이브러리 시작하기</a>를 참고하세요. 호출한 쪽의 코루틴이나 Task를 취소한 것은 결과로 바뀌지 않고, 취소가 평소처럼 전파됩니다.</p>
 
 <h2 id="sec-hierarchy">오류 타입</h2>
-<p>모든 <code>VehicleError</code>는 <code>message</code>(영어), <code>mayHaveSucceeded</code>, <code>temporary</code>를 가집니다. <code>shouldRetry()</code>는 오류가 일시적이고 차량이 동작했을 리 없을 때 true입니다. 라이브러리가 이미 이런 경우를 재시도하므로 재시도 루프를 만들 필요가 없습니다.</p>
+<p>모든 <code>VehicleError</code>는 <code>message</code>(영어), <code>mayHaveSucceeded</code>, <code>temporary</code>를 가집니다. <code>shouldRetry()</code>는 오류가 일시적이고 차량이 동작했을 리 없을 때 true입니다. 라이브러리가 이미 이런 경우를 재시도하므로 재시도 루프를 만들 필요가 없습니다. 예외가 하나 있습니다. <code>KeyStoreError.Locked</code>는 일시적이지만, 휴대폰의 잠금은 사용자만 풀 수 있으므로 라이브러리는 다시 시도하지 않습니다. 잠금을 푼 뒤 다시 부르세요.</p>
 <table>
 <thead><tr><th>타입</th><th>발생 상황</th><th>일시적</th><th>성공했을 수 있음</th></tr></thead>
 <tbody>
@@ -91,7 +91,7 @@
 <tr><td><code>BadResponse</code></td><td>응답을 읽을 수 없음</td><td>아니요</td><td>VCSEC와 Infotainment 응답이면 예</td></tr>
 <tr><td><code>KeychainRejected</code>, <code>VcsecRejected</code>, <code>InfotainmentRejected</code></td><td>차량이 이해했지만 거부함</td><td>아니요</td><td>아니요</td></tr>
 <tr><td><code>TransportError</code></td><td>블루투스 스캔, 연결, 쓰기</td><td>스캔 시간 초과, 연결 실패, 쓰기 실패만</td><td>아니요</td></tr>
-<tr><td><code>KeyStoreError</code></td><td>플랫폼 키 보관소</td><td><code>Locked</code>만</td><td>아니요</td></tr>
+<tr><td><code>KeyStoreError</code></td><td>플랫폼 키 보관소. <code>Locked</code>는 <code>startSession()</code>도 돌려줌</td><td><code>Locked</code>만</td><td>아니요</td></tr>
 <tr><td><code>Timeout</code></td><td>명령의 시간 제한이 지남</td><td>예</td><td>이미 전송된 경우</td></tr>
 <tr><td><code>InvalidArgument</code></td><td>잘못된 인자</td><td>아니요</td><td>아니요</td></tr>
 </tbody>
@@ -125,7 +125,7 @@
 <tr><td><code>HardwareUnavailable</code></td><td>하드웨어가 필요했지만 사용할 수 없음</td><td><code>PREFER_HARDWARE</code> 사용</td></tr>
 <tr><td><code>KeyNotFound</code></td><td>해당 별칭의 키가 없음</td><td><code>getOrCreate</code>로 생성</td></tr>
 <tr><td><code>PlatformFailure</code></td><td>플랫폼 키 보관소가 실패함. <code>stored key is corrupted</code>는 저장된 키가 손상되었다는 뜻</td><td>손상된 키는 자동으로 교체되지 않음. 삭제하고, 생성하고, 새 키를 다시 등록</td></tr>
-<tr><td><code>Locked</code></td><td>iOS: 휴대폰이 잠겨 있고 키가 잠금 해제 중에만 동작하는 키이거나, 재시동 뒤 아직 한 번도 잠금을 풀지 않음. 이 이유로 만들지 못한 키를 소프트웨어 키로 대신하지 않음</td><td>키를 삭제하거나 다시 만들지 <strong>마세요</strong>. 잠금을 푼 뒤 다시 시도합니다. 휴대폰이 잠겨 있을 때도 키를 쓰려면 새 별칭으로 <code>AFTER_FIRST_UNLOCK</code> 키를 만들고 등록합니다(<a href="13-lib-pairing.html#sec-accessibility">13. 키와 페어링</a>). 라이브러리는 키 보관소 호출을 다시 시도하지 않음</td></tr>
+<tr><td><code>Locked</code></td><td>iOS: 휴대폰이 잠겨 있고 키가 잠금 해제 중에만 동작하는 키이거나, 재시동 뒤 아직 한 번도 잠금을 풀지 않음. 이 이유로 만들지 못한 키를 소프트웨어 키로 대신하지 않음. 휴대폰이 잠기기 전에 읽어 둔 Secure Enclave 키를 잠금이 막으면 <code>startSession()</code>도 돌려줌</td><td>키를 삭제하거나 다시 만들지 <strong>마세요</strong>. 잠금을 푼 뒤 다시 시도합니다. 휴대폰이 잠겨 있을 때도 키를 쓰려면 새 별칭으로 <code>AFTER_FIRST_UNLOCK</code> 키를 만들고 등록합니다(<a href="13-lib-pairing.html#sec-accessibility">13. 키와 페어링</a>). 라이브러리는 키 보관소 호출도 핸드셰이크도 다시 시도하지 않음</td></tr>
 </tbody>
 </table>
 
@@ -149,6 +149,7 @@
 <tr><td>전송 전에 시간 제한이 지남</td><td><code>Failure(Timeout)</code></td></tr>
 <tr><td>응답을 기다리는 중에 시간 제한이 지남</td><td><code>Uncertain(Timeout)</code></td></tr>
 <tr><td>핸드셰이크의 시간 제한이 지남</td><td><code>Failure(Timeout)</code>. 세션이 만들어지지 않았고 바뀐 것은 없습니다</td></tr>
+<tr><td>핸드셰이크 중에 폰 잠금이 키를 막음(iOS)</td><td>차량이 답하자마자 <code>Failure(KeyStoreError.Locked)</code>. 일시적 오류지만 <strong>다시 시도하지 않습니다</strong>. 세션은 없습니다. 잠금 때문에 복원하지 못한 저장된 세션은 그대로 남습니다</td></tr>
 </tbody>
 </table>
 <table>

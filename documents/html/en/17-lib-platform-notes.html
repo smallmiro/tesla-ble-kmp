@@ -147,7 +147,8 @@
 </table>
 <ul>
 <li>On a locked iPhone, the Keychain error <code>errSecInteractionNotAllowed</code> (-25308) becomes <code>KeyStoreError.Locked</code>. A <code>WHEN_UNLOCKED</code> key cannot be read or used for a handshake while the phone is locked; an <code>AFTER_FIRST_UNLOCK</code> key can, once the phone was unlocked after the last restart. Before that first unlock every key is locked. A key that cannot be created because the phone is locked is not replaced by a software key.</li>
-<li>Not yet confirmed on a device: the Keychain round trip of both settings, reading the setting back, and a handshake on a locked iPhone with an <code>AFTER_FIRST_UNLOCK</code> Secure Enclave key. They are checked with the sample app (build 10 is ready; the checks are plan Task 11). Using the key while the phone is locked also needs the app to keep running in the background, which these pages do not cover yet.</li>
+<li>A key object read before the phone locked: when the Secure Enclave refuses the key agreement with the same error (-25308), the handshake ends with <code>KeyStoreError.Locked</code> as soon as the car answers and is not retried, and a saved session that needed the key is not restored but stays saved (<a href="13-lib-pairing.html#sec-accessibility">13</a>). Other key agreement errors behave as before (the handshake keeps trying until its timeout). A software key object keeps its private key in memory and keeps working after the lock (per the API).</li>
+<li>Not yet confirmed on a device: the Keychain round trip of both settings, reading the setting back, and a handshake on a locked iPhone with an <code>AFTER_FIRST_UNLOCK</code> Secure Enclave key; also which error a locked iPhone reports for the key agreement of a <code>WHEN_UNLOCKED</code> Secure Enclave key (the library expects -25308; with another error <code>startSession()</code> still ends with a timeout). They are checked with the sample app (build 10 is ready; the checks are plan Task 11). Using the key while the phone is locked also needs the app to keep running in the background, which these pages do not cover yet.</li>
 </ul>
 <div class="callout danger">
 <strong>A corrupted key is never replaced automatically</strong>
@@ -160,6 +161,7 @@
 <li>Names are hashes of the VIN, so the VIN itself is not stored.</li>
 <li>Sessions belong to one key. After the key changes, or when the car has moved on, old sessions are discarded on the next connection.</li>
 <li>A missing or outdated cache is not an error; the library simply starts a new session.</li>
+<li>A saved session that could not be restored because the phone lock blocked the key (iOS) is not outdated. The library writes nothing to the cache until that part of the car has a session again, so disconnecting while the phone is locked keeps the saved sessions.</li>
 </ul>
 
 <h2 id="sec-clock">Clocks</h2>

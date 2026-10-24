@@ -27,6 +27,10 @@ issue #91). Real-vehicle check of pairing is pending. Go original behaviour: `09
 
 There is no API to export a private key (NFR-004, ADR-0008). ECDH runs inside the platform key store.
 
+`VehicleKey` also has `suspend fun sharedX(peer: PublicKeyBytes): ByteArray` (from the `EcdhPrivateKey` port), the
+handshake's ECDH. Apps do not call it. It throws `KeyLockedException` (package `dev.mirolab.teslable.port`) when the key
+exists but the phone lock blocks its use; the library turns that into `KeyStoreError.Locked` (§Key accessibility).
+
 Handle lifetime (issue #97):
 
 - `VehicleKey` has no `close()` and needs none. Keep the key while you use it, then drop the reference.
@@ -64,7 +68,7 @@ only matters on iOS.
 
 | `KeyAccessibility` | iOS Keychain class | Usable while the phone is locked | Use |
 |---|---|---|---|
-| `WHEN_UNLOCKED` (default) | `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` | No | Same as before FR-037. A locked iPhone cannot hand-shake with this key |
+| `WHEN_UNLOCKED` (default) | `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` | No | Same as before FR-037. While the phone is locked, reading the key and a handshake with its Secure Enclave key return `KeyStoreError.Locked` |
 | `AFTER_FIRST_UNLOCK` | `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` | Yes, once the phone was unlocked after the last restart | Opt in only when the app needs it, for example background monitoring |
 
 Both classes are `ThisDeviceOnly`: the key never moves to another device through backup or device migration. The Secure
@@ -85,11 +89,20 @@ Invariants:
   the key on `Locked`**; call again after the phone is unlocked (iOS:
   `UIApplication.protectedDataDidBecomeAvailableNotification`). A key that cannot be created because the phone is locked
   is not replaced by a software key.
-- A `WHEN_UNLOCKED` key object read while the phone was unlocked and used after the phone locked fails inside the
-  handshake: `startSession()` ends with `Failure(Timeout(afterSend = false))`, not `Locked`, and restoring a cached
-  session is skipped for the same reason (known limit, ADR-0014; expected iOS behaviour, not yet confirmed on a device).
-  To get `Locked` instead, read the key again with `get(alias)` before connecting while the phone may be locked, or use
-  an `AFTER_FIRST_UNLOCK` key. Every read returns a new handle; keep using one handle while it works.
+- A `WHEN_UNLOCKED` key object read while the phone was unlocked and used after the phone locked (issue #96):
+  - Secure Enclave key (`protection == SECURE_ENCLAVE`): its handshake ECDH fails. `startSession()` returns
+    `Failure(KeyStoreError.Locked)` right after the vehicle's first reply, for VCSEC and Infotainment alike, and the
+    library does not retry it. An error the vehicle puts in that reply (for example `KeyNotPaired`) comes first.
+    Restoring a cached session at `connect` is skipped for the same reason (`sessions` stays `None`; `WARN` tag
+    `Dispatcher`: `Cached session for <domain> not restored: the private key is locked (device locked)`), and the
+    cache is **kept**: nothing is written to the session cache until that domain has a session again.
+    `sessionInfo(key.publicKey, domain)` still returns the summary, but no session is made. After the phone is
+    unlocked, call `startSession()` again with the same key object.
+  - Software fallback key (`protection == SOFTWARE`): the object holds the private key in memory, so it keeps working
+    after the phone locks (per API, not confirmed on a device). Only reading it from the key store returns `Locked`.
+  - Not yet confirmed on a device: that iOS reports the locked Secure Enclave ECDH as `errSecInteractionNotAllowed`
+    (-25308). If iOS reports another error, `startSession()` still ends with `Failure(Timeout(afterSend = false))`.
+  - Keep using one key object: every read returns a new handle (ADR-0014).
 - `WHEN_UNLOCKED` does not stop an established session when the screen locks: commands in a live session need no
   private-key operation. Only a new handshake and restoring a cached session use the private key.
 
@@ -166,6 +179,7 @@ key fails with `VehicleError.KeyNotPaired`.
   automatically**. The app tells the user, calls `delete(alias)` then `getOrCreate(alias)`, and the new public key has
   to be enrolled again. See `17-lib-platform-notes.md` §Key storage.
 - `KeyStoreError.Locked` is not damage: the key is fine but the phone is locked. Do not delete it; retry after unlock.
+  The same holds for `Locked` from `startSession()`.
 
 ## Enrolling a key (M4)
 

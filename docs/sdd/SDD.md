@@ -387,6 +387,7 @@ Vehicle.startSession({VCSEC, INFOTAINMENT})              // VehicleSession.start
                    pending.onReceive()                     → Reply(msg) }
         } ?: Retry                                          // 시간이 다 되면 재시도(다음 while 반복이 새 pending으로 재전송)
         Reply(msg) → ResponseClassifier.protocolError(msg)?.let { return Failure }
+                       ?: pending.keyLocked면 return Failure(KeyStoreError.Locked)   // FR-037·#96: 기기 잠금, 재전송 없음(Go에 없음)
                        ?: withTimeoutOrNull(retryInterval) { session.awaitReady() } ?: 다시 루프
   수신 측 (Dispatcher.process):
     session_info 있음 → checkForSessionUpdate(순서대로 검사, Dispatcher.kt:452-483):
@@ -398,6 +399,8 @@ Vehicle.startSession({VCSEC, INFOTAINMENT})              // VehicleSession.start
         최초(signer == null): Signer.createAuthenticated(challenge, encodedInfo, tag) — 태그 검증 포함 → ready.complete()
         기존: updateSignedSessionInfo (공개키 일치, epoch 변경 또는 setTime<=clock_time 일 때만 갱신, counter 비롤백)
         결과 로그: Fault면 WARN, Ok면 INFO
+        최초의 ECDH가 KeyLockedException(기기 잠금, #96) → WARN "Session info not applied … private key is locked",
+          pending.markKeyLocked(), 응답은 그대로 전달. 그 밖의 예외는 ERROR "Session info processing failed"(최종 리뷰 I3)
   VehicleSession.startSession 성공 → SessionCacheSync.store(dispatcher)   // 핸드셰이크 완료 시 저장(§3.4/§7.1). 세션정보 갱신 시 저장은 M2에 없음
 ```
 
@@ -506,14 +509,14 @@ public data class UnknownVcsecError(val rawCode: Int) : VehicleError            
 public data class InfotainmentRejected(val reason: String) : VehicleError          // actionStatus ERROR + plain_text ("unspecified error" 기본)
 // 전송·플랫폼 계층 (어댑터가 변환)
 public sealed interface TransportError : VehicleError { ScanTimeout, MaxConnectionsExceeded, ConnectFailed(cause), Disconnected, BluetoothOff, PermissionDenied, WriteFailed(cause, temporary=true) }
-public sealed interface KeyStoreError : VehicleError { HardwareUnavailable, KeyNotFound, PlatformFailure(cause), Locked(temporary=true) }  // Locked: 잠긴 iPhone(-25308), FR-037
+public sealed interface KeyStoreError : VehicleError { HardwareUnavailable, KeyNotFound, PlatformFailure(cause), Locked(temporary=true) }  // Locked: 잠긴 iPhone(-25308), FR-037. 키 저장소 호출과 핸드셰이크(#96)
 public data class Timeout(val afterSend: Boolean) : VehicleError                   // mayHaveSucceeded = afterSend, temporary = true
 public data class InvalidArgument(val detail: String) : VehicleError               // PIN 형식, 볼륨 범위, 좌석 조합 등
 // 중복 응답(재전송 응답)은 공개 VehicleError가 아니다: PendingRequest.antiReplay(SlidingWindow)가 실패하면 Dispatcher.process가
 // 그냥 드롭하고 로그만 남긴다(핸들러에는 전달되지 않음) — Go도 오류를 만들지 않고 receiver에 전달하지 않는다.
 ```
 
-- `shouldRetry(e) = !e.mayHaveSucceeded && e.temporary` (Go `ShouldRetry`).
+- `shouldRetry(e) = !e.mayHaveSucceeded && e.temporary` (Go `ShouldRetry`). 단 `KeyStoreError.Locked`는 temporary지만 `retryWhileRetriable`이 되풀이하지 않는다(FR-037, #96: 잠금 해제는 사용자 몫, 되풀이하면 `Timeout`으로 바뀐다). Go에 없는 오류다.
 - `VehicleResult` 매핑: `mayHaveSucceeded` → `Uncertain`, 그 외 → `Failure`.
 - Go의 `GetError` 순서를 그대로 유지: `signed_message_fault` → `session_info.status` → `operation_status`. RoutableMessage 계층의 `OPERATIONSTATUS_ERROR`는 Go와 같이 **오류로 취급하지 않는다**(`error.go:257-263` 스위치가 빈 case로 통과).
 - 재시도 간격은 `Transport.retryInterval`(BLE 1초). 재시도 횟수 상한 없이 `timeout` 안에서 반복한다(Go와 동일).
@@ -536,6 +539,7 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 - 세션 키 K, 개인키, VIN 원문은 저장하지 않는다. 파일명은 `sha1(vin)`.
 - 구현: `SessionCacheCodec`(`:domain`, `encode`/`decode`/`encodeSnapshots`/`decodeSessions`), `InMemorySessionCache`(`:adapter-storage`, 벽시계 `() -> Long` 주입). `age`는 어댑터가 원시값(`nowEpochMillis - createdAtEpochMillis`, 음수 가능)으로 넘기고 클램프하지 않는다 — `Signer.importSessionInfo`가 0으로 본다(설계 구체화 7). 세션이 없으면 빈 목록을 저장한다(Go `Update(nil)`도 옛 캐시를 지운다). 개별 `SessionInfo` 디코딩이 실패한 손상된 항목은 건너뛰고 `Dispatcher.loadSessions`가 WARN 로그를 남긴다. 반면 `SessionCacheCodec.decode`가 Wire가 인식하지 못하는 도메인 원시값의 항목은 로그 없이 조용히 버린다(그 항목은 결과에 실리지도 않는다) — Wire는 알지만 `Dispatcher`에 세션이 없는 도메인(예: `DOMAIN_BROADCAST`)은 여기서 걸러지지 않고 `Dispatcher.loadSessions`까지 도달해 "no session (private key missing)" WARN을 남긴다(`Dispatcher.kt:288` 부근).
 - 저장 시점: 핸드셰이크 완료(`VehicleSession.startSession` 성공 — 단 `disconnect()`가 `Dispatcher.close()`에 들어간 뒤 끝난 핸드셰이크는 저장하지 않는다, 빈 목록이 disconnect 시점 저장을 지우지 않게), 세션정보 갱신(`SessionEvent.Updated`, M3 — `eventScope`에서 수집), `disconnect()`(1회만 — 두 번째 이상 호출은 건너뛴다, `SessionCacheSync`/`VehicleSession` KDoc). 갱신 저장은 수신 코루틴이 아니라 `VehicleSession`의 이벤트 수집 코루틴이 한다(수신 코루틴은 `tryEmit`만, §5). `disconnect()`는 이벤트 수집을 취소·합류한 뒤 마지막 저장을 한다. `disconnect()`의 저장은 반드시 `Dispatcher.close()`보다 먼저 끝나야 한다 — `close()`가 모든 세션 키를 지운 뒤 저장하면 빈 목록이 이전 저장을 지워 버린다. 각 저장은 실패해도 명령 결과에 영향을 주지 않는다(로그만).
+- 기기 잠금으로 복원하지 못한 항목(FR-037, #96): `Dispatcher.loadSessions`가 `KeyLockedException`인 항목을 WARN 후 건너뛰고 그 도메인을 `restoresBlockedByLock`에 남긴다. `SessionCacheSync.store`는 그 도메인에 세션이 없는 동안 아무것도 쓰지 않는다(INFO 로그) — 포트는 목록 전체를 덮어쓰고 저장 시각을 새로 붙이므로 아직 유효한 옛 항목만 남길 수 없다(나이가 틀려진다). 그 도메인에 세션이 생기면 평소처럼 쓴다. Go에는 없는 규칙이다(Go `LoadCache`는 전체 실패하고 CLI는 저장하지 않는다).
 
 ### 7.2 키 메타데이터
 
@@ -582,7 +586,7 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 | 생성 | `KeyPairGenerator("EC", "AndroidKeyStore")`, `KeyGenParameterSpec(alias, PURPOSE_AGREE_KEY)`, `setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))`. 1차 `setIsStrongBoxBacked(true)` → `StrongBoxUnavailableException`이면 2차 TEE → 실패 시 소프트웨어 대체 | `SecKeyCreateRandomKey` with `kSecAttrKeyTypeECSECPrimeRandom`, 256비트, `kSecAttrTokenIDSecureEnclave`, 접근 제어 `SecAccessControlCreateWithFlags(<접근성의 보호 등급>, kSecAccessControlPrivateKeyUsage)` → 실패(시뮬레이터 등) 시 토큰 없는 Keychain 소프트웨어 키(같은 보호 등급). 잠긴 기기 실패(CFError OSStatus -25308)는 소프트웨어로 넘어가지 않고 `Locked` |
 | 보관 수준 판정 | `KeyInfo.securityLevel` (API 31+): `STRONGBOX` / `TRUSTED_ENVIRONMENT` / `SOFTWARE` | 생성 경로로 판정: SE 성공이면 `SECURE_ENCLAVE`, 아니면 `SOFTWARE` |
 | 접근성(FR-037, ADR-0014) | 요청 무시, 항상 `AFTER_FIRST_UNLOCK`: EC 키와 래핑 AES 키의 `KeyGenParameterSpec`에 `setUnlockedDeviceRequired`·`setUserAuthenticationRequired` 없음(API 기준, 실기기 미확인) | 생성: `WHEN_UNLOCKED`(기본) → `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, `AFTER_FIRST_UNLOCK` → `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. 기존 키: `SecItemCopyMatching`에 `kSecReturnAttributes`를 더해 `kSecAttrAccessible`(`pdmn`)을 읽음(AfterFirstUnlock 계열 → `AFTER_FIRST_UNLOCK`, 나머지 → `WHEN_UNLOCKED`, 없음·모름 → `WHEN_UNLOCKED` + WARN). 마이그레이션 없음 |
-| 잠긴 기기 | 해당 없음(키에 잠금 요구 없음) | `errSecInteractionNotAllowed`(-25308): 조회·읽기·쓰기·삭제의 OSStatus와 `SecKeyCreateRandomKey`의 CFError(OSStatus 도메인) → `KeyStoreError.Locked`. 잠금 전에 얻은 `WHEN_UNLOCKED` 핸들의 ECDH 실패는 아직 `Signer`의 `BAD_PARAMETER`(→ `startSession` 시간 초과, 캐시 복원은 WARN 후 건너뜀) — 후속 후보 |
+| 잠긴 기기 | 해당 없음(키에 잠금 요구 없음) | `errSecInteractionNotAllowed`(-25308): 조회·읽기·쓰기·삭제의 OSStatus와 `SecKeyCreateRandomKey`의 CFError(OSStatus 도메인) → `KeyStoreError.Locked`. 잠금 전에 얻은 `WHEN_UNLOCKED` Secure Enclave 핸들의 `SecKeyCopyKeyExchangeResult` CFError(같은 규칙)는 `KeyLockedException`(`EcdhPrivateKey.sharedX` 계약, #96) → 핸드셰이크는 첫 응답 직후 `Locked`(재시도 없음), 캐시 복원은 건너뛰고 캐시를 지우지 않는다. 그 밖의 ECDH 실패는 그대로 `BAD_PARAMETER`. 소프트웨어 키 핸들은 개인키를 메모리에 가져 잠긴 뒤에도 쓸 수 있다(API 기준). 실기기 확인 전: SE ECDH가 실제로 이 도메인·코드로 알리는지 |
 | 공개키 | `ECPublicKey.w` → `0x04‖X(32)‖Y(32)` (좌표를 32바이트로 0-패딩) | `SecKeyCopyPublicKey` → `SecKeyCopyExternalRepresentation` (X9.63 65바이트 그대로) |
 | ECDH | `KeyAgreement.getInstance("ECDH", "AndroidKeyStore").init(priv); doPhase(peerPub, true); generateSecret()` → 32바이트 X | `SecKeyCopyKeyExchangeResult(priv, kSecKeyAlgorithmECDHKeyExchangeStandard, peerPub, params{})` → 32바이트 X. peerPub는 `SecKeyCreateWithData`(65바이트, `kSecAttrKeyClassPublic`) |
 | 삭제 | `KeyStore.deleteEntry(alias)` + 대체 키 파일 삭제 | `SecItemDelete` |
@@ -796,3 +800,4 @@ HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 
 - 닫힌 세션은 준비 상태가 아니다(`SessionState.isReady`는 `close()` 이후 false). 그래서 disconnect 뒤 `startSession()`은 캐시 세션에도 `NotConnected`다.
 - 인증 없는 VCSEC 조회에서 응답에 기대한 필드가 없으면 `BadResponse("missing …")`다(Go `BodyControllerState`/`KeySummary`/`KeyInfoBySlot`은 nil, nil). `listKeys`는 첫 슬롯 실패를 돌려준다(Go `list-keys`는 실패 슬롯을 출력하고 계속한다). Wire가 모르는 잠금·개폐·역할·형태 값은 `UNKNOWN`이다(Wire 기본값으로 보이지 않게 `unknownFields`로 판별).
 - 다른 공개키로 물은 `sessionInfo`(`Dispatcher.querySessionInfo`)의 응답 세션정보는 이 연결의 세션에 반영하지 않는다(`PendingRequest.acceptsSessionInfo = false`). Go는 반영을 시도하고 태그 불일치를 경고한다 — 캐시 복원 세션을 오래된 것으로 오판하는 것을 막는다. 이 연결의 키로 물으면 Go와 같이 반영한다.
+- 기기 잠금으로 개인키를 쓸 수 없을 때(FR-037, #96, ADR-0014): 키가 `KeyLockedException`을 던지면 `Signer`·`SessionState`는 값으로 바꾸지 않고 전파하고, 디스패처가 그 응답을 받은 요청에 표시해 `HandshakeFlow`가 첫 응답 직후 `Failure(KeyStoreError.Locked)`로 끝낸다(차량이 응답에 실은 오류가 먼저). `retryWhileRetriable`은 `Locked`를 되풀이하지 않는다. 캐시 복원은 그 항목만 건너뛰고 캐시를 지우지 않는다(§7.1). Go는 키 `Exchange` 오류를 구별하지 않는다: 핸드셰이크는 "Session info error"를 남기고 `RetryInterval`마다 재전송하다 데드라인으로 끝나고, `LoadCache`는 전체 실패한다. 응답은 ECDH 전이라 인증되지 않았지만 Locked는 이 기기의 사실이고 응답의 상태는 쓰지 않는다.
