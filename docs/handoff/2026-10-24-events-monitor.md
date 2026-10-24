@@ -10,13 +10,15 @@
 - PR #94 `VehicleStatus.gear` (브로드캐스트에서만 실차 확인, 조회 응답은 미확인)
 - PR #95 `Vehicle.events` (평문 브로드캐스트 게이트, 원본 바이트, oneof 필드 1·3 분리 읽기)
 - PR #98 iOS 키 접근성 `KeyAccessibility` + ADR-0014 + `KeyStoreError.Locked`
-- PR #100 Android 모니터 앱(단위 테스트 44), PR #101 iOS 모니터 앱(Swift 테스트 52, 버전 0.4.0 (10))
+- PR #100 Android 모니터 앱(단위 테스트 44), PR #101 iOS 모니터 앱(Swift 테스트 52, 버전 0.4.0 (10), 지금은 빌드 11)
 - 매 PR `tools/ci/verify.sh` 8단계 통과, 새 컨텍스트 AI 리뷰 반영
+- 후속 이슈 처리: #96(잠긴 폰 핸드셰이크 → `KeyStoreError.Locked`, 잠긴 동안 캐시 유지), #97(iOS 키 핸들 해제), #99(samples lint/detekt) 머지
+- PR #108 iOS 샘플 빌드 11(#96/#97 이후 라이브러리로 실차 확인), runbook K2 기대값 갱신
 
 ## 진행 중       :
-- #91 Task 2 스파이크: 브랜치 `spike/ios-background`(머지 안 함, worktree `.claude/worktrees/spike-ios-bg`), 빌드 9, 절차 `docs/handoff/2026-10-24-ios-background-spike.md`(스파이크 브랜치 안). **사용자 실차 확인 대기**
+- #91 Task 2 스파이크: 브랜치 `spike/ios-background`(머지 안 함, worktree `.claude/worktrees/spike-ios-bg`), 빌드 9, 절차 `docs/handoff/2026-10-24-ios-background-spike.md`(스파이크 브랜치 안). **사용자 실차 확인 대기**. 이 빌드는 #96 이전 라이브러리라 시나리오 D는 `Timeout`으로만 끝남(-25308 매핑 확인 불가). 샘플이 모니터 앱으로 크게 바뀌어 리베이스는 새 작업이 됨. 질문 (a)(b)는 빌드 11 체크리스트 5·6·K2로도 답할 수 있음
 - #91 Task 8: 스캔 필터 변경 — Task 2 결과로 필요 여부 결정(필요하면 계획을 먼저 고친다)
-- #91 Task 11: 두 모니터 앱 실차 확인 — Android 체크리스트는 PR #100 본문, iOS는 `samples/ios/README.md` "모니터 앱 실기기 확인 (빌드 10)"(K1~K4 키 확인 포함). 결과로 17-lib-platform-notes의 unconfirmed 표기 갱신, 첫 로그를 `protocol-analyst`로 분석
+- #91 Task 11: 두 모니터 앱 실차 확인 — Android 체크리스트는 PR #100 본문, iOS는 `samples/ios/README.md` "모니터 앱 실기기 확인 (빌드 11)"(K1~K4 키 확인 포함). 결과로 17-lib-platform-notes의 unconfirmed 표기 갱신, 첫 로그를 `protocol-analyst`로 분석
 
 ## 결정          :
 - ADR-0014: 키 접근성은 옵트인, 기본값 `WHEN_UNLOCKED` 유지, 마이그레이션 없음(재생성 + 재등록)
@@ -26,10 +28,10 @@
 - 로그는 폰 저장 + Mac에서 `tools/samples/pull-monitor-logs.sh android|ios`, 클라우드 전송은 나중(ADR 필요)
 
 ## 막힌 점       :
-- 실차 확인은 사용자만 할 수 있음(Task 2, 11)
+- 실차 확인은 사용자만 할 수 있음(Task 2, 11). 남은 기기 미확인: 잠긴 iPhone이 `WHEN_UNLOCKED` Secure Enclave 키 ECDH에 -25308을 내는지(빌드 11에는 별칭을 바꾸는 화면이 없어 이 항목은 확인 수단이 없음, 필요하면 계획에 추가)
 - 이 세션에서는 새 역할 에이전트와 Codex MCP 도구가 로드되지 않아 general-purpose 에이전트에 정의를 읽혀 썼고, Codex는 `codex exec` CLI로 대신함. **새 세션에서 Codex MCP 서버 승인 필요**
-- 후속 이슈: #96(잠긴 폰 + WHEN_UNLOCKED 키 핸드셰이크가 시간 초과로 끝남), #97(iOS 키 핸들 해제), #99(samples에 lint/detekt 미적용)
+- 2026-10-24 세션 2: Codex MCP 연결 실패(CONNECTION_CLOSED). 빌드 번호·문서만 바꾼 PR #108은 협의 생략
 
-## 다음 한 걸음  : 사용자에게서 스파이크 결과(시나리오 A~E 복사본)를 받아 `docs/handoff/`에 정리하고 Task 8 필요 여부를 판단한다. 검증: 결과 문서 + 판단을 #91에 기록
+## 다음 한 걸음  : 사용자에게서 빌드 11 체크리스트 결과(iOS 1~10 + K1~K4, Android PR #100)와 `pull-monitor-logs.sh` 로그, (선택) 스파이크 결과(시나리오 A~E 복사본)를 받아 `docs/handoff/`에 정리하고 Task 8 필요 여부를 판단한다. 검증: 결과 문서 + 판단을 #91에 기록
 
 ## 읽을 파일     : `{{PLANS_DIR}}2026-10-24-vehicle-events-monitor.md`, `{{SAMPLES_DOCS_DIR}}04-monitor-app.md`, `{{ADR_DIR}}0014-ios-key-accessibility.md`, `{{LIB_DOCS_DIR}}14-lib-reading-state.md` Part B, `{{LIB_DOCS_DIR}}17-lib-platform-notes.md`, `AGENTS.md` §9
