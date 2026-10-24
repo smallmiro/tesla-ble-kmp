@@ -52,6 +52,16 @@ class VehicleErrorTest {
     }
 
     @Test
+    fun lockedKeyStoreIsTemporaryAndNeverExecuted() {
+        // FR-037: 잠긴 기기에서 키에 접근할 수 없음 — 잠금을 풀면 풀리는 일시적 조건이고, 차량에는 아무것도 보내지 않았다
+        val locked: VehicleError = VehicleError.KeyStoreError.Locked
+        assertTrue(locked.temporary)
+        assertFalse(locked.mayHaveSucceeded)
+        assertIs<VehicleResult.Failure>(locked.toResult())
+        assertEquals("vehicle key is not accessible while the device is locked", locked.message)
+    }
+
+    @Test
     fun shouldRetryIsFalseWhenCommandMayHaveSucceeded() { // Go TestWrappedErrorClassification
         assertTrue(VehicleError.Busy.shouldRetry())
         val possiblySucceeded = VehicleError.Timeout(afterSend = true)

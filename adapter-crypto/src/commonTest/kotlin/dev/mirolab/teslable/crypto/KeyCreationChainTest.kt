@@ -3,6 +3,7 @@ package dev.mirolab.teslable.crypto
 import dev.mirolab.teslable.model.PublicKeyBytes
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.KeyAccessibility
 import dev.mirolab.teslable.port.KeyPolicy
 import dev.mirolab.teslable.port.KeyProtection
 import dev.mirolab.teslable.port.VehicleKey
@@ -19,6 +20,7 @@ class KeyCreationChainTest {
         override val protection: KeyProtection,
     ) : VehicleKey {
         override val alias: String = "a"
+        override val accessibility: KeyAccessibility = KeyAccessibility.WHEN_UNLOCKED
         override val publicKey: PublicKeyBytes = PublicKeyBytes(ByteArray(65).also { it[0] = 4 })
 
         override suspend fun sharedX(peer: PublicKeyBytes): ByteArray = ByteArray(32)
@@ -92,6 +94,31 @@ class KeyCreationChainTest {
         runTest {
             val result = KeyCreationChain.create(KeyPolicy.SOFTWARE_ONLY, emptyList(), KeyAttempt { error("no entropy") })
             assertIs<VehicleError.KeyStoreError.PlatformFailure>(assertIs<VehicleResult.Failure>(result).error)
+        }
+
+    @Test
+    fun lockedHardwareAttemptIsLockedAndNeverFallsBackToSoftware() =
+        // FR-037: 기기가 잠겨 하드웨어 키를 못 만든 것은 "하드웨어 없음"이 아니다. 일시적인 잠금 때문에
+        // PREFER_HARDWARE가 영구 SOFTWARE 키를 남기면 안 되므로 다음 수준으로 넘어가지 않는다.
+        runTest {
+            val logs = mutableListOf<String>()
+            val result =
+                KeyCreationChain.create(
+                    KeyPolicy.PREFER_HARDWARE,
+                    listOf(KeyAttempt { throw KeyStoreLockedException() }, attempt("tee", tee)),
+                    attempt("sw", software),
+                    logger = { logs += it },
+                )
+            assertEquals(VehicleResult.Failure(VehicleError.KeyStoreError.Locked), result)
+            assertEquals(emptyList(), calls)
+            assertEquals(emptyList(), logs)
+        }
+
+    @Test
+    fun lockedSoftwareAttemptIsLocked() =
+        runTest {
+            val result = KeyCreationChain.create(KeyPolicy.SOFTWARE_ONLY, emptyList(), KeyAttempt { throw KeyStoreLockedException() })
+            assertEquals(VehicleResult.Failure(VehicleError.KeyStoreError.Locked), result)
         }
 
     @Test

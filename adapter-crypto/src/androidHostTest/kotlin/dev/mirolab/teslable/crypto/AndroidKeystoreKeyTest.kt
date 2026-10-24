@@ -1,5 +1,6 @@
 package dev.mirolab.teslable.crypto
 
+import dev.mirolab.teslable.port.KeyAccessibility
 import dev.mirolab.teslable.port.KeyProtection
 import kotlinx.coroutines.test.runTest
 import java.security.KeyPairGenerator
@@ -33,4 +34,19 @@ class AndroidKeystoreKeyTest {
                 }
             assertEquals("ECDH failed: NoSuchProviderException", error.message)
         }
+
+    @Test
+    fun keystoreKeysReportAfterFirstUnlock() {
+        // FR-037, ADR-0014: Android 키 생성(KeyGenParameterSpec)은 setUnlockedDeviceRequired·setUserAuthenticationRequired를 쓰지 않아
+        // 잠긴 동안에도 쓸 수 있다(API 기준, 실기기 미확인). 요청한 접근성과 무관하게 실제 값을 보고한다.
+        val own = keyPair()
+        val key =
+            AndroidKeystoreKey(
+                alias = "test",
+                privateKey = own.private,
+                publicKey = EcPublicKeyEncoding.encode((own.public as ECPublicKey).w.affineX, (own.public as ECPublicKey).w.affineY),
+                protection = KeyProtection.STRONGBOX,
+            )
+        assertEquals(KeyAccessibility.AFTER_FIRST_UNLOCK, key.accessibility)
+    }
 }

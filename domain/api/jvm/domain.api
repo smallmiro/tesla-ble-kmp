@@ -10511,6 +10511,16 @@ public final class dev/mirolab/teslable/model/VehicleError$KeyStoreError$KeyNotF
 	public fun toString ()Ljava/lang/String;
 }
 
+public final class dev/mirolab/teslable/model/VehicleError$KeyStoreError$Locked : dev/mirolab/teslable/model/VehicleError$KeyStoreError {
+	public static final field INSTANCE Ldev/mirolab/teslable/model/VehicleError$KeyStoreError$Locked;
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getMayHaveSucceeded ()Z
+	public fun getMessage ()Ljava/lang/String;
+	public fun getTemporary ()Z
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
 public final class dev/mirolab/teslable/model/VehicleError$KeyStoreError$PlatformFailure : dev/mirolab/teslable/model/VehicleError$KeyStoreError {
 	public fun <init> (Ljava/lang/String;)V
 	public final fun component1 ()Ljava/lang/String;
@@ -10929,6 +10939,14 @@ public abstract interface class dev/mirolab/teslable/port/EcdhPrivateKey {
 	public abstract fun sharedX (Ldev/mirolab/teslable/model/PublicKeyBytes;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
+public final class dev/mirolab/teslable/port/KeyAccessibility : java/lang/Enum {
+	public static final field AFTER_FIRST_UNLOCK Ldev/mirolab/teslable/port/KeyAccessibility;
+	public static final field WHEN_UNLOCKED Ldev/mirolab/teslable/port/KeyAccessibility;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/port/KeyAccessibility;
+	public static fun values ()[Ldev/mirolab/teslable/port/KeyAccessibility;
+}
+
 public final class dev/mirolab/teslable/port/KeyPolicy : java/lang/Enum {
 	public static final field PREFER_HARDWARE Ldev/mirolab/teslable/port/KeyPolicy;
 	public static final field REQUIRE_HARDWARE Ldev/mirolab/teslable/port/KeyPolicy;
@@ -11057,6 +11075,7 @@ public final class dev/mirolab/teslable/port/VehicleAdvertisement {
 }
 
 public abstract interface class dev/mirolab/teslable/port/VehicleKey : dev/mirolab/teslable/port/EcdhPrivateKey {
+	public abstract fun getAccessibility ()Ldev/mirolab/teslable/port/KeyAccessibility;
 	public abstract fun getAlias ()Ljava/lang/String;
 	public abstract fun getProtection ()Ldev/mirolab/teslable/port/KeyProtection;
 }
@@ -11068,7 +11087,8 @@ public abstract interface class dev/mirolab/teslable/port/VehicleKeyStore {
 	public static synthetic fun delete$default (Ldev/mirolab/teslable/port/VehicleKeyStore;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public abstract fun get (Ljava/lang/String;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun get$default (Ldev/mirolab/teslable/port/VehicleKeyStore;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
-	public abstract fun getOrCreate (Ljava/lang/String;Ldev/mirolab/teslable/port/KeyPolicy;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public abstract fun getOrCreate (Ljava/lang/String;Ldev/mirolab/teslable/port/KeyPolicy;Ldev/mirolab/teslable/port/KeyAccessibility;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun getOrCreate (Ljava/lang/String;Ldev/mirolab/teslable/port/KeyPolicy;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun getOrCreate$default (Ldev/mirolab/teslable/port/VehicleKeyStore;Ljava/lang/String;Ldev/mirolab/teslable/port/KeyPolicy;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
@@ -11080,6 +11100,7 @@ public final class dev/mirolab/teslable/port/VehicleKeyStore$Companion {
 public final class dev/mirolab/teslable/port/VehicleKeyStore$DefaultImpls {
 	public static synthetic fun delete$default (Ldev/mirolab/teslable/port/VehicleKeyStore;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static synthetic fun get$default (Ldev/mirolab/teslable/port/VehicleKeyStore;Ljava/lang/String;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static fun getOrCreate (Ldev/mirolab/teslable/port/VehicleKeyStore;Ljava/lang/String;Ldev/mirolab/teslable/port/KeyPolicy;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun getOrCreate$default (Ldev/mirolab/teslable/port/VehicleKeyStore;Ljava/lang/String;Ldev/mirolab/teslable/port/KeyPolicy;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 

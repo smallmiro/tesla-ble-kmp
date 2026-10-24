@@ -1,5 +1,7 @@
 // 의도적으로 :adapter-crypto 의 KeychainItems.kt / KeychainInterop.kt / CoreFoundationInterop.kt(일부)와 같은 코드다.
 // 모듈 간 의존이 금지되어(ADR-0001) 공유하지 않고 복사한다. 한쪽을 고치면 다른 쪽도 같이 고친다.
+// 차이 하나(ADR-0014): :adapter-crypto 판은 키 별칭마다 보호 등급을 정하고(write 인자) 다시 읽는다(read가 속성도 요청).
+// 세션 캐시는 서비스 하나에 고정 보호 등급(생성자 인자)을 쓰고 읽을 필요가 없다.
 package dev.mirolab.teslable.storage
 
 import kotlinx.cinterop.ExperimentalForeignApi
