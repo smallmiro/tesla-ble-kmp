@@ -60,6 +60,7 @@
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-support">サポート範囲</a></li>
 <li><a href="#sec-android">Android</a></li>
+<li><a href="#sec-android-bg">サンプルアプリの Android バックグラウンド利用</a></li>
 <li><a href="#sec-ios">iOS</a></li>
 <li><a href="#sec-keys">キーの保存</a></li>
 <li><a href="#sec-cache">セッションキャッシュ</a></li>
@@ -88,6 +89,15 @@
 <strong>キーファイルを自動バックアップから除外してください</strong>
 <p>ソフトウェアキーは <code>files/teslable/keys/&lt;alias&gt;.enc</code> として保存され、バックアップされることのない Keystore キーでラップされています。自動バックアップがラップ用のキーなしでこのファイルを復元すると、キーは破損していると判定されます。<code>dataExtractionRules</code> または <code>fullBackupContent</code> で <code>files/teslable/keys/</code> を除外してください。サンプルアプリは単に <code>android:allowBackup="false"</code> を設定しています。<code>files/teslable/sessions</code> の保存済みセッションは失われても害はありませんが、除外しておく方がすっきりします。</p>
 </div>
+
+<h2 id="sec-android-bg">サンプルアプリの Android バックグラウンド利用</h2>
+<p>ライブラリはフォアグラウンドでの利用をサポートします（サポート範囲を参照）。Android サンプルのモニターアプリは<strong>フォアグラウンドサービス</strong>でバックグラウンドでも接続を保ちますが、まだ実機では確認していないため、バックグラウンドでのライブラリの動作は未確認として扱ってください。</p>
+<ul>
+<li>マニフェスト: <code>FOREGROUND_SERVICE</code>、<code>FOREGROUND_SERVICE_CONNECTED_DEVICE</code>、<code>POST_NOTIFICATIONS</code>（実行時に要求）、<code>&lt;service android:foregroundServiceType="connectedDevice" /&gt;</code>。<code>INTERNET</code> は引き続きありません。</li>
+<li>Android 14 以降: <code>connectedDevice</code> のフォアグラウンドサービスは、<code>BLUETOOTH_CONNECT</code> が許可された後で、かつアプリが表示されている間にだけ（または別の開始の例外が当てはまるとき）開始できます。システムがサービスを再開してくれるとは期待しないでください。</li>
+<li>サービスがライブラリのインスタンスを 1 つ所有し、リンクが切れるたびに <code>vehicle.disconnect()</code> を呼んでから、新しい <code>Vehicle</code> で再接続します（2 秒待ち、最大 30 秒まで倍々）。再試行はライブラリではなくアプリの仕事です。</li>
+<li>キーストア: サンプルは <code>KeyAccessibility.AFTER_FIRST_UNLOCK</code> でキーを作ります。Android はこの引数を無視して <code>AFTER_FIRST_UNLOCK</code> を返します（API 仕様に基づく値で、まだ端末では確認していません。キーの保管を参照）。</li>
+</ul>
 
 <h2 id="sec-ios">iOS</h2>
 <ul>

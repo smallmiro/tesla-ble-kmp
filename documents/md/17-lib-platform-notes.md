@@ -31,6 +31,21 @@ Scope: M3. Items not yet confirmed on a real device are marked so. Go original B
 - The session cache lives under `filesDir/teslable/sessions`. Losing it is harmless (the next connection handshakes
   again), but excluding it from backup the same way is cleaner.
 
+### Android background use by the sample
+
+The library supports use in the foreground (see Support). The Android sample's monitor app keeps its connection in the
+background with a **foreground service** and has not been checked on a real device yet, so treat the library behaviour in
+the background as unconfirmed:
+
+- Manifest: `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`, `POST_NOTIFICATIONS` (asked at runtime) and
+  `<service android:foregroundServiceType="connectedDevice" />`. Still no `INTERNET`.
+- Android 14 and later: a `connectedDevice` foreground service can only start after `BLUETOOTH_CONNECT` is granted, and
+  only while the app is visible (or another start exemption applies). Do not rely on the system to restart it.
+- The service owns the single `TeslaBle` and calls `vehicle.disconnect()` after every link loss, then connects again with
+  a new `Vehicle` (2 s wait, doubling to 30 s). It is the app's job, not the library's, to retry.
+- Key store: the sample creates its key with `KeyAccessibility.AFTER_FIRST_UNLOCK`; Android ignores the argument and
+  reports `AFTER_FIRST_UNLOCK` (per API, not yet confirmed on a device, see Key storage).
+
 ## iOS
 
 - `Info.plist` needs `NSBluetoothAlwaysUsageDescription`. **The first scan shows the permission prompt.** If the user

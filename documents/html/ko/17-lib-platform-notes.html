@@ -60,6 +60,7 @@
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
 <li><a href="#sec-support">지원 범위</a></li>
 <li><a href="#sec-android">Android</a></li>
+<li><a href="#sec-android-bg">샘플 앱의 Android 백그라운드 사용</a></li>
 <li><a href="#sec-ios">iOS</a></li>
 <li><a href="#sec-keys">키 저장</a></li>
 <li><a href="#sec-cache">세션 캐시</a></li>
@@ -88,6 +89,15 @@
 <strong>키 파일을 자동 백업에서 제외하세요</strong>
 <p>소프트웨어 키는 <code>files/teslable/keys/&lt;alias&gt;.enc</code>로 저장되며, 백업되지 않는 Keystore 키로 래핑됩니다. 자동 백업이 래핑 키 없이 파일만 복원하면 키가 손상된 것으로 읽힙니다. <code>dataExtractionRules</code>나 <code>fullBackupContent</code>에서 <code>files/teslable/keys/</code>를 제외하세요. 샘플 앱은 간단히 <code>android:allowBackup="false"</code>를 설정합니다. <code>files/teslable/sessions</code>의 저장된 세션은 잃어도 문제없지만, 제외하는 편이 깔끔합니다.</p>
 </div>
+
+<h2 id="sec-android-bg">샘플 앱의 Android 백그라운드 사용</h2>
+<p>라이브러리는 포그라운드 사용을 지원합니다(지원 범위 참고). Android 샘플의 모니터 앱은 <strong>포그라운드 서비스</strong>로 백그라운드에서도 연결을 유지하며 아직 실기기에서 확인하지 않았으므로, 백그라운드에서의 라이브러리 동작은 확인되지 않은 것으로 보세요.</p>
+<ul>
+<li>매니페스트: <code>FOREGROUND_SERVICE</code>, <code>FOREGROUND_SERVICE_CONNECTED_DEVICE</code>, <code>POST_NOTIFICATIONS</code>(런타임에 요청), <code>&lt;service android:foregroundServiceType="connectedDevice" /&gt;</code>. <code>INTERNET</code>은 여전히 없습니다.</li>
+<li>Android 14 이상: <code>connectedDevice</code> 포그라운드 서비스는 <code>BLUETOOTH_CONNECT</code>가 허용된 뒤에, 그리고 앱이 보이는 동안에만(또는 다른 시작 예외가 적용될 때) 시작할 수 있습니다. 시스템이 서비스를 다시 시작해 주리라고 기대하지 마세요.</li>
+<li>서비스가 라이브러리 인스턴스 하나를 소유하고, 링크가 끊길 때마다 <code>vehicle.disconnect()</code>를 부른 뒤 새 <code>Vehicle</code>로 다시 연결합니다(2초 대기, 최대 30초까지 두 배씩). 재시도는 라이브러리가 아니라 앱이 할 일입니다.</li>
+<li>키 저장소: 샘플은 <code>KeyAccessibility.AFTER_FIRST_UNLOCK</code>으로 키를 만듭니다. Android는 이 인자를 무시하고 <code>AFTER_FIRST_UNLOCK</code>을 돌려줍니다(API 문서 기준이며 아직 기기에서 확인하지 않았습니다. 키 저장 참고).</li>
+</ul>
 
 <h2 id="sec-ios">iOS</h2>
 <ul>

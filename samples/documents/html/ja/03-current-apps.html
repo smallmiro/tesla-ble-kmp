@@ -38,7 +38,7 @@
 </nav>
 <main class="content">
 <h1>3. 現在のアプリ</h1>
-<p class="lead"><code>main</code> にある 2 つのアプリの 2026-10-24 時点（マイルストーン M4）の動作です。どちらも 1 画面のツールで、ボタンを押すとライブラリの呼び出しが 1 つ実行され、結果行が 1 行追加されます。</p>
+<p class="lead">2 つのアプリの 2026-10-24 時点（マイルストーン M4）の動作です。iOS アプリはまだ 1 画面のツールで、ボタンを押すとライブラリの呼び出しが 1 つ実行され、結果行が 1 行追加されます。Android アプリはモニターアプリで、以前の 1 画面は Control タブになりました。</p>
 
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-android">Android</a></li>
@@ -47,15 +47,26 @@
 </ol></div>
 
 <h2 id="sec-android">Android</h2>
-<p>Gradle モジュールは <code>:samples:android</code>、パッケージ名とアプリケーション ID は <code>dev.mirolab.teslable.sample</code>、<code>minSdk</code> は 31 です。<code>MainActivity.kt</code> が画面と削除の確認ダイアログを描画します。<code>SampleState.kt</code> は状態を保持し、すべての操作を <code>exclusive { }</code> 経由で実行するため、ライブラリの呼び出しは同時に 1 つしか動きません。</p>
+<p>モニターアプリです（<a href="04-monitor-app.html">4. モニターアプリ</a>、SFR-010～SFR-017）。4 つのタブとフォアグラウンドサービスでできています。ビルド <code>0.2.0 (2)</code>、単体テストは通過し、実機確認は待機中です。</p>
+<p>Gradle モジュールは <code>:samples:android</code>、パッケージ名とアプリケーション ID は <code>dev.mirolab.teslable.sample</code>、<code>minSdk</code> は 31 です。<code>MainActivity.kt</code> がタブと権限の要求を担当し、画面が表示されている間は画面を点灯させたままにします。<code>MonitorService.kt</code> と <code>MonitorEngine.kt</code> がサービス、接続、イベント、問い合わせ、ログを動かします。<code>SampleState.kt</code> は Control タブの状態を保持し、すべての操作を <code>exclusive { }</code> 経由で実行するため、ライブラリの呼び出しは同時に 1 つしか動きません。タブの画面は <code>ui/</code> にあります。単体テストは <code>src/test/</code> にあり、<code>./gradlew :samples:android:testDebugUnitTest</code> で実行します。</p>
+<table>
+<thead><tr><th>タブ</th><th>内容</th></tr></thead>
+<tbody>
+<tr><td>Live</td><td>接続バナー、VIN の保存と消去、接続と切断、項目ごとの最新のブロードキャスト状態と最後に変わった時刻、最近のイベント</td></tr>
+<tr><td>Query</td><td><code>vehicleStatus()</code>、<code>keySummary()</code>、<code>listKeys()</code> を 30 秒ごと（変更可）に問い合わせ、結果と時刻、セッション、「今すぐ問い合わせ」</td></tr>
+<tr><td>Log</td><td>行数、認識できないイベントの数、最後の行、ファイルのパス、メモと Mark、新しいファイル</td></tr>
+<tr><td>Control</td><td>以前の 1 画面（下）。モニターの接続とキーを使います</td></tr>
+</tbody>
+</table>
+<p>Control タブ:</p>
 <table>
 <thead><tr><th>グループ</th><th>ボタン</th><th>ライブラリ呼び出し</th></tr></thead>
 <tbody>
-<tr><td>キー</td><td>キーを作成または読み込む</td><td><code>keys.getOrCreate()</code></td></tr>
-<tr><td>BLE</td><td>スキャン、接続、VehicleStatus、キー一覧（各行に削除ボタン）、切断</td><td><code>scan(vin)</code>, <code>connect(vin, key)</code>, <code>vehicleStatus()</code>, <code>listKeys()</code>, <code>removeKey()</code>, <code>disconnect()</code></td></tr>
-<tr><td>ペアリング</td><td>登録をリクエスト、登録を確認</td><td>進捗イベント付きの <code>addKeyRequest()</code>。確認では、<code>KeyNotPaired</code> が返らなくなるまで最大 2 分間、3 秒ごとに <code>sessionInfo(publicKey, INFOTAINMENT)</code> を呼びます</td></tr>
-<tr><td>セッション</td><td>VCSEC のみハンドシェイク、すべてハンドシェイク、セッション状態を表示</td><td><code>startSession(domains)</code>, <code>sessions</code></td></tr>
-<tr><td>操作</td><td>ロック、アンロック、トランクを開ける、トランクを閉める、フランクを開ける、ウェイクアップ</td><td>VCSEC コマンド。結果が <code>Uncertain</code> の場合は、続けて <code>vehicleStatus()</code> で再取得します</td></tr>
+<tr><td>キー</td><td>キーの作成／読み込み（<code>teslable-monitor</code>、保護レベルとアクセシビリティを表示）</td><td><code>keys.getOrCreate(alias, policy, accessibility)</code></td></tr>
+<tr><td>BLE</td><td>スキャン、接続、VehicleStatus、キー一覧（各行に削除）、切断</td><td><code>scan(vin)</code>、モニターの接続、<code>vehicleStatus()</code>、<code>listKeys()</code>、<code>removeKey()</code>、<code>disconnect()</code></td></tr>
+<tr><td>ペアリング</td><td>キーの登録要求、登録の確認</td><td>進行イベント付きの <code>addKeyRequest()</code>。登録の確認は、<code>KeyNotPaired</code> が返らなくなるまで 3 秒ごとに最大 2 分間 <code>sessionInfo(publicKey, INFOTAINMENT)</code> を呼びます</td></tr>
+<tr><td>セッション</td><td>ハンドシェイク: VCSEC のみ、ハンドシェイク: すべて、セッション状態の表示</td><td><code>startSession(domains)</code>、<code>sessions</code></td></tr>
+<tr><td>制御</td><td>施錠、解錠、トランクを開ける、トランクを閉める、フランクを開ける、ウェイクアップ</td><td>VCSEC コマンド。<code>Uncertain</code> の後は <code>vehicleStatus()</code> で再取得します</td></tr>
 </tbody>
 </table>
 

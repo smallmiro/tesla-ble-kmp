@@ -38,7 +38,7 @@
 </nav>
 <main class="content">
 <h1>3. Current Apps</h1>
-<p class="lead">What the two apps on <code>main</code> do as of 2026-10-24 (milestone M4). Both are single-screen tools: each button runs one library call and adds a result line.</p>
+<p class="lead">What the two apps do as of 2026-10-24 (milestone M4). The iOS app is still a single-screen tool: each button runs one library call and adds a result line. The Android app is the monitor app; its former single screen is the Control tab.</p>
 
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#sec-android">Android</a></li>
@@ -47,12 +47,23 @@
 </ol></div>
 
 <h2 id="sec-android">Android</h2>
-<p>Gradle module <code>:samples:android</code>, package and application id <code>dev.mirolab.teslable.sample</code>, <code>minSdk</code> 31. <code>MainActivity.kt</code> draws the screen and the removal confirmation dialog. <code>SampleState.kt</code> holds the state and runs every action through <code>exclusive { }</code>, so only one library call runs at a time.</p>
+<p>The monitor app (<a href="04-monitor-app.html">4. Monitor App</a>, SFR-010 to SFR-017): four tabs and a foreground service. Build <code>0.2.0 (2)</code>; the unit tests pass and the real-device check is pending.</p>
+<p>Gradle module <code>:samples:android</code>, package and application id <code>dev.mirolab.teslable.sample</code>, <code>minSdk</code> 31. <code>MainActivity.kt</code> holds the tabs and the permission requests and keeps the screen on while it is visible. <code>MonitorService.kt</code> and <code>MonitorEngine.kt</code> run the service, the connection, the events, the queries and the logs. <code>SampleState.kt</code> holds the Control tab state and runs every action through <code>exclusive { }</code>, so only one library call runs at a time. The tabs are in <code>ui/</code>. Unit tests are in <code>src/test/</code> and run with <code>./gradlew :samples:android:testDebugUnitTest</code>.</p>
+<table>
+<thead><tr><th>Tab</th><th>Contents</th></tr></thead>
+<tbody>
+<tr><td>Live</td><td>Connection banner, VIN save and clear, Connect and Disconnect, the latest broadcast status per item with its last-changed time, recent events</td></tr>
+<tr><td>Query</td><td><code>vehicleStatus()</code>, <code>keySummary()</code> and <code>listKeys()</code> every 30 seconds (adjustable), results with outcome and time, sessions, "query now"</td></tr>
+<tr><td>Log</td><td>Line counts, unrecognized count, last lines, file path, memo and Mark, new file</td></tr>
+<tr><td>Control</td><td>The former single screen (below). It uses the monitor's connection and key</td></tr>
+</tbody>
+</table>
+<p>The Control tab:</p>
 <table>
 <thead><tr><th>Group</th><th>Buttons</th><th>Library calls</th></tr></thead>
 <tbody>
-<tr><td>Key</td><td>Create or load key</td><td><code>keys.getOrCreate()</code></td></tr>
-<tr><td>BLE</td><td>Scan, Connect, VehicleStatus, Key list (Delete on each row), Disconnect</td><td><code>scan(vin)</code>, <code>connect(vin, key)</code>, <code>vehicleStatus()</code>, <code>listKeys()</code>, <code>removeKey()</code>, <code>disconnect()</code></td></tr>
+<tr><td>Key</td><td>Create or load key (<code>teslable-monitor</code>, shows protection and accessibility)</td><td><code>keys.getOrCreate(alias, policy, accessibility)</code></td></tr>
+<tr><td>BLE</td><td>Scan, Connect, VehicleStatus, Key list (Delete on each row), Disconnect</td><td><code>scan(vin)</code>, the monitor's connection, <code>vehicleStatus()</code>, <code>listKeys()</code>, <code>removeKey()</code>, <code>disconnect()</code></td></tr>
 <tr><td>Pairing</td><td>Request enrollment, Confirm enrollment</td><td><code>addKeyRequest()</code> with progress events. Confirmation calls <code>sessionInfo(publicKey, INFOTAINMENT)</code> every 3 seconds for up to 2 minutes until it no longer returns <code>KeyNotPaired</code></td></tr>
 <tr><td>Session</td><td>Handshake VCSEC only, Handshake all, Show session state</td><td><code>startSession(domains)</code>, <code>sessions</code></td></tr>
 <tr><td>Control</td><td>Lock, Unlock, Open trunk, Close trunk, Open frunk, Wake up</td><td>VCSEC commands. An <code>Uncertain</code> result is followed by a <code>vehicleStatus()</code> re-query</td></tr>

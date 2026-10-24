@@ -17,7 +17,7 @@
 | 목적 | 명령 |
 |---|---|
 | 빌드 | `./gradlew :samples:android:assembleDebug` |
-| 단위 테스트 | `./gradlew :samples:android:testDebugUnitTest` (소스 세트 `src/test/` 는 첫 테스트와 함께 만듭니다) |
+| 단위 테스트 | `./gradlew :samples:android:testDebugUnitTest` |
 | 전체 게이트 | `tools/ci/verify.sh` |
 
 - 실기기 확인은 체크리스트로 하고 결과에 VIN·공개키 전문을 적지 않습니다.

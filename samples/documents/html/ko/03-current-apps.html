@@ -38,7 +38,7 @@
 </nav>
 <main class="content">
 <h1>3. 현재 앱</h1>
-<p class="lead">2026-10-24 기준(마일스톤 M4) <code>main</code>에 있는 두 앱이 하는 일입니다. 둘 다 화면 하나짜리 도구로, 버튼 하나가 라이브러리 호출 하나를 실행하고 결과 줄을 추가합니다.</p>
+<p class="lead">2026-10-24 기준(마일스톤 M4) 두 앱이 하는 일입니다. iOS 앱은 아직 화면 하나짜리 도구로, 버튼 하나가 라이브러리 호출 하나를 실행하고 결과 줄을 추가합니다. Android 앱은 모니터 앱이며, 예전의 단일 화면은 Control 탭이 되었습니다.</p>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
 <li><a href="#sec-android">Android</a></li>
@@ -47,15 +47,26 @@
 </ol></div>
 
 <h2 id="sec-android">Android</h2>
-<p>Gradle 모듈 <code>:samples:android</code>, 패키지와 애플리케이션 ID는 <code>dev.mirolab.teslable.sample</code>, <code>minSdk</code>는 31입니다. <code>MainActivity.kt</code>가 화면과 삭제 확인 대화상자를 그립니다. <code>SampleState.kt</code>는 상태를 보관하고 모든 동작을 <code>exclusive { }</code>로 실행하므로 라이브러리 호출은 한 번에 하나만 실행됩니다.</p>
+<p>모니터 앱입니다(<a href="04-monitor-app.html">4. 모니터 앱</a>, SFR-010~SFR-017). 탭 네 개와 포그라운드 서비스로 이루어져 있습니다. 빌드 <code>0.2.0 (2)</code>, 단위 테스트는 통과했고 실기기 확인은 대기 중입니다.</p>
+<p>Gradle 모듈 <code>:samples:android</code>, 패키지와 애플리케이션 ID는 <code>dev.mirolab.teslable.sample</code>, <code>minSdk</code>는 31입니다. <code>MainActivity.kt</code>는 탭과 권한 요청을 담당하고 화면이 보이는 동안 화면을 켜 둡니다. <code>MonitorService.kt</code>와 <code>MonitorEngine.kt</code>가 서비스, 연결, 이벤트, 조회, 로그를 운영합니다. <code>SampleState.kt</code>는 Control 탭의 상태를 보관하고 모든 동작을 <code>exclusive { }</code>로 실행하므로 라이브러리 호출은 한 번에 하나만 실행됩니다. 탭 화면은 <code>ui/</code>에 있습니다. 단위 테스트는 <code>src/test/</code>에 있고 <code>./gradlew :samples:android:testDebugUnitTest</code>로 실행합니다.</p>
+<table>
+<thead><tr><th>탭</th><th>내용</th></tr></thead>
+<tbody>
+<tr><td>Live</td><td>연결 배너, VIN 저장과 지우기, 연결과 연결 끊기, 항목별 최신 방송 상태와 마지막으로 바뀐 시각, 최근 이벤트</td></tr>
+<tr><td>Query</td><td><code>vehicleStatus()</code>, <code>keySummary()</code>, <code>listKeys()</code>를 30초마다(변경 가능) 조회, 결과와 시각, 세션, "지금 조회"</td></tr>
+<tr><td>Log</td><td>줄 수, 인식하지 못한 이벤트 수, 마지막 줄들, 파일 경로, 메모와 Mark, 새 파일</td></tr>
+<tr><td>Control</td><td>예전의 단일 화면(아래). 모니터의 연결과 키를 사용합니다</td></tr>
+</tbody>
+</table>
+<p>Control 탭:</p>
 <table>
 <thead><tr><th>그룹</th><th>버튼</th><th>라이브러리 호출</th></tr></thead>
 <tbody>
-<tr><td>키</td><td>키 생성 또는 불러오기</td><td><code>keys.getOrCreate()</code></td></tr>
-<tr><td>BLE</td><td>스캔, 연결, VehicleStatus, 키 목록(각 행에 삭제), 연결 해제</td><td><code>scan(vin)</code>, <code>connect(vin, key)</code>, <code>vehicleStatus()</code>, <code>listKeys()</code>, <code>removeKey()</code>, <code>disconnect()</code></td></tr>
-<tr><td>페어링</td><td>등록 요청, 등록 확인</td><td>진행 이벤트가 있는 <code>addKeyRequest()</code>. 확인은 <code>KeyNotPaired</code>가 더 이상 반환되지 않을 때까지 최대 2분 동안 3초마다 <code>sessionInfo(publicKey, INFOTAINMENT)</code>를 호출합니다</td></tr>
-<tr><td>세션</td><td>VCSEC만 핸드셰이크, 전체 핸드셰이크, 세션 상태 보기</td><td><code>startSession(domains)</code>, <code>sessions</code></td></tr>
-<tr><td>제어</td><td>잠금, 잠금 해제, 트렁크 열기, 트렁크 닫기, 프렁크 열기, 깨우기</td><td>VCSEC 명령. <code>Uncertain</code> 결과 뒤에는 <code>vehicleStatus()</code> 재조회가 따릅니다</td></tr>
+<tr><td>키</td><td>키 만들기/불러오기(<code>teslable-monitor</code>, 보호 수준과 접근성 표시)</td><td><code>keys.getOrCreate(alias, policy, accessibility)</code></td></tr>
+<tr><td>BLE</td><td>스캔, 연결, VehicleStatus, 키 목록(행마다 삭제), 연결 끊기</td><td><code>scan(vin)</code>, 모니터의 연결, <code>vehicleStatus()</code>, <code>listKeys()</code>, <code>removeKey()</code>, <code>disconnect()</code></td></tr>
+<tr><td>페어링</td><td>키 등록 요청, 등록 확인</td><td>진행 이벤트가 있는 <code>addKeyRequest()</code>. 등록 확인은 <code>KeyNotPaired</code>가 더 이상 돌아오지 않을 때까지 3초마다, 최대 2분 동안 <code>sessionInfo(publicKey, INFOTAINMENT)</code>를 호출합니다</td></tr>
+<tr><td>세션</td><td>핸드셰이크: VCSEC만, 핸드셰이크: 전체, 세션 상태 보기</td><td><code>startSession(domains)</code>, <code>sessions</code></td></tr>
+<tr><td>제어</td><td>잠금, 해제, 트렁크 열기, 트렁크 닫기, 프렁크 열기, 깨우기</td><td>VCSEC 명령. <code>Uncertain</code> 결과 뒤에는 <code>vehicleStatus()</code>로 다시 조회합니다</td></tr>
 </tbody>
 </table>
 

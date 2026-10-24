@@ -1,8 +1,9 @@
 # Monitor App (SFR-010 to SFR-017)
 
-Status: **planned** (issue #91), ready to build: the library APIs it needs are available, `Vehicle.events`
-(`12-lib-getting-started.md` §Broadcast events, `14-lib-reading-state.md` B2) and the iOS key accessibility
-`KeyAccessibility` (`13-lib-pairing.md` §Key accessibility, FR-037). This page describes the target. Library design:
+Status: **Android implemented** (build `0.2.0 (2)`; unit tests and build pass, **real-device
+check pending**). **iOS planned** (plan Task 10). Issue #91. The library APIs it needs are available: `Vehicle.events`
+(`12-lib-getting-started.md` §Broadcast events, `14-lib-reading-state.md` B2) and the key accessibility `KeyAccessibility`
+(`13-lib-pairing.md` §Key accessibility, FR-037). Library design:
 `docs/superpowers/specs/2026-10-24-vehicle-events-monitor-design.md`. Plan:
 `docs/superpowers/plans/2026-10-24-vehicle-events-monitor.md`.
 
@@ -64,6 +65,18 @@ is a `session` line with `platform`, `app` (version and build), `os`, `phone` mo
 - `observe`: library lines with tag `observe` (already VIN-masked by the library). BLE `TX:`/`RX:` lines are never written.
 - `link.state`: `connecting`, `connected`, `disconnected`, `backoff`, `stopped`.
 
+Field notes (both apps write the same names and order):
+
+- `event.summary` starts with `lock=<LockState> gear=<Gear> presence=<UserPresence>`, then `sleep=…`, `doors=<FD>/<FP>/<RD>/<RP>`,
+  `frunk=…`, `trunk=…`, `chargePort=…` for `Status`; `level=… reasons=[…]` for `AuthenticationRequest`; `unknownFields=[…]` for
+  `Unrecognized`.
+- `link`: `reason`, `attempt` and `delayMs` are left out when they do not apply. `connecting.attempt` counts the tries since the
+  start or since the link dropped. `backoff.attempt` is the number of consecutive failures (a dropped link counts as the
+  first) and `delayMs` is the wait before the next try, so the delays read 2000, 4000, 8000, 16000, 30000, 30000. A
+  `disconnected` line is written when the link drops (with the library's reason when it gave one), followed by a `backoff` line.
+  A connection that stayed up for 10 seconds or more restarts the wait at 2 seconds.
+- `query.summary` for `vehicleStatus` uses the same form as `event.summary` of a `Status`. It has no public keys or VINs.
+
 Rules:
 
 - **VIN masking** before writing: any ASCII run matching `[A-HJ-NPR-Z0-9]{17}` in the raw bytes or in text is replaced
@@ -75,6 +88,53 @@ Rules:
 - Location: Android `getExternalFilesDir("logs")` (= `Android/data/dev.mirolab.teslable.sample/files/logs/`, readable by
   `adb pull`); iOS `Documents/logs/` with `UIFileSharingEnabled` and `LSSupportsOpeningDocumentsInPlace` (also visible in
   Finder and the Files app).
+
+## Android implementation
+
+Files in `samples/android/src/main/kotlin/dev/mirolab/teslable/sample/`:
+
+| File | Role |
+|---|---|
+| `MonitorService.kt` | Foreground service (`foregroundServiceType="connectedDevice"`). Shows the notification (link state, **Stop**) and keeps the engine alive. Started while the screen is visible, after `BLUETOOTH_CONNECT` was granted. `START_NOT_STICKY` |
+| `MonitorEngine.kt` | One per process: `TeslaBle`, `ConnectionLoop`, the `Vehicle.events` subscription, the 30 s query poll, the saved VIN, the monitor key, the log writer. `observe` lines come through a `TeslaLogger` that forwards everything else to `DebugLogger` |
+| `ConnectionLoop.kt` | State machine `Idle`, `Connecting(attempt)`, `Connected`, `Backoff(attempt, delay, reason)`, `Stopped`; knows nothing about the library (unit-tested with virtual time) |
+| `LogLine.kt`, `LogWriter.kt`, `VinMask.kt` | Log line format, file writer behind the `LogSink` interface, VIN masking |
+| `LiveState.kt` | Reduces events into the Live tab state (last-changed time per item) |
+| `ui/` | `LiveTab`, `QueryTab`, `LogTab`, `ControlTab` (the former single screen), shared helpers |
+
+Library calls used (manual page and section):
+
+| Call | Where | Manual |
+|---|---|---|
+| `TeslaBle.create`, `connect(vin, key)`, `vehicle.disconnect()` after every link loss | `MonitorEngine` | 12 §Flow, 17 §Connection slots and dropped links |
+| `vehicle.connection` (wait for `Disconnected`) | `MonitorEngine.awaitLoss` | 12 §Next steps, 14 §Connection and session state |
+| `vehicle.events` collected in its own coroutine; `raw` read once and masked before it is stored | `MonitorEngine.collectEvents` | 12 §Broadcast events, 14 B2, B2.4 |
+| `vehicleStatus()`, `keySummary()`, `listKeys()`, `sessions` every 30 s; `Uncertain` and `Failure` shown as they are | `MonitorEngine.runQueries` | 14 Calls, 16 §Three outcomes |
+| `keys.getOrCreate("teslable-monitor", PREFER_HARDWARE, AFTER_FIRST_UNLOCK)`; `Locked` waits and retries, never deletes | `MonitorEngine.ensureKey` | 13 §Key accessibility, 16 §Transport and key store errors |
+| `TeslaLogger` (tag `observe`) | `ObserveLogger` in `MonitorEngine.kt` | 18 §Observation log |
+| `Vin.parseOrNull`, `scan`, `addKeyRequest`, `sessionInfo`, `startSession`, VCSEC commands, `removeKey` | Control tab (`SampleState`) | 12, 13, 15, 16 |
+
+How it behaves, where the design left room:
+
+- **One connection.** The Control tab uses the monitor's connection and key (the car allows 3 BLE connections). Its Connect
+  and Disconnect buttons start and stop the monitor's loop.
+- **One engine per process.** It is created on first use and kept for the process (one `TeslaBle` per process,
+  `12-lib-getting-started.md`); the service keeps the process in the foreground. The notification's **Stop** disconnects,
+  stops automatic reconnection and takes the service down. Opening the app again in the same process does **not** connect
+  by itself: press Connect. A new process connects by itself when a VIN is saved.
+- **Key errors.** `KeyStoreError.Locked` fails the attempt, so the loop waits and reads the key again (the key is never
+  deleted). Any other key error connects without a key: broadcasts and the three queries need none (`14-lib-reading-state.md` B2.4).
+  The Control tab shows the key's `protection` and `accessibility` and a warning if the key is `WHEN_UNLOCKED`.
+- **Live tab.** The recent-events list holds changes, authentication requests and unrecognized broadcasts (at most 100);
+  repeated equal status broadcasts only move "last broadcast". Every event, repeat or not, goes into the log file. The first
+  status shows "first seen" times because nothing earlier is known. The saved VIN is shown masked.
+- **Query tab.** Changing the interval queries once at once and then counts again. The queries do not wake the car.
+- **Log files.** A size is counted in decimal MB (20 000 000 and 200 000 000 bytes). Pruning keeps the folder at or below the
+  limit, never deleting the file being written. If two files would start in the same second the second one is named one second
+  later. Each line is flushed as it is written. The writer has a queue of 4096 lines; a full queue drops the new line and counts it
+  (Log tab) instead of blocking.
+- **Pulling.** `adb pull` puts the files in `samples/logs/android/<date>/logs/`.
+- **Not covered by the gate.** `lintKotlin` and `detekt` run only on library modules, not on `samples/`.
 
 ## Real-vehicle checklist (both apps)
 
