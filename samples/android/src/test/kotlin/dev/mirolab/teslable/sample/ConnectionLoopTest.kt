@@ -3,6 +3,7 @@ package dev.mirolab.teslable.sample
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
@@ -209,6 +210,34 @@ class ConnectionLoopTest {
 
             assertEquals(2.seconds, f.backoffs.last().delay)
             assertEquals(1, f.backoffs.last().attempt)
+        }
+
+    @Test
+    fun connectDuringStopKeepsTheNewLoop() =
+        runTest {
+            val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
+            var calls = 0
+            val loop =
+                ConnectionLoop<String>(
+                    scope = backgroundScope,
+                    connect = { ConnectOutcome.Connected("car${++calls}") },
+                    awaitLoss = { Channel<String?>().receive() },
+                    release = { gate.await() }, // 정리가 끝나기 전에 사용자가 연결을 다시 누른 상황
+                    clock = testScheduler.timeSource,
+                )
+            loop.start()
+            runCurrent()
+            val stopping = launch { loop.stop() }
+            runCurrent()
+
+            loop.start()
+            runCurrent()
+            gate.complete(Unit)
+            runCurrent()
+            stopping.join()
+
+            assertEquals(2, calls)
+            assertEquals(LinkState.Connected("car2"), loop.state.value)
         }
 
     @Test

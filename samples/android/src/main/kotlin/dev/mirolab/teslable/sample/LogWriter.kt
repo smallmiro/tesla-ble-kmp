@@ -12,8 +12,10 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.OutputStreamWriter
 import java.time.Clock
+import java.time.LocalDateTime
 import java.time.OffsetDateTime
 import java.time.format.DateTimeFormatter
+import java.time.temporal.ChronoUnit
 import java.util.concurrent.atomic.AtomicInteger
 
 /** 로그를 받는 곳(04-monitor-app.md §Log format). 지금은 파일 구현([LogWriter])뿐이다. 클라우드 싱크는 ADR 뒤에 추가한다. */
@@ -54,7 +56,7 @@ data class LogStats(
 class LogWriter(
     private val dir: File,
     private val session: SessionInfo,
-    scope: CoroutineScope,
+    private val scope: CoroutineScope,
     private val clock: Clock = Clock.systemDefaultZone(),
     private val maxFileBytes: Long = DEFAULT_MAX_FILE_BYTES,
     private val maxTotalBytes: Long = DEFAULT_MAX_TOTAL_BYTES,
@@ -109,7 +111,8 @@ class LogWriter(
     }
 
     override fun newFile() {
-        queue.trySend(Command.NewFile)
+        // 큐가 가득 차 있어도 잃지 않는다: 자리가 날 때까지 따로 기다려 보낸다.
+        if (queue.trySend(Command.NewFile).isFailure) scope.launch { queue.send(Command.NewFile) }
     }
 
     override fun close() {
@@ -181,13 +184,15 @@ class LogWriter(
 
     private fun listFiles(): List<File> = dir.listFiles { f -> f.name.startsWith("monitor-") && f.name.endsWith(".jsonl") }.orEmpty().sortedBy { it.name }
 
+    /**
+     * 새 파일 이름. 시계가 뒤로 가도(서머타임 끝, 시계 조정) 이름 순서가 곧 만든 순서가 되도록, 이미 있는 가장 새 파일보다
+     * 늦은 시각만 쓴다(가장 오래된 파일부터 지우는 정리가 새 파일을 먼저 지우지 않게).
+     */
     private fun freshFile(): File {
-        var at = OffsetDateTime.now(clock)
-        while (true) {
-            val file = File(dir, "monitor-${at.format(NAME_FORMAT)}.jsonl")
-            if (!file.exists()) return file
-            at = at.plusSeconds(1)
-        }
+        var at = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS)
+        val newest = listFiles().lastOrNull()?.name?.let { runCatching { LocalDateTime.parse(it.removePrefix("monitor-").removeSuffix(".jsonl"), NAME_FORMAT) }.getOrNull() }
+        if (newest != null && !at.isAfter(newest)) at = newest.plusSeconds(1)
+        return File(dir, "monitor-${at.format(NAME_FORMAT)}.jsonl")
     }
 
     private fun closeFile() {

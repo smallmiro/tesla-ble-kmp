@@ -26,6 +26,9 @@ import kotlinx.coroutines.launch
 class MonitorService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
     private var watch: Job? = null
+
+    /** 알림의 "중지"를 처리하는 동안 새 시작 명령(연결 버튼)이 오면 그 중지는 서비스를 내리지 않는다. */
+    private var stopToken = 0
     private lateinit var engine: MonitorEngine
 
     override fun onCreate() {
@@ -42,13 +45,17 @@ class MonitorService : Service() {
     ): Int {
         if (intent?.action == ACTION_STOP) {
             // 알림의 "중지": 연결을 끊고 자동 재연결을 멈춘 뒤 서비스를 내린다.
+            val token = ++stopToken
             scope.launch {
                 engine.disconnect()
-                stopForeground(STOP_FOREGROUND_REMOVE)
-                stopSelf()
+                if (token == stopToken) {
+                    stopForeground(STOP_FOREGROUND_REMOVE)
+                    stopSelf()
+                }
             }
             return START_NOT_STICKY
         }
+        stopToken++
         startForeground(NOTIFICATION_ID, notification(engine.link.value), ServiceInfo.FOREGROUND_SERVICE_TYPE_CONNECTED_DEVICE)
         if (watch == null) {
             watch =
@@ -63,6 +70,8 @@ class MonitorService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        // 시스템이 서비스만 내렸을 때도 포그라운드 보호 없는 연결이 남지 않게 한다(이미 중지된 경우에는 아무 일도 없다).
+        engine.stopAsync()
         scope.cancel()
         super.onDestroy()
     }

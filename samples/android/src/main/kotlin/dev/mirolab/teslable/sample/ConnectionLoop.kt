@@ -102,7 +102,9 @@ class ConnectionLoop<V : Any>(
     suspend fun stop() {
         val running = synchronized(this) { job.also { job = null } }
         running?.cancelAndJoin()
-        publish(LinkState.Stopped)
+        // 정리하는 동안 사용자가 연결을 다시 눌렀으면([start]가 새 루프를 띄웠다) 그 루프의 상태를 덮어쓰지 않는다.
+        val restarted = synchronized(this) { job != null }
+        if (!restarted) publish(LinkState.Stopped)
     }
 
     private fun publish(next: LinkState<V>) {

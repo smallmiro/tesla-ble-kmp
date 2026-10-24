@@ -264,6 +264,38 @@ class LogWriterTest {
         }
 
     @Test
+    fun newFileNameStaysAfterTheNewestFileWhenTheClockGoesBack() =
+        runTest {
+            val dir = tempDir()
+            val clock = TestClock()
+            val w = writer(backgroundScope, dir, clock)
+            w.write(LogLine.mark(w.stamp(), "one")!!)
+            w.flush()
+            clock.now = clock.now.minusSeconds(3600) // 서머타임 끝이나 시계 조정으로 시계가 뒤로 감
+            w.newFile()
+            w.write(LogLine.mark(w.stamp(), "two")!!)
+            w.flush()
+
+            val names = files(dir).map { it.name }
+            assertEquals(2, names.size)
+            assertEquals(names.sorted(), names)
+            assertEquals("two", lines(files(dir).last())[1].getString("memo"))
+        }
+
+    @Test
+    fun newFileIsNotLostWhenTheQueueIsFull() =
+        runTest {
+            val dir = tempDir()
+            val w = writer(backgroundScope, dir, queue = 1)
+            w.write(LogLine.mark(w.stamp(), "one")!!) // 큐가 찬다
+            w.newFile() // 들어갈 자리가 없어도 잃지 않는다(자리가 나면 들어간다)
+            w.flush()
+            w.flush() // 두 번째 flush는 그 뒤에 들어간 NewFile 까지 처리된 것을 보장한다
+
+            assertEquals(2, files(dir).size)
+        }
+
+    @Test
     fun fullQueueDropsLinesInsteadOfBlocking() =
         runTest {
             val dir = tempDir()
