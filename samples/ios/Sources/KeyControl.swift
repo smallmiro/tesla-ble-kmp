@@ -56,6 +56,8 @@ struct KeyControlSteps: Sendable, Equatable {
     let checkEnrollmentEnabled: Bool
     /// "상태 새로고침" 버튼. `vehicleStatus()` 는 키 없이도 되므로 연결만 필요하다.
     let refreshStatusEnabled: Bool
+    /// 키 없이 연결되어 있다: 2단계 버튼이 "연결 끊고 다시 연결"이 된다(Android와 같다).
+    let reconnectNeeded: Bool
 
     init(_ i: KeyControlInputs) {
         let idle = !i.busy
@@ -74,8 +76,8 @@ struct KeyControlSteps: Sendable, Equatable {
         if i.connected, i.hasKey {
             connect = StepInfo(state: .done, hint: "차량과 연결되었습니다", buttonEnabled: false)
         } else if i.connected {
-            // 키보다 먼저 연결했다: 연결이 키 없이 맺어져 세션을 못 연다. 연결 끊기(Control 탭)로 다시 연결해야 한다.
-            connect = StepInfo(state: .blocked, hint: Self.noKeyConnectedHint, buttonEnabled: false)
+            // 키보다 먼저 연결했다: 연결이 키 없이 맺어져 세션을 못 연다. 버튼이 끊고 다시 연결한다.
+            connect = StepInfo(state: .todo, hint: Self.noKeyConnectedHint, buttonEnabled: idle)
         } else if !i.vinSaved {
             connect = StepInfo(state: .blocked, hint: Self.noVinHint, buttonEnabled: false)
         } else {
@@ -106,6 +108,7 @@ struct KeyControlSteps: Sendable, Equatable {
 
         checkEnrollmentEnabled = idle && ready && i.enrollment != .checking
         refreshStatusEnabled = idle && i.connected
+        reconnectNeeded = i.connected && !i.hasKey
     }
 
     /// 4단계 버튼이 지금 꺼져 있는 이유(켜져 있으면 `nil`). 확인 대화상자를 누른 뒤처럼, 보낼 때 규칙을 다시 따질 때 쓴다.

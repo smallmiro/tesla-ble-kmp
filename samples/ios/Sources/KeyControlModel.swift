@@ -49,6 +49,7 @@ final class KeyControlModel: ObservableObject {
         generation += 1
         inputs.connected = connected
         inputs.hasKey = keyed
+        status = nil // 상태 카드는 그 연결에서 읽은 것만 보여 준다
         if connected {
             needsCheck = true
             checkIfNeeded()
@@ -162,8 +163,13 @@ final class KeyControlModel: ObservableObject {
     }
 
     /// 2단계: 모니터의 연결 루프를 바로 시작한다. 상태는 위 배너에 나온다.
+    /// 키 없이 연결되어 있으면 먼저 끊는다(키를 가진 연결로 다시 맺는다).
     func connect() async {
         await exclusive { [self] in
+            if steps.reconnectNeeded {
+                add("연결", "키 없이 연결돼 있어 끊고 다시 연결합니다", .info)
+                await engine.disconnect()
+            }
             if engine.connectNow() {
                 add("연결", "시작함 (상태는 위 배너)", .info)
             } else {
@@ -232,7 +238,7 @@ final class KeyControlModel: ObservableObject {
                 command: { await client.send(button) },
                 requery: { await client.statusCard() }
             )
-            if let card = report.status { status = card }
+            if gen == generation, let card = report.status { status = card }
             if gen == generation, let enrollment = report.enrollment { inputs.enrollment = enrollment }
             let tone: ResultLine.Tone
             switch report.kind {
@@ -247,8 +253,9 @@ final class KeyControlModel: ObservableObject {
     /// 상태 카드의 "상태 새로고침". `vehicleStatus()` 는 키 없이도 되고 차량을 깨우지 않는다.
     func refreshStatus() async {
         await exclusive { [self] in
+            let gen = generation
             let result = await client.statusCard()
-            if let card = result.card { status = card }
+            if gen == generation, let card = result.card { status = card }
             add("상태 새로고침", result.text, result.card == nil ? .warn : .ok)
         }
     }

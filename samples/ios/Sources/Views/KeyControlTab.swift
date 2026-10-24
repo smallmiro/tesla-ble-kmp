@@ -46,7 +46,7 @@ struct KeyControlTab: View {
             }
             Divider()
             StepRow(number: 2, title: "연결", info: steps.connect) {
-                Button("연결") { Task { await model.connect() } }
+                Button(steps.reconnectNeeded ? "연결 끊고 다시 연결" : "연결") { Task { await model.connect() } }
                     .disabled(!steps.connect.buttonEnabled)
             }
             Divider()
