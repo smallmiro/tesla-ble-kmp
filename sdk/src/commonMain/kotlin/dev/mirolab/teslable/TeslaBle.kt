@@ -119,7 +119,18 @@ public class TeslaBle internal constructor(
             val timeouts = CommandTimeouts(config.commandTimeout, config.commandLifetime, config.handshakeTimeout)
             val created = VehicleSession(dispatcher, timeouts, sync, scope).also { session = it }
             val restored = created.connect().mapNotNull { VehicleDomain.of(it) }.toSet()
-            val vehicle = DefaultVehicle(vin, key != null, transport, created, restored, scope, config, onDisconnected = ::forget)
+            val vehicle =
+                DefaultVehicle(
+                    vin,
+                    key != null,
+                    transport,
+                    created,
+                    restored,
+                    scope,
+                    config,
+                    broadcasts = dispatcher.plainBroadcasts,
+                    onDisconnected = ::forget,
+                )
             // close()는 closed를 먼저 세운 뒤 같은 잠금 아래에서 목록을 읽는다 — 여기서 closed를 못 봤다면 close()가 이 차량을 끊는다
             val registered = vehiclesMutex.withLock { if (closed.value) false else vehicles.add(vehicle) }
             if (!registered) {

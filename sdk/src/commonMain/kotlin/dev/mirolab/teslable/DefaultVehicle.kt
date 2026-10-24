@@ -1,6 +1,7 @@
 package dev.mirolab.teslable
 
 import dev.mirolab.teslable.application.dispatcher.SessionEvent
+import dev.mirolab.teslable.application.vcsec.VcsecBroadcasts
 import dev.mirolab.teslable.application.vehicle.VehicleSession
 import dev.mirolab.teslable.model.KeyFormFactor
 import dev.mirolab.teslable.model.KeyRole
@@ -9,6 +10,7 @@ import dev.mirolab.teslable.model.PublicKeyBytes
 import dev.mirolab.teslable.model.SessionInfoSummary
 import dev.mirolab.teslable.model.VehicleDomain
 import dev.mirolab.teslable.model.VehicleError
+import dev.mirolab.teslable.model.VehicleEvent
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.VehicleStatus
 import dev.mirolab.teslable.model.Vin
@@ -20,10 +22,14 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.buffer
+import kotlinx.coroutines.flow.channelFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
@@ -40,6 +46,7 @@ internal class DefaultVehicle(
     restored: Set<VehicleDomain>,
     private val scope: CoroutineScope,
     private val config: TeslaBleConfig,
+    private val broadcasts: Flow<ByteArray>,
     private val onDisconnected: suspend (DefaultVehicle) -> Unit = {},
 ) : Vehicle {
     private val states =
@@ -51,6 +58,21 @@ internal class DefaultVehicle(
     override val sessions: StateFlow<Map<VehicleDomain, SessionStatus>> = states.asStateFlow()
 
     private val closed = MutableStateFlow(false)
+
+    /** 연결이 끝났는지: 링크가 끊겼거나(`Disconnected`, 이유와 상관없이) [disconnect]가 불렸다. 둘 다 한 번 서면 되돌아가지 않는다. */
+    private val ended: Flow<Boolean> = combine(connection, closed) { state, isClosed -> isClosed || state is TransportState.Disconnected }
+
+    // 수집자마다 구독 하나(replay 0). 끝 신호가 오면 구독을 취소하고 채널을 닫아 정상 완료한다 — 앱의 수집 코루틴은 취소되지 않는다.
+    // RENDEZVOUS: 느린 수집자를 위한 버퍼는 디스패처의 64개 하나뿐이다(넘치면 디스패처가 버리고 WARN, 문서의 숫자와 같게).
+    override val events: Flow<VehicleEvent> =
+        channelFlow {
+            val frames =
+                launch(start = CoroutineStart.UNDISPATCHED) {
+                    broadcasts.collect { frame -> VcsecBroadcasts.events(frame).forEach { send(it) } }
+                }
+            ended.first { it }
+            frames.cancel()
+        }.buffer(Channel.RENDEZVOUS)
 
     private fun resetSessions() {
         states.value = VehicleDomain.ALL.associateWith { SessionStatus.None }
