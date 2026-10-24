@@ -278,6 +278,7 @@ Refs: FR-012
 **문서**
 - [ ] 요구사항이 바뀌었다면 `{{PRD_FILE}}`, 설계가 바뀌었다면 `{{SDD_FILE}}`/ADR을 같은 PR에서 갱신했다
 - [ ] 라이브러리 동작·공개 API·마일스톤 상태가 바뀌었다면 라이브러리 사용 문서를 머지 전에 갱신했다: `{{LIB_DOCS_DIR}}`(에이전트용 MD, 영어)와 `{{LIB_DOCS_HTML_DIR}}`(사람용 HTML, `ko/`·`en/`·`ja/`). 바뀐 것이 없으면 PR에 "문서 영향 없음"을 적었다 (`{{AGENTS_FILE}}` 절대 규칙 13)
+- [ ] 샘플 동작이나 샘플 요구사항(SFR)이 바뀌었다면 `{{SAMPLES_DOCS_DIR}}`(영어 MD)와 `{{SAMPLES_DOCS_HTML_DIR}}`(`ko/`·`en/`·`ja/`)를 같은 PR에서 갱신했다
 - [ ] 개발 매뉴얼을 고쳤다면 `{{MANUAL_DIR}}` 는 영어로 썼고, `{{MANUAL_HTML_DIR}}` 는 `ko/`, `en/`, `ja/` 세 언어를 모두 갱신했다
 
 **통합**
