@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>4. モニターアプリ · tesla-ble-kmp サンプルアプリ</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>tesla-ble-kmp <b>Samples</b></span></a>
+  <span class="top-sub">サンプルアプリ仕様</span>
+  <div class="theme-switch" role="radiogroup" aria-label="テーマ">
+    <button type="button" role="radio" aria-checked="false" data-theme-choice="light" title="ライト" aria-label="ライト"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    <button type="button" role="radio" aria-checked="false" data-theme-choice="dark" title="ダーク" aria-label="ダーク"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button>
+    <button type="button" role="radio" aria-checked="false" data-theme-choice="system" title="システム" aria-label="システム"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></button>
+  </div>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>日本語</span></summary>
+    <ul>
+      <li><a href="../ko/04-monitor-app.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/04-monitor-app.html" hreflang="en" lang="en">English</a></li>
+      <li><a class="active" aria-current="true" href="../ja/04-monitor-app.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">サンプルアプリ</li>
+    <li><a href="01-requirements.html">1. 要件</a></li>
+    <li><a href="02-constraints.html">2. 制約</a></li>
+    <li><a href="03-current-apps.html">3. 現在のアプリ</a></li>
+    <li><a class="active" href="04-monitor-app.html">4. モニターアプリ</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>4. モニターアプリ</h1>
+<p class="lead">車内または車の近くに置いたスマートフォンが自動で接続し、接続を保ち、車の状態をライブで表示し、ライブラリが読み取れるものをすべてポーリングし、すべてのブロードキャストを生のバイト列とともに記録します。これにより、未知のプロトコルフィールドを後から分析できます。</p>
+
+<div class="callout warn">
+<strong>予定</strong>
+<p>issue #91 で管理しています。このアプリが必要とするライブラリ機能（<code>Vehicle.events</code>、<code>VehicleStatus.gear</code>、iOS のキーアクセシビリティ）はまだ使えません。このページは目標とする姿を説明しています。</p>
+</div>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-req">要件</a></li>
+<li><a href="#sec-key">ロック中のスマートフォンでのキー</a></li>
+<li><a href="#sec-bg">バックグラウンドでの動作</a></li>
+<li><a href="#sec-log">ログファイル</a></li>
+<li><a href="#sec-check">実車チェックリスト</a></li>
+</ol></div>
+
+<h2 id="sec-req">要件</h2>
+<table>
+<thead><tr><th>ID</th><th>アプリの動作</th></tr></thead>
+<tbody>
+<tr><td>SFR-010</td><td>4 つのタブ：<strong>Live</strong>、<strong>Query</strong>、<strong>Log</strong>、<strong>Control</strong>。現在の 1 画面は Control に移ります。</td></tr>
+<tr><td>SFR-011</td><td>VIN は 1 回入力すると保存され、消去ボタンがあります。保存済みの VIN がある状態でアプリを起動すると、自動でスキャンして接続します。<strong>Connect</strong> ボタンは常に即座に接続を試みます。</td></tr>
+<tr><td>SFR-012</td><td>接続が切れると、アプリは古い接続を解放して再接続します。最初は 2 秒待ち、倍々にして最大 30 秒まで延ばします。バックグラウンドでも同様です。<strong>Disconnect</strong> は、Connect を押すまで自動再接続を止めます。</td></tr>
+<tr><td>SFR-013</td><td>アプリが画面に表示されている間は、画面が消灯しません。</td></tr>
+<tr><td>SFR-014</td><td>Live タブ：最新のステータスブロードキャストから、ロック、ギア、在車状態、スリープ、4 つのドア、フランク、トランク、充電ポートを表示し、それぞれに最後に<em>変化した</em>時刻を付けます（同じ値が再送されても変化とは見なしません）。認証リクエストを含む最近のイベントの一覧。接続バナー。トランクはブロードキャストを送らない場合があるという注記。</td></tr>
+<tr><td>SFR-015</td><td>Query タブ：<code>vehicleStatus()</code>、<code>keySummary()</code>、<code>listKeys()</code> を 30 秒ごと（変更可能）に読み取り、セッション状態を表示します。各結果には、成功、不確定、失敗のいずれかと時刻が表示されます。「今すぐ問い合わせ」ボタン。</td></tr>
+<tr><td>SFR-016</td><td>Log タブとログファイル：すべてのレコードを JSON Lines ファイルに書き込みます。メモ欄と <strong>Mark</strong> ボタンで、これから行う操作を記録します。タブには、件数、未認識イベントの数、最後の数行、ファイルの場所が表示され、新しいファイルを開始できます。</td></tr>
+<tr><td>SFR-017</td><td><code>tools/samples/pull-monitor-logs.sh android|ios</code> は、ケーブルで接続したスマートフォンからログを <code>samples/logs/&lt;platform&gt;/&lt;date&gt;/</code> にコピーします。このフォルダーは git の管理対象外です。</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-key">ロック中のスマートフォンでのキー</h2>
+<p>モニターは専用のキー <code>teslable-monitor</code> を使います。このキーは、スマートフォンがロックされていても使えるように作られます（iOS では <code>KeyAccessibility.AFTER_FIRST_UNLOCK</code>、Android のキーはもともとロック中でも使えます）。この設定はキーを作る時点で固定されます。スマートフォンにすでにそのキーが厳しい設定で存在する場合、アプリは、それを削除して新しく作り、車に登録し直すよう求めます。Control タブには、キーがどの設定になっているかが表示されます。</p>
+
+<h2 id="sec-bg">バックグラウンドでの動作</h2>
+<table>
+<thead><tr><th></th><th>Android</th><th>iOS</th></tr></thead>
+<tbody>
+<tr><td>接続の所有者</td><td>フォアグラウンドサービスが、ライブラリのインスタンス、再接続ループ、イベントの購読、ログライターを持ちます。通知にはリンクの状態と Stop ボタンが表示されます。</td><td>アプリと同じ期間だけ存在する 1 つのモニターオブジェクト。</td></tr>
+<tr><td>宣言</td><td><code>FOREGROUND_SERVICE</code>、<code>FOREGROUND_SERVICE_CONNECTED_DEVICE</code>、<code>POST_NOTIFICATIONS</code>（実行時に要求）。<code>INTERNET</code> は引き続き使いません。</td><td><code>UIBackgroundModes: [bluetooth-central]</code></td></tr>
+<tr><td>バックグラウンドでの再接続</td><td>フォアグラウンドと同じループ。</td><td>実車でのテスト（計画の Task 2）の後に決めます。それまでは、リンクがつながっている間は受信を続けることを目標とします。</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-log">ログファイル</h2>
+<p>1 行に 1 つの JSON オブジェクトです。すべての行に <code>ts</code>（オフセット付きの時刻）と <code>kind</code> があります。各ファイルは、スマートフォンとアプリのビルドを記した <code>session</code> 行から始まります。</p>
+<pre><code class="language-json">{<span class="p">"ts"</span>:<span class="s">"2026-10-24T10:00:00.123+09:00"</span>,<span class="p">"kind"</span>:<span class="s">"session"</span>,<span class="p">"platform"</span>:<span class="s">"ios"</span>,<span class="p">"app"</span>:<span class="s">"0.2.0(9)"</span>,<span class="p">"os"</span>:<span class="s">"27.0.1"</span>,<span class="p">"phone"</span>:<span class="s">"iPhone"</span>}
+{<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"event"</span>,<span class="p">"type"</span>:<span class="s">"Status"</span>,<span class="p">"summary"</span>:<span class="s">"lock=LOCKED gear=PARK presence=NOT_PRESENT"</span>,<span class="p">"unknownFields"</span>:[<span class="s">"1.8"</span>],<span class="p">"unrecognized"</span>:<span class="n">true</span>,<span class="p">"raw"</span>:<span class="s">"&lt;hex&gt;"</span>}
+{<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"observe"</span>,<span class="p">"line"</span>:<span class="s">"[drop:no-handler] 83B from=domain(DOMAIN_VEHICLE_SECURITY) …"</span>}
+{<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"query"</span>,<span class="p">"call"</span>:<span class="s">"vehicleStatus"</span>,<span class="p">"result"</span>:<span class="s">"Success"</span>,<span class="p">"summary"</span>:<span class="s">"…"</span>}
+{<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"link"</span>,<span class="p">"state"</span>:<span class="s">"backoff"</span>,<span class="p">"reason"</span>:<span class="s">"…"</span>,<span class="p">"attempt"</span>:<span class="n">3</span>,<span class="p">"delayMs"</span>:<span class="n">8000</span>}
+{<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"mark"</span>,<span class="p">"memo"</span>:<span class="s">"before: open driver door"</span>}</code></pre>
+<table>
+<thead><tr><th>Kind</th><th>内容</th></tr></thead>
+<tbody>
+<tr><td><code>event</code></td><td>車からのブロードキャスト：その種類（<code>Status</code>、<code>AuthenticationRequest</code>、<code>Unrecognized</code>）、要約、ライブラリが認識しなかったフィールド番号、未認識の内容を示すフラグ、16 進数の生のバイト列</td></tr>
+<tr><td><code>observe</code></td><td>ライブラリの観察行（ライブラリがすでにマスク済み）。生の BLE の <code>TX:</code>/<code>RX:</code> 行は書き込まれません</td></tr>
+<tr><td><code>query</code></td><td>Query タブの結果</td></tr>
+<tr><td><code>link</code></td><td>接続中、接続済み、切断、再試行待ち、停止</td></tr>
+<tr><td><code>mark</code></td><td>Mark ボタンで残したメモ</td></tr>
+</tbody>
+</table>
+<ul>
+<li><strong>VIN のマスク：</strong>書き込む前に、生のバイト列やテキストに含まれる 17 文字の VIN は、先頭 3 文字と末尾 4 文字を残し、残りを <code>*</code> に置き換えます。そのため長さは変わりません。</li>
+<li>マークのメモは最大 80 文字です。空のメモは無視されます。</li>
+<li>ファイル名は <code>monitor-&lt;yyyyMMdd-HHmmss&gt;.jsonl</code> です。20 MB で新しいファイルを開始し、フォルダーが 200 MB を超えると最も古いファイルから削除します。</li>
+<li>書き込みがイベントの収集を止めることはありません。ライターは小さなインターフェースの背後にあり、将来クラウドへの出力先を追加できます。</li>
+<li>ファイルの場所：Android は <code>Android/data/dev.mirolab.teslable.sample/files/logs/</code>（<code>adb pull</code> で読み取れます）。iOS は <code>Documents/logs/</code> で、Finder とファイルアプリからも見えます。</li>
+</ul>
+
+<h2 id="sec-check">実車チェックリスト</h2>
+<ol>
+<li>新規インストール：VIN を入力し、モニターキーを作成して登録します。アプリを再起動すると、自動で接続します。</li>
+<li>Live タブ：運転席ドアを開閉し、P、R、N、D とシフトし、外からロックします。それぞれの変化が時刻付きで表示されます。</li>
+<li>リンクが切れるまで離れてから戻ります。スマートフォンに触れなくても、画面を点灯したままの場合とロックした場合の両方で再接続します。</li>
+<li>ロックしたスマートフォンを車の近くに 30 分置きます。接続したまま、または再接続され、ログが増え続けます。</li>
+<li>Disconnect を押します。2 分間、再接続を試みません。</li>
+<li>Mac でスクリプトを使ってログを取り出します。最初の行は <code>session</code> 行で、17 文字の VIN を検索しても何も見つかりません。</li>
+</ol>
+
+<footer class="page-nav">
+  <a href="03-current-apps.html"><span>前へ</span>3. 現在のアプリ</a>
+</footer>
+</main>
+</div>
+</body>
+</html>

@@ -3,7 +3,7 @@
 - 날짜: 2026-10-24
 - 상태: 초안 (사용자 승인 대기)
 - 관련: PRD FR-031, FR-110~112, NFR-010, NFR-014 / SDD §2.3, §8.4, §10 / `14-lib-reading-state.md` Part B, `17-lib-platform-notes.md`, `18-lib-troubleshooting.md` §Observation log
-- 새 추적 ID(이 설계에서 제안, PRD에 추가): FR-035, FR-036, FR-037, FR-113, FR-114
+- 새 추적 ID: FR-035, FR-036, FR-037(PRD), SFR-010~017(샘플 스펙 `samples/documents/md/04-monitor-app.md`)
 
 ## 1. 의도와 이유
 
@@ -150,6 +150,8 @@ public sealed interface VehicleEvent {
 - 스파이크(§5.5)에서 함께 확인: 잠긴 iPhone + `AFTER_FIRST_UNLOCK` 키로 백그라운드 재연결 → `startSession` → 이벤트·조회가 되는지. Secure Enclave 키에 이 접근성이 실제로 적용되는지도 본다.
 
 ## 6. 샘플 앱 설계 (FR-113, FR-114)
+
+> **2026-10-24 갱신:** 샘플 부분의 정본은 `samples/documents/md/04-monitor-app.md`(SFR-010~017, MD + HTML ko/en/ja)로 옮겼다. 샘플 요구사항은 PRD의 FR이 아니라 SFR로 관리하므로 FR-113·FR-114는 쓰지 않는다. 아래는 승인 당시 기록으로 남긴다.
 
 ### 6.1 탭
 
