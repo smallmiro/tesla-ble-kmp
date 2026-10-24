@@ -78,6 +78,8 @@
 </tbody>
 </table>
 
+<p>ボタンがあと二つあります。<strong>登録状態の確認</strong>は、キーが準備済みで、接続中で、登録状態が <code>checking</code> ではなく、実行中の呼び出しがないときに有効です(<code>enrolled</code> でも有効なままなので、車で削除したキーを再確認できます)。<strong>状態を更新</strong>は、接続中で実行中の呼び出しがないときに有効です(<code>vehicleStatus()</code> にキーは不要です)。</p>
+
 <h2 id="sec-enroll">登録状態</h2>
 <p>登録状態は <code>unknown</code>、<code>checking</code>、<code>notEnrolled</code>、<code>enrolled</code> のいずれかです。</p>
 <ul>
@@ -90,7 +92,7 @@
 <h2 id="sec-run">コマンドの実行</h2>
 <p><code>KeyControlRunner.run(ensureSession, command, requery)</code> は純粋関数で、フェイクでテストします。</p>
 <ol>
-<li><code>ensureSession</code> は <code>startSession(setOf(VCSEC))</code> です。すでに <code>Ready</code> のドメインは、要求なしで成功します。<code>Failure</code> のときはコマンドを<strong>送らず</strong>、結果行に理由を表示します。<code>KeyNotPaired</code> は登録状態を <code>notEnrolled</code> にし、<code>KeyStoreError.Locked</code> はスマートフォンのロック解除を求めます。</li>
+<li><code>ensureSession</code> は <code>startSession(setOf(VCSEC))</code> です。すでに <code>Ready</code> のドメインは、要求なしで成功します。<code>Failure</code>（または <code>Uncertain</code>）のときはコマンドを<strong>送らず</strong>、再照会もせず、結果行に理由を表示します。<code>KeyNotPaired</code> は登録状態を <code>notEnrolled</code> にし、<code>KeyStoreError.Locked</code> はスマートフォンのロック解除を求めます。</li>
 <li><code>command</code> はちょうど 1 回呼ばれます。</li>
 <li><code>Success</code> は「成功」、<code>Failure</code> はメッセージ付きで「失敗」、<code>Uncertain</code> はメッセージ付きで「不確実」と表示し、再送はしません。</li>
 <li><code>requery</code>（<code>vehicleStatus()</code>）は、コマンドの後に必ず実行されます。<code>Success</code> の後は状態カードを更新し、<code>Uncertain</code> の後はマニュアルが求める再問い合わせになります。</li>
