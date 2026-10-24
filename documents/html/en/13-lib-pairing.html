@@ -83,7 +83,7 @@
 <li>The default alias is <code>"teslable-default"</code> (<code>VehicleKeyStore.DEFAULT_ALIAS</code>; in Swift <code>VehicleKeyStoreCompanion.shared.DEFAULT_ALIAS</code>).</li>
 <li>An alias may use letters, digits, <code>.</code>, <code>_</code> and <code>-</code>, up to 64 characters, and may not be <code>.</code> or <code>..</code>.</li>
 <li>A <code>VehicleKey</code> is a handle. It exposes <code>alias</code>, <code>protection</code>, <code>accessibility</code> and <code>publicKey</code> (65 bytes, <code>0x04 ‖ X ‖ Y</code>). The private key never leaves the platform key store, and there is no export API.</li>
-<li>A <code>VehicleKey</code> has nothing to close. Keep it while you use it, then simply let it go. Each <code>get</code> or <code>getOrCreate</code> returns a new handle to the same stored key, and handles that nothing refers to any more are cleaned up automatically, so reading the key again before each connection does not pile up handles. A connected <code>Vehicle</code> keeps its own reference to its key.</li>
+<li>A <code>VehicleKey</code> has nothing to close. Keep it while you use it, then simply let it go. On iOS and Android each <code>get</code> or <code>getOrCreate</code> returns a new handle to the same stored key (the in-memory store returns the same one), and handles that nothing refers to any more are cleaned up automatically, so reading the key again before each connection does not pile up handles. A connected <code>Vehicle</code> keeps its own reference to its key.</li>
 </ul>
 
 <h2 id="sec-protection">Where the key lives</h2>
