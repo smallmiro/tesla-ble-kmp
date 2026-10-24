@@ -252,6 +252,9 @@ final class ConnectionLoopTests: XCTestCase {
         await stopping.value
 
         await waitUntil("car2 connected") { loop.state == .connected("car2") }
+        // 끊는 쪽의 `stopped` 가 새 연결 뒤에 상태를 덮어쓰지 않는다
+        await settle()
+        XCTAssertEqual(loop.state, .connected("car2"))
         XCTAssertEqual(calls.value, 2)
         // 두 번째 차량의 정리도 끝낸다
         let finishing = Task { await loop.stop() }

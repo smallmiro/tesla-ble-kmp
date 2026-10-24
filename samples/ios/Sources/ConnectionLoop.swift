@@ -88,6 +88,7 @@ final class ConnectionLoop<V: Sendable & Equatable>: @unchecked Sendable {
     private let onTransition: @Sendable (LinkState<V>) -> Void
 
     private let lock = NSLock()
+    private let transitionLock = NSLock()
     private var current: LinkState<V> = .idle
     private var job: Task<Void, Never>?
     /// 취소했지만 아직 정리(`release`)가 끝나지 않았을 수 있는 이전 루프들. 새 루프는 이것이 끝난 뒤에야 연결한다.
@@ -122,7 +123,8 @@ final class ConnectionLoop<V: Sendable & Equatable>: @unchecked Sendable {
     func start() {
         lock.lock()
         if job != nil {
-            let waiting: Gate? = if case .backoff = current { gate } else { nil }
+            // 쉬기 문이 놓여 있으면(Backoff 를 알리기 직전 포함) 기다리지 않고 바로 시도한다.
+            let waiting = gate
             lock.unlock()
             waiting?.fire()
             return
@@ -153,15 +155,20 @@ final class ConnectionLoop<V: Sendable & Equatable>: @unchecked Sendable {
         }
         await waiting?.value
         // 정리하는 동안 사용자가 연결을 다시 눌렀으면(start() 가 새 루프를 띄웠다) 그 루프의 상태를 덮어쓰지 않는다.
-        let restarted = lock.withLock { job != nil }
-        if !restarted { publish(.stopped) }
+        // 확인과 발행을 한 덩어리로 해서(transitionLock) 새 루프의 `connecting` 이 `stopped` 사이에 끼어들지 못하게 한다.
+        publish(.stopped, onlyIfNoRunningLoop: true)
     }
 
-    private func publish(_ next: LinkState<V>) {
-        lock.lock()
-        current = next
-        lock.unlock()
-        onTransition(next)
+    /// 상태 바꿈과 콜백을 한 줄로 세운다(콜백은 짧고 이 객체를 다시 부르지 않는다).
+    private func publish(_ next: LinkState<V>, onlyIfNoRunningLoop: Bool = false) {
+        transitionLock.lock()
+        defer { transitionLock.unlock() }
+        let allowed: Bool = lock.withLock {
+            if onlyIfNoRunningLoop && job != nil { return false }
+            current = next
+            return true
+        }
+        if allowed { onTransition(next) }
     }
 
     private func run() async {
