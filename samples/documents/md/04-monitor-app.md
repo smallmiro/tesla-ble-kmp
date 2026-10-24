@@ -102,7 +102,8 @@ Files in `samples/android/src/main/kotlin/dev/mirolab/teslable/sample/`:
 | `ConnectionLoop.kt` | State machine `Idle`, `Connecting(attempt)`, `Connected`, `Backoff(attempt, delay, reason)`, `Stopped`; knows nothing about the library (unit-tested with virtual time) |
 | `LogLine.kt`, `LogWriter.kt`, `VinMask.kt` | Log line format, file writer behind the `LogSink` interface, VIN masking |
 | `LiveState.kt` | Reduces events into the Live tab state (last-changed time per item) |
-| `ui/` | `LiveTab`, `QueryTab`, `LogTab`, `ControlTab` (the former single screen), shared helpers |
+| `KeyControl.kt`, `KeyControlState.kt`, `Enrollment.kt` | Key & Control tab (`05-key-control-tab.md`): pure step rules and command runner, tab state, and the pair + confirm helper shared with the Control tab |
+| `ui/` | `LiveTab`, `QueryTab`, `LogTab`, `ControlTab` (the former single screen), `KeyControlTab`, shared helpers |
 
 Library calls used (manual page and section):
 
@@ -114,7 +115,7 @@ Library calls used (manual page and section):
 | `vehicleStatus()`, `keySummary()`, `listKeys()`, `sessions` every 30 s; `Uncertain` and `Failure` shown as they are | `MonitorEngine.runQueries` | 14 Calls, 16 §Three outcomes |
 | `keys.getOrCreate("teslable-monitor", PREFER_HARDWARE, AFTER_FIRST_UNLOCK)`; `Locked` waits and retries, never deletes | `MonitorEngine.ensureKey` | 13 §Key accessibility, 16 §Transport and key store errors |
 | `TeslaLogger` (tag `observe`) | `ObserveLogger` in `MonitorEngine.kt` | 18 §Observation log |
-| `Vin.parseOrNull`, `scan`, `addKeyRequest`, `sessionInfo`, `startSession`, VCSEC commands, `removeKey` | Control tab (`SampleState`) | 12, 13, 15, 16 |
+| `Vin.parseOrNull`, `scan`, `addKeyRequest`, `sessionInfo`, `startSession`, VCSEC commands, `removeKey` | Control tab (`SampleState`), Key & Control tab (`KeyControlState`), `Enrollment.kt` | 12, 13, 15, 16 |
 
 How it behaves, where the design left room:
 
@@ -146,14 +147,15 @@ Files in `samples/ios/Sources/` (tests in `samples/ios/Tests/`, names as in the 
 
 | File | Role |
 |---|---|
-| `MonitorModel.swift` | The one object for the app's lifetime (`@StateObject` in `TeslableSampleApp`). Holds what the screens read, starts the engine once (auto-connect when a VIN is saved, not under XCTest), and creates the Control tab's `SampleModel` |
+| `MonitorModel.swift` | The one object for the app's lifetime (`@StateObject` in `TeslableSampleApp`). Holds what the screens read, starts the engine once (auto-connect when a VIN is saved, not under XCTest), and creates the Control tab's `SampleModel` and the Key & Control tab's `KeyControlModel` |
 | `MonitorEngine.swift` | Owns `TeslaBle`, `ConnectionLoop`, the `Vehicle.events` Task, the query poll Task, the saved VIN (`UserDefaults`), the monitor key and the `LogWriter`. Sends changes to the model through one `AsyncStream` so their order is kept. `observe` lines come through `ObserveLogger`, a `TeslaLogger` that passes everything to `DebugLogger` |
 | `ConnectionLoop.swift` | State machine `idle`, `connecting(n)`, `connected(V)`, `backoff(attempt:delay:reason:)`, `stopped`; knows nothing about the library; the clock and the sleeper can be replaced (tests use a manual clock) |
 | `LogLine.swift`, `LogWriter.swift`, `VinMask.swift` | Log line format, file writer on its own serial queue behind the `LogSink` protocol, VIN masking |
 | `LiveState.swift` | Reduces events into the Live tab state (last-changed time per item) |
 | `VehicleMapping.swift` | The only place that turns `VehicleEvent` / `VehicleStatus_` into Swift values (`MonitorEvent`, `StatusSnapshot`); `VehicleBox` carries a `Vehicle` across tasks |
 | `SampleModel.swift`, `Views/ControlTab.swift` | Control tab (the former single screen) on the monitor's connection and key |
-| `ContentView.swift`, `Views/` | `TabView` Live / Query / Log / Control; `isIdleTimerDisabled` follows `scenePhase == .active` |
+| `KeyControl.swift`, `KeyControlModel.swift`, `Views/KeyControlTab.swift` | Key & Control tab (`05-key-control-tab.md`): pure step rules and command runner, tab state, screen; library calls go through `BleClient` |
+| `ContentView.swift`, `Views/` | `TabView` Live / Query / Log / Control / Key & Control; `isIdleTimerDisabled` follows `scenePhase == .active` |
 
 Library calls used (Swift form) and the manual page and section:
 
@@ -165,7 +167,7 @@ Library calls used (Swift form) and the manual page and section:
 | `vehicleStatus(timeout: nil)`, `keySummary(timeout: nil)`, `listKeys(timeout: nil)`, `sessions` every 30 s; `Uncertain` and `Failure` shown as they are | `MonitorEngine.runQueries` | 14 Calls, 16 §Three outcomes |
 | `keys.getOrCreate(alias:policy:accessibility:)` with `"teslable-monitor"`, `.preferHardware`, `.afterFirstUnlock`; `VehicleErrorKeyStoreErrorLocked` waits and retries, never deletes | `MonitorEngine.ensureKey` | 13 §Key accessibility, 16 §Transport and key store errors |
 | `TeslaLogger` (tag `observe`) | `ObserveLogger` | 18 §Observation log |
-| `Vin.companion.parseOrNull`, `scan`, `addKeyRequest`, `sessionInfo`, `startSession`, VCSEC commands, `removeKey` | Control tab (`BleClient`) | 12, 13, 15, 16 |
+| `Vin.companion.parseOrNull`, `scan`, `addKeyRequest`, `sessionInfo`, `startSession`, VCSEC commands, `removeKey` | Control and Key & Control tabs (`BleClient`) | 12, 13, 15, 16 |
 
 How it behaves, where the design left room:
 

@@ -126,7 +126,8 @@
 <tr><td><code>ConnectionLoop.kt</code></td><td>State machine <code>Idle</code>, <code>Connecting(attempt)</code>, <code>Connected</code>, <code>Backoff(attempt, delay, reason)</code>, <code>Stopped</code>. It knows nothing about the library and is unit-tested with virtual time.</td></tr>
 <tr><td><code>LogLine.kt</code>, <code>LogWriter.kt</code>, <code>VinMask.kt</code></td><td>The log line format, the file writer behind the <code>LogSink</code> interface and the VIN masking.</td></tr>
 <tr><td><code>LiveState.kt</code></td><td>Turns events into the Live tab state (last-changed time per item).</td></tr>
-<tr><td><code>ui/</code></td><td><code>LiveTab</code>, <code>QueryTab</code>, <code>LogTab</code>, <code>ControlTab</code> (the former single screen) and shared helpers.</td></tr>
+<tr><td><code>KeyControl.kt</code>, <code>KeyControlState.kt</code>, <code>Enrollment.kt</code></td><td>The Key &amp; Control tab (<a href="05-key-control-tab.html">5. Key &amp; Control Tab</a>): pure step rules and command runner, tab state, and the pair and confirm helper shared with the Control tab.</td></tr>
+<tr><td><code>ui/</code></td><td><code>LiveTab</code>, <code>QueryTab</code>, <code>LogTab</code>, <code>ControlTab</code> (the former single screen), <code>KeyControlTab</code> and shared helpers.</td></tr>
 </tbody>
 </table>
 <p>Library calls used and the manual chapter they follow:</p>
@@ -139,7 +140,7 @@
 <tr><td><code>vehicleStatus()</code>, <code>keySummary()</code>, <code>listKeys()</code>, <code>sessions</code> every 30 seconds; <code>Uncertain</code> and <code>Failure</code> shown as they are</td><td><code>MonitorEngine.runQueries</code></td><td>Ch. 14 "The four queries", ch. 16 "Three outcomes"</td></tr>
 <tr><td><code>keys.getOrCreate("teslable-monitor", PREFER_HARDWARE, AFTER_FIRST_UNLOCK)</code>; <code>Locked</code> waits and retries and never deletes the key</td><td><code>MonitorEngine.ensureKey</code></td><td>Ch. 13 "Using the key while the phone is locked", ch. 16 "Bluetooth and key store errors"</td></tr>
 <tr><td><code>TeslaLogger</code> (tag <code>observe</code>)</td><td><code>ObserveLogger</code> in <code>MonitorEngine.kt</code></td><td>Ch. 18 "Observation log (development)"</td></tr>
-<tr><td><code>Vin.parseOrNull</code>, <code>scan</code>, <code>addKeyRequest</code>, <code>sessionInfo</code>, <code>startSession</code>, VCSEC commands, <code>removeKey</code></td><td>Control tab (<code>SampleState</code>)</td><td>Ch. 12, 13, 15, 16</td></tr>
+<tr><td><code>Vin.parseOrNull</code>, <code>scan</code>, <code>addKeyRequest</code>, <code>sessionInfo</code>, <code>startSession</code>, VCSEC commands, <code>removeKey</code></td><td>Control tab (<code>SampleState</code>), Key &amp; Control tab (<code>KeyControlState</code>), <code>Enrollment.kt</code></td><td>Ch. 12, 13, 15, 16</td></tr>
 </tbody>
 </table>
 <p>How it behaves, where the design left room:</p>
@@ -159,14 +160,15 @@
 <table>
 <thead><tr><th>File</th><th>Role</th></tr></thead>
 <tbody>
-<tr><td><code>MonitorModel.swift</code></td><td>The one object for the app's lifetime (<code>@StateObject</code> in <code>TeslableSampleApp</code>). Holds what the screens read, starts the engine once (connects by itself when a VIN is saved, not under XCTest) and creates the Control tab's <code>SampleModel</code>.</td></tr>
+<tr><td><code>MonitorModel.swift</code></td><td>The one object for the app's lifetime (<code>@StateObject</code> in <code>TeslableSampleApp</code>). Holds what the screens read, starts the engine once (connects by itself when a VIN is saved, not under XCTest) and creates the Control tab's <code>SampleModel</code>. It also creates the Key &amp; Control tab's <code>KeyControlModel</code>.</td></tr>
 <tr><td><code>MonitorEngine.swift</code></td><td>Owns the library instance, <code>ConnectionLoop</code>, the <code>Vehicle.events</code> Task, the query poll Task, the saved VIN (<code>UserDefaults</code>), the monitor key and the <code>LogWriter</code>. Sends changes to the model through one <code>AsyncStream</code> so their order is kept. The <code>observe</code> lines come through <code>ObserveLogger</code>, a <code>TeslaLogger</code> that passes everything to <code>DebugLogger</code>.</td></tr>
 <tr><td><code>ConnectionLoop.swift</code></td><td>State machine <code>idle</code>, <code>connecting(n)</code>, <code>connected(V)</code>, <code>backoff(attempt:delay:reason:)</code>, <code>stopped</code>. It knows nothing about the library; the clock and the sleeper can be replaced (the tests use a manual clock).</td></tr>
 <tr><td><code>LogLine.swift</code>, <code>LogWriter.swift</code>, <code>VinMask.swift</code></td><td>The log line format, the file writer on its own serial queue behind the <code>LogSink</code> protocol, and the VIN masking.</td></tr>
 <tr><td><code>LiveState.swift</code></td><td>Turns events into the Live tab state (last-changed time per item).</td></tr>
 <tr><td><code>VehicleMapping.swift</code></td><td>The only place that turns <code>VehicleEvent</code> and <code>VehicleStatus_</code> into Swift values (<code>MonitorEvent</code>, <code>StatusSnapshot</code>); <code>VehicleBox</code> carries a <code>Vehicle</code> between tasks.</td></tr>
 <tr><td><code>SampleModel.swift</code>, <code>Views/ControlTab.swift</code></td><td>The Control tab (the former single screen) on the monitor's connection and key.</td></tr>
-<tr><td><code>ContentView.swift</code>, <code>Views/</code></td><td><code>TabView</code> with Live, Query, Log and Control; <code>isIdleTimerDisabled</code> follows <code>scenePhase == .active</code>.</td></tr>
+<tr><td><code>KeyControl.swift</code>, <code>KeyControlModel.swift</code>, <code>Views/KeyControlTab.swift</code></td><td>The Key &amp; Control tab (<a href="05-key-control-tab.html">5. Key &amp; Control Tab</a>): pure step rules and command runner, tab state and screen. Library calls go through <code>BleClient</code>.</td></tr>
+<tr><td><code>ContentView.swift</code>, <code>Views/</code></td><td><code>TabView</code> with Live, Query, Log, Control and Key &amp; Control; <code>isIdleTimerDisabled</code> follows <code>scenePhase == .active</code>.</td></tr>
 </tbody>
 </table>
 <p>Library calls used (Swift form) and the manual chapter they follow:</p>
@@ -179,7 +181,7 @@
 <tr><td><code>vehicleStatus(timeout: nil)</code>, <code>keySummary(timeout: nil)</code>, <code>listKeys(timeout: nil)</code>, <code>sessions</code> every 30 seconds; <code>Uncertain</code> and <code>Failure</code> shown as they are</td><td><code>MonitorEngine.runQueries</code></td><td>Ch. 14 "The four queries", ch. 16 "Three outcomes"</td></tr>
 <tr><td><code>keys.getOrCreate(alias:policy:accessibility:)</code> with <code>"teslable-monitor"</code>, <code>.preferHardware</code>, <code>.afterFirstUnlock</code>; <code>VehicleErrorKeyStoreErrorLocked</code> waits and retries and never deletes the key</td><td><code>MonitorEngine.ensureKey</code></td><td>Ch. 13 "Using the key while the phone is locked", ch. 16 "Bluetooth and key store errors"</td></tr>
 <tr><td><code>TeslaLogger</code> (tag <code>observe</code>)</td><td><code>ObserveLogger</code></td><td>Ch. 18 "Observation log (development)"</td></tr>
-<tr><td><code>Vin.companion.parseOrNull</code>, <code>scan</code>, <code>addKeyRequest</code>, <code>sessionInfo</code>, <code>startSession</code>, VCSEC commands, <code>removeKey</code></td><td>Control tab (<code>BleClient</code>)</td><td>Ch. 12, 13, 15, 16</td></tr>
+<tr><td><code>Vin.companion.parseOrNull</code>, <code>scan</code>, <code>addKeyRequest</code>, <code>sessionInfo</code>, <code>startSession</code>, VCSEC commands, <code>removeKey</code></td><td>Control and Key &amp; Control tabs (<code>BleClient</code>)</td><td>Ch. 12, 13, 15, 16</td></tr>
 </tbody>
 </table>
 <p>How it behaves, where the design left room:</p>

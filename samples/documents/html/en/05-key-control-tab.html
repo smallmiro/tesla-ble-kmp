@@ -67,7 +67,7 @@
 </table>
 
 <h2 id="sec-steps">Steps and when buttons are enabled</h2>
-<p>The rules are one pure function (<code>KeyControlSteps</code>), so they are tested without a car. Its inputs: the key is ready, the key is locked by the phone lock, a VIN is saved, the app is connected, the enrollment state, and whether a call of this tab is running.</p>
+<p>The rules are one pure function (<code>KeyControlSteps</code>), so they are tested without a car. Its inputs: the key is ready, the key is locked by the phone lock, a VIN is saved, the app is connected with a key (<code>Connected</code> and <code>vehicle.hasKey</code>; a key-store error at connect time connects without a key, and the hint says to disconnect and connect again), the enrollment state, and whether a call of this tab is running.</p>
 <table>
 <thead><tr><th>Step</th><th>Done when</th><th>Blocked when (hint)</th><th>Button enabled when</th></tr></thead>
 <tbody>
@@ -83,9 +83,10 @@
 <h2 id="sec-enroll">Enrollment state</h2>
 <p>The enrollment state is one of <code>unknown</code>, <code>checking</code>, <code>notEnrolled</code> and <code>enrolled</code>.</p>
 <ul>
-<li>The tab checks with <code>listKeys()</code>: it looks for the car's entry whose public key equals the local key (manual chapter 13). During the check the state is <code>checking</code>; afterwards <code>enrolled</code> or <code>notEnrolled</code>, or <code>unknown</code> when the result is <code>Uncertain</code> or <code>Failure</code>. The check runs once each time the tab sees a new connection with a ready key, and when <strong>Check enrollment</strong> is pressed.</li>
-<li>It becomes <code>enrolled</code> when the pairing confirmation succeeds: <code>sessionInfo(publicKey, INFOTAINMENT)</code> every 3 seconds for up to 2 minutes.</li>
-<li>It becomes <code>notEnrolled</code> when the session before a command fails with <code>KeyNotPaired</code>.</li>
+<li>The tab checks with <code>listKeys()</code>: it looks for the car's entry whose public key equals the local key (manual chapter 13). During the check the state is <code>checking</code>; afterwards <code>enrolled</code> or <code>notEnrolled</code>, or <code>unknown</code> when the result is <code>Uncertain</code> or <code>Failure</code>. The check runs once each time the tab sees a new connection with a ready key (retried once after about 5 seconds when it ends <code>unknown</code>, because it can lose the race with the monitor's first queries), each time the tab becomes visible, and when <strong>Check enrollment</strong> is pressed. An automatic check never writes a "connect first" line.</li>
+<li>It becomes <code>enrolled</code> when the pairing confirmation succeeds: <code>sessionInfo(publicKey, INFOTAINMENT)</code> every 3 seconds for up to 2 minutes. As in the manual's <code>waitUntilEnrolled</code>, polling continues on <code>KeyNotPaired</code> and <code>Uncertain</code> and stops at once on any other failure (for example <code>NotConnected</code> after the link drops).</li>
+<li>It is checked again when the Control tab confirms an enrollment or removes this device's key.</li>
+<li>It becomes <code>notEnrolled</code> when the session before a command, or the command itself (the session was already <code>Ready</code>, so nothing was sent for it), fails with <code>KeyNotPaired</code>.</li>
 <li>It goes back to <code>unknown</code> when the connection is lost or the key changes.</li>
 </ul>
 
@@ -95,7 +96,7 @@
 <li><code>ensureSession</code> is <code>startSession(setOf(VCSEC))</code>. A domain that is already <code>Ready</code> succeeds without a request. On <code>Failure</code> (or <code>Uncertain</code>) the command is <strong>not sent</strong> and nothing is re-queried and the result line says why; <code>KeyNotPaired</code> sets the enrollment to <code>notEnrolled</code>, and <code>KeyStoreError.Locked</code> asks to unlock the phone.</li>
 <li><code>command</code> is called exactly once.</li>
 <li><code>Success</code> shows "succeeded", <code>Failure</code> shows "failed" with the message, <code>Uncertain</code> shows "uncertain" with the message and is never resent.</li>
-<li><code>requery</code> (<code>vehicleStatus()</code>) always runs after the command: after <code>Success</code> it refreshes the status card, after <code>Uncertain</code> it is the re-query the manual requires.</li>
+<li><code>requery</code> (<code>vehicleStatus()</code>) always runs after the command: after <code>Success</code> it refreshes the status card, after <code>Uncertain</code> it is the re-query the manual requires. A failed re-query is added to the same result line.</li>
 </ol>
 
 <h2 id="sec-buttons">Buttons</h2>
@@ -113,8 +114,8 @@
 <tr><td>Cybertruck</td><td>Tonneau open / close / stop</td><td><code>openTonneau()</code>, <code>closeTonneau()</code>, <code>stopTonneau()</code></td><td>No</td></tr>
 </tbody>
 </table>
-<p>The Model X and Cybertruck buttons sit in a collapsed "Other models" section. Infotainment commands (climate, charging, horn, lights) wait for M5 and are not shown. The tab also has a status card (lock, trunk, frunk, sleep and the time of the last read) with a <strong>Refresh status</strong> button, and a result list with the newest line first, time stamped and without the VIN.</p>
-<p>All library calls of this tab run one at a time through the tab's own <code>exclusive { }</code>, and the buttons are disabled while a call runs. The Control tab has its own guard; the library serializes VCSEC commands per connection, so presses on both tabs cannot interleave on the wire.</p>
+<p>Confirming a dialog checks the step 4 rule again; if it no longer holds, or another call is running, nothing is sent and a result line says why. The Model X and Cybertruck buttons sit in a collapsed "Other models" section. Infotainment commands (climate, charging, horn, lights) wait for M5 and are not shown. The tab also has a status card (lock, trunk, frunk, sleep and the time of the last read) with a <strong>Refresh status</strong> button, and a result list with the newest line first, time stamped and without the VIN.</p>
+<p>All library calls of this tab run one at a time through the tab's own <code>exclusive { }</code>, and the buttons are disabled while a call runs. On Android they run in the view model's scope, so switching tabs or rotating the phone does not cancel them. The Control tab has its own guard; the library serializes VCSEC commands per connection, so presses on both tabs cannot interleave on the wire.</p>
 
 <h2 id="sec-impl">Implementation</h2>
 <table>

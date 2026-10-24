@@ -19,7 +19,8 @@ Library pages this tab follows: `13-lib-pairing.md` (§Checking whether a key is
 The rules are a pure function (`KeyControlSteps`) so they are unit tested without a vehicle.
 
 Inputs: key ready (the monitor key exists and is readable), key locked (phone lock blocks the key), VIN saved,
-connected, enrollment (`unknown`, `checking`, `notEnrolled`, `enrolled`), busy (a library call of this tab runs).
+connected with a key (`connection` is `Connected` and `vehicle.hasKey`, `14-lib-reading-state.md`; a key-store error at
+connect time connects without a key, and the hint says to disconnect and connect again), enrollment (`unknown`, `checking`, `notEnrolled`, `enrolled`), busy (a library call of this tab runs).
 
 | Step | Done when | Blocked when (hint) | Button enabled when |
 |---|---|---|---|
@@ -37,10 +38,15 @@ Enrollment state:
 - Becomes `checking` and then `enrolled` / `notEnrolled` / back to `unknown` when the tab checks with `listKeys()`:
   the vehicle entry whose public key equals the local key (`13-lib-pairing.md` §Checking whether a key is enrolled).
   `Uncertain` or `Failure` gives `unknown`. The check runs automatically once each time the tab sees a new connection
-  with a ready key, and on the **Check enrollment** button.
+  with a ready key (retried once after about 5 s when it ends `unknown`, because it can lose the race with the monitor's
+  first queries), each time the tab becomes visible, and on the **Check enrollment** button. An automatic check never
+  writes a "connect first" line.
 - Becomes `enrolled` when the pairing confirmation (`sessionInfo(publicKey, INFOTAINMENT)` polling, every 3 s for up to
-  2 min, `13-lib-pairing.md` §Enrolling a key) succeeds.
-- Becomes `notEnrolled` when `startSession` before a command fails with `KeyNotPaired`.
+  2 min, `13-lib-pairing.md` §Enrolling a key) succeeds. As in the manual's `waitUntilEnrolled`, polling continues on
+  `KeyNotPaired` and `Uncertain` and stops at once on any other failure (for example `NotConnected` after the link drops).
+- Is re-checked when the Control tab confirms an enrollment or removes this device's key.
+- Becomes `notEnrolled` when `startSession` before a command, or the command itself (the session was already `Ready`, so
+  `startSession` sent nothing), fails with `KeyNotPaired`.
 - Goes back to `unknown` when the connection is lost or the key changes.
 
 ## Running a command
@@ -52,7 +58,7 @@ Enrollment state:
    sets enrollment to `notEnrolled`. `KeyStoreError.Locked` says to unlock the phone.
 2. `command` is called exactly once.
 3. `Success` → "succeeded"; `Failure` → "failed: <message>"; `Uncertain` → "uncertain: <message>", never resent.
-4. `requery` = `vehicleStatus()` always runs after the command (also after `Success`, to refresh the status card;
+4. `requery` = `vehicleStatus()` always runs after the command; a failed re-query is added to the same result line (also after `Success`, to refresh the status card;
    after `Uncertain` it is the re-query the manual requires).
 
 ## Buttons
@@ -69,7 +75,8 @@ Enrollment state:
 | Model X | Auto secure | `autoSecureVehicle()` | no |
 | Cybertruck | Tonneau open / close / stop | `openTonneau()` / `closeTonneau()` / `stopTonneau()` | no |
 
-Model X and Cybertruck buttons sit in a collapsed "Other models" section. Infotainment commands (climate, charging, horn,
+Confirming a dialog checks the step 4 rule again; if it no longer holds, or another call is running, nothing is sent and
+a result line says why. Model X and Cybertruck buttons sit in a collapsed "Other models" section. Infotainment commands (climate, charging, horn,
 lights) wait for M5 and are not shown.
 
 Other controls: a status card (lock, trunk, frunk, sleep, time of the last read) with a **Refresh status** button
@@ -77,7 +84,8 @@ Other controls: a status card (lock, trunk, frunk, sleep, time of the last read)
 
 ## Concurrency
 
-All library calls of this tab run through the tab's own `exclusive { }` (one at a time, buttons disabled while busy). The
+All library calls of this tab run through the tab's own `exclusive { }` (one at a time, buttons disabled while busy). On
+Android they run in the view model's scope, so switching tabs or rotating the phone does not cancel them. The
 Control tab has its own guard; the library serializes VCSEC commands per connection, so a press on both tabs at once
 cannot interleave on the wire.
 

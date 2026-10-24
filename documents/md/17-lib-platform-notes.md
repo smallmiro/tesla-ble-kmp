@@ -107,7 +107,7 @@ checked on a real iPhone yet, so treat the library behaviour in the background a
   same ECDH is not restored and stays in the cache (`13-lib-pairing.md` §Key accessibility). Other ECDH errors keep
   their old path (handshake retried until `handshakeTimeout`). A software fallback key object holds its private key in
   memory and keeps working after the lock (per API).
-- Not yet confirmed on a device (sample app build 11 is ready; checks are plan Task 11): the Keychain round trip of both classes, the class
+- Not yet confirmed on a device (sample app build 12 is ready; checks are plan Task 11): the Keychain round trip of both classes, the class
   read-back, and a handshake on a locked iPhone with an `AFTER_FIRST_UNLOCK` Secure Enclave key; also which error a
   locked iPhone reports for ECDH with a `WHEN_UNLOCKED` Secure Enclave key (the library expects OSStatus -25308; if iOS
   reports another error, `startSession()` still ends with `Timeout`). Using the key while the phone is locked also

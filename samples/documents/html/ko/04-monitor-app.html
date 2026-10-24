@@ -126,7 +126,8 @@
 <tr><td><code>ConnectionLoop.kt</code></td><td>상태 기계 <code>Idle</code>, <code>Connecting(attempt)</code>, <code>Connected</code>, <code>Backoff(attempt, delay, reason)</code>, <code>Stopped</code>. 라이브러리를 전혀 모르며 가상 시간으로 단위 테스트합니다.</td></tr>
 <tr><td><code>LogLine.kt</code>, <code>LogWriter.kt</code>, <code>VinMask.kt</code></td><td>로그 줄 형식, <code>LogSink</code> 인터페이스 뒤의 파일 쓰기, VIN 가리기.</td></tr>
 <tr><td><code>LiveState.kt</code></td><td>이벤트를 Live 탭 상태(항목별 마지막으로 바뀐 시각)로 바꿉니다.</td></tr>
-<tr><td><code>ui/</code></td><td><code>LiveTab</code>, <code>QueryTab</code>, <code>LogTab</code>, <code>ControlTab</code>(예전의 단일 화면)과 공용 도우미.</td></tr>
+<tr><td><code>KeyControl.kt</code>, <code>KeyControlState.kt</code>, <code>Enrollment.kt</code></td><td>키·제어 탭(<a href="05-key-control-tab.html">5. 키·제어 탭</a>): 순수 단계 규칙과 명령 실행기, 탭 상태, 그리고 Control 탭과 공유하는 페어링·확인 도우미.</td></tr>
+<tr><td><code>ui/</code></td><td><code>LiveTab</code>, <code>QueryTab</code>, <code>LogTab</code>, <code>ControlTab</code>(예전의 단일 화면), <code>KeyControlTab</code>과 공용 도우미.</td></tr>
 </tbody>
 </table>
 <p>사용한 라이브러리 호출과 따른 매뉴얼 장:</p>
@@ -139,7 +140,7 @@
 <tr><td>30초마다 <code>vehicleStatus()</code>, <code>keySummary()</code>, <code>listKeys()</code>, <code>sessions</code>. <code>Uncertain</code>과 <code>Failure</code>는 그대로 보여 줍니다</td><td><code>MonitorEngine.runQueries</code></td><td>14장 "네 가지 조회", 16장 "세 가지 결과"</td></tr>
 <tr><td><code>keys.getOrCreate("teslable-monitor", PREFER_HARDWARE, AFTER_FIRST_UNLOCK)</code>. <code>Locked</code>이면 기다렸다 다시 시도하고 키는 지우지 않습니다</td><td><code>MonitorEngine.ensureKey</code></td><td>13장 "휴대폰이 잠겨 있을 때 키 쓰기", 16장 "블루투스와 키 보관소 오류"</td></tr>
 <tr><td><code>TeslaLogger</code>(태그 <code>observe</code>)</td><td><code>MonitorEngine.kt</code>의 <code>ObserveLogger</code></td><td>18장 "관찰 로그 (개발용)"</td></tr>
-<tr><td><code>Vin.parseOrNull</code>, <code>scan</code>, <code>addKeyRequest</code>, <code>sessionInfo</code>, <code>startSession</code>, VCSEC 명령, <code>removeKey</code></td><td>Control 탭(<code>SampleState</code>)</td><td>12, 13, 15, 16장</td></tr>
+<tr><td><code>Vin.parseOrNull</code>, <code>scan</code>, <code>addKeyRequest</code>, <code>sessionInfo</code>, <code>startSession</code>, VCSEC 명령, <code>removeKey</code></td><td>Control 탭(<code>SampleState</code>), 키·제어 탭(<code>KeyControlState</code>), <code>Enrollment.kt</code></td><td>12, 13, 15, 16장</td></tr>
 </tbody>
 </table>
 <p>동작 방식과 설계에서 남겨 둔 부분:</p>
@@ -159,14 +160,15 @@
 <table>
 <thead><tr><th>파일</th><th>역할</th></tr></thead>
 <tbody>
-<tr><td><code>MonitorModel.swift</code></td><td>앱 수명 동안 유지되는 객체 하나(<code>TeslableSampleApp</code>의 <code>@StateObject</code>). 화면이 읽는 값을 보관하고, 엔진을 한 번 시작하며(VIN이 저장되어 있으면 스스로 연결하고 XCTest에서는 연결하지 않음) Control 탭의 <code>SampleModel</code>을 만듭니다.</td></tr>
+<tr><td><code>MonitorModel.swift</code></td><td>앱 수명 동안 유지되는 객체 하나(<code>TeslableSampleApp</code>의 <code>@StateObject</code>). 화면이 읽는 값을 보관하고, 엔진을 한 번 시작하며(VIN이 저장되어 있으면 스스로 연결하고 XCTest에서는 연결하지 않음) Control 탭의 <code>SampleModel</code>을 만듭니다. 키·제어 탭의 <code>KeyControlModel</code>도 만듭니다.</td></tr>
 <tr><td><code>MonitorEngine.swift</code></td><td>라이브러리 인스턴스, <code>ConnectionLoop</code>, <code>Vehicle.events</code> Task, 조회 주기 Task, 저장된 VIN(<code>UserDefaults</code>), 모니터 키, <code>LogWriter</code>를 소유합니다. 변경 사항은 순서가 유지되도록 <code>AsyncStream</code> 하나로 모델에 보냅니다. <code>observe</code> 줄은 모든 것을 <code>DebugLogger</code>로 넘기는 <code>TeslaLogger</code>인 <code>ObserveLogger</code>를 통해 들어옵니다.</td></tr>
 <tr><td><code>ConnectionLoop.swift</code></td><td>상태 기계 <code>idle</code>, <code>connecting(n)</code>, <code>connected(V)</code>, <code>backoff(attempt:delay:reason:)</code>, <code>stopped</code>. 라이브러리를 전혀 모르며, 시계와 sleeper를 바꿔 끼울 수 있습니다(테스트는 수동 시계를 씁니다).</td></tr>
 <tr><td><code>LogLine.swift</code>, <code>LogWriter.swift</code>, <code>VinMask.swift</code></td><td>로그 줄 형식, 자체 직렬 큐에서 <code>LogSink</code> 프로토콜 뒤에 있는 파일 쓰기, VIN 가리기.</td></tr>
 <tr><td><code>LiveState.swift</code></td><td>이벤트를 Live 탭 상태(항목별 마지막으로 바뀐 시각)로 바꿉니다.</td></tr>
 <tr><td><code>VehicleMapping.swift</code></td><td><code>VehicleEvent</code>와 <code>VehicleStatus_</code>를 Swift 값(<code>MonitorEvent</code>, <code>StatusSnapshot</code>)으로 바꾸는 유일한 곳입니다. <code>VehicleBox</code>는 <code>Vehicle</code>을 Task 사이에서 전달합니다.</td></tr>
 <tr><td><code>SampleModel.swift</code>, <code>Views/ControlTab.swift</code></td><td>모니터의 연결과 키를 쓰는 Control 탭(예전의 단일 화면).</td></tr>
-<tr><td><code>ContentView.swift</code>, <code>Views/</code></td><td>Live, Query, Log, Control이 있는 <code>TabView</code>. <code>isIdleTimerDisabled</code>는 <code>scenePhase == .active</code>를 따릅니다.</td></tr>
+<tr><td><code>KeyControl.swift</code>, <code>KeyControlModel.swift</code>, <code>Views/KeyControlTab.swift</code></td><td>키·제어 탭(<a href="05-key-control-tab.html">5. 키·제어 탭</a>): 순수 단계 규칙과 명령 실행기, 탭 상태와 화면. 라이브러리 호출은 <code>BleClient</code>를 거칩니다.</td></tr>
+<tr><td><code>ContentView.swift</code>, <code>Views/</code></td><td>Live, Query, Log, Control, 키·제어가 있는 <code>TabView</code>. <code>isIdleTimerDisabled</code>는 <code>scenePhase == .active</code>를 따릅니다.</td></tr>
 </tbody>
 </table>
 <p>사용한 라이브러리 호출(Swift 형태)과 따른 매뉴얼 장:</p>
@@ -179,7 +181,7 @@
 <tr><td>30초마다 <code>vehicleStatus(timeout: nil)</code>, <code>keySummary(timeout: nil)</code>, <code>listKeys(timeout: nil)</code>, <code>sessions</code>. <code>Uncertain</code>과 <code>Failure</code>는 그대로 보여 줍니다</td><td><code>MonitorEngine.runQueries</code></td><td>14장 "네 가지 조회", 16장 "세 가지 결과"</td></tr>
 <tr><td><code>keys.getOrCreate(alias:policy:accessibility:)</code>에 <code>"teslable-monitor"</code>, <code>.preferHardware</code>, <code>.afterFirstUnlock</code>. <code>VehicleErrorKeyStoreErrorLocked</code>이면 기다렸다 다시 시도하고 키는 지우지 않습니다</td><td><code>MonitorEngine.ensureKey</code></td><td>13장 "휴대폰이 잠겨 있을 때 키 쓰기", 16장 "블루투스와 키 보관소 오류"</td></tr>
 <tr><td><code>TeslaLogger</code>(태그 <code>observe</code>)</td><td><code>ObserveLogger</code></td><td>18장 "관찰 로그 (개발용)"</td></tr>
-<tr><td><code>Vin.companion.parseOrNull</code>, <code>scan</code>, <code>addKeyRequest</code>, <code>sessionInfo</code>, <code>startSession</code>, VCSEC 명령, <code>removeKey</code></td><td>Control 탭(<code>BleClient</code>)</td><td>12, 13, 15, 16장</td></tr>
+<tr><td><code>Vin.companion.parseOrNull</code>, <code>scan</code>, <code>addKeyRequest</code>, <code>sessionInfo</code>, <code>startSession</code>, VCSEC 명령, <code>removeKey</code></td><td>Control 탭과 키·제어 탭(<code>BleClient</code>)</td><td>12, 13, 15, 16장</td></tr>
 </tbody>
 </table>
 <p>동작 방식과 설계에서 남겨 둔 부분:</p>
