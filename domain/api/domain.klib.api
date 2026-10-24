@@ -1724,6 +1724,17 @@ final enum class dev.mirolab.teslable.port/AuthMethod : kotlin/Enum<dev.mirolab.
     final fun values(): kotlin/Array<dev.mirolab.teslable.port/AuthMethod> // dev.mirolab.teslable.port/AuthMethod.values|values#static(){}[0]
 }
 
+final enum class dev.mirolab.teslable.port/KeyAccessibility : kotlin/Enum<dev.mirolab.teslable.port/KeyAccessibility> { // dev.mirolab.teslable.port/KeyAccessibility|null[0]
+    enum entry AFTER_FIRST_UNLOCK // dev.mirolab.teslable.port/KeyAccessibility.AFTER_FIRST_UNLOCK|null[0]
+    enum entry WHEN_UNLOCKED // dev.mirolab.teslable.port/KeyAccessibility.WHEN_UNLOCKED|null[0]
+
+    final val entries // dev.mirolab.teslable.port/KeyAccessibility.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.mirolab.teslable.port/KeyAccessibility> // dev.mirolab.teslable.port/KeyAccessibility.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.mirolab.teslable.port/KeyAccessibility // dev.mirolab.teslable.port/KeyAccessibility.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.mirolab.teslable.port/KeyAccessibility> // dev.mirolab.teslable.port/KeyAccessibility.values|values#static(){}[0]
+}
+
 final enum class dev.mirolab.teslable.port/KeyPolicy : kotlin/Enum<dev.mirolab.teslable.port/KeyPolicy> { // dev.mirolab.teslable.port/KeyPolicy|null[0]
     enum entry PREFER_HARDWARE // dev.mirolab.teslable.port/KeyPolicy.PREFER_HARDWARE|null[0]
     enum entry REQUIRE_HARDWARE // dev.mirolab.teslable.port/KeyPolicy.REQUIRE_HARDWARE|null[0]
@@ -1821,6 +1832,8 @@ abstract interface dev.mirolab.teslable.port/TransportFactory { // dev.mirolab.t
 }
 
 abstract interface dev.mirolab.teslable.port/VehicleKey : dev.mirolab.teslable.port/EcdhPrivateKey { // dev.mirolab.teslable.port/VehicleKey|null[0]
+    abstract val accessibility // dev.mirolab.teslable.port/VehicleKey.accessibility|{}accessibility[0]
+        abstract fun <get-accessibility>(): dev.mirolab.teslable.port/KeyAccessibility // dev.mirolab.teslable.port/VehicleKey.accessibility.<get-accessibility>|<get-accessibility>(){}[0]
     abstract val alias // dev.mirolab.teslable.port/VehicleKey.alias|{}alias[0]
         abstract fun <get-alias>(): kotlin/String // dev.mirolab.teslable.port/VehicleKey.alias.<get-alias>|<get-alias>(){}[0]
     abstract val protection // dev.mirolab.teslable.port/VehicleKey.protection|{}protection[0]
@@ -1830,7 +1843,8 @@ abstract interface dev.mirolab.teslable.port/VehicleKey : dev.mirolab.teslable.p
 abstract interface dev.mirolab.teslable.port/VehicleKeyStore { // dev.mirolab.teslable.port/VehicleKeyStore|null[0]
     abstract suspend fun delete(kotlin/String = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.port/VehicleKeyStore.delete|delete(kotlin.String){}[0]
     abstract suspend fun get(kotlin/String = ...): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.port/VehicleKey?> // dev.mirolab.teslable.port/VehicleKeyStore.get|get(kotlin.String){}[0]
-    abstract suspend fun getOrCreate(kotlin/String = ..., dev.mirolab.teslable.port/KeyPolicy = ...): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.port/VehicleKey> // dev.mirolab.teslable.port/VehicleKeyStore.getOrCreate|getOrCreate(kotlin.String;dev.mirolab.teslable.port.KeyPolicy){}[0]
+    abstract suspend fun getOrCreate(kotlin/String, dev.mirolab.teslable.port/KeyPolicy, dev.mirolab.teslable.port/KeyAccessibility): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.port/VehicleKey> // dev.mirolab.teslable.port/VehicleKeyStore.getOrCreate|getOrCreate(kotlin.String;dev.mirolab.teslable.port.KeyPolicy;dev.mirolab.teslable.port.KeyAccessibility){}[0]
+    open suspend fun getOrCreate(kotlin/String = ..., dev.mirolab.teslable.port/KeyPolicy = ...): dev.mirolab.teslable.model/VehicleResult<dev.mirolab.teslable.port/VehicleKey> // dev.mirolab.teslable.port/VehicleKeyStore.getOrCreate|getOrCreate(kotlin.String;dev.mirolab.teslable.port.KeyPolicy){}[0]
 
     final object Companion { // dev.mirolab.teslable.port/VehicleKeyStore.Companion|null[0]
         final const val DEFAULT_ALIAS // dev.mirolab.teslable.port/VehicleKeyStore.Companion.DEFAULT_ALIAS|{}DEFAULT_ALIAS[0]
@@ -2027,6 +2041,19 @@ sealed interface dev.mirolab.teslable.model/VehicleError { // dev.mirolab.teslab
             final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.model/VehicleError.KeyStoreError.KeyNotFound.equals|equals(kotlin.Any?){}[0]
             final fun hashCode(): kotlin/Int // dev.mirolab.teslable.model/VehicleError.KeyStoreError.KeyNotFound.hashCode|hashCode(){}[0]
             final fun toString(): kotlin/String // dev.mirolab.teslable.model/VehicleError.KeyStoreError.KeyNotFound.toString|toString(){}[0]
+        }
+
+        final object Locked : dev.mirolab.teslable.model/VehicleError.KeyStoreError { // dev.mirolab.teslable.model/VehicleError.KeyStoreError.Locked|null[0]
+            final val mayHaveSucceeded // dev.mirolab.teslable.model/VehicleError.KeyStoreError.Locked.mayHaveSucceeded|{}mayHaveSucceeded[0]
+                final fun <get-mayHaveSucceeded>(): kotlin/Boolean // dev.mirolab.teslable.model/VehicleError.KeyStoreError.Locked.mayHaveSucceeded.<get-mayHaveSucceeded>|<get-mayHaveSucceeded>(){}[0]
+            final val message // dev.mirolab.teslable.model/VehicleError.KeyStoreError.Locked.message|{}message[0]
+                final fun <get-message>(): kotlin/String // dev.mirolab.teslable.model/VehicleError.KeyStoreError.Locked.message.<get-message>|<get-message>(){}[0]
+            final val temporary // dev.mirolab.teslable.model/VehicleError.KeyStoreError.Locked.temporary|{}temporary[0]
+                final fun <get-temporary>(): kotlin/Boolean // dev.mirolab.teslable.model/VehicleError.KeyStoreError.Locked.temporary.<get-temporary>|<get-temporary>(){}[0]
+
+            final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.model/VehicleError.KeyStoreError.Locked.equals|equals(kotlin.Any?){}[0]
+            final fun hashCode(): kotlin/Int // dev.mirolab.teslable.model/VehicleError.KeyStoreError.Locked.hashCode|hashCode(){}[0]
+            final fun toString(): kotlin/String // dev.mirolab.teslable.model/VehicleError.KeyStoreError.Locked.toString|toString(){}[0]
         }
     }
 

@@ -1,5 +1,6 @@
 package dev.mirolab.teslable.crypto
 
+import dev.mirolab.teslable.port.KeyAccessibility
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -16,8 +17,8 @@ class SoftwareKeyGeneratorTest {
             assertEquals(32, a.privateScalar.size)
             assertEquals(4, a.publicKey.toByteArray()[0].toInt())
             assertFalse(a.publicKey == b.publicKey)
-            val ab = SoftwareVehicleKey("a", a).sharedX(b.publicKey)
-            val ba = SoftwareVehicleKey("b", b).sharedX(a.publicKey)
+            val ab = SoftwareVehicleKey("a", a, KeyAccessibility.WHEN_UNLOCKED).sharedX(b.publicKey)
+            val ba = SoftwareVehicleKey("b", b, KeyAccessibility.WHEN_UNLOCKED).sharedX(a.publicKey)
             assertEquals(32, ab.size)
             assertContentEquals(ab, ba)
         }

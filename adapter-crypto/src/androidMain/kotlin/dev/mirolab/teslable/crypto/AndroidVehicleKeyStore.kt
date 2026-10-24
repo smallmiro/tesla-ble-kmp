@@ -7,6 +7,7 @@ import android.security.keystore.KeyProperties
 import android.security.keystore.StrongBoxUnavailableException
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.port.KeyAccessibility
 import dev.mirolab.teslable.port.KeyPolicy
 import dev.mirolab.teslable.port.KeyProtection
 import dev.mirolab.teslable.port.LogLevel
@@ -26,19 +27,22 @@ import java.security.PrivateKey
 import java.security.interfaces.ECPublicKey
 import java.security.spec.ECGenParameterSpec
 
-/** Android 키스토어(SDD §8.2): StrongBox → TEE → 감싼 소프트웨어 키 파일. */
+/**
+ * Android 키스토어(SDD §8.2): StrongBox → TEE → 감싼 소프트웨어 키 파일. 요청한 접근성은 무시하고 모든 키가
+ * [KeyAccessibility.AFTER_FIRST_UNLOCK]을 보고한다: 키 생성에 잠금 해제·사용자 인증 요구가 없다(FR-037, ADR-0014).
+ */
 public fun androidVehicleKeyStore(
     context: Context,
     logger: TeslaLogger = TeslaLogger.NoOp,
 ): VehicleKeyStore = AndroidVehicleKeyStore(File(context.applicationContext.filesDir, "teslable/keys"), logger)
 
-/** [SoftwareVehicleKey]는 스칼라를 복사해 가지므로 임시 사본은 바로 지운다. */
+/** [SoftwareVehicleKey]는 스칼라를 복사해 가지므로 임시 사본은 바로 지운다. 감싸는 Keystore AES 키에도 잠금 요구가 없다. */
 private fun softwareKeyOf(
     alias: String,
     pair: SoftwareKeyPair,
 ): VehicleKey =
     try {
-        SoftwareVehicleKey(alias, pair)
+        SoftwareVehicleKey(alias, pair, KeyAccessibility.AFTER_FIRST_UNLOCK)
     } finally {
         pair.privateScalar.fill(0)
     }
@@ -67,9 +71,11 @@ internal class AndroidVehicleKeyStore(
 
     private fun keyStore(): KeyStore = KeyStore.getInstance(ANDROID_KEY_STORE).apply { load(null) }
 
+    /** [accessibility]는 쓰지 않는다: Android 키는 모두 잠긴 동안에도 쓸 수 있다(파일 머리 KDoc). */
     override suspend fun getOrCreate(
         alias: String,
         policy: KeyPolicy,
+        accessibility: KeyAccessibility,
     ): VehicleResult<VehicleKey> {
         VehicleKeyStore.requireValidAlias(alias)
         return guarded {

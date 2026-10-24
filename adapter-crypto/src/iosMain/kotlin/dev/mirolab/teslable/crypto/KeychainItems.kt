@@ -1,5 +1,6 @@
 package dev.mirolab.teslable.crypto
 
+import dev.mirolab.teslable.port.KeyAccessibility
 import kotlinx.cinterop.ExperimentalForeignApi
 import kotlinx.cinterop.Pinned
 import kotlinx.cinterop.UByteVar
@@ -12,7 +13,8 @@ import kotlinx.cinterop.usePinned
 import kotlinx.cinterop.value
 import platform.CoreFoundation.CFDataCreateWithBytesNoCopy
 import platform.CoreFoundation.CFDataRef
-import platform.CoreFoundation.CFStringRef
+import platform.CoreFoundation.CFDictionaryGetValue
+import platform.CoreFoundation.CFDictionaryRef
 import platform.CoreFoundation.CFTypeRefVar
 import platform.CoreFoundation.kCFAllocatorNull
 import platform.CoreFoundation.kCFBooleanTrue
@@ -22,13 +24,13 @@ import platform.Security.SecItemDelete
 import platform.Security.errSecItemNotFound
 import platform.Security.errSecSuccess
 import platform.Security.kSecAttrAccessible
-import platform.Security.kSecAttrAccessibleWhenUnlockedThisDeviceOnly
 import platform.Security.kSecAttrAccount
 import platform.Security.kSecAttrService
 import platform.Security.kSecClass
 import platform.Security.kSecClassGenericPassword
 import platform.Security.kSecMatchLimit
 import platform.Security.kSecMatchLimitOne
+import platform.Security.kSecReturnAttributes
 import platform.Security.kSecReturnData
 import platform.Security.kSecValueData
 
@@ -36,8 +38,10 @@ import platform.Security.kSecValueData
 internal sealed interface KeychainRead {
     data object Missing : KeychainRead
 
+    /** [accessibility]는 항목이 보고한 보호 등급. null이면 Keychain이 알려 주지 않았다(FR-037). */
     class Found(
         val bytes: ByteArray,
+        val accessibility: KeyAccessibility?,
     ) : KeychainRead
 
     data class Failed(
@@ -49,22 +53,36 @@ internal sealed interface KeychainRead {
 internal interface KeychainItems {
     fun read(account: String): KeychainRead
 
-    /** 덮어쓴다(지우고 추가). */
+    /** 덮어쓴다(지우고 추가). 보호 등급은 [accessibility]의 `ThisDeviceOnly` 값(FR-037). */
     fun write(
         account: String,
         data: ByteArray,
+        accessibility: KeyAccessibility,
     ): Int
 
     fun delete(account: String): Int
 }
 
-/** Security.framework 구현. 접근성은 [accessible](기본 `WhenUnlockedThisDeviceOnly`, 백업·이전 불가). */
+/**
+ * `SecItemCopyMatching`(값 + 속성)이 돌려준 딕셔너리에서 값 바이트와 보호 등급(`kSecAttrAccessible`)을 읽는다. [result]는 호출자가 해제한다.
+ * 값 `CFData`는 Security.framework가 만든 사본이라 우리가 지울 수 없다. 우리 쪽 바이트 배열 사본만 호출자가 지운다.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun keychainReadOf(result: CFDictionaryRef): KeychainRead.Found {
+    @Suppress("UNCHECKED_CAST")
+    val data = CFDictionaryGetValue(result, kSecValueData) as CFDataRef?
+    val accessibility = KeychainAccessibility.fromSecAttr(CFDictionaryGetValue(result, kSecAttrAccessible))
+    return KeychainRead.Found(data?.toByteArray() ?: ByteArray(0), accessibility)
+}
+
+/**
+ * Security.framework 구현. 보호 등급은 항목마다 [write]가 정하고 [read]가 다시 읽는다(키 별칭마다 다를 수 있음, ADR-0014).
+ * `:adapter-storage`의 같은 이름 복사본은 서비스 하나에 고정 보호 등급을 쓴다 — 그 차이 말고는 같은 코드다.
+ */
 @OptIn(ExperimentalForeignApi::class)
 internal class AppleKeychainItems(
     private val service: String,
-    private val accessible: CFStringRef? = kSecAttrAccessibleWhenUnlockedThisDeviceOnly,
 ) : KeychainItems {
-    /** 읽기 결과의 `CFData`는 Security.framework가 만든 사본이라 우리가 지울 수 없다. 우리 쪽 바이트 배열 사본만 호출자가 지운다. */
     override fun read(account: String): KeychainRead =
         memScoped {
             val serviceRef = service.toCFString()
@@ -76,15 +94,17 @@ internal class AppleKeychainItems(
                         kSecAttrService to serviceRef,
                         kSecAttrAccount to accountRef,
                         kSecReturnData to kCFBooleanTrue,
+                        kSecReturnAttributes to kCFBooleanTrue,
                         kSecMatchLimit to kSecMatchLimitOne,
                     )
                 releasing(query) {
                     val result = alloc<CFTypeRefVar>()
                     when (val status = SecItemCopyMatching(query, result.ptr)) {
                         errSecSuccess -> {
+                            // 반환 형식을 둘 이상 요청하면 결과는 딕셔너리다(kSecValueData + 속성)
                             @Suppress("UNCHECKED_CAST")
-                            val data = result.value as CFDataRef
-                            data.use { KeychainRead.Found(it.toByteArray()) }
+                            val dictionary = result.value as CFDictionaryRef
+                            releasing(dictionary) { keychainReadOf(dictionary) }
                         }
 
                         errSecItemNotFound -> {
@@ -102,6 +122,7 @@ internal class AppleKeychainItems(
     override fun write(
         account: String,
         data: ByteArray,
+        accessibility: KeyAccessibility,
     ): Int {
         delete(account)
         val serviceRef = service.toCFString()
@@ -116,7 +137,7 @@ internal class AppleKeychainItems(
                             kSecClass to kSecClassGenericPassword,
                             kSecAttrService to serviceRef,
                             kSecAttrAccount to accountRef,
-                            kSecAttrAccessible to accessible,
+                            kSecAttrAccessible to KeychainAccessibility.secAttrOf(accessibility),
                             kSecValueData to dataRef,
                         )
                     releasing(attributes) { SecItemAdd(attributes, null) }

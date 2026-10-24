@@ -2,6 +2,7 @@ package dev.mirolab.teslable.crypto
 
 import dev.mirolab.teslable.crypto.EcPublicKeyEncoding.toFixed
 import dev.mirolab.teslable.model.PublicKeyBytes
+import dev.mirolab.teslable.port.KeyAccessibility
 import dev.mirolab.teslable.port.KeyProtection
 import dev.mirolab.teslable.port.VehicleKey
 import kotlinx.coroutines.Dispatchers
@@ -28,6 +29,12 @@ internal class AndroidKeystoreKey(
     override val publicKey: PublicKeyBytes,
     override val protection: KeyProtection,
 ) : VehicleKey {
+    /**
+     * [AndroidVehicleKeyStore]의 키 생성은 `setUnlockedDeviceRequired`·`setUserAuthenticationRequired`를 쓰지 않아 잠긴 동안에도
+     * 쓸 수 있다(API 기준, 실기기 미확인 — ADR-0014). 앱은 재시동 뒤 첫 잠금 해제 전에는 실행되지 않는다(direct boot 미지원).
+     */
+    override val accessibility: KeyAccessibility = KeyAccessibility.AFTER_FIRST_UNLOCK
+
     override suspend fun sharedX(peer: PublicKeyBytes): ByteArray =
         withContext(Dispatchers.IO) {
             val params =
