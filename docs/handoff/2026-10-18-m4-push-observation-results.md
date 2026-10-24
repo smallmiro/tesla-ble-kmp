@@ -74,3 +74,40 @@
 ### M5 입력
 - `vehicle.events`에 바로 쓸 수 있는 실측 항목: 잠금 상태, 수면, 탑승, **기어**, 열린 닫힘 부위(문·충전구), 인증 요청 사건.
 - 브로드캐스트로 알 수 없는 것: 방향지시등·라이트(BLE에 없음). 트렁크는 실내 버튼 조작 시 브로드캐스트 없음 — 다른 조작 방법은 추가 관찰 필요.
+
+## 3차 관찰 (2026-10-24 16:11~16:12, 빌드 8 — 시나리오 하나, 관찰 25줄)
+
+원본은 사용자가 보낸 "결과 전체 복사"(VIN·원문 헥사 없음). 25줄 모두 `[drop:to-domain]` `FromVCSECMessage{vehicleStatus{…}}`이며 `authenticationRequest`·필드 53·필드 48·다른 클라이언트 앞 응답은 한 줄도 없었다.
+
+### 시나리오 (사용자 기술)
+잠기고 잠든 차 → 운전석 뒷문을 밖에서 엶 → 손잡이를 잡은 채로 충전 단자 잠금 해제 → 충전기 분리 → 뒷문 닫음 → 충전구 닫힘 → 트렁크를 밖에서 엶 → 밖에서 닫음 → 운전석을 밖에서 엶 → 닫음
+
+### 시각별 결과 (관찰 시작 기준 +초)
+| +초 | 관찰 | 해석 |
+|---|---|---|
+| 2.8 | `sleep=ASLEEP`, 문 4개·`rearTrunk`·`frontTrunk` = `UNKNOWN`(값 3), `gear=GEAR_UNKNOWN` (38B, 다음 줄은 `rearTrunk=CLOSED` 36B) | 잠든 차가 외부 손잡이로 깨어나는 첫 프레임 |
+| 2.9 | `AWAKE`, `frontTrunk`만 `UNKNOWN` → `closureStatuses` 없음 → `rearDriverDoor=OPEN` | 깨어남, 뒷문 열림 |
+| 3.3 | `chargePort=OPEN`, 이어서 `gear=GEAR_PARK` | 손잡이를 잡아 충전 단자 잠금 해제 |
+| 5.5 | `presence=PRESENT` | 차 밖에서 문을 열고 서 있음 |
+| 8.8 / 9.0 | `rearDriverDoor=CLOSED` / `NOT_PRESENT` | 뒷문 닫음 |
+| 14.1 | 필드 8 하위 2 **1→2**, 곧 `closureStatuses` 없음 | 충전구 닫힘(충전기는 그 전에 분리) |
+| 21.8 | `rearTrunk=OPEN` | 트렁크를 밖에서 엶 |
+| 34.0 | `closureStatuses` 없음 | 트렁크 닫음 |
+| 36.9 / 37.0 | `frontDriverDoor=OPEN` / `PRESENT` | 운전석을 밖에서 엶 |
+| 40.2 | `closureStatuses` 없음 | 운전석 닫음 |
+
+`lock`은 25줄 모두 `UNLOCKED`(0번 값이라 인코딩되지 않으므로 "빠짐"과 구분 불가). 하위 1은 이전처럼 1↔2를 오감.
+
+### 사실 정리
+1. **트렁크를 밖에서 손으로 열고 닫으면 브로드캐스트가 온다**(`rearTrunk=OPEN` → 부재). 2차의 실내 버튼(브로드캐스트 없음)은 그대로다. 키카드·폰 키·앱은 미확인.
+2. **"부재 = 모두 닫힘" 규칙이 뒷문·트렁크·충전구 닫힘에서도 맞았다.** 프레임 길이를 대조하면 0이 아닌 enum 하나가 2바이트씩이고(38B→36B→28B), proto3가 0번 값(`CLOSED`)을 인코딩하지 않으므로 모든 필드가 `CLOSED`인 `ClosureStatuses`는 빈 메시지라 빠지는 것으로 설명된다. 깨어나는 순간의 "모두 CLOSED처럼 보이는 프레임"도 실제로는 `frontTrunk=UNKNOWN` 하나가 있었다.
+3. **잠든 차의 첫 프레임을 처음 관찰했다.** `ASLEEP` → 약 0.1초 뒤 `AWAKE`. 첫 프레임들은 닫힘 상태가 `UNKNOWN`, `gear`가 `UNKNOWN`이고 약 0.5초 안에 실제 값이 된다.
+4. **`userPresence=PRESENT`는 "앉아 있음"이 아니다.** 차 밖에서 문을 열고 서 있을 때도 `PRESENT`였다.
+5. **충전기가 꽂혀 잠긴 상태의 `chargePort`는 `CLOSED`.** 잠금을 풀자 `OPEN`, 분리 후 덮개가 닫히자 부재. `CLOSED`가 "케이블 없음"을 뜻하지 않는다.
+6. **필드 8 하위 2:** 충전기가 꽂혀 있는 동안 1, 분리 후 충전구가 닫힐 때 1→2(2차의 충전 시작 2→1과 반대 방향). 충전 케이블·충전 상태(1 = 사용 중, 2 = 대기)로 추정, 미확정(분리 시각보다 5초 이상 늦게 바뀜).
+7. **외부 손잡이 조작에서는 `authenticationRequest`·필드 53이 오지 않았다**(2차 실내 손잡이에서는 왔다). `PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL`은 아직 한 번도 보지 못했다.
+
+### 라이브러리 영향
+- 코드 동작 변경 없음. `VehicleEvent.Status`는 조회와 같은 매핑(부재 = 모두 `CLOSED`, 스키마 밖·값 3 = `UNKNOWN`)이라 이번 프레임을 그대로 `rearTrunk=OPEN` 등으로 낸다.
+- 문서·KDoc의 "트렁크 주의"를 "밖에서 손으로는 옴, 실내 버튼으로는 안 옴"으로 좁히고, 깨어나는 차의 `UNKNOWN`·`PRESENT`의 뜻·`chargePort` 주의를 `14-lib-reading-state` Part B에 추가했다.
+- 샘플 Live 탭의 안내 문구("실내 버튼으로 트렁크를 열고 닫으면 방송이 오지 않을 수 있습니다")는 여전히 맞으므로 그대로 둔다.
