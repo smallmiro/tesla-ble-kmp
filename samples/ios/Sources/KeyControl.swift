@@ -27,6 +27,8 @@ struct KeyControlInputs: Sendable, Equatable {
     var keyLocked = false
     var vinSaved = false
     var connected = false
+    /// 연결이 개인키를 가지고 맺어졌다(`Vehicle.hasKey`). 키 없이 연결되면 세션·명령이 안 된다.
+    var hasKey = false
     var enrollment = Enrollment.unknown
     /// 이 탭의 라이브러리 호출이 진행 중이다.
     var busy = false
@@ -44,6 +46,7 @@ struct KeyControlSteps: Sendable, Equatable {
     static let noVinHint = "Live 탭에서 VIN을 저장하세요"
     static let finishFirstHint = "1·2단계를 먼저 끝내세요"
     static let notEnrolledHint = "키를 차량에 등록하면 버튼이 켜집니다"
+    static let noKeyConnectedHint = "키 없이 연결됨 — 연결 끊기 후 다시 연결하세요"
 
     let key: StepInfo
     let connect: StepInfo
@@ -56,7 +59,7 @@ struct KeyControlSteps: Sendable, Equatable {
 
     init(_ i: KeyControlInputs) {
         let idle = !i.busy
-        let ready = i.keyReady && i.connected
+        let ready = i.keyReady && i.connected && i.hasKey
 
         // 1 Key: 키가 준비되면 완료(준비된 키는 잠겨 있을 수 없다). 잠금이면 막힘, 버튼은 잠금 해제 뒤 다시 누르는 용도로 켠다.
         if i.keyReady {
@@ -68,8 +71,11 @@ struct KeyControlSteps: Sendable, Equatable {
         }
 
         // 2 Connect
-        if i.connected {
+        if i.connected, i.hasKey {
             connect = StepInfo(state: .done, hint: "차량과 연결되었습니다", buttonEnabled: false)
+        } else if i.connected {
+            // 키보다 먼저 연결했다: 연결이 키 없이 맺어져 세션을 못 연다. 연결 끊기(Control 탭)로 다시 연결해야 한다.
+            connect = StepInfo(state: .blocked, hint: Self.noKeyConnectedHint, buttonEnabled: false)
         } else if !i.vinSaved {
             connect = StepInfo(state: .blocked, hint: Self.noVinHint, buttonEnabled: false)
         } else {
@@ -100,6 +106,17 @@ struct KeyControlSteps: Sendable, Equatable {
 
         checkEnrollmentEnabled = idle && ready && i.enrollment != .checking
         refreshStatusEnabled = idle && i.connected
+    }
+
+    /// 4단계 버튼이 지금 꺼져 있는 이유(켜져 있으면 `nil`). 확인 대화상자를 누른 뒤처럼, 보낼 때 규칙을 다시 따질 때 쓴다.
+    /// `nil` 인 것과 `control.buttonEnabled` 는 늘 같다.
+    static func controlBlockReason(_ i: KeyControlInputs) -> String? {
+        if i.busy { return "다른 호출이 진행 중입니다" }
+        if !i.connected { return "연결이 끊겼습니다" }
+        if !i.keyReady { return "키가 준비되지 않았습니다" }
+        if !i.hasKey { return noKeyConnectedHint }
+        if i.enrollment != .enrolled { return notEnrolledHint }
+        return nil
     }
 }
 
@@ -250,8 +267,68 @@ enum SessionOutcome: Sendable, Equatable {
 
 enum CommandOutcome: Sendable, Equatable {
     case success
-    case failure(String)
+    /// `keyNotPaired`: 명령의 `Failure` 가 `KeyNotPaired` 다(세션이 이미 `Ready` 라 `startSession` 이 아무것도 보내지 않은 경우).
+    case failure(String, keyNotPaired: Bool = false)
     case uncertain(String)
+}
+
+// MARK: - 등록 확인
+
+/// `sessionInfo(publicKey, INFOTAINMENT)` 한 번의 결과(`13-lib-pairing.md` 의 `waitUntilEnrolled`).
+enum EnrollmentProbe: Sendable, Equatable {
+    case enrolled
+    /// `Failure(KeyNotPaired)`: 아직 차량에 없다. 계속 묻는다.
+    case notYet
+    /// `Uncertain`: 응답이 사라졌다. 다시 묻는다.
+    case uncertain(String)
+    /// `KeyNotPaired` 가 아닌 `Failure`(예: `NotConnected`). 더 묻지 않는다.
+    case failed(String)
+}
+
+enum EnrollmentWaiter {
+    /// 3초 간격, 최대 2분. 성공하면 `true`, `KeyNotPaired`·`Uncertain` 이면 계속, 그 밖의 `Failure` 면 바로 멈춘다.
+    /// 시계와 잠자기를 받아서 실제 시간을 기다리지 않고 시험한다.
+    static func wait(
+        timeout: TimeInterval = 120,
+        interval: TimeInterval = 3,
+        probe: () async -> EnrollmentProbe,
+        sleep: (TimeInterval) async throws -> (),
+        now: () -> TimeInterval
+    ) async -> (enrolled: Bool, line: String) {
+        var last = "등록 확인: 시도하지 못함"
+        let deadline = now() + timeout
+        while now() < deadline {
+            switch await probe() {
+            case .enrolled: return (true, "등록 확인됨(Infotainment)")
+            case .notYet: last = "아직 등록되지 않음(KeyNotPaired) — 2분까지 반복"
+            case .uncertain(let why): last = "등록 확인 불확실: \(why)"
+            case .failed(let why): return (false, "등록 확인 실패: \(why)")
+            }
+            if Task.isCancelled { break }
+            do { try await sleep(interval) } catch { break }
+        }
+        return (false, "\(last) (2분 안에 확인되지 않음)")
+    }
+}
+
+/// `listKeys()` 로 한 등록 확인의 결과.
+enum EnrollmentCheckOutcome: Sendable, Equatable {
+    case enrolled
+    case notEnrolled
+    /// `Uncertain`/`Failure`/오류: 나중에 다시 확인한다.
+    case unknown(String)
+    /// 연결이나 키가 이미 없다.
+    case noLink
+
+    /// 등록 상태와 결과 줄. 자동 확인은 연결이 사라졌어도 줄을 남기지 않는다(수동 확인은 "먼저 연결하세요").
+    func report(automatic: Bool) -> (enrollment: Enrollment, line: String?, tone: KeyControlModel.ResultLine.Tone) {
+        switch self {
+        case .enrolled: return (.enrolled, "이 키가 차량에 등록되어 있습니다", .ok)
+        case .notEnrolled: return (.notEnrolled, "이 키는 차량에 등록되어 있지 않습니다", .warn)
+        case .unknown(let why): return (.unknown, "확인하지 못했습니다(\(why)). 다시 확인하세요", .warn)
+        case .noLink: return (.unknown, automatic ? nil : "먼저 연결하세요", .warn)
+        }
+    }
 }
 
 /// 재조회(`vehicleStatus()`)의 결과. 실패하면 `card` 가 `nil` 이라 화면의 이전 값이 남는다.
@@ -303,11 +380,16 @@ enum KeyControlRunner {
 
         let outcome = await command()
         let after = await requery()
+        // 성공·실패 줄에는 재조회가 실패했을 때만 이유를 붙인다(불확실 줄은 재조회 결과를 이미 담는다).
+        let failedRequery = after.card == nil ? "\n  재조회 실패: \(after.text)" : ""
         switch outcome {
         case .success:
-            return KeyControlReport(kind: .success, line: "성공", enrollment: nil, status: after.card)
-        case .failure(let why):
-            return KeyControlReport(kind: .failure, line: "실패: \(why)", enrollment: nil, status: after.card)
+            return KeyControlReport(kind: .success, line: "성공" + failedRequery, enrollment: nil, status: after.card)
+        case .failure(let why, let keyNotPaired):
+            return KeyControlReport(
+                kind: .failure, line: "실패: \(why)" + (keyNotPaired ? " — 이 키는 차량에 등록되어 있지 않습니다. 3단계에서 등록하세요" : "") + failedRequery,
+                enrollment: keyNotPaired ? .notEnrolled : nil, status: after.card
+            )
         case .uncertain(let why):
             return KeyControlReport(kind: .uncertain, line: "불확실: \(why) → 재조회: \(after.text)", enrollment: nil, status: after.card)
         }

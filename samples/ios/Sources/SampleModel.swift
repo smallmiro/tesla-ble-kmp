@@ -149,30 +149,29 @@ actor BleClient {
         (0..<bytes.size).map { String(format: "%02x", UInt8(bitPattern: bytes.get(index: $0))) }.joined()
     }
 
-    /// 3초 간격, 최대 2분 동안 Infotainment `sessionInfo`로 등록을 확인한다. 등록이 확인됐는지와 화면용 한 줄을 돌려준다.
+    /// 3초 간격, 최대 2분 동안 Infotainment `sessionInfo`로 등록을 확인한다(`13-lib-pairing.md` 의 `waitUntilEnrolled`).
+    /// `KeyNotPaired`·`Uncertain` 이면 계속 묻고, 그 밖의 `Failure`(예: 링크가 끊긴 `NotConnected`)면 바로 멈춘다.
+    /// 등록이 확인됐는지와 화면용 한 줄을 돌려준다.
     func confirmEnrollment() async -> (enrolled: Bool, line: String) {
         refresh()
         guard let vehicle else { return (false, "등록 확인: 먼저 연결하세요") }
         guard let key else { return (false, "등록 확인: 먼저 키를 만드세요") }
-        var last = "등록 확인: 시도하지 못함"
-        let deadline = Date().addingTimeInterval(120)
-        while Date() < deadline {
-            do {
-                let result = try await vehicle.sessionInfo(
-                    publicKey: key.publicKey, domain: .infotainment, timeout: Timeouts.shared.seconds(seconds: 5)
-                )
-                switch onEnum(of: result) {
-                case .success: return (true, "등록 확인됨(Infotainment)")
-                case .failure(let f):
-                    if f.error is VehicleErrorKeyNotPaired { last = "아직 등록되지 않음(KeyNotPaired) — 2분까지 반복" }
-                    else { last = "등록 확인 실패: \(f.error.message)" }
-                case .uncertain(let u): last = "등록 확인 불확실: \(u.error.message)"
-                }
-            } catch { last = "등록 확인 오류: \(error)" }
-            if Task.isCancelled { break }
-            try? await Task.sleep(for: .seconds(3))
-        }
-        return (false, "\(last) (2분 안에 확인되지 않음)")
+        return await EnrollmentWaiter.wait(
+            probe: {
+                do {
+                    let result = try await vehicle.sessionInfo(
+                        publicKey: key.publicKey, domain: .infotainment, timeout: Timeouts.shared.seconds(seconds: 5)
+                    )
+                    switch onEnum(of: result) {
+                    case .success: return .enrolled
+                    case .failure(let f): return f.error is VehicleErrorKeyNotPaired ? .notYet : .failed(f.error.message)
+                    case .uncertain(let u): return .uncertain(u.error.message)
+                    }
+                } catch { return .uncertain("\(error)") }
+            },
+            sleep: { try await Task.sleep(for: .seconds($0)) },
+            now: { Date().timeIntervalSince1970 }
+        )
     }
 
     /// 제어 명령. 결과가 `Uncertain`이면 다시 보내지 않고 곧바로 `vehicleStatus()`로 재조회한다(FR-102).
@@ -242,20 +241,21 @@ actor BleClient {
     // MARK: - 키·제어 탭 (SFR-018, `samples/documents/md/05-key-control-tab.md`)
 
     /// 차량의 키 목록에 이 기기의 공개키가 있는지 `listKeys()` 로 확인한다(`13-lib-pairing.md` §Checking whether a key is enrolled).
-    /// `Uncertain`/`Failure`/연결 없음은 `.unknown`(나중에 다시 확인).
-    func checkEnrollment() async -> Enrollment {
+    /// `Uncertain`/`Failure`/오류는 `.unknown`(나중에 다시 확인), 연결이나 키가 이미 없으면 `.noLink`.
+    func checkEnrollment() async -> EnrollmentCheckOutcome {
         refresh()
-        guard let vehicle, let key else { return .unknown }
+        guard let vehicle, let key else { return .noLink }
         do {
             let result = try await vehicle.listKeys(timeout: nil)
             switch onEnum(of: result) {
             case .success(let s):
-                guard let entries = s.value as? [WhitelistEntry] else { return .unknown }
+                guard let entries = s.value as? [WhitelistEntry] else { return .unknown("예상하지 못한 결과 형식") }
                 let own = entries.contains { e in e.publicKey.map { $0.isEqual(key.publicKey) } ?? false }
                 return own ? .enrolled : .notEnrolled
-            case .uncertain, .failure: return .unknown
+            case .uncertain(let u): return .unknown("불확실: \(u.error.message)")
+            case .failure(let f): return .unknown("실패: \(f.error.message)")
             }
-        } catch { return .unknown }
+        } catch { return .unknown("오류: \(error)") }
     }
 
     /// 명령 앞의 세션 보장: `startSession(setOf(VCSEC))`. 이미 `Ready` 인 도메인은 요청 없이 성공한다(`15-lib-commands.md`).
@@ -297,7 +297,7 @@ actor BleClient {
             }
             switch onEnum(of: result) {
             case .success: return .success
-            case .failure(let f): return .failure(f.error.message)
+            case .failure(let f): return .failure(f.error.message, keyNotPaired: f.error is VehicleErrorKeyNotPaired)
             case .uncertain(let u): return .uncertain(u.error.message)
             }
         } catch { return .failure("\(error)") }
@@ -344,6 +344,16 @@ final class SampleModel: ObservableObject {
 
     private let engine: MonitorEngine
     private let client: BleClient
+
+    /// 이 탭의 동작이 이 기기의 키 등록 상태를 바꿨을 수 있을 때 키·제어 탭에 알린다(`MonitorModel` 이 연결한다).
+    enum EnrollmentChange: Equatable {
+        /// 키 등록 요청 뒤 등록 확인이 성공했다.
+        case enrolled
+        /// 이 기기의 키를 지우려 했다(결과와 상관없이 다시 확인해야 한다).
+        case ownKeyRemoved
+    }
+
+    var onEnrollmentChange: ((EnrollmentChange) -> ())?
 
     init(engine: MonitorEngine) {
         self.engine = engine
@@ -442,7 +452,8 @@ final class SampleModel: ObservableObject {
 
     func pair() async {
         await exclusive { [self] in
-            await client.pair { [weak self] line in await self?.log(line) }
+            let enrolled = await client.pair { [weak self] line in await self?.log(line) }
+            if enrolled { onEnrollmentChange?(.enrolled) }
         }
     }
 
@@ -464,6 +475,7 @@ final class SampleModel: ObservableObject {
             let result = await client.listKeys()
             keyRows = result.rows
             log(result.line)
+            if row.isOwn { onEnrollmentChange?(.ownKeyRemoved) }
         }
     }
 

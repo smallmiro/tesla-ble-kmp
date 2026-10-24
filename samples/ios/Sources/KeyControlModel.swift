@@ -34,6 +34,7 @@ final class KeyControlModel: ObservableObject {
     private var needsCheck = false
 
     private static let maxResults = 100
+    private static let autoRetrySeconds = 5
 
     init(engine: MonitorEngine) {
         self.engine = engine
@@ -42,10 +43,12 @@ final class KeyControlModel: ObservableObject {
 
     // MARK: - 입력 변화 (MonitorModel 이 부른다)
 
-    func connectionChanged(connected: Bool) {
-        guard connected != inputs.connected else { return }
+    func connectionChanged(connected: Bool, hasKey: Bool) {
+        let keyed = connected && hasKey
+        guard connected != inputs.connected || keyed != inputs.hasKey else { return }
         generation += 1
         inputs.connected = connected
+        inputs.hasKey = keyed
         if connected {
             needsCheck = true
             checkIfNeeded()
@@ -74,6 +77,25 @@ final class KeyControlModel: ObservableObject {
         inputs.vinSaved = saved
     }
 
+    /// 탭이 화면에 나타날 때. 다른 탭에서 키가 등록되거나 지워졌을 수 있어 등록 상태를 다시 확인한다.
+    func tabAppeared() {
+        needsCheck = true
+        checkIfNeeded()
+    }
+
+    /// Control 탭이 이 기기의 키 등록을 바꿨을 수 있다(`SampleModel.onEnrollmentChange`).
+    func enrollmentChangedElsewhere(_ change: SampleModel.EnrollmentChange) {
+        switch change {
+        case .enrolled:
+            guard inputs.connected else { return }
+            inputs.enrollment = .enrolled
+        case .ownKeyRemoved:
+            inputs.enrollment = .unknown
+            needsCheck = true
+            checkIfNeeded()
+        }
+    }
+
     // MARK: - 한 번에 하나
 
     private func exclusive(_ body: @MainActor () async -> ()) async {
@@ -84,18 +106,29 @@ final class KeyControlModel: ObservableObject {
         checkIfNeeded() // 바쁜 사이에 놓친 자동 확인
     }
 
+    /// 키가 준비되고 키를 가진 연결이 있다.
+    private var canCheck: Bool { inputs.keyReady && inputs.connected && inputs.hasKey }
+
     private func checkIfNeeded() {
-        guard needsCheck, inputs.keyReady, inputs.connected, !inputs.busy else { return }
+        guard needsCheck, canCheck, !inputs.busy, inputs.enrollment != .checking else { return }
         Task { await autoCheck() }
     }
 
-    private func autoCheck() async {
+    /// 자동 확인 한 번. 결과를 모르면(`unknown`) 연결 직후 모니터의 첫 조회와 겹쳤을 수 있어 5초 뒤에 한 번만 더 한다.
+    private func autoCheck(isRetry: Bool = false) async {
+        let gen = generation
+        var ran = false
         await exclusive { [self] in
             // 기다리는 사이에 조건이 바뀌었을 수 있다. 여기서(바쁨을 잡은 뒤) 한 번만 소비한다.
-            guard needsCheck, inputs.keyReady, inputs.connected else { return }
+            guard canCheck, isRetry ? inputs.enrollment == .unknown : needsCheck else { return }
             needsCheck = false
-            await runCheck()
+            ran = true
+            await runCheck(automatic: true)
         }
+        guard ran, !isRetry, gen == generation, inputs.enrollment == .unknown else { return }
+        try? await Task.sleep(for: .seconds(Self.autoRetrySeconds))
+        guard gen == generation else { return }
+        await autoCheck(isRetry: true)
     }
 
     // MARK: - 결과 줄
@@ -143,22 +176,19 @@ final class KeyControlModel: ObservableObject {
     func checkEnrollment() async {
         await exclusive { [self] in
             needsCheck = false
-            await runCheck()
+            await runCheck(automatic: false)
         }
     }
 
-    /// `exclusive` 안에서만 부른다.
-    private func runCheck() async {
+    /// `exclusive` 안에서만 부른다. `automatic` 이면 연결이 사라진 경우에 줄을 남기지 않는다.
+    private func runCheck(automatic: Bool) async {
         let gen = generation
         inputs.enrollment = .checking
-        let result = await client.checkEnrollment()
+        let outcome = await client.checkEnrollment()
         guard gen == generation else { return } // 그 사이 연결이 바뀜: 상태는 이미 처음으로 돌아갔다
-        inputs.enrollment = result
-        switch result {
-        case .enrolled: add("등록 확인", "이 키가 차량에 등록되어 있습니다", .ok)
-        case .notEnrolled: add("등록 확인", "이 키는 차량에 등록되어 있지 않습니다", .warn)
-        default: add("등록 확인", "확인하지 못했습니다(다시 확인하세요)", .warn)
-        }
+        let report = outcome.report(automatic: automatic)
+        inputs.enrollment = report.enrollment
+        if let line = report.line { add("등록 확인", line, report.tone) }
     }
 
     /// 3단계: 키 등록 요청. 이벤트 줄은 `progress` 에, 끝나면 등록 확인까지 한다(자동 확인, 3초 간격 최대 2분).
@@ -181,6 +211,15 @@ final class KeyControlModel: ObservableObject {
         } else {
             Task { await run(button) }
         }
+    }
+
+    /// 확인 대화상자에서 "보내기"를 눌렀을 때. 그 사이 조건이 바뀌었을 수 있어 4단계 규칙을 다시 따지고, 못 보내면 이유를 남긴다.
+    func runConfirmed(_ button: ControlButton) async {
+        if let why = KeyControlSteps.controlBlockReason(inputs) {
+            add(button.title, "보내지 않음: \(why)", .warn)
+            return
+        }
+        await run(button)
     }
 
     /// 세션 보장 → 명령(한 번) → 재조회(`KeyControlRunner`).
