@@ -27,10 +27,11 @@ data class ResultLine(
     val text: String,
 )
 
-/** 마지막 `vehicleStatus()` 와 읽은 시각(상태 카드). */
+/** 마지막 `vehicleStatus()` 와 읽은 시각(상태 카드). [vehicle]은 읽은 연결: 연결이 바뀌면 카드를 지운다. */
 data class StatusSnapshot(
     val status: VehicleStatus,
     val at: Instant,
+    val vehicle: Vehicle,
 )
 
 /**
@@ -122,6 +123,7 @@ class KeyControlState(
         }.distinctUntilChanged()
             .collectLatest { seen ->
                 enrollment.value = Enrollment.UNKNOWN
+                if (status.value?.vehicle !== seen.vehicle) status.value = null // 상태 카드는 그 연결에서 읽은 것만 보여 준다
                 if (seen.vehicle?.hasKey == true && seen.keyReady) {
                     // 연결 직후엔 모니터의 첫 조회가 VCSEC을 쓰고 있어 시간이 넘을 수 있다: 모르겠으면 5초 뒤 한 번 더 확인한다.
                     KeyControlRunner.autoCheck(check = { checkWhenIdle() }, wait = { delay(AUTO_RETRY_DELAY) })
@@ -237,8 +239,9 @@ class KeyControlState(
                 command = { send(v, cmd) },
                 requery = { v.vehicleStatus() },
             )
+        if (vehicle !== v) return log("${cmd.label}: ${outcome.message}\n  (그 사이 연결이 바뀌어 등록·상태 결과는 버림)")
         outcome.enrollment?.let { enrollment.value = it }
-        outcome.status?.let { status.value = StatusSnapshot(it, Instant.now()) }
+        outcome.status?.let { status.value = StatusSnapshot(it, Instant.now(), v) }
         log("${cmd.label}: ${outcome.message}" + (outcome.requeryMessage?.let { "\n  $it" } ?: ""))
     }
 
@@ -271,7 +274,7 @@ class KeyControlState(
     suspend fun refreshStatus() {
         val v = vehicle ?: return log("상태 새로고침: 먼저 연결하세요")
         when (val r = v.vehicleStatus()) {
-            is VehicleResult.Success -> status.value = StatusSnapshot(r.value, Instant.now())
+            is VehicleResult.Success -> if (vehicle === v) status.value = StatusSnapshot(r.value, Instant.now(), v)
             is VehicleResult.Uncertain -> log("상태 새로고침 불확실: ${r.error.message}")
             is VehicleResult.Failure -> log("상태 새로고침 실패: ${r.error.message}")
         }
