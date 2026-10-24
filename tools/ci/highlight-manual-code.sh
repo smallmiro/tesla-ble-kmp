@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # tools/ci/highlight-manual-code.sh — HTML 매뉴얼 코드 블록에 문법 색을 입힌다
 #   매뉴얼은 외부 리소스를 쓰지 않고 스크립트도 테마 전환(assets/theme.js)뿐이므로, 색은 미리 <span class="..."> 로 넣어 둔다.
-#   대상: documents/html/{ko,en,ja}/*.html 와 index.html 의 <pre><code class="language-X"> (bash, go, json, kotlin, python, swift, xml, yaml)
+#   대상: 문서 세트(documents/html, samples/documents/html)마다 {ko,en,ja}/*.html 와 index.html 의 <pre><code class="language-X"> (bash, go, json, kotlin, python, swift, xml, yaml)
 #   다시 돌려도 결과가 같다(기존 span을 지우고 다시 칠한다). 코드 블록을 고친 뒤 돌리고 함께 커밋한다.
 #   --check: 파일을 바꾸지 않고, 칠하지 않은 블록이 있으면 실패한다(check-manual-i18n.sh 가 부른다).
 #   클래스: c 주석, k 키워드, s 문자열, n 숫자·상수, f 함수·명령, t 타입, v 변수, p 키·플래그, o 연산자
@@ -14,7 +14,8 @@ import html, pathlib, re, sys
 
 root = pathlib.Path(sys.argv[1])
 mode = sys.argv[2]
-html_dir = root / "documents/html"
+# check-manual-i18n.sh, sync-manual-root-index.sh 의 DOC_SETS 와 같아야 한다.
+DOC_SETS = [("documents/md", "documents/html"), ("samples/documents/md", "samples/documents/html")]
 
 def words(*ws):
     return r"\b(?:" + "|".join(ws) + r")\b"
@@ -131,7 +132,10 @@ def highlight(text):
         return m.group(1) + paint(lang, code) + m.group(4)
     return BLOCK.sub(one, text)
 
-files = sorted(html_dir.glob("*/*.html")) + sorted(html_dir.glob("index.html"))
+files = []
+for _, html_rel in DOC_SETS:
+    html_dir = root / html_rel
+    files += sorted(html_dir.glob("*/*.html")) + sorted(html_dir.glob("index.html"))
 stale = []
 for p in files:
     text = p.read_text(encoding="utf-8")
