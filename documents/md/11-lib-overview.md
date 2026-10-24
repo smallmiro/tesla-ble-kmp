@@ -17,6 +17,7 @@ and `ja/` in the same PR (AGENTS.md §3 rule 13).
 | BLE scan and connect (Kable), key store, session cache storage, facade `TeslaBle` / `Vehicle` (M3) | Done (real-vehicle check on iOS 2026-10-18; Android real device not checked) | `12-lib-getting-started.md`, `17-lib-platform-notes.md` |
 | Read-only queries without a key: `vehicleStatus()`, `keySummary()`, `listKeys()` (M3) | Done | `14-lib-reading-state.md` |
 | Key enrollment (`addKeyRequest`, `sessionInfo`, `addKey`, `removeKey`), VCSEC control (lock, unlock, trunk…) (M4) | Done (real-vehicle check pending) | `13-lib-pairing.md`, `15-lib-commands.md` |
+| Broadcast events `vehicle.events` (`Flow<VehicleEvent>`) and `VehicleStatus.gear` (FR-035, FR-036; issue #91, ahead of M5) | Done (the broadcasts were observed on a real car; the `events` API itself is checked with FakeVehicle tests, real-vehicle check pending) | `14-lib-reading-state.md` B2, `12-lib-getting-started.md` |
 | Infotainment control and `getState()` (M5) | **Not implemented** | `14-lib-reading-state.md`, `15-lib-commands.md` |
 | Packaging: GitHub Packages + Swift Package Manager (M6) | **Not implemented** | this page, "Installation" |
 
@@ -46,6 +47,7 @@ Not published yet (M6 adds GitHub Packages + SPM). Build from source:
 | Task | Files to read |
 |---|---|
 | Write app code that scans, connects and reads state | `12-lib-getting-started.md`, `14-lib-reading-state.md`, `16-lib-errors.md` |
+| Show live state from the vehicle's broadcasts (`vehicle.events`) | `12-lib-getting-started.md` §Broadcast events, `14-lib-reading-state.md` B2, `16-lib-errors.md` |
 | Handle keys (create, look up, delete, check enrollment) | `13-lib-pairing.md`, `17-lib-platform-notes.md` §Key storage |
 | Know which commands exist and which are planned | `15-lib-commands.md` |
 | Map a `VehicleError` to app behaviour, understand retries | `16-lib-errors.md` |
@@ -60,7 +62,7 @@ Not published yet (M6 adds GitHub Packages + SPM). Build from source:
 | `11-lib-overview.md` | This page: status, platforms, installation, reading order |
 | `12-lib-getting-started.md` | End-to-end flow and full Kotlin / Swift examples |
 | `13-lib-pairing.md` | `VehicleKeyStore`, `KeyPolicy`, `KeyProtection`, public key bytes, enrollment check, `addKeyRequest` and `PairingEvent`, `sessionInfo`, `addKey`, `removeKey` |
-| `14-lib-reading-state.md` | Part A, data you request: `vehicleStatus()`, `keySummary()`, `listKeys()`, `sessionInfo()` with protocol payloads and enum tables. Part B, data the vehicle broadcasts (confirmed on a real car), result types, wake behaviour, planned `getState()` and `vehicle.events` |
+| `14-lib-reading-state.md` | Part A, data you request: `vehicleStatus()`, `keySummary()`, `listKeys()`, `sessionInfo()` with protocol payloads and enum tables. Part B, data the vehicle broadcasts (confirmed on a real car) and how `vehicle.events` delivers it, result types, wake behaviour, planned `getState()` |
 | `15-lib-commands.md` | Session API, the implemented VCSEC control commands (method ↔ FR ↔ payload) and the planned Infotainment table |
 | `16-lib-errors.md` | `VehicleResult`, `VehicleError` hierarchy, transport and key store errors, retry and timeouts |
 | `17-lib-platform-notes.md` | Android / iOS requirements, key storage, session cache, clocks, connection slots |

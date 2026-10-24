@@ -55,7 +55,7 @@
 </nav>
 <main class="content">
 <h1>12. ライブラリ入門</h1>
-<p class="lead">ライブラリの作成、キーの取得、車両の検索、接続、状態の読み取り、切断までの全体の流れを説明します。最後の節では、新しいキーのペアリングと最初のコマンドの送信 (M4) を示します。</p>
+<p class="lead">ライブラリの作成、キーの取得、車両の検索、接続、状態の読み取り、切断までの全体の流れを説明します。最後の 2 つの節では、新しいキーのペアリングと最初のコマンドの送信 (M4)、車両のブロードキャストの受信を示します。</p>
 
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-flow">全体の流れ</a></li>
@@ -63,6 +63,7 @@
 <li><a href="#sec-kotlin">Kotlin (Android)</a></li>
 <li><a href="#sec-swift">Swift (iOS)</a></li>
 <li><a href="#sec-pair">ペアリングしてからロック</a></li>
+<li><a href="#sec-events">ブロードキャストイベント</a></li>
 <li><a href="#sec-next">次のステップ</a></li>
 </ol></div>
 
@@ -199,10 +200,49 @@ _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class=
 <span class="k">let</span> result = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">lock</span>(timeout: <span class="n">nil</span>)</code></pre>
 <p>Kotlin のデフォルト引数は Swift のオーバーロードにならないため、Swift ではすべての引数を明示的に渡します。</p>
 
+<h2 id="sec-events">ブロードキャストイベント</h2>
+<p>車両は要求しなくても平文のブロードキャストを送ってきます。車両の状態 (ロック、ドアなどの開閉部、ギア、乗車、スリープ) と認証要求です。<code>vehicle.events</code> はこれを <code>Flow&lt;VehicleEvent&gt;</code> として届け、キーもセッションも必要ありません。どのフレームがイベントになるか、イベントの種類、<code>unknownFields</code>、バッファは <a href="14-lib-reading-state.html#sec-b-library">14. 車両状態の取得、B2</a> で説明しています。</p>
+<ul>
+<li><strong>専用に収集します。</strong>別のコルーチン (Swift では別の <code>Task</code>) を使います。フローはリンクが切れるか <code>disconnect()</code> が呼ばれると<strong>自分で終わり</strong>、その後に始めた収集はすぐに終わります。そのあと <code>connection</code> を確認し、<code>disconnect()</code> を呼んでください。新しく接続すると、新しい <code>Vehicle</code> と新しい <code>events</code> が得られます。</li>
+<li><strong>聞いている間に届いたものだけです。</strong>それより前のブロードキャストは再送されません。<strong>繰り返しは変化ではありません</strong>。車両は同じ状態を数秒ごとに送り直すので、前の値と比べてください。</li>
+<li><strong>トランク:</strong> 室内ボタンで開けたトランクはブロードキャストを送りません。トランクは <code>vehicleStatus()</code> で読んでください。</li>
+<li><strong><code>raw</code> はフレーム全体です。</strong>VIN はマスクされておらず、アクセスのたびに新しいコピーを作ります。一度だけ読み、保存や共有の前に VIN をマスクしてください。</li>
+</ul>
+<h3>Kotlin</h3>
+<pre><code class="language-kotlin"><span class="c">// vehicle は上のとおり接続済み (key = null で十分)</span>
+scope.<span class="f">launch</span> {
+    vehicle.events.<span class="f">collect</span> { event <span class="o">-&gt;</span>
+        <span class="k">when</span> (event) {
+            <span class="k">is</span> <span class="t">VehicleEvent</span>.<span class="t">Status</span> <span class="o">-&gt;</span> <span class="f">render</span>(event.status)                        <span class="c">// 繰り返しは変化ではない</span>
+            <span class="k">is</span> <span class="t">VehicleEvent</span>.<span class="t">AuthenticationRequest</span> <span class="o">-&gt;</span> <span class="f">note</span>(event.requestedLevel, event.reasons)
+            <span class="k">is</span> <span class="t">VehicleEvent</span>.<span class="t">Unrecognized</span> <span class="o">-&gt;</span> <span class="f">keep</span>(event.raw, event.unknownFields)  <span class="c">// 保存する前に raw の VIN をマスクする</span>
+        }
+    }
+    <span class="c">// 完了: リンクが切れたか disconnect() が呼ばれた。vehicle.connection を確認してから vehicle.disconnect() を呼ぶ</span>
+}</code></pre>
+<h3>Swift</h3>
+<p>SKIE のフローは例外を投げないので、<code>for await</code> で十分です。<code>AuthenticationLevel.none</code> は型名まで書いてください。値がオプショナルの場所 (例: 保存しておいた最後のレベル) で単に <code>.none</code> と書くと <code>nil</code> の意味になります。Swift では公開モデル <code>VehicleStatus</code> の名前は <code>VehicleStatus_</code> です。生成された VCSEC メッセージが元の名前を使っているためで、<code>s.status</code> は <code>VehicleStatus_</code> になります。</p>
+<pre><code class="language-swift"><span class="c">// 専用の Task で。リンクが切れるか disconnect() が呼ばれるとループは自分で終わる</span>
+<span class="k">for</span> <span class="k">await</span> event <span class="k">in</span> vehicle.events {
+    <span class="k">switch</span> <span class="f">onEnum</span>(of: event) {
+    <span class="k">case</span> .<span class="f">status</span>(<span class="k">let</span> s):
+        <span class="f">render</span>(s.status)                                         <span class="c">// 繰り返しは変化ではない</span>
+    <span class="k">case</span> .<span class="f">authenticationRequest</span>(<span class="k">let</span> a):
+        <span class="k">if</span> a.requestedLevel <span class="o">!=</span> <span class="t">AuthenticationLevel</span>.none {
+            <span class="f">print</span>(<span class="s">"認証要求: \(a.requestedLevel)、理由 \(a.reasons)"</span>)
+        }
+    <span class="k">case</span> .<span class="f">unrecognized</span>(<span class="k">let</span> u):
+        <span class="k">let</span> raw = u.raw                                          <span class="c">// アクセスのたびにバイトをコピーするので一度だけ読む</span>
+        <span class="f">keep</span>(raw, u.unknownFields)                               <span class="c">// 保存する前に raw の VIN をマスクする</span>
+    }
+}
+<span class="c">// ループ終了: vehicle.connection を確認してから vehicle.disconnect() を呼ぶ</span></code></pre>
+
 <h2 id="sec-next">次のステップ</h2>
 <ul>
 <li>キーの登録とペアリングイベント: <a href="13-lib-pairing.html">13. キーとペアリング</a>。<code>vehicleStatus()</code>、<code>keySummary()</code>、<code>listKeys()</code> は引き続き <code>connect(vin, key = null)</code> だけで使えます。</li>
 <li>リンクは <code>vehicle.connection</code>、セッションは <code>vehicle.sessions</code> で監視します。どちらも <code>StateFlow</code> です。リンクが <code>Disconnected</code> を報告した場合でも、<code>disconnect()</code> は自分で呼んでください。</li>
+<li>車両のブロードキャストによるライブの状態: <code>vehicle.events</code> (上の<a href="#sec-events">ブロードキャストイベント</a>、<a href="14-lib-reading-state.html#sec-b-library">14. 車両状態の取得、B2</a>)。</li>
 </ul>
 
 <footer class="page-nav">

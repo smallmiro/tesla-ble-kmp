@@ -1,7 +1,8 @@
 # Monitor App (SFR-010 to SFR-017)
 
-Status: **planned** (issue #91). The library features it needs (`Vehicle.events`, key
-accessibility on iOS) are not available yet; this page describes the target. Library design:
+Status: **planned** (issue #91). `Vehicle.events` is available in the library (`12-lib-getting-started.md` §Broadcast
+events, `14-lib-reading-state.md` B2); the app still waits for key accessibility on iOS (FR-037, plan Task 7). This page
+describes the target. Library design:
 `docs/superpowers/specs/2026-10-24-vehicle-events-monitor-design.md`. Plan:
 `docs/superpowers/plans/2026-10-24-vehicle-events-monitor.md`.
 

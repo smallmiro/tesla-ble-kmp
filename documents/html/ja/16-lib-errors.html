@@ -61,6 +61,7 @@
 <li><a href="#sec-outcomes">3 つの結果</a></li>
 <li><a href="#sec-hierarchy">エラーの種類</a></li>
 <li><a href="#sec-transport">Bluetooth とキーストアのエラー</a></li>
+<li><a href="#sec-events">ブロードキャストイベント</a></li>
 <li><a href="#sec-retry">リトライとタイムアウト</a></li>
 <li><a href="#sec-requery">Uncertain の後に読むもの</a></li>
 </ol></div>
@@ -124,6 +125,16 @@
 <tr><td><code>HardwareUnavailable</code></td><td>ハードウェアが必須だが使えない</td><td><code>PREFER_HARDWARE</code> を使います</td></tr>
 <tr><td><code>KeyNotFound</code></td><td>そのエイリアスのキーがない</td><td><code>getOrCreate</code> で作成します</td></tr>
 <tr><td><code>PlatformFailure</code></td><td>プラットフォームのキーストアが失敗した。<code>stored key is corrupted</code> は保存されたキーが破損していることを示す</td><td>破損したキーは自動で置き換えられません。削除して作成し、新しいキーを再度登録します</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-events">ブロードキャストイベント</h2>
+<p><code>vehicle.events</code> にはエラー値がなく、例外も投げません。リンクが切れるか <code>disconnect()</code> を呼ぶと正常に終わります (<a href="14-lib-reading-state.html#sec-b-library">14. 車両状態の取得、B2</a>)。リンクが切れた理由は <code>connection</code> にあります。</p>
+<table>
+<thead><tr><th>状況</th><th>起きること</th><th>すること</th></tr></thead>
+<tbody>
+<tr><td>収集側がフレーム 64 個より多く遅れた</td><td>その接続のすべての収集側から新しいフレームが抜け、破棄数を数えます。最初と 100 回ごとに <code>WARN</code> の行 (タグ <code>Dispatcher</code>): <code>Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)</code>。<strong>エラーではありません</strong>。<code>VehicleError</code> はなく、フローは続きます</td><td>収集処理は軽くし、遅い処理は別のコルーチンに渡してください。車両は数秒ごとに状態を送り直すので最新の状態はまた届きます。または <code>vehicleStatus()</code> で読んでください</td></tr>
+<tr><td>ライブラリがデコードできなかったブロードキャスト</td><td><code>unknownFields</code> が空の <code>Unrecognized</code> イベント。バイトは <code>raw</code> にあります</td><td>分析用に <code>raw</code> を VIN をマスクして保存してください</td></tr>
 </tbody>
 </table>
 

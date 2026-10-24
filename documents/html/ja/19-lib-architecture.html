@@ -55,11 +55,12 @@
 </nav>
 <main class="content">
 <h1>19. アーキテクチャ</h1>
-<p class="lead">コントリビューター向けの要約です。モジュール間の依存関係、コマンドがたどる経路、並行処理のルール、セッションのキャッシュ方法を説明します。設計の全体は <code>docs/sdd/SDD.md</code> にあります。このページは M0 から M3 までを扱い、制御コマンドの実装時に拡張します。</p>
+<p class="lead">コントリビューター向けの要約です。モジュール間の依存関係、コマンドがたどる経路、並行処理のルール、セッションのキャッシュ方法を説明します。設計の全体は <code>docs/sdd/SDD.md</code> にあります。このページは M0 から M3 までと <code>vehicle.events</code> の背後にあるブロードキャストの経路を扱い、制御コマンドの実装時に拡張します。</p>
 
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-modules">モジュール</a></li>
 <li><a href="#sec-path">コマンドの経路</a></li>
+<li><a href="#sec-broadcasts">ブロードキャストと vehicle.events</a></li>
 <li><a href="#sec-concurrency">並行処理</a></li>
 <li><a href="#sec-ble">Bluetooth アダプター</a></li>
 <li><a href="#sec-facade">ファサード</a></li>
@@ -110,9 +111,19 @@
 </ol>
 <p>インフォテインメントのコマンドは、ロックなしでリトライループ以降の同じ手順をたどります。戻りの経路では、接続ごとに 1 つの受信コルーチンが <code>Transport.incoming</code> を読み、各メッセージを解析し、待機中のリクエストと照合し、付属するセッション情報を適用し、復号してリプレイを検査したうえで引き渡します。</p>
 
+<h2 id="sec-broadcasts">ブロードキャストと vehicle.events</h2>
+<p>車両はどの要求にも答えないフレームも送ってきます。Go 原本はそれを破棄します。このライブラリも応答の対応付けからは外しますが、そのうち平文のものは渡します (FR-035)。</p>
+<ol class="steps">
+<li><strong>ルーティングから破棄。</strong> ルーティングアドレスではなくドメイン宛てのフレームは、これまでどおり破棄理由 <code>TO_DOMAIN</code> と観察ログの 1 行を受けます。待機中の要求には届きません。</li>
+<li><strong>ゲート。</strong> セキュリティドメインから来てブロードキャストドメイン宛てで、リクエスト UUID、署名、セッション情報がなければ、平文のブロードキャストです。</li>
+<li><strong>受け渡し。</strong> 受信コルーチンはコピーを <code>tryEmit</code> で <code>Dispatcher.plainBroadcasts</code> に渡します。再送はなく (replay なし)、フレームを 64 個まで入れられ、決して待ちません。いっぱいのときは新しいフレームを破棄して数え、1、100、200…回目の破棄ごとに <code>WARN</code> を出します。</li>
+<li><strong>変換。</strong> <code>Vehicle.events</code> の収集側ごとに購読が 1 つあります。<code>VcsecBroadcasts</code> が収集側のコルーチンで、各フレームを <code>vehicleStatus()</code> と同じ変換規則で <code>Status</code>、<code>AuthenticationRequest</code>、<code>Unrecognized</code> にします。</li>
+<li><strong>終わり。</strong> <code>connection</code> が理由を問わず <code>Disconnected</code> になるか <code>disconnect()</code> が呼ばれると、フローは正常に終わります。</li>
+</ol>
+
 <h2 id="sec-concurrency">並行処理</h2>
 <ul>
-<li><strong>受信コルーチンは接続ごとにちょうど 1 つです。</strong> 他のコルーチンを待つことはなく、ノンブロッキングの <code>trySend</code> でデータを引き渡します。唯一の待機は、新しい受信コルーチンが前のコルーチンの終了を待つことです。</li>
+<li><strong>受信コルーチンは接続ごとにちょうど 1 つです。</strong> 他のコルーチンを待つことはなく、ノンブロッキングの <code>trySend</code> でデータを引き渡します (ブロードキャストは <code>tryEmit</code> なので、遅い <code>events</code> の収集側が応答を遅らせることはありません)。唯一の待機は、新しい受信コルーチンが前のコルーチンの終了を待つことです。</li>
 <li><strong>VCSEC コマンドは接続ごとに 1 つずつです。</strong> 前のコマンドを待つ時間はタイムアウトに含まれます。インフォテインメントのコマンドは並行して実行できます。</li>
 <li>各ドメインはセッション状態を 1 つ持ちます。そのロックは暗号化、復号、セッションの更新だけを対象とするため、待ち時間は短くなります。</li>
 <li>両ドメインのハンドシェイクは並行して実行され、一方が失敗するともう一方はキャンセルされます。</li>
@@ -123,7 +134,7 @@
 <p>Kable を知っているのは 2 つのクラスだけです。<code>KableGattConnector</code> (スキャン、オープン) と <code>KableGattLink</code> (書き込み、購読、切断の検知) です。<code>BleTransportFactory</code> と <code>BleTransport</code> は Kable を使わずにフレーミング、再組み立て、リトライ、エラーの変換を行うため、JVM 上でテストされます。リンクが切れると受信フローが閉じ、状態は <code>Disconnected</code> になります。スキャンはアドバタイズされたローカル名と完全一致で照合します。</p>
 
 <h2 id="sec-facade">ファサード</h2>
-<p><code>TeslaBle.create</code> はプラットフォームのアダプター (Bluetooth トランスポート、キーストア、セッションキャッシュ、暗号プリミティブ) を組み立てます。<code>connect</code> はトランスポートを開き、その接続用のコルーチンスコープを作成し、<code>Dispatcher</code> と <code>VehicleSession</code> を取り付けて、保存済みセッションを復元します。途中で何かが失敗またはキャンセルされても、トランスポートとスコープは必ず解放されます。1 つの <code>Vehicle</code> は 1 つの接続を表し、<code>disconnect()</code> の後の呼び出しは <code>NotConnected</code> で失敗します。</p>
+<p><code>TeslaBle.create</code> はプラットフォームのアダプター (Bluetooth トランスポート、キーストア、セッションキャッシュ、暗号プリミティブ) を組み立てます。<code>connect</code> はトランスポートを開き、その接続用のコルーチンスコープを作成し、<code>Dispatcher</code> と <code>VehicleSession</code> を取り付けて、保存済みセッションを復元します。途中で何かが失敗またはキャンセルされても、トランスポートとスコープは必ず解放されます。1 つの <code>Vehicle</code> は 1 つの接続を表し、<code>disconnect()</code> の後の呼び出しは <code>NotConnected</code> で失敗します。ディスパッチャーのブロードキャストのフローは <code>Vehicle</code> に渡され、その <code>events</code> がそれを変換し、接続とともに終わります。</p>
 
 <h2 id="sec-cache">セッションキャッシュ</h2>
 <p>次の接続で新しいハンドシェイクなしにコマンドを送れるよう、セッションは小さなバイナリ形式 (バージョン 1) で保存されます。セッションはクライアントキー (その公開鍵の SHA-1) に結び付けられ、他のキーのセッションは無視されて削除されます。保存のタイミングは、ハンドシェイクの完了時、セッション情報の変更時、切断時です。秘密鍵、セッション暗号鍵、生の VIN は決して保存されません。破損したエントリや認識できないエントリはスキップされ、残りが復元されます。</p>
@@ -134,7 +145,7 @@
 <thead><tr><th>項目</th><th>ルール</th></tr></thead>
 <tbody>
 <tr><td>正しさの基準</td><td>意味、暗号、ルーティング、エラーは公式 Go コード（vehicle-command <code>a4b43c1</code>）が基準です。両者が食い違う場合は Go コードに従います。</td></tr>
-<tr><td>追加されたフィールドと値</td><td>生成された型としてだけ存在します。実車か Go コードで確認されるまで、どのコマンド、イベント、公開値もこれを使いません。<code>KeyRole</code> と <code>KeyFormFactor</code> はこれを <code>UNKNOWN</code> として読みます。</td></tr>
+<tr><td>追加されたフィールドと値</td><td>生成された型としてだけ存在します。実車か Go コードで確認されるまで、どのコマンド、イベント、公開値もこれを使いません。<code>KeyRole</code> と <code>KeyFormFactor</code> はこれを <code>UNKNOWN</code> として読みます。実車のキャプチャで確認されたため公開しているもの: <code>VehicleStatus.gear</code>、そして <code>VehicleEvent.AuthenticationRequest</code> として出る <code>authenticationRequest</code> (サブフィールド名は未検証)。</td></tr>
 <tr><td>更新</td><td>tesla-protocol を固定コミットでチェックアウトし、<code>tools/proto/sync-protos.sh &lt;checkout&gt;</code> を実行します（ネットワークは使わず、別のコミットなら拒否します）。再生成してから <code>apiDump</code> とテストを実行します。固定コミットはスクリプトと <code>docs/PATHS.md</code> で同じ PR の中で変更します。</td></tr>
 </tbody>
 </table>

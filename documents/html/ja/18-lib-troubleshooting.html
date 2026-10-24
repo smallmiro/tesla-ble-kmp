@@ -63,6 +63,7 @@
 <li><a href="#sec-pairing">ペアリングとコマンド</a></li>
 <li><a href="#sec-other">その他のメッセージ</a></li>
 <li><a href="#sec-logs">デバッグログ</a></li>
+<li><a href="#sec-events">観察ログと vehicle.events</a></li>
 <li><a href="#sec-observe">観察ログ（開発用）</a></li>
 </ol></div>
 
@@ -109,6 +110,9 @@
 <thead><tr><th>症状</th><th>考えられる原因</th><th>対処</th></tr></thead>
 <tbody>
 <tr><td>タイムアウトを伴う <code>Uncertain</code></td><td>送信後に応答が失われた</td><td>状態をもう一度読み取ります。再送はしません</td></tr>
+<tr><td><code>vehicle.events</code> が終わった</td><td>リンクが切れたか <code>disconnect()</code> が呼ばれた。その後に始めた収集はすぐに終わる</td><td><code>connection</code> を確認して <code>disconnect()</code> を呼び、もう一度接続して新しい <code>Vehicle</code> と新しい <code>events</code> を得ます</td></tr>
+<tr><td><code>vehicle.events</code> に何も届かない</td><td>ブロードキャストの後に収集を始めた (再送はない)、車両が送っていない (起きている間だけ送る)、または平文ブロードキャストの条件に合わないフレーム (<a href="14-lib-reading-state.html#sec-b-library">14、B2</a>)</td><td>車両で何かを変えて (ドアを開ける、ギアを変える) 観察ログと比べます。平文ブロードキャストには、セキュリティドメインからブロードキャストドメインへの <code>[drop:to-domain]</code> の行があります</td></tr>
+<tr><td><code>WARN</code> <code>Dropping plain broadcast because the broadcast buffer is full</code></td><td><code>vehicle.events</code> の収集側がフレーム 64 個より多く遅れた</td><td>収集処理は軽くし、遅い処理は別のコルーチンに移します (<a href="16-lib-errors.html#sec-events">16. エラー処理</a>)</td></tr>
 <tr><td><code>UnknownFault</code>、<code>UnknownKeychainCode</code>、<code>UNKNOWN</code> として読まれる値</td><td>新しい車両ファームウェア</td><td>ライブラリのアップデートを確認します</td></tr>
 <tr><td>シミュレーターでキーチェーンのテストが -25291 で失敗する</td><td>素の Kotlin/Native テストバイナリはキーチェーンを使えない</td><td>代わりにサンプルアプリでキーチェーンの動作を確認します</td></tr>
 </tbody>
@@ -127,8 +131,26 @@
 </div>
 <p>問題を報告するときは、iOS サンプルの「結果全体をコピー」ボタンで得たログと <code>DebugLogger</code> を使ってください。プローブや診断用のエントリポイントはありません。</p>
 
+<h2 id="sec-events">観察ログと vehicle.events</h2>
+<p>どちらも車両のブロードキャストを見せますが、読み手が違います。</p>
+<table>
+<thead><tr><th></th><th>観察ログ</th><th><code>vehicle.events</code></th></tr></thead>
+<tbody>
+<tr><td>何か</td><td>破棄したメッセージやセキュリティドメインの応答ごとに <code>DEBUG</code> のテキスト 1 行、タグ <code>observe</code></td><td><code>Vehicle</code> の公開 <code>Flow&lt;VehicleEvent&gt;</code> (FR-035)</td></tr>
+<tr><td>どのフレーム</td><td>破棄したすべてのフレーム (他のスマートフォン宛ての応答、読めないフレーム、ブロードキャスト) とすべてのセキュリティドメインの応答</td><td>平文のブロードキャストだけ (<a href="14-lib-reading-state.html#sec-b-library">14、B2</a>)</td></tr>
+<tr><td>内容</td><td>人が読む要約。未知のフィールドの値は詳細形式でのみ</td><td>型付きのイベント、<code>unknownFields</code> のパス、<code>raw</code> にフレーム全体</td></tr>
+<tr><td>VIN</td><td>ライブラリがマスクする</td><td><code>raw</code> では<strong>マスクしない</strong>。保存や共有の前にアプリがマスクする</td></tr>
+<tr><td>必要なもの</td><td><code>DEBUG</code> を残すロガー (開発ビルド)</td><td>なし。リリースビルドでも動く</td></tr>
+<tr><td>用途</td><td>プロトコルの探索、問題の報告</td><td>ライブの状態などのアプリ機能、分析用の生フレームの収集</td></tr>
+</tbody>
+</table>
+<ul>
+<li>1 つのフレームに <code>vehicleStatus</code> と <code>authenticationRequest</code> の両方があると、観察ログの行には最後に来た片方しか出ません。スキーマが両方を 1 つの <code>oneof</code> に入れており、通常のデコードは最後の 1 つだけを残すためです。<code>vehicle.events</code> は両方のフィールドを読み、2 つのイベント (<code>Status</code>、次に <code>AuthenticationRequest</code>) を出します。</li>
+<li>アプリのコードで観察ログの行を解析しないでください。形式は開発用で、変わることがあります。<code>vehicle.events</code> を使ってください。</li>
+</ul>
+
 <h2 id="sec-observe">観察ログ（開発用）</h2>
-<p>開発中、ライブラリは破棄するメッセージごと、および車両セキュリティドメインの応答ごとに、要約を1行ログに出せます。車が要求なしに送ってくるものを確認できます。動作は変わりません。ライブラリはこれらのメッセージを今も破棄します（<code>vehicle.events</code> は M5 で計画）。プッシュされた各メッセージの意味は <a href="14-lib-reading-state.html">14. 車両状態の取得</a> の B 部にあります。</p>
+<p>開発中、ライブラリは破棄するメッセージごと、および車両セキュリティドメインの応答ごとに、要約を1行ログに出せます。車が要求なしに送ってくるものを確認できます。動作は変わりません。ブロードキャストは引き続き応答の対応付けから外れ、そのうち平文のものは <code>vehicle.events</code> でもアプリに届きます（前の節）。プッシュされた各メッセージの意味は <a href="14-lib-reading-state.html">14. 車両状態の取得</a> の B 部にあります。</p>
 <ul>
 <li>タグ <code>observe</code>、レベル <code>DEBUG</code>。<code>DEBUG</code> を捨てるロガーはこの行を組み立てもしません。<code>DebugLogger()</code> または自作の <code>TeslaLogger</code> で見られます。iOS サンプルの観察モードはこの行だけを集めます。</li>
 <li>形式: <code>[地点] NB from=… to=… request_uuid=… payload=…</code>。<code>NB</code> は受信したフレームのサイズです。</li>
@@ -168,7 +190,7 @@
 <p>VIN（17文字）は16進を作る前に、テキストと生バイトの両方で伏せます。先頭3文字と末尾4文字だけが残ります。伏せ字化は解析の前に生バイトに対して行うため、伏せたバイトによって表示される値や構造が変わることがあります（漏れはありません）。この出力は探索用にすぎません。フィールドの意味は分かりません。実車では <code>closureStatuses</code> がなければドアと充電ポートはすべて閉じていましたが、室内ボタンで操作したトランクはブロードキャストがなかったため、トランクの状態はまだブロードキャストから推測できません（14 の B 部参照）。</p>
 <h3>制限とルール</h3>
 <ul>
-<li>詳細デコードは狭い例外で、車両が元々平文で送ったフレームにだけ適用します（ライブラリが復号したものには使わないので FR-112 とは衝突しません）。次がすべて成り立つ必要があります: セキュリティドメインから発信、ブロードキャストドメイン宛て、リクエスト UUID なし、署名なし、セッション情報なし、ペイロードが <code>FromVCSECMessage</code> として読める。その場合 <code>FromVCSECMessage</code> の未公開フィールド 48・53 と <code>VehicleStatus</code> の未公開フィールド 7・8 だけを展開します（フィールド 7 は名前のある <code>gear</code> になったので、値が定義外のときだけ未公開フィールドになります。定義外の値なので、その生の値を <code>unknownFields=[7:varint=9(0x9)]</code> のように引き続き表示します）。それ以外のフィールドとフレームは番号だけを記します。</li>
+<li>詳細デコードは狭い例外で、車両が元々平文で送ったフレームにだけ適用します（ライブラリが復号したものには使わないので FR-112 とは衝突しません）。<code>vehicle.events</code> はそのようなフレームを、デコードできるかどうかに関係なく <code>raw</code> としてアプリに渡します。次がすべて成り立つ必要があります: セキュリティドメインから発信、ブロードキャストドメイン宛て、リクエスト UUID なし、署名なし、セッション情報なし、ペイロードが <code>FromVCSECMessage</code> として読める。その場合 <code>FromVCSECMessage</code> の未公開フィールド 48・53 と <code>VehicleStatus</code> の未公開フィールド 7・8 だけを展開します（フィールド 7 は名前のある <code>gear</code> になったので、値が定義外のときだけ未公開フィールドになります。定義外の値なので、その生の値を <code>unknownFields=[7:varint=9(0x9)]</code> のように引き続き表示します）。それ以外のフィールドとフレームは番号だけを記します。</li>
 <li>enum の値が欠けている場合と 0 番の値は区別できません。ロック状態がなければ <code>VEHICLELOCKSTATE_UNLOCKED</code> と読めます（sleep と presence は <code>UNKNOWN</code>）。<code>absent</code> として分かるのはメッセージの部分だけです。</li>
 <li>暗号化された内容とセッション情報は長さだけ、公開鍵は SHA-1 の先頭だけを記します。VIN と復号した内容は出力されません。行を追加するときもこのルールを守ってください。</li>
 <li>BLE トランスポートは接続ごとに受信バッファの溢れを数えます。破棄したメッセージごとに <code>ERROR</code> で <code>Dropping received message because inbox is full (dropped N since connect)</code> を出し、リンクが終わると <code>WARN</code> で <code>BLE inbox overflowed N time(s) during this connection</code> を1行出します（N が 0 より大きいときだけ）。</li>

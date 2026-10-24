@@ -55,11 +55,12 @@
 </nav>
 <main class="content">
 <h1>19. Architecture</h1>
-<p class="lead">A summary for contributors: how the modules depend on each other, the path a command takes, the concurrency rules, and how sessions are cached. The full design is <code>docs/sdd/SDD.md</code>. This page covers M0 to M3 and is extended when the control commands land.</p>
+<p class="lead">A summary for contributors: how the modules depend on each other, the path a command takes, the concurrency rules, and how sessions are cached. The full design is <code>docs/sdd/SDD.md</code>. This page covers M0 to M3 and the broadcast path behind <code>vehicle.events</code>, and is extended when the control commands land.</p>
 
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#sec-modules">Modules</a></li>
 <li><a href="#sec-path">The path of a command</a></li>
+<li><a href="#sec-broadcasts">Broadcasts and vehicle.events</a></li>
 <li><a href="#sec-concurrency">Concurrency</a></li>
 <li><a href="#sec-ble">Bluetooth adapter</a></li>
 <li><a href="#sec-facade">Facade</a></li>
@@ -110,9 +111,19 @@
 </ol>
 <p>Infotainment commands take the same steps from the retry loop on, without the lock. On the way back, one receive coroutine per connection reads <code>Transport.incoming</code>, parses each message, matches it to the waiting request, applies attached session information, decrypts it and checks it against replays, then hands it over.</p>
 
+<h2 id="sec-broadcasts">Broadcasts and vehicle.events</h2>
+<p>The car also sends frames that answer no request. The Go original drops them; this library keeps them out of reply matching too, but passes the plain ones on (FR-035):</p>
+<ol class="steps">
+<li><strong>Drop from routing.</strong> A frame addressed to a domain instead of a routing address gets the drop reason <code>TO_DOMAIN</code> and an observation log line, as before. It never reaches a waiting request.</li>
+<li><strong>Gate.</strong> If it comes from the security domain, goes to the broadcast domain and has no request UUID, signature or session info, it is a plain broadcast.</li>
+<li><strong>Offer.</strong> The receive coroutine offers a copy to <code>Dispatcher.plainBroadcasts</code> with <code>tryEmit</code>: no replay, room for 64 frames, never waiting. When it is full, the new frame is dropped and counted, with a <code>WARN</code> on drops 1, 100, 200 and so on.</li>
+<li><strong>Map.</strong> Each collector of <code>Vehicle.events</code> has its own subscription. <code>VcsecBroadcasts</code> turns each frame into <code>Status</code>, <code>AuthenticationRequest</code> or <code>Unrecognized</code>, with the same mapping as <code>vehicleStatus()</code>, in the collector's coroutine.</li>
+<li><strong>End.</strong> The flow ends normally when <code>connection</code> becomes <code>Disconnected</code> for any reason or <code>disconnect()</code> is called.</li>
+</ol>
+
 <h2 id="sec-concurrency">Concurrency</h2>
 <ul>
-<li><strong>Exactly one receive coroutine per connection.</strong> It never waits on another coroutine; it hands data over with non-blocking <code>trySend</code>. The only wait: a new receive coroutine waits for the previous one to finish.</li>
+<li><strong>Exactly one receive coroutine per connection.</strong> It never waits on another coroutine; it hands data over with non-blocking <code>trySend</code> (<code>tryEmit</code> for broadcasts, so a slow <code>events</code> collector cannot delay replies). The only wait: a new receive coroutine waits for the previous one to finish.</li>
 <li><strong>One VCSEC command at a time per connection.</strong> Waiting for the previous one counts against the timeout. Infotainment commands may run in parallel.</li>
 <li>Each domain has one session state. Its lock covers only encrypting, decrypting and session updates, so waits are short.</li>
 <li>The handshakes for both domains run in parallel; if one fails, the other is cancelled.</li>
@@ -123,7 +134,7 @@
 <p>Only two classes know Kable: <code>KableGattConnector</code> (scan, open) and <code>KableGattLink</code> (write, subscribe, notice drops). <code>BleTransportFactory</code> and <code>BleTransport</code> do framing, reassembly, retries and error mapping without Kable, so they are tested on the JVM. When the link drops, the incoming flow closes and the state becomes <code>Disconnected</code>. The scan matches the advertised local name exactly.</p>
 
 <h2 id="sec-facade">Facade</h2>
-<p><code>TeslaBle.create</code> assembles the platform adapters: Bluetooth transport, key store, session cache and crypto primitives. <code>connect</code> opens the transport, creates a coroutine scope for that connection, attaches a <code>Dispatcher</code> and a <code>VehicleSession</code>, and restores saved sessions. If anything fails or is cancelled on the way, the transport and the scope are always released. One <code>Vehicle</code> stands for one connection; after <code>disconnect()</code> its calls fail with <code>NotConnected</code>.</p>
+<p><code>TeslaBle.create</code> assembles the platform adapters: Bluetooth transport, key store, session cache and crypto primitives. <code>connect</code> opens the transport, creates a coroutine scope for that connection, attaches a <code>Dispatcher</code> and a <code>VehicleSession</code>, and restores saved sessions. If anything fails or is cancelled on the way, the transport and the scope are always released. One <code>Vehicle</code> stands for one connection; after <code>disconnect()</code> its calls fail with <code>NotConnected</code>. The dispatcher's broadcast flow is passed to the <code>Vehicle</code>, whose <code>events</code> maps it and ends with the connection.</p>
 
 <h2 id="sec-cache">Session cache</h2>
 <p>Sessions are saved in a small binary format (version 1) so the next connection can send commands without a new handshake. They are tied to the client key (SHA-1 of its public key); sessions of other keys are ignored and deleted. They are saved when a handshake finishes, when session information changes, and on disconnect. Private keys, session encryption keys and raw VINs are never saved. Damaged or unrecognized entries are skipped and the rest restored.</p>
@@ -134,7 +145,7 @@
 <thead><tr><th>Topic</th><th>Rule</th></tr></thead>
 <tbody>
 <tr><td>What counts as correct</td><td>The official Go code (vehicle-command <code>a4b43c1</code>) for meaning, cryptography, routing and errors. If the two disagree, the Go code wins.</td></tr>
-<tr><td>Added fields and values</td><td>They exist as generated types only. No command, event or public value uses them until a real car or the Go code confirms them. <code>KeyRole</code> and <code>KeyFormFactor</code> read them as <code>UNKNOWN</code>.</td></tr>
+<tr><td>Added fields and values</td><td>They exist as generated types only. No command, event or public value uses them until a real car or the Go code confirms them. <code>KeyRole</code> and <code>KeyFormFactor</code> read them as <code>UNKNOWN</code>. Confirmed by real-car captures and therefore public: <code>VehicleStatus.gear</code>, and <code>authenticationRequest</code> as <code>VehicleEvent.AuthenticationRequest</code> (its sub-field names stay unverified).</td></tr>
 <tr><td>Updating</td><td>Check out tesla-protocol at the pinned commit, run <code>tools/proto/sync-protos.sh &lt;checkout&gt;</code> (no network; it refuses any other commit), regenerate, then run <code>apiDump</code> and the tests. Change the pinned commit in the script and in <code>docs/PATHS.md</code> in the same PR.</td></tr>
 </tbody>
 </table>

@@ -66,7 +66,7 @@
 </ol></div>
 
 <h2 id="sec-status">What works today</h2>
-<p>The library is built milestone by milestone. These pages describe the code on <code>main</code>, which is at <strong>M4</strong>.</p>
+<p>The library is built milestone by milestone. These pages describe the code on <code>main</code>, which is at <strong>M4</strong>, plus the broadcast events from issue #91.</p>
 <table>
 <thead><tr><th>Area</th><th>Milestone</th><th>State</th><th>Page</th></tr></thead>
 <tbody>
@@ -74,13 +74,14 @@
 <tr><td>BLE scan and connect (Kable), key store, session cache storage, <code>TeslaBle</code> / <code>Vehicle</code></td><td>M3</td><td><span class="badge ok">Done</span> real-vehicle check on iOS 2026-10-18; Android real device not checked</td><td><a href="12-lib-getting-started.html">12</a>, <a href="17-lib-platform-notes.html">17</a></td></tr>
 <tr><td>Read-only queries without a key: <code>vehicleStatus()</code>, <code>keySummary()</code>, <code>listKeys()</code></td><td>M3</td><td><span class="badge ok">Done</span></td><td><a href="14-lib-reading-state.html">14</a></td></tr>
 <tr><td>Key enrollment (<code>addKeyRequest</code>, <code>sessionInfo</code>, <code>addKey</code>, <code>removeKey</code>), VCSEC control (lock, unlock, trunk…)</td><td>M4</td><td><span class="badge ok">Done</span> real-vehicle check pending</td><td><a href="13-lib-pairing.html">13</a>, <a href="15-lib-commands.html">15</a></td></tr>
+<tr><td>Broadcast events <code>vehicle.events</code> (<code>VehicleEvent</code>) and <code>VehicleStatus.gear</code></td><td>#91 (before M5)</td><td><span class="badge ok">Done</span> the broadcasts were seen on a real car; the <code>events</code> API itself is checked with FakeVehicle tests, real-vehicle check pending</td><td><a href="14-lib-reading-state.html#sec-b-library">14</a>, <a href="12-lib-getting-started.html#sec-events">12</a></td></tr>
 <tr><td>Infotainment control and <code>getState()</code></td><td>M5</td><td><span class="badge warn">Planned</span></td><td><a href="14-lib-reading-state.html">14</a>, <a href="15-lib-commands.html">15</a></td></tr>
 <tr><td>Packages: GitHub Packages and Swift Package Manager</td><td>M6</td><td><span class="badge warn">Planned</span></td><td><a href="#sec-install">Installation</a></td></tr>
 </tbody>
 </table>
 <div class="callout warn">
 <strong>Planned APIs are not available yet</strong>
-<p>Names of planned methods come from the requirements document (<code>docs/prd/PRD.md</code>) and may change when the milestone lands. Until then an app can scan, connect, read state, enroll a key and send the VCSEC control commands, but cannot send infotainment commands. Pairing and the VCSEC commands have not been checked on a real car yet.</p>
+<p>Names of planned methods come from the requirements document (<code>docs/prd/PRD.md</code>) and may change when the milestone lands. Until then an app can scan, connect, read state, receive the car's broadcasts, enroll a key and send the VCSEC control commands, but cannot send infotainment commands. Pairing and the VCSEC commands have not been checked on a real car yet.</p>
 </div>
 
 <h2 id="sec-platforms">Platforms and packages</h2>
@@ -107,6 +108,7 @@
 <thead><tr><th>You want to…</th><th>Read</th></tr></thead>
 <tbody>
 <tr><td>Scan, connect and show the vehicle state in an app</td><td><a href="12-lib-getting-started.html">12. Getting Started</a>, <a href="14-lib-reading-state.html">14. Reading Vehicle State</a></td></tr>
+<tr><td>Show live state from the car's broadcasts</td><td><a href="12-lib-getting-started.html#sec-events">12. Getting Started</a>, <a href="14-lib-reading-state.html#sec-b-library">14. Reading Vehicle State</a></td></tr>
 <tr><td>Create, find or delete the phone key, check whether it is enrolled</td><td><a href="13-lib-pairing.html">13. Keys and Pairing</a></td></tr>
 <tr><td>Know which commands exist and which are coming</td><td><a href="15-lib-commands.html">15. Commands</a></td></tr>
 <tr><td>Decide what to do with an error</td><td><a href="16-lib-errors.html">16. Error Handling</a></td></tr>

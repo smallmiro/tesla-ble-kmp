@@ -69,7 +69,7 @@ Tesla 공식 Go SDK `vehicle-command`는 BLE로 차량과 직접 통신하는 �
 - BLE 전송: 스캔(광고 이름 매칭), 연결, MTU 협상, 청크 분할·재조립, indication 구독, 연결 해제
 - 프로토콜: RoutableMessage, 도메인별 핸드셰이크, 세션 키 유도, AES-GCM 명령 암호화, 응답 복호화, 세션정보 HMAC 검증, 재전송 방지 윈도우, 세션 캐시(D18), 세션 복구
 - 키 관리: 키쌍 생성·보관(D10), add-key-request(D11), 인증된 add-key, 키 목록 조회, 키 삭제, 등록 확인
-- 조회: VCSEC `VehicleStatus`, Whitelist, Infotainment `GetState` 12개 카테고리
+- 조회: VCSEC `VehicleStatus`, Whitelist, Infotainment `GetState` 12개 카테고리, 차량이 요청 없이 보내는 평문 VCSEC 브로드캐스트(`Vehicle.events`, FR-035)
 - 제어: `pkg/vehicle` 공개 API 중 **BLE로 전송 가능한 전부** (§5, P0/P1은 v1, P2는 v1.1)
 - 에러 모델: 성공 / 실패 / 결과 불확실(PossibleSuccess), 재시도 정책
 - 샘플 앱 2종(D15), 라이브러리 사용 문서 `{{LIB_DOCS_DIR}}`
@@ -179,6 +179,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | FR-032 | Whitelist 요약: 키 개수, 슬롯 비트마스크 (FR-025 하위) | P0 | VCSEC | `KeySummary` | `05-command-catalog B` |
 | FR-033 | `getState(category)`: 12개 카테고리(Charge, Climate, Drive, Location, Closures, ChargeSchedule, PreconditioningSchedule, TirePressure, Media, MediaDetail, SoftwareUpdate, ParentalControls)를 Wire 생성 타입으로 반환. 인증·깨우기 필요. `RESPONSE_MTU_EXCEEDED`는 "실행됨"으로 분류 | P0 | INFO | `GetState` | `05-command-catalog I`, `04-go-api-reference state.go`, `08-errors §8` |
 | FR-034 | `ping()`: 온라인+키 인식 확인 | P1 | INFO | `Ping` | `05-command-catalog I`, `00-agent-guide §5` |
+| FR-035 | `Vehicle.events: Flow<VehicleEvent>`: 차량이 요청 없이 보낸 평문 VCSEC 브로드캐스트를 공개 이벤트로 낸다. 게이트: from `DOMAIN_VEHICLE_SECURITY`, to `DOMAIN_BROADCAST`, `request_uuid` 비어 있음, `signature_data`·`session_info` 없음. `vehicleStatus` → `Status`(`vehicleStatus()`와 같은 매핑), `authenticationRequest` → `AuthenticationRequest`(`requestedLevel`, `reasons`; 한 프레임에 둘 다 오면 둘 다), 그 밖·디코딩 실패 → `Unrecognized`. 해석 못 한 부분은 `unknownFields`(경로 문자열)와 받은 프레임 전체 `raw`(방어 복사, VIN 마스킹 없음 — 앱이 가림). 연결마다 hot, replay 0, `connection`이 `Disconnected`(이유 무관)가 되거나 `disconnect()`가 불리면 정상 완료. 디스패처 버퍼 64, 넘치면 새 프레임을 버리고 WARN(1·100·200…번째). 응답 매칭에서 버리는 판정은 원본과 같다. **FR-112의 좁은 예외:** 차량이 처음부터 평문 브로드캐스트로 보낸 프레임의 원본 바이트만 내보내며, 라이브러리가 복호화한 데이터는 어떤 경우에도 내보내지 않는다 | P1 | VCSEC | (없음 — 원본은 브로드캐스트를 버린다, `dispatcher.go:270-272`) | `14-lib-reading-state` B2·B3, `18-lib-troubleshooting` Observation log |
 | FR-036 | `VehicleStatus.gear`: VCSEC `VehicleStatus` 필드 7(`Gear_E`, TESLEMETRY-EXT)을 공개 `Gear`(`UNKNOWN`, `PARK`, `DRIVE`, `REVERSE`, `NEUTRAL`)로 노출. 없음 = `UNKNOWN`(proto3라 `GEAR_UNKNOWN`과 구별 불가), 스키마 밖 값도 `UNKNOWN`. 실차는 브로드캐스트로만 확인(조회 응답은 미확인) | P1 | VCSEC | (없음, TESLEMETRY-EXT 스키마) | `14-lib-reading-state` A2, B3.1 |
 
 ### 5.5 VCSEC 제어
@@ -279,7 +280,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 |---|---|---|---|---|---|
 | FR-110 | **샘플 요구사항으로 이관(2026-10-24)** → `{{SAMPLES_DOCS_DIR}}01-requirements.md` SFR-001 (Android 샘플). 원래 내용과 상태는 그 문서에서 관리 | P0 | – | `examples/ble` | `06-cli-tools examples/`, `09-recipes R1, R4~R6` |
 | FR-111 | **샘플 요구사항으로 이관(2026-10-24)** → `{{SAMPLES_DOCS_DIR}}01-requirements.md` SFR-002 (iOS 샘플) | P0 | – | 〃 | 〃 |
-| FR-112 | 디버그 로거 포트: TX/RX 헥사는 디버그 모드에서만, VIN 마스킹, 키·세션키·복호화된(평문) 페이로드는 어떤 레벨에서도 출력하지 않음 | P0 | – | `internal/log`, `-debug` | `08-errors §9.1`, `10-porting-guide §12` |
+| FR-112 | 디버그 로거 포트: TX/RX 헥사는 디버그 모드에서만, VIN 마스킹, 키·세션키·복호화된(평문) 페이로드는 어떤 레벨에서도 출력하지 않음. 차량이 원래 평문으로 보낸 브로드캐스트 프레임의 원본 바이트를 공개 API로 넘기는 것(`VehicleEvent.raw`, FR-035)은 좁은 예외이며 복호화한 데이터가 아니다 | P0 | – | `internal/log`, `-debug` | `08-errors §9.1`, `10-porting-guide §12` |
 
 ### 5.13 HANDOFF §5 ↔ FR 추적 요약
 
@@ -365,6 +366,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | M2 | dispatcher + FakeVehicle: 매칭, 핸드셰이크, VCSEC 직렬화·다중 응답, 재시도, 세션 캐시·복구 | FR-010~012, FR-017~018, FR-048~049, FR-100~102, NFR-003, NFR-007, NFR-012 | 시나리오 테스트 전부 PASS |
 | M3 | transport(Kable) + keystore + 샘플 앱 골격 | FR-001~006, FR-020~021, FR-025, FR-028, FR-031, FR-112, NFR-004~006, NFR-009 | 샘플 앱에서 스캔, 연결, 키 목록, VehicleStatus (실차는 사용자 확인) |
 | M4 | 키 등록 + VCSEC 제어 | FR-022~024, FR-026~027, FR-040~047, FR-104, FR-110~111(VCSEC 부분, → SFR-001~002) | 페어링, 잠금, 해제, 트렁크 (실차는 사용자 확인) |
+| #91 (M4 뒤, M5 전) | 차량 브로드캐스트 이벤트와 기어 (모니터 샘플의 선행 작업, 원래 M5 항목이던 `vehicle.events`를 앞당김) | FR-035, FR-036 | FakeVehicle 시나리오 테스트 PASS, 사용 문서 갱신. 실차 확인은 모니터 샘플로 |
 | M5 | Infotainment 제어 + GetState (P0/P1) | FR-033~034, FR-050~053, FR-060~085, FR-090~092, FR-110~111(전체, → SFR-001~002) | P0/P1 항목 완료, 실차 체크리스트 전달 |
 | M6 | 문서화, 배포 준비 | `{{LIB_DOCS_DIR}}` 완성, API 문서, NOTICE, mavenLocal/XCFramework 빌드. **마지막 과제**: GitHub Packages + SPM 배포 파이프라인(D13), 소비자용 PAT 설정 문서 | 문서 링크 검증, 배포 설정 |
 | v1.1 | P2 기능 | FR-054, FR-086~089, FR-093~094 | – |
