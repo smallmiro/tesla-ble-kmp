@@ -152,6 +152,7 @@
 - 함께 바뀐 파일: `KeychainAccessibility.kt`(+Test), `KeyCreationChain.kt`, `SoftwareVehicleKey.kt`, `InMemoryVehicleKeyStore.kt`, `testing/FakeVehicleKeyStore.kt`(iOS처럼 생성 때 접근성 기억), `adapter-storage` 복사본 머리 주석(차이 기록), `18-lib-troubleshooting`, 매뉴얼 `index.html` 13번 카드. 구조 변경은 `struct:` 커밋 하나(Secure Enclave 키 생성의 CFError 범위 분리).
 - 추가 테스트: `keychainQueryResultCarriesTheItemsAccessibility`, `enclaveQueryResultCarriesTheKeysAccessibilityAndOutlivesTheResult`, `protectionClassIsComparedByContentNotIdentity`, `secureEnclaveLockedErrorIsRecognized`, `creatingAKeyWhileLockedIsLockedAndLeavesNoSoftwareKey`, `unreportedProtectionClassReadsAsWhenUnlockedWithAWarning`, `lockedHardwareAttemptIsLockedAndNeverFallsBackToSoftware`, `keystoreKeysReportAfterFirstUnlock`, `lockedKeyStoreIsTemporaryAndNeverExecuted`.
 - Swift 표면(SKIE 생성 코드로 확인): `getOrCreate(alias:policy:)`, `getOrCreate(alias:policy:accessibility:)`, `KeyAccessibility { .whenUnlocked, .afterFirstUnlock }`, `VehicleKey.accessibility`, `VehicleErrorKeyStoreErrorLocked`(`onEnum`의 `.locked`).
+- Codex 구현 리뷰 반영: `delete`는 한쪽이라도 -25308이면 `Locked`(`fix:` 커밋, `deleteReportsLockedWhenEitherCopyIsLocked`). 캐시 세션 복원도 ECDH를 해 잠긴 동안 건너뛰고 세션 없는 `disconnect()`가 캐시를 비운다는 점을 ADR에 정정. `SecKeyRef` 핸들이 해제되지 않는 기존 동작 때문에 "매 연결마다 키를 다시 읽으라"는 권고는 철회(후속 작업 후보).
 
 ### Task 8: (조건부) 스캔 필터 변경
 

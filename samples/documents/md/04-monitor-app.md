@@ -32,9 +32,9 @@ The monitor uses its own key alias `teslable-monitor`, created with
 handshake works while the phone is locked (iOS; Android keys already report `AFTER_FIRST_UNLOCK`, not yet confirmed on a
 device). Accessibility is fixed when a key is created: a phone that already has a key under that alias whose
 `key.accessibility` is `WHEN_UNLOCKED` is told to delete it, create a new one and enroll it on the car again. The Control
-tab shows the key's accessibility. The app reads the key from the key store before every connection attempt; on
-`KeyStoreError.Locked` (the phone was not unlocked since restart, or a `WHEN_UNLOCKED` key while locked) it waits and
-tries again after unlock and never deletes the key (`13-lib-pairing.md` §Key accessibility, `16-lib-errors.md`).
+tab shows the key's accessibility. The app reads the key when it starts and keeps that handle; on
+`KeyStoreError.Locked` (the phone was not unlocked since restart, or a `WHEN_UNLOCKED` key while locked) it waits, reads
+it again after unlock and never deletes the key (`13-lib-pairing.md` §Key accessibility, `16-lib-errors.md`).
 
 ## Background
 

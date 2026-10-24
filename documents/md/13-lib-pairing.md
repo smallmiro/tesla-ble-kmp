@@ -72,10 +72,11 @@ Invariants:
   the key on `Locked`**; call again after the phone is unlocked (iOS:
   `UIApplication.protectedDataDidBecomeAvailableNotification`). A key that cannot be created because the phone is locked
   is not replaced by a software key.
-- Read the key from the key store right before every connect or reconnect. A `WHEN_UNLOCKED` key object read earlier and
-  used for a handshake after the phone locked fails inside the handshake: `startSession()` ends with
-  `Failure(Timeout(afterSend = false))`, not `Locked` (known limit, ADR-0014). Expected iOS behaviour, not yet confirmed
-  on a device.
+- A `WHEN_UNLOCKED` key object read while the phone was unlocked and used after the phone locked fails inside the
+  handshake: `startSession()` ends with `Failure(Timeout(afterSend = false))`, not `Locked`, and restoring a cached
+  session is skipped for the same reason (known limit, ADR-0014; expected iOS behaviour, not yet confirmed on a device).
+  To get `Locked` instead, read the key again with `get(alias)` before connecting while the phone may be locked, or use
+  an `AFTER_FIRST_UNLOCK` key. Every read returns a new handle; keep using one handle while it works.
 - `WHEN_UNLOCKED` does not stop an established session when the screen locks: commands in a live session need no
   private-key operation. Only a new handshake and restoring a cached session use the private key.
 
