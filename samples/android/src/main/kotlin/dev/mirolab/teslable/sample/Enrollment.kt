@@ -25,22 +25,31 @@ data class EnrollmentConfirmation(
 /** 둘 다 공개키가 있고 같다(`PublicKeyBytes`는 내용으로 비교한다). */
 fun PublicKeyBytes?.isSameKeyAs(other: PublicKeyBytes?): Boolean = this != null && this == other
 
-/** 3초 간격, 최대 2분 동안 Infotainment `sessionInfo`로 등록을 확인한다. 끝나면 마지막 결과 한 줄을 돌려준다. */
+/**
+ * 3초 간격, 최대 2분 동안 Infotainment `sessionInfo`로 등록을 확인한다(`13-lib-pairing.md` `waitUntilEnrolled`).
+ * `KeyNotPaired`와 `Uncertain`이면 계속 묻고, 그 밖의 `Failure`(예: 연결이 끊긴 뒤의 `NotConnected`)는 바로 멈춘다.
+ */
 suspend fun confirmEnrollment(
     vehicle: Vehicle,
     publicKey: PublicKeyBytes,
+): EnrollmentConfirmation = pollEnrollment { vehicle.sessionInfo(publicKey, VehicleDomain.INFOTAINMENT, ENROLL_CALL_TIMEOUT) }
+
+/** [confirmEnrollment]의 반복 규칙. 호출은 [call]로 받고 시간은 [timeSource]로 재서 차량 없이 시험한다. */
+suspend fun pollEnrollment(
+    timeSource: TimeSource = TimeSource.Monotonic,
+    call: suspend () -> VehicleResult<*>,
 ): EnrollmentConfirmation {
     var last = "등록 확인: 시도하지 못함"
-    val mark = TimeSource.Monotonic.markNow()
+    val mark = timeSource.markNow()
     while (mark.elapsedNow() < ENROLL_WINDOW) {
-        when (val r = vehicle.sessionInfo(publicKey, VehicleDomain.INFOTAINMENT, ENROLL_CALL_TIMEOUT)) {
+        when (val r = call()) {
             is VehicleResult.Success -> {
                 return EnrollmentConfirmation(true, "등록 확인됨(Infotainment)")
             }
 
             is VehicleResult.Failure -> {
-                last =
-                    if (r.error is VehicleError.KeyNotPaired) "아직 등록되지 않음(KeyNotPaired) — 2분까지 반복" else "등록 확인 실패: ${r.error.message}"
+                if (r.error !is VehicleError.KeyNotPaired) return EnrollmentConfirmation(false, "등록 확인 실패: ${r.error.message}")
+                last = "아직 등록되지 않음(KeyNotPaired) — 2분까지 반복"
             }
 
             is VehicleResult.Uncertain -> {

@@ -18,28 +18,25 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import dev.mirolab.teslable.sample.KeyCommand
-import dev.mirolab.teslable.sample.KeyControlInputs
 import dev.mirolab.teslable.sample.KeyControlState
 import dev.mirolab.teslable.sample.KeyControlSteps
 import dev.mirolab.teslable.sample.KeyGroup
-import dev.mirolab.teslable.sample.KeyState
 import dev.mirolab.teslable.sample.LinkState
 import dev.mirolab.teslable.sample.LinkText
 import dev.mirolab.teslable.sample.MonitorEngine
 import dev.mirolab.teslable.sample.StepStatus
 import dev.mirolab.teslable.sample.StepView
-import kotlinx.coroutines.launch
 
 private const val GRID_COLUMNS = 2
 
@@ -53,23 +50,16 @@ fun KeyControlTab(
     engine: MonitorEngine,
     onConnect: () -> Unit,
 ) {
-    val scope = rememberCoroutineScope()
     val link by engine.link.collectAsState()
     val keyStatus by engine.keyStatus.collectAsState()
     val savedVin by engine.savedVin.collectAsState()
     val vinSaved = remember(savedVin) { engine.parsedVin() != null }
     val connected = link is LinkState.Connected
-    val steps =
-        KeyControlSteps.of(
-            KeyControlInputs(
-                keyReady = keyStatus.state == KeyState.READY,
-                keyLocked = keyStatus.state == KeyState.LOCKED,
-                vinSaved = vinSaved,
-                connected = connected,
-                enrollment = state.enrollment.value,
-                busy = state.busy.value,
-            ),
-        )
+    val inputs = state.inputs(link, keyStatus, vinSaved)
+    val steps = KeyControlSteps.of(inputs)
+
+    // 탭이 보일 때마다: 다른 탭에서 등록이나 삭제를 했을 수 있으니 등록 상태를 다시 확인한다(동작은 state의 범위에서 돈다).
+    LaunchedEffect(Unit) { state.onShown() }
 
     Column(
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
@@ -78,30 +68,34 @@ fun KeyControlTab(
         Text(LinkText.of(link), style = MaterialTheme.typography.titleMedium)
 
         StepCard("1. 키", steps.key) {
-            Button(enabled = steps.key.buttonEnabled, onClick = { scope.launch { state.exclusive { ensureKey() } } }) { Text("키 만들기/불러오기") }
+            Button(enabled = steps.key.buttonEnabled, onClick = { state.launchExclusive { ensureKey() } }) { Text("키 만들기/불러오기") }
         }
         StepCard("2. 연결", steps.connect) {
-            Button(enabled = steps.connect.buttonEnabled, onClick = onConnect) { Text("연결") }
+            val withoutKey = inputs.connected && !inputs.hasKey
+            Button(
+                enabled = steps.connect.buttonEnabled,
+                onClick = { if (withoutKey) state.launchExclusive { reconnect(onConnect) } else onConnect() },
+            ) { Text(if (withoutKey) "연결 끊고 다시 연결" else "연결") }
         }
         StepCard("3. 등록", steps.enroll) {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 Button(
                     enabled = steps.enroll.buttonEnabled,
-                    onClick = { scope.launch { state.exclusive { enroll() } } },
+                    onClick = { state.launchExclusive { enroll() } },
                 ) { Text("키 등록 요청") }
-                OutlinedButton(enabled = steps.checkEnabled, onClick = { scope.launch { state.exclusive { checkEnrollment() } } }) {
+                OutlinedButton(enabled = steps.checkEnabled, onClick = { state.launchExclusive { checkEnrollment() } }) {
                     Text("등록 상태 확인")
                 }
             }
         }
         StepCard("4. 제어", steps.control) {
             ControlGrid(enabled = steps.control.buttonEnabled, onPress = { cmd ->
-                if (cmd.confirm != null) state.pendingConfirm.value = cmd else scope.launch { state.exclusive { command(cmd) } }
+                if (cmd.confirm != null) state.pendingConfirm.value = cmd else state.requestCommand(cmd)
             })
         }
 
         StatusCard(state, refreshEnabled = KeyControlSteps.refreshEnabled(connected, state.busy.value), onRefresh = {
-            scope.launch { state.exclusive { refreshStatus() } }
+            state.launchExclusive { refreshStatus() }
         })
 
         ResultList(state)
@@ -113,10 +107,7 @@ fun KeyControlTab(
             title = { Text("${cmd.label}?") },
             text = { Text(cmd.confirm.orEmpty()) },
             confirmButton = {
-                TextButton(onClick = {
-                    state.pendingConfirm.value = null
-                    scope.launch { state.exclusive { command(cmd) } }
-                }) { Text(cmd.label) }
+                TextButton(onClick = { state.requestCommand(cmd) }) { Text(cmd.label) }
             },
             dismissButton = { TextButton(onClick = { state.pendingConfirm.value = null }) { Text("취소") } },
         )
