@@ -41,8 +41,8 @@
 <p class="lead">車内または車の近くに置いたスマートフォンが自動で接続し、接続を保ち、車の状態をライブで表示し、ライブラリが読み取れるものをすべてポーリングし、すべてのブロードキャストを生のバイト列とともに記録します。これにより、未知のプロトコルフィールドを後から分析できます。</p>
 
 <div class="callout warn">
-<strong>Android は実装済み、実機確認待ち</strong>
-<p>Android アプリは実装済みで（ビルド <code>0.2.0 (2)</code>、単体テストは通過）、実車での確認を待っています。iOS アプリは予定です（計画 Task 10）。必要なライブラリ API はすべて使えます: <code>Vehicle.events</code>（ライブラリマニュアル 12 章「ブロードキャストイベント」、14 章 B2）と iOS のキーアクセシビリティの選択（13 章「スマートフォンのロック中にキーを使う」、FR-037）。</p>
+<strong>Android と iOS は実装済み、実機確認待ち</strong>
+<p>Android アプリ（ビルド <code>0.2.0 (2)</code>）と iOS アプリ（ビルド <code>0.2.0 (10)</code>）は実装済みで、単体テストは通過しています。どちらも実車での確認を待っています。iOS がバックグラウンドで再接続するかどうかは、計画の Task 2 のスパイクまで未確認です。必要なライブラリ API はすべて使えます: <code>Vehicle.events</code>（ライブラリマニュアル 12 章「ブロードキャストイベント」、14 章 B2）と iOS のキーアクセシビリティの選択（13 章「スマートフォンのロック中にキーを使う」、FR-037）。</p>
 </div>
 
 <div class="toc"><strong>このページの内容</strong><ol>
@@ -51,6 +51,7 @@
 <li><a href="#sec-bg">バックグラウンドでの動作</a></li>
 <li><a href="#sec-log">ログファイル</a></li>
 <li><a href="#sec-android">Android の実装</a></li>
+<li><a href="#sec-ios">iOS の実装</a></li>
 <li><a href="#sec-check">実車チェックリスト</a></li>
 </ol></div>
 
@@ -77,8 +78,8 @@
 <thead><tr><th></th><th>Android</th><th>iOS</th></tr></thead>
 <tbody>
 <tr><td>接続の所有者</td><td>フォアグラウンドサービスが、ライブラリのインスタンス、再接続ループ、イベントの購読、ログライターを持ちます。通知にはリンクの状態と Stop ボタンが表示されます。</td><td>アプリと同じ期間だけ存在する 1 つのモニターオブジェクト。</td></tr>
-<tr><td>宣言</td><td><code>FOREGROUND_SERVICE</code>、<code>FOREGROUND_SERVICE_CONNECTED_DEVICE</code>、<code>POST_NOTIFICATIONS</code>（実行時に要求）。<code>INTERNET</code> は引き続き使いません。</td><td><code>UIBackgroundModes: [bluetooth-central]</code></td></tr>
-<tr><td>バックグラウンドでの再接続</td><td>フォアグラウンドと同じループ。</td><td>実車でのテスト（計画の Task 2）の後に決めます。それまでは、リンクがつながっている間は受信を続けることを目標とします。</td></tr>
+<tr><td>宣言</td><td><code>FOREGROUND_SERVICE</code>、<code>FOREGROUND_SERVICE_CONNECTED_DEVICE</code>、<code>POST_NOTIFICATIONS</code>（実行時に要求）。<code>INTERNET</code> は引き続き使いません。</td><td><code>UIBackgroundModes: [bluetooth-central]</code>、<code>UIFileSharingEnabled</code>、<code>LSSupportsOpeningDocumentsInPlace</code>（すべて <code>project.yml</code> の <code>info:</code> ブロック内）</td></tr>
+<tr><td>バックグラウンドでの再接続</td><td>フォアグラウンドと同じループ。</td><td>フォアグラウンドと同じループ。<strong>iOS がバックグラウンドでアプリにスキャンと再接続を許可するかどうかは未確認</strong>で、実車でのテスト（計画の Task 2）まで分かりません。それまでは、リンクがつながっている間は受信を続けることを目標とします（<code>bluetooth-central</code> により、つながっているリンクはデータを届け続けます）。</td></tr>
 </tbody>
 </table>
 
@@ -152,6 +153,48 @@
 <li><strong>ゲートの対象外。</strong> <code>lintKotlin</code> と <code>detekt</code> はライブラリのモジュールにだけ動き、<code>samples/</code> には動きません。</li>
 </ul>
 
+<h2 id="sec-ios">iOS の実装</h2>
+<p><code>samples/ios/Sources/</code> のファイル（テストは <code>samples/ios/Tests/</code> にあり、Android のテストと同じ名前です）:</p>
+<table>
+<thead><tr><th>ファイル</th><th>役割</th></tr></thead>
+<tbody>
+<tr><td><code>MonitorModel.swift</code></td><td>アプリの存続期間中ずっと存在する 1 つのオブジェクト（<code>TeslableSampleApp</code> 内の <code>@StateObject</code>）。画面が読む内容を保持し、エンジンを 1 回だけ開始し（VIN が保存されていれば自動で接続します。XCTest の下では接続しません）、Control タブの <code>SampleModel</code> を作ります。</td></tr>
+<tr><td><code>MonitorEngine.swift</code></td><td>ライブラリのインスタンス、<code>ConnectionLoop</code>、<code>Vehicle.events</code> の Task、問い合わせのポーリング Task、保存した VIN（<code>UserDefaults</code>）、モニターのキー、<code>LogWriter</code> を持ちます。変更は 1 つの <code>AsyncStream</code> を通してモデルに送り、順序を保ちます。<code>observe</code> の行は、すべてを <code>DebugLogger</code> に渡す <code>TeslaLogger</code> である <code>ObserveLogger</code> を通して入ってきます。</td></tr>
+<tr><td><code>ConnectionLoop.swift</code></td><td>状態機械 <code>idle</code>、<code>connecting(n)</code>、<code>connected(V)</code>、<code>backoff(attempt:delay:reason:)</code>、<code>stopped</code>。ライブラリのことは何も知らず、時計とスリープは差し替えられます（テストは手動の時計を使います）。</td></tr>
+<tr><td><code>LogLine.swift</code>、<code>LogWriter.swift</code>、<code>VinMask.swift</code></td><td>ログ行の形式、<code>LogSink</code> プロトコルの後ろにある専用シリアルキュー上のファイル書き込み、VIN のマスク。</td></tr>
+<tr><td><code>LiveState.swift</code></td><td>イベントを Live タブの状態（項目ごとの最後に変わった時刻）に変えます。</td></tr>
+<tr><td><code>VehicleMapping.swift</code></td><td><code>VehicleEvent</code> と <code>VehicleStatus_</code> を Swift の値（<code>MonitorEvent</code>、<code>StatusSnapshot</code>）に変える唯一の場所。<code>VehicleBox</code> は <code>Vehicle</code> をタスク間で運びます。</td></tr>
+<tr><td><code>SampleModel.swift</code>、<code>Views/ControlTab.swift</code></td><td>モニターの接続とキーを使う Control タブ（以前の 1 画面）。</td></tr>
+<tr><td><code>ContentView.swift</code>、<code>Views/</code></td><td>Live、Query、Log、Control を持つ <code>TabView</code>。<code>isIdleTimerDisabled</code> は <code>scenePhase == .active</code> に従います。</td></tr>
+</tbody>
+</table>
+<p>使ったライブラリ呼び出し（Swift 形式）と、従ったマニュアルの章:</p>
+<table>
+<thead><tr><th>呼び出し</th><th>場所</th><th>マニュアル</th></tr></thead>
+<tbody>
+<tr><td><code>TeslaBle.companion.create(platform:config:)</code>、<code>connect(vin:key:target:options:)</code>、リンクが切れるたびに <code>vehicle.disconnect()</code></td><td><code>MonitorEngine</code></td><td>12 章「全体の流れ」、17 章「接続スロットとリンク切断」と「iOS」</td></tr>
+<tr><td><code>vehicle.connection</code>（<code>for await</code>、<code>.disconnected</code> になるまで待つ）</td><td><code>MonitorEngine.awaitLoss</code></td><td>12 章「次のステップ」、14 章「接続とセッションの状態」</td></tr>
+<tr><td>専用の Task で収集する <code>vehicle.events</code>（<code>for await</code>、<code>onEnum(of:)</code>）。<code>raw</code> は一度だけ読み、保存する前にマスクします</td><td><code>MonitorEngine.collectEvents</code>、<code>MonitorEvent.init</code></td><td>12 章「ブロードキャストイベント」、14 章 B2、B2.4</td></tr>
+<tr><td>30 秒ごとに <code>vehicleStatus(timeout: nil)</code>、<code>keySummary(timeout: nil)</code>、<code>listKeys(timeout: nil)</code>、<code>sessions</code>。<code>Uncertain</code> と <code>Failure</code> はそのまま表示します</td><td><code>MonitorEngine.runQueries</code></td><td>14 章「4 つのクエリ」、16 章「3 つの結果」</td></tr>
+<tr><td><code>"teslable-monitor"</code>、<code>.preferHardware</code>、<code>.afterFirstUnlock</code> を指定した <code>keys.getOrCreate(alias:policy:accessibility:)</code>。<code>VehicleErrorKeyStoreErrorLocked</code> なら待って再試行し、キーは消しません</td><td><code>MonitorEngine.ensureKey</code></td><td>13 章「スマートフォンのロック中にキーを使う」、16 章「Bluetooth とキーストアのエラー」</td></tr>
+<tr><td><code>TeslaLogger</code>（タグ <code>observe</code>）</td><td><code>ObserveLogger</code></td><td>18 章「観察ログ（開発用）」</td></tr>
+<tr><td><code>Vin.companion.parseOrNull</code>、<code>scan</code>、<code>addKeyRequest</code>、<code>sessionInfo</code>、<code>startSession</code>、VCSEC コマンド、<code>removeKey</code></td><td>Control タブ（<code>BleClient</code>）</td><td>12、13、15、16 章</td></tr>
+</tbody>
+</table>
+<p>動作のしかたと、設計で余地を残した部分:</p>
+<ul>
+<li><strong>Android と同じ動作。</strong> ログのスキーマ、上のフィールドの補足、バックオフの数値、10 秒の安定リセット、VIN の連なり、書き込みエラーの規則、「新しい接続は、前の車両が解放されるまで待つ」は、Swift でも同じロジックで、同じテスト名があります（<code>VinMaskTests</code>、<code>LogWriterTests</code>、<code>ConnectionLoopTests</code>、<code>LiveStateTests</code>）。</li>
+<li><strong>接続は 1 つ。</strong> Control タブはモニターの接続とキーを使います。Control タブの接続ボタンと切断ボタンは、モニターのループを開始・停止します。VIN は Live タブで入力・消去し、Control タブはマスクして表示します。</li>
+<li><strong>キーのエラー。</strong> <code>Locked</code> ならその試行は失敗となり、ループは待ってからキーを読み直します。<code>UIApplication.protectedDataDidBecomeAvailableNotification</code> が届いたときも、アプリはすぐに再試行します。キーは消しません。それ以外のキーのエラーは、キーなしで接続します（ブロードキャストと 3 つの問い合わせにキーは要りません）。Control タブは <code>protection</code> と <code>accessibility</code> を表示し、<code>WHEN_UNLOCKED</code> のキーなら警告します（削除して、新しく作り、もう一度登録します）。</li>
+<li><strong>見つかったライブラリの不足。</strong> ありません。ライブラリへの要望は出していません。</li>
+<li><strong>Log タブ。</strong> 以前の観察モードはなくなりました。<code>observe</code> 行は常にログファイルに書かれ、メモと Mark ボタンは <code>mark</code> 行を書きます。以前のコピーボタンは、「最後の行をコピー」と、Control タブの「全結果をコピー」（最後のログ行で終わるようになりました）に置き換わりました。</li>
+<li><strong>ログファイル。</strong> 規則は Android と同じです（10 進の MB、削除は書き込み中のファイルを消さない、名前は 1 秒ずらす、4096 行のキュー、書き込みエラーはその行を捨てて数え、次の行でファイルを開き直す）。行は届くたびにファイルへ書きます（バッファリングなし）。ファイルは <code>Documents/logs/</code> にあり、ファイル保護は既定のままです（最初のロック解除後に読み取れます）。</li>
+<li><strong>画面の点灯。</strong> <code>isIdleTimerDisabled</code> はシーンがアクティブな間だけ true で、バックグラウンドと非アクティブのときはシステムの既定に戻ります。</li>
+<li><strong>バックグラウンド。</strong> iOS がアプリを動かし続けている間は、同じループがバックグラウンドでも動きます。リンクが切れた後に iOS がアプリを起こしてスキャンと再接続をさせるかどうかは<strong>未確認</strong>です（計画 Task 2 のスパイク）。iOS がアプリを一時停止している間はループは動かず、2 つの <code>link</code> 行の間隔でその長さが分かります。</li>
+<li><strong>取り出し。</strong> <code>tools/samples/pull-monitor-logs.sh ios [--device &lt;id&gt;]</code> は、実機ビルド（<code>dev.mirolab.TeslableSampleDevice</code>）の <code>Documents/logs</code> を <code>xcrun devicectl device copy from</code> で <code>samples/logs/ios/&lt;date&gt;/</code> にコピーします。</li>
+<li><strong>バージョン。</strong> <code>project.yml</code> には <code>MARKETING_VERSION 0.2.0</code> と <code>CURRENT_PROJECT_VERSION 10</code> があります。実機での確認ラウンドごとにビルド番号を上げてください。</li>
+</ul>
+
 <h2 id="sec-check">実車チェックリスト</h2>
 <ol>
 <li>新規インストール：VIN を入力し、モニターキーを作成して登録します。アプリを再起動すると、自動で接続します。</li>
@@ -160,6 +203,12 @@
 <li>ロックしたスマートフォンを車の近くに 30 分置きます。接続したまま、または再接続され、ログが増え続けます。</li>
 <li>Disconnect を押します。2 分間、再接続を試みません。</li>
 <li>Mac でスクリプトを使ってログを取り出します。最初の行は <code>session</code> 行で、17 文字の VIN を検索しても何も見つかりません。</li>
+</ol>
+<p>iOS のみ（期待される結果つきの完全な手順は <code>samples/ios/README.md</code> の "Monitor app: real-device checklist" にあります）:</p>
+<ol start="7">
+<li>アプリをもう一度起動した後、モニターのキーが <code>afterFirstUnlock</code> と報告されます（Secure Enclave のキー、計画 Task 11）。</li>
+<li>ロックされた iPhone で、モニターのキーを使ってハンドシェイクします（計画 Task 11）。スマートフォンがロックされている間に Secure Enclave のキーの作成が失敗した場合は、エラーの文面をそのままコピーしてください。</li>
+<li>バックグラウンド: スマートフォンをロックして離れ、戻ってから <code>link</code> 行を読み、iOS が自力で再接続したかどうかを確認します（計画 Task 2 のスパイクの結果）。</li>
 </ol>
 
 <footer class="page-nav">

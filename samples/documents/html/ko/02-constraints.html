@@ -66,14 +66,14 @@
 <thead><tr><th></th><th>Android</th><th>iOS</th></tr></thead>
 <tbody>
 <tr><td>Bluetooth 권한</td><td><code>BLUETOOTH_SCAN</code>(<code>neverForLocation</code>)과 <code>BLUETOOTH_CONNECT</code>, 런타임에 요청</td><td><code>project.yml</code>의 <code>info:</code> 블록에 있는 <code>NSBluetoothAlwaysUsageDescription</code></td></tr>
-<tr><td>백그라운드(모니터 앱)</td><td><code>connectedDevice</code> 유형의 포그라운드 서비스: <code>FOREGROUND_SERVICE</code>, <code>FOREGROUND_SERVICE_CONNECTED_DEVICE</code>, <code>POST_NOTIFICATIONS</code>(런타임에 요청). 서비스는 <code>BLUETOOTH_CONNECT</code>가 허용된 뒤에만 시작합니다</td><td><code>UIBackgroundModes: [bluetooth-central]</code></td></tr>
+<tr><td>백그라운드(모니터 앱)</td><td><code>connectedDevice</code> 유형의 포그라운드 서비스: <code>FOREGROUND_SERVICE</code>, <code>FOREGROUND_SERVICE_CONNECTED_DEVICE</code>, <code>POST_NOTIFICATIONS</code>(런타임에 요청). 서비스는 <code>BLUETOOTH_CONNECT</code>가 허용된 뒤에만 시작합니다</td><td><code>UIBackgroundModes: [bluetooth-central]</code>. <code>UIFileSharingEnabled</code>와 <code>LSSupportsOpeningDocumentsInPlace</code>는 로그 폴더 <code>Documents/logs/</code>를 위한 것</td></tr>
 <tr><td>네트워크</td><td><code>INTERNET</code> 권한 없음(PRD NFR-014)</td><td>네트워크 호출 없음</td></tr>
 <tr><td>백업</td><td><code>android:allowBackup="false"</code>: 감싸는 키 없이 복원된 소프트웨어 키는 쓸 수 없기 때문입니다</td><td>키는 기기를 떠나지 않는 Keychain 항목입니다</td></tr>
 <tr><td>생성 파일</td><td>–</td><td><code>TeslableSample.xcodeproj</code>와 <code>Sources/Info.plist</code>는 <code>xcodegen generate</code>로 만듭니다. 커밋하지 않습니다</td></tr>
 <tr><td>서명</td><td>–</td><td><code>Local.xcconfig</code>에 <code>DEVELOPMENT_TEAM</code>이 들어 있습니다. 커밋하지 않습니다</td></tr>
 </tbody>
 </table>
-<p>라이브러리 매뉴얼은 아직 백그라운드 사용을 다루지 않습니다(17장). 백그라운드 사용이 필요한 샘플 앱은 같은 풀 리퀘스트에서 사용하는 플랫폼 설정을 이 페이지들과 17장에 적습니다. Android 모니터 앱이 이를 따랐습니다(위 표, 17장 "샘플 앱의 Android 백그라운드 사용"). 실기기 확인은 대기 중입니다.</p>
+<p>라이브러리 매뉴얼은 아직 백그라운드 사용을 다루지 않습니다(17장). 백그라운드 사용이 필요한 샘플 앱은 같은 풀 리퀘스트에서 사용하는 플랫폼 설정을 이 페이지들과 17장에 적습니다. Android 모니터 앱이 이를 따랐습니다(위 표, 17장 "샘플 앱의 Android 백그라운드 사용"). 실기기 확인은 대기 중입니다. iOS 모니터 앱은 <code>bluetooth-central</code>을 유지하고 같은 재연결 루프를 실행합니다. iOS가 백그라운드에서 스캔하고 재연결하는지는 실차에서 계획 Task 2 스파이크를 실행하기 전까지 확인되지 않았습니다(17장 "샘플 앱의 iOS 백그라운드 사용").</p>
 
 <h2 id="sec-secrets">로그, 비밀, 차량 데이터</h2>
 <ul>

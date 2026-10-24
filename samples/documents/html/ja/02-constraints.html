@@ -66,14 +66,14 @@
 <thead><tr><th></th><th>Android</th><th>iOS</th></tr></thead>
 <tbody>
 <tr><td>Bluetooth 権限</td><td><code>BLUETOOTH_SCAN</code>（<code>neverForLocation</code>）と <code>BLUETOOTH_CONNECT</code>。実行時に要求します</td><td><code>project.yml</code> の <code>info:</code> ブロックにある <code>NSBluetoothAlwaysUsageDescription</code></td></tr>
-<tr><td>バックグラウンド（モニターアプリ）</td><td><code>connectedDevice</code> タイプのフォアグラウンドサービス: <code>FOREGROUND_SERVICE</code>、<code>FOREGROUND_SERVICE_CONNECTED_DEVICE</code>、<code>POST_NOTIFICATIONS</code>（実行時に要求）。サービスは <code>BLUETOOTH_CONNECT</code> が許可された後にだけ開始します</td><td><code>UIBackgroundModes: [bluetooth-central]</code></td></tr>
+<tr><td>バックグラウンド（モニターアプリ）</td><td><code>connectedDevice</code> タイプのフォアグラウンドサービス: <code>FOREGROUND_SERVICE</code>、<code>FOREGROUND_SERVICE_CONNECTED_DEVICE</code>、<code>POST_NOTIFICATIONS</code>（実行時に要求）。サービスは <code>BLUETOOTH_CONNECT</code> が許可された後にだけ開始します</td><td><code>UIBackgroundModes: [bluetooth-central]</code>。ログフォルダー <code>Documents/logs/</code> 用の <code>UIFileSharingEnabled</code> と <code>LSSupportsOpeningDocumentsInPlace</code></td></tr>
 <tr><td>ネットワーク</td><td><code>INTERNET</code> 権限なし（PRD NFR-014）</td><td>ネットワーク呼び出しなし</td></tr>
 <tr><td>バックアップ</td><td><code>android:allowBackup="false"</code>：ラッピングキーなしで復元されたソフトウェアキーは使えなくなるため</td><td>キーは端末の外に出ない Keychain の項目</td></tr>
 <tr><td>生成ファイル</td><td>–</td><td><code>TeslableSample.xcodeproj</code> と <code>Sources/Info.plist</code> は <code>xcodegen generate</code> で作られます。コミットしないでください</td></tr>
 <tr><td>署名</td><td>–</td><td><code>Local.xcconfig</code> に <code>DEVELOPMENT_TEAM</code> を書きます。コミットしないでください</td></tr>
 </tbody>
 </table>
-<p>ライブラリマニュアルは、バックグラウンドでの利用をまだ扱っていません（第 17 章）。それが必要なサンプルは、使うプラットフォーム設定をこれらのページと第 17 章に、同じプルリクエストで書き残します。Android のモニターアプリはこれに従いました（上の表、第 17 章「サンプルアプリの Android バックグラウンド利用」）。実機確認は待機中です。</p>
+<p>ライブラリマニュアルは、バックグラウンドでの利用をまだ扱っていません（第 17 章）。それが必要なサンプルは、使うプラットフォーム設定をこれらのページと第 17 章に、同じプルリクエストで書き残します。Android のモニターアプリはこれに従いました（上の表、第 17 章「サンプルアプリの Android バックグラウンド利用」）。実機確認は待機中です。iOS のモニターアプリは <code>bluetooth-central</code> を維持し、同じ再接続ループを実行します。iOS がバックグラウンドでスキャンと再接続を行うかどうかは、計画の Task 2 のスパイクを車で実行するまで未確認です（第 17 章「サンプルアプリの iOS バックグラウンド利用」）。</p>
 
 <h2 id="sec-secrets">ログ、秘密情報、車両データ</h2>
 <ul>

@@ -62,6 +62,7 @@
 <li><a href="#sec-android">Android</a></li>
 <li><a href="#sec-android-bg">サンプルアプリの Android バックグラウンド利用</a></li>
 <li><a href="#sec-ios">iOS</a></li>
+<li><a href="#sec-ios-bg">サンプルアプリの iOS バックグラウンド利用</a></li>
 <li><a href="#sec-keys">キーの保存</a></li>
 <li><a href="#sec-cache">セッションキャッシュ</a></li>
 <li><a href="#sec-clock">クロック</a></li>
@@ -109,6 +110,15 @@
 <li>Swift では公開の <code>VehicleStatus</code> は <code>VehicleStatus_</code> という名前になります。生成された VCSEC メッセージ型がそのままの名前を使っているためです。<code>vehicleStatus()</code> の結果と <code>VehicleEvent.Status.status</code> がこの型です。</li>
 </ul>
 
+<h2 id="sec-ios-bg">サンプルアプリの iOS バックグラウンド利用</h2>
+<p>ライブラリはフォアグラウンドでの利用をサポートします（サポート範囲を参照）。iOS サンプルのモニターアプリは <code>UIBackgroundModes: [bluetooth-central]</code> を宣言し、Android サンプルと同じ再接続ループを実行します。まだ実機の iPhone では<strong>確認していない</strong>ため、バックグラウンドでのライブラリの動作は未確認として扱ってください。</p>
+<ul>
+<li><code>Info.plist</code>（<code>project.yml</code> 経由）: <code>UIBackgroundModes: [bluetooth-central]</code>。<code>UIFileSharingEnabled</code> と <code>LSSupportsOpeningDocumentsInPlace</code> はサンプルのログフォルダー用にのみ設定します。</li>
+<li>アプリがライブラリのインスタンスを起動中ずっと 1 つ所有し、リンクが切れるたびに <code>vehicle.disconnect()</code> を呼んでから、新しい <code>Vehicle</code> で再接続します（2 秒待ち、最大 30 秒まで倍々）。再試行はライブラリではなくアプリの仕事です。</li>
+<li><strong>未確認:</strong> アプリがバックグラウンドにある間、またはスマートフォンがロックされている間に、iOS がスキャンと再接続を許可するかどうか（ライブラリは現在デバイス名でスキャンしていますが、iOS のバックグラウンドスキャンには通常サービス UUID のフィルターが必要です。計画の Task 2 と Task 8）。実車でのスパイクを行うまでは、サポートするバックグラウンドのケースはリンクが維持されている場合だけです。iOS がアプリを動かし続けている間は、イベントが届き続けます。</li>
+<li>キーストア: サンプルは <code>KeyAccessibility.AFTER_FIRST_UNLOCK</code> でキーを作ります。スマートフォンがロックされていてキーストアが <code>KeyStoreError.Locked</code> を返す間、サンプルは待って再試行し、キーを削除することはありません。</li>
+</ul>
+
 <h2 id="sec-keys">キーの保存</h2>
 <table>
 <thead><tr><th><code>protection</code></th><th>意味</th></tr></thead>
@@ -136,7 +146,7 @@
 </table>
 <ul>
 <li>ロックされた iPhone では、キーチェーンのエラー <code>errSecInteractionNotAllowed</code> (-25308) が <code>KeyStoreError.Locked</code> になります。<code>WHEN_UNLOCKED</code> のキーはスマートフォンのロック中は読み取ることもハンドシェイクに使うこともできず、<code>AFTER_FIRST_UNLOCK</code> のキーは最後の再起動後に一度ロックを解除してからは使えます。最初のロック解除の前は、すべてのキーがロックされています。スマートフォンがロックされていて作成できなかったキーを、ソフトウェアキーで代用することはありません。</li>
-<li>実機でまだ確認していないこと: 両方の設定でのキーチェーンの往復、設定の読み直し、ロックされた iPhone での <code>AFTER_FIRST_UNLOCK</code> の Secure Enclave キーによるハンドシェイク。サンプルアプリで確認します。スマートフォンのロック中にキーを使うには、アプリがバックグラウンドで動き続ける必要がありますが、その内容はまだこのドキュメントで扱っていません。</li>
+<li>実機でまだ確認していないこと: 両方の設定でのキーチェーンの往復、設定の読み直し、ロックされた iPhone での <code>AFTER_FIRST_UNLOCK</code> の Secure Enclave キーによるハンドシェイク。サンプルアプリで確認します（ビルド 10 は準備済みで、確認は計画の Task 11 です）。スマートフォンのロック中にキーを使うには、アプリがバックグラウンドで動き続ける必要がありますが、その内容はまだこのドキュメントで扱っていません。</li>
 </ul>
 <div class="callout danger">
 <strong>破損したキーが自動で置き換えられることはありません</strong>

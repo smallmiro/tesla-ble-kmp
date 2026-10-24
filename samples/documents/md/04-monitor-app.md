@@ -1,7 +1,8 @@
 # Monitor App (SFR-010 to SFR-017)
 
-Status: **Android implemented** (build `0.2.0 (2)`; unit tests and build pass, **real-device
-check pending**). **iOS planned** (plan Task 10). Issue #91. The library APIs it needs are available: `Vehicle.events`
+Status: **Android implemented** (build `0.2.0 (2)`) and **iOS implemented** (build `0.2.0 (10)`); unit tests and builds
+pass, **real-device checks pending** for both (iOS background reconnect is unconfirmed until the plan Task 2 spike).
+Issue #91. The library APIs it needs are available: `Vehicle.events`
 (`12-lib-getting-started.md` §Broadcast events, `14-lib-reading-state.md` B2) and the key accessibility `KeyAccessibility`
 (`13-lib-pairing.md` §Key accessibility, FR-037). Library design:
 `docs/superpowers/specs/2026-10-24-vehicle-events-monitor-design.md`. Plan:
@@ -42,8 +43,8 @@ it again after unlock and never deletes the key (`13-lib-pairing.md` §Key acces
 | | Android | iOS |
 |---|---|---|
 | Owner of the connection | A foreground service (`foregroundServiceType="connectedDevice"`) owns `TeslaBle`, the reconnect loop, the event subscription and the log writer. Notification shows the link state and a Stop action | One monitor object for the app's lifetime |
-| Declarations | `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`, `POST_NOTIFICATIONS` (asked at runtime). Still no `INTERNET` | `UIBackgroundModes: [bluetooth-central]` |
-| Reconnect while in background | Same loop as foreground | Depends on the spike result (plan Task 2); until then the goal is to keep receiving while the link is up |
+| Declarations | `FOREGROUND_SERVICE`, `FOREGROUND_SERVICE_CONNECTED_DEVICE`, `POST_NOTIFICATIONS` (asked at runtime). Still no `INTERNET` | `UIBackgroundModes: [bluetooth-central]`, `UIFileSharingEnabled`, `LSSupportsOpeningDocumentsInPlace` (all in `project.yml` `info:`) |
+| Reconnect while in background | Same loop as foreground | Same loop as foreground. **Whether iOS lets the app scan and reconnect in the background is unconfirmed** until the spike (plan Task 2) runs on the car; until then the goal is to keep receiving while the link is up (`bluetooth-central` keeps a live link delivering data) |
 
 ## Log format
 
@@ -139,6 +140,61 @@ How it behaves, where the design left room:
 - **Pulling.** `adb pull` puts the files in `samples/logs/android/<date>/logs/`.
 - **Not covered by the gate.** `lintKotlin` and `detekt` run only on library modules, not on `samples/`.
 
+## iOS implementation
+
+Files in `samples/ios/Sources/` (tests in `samples/ios/Tests/`, names as in the Android tests):
+
+| File | Role |
+|---|---|
+| `MonitorModel.swift` | The one object for the app's lifetime (`@StateObject` in `TeslableSampleApp`). Holds what the screens read, starts the engine once (auto-connect when a VIN is saved, not under XCTest), and creates the Control tab's `SampleModel` |
+| `MonitorEngine.swift` | Owns `TeslaBle`, `ConnectionLoop`, the `Vehicle.events` Task, the query poll Task, the saved VIN (`UserDefaults`), the monitor key and the `LogWriter`. Sends changes to the model through one `AsyncStream` so their order is kept. `observe` lines come through `ObserveLogger`, a `TeslaLogger` that passes everything to `DebugLogger` |
+| `ConnectionLoop.swift` | State machine `idle`, `connecting(n)`, `connected(V)`, `backoff(attempt:delay:reason:)`, `stopped`; knows nothing about the library; the clock and the sleeper can be replaced (tests use a manual clock) |
+| `LogLine.swift`, `LogWriter.swift`, `VinMask.swift` | Log line format, file writer on its own serial queue behind the `LogSink` protocol, VIN masking |
+| `LiveState.swift` | Reduces events into the Live tab state (last-changed time per item) |
+| `VehicleMapping.swift` | The only place that turns `VehicleEvent` / `VehicleStatus_` into Swift values (`MonitorEvent`, `StatusSnapshot`); `VehicleBox` carries a `Vehicle` across tasks |
+| `SampleModel.swift`, `Views/ControlTab.swift` | Control tab (the former single screen) on the monitor's connection and key |
+| `ContentView.swift`, `Views/` | `TabView` Live / Query / Log / Control; `isIdleTimerDisabled` follows `scenePhase == .active` |
+
+Library calls used (Swift form) and the manual page and section:
+
+| Call | Where | Manual |
+|---|---|---|
+| `TeslaBle.companion.create(platform:config:)`, `connect(vin:key:target:options:)`, `vehicle.disconnect()` after every link loss | `MonitorEngine` | 12 §Flow, 17 §Connection slots and dropped links, §Swift |
+| `vehicle.connection` (`for await`, wait for `.disconnected`) | `MonitorEngine.awaitLoss` | 12 §Next steps, 14 §Connection and session state |
+| `vehicle.events` (`for await`, `onEnum(of:)`) in its own Task; `raw` read once and masked before it is stored | `MonitorEngine.collectEvents`, `MonitorEvent.init` | 12 §Broadcast events, 14 B2, B2.4 |
+| `vehicleStatus(timeout: nil)`, `keySummary(timeout: nil)`, `listKeys(timeout: nil)`, `sessions` every 30 s; `Uncertain` and `Failure` shown as they are | `MonitorEngine.runQueries` | 14 Calls, 16 §Three outcomes |
+| `keys.getOrCreate(alias:policy:accessibility:)` with `"teslable-monitor"`, `.preferHardware`, `.afterFirstUnlock`; `VehicleErrorKeyStoreErrorLocked` waits and retries, never deletes | `MonitorEngine.ensureKey` | 13 §Key accessibility, 16 §Transport and key store errors |
+| `TeslaLogger` (tag `observe`) | `ObserveLogger` | 18 §Observation log |
+| `Vin.companion.parseOrNull`, `scan`, `addKeyRequest`, `sessionInfo`, `startSession`, VCSEC commands, `removeKey` | Control tab (`BleClient`) | 12, 13, 15, 16 |
+
+How it behaves, where the design left room:
+
+- **Same behaviour as Android.** The log schema, the field notes above, the back-off numbers, the 10 s stable reset, the
+  VIN runs, the write-error rule and "connect waits for the previous vehicle to be released" are the same code in Swift;
+  the same test names exist in `Tests/` (`VinMaskTests`, `LogWriterTests`, `ConnectionLoopTests`, `LiveStateTests`).
+- **One connection.** The Control tab uses the monitor's connection and key. Its Connect and Disconnect buttons start and
+  stop the monitor's loop. The VIN is entered and cleared on the Live tab; Control shows it masked.
+- **Key errors.** `Locked` fails the attempt, so the loop waits and reads the key again; the app also retries at once when
+  `UIApplication.protectedDataDidBecomeAvailableNotification` arrives. The key is never deleted. Any other key error
+  connects without a key (broadcasts and the three queries need none). The Control tab shows `protection` and
+  `accessibility` and a warning for a `WHEN_UNLOCKED` key (delete it, create a new one, enroll it again).
+- **Library gaps found.** None; no library request was raised.
+- **Log tab.** The old observation mode is gone: `observe` lines are always written to the log file, and its memo and Mark
+  buttons write `mark` lines. "Copy last lines" and the Control tab's "Copy all results" (which now ends with the last log
+  lines) replace the old copy button.
+- **Log files.** Same rules as Android (decimal MB, pruning never deletes the open file, names one second apart, a queue of
+  4096 lines, a write error drops and counts the line and the next line reopens a file). Lines are written to the file as they
+  arrive (no buffering). Files are in `Documents/logs/` with the default file protection (readable after the first unlock).
+- **Screen on.** `isIdleTimerDisabled` is true only while the scene is active; it goes back to the system default in the
+  background and when inactive.
+- **Background.** The same loop runs in the background as long as iOS keeps the app running. Whether iOS wakes the app to
+  scan and reconnect after a link loss is **unconfirmed** (plan Task 2 spike); while iOS keeps the app suspended the loop does not run, and the
+  gap between two `link` lines shows how long that was.
+- **Pulling.** `tools/samples/pull-monitor-logs.sh ios [--device <id>]` copies `Documents/logs` of the device build
+  (`dev.mirolab.TeslableSampleDevice`) with `xcrun devicectl device copy from` into `samples/logs/ios/<date>/`.
+- **Version.** `project.yml` has `MARKETING_VERSION 0.2.0` and `CURRENT_PROJECT_VERSION 10`; raise the build number for
+  every real-device round.
+
 ## Real-vehicle checklist (both apps)
 
 1. Fresh install, enter VIN, create the monitor key, enroll it; restart the app → connects on its own.
@@ -147,3 +203,11 @@ How it behaves, where the design left room:
 4. Locked phone for 30 minutes near the car → still connected or reconnected; log keeps growing.
 5. Disconnect button → no reconnect attempts for 2 minutes.
 6. Pull the logs on the Mac with the script; the first line is a `session` line; no unmasked VIN (`grep -E '[A-HJ-NPR-Z0-9]{17}'` finds nothing).
+
+iOS only (the full runbook with expected results is in `samples/ios/README.md` §Monitor app: real-device checklist):
+
+7. The monitor key reports `afterFirstUnlock` after the app is started again (Secure Enclave key, plan Task 11).
+8. Handshake on a locked iPhone with the monitor key (plan Task 11); if creating a Secure Enclave key fails while the phone
+   is locked, copy the exact error text.
+9. Background: lock the phone, leave and come back; read the `link` lines to see whether iOS reconnected on its own (the
+   spike result, plan Task 2).

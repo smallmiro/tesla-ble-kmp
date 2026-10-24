@@ -62,6 +62,7 @@
 <li><a href="#sec-android">Android</a></li>
 <li><a href="#sec-android-bg">Android background use by the sample</a></li>
 <li><a href="#sec-ios">iOS</a></li>
+<li><a href="#sec-ios-bg">iOS background use by the sample</a></li>
 <li><a href="#sec-keys">Key storage</a></li>
 <li><a href="#sec-cache">Session cache</a></li>
 <li><a href="#sec-clock">Clocks</a></li>
@@ -109,6 +110,15 @@
 <li>In Swift the public <code>VehicleStatus</code> is named <code>VehicleStatus_</code>, because a generated VCSEC message type already takes the plain name. Results of <code>vehicleStatus()</code> and <code>VehicleEvent.Status.status</code> have this type.</li>
 </ul>
 
+<h2 id="sec-ios-bg">iOS background use by the sample</h2>
+<p>The library is supported in the foreground (see Support). The iOS sample's monitor app declares <code>UIBackgroundModes: [bluetooth-central]</code> and runs the same reconnect loop as the Android sample. It has <strong>not</strong> been checked on a real iPhone yet, so treat the library's behaviour in the background as unconfirmed.</p>
+<ul>
+<li><code>Info.plist</code> (through <code>project.yml</code>): <code>UIBackgroundModes: [bluetooth-central]</code>; <code>UIFileSharingEnabled</code> and <code>LSSupportsOpeningDocumentsInPlace</code> only for the sample's log folder.</li>
+<li>The app owns the single library instance for its lifetime and calls <code>vehicle.disconnect()</code> after every link loss, then connects again with a new <code>Vehicle</code> (2 second wait, doubling to 30 seconds). Retrying is the app's job, not the library's.</li>
+<li><strong>Unconfirmed:</strong> whether iOS lets the app scan and reconnect while it is in the background or the phone is locked (the library currently scans by device name, and iOS usually needs a service UUID filter for background scans; plan Tasks 2 and 8). Until the real-car spike runs, the only supported background case is a link that stays up: events keep arriving while iOS keeps the app running.</li>
+<li>Key store: the sample creates its key with <code>KeyAccessibility.AFTER_FIRST_UNLOCK</code>. While the phone is locked and the key store answers <code>KeyStoreError.Locked</code>, the sample waits, retries, and never deletes the key.</li>
+</ul>
+
 <h2 id="sec-keys">Key storage</h2>
 <table>
 <thead><tr><th><code>protection</code></th><th>Meaning</th></tr></thead>
@@ -136,7 +146,7 @@
 </table>
 <ul>
 <li>On a locked iPhone, the Keychain error <code>errSecInteractionNotAllowed</code> (-25308) becomes <code>KeyStoreError.Locked</code>. A <code>WHEN_UNLOCKED</code> key cannot be read or used for a handshake while the phone is locked; an <code>AFTER_FIRST_UNLOCK</code> key can, once the phone was unlocked after the last restart. Before that first unlock every key is locked. A key that cannot be created because the phone is locked is not replaced by a software key.</li>
-<li>Not yet confirmed on a device: the Keychain round trip of both settings, reading the setting back, and a handshake on a locked iPhone with an <code>AFTER_FIRST_UNLOCK</code> Secure Enclave key. They are checked with the sample app. Using the key while the phone is locked also needs the app to keep running in the background, which these pages do not cover yet.</li>
+<li>Not yet confirmed on a device: the Keychain round trip of both settings, reading the setting back, and a handshake on a locked iPhone with an <code>AFTER_FIRST_UNLOCK</code> Secure Enclave key. They are checked with the sample app (build 10 is ready; the checks are plan Task 11). Using the key while the phone is locked also needs the app to keep running in the background, which these pages do not cover yet.</li>
 </ul>
 <div class="callout danger">
 <strong>A corrupted key is never replaced automatically</strong>

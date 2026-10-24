@@ -1,7 +1,7 @@
 # Current Sample Apps
 
-State as of 2026-10-24 (M4). The iOS app is still a single-screen tool: every button runs one library call and appends a
-result line. The Android app is the monitor app; its former single screen is its Control tab.
+State as of 2026-10-24 (M4). Both apps are the monitor app (`04-monitor-app.md`); the former single screen of each is its
+Control tab.
 
 ## Android (`samples/android`)
 
@@ -34,28 +34,42 @@ Control tab (the former single screen):
 
 ## iOS (`samples/ios`)
 
+The monitor app (`04-monitor-app.md`, SFR-010 to SFR-017): four tabs, one monitor object for the app's lifetime. Build
+`0.2.0 (10)`; unit tests pass, real-device check pending.
+
 - XcodeGen project (`project.yml`), schemes `TeslableSample` (simulator) and `TeslableSampleDevice` (device).
-- Files: `ContentView.swift` (screen), `SampleModel.swift` (library calls and result text), `ObservingLogger.swift`
-  (forwards library logs to `DebugLogger` and streams `observe` lines), `ObservationMark.swift` (mark line format),
-  `Tests/` (Swift unit tests for timeouts and marks).
+  `Info.plist` gets `UIBackgroundModes: [bluetooth-central]`, `UIFileSharingEnabled` and
+  `LSSupportsOpeningDocumentsInPlace` from `project.yml`.
+- Files: see `04-monitor-app.md` §iOS implementation. `MonitorModel.swift` and `MonitorEngine.swift` (connection, events,
+  queries, logs), `ConnectionLoop.swift`, `LogLine.swift`, `LogWriter.swift`, `VinMask.swift`, `LiveState.swift`,
+  `VehicleMapping.swift`, `SampleModel.swift` (Control tab state; every action runs through `exclusive { }` so only one
+  library call runs at a time), `ContentView.swift`, `Views/*Tab.swift`.
+- Tests: `Tests/` (`VinMaskTests`, `LogWriterTests`, `ConnectionLoopTests`, `LiveStateTests`, `TimeoutsTests`), run with
+  `xcodebuild ... test` (`02-constraints.md` §4).
 
-| Section | Contents | Library calls |
+| Tab | Contents |
+|---|---|
+| Live | Connection banner, VIN save and clear, Connect and Disconnect, the latest broadcast status per item with its last-changed time, recent events |
+| Query | `vehicleStatus()`, `keySummary()`, `listKeys()` every 30 s (changeable), results with outcome and time, sessions, "query now" |
+| Log | Line counts, unrecognized count, last lines and copy, file path, memo and Mark, new file |
+| Control | The former single screen (below). Uses the monitor's connection and key |
+
+Control tab (the former single screen; same groups as Android):
+
+| Group | Buttons (UI label) | Library calls |
 |---|---|---|
-| Vehicle | VIN input | `Vin.parseOrNull` |
-| Key | Create / load key, key protection and fingerprint | `keys.getOrCreate()` |
-| Observation | Observation mode switch, memo + Mark button, clear | Custom `TeslaLogger` that keeps `observe` lines (`18-lib-troubleshooting.md` §Observation log) |
-| BLE | Scan, Connect, VehicleStatus, Key list (Delete per row), Disconnect | same as Android |
-| Pairing | Request key enrollment, Confirm enrollment | same as Android |
-| Session | Handshake VCSEC only / all, Show session state | same as Android |
-| Control | Lock, Unlock, Open / close trunk, Open frunk, Wake up | same as Android |
-| Result | Copy all results (app info, connection, key, timed results, observation lines; no VIN), Clear | – |
-| App info | Version, build | – |
+| Key | Create / load key (`teslable-monitor`, shows protection and accessibility) | `keys.getOrCreate(alias:policy:accessibility:)` |
+| BLE | Scan, Connect, VehicleStatus, Key list (Delete per row), Disconnect | `scan(vin:)`, the monitor's connection, `vehicleStatus()`, `listKeys()`, `removeKey()`, `disconnect()` |
+| Pairing | Request key enrollment, Confirm enrollment | `addKeyRequest()` (progress events); confirmation polls `sessionInfo(publicKey, INFOTAINMENT)` every 3 s for up to 2 min |
+| Session | Handshake VCSEC only, Handshake all, Show session state | `startSession(domains:)`, `sessions` |
+| Control | Lock, Unlock, Open / close trunk, Open frunk, Wake up | VCSEC commands; `Uncertain` is followed by a `vehicleStatus()` re-query |
+| Result | Copy all results (app info, link, key, timed results, last log lines; no VIN), Clear | – |
 
-While observation mode is on, VehicleStatus, Key list and control buttons are disabled so the app sends nothing that
-could wake the vehicle.
+The old observation mode (switch that blocked requests, memo + Mark, copy) is merged into the Log tab: `observe` lines are
+always written to the log file and Mark writes a `mark` line.
 
 ## Real-vehicle runbooks
 
-The step-by-step real-vehicle checks (scan and connect, push observation rounds 1 and 2, M4 pairing and VCSEC control)
-are kept in `samples/ios/README.md` with the build number each round used. Results are written to
+The step-by-step real-vehicle checks (scan and connect, push observation rounds 1 and 2, M4 pairing and VCSEC control, the
+monitor app checklist) are kept in `samples/ios/README.md` with the build number each round used. Results are written to
 `docs/handoff/<date>-*.md`.
