@@ -179,6 +179,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | FR-032 | Whitelist 요약: 키 개수, 슬롯 비트마스크 (FR-025 하위) | P0 | VCSEC | `KeySummary` | `05-command-catalog B` |
 | FR-033 | `getState(category)`: 12개 카테고리(Charge, Climate, Drive, Location, Closures, ChargeSchedule, PreconditioningSchedule, TirePressure, Media, MediaDetail, SoftwareUpdate, ParentalControls)를 Wire 생성 타입으로 반환. 인증·깨우기 필요. `RESPONSE_MTU_EXCEEDED`는 "실행됨"으로 분류 | P0 | INFO | `GetState` | `05-command-catalog I`, `04-go-api-reference state.go`, `08-errors §8` |
 | FR-034 | `ping()`: 온라인+키 인식 확인 | P1 | INFO | `Ping` | `05-command-catalog I`, `00-agent-guide §5` |
+| FR-036 | `VehicleStatus.gear`: VCSEC `VehicleStatus` 필드 7(`Gear_E`, TESLEMETRY-EXT)을 공개 `Gear`(`UNKNOWN`, `PARK`, `DRIVE`, `REVERSE`, `NEUTRAL`)로 노출. 없음 = `UNKNOWN`(proto3라 `GEAR_UNKNOWN`과 구별 불가), 스키마 밖 값도 `UNKNOWN`. 실차는 브로드캐스트로만 확인(조회 응답은 미확인) | P1 | VCSEC | (없음, TESLEMETRY-EXT 스키마) | `14-lib-reading-state` A2, B3.1 |
 
 ### 5.5 VCSEC 제어
 
