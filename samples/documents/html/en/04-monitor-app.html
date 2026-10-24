@@ -42,7 +42,7 @@
 
 <div class="callout warn">
 <strong>Android and iOS built, real-device checks pending</strong>
-<p>The Android app (build <code>0.2.0 (2)</code>) and the iOS app (build <code>0.2.0 (10)</code>) are implemented and their unit tests pass; both wait for the real-car check. Whether iOS reconnects in the background is unconfirmed until the plan Task 2 spike. The library APIs it needs are available: <code>Vehicle.events</code> (library manual, chapter 12 "Broadcast events" and chapter 14, B2) and the key accessibility choice on iOS (chapter 13 "Using the key while the phone is locked", FR-037).</p>
+<p>The Android app (build <code>0.2.0 (2)</code>) and the iOS app (build <code>0.4.0 (10)</code>) are implemented and their unit tests pass; both wait for the real-car check. Whether iOS reconnects in the background is unconfirmed until the plan Task 2 spike. The library APIs it needs are available: <code>Vehicle.events</code> (library manual, chapter 12 "Broadcast events" and chapter 14, B2) and the key accessibility choice on iOS (chapter 13 "Using the key while the phone is locked", FR-037).</p>
 </div>
 
 <div class="toc"><strong>On this page</strong><ol>
@@ -192,7 +192,7 @@
 <li><strong>Screen on.</strong> <code>isIdleTimerDisabled</code> is true only while the scene is active; it returns to the system default in the background and when inactive.</li>
 <li><strong>Background.</strong> The same loop runs in the background as long as iOS keeps the app running. Whether iOS wakes the app to scan and reconnect after a link loss is <strong>unconfirmed</strong> (plan Task 2 spike). While iOS keeps the app suspended the loop does not run, and the gap between two <code>link</code> lines shows how long that was.</li>
 <li><strong>Pulling.</strong> <code>tools/samples/pull-monitor-logs.sh ios [--device &lt;id&gt;]</code> copies <code>Documents/logs</code> of the device build (<code>dev.mirolab.TeslableSampleDevice</code>) with <code>xcrun devicectl device copy from</code> into <code>samples/logs/ios/&lt;date&gt;/</code>.</li>
-<li><strong>Version.</strong> <code>project.yml</code> has <code>MARKETING_VERSION 0.2.0</code> and <code>CURRENT_PROJECT_VERSION 10</code>; raise the build number for every real-device round.</li>
+<li><strong>Version.</strong> <code>project.yml</code> has <code>MARKETING_VERSION 0.4.0</code> and <code>CURRENT_PROJECT_VERSION 10</code>; raise the build number for every real-device round.</li>
 </ul>
 
 <h2 id="sec-check">Real-car checklist</h2>

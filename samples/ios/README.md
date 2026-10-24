@@ -94,7 +94,7 @@ VIN은 가려지고 키·서명처럼 보이는 값은 `redacted(NB)`로만 남�
 
 ## 모니터 앱 실기기 확인 (SFR-010~017, 빌드 10)
 
-빌드 10(`TeslableSampleDevice`, 버전 0.2.0)을 설치한다. 탭은 Live / Query / Log / Control. 화면 설명과 로그 형식은 `samples/documents/md/04-monitor-app.md`.
+빌드 10(`TeslableSampleDevice`, 버전 0.4.0)을 설치한다. 탭은 Live / Query / Log / Control. 화면 설명과 로그 형식은 `samples/documents/md/04-monitor-app.md`.
 결과에는 VIN·공개키 전문을 적지 않는다. 시뮬레이터에는 블루투스가 없으므로 아래는 모두 실기기에서만 확인한다.
 
 사전 준비: 실기기 실행 절차(위)로 설치 → Live 탭에서 VIN 저장(화면에는 가린 VIN만 보인다). 모니터 키는 별칭 `teslable-monitor`, 접근성 `afterFirstUnlock`으로 만들어진다.
@@ -111,7 +111,7 @@ VIN은 가려지고 키·서명처럼 보이는 값은 `redacted(NB)`로만 남�
 | 7 | 끊기 | Live 탭 "연결 끊기" | 배너 `연결 끊음 (자동 재연결 중지)`, 2분 동안 연결 시도 없음(`link` 줄 `stopped` 뒤 `connecting` 없음). "연결"을 누르면 바로 다시 시작 |
 | 8 | 화면 유지 | 앱을 보는 동안 자동 잠금 시간(예: 30초)이 지나도록 두기, 그다음 홈 화면으로 나가기 | 보는 동안 화면이 꺼지지 않음. 앱을 나가면 평소처럼 꺼짐 |
 | 9 | Mark | Log 탭 메모에 `before: open driver door` → Mark | 줄 수에 `mark`가 늘고 마지막 줄에 보임. VIN 모양 글자를 넣으면 `*`로 가려짐 |
-| 10 | 로그 가져오기 | `tools/samples/pull-monitor-logs.sh ios` (USB 연결, 폰 잠금 해제) | `samples/logs/ios/<날짜>/logs/`에 `monitor-*.jsonl`. 첫 줄은 `session`(`platform: ios`, 앱 `0.2.0(10)`). `grep -rE '[A-HJ-NPR-Z0-9]{17}' samples/logs/ios/<날짜>/`에 아무것도 안 나옴. Finder(기기 → 파일)와 파일 앱에서도 `Documents/logs`가 보임 |
+| 10 | 로그 가져오기 | `tools/samples/pull-monitor-logs.sh ios` (USB 연결, 폰 잠금 해제) | `samples/logs/ios/<날짜>/logs/`에 `monitor-*.jsonl`. 첫 줄은 `session`(`platform: ios`, 앱 `0.4.0(10)`). `grep -rE '[A-HJ-NPR-Z0-9]{17}' samples/logs/ios/<날짜>/`에 아무것도 안 나옴. Finder(기기 → 파일)와 파일 앱에서도 `Documents/logs`가 보임 |
 
 ### 잠긴 폰과 키 (계획 Task 11)
 

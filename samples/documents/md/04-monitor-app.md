@@ -1,6 +1,6 @@
 # Monitor App (SFR-010 to SFR-017)
 
-Status: **Android implemented** (build `0.2.0 (2)`) and **iOS implemented** (build `0.2.0 (10)`); unit tests and builds
+Status: **Android implemented** (build `0.2.0 (2)`) and **iOS implemented** (build `0.4.0 (10)`); unit tests and builds
 pass, **real-device checks pending** for both (iOS background reconnect is unconfirmed until the plan Task 2 spike).
 Issue #91. The library APIs it needs are available: `Vehicle.events`
 (`12-lib-getting-started.md` §Broadcast events, `14-lib-reading-state.md` B2) and the key accessibility `KeyAccessibility`
@@ -192,7 +192,7 @@ How it behaves, where the design left room:
   gap between two `link` lines shows how long that was.
 - **Pulling.** `tools/samples/pull-monitor-logs.sh ios [--device <id>]` copies `Documents/logs` of the device build
   (`dev.mirolab.TeslableSampleDevice`) with `xcrun devicectl device copy from` into `samples/logs/ios/<date>/`.
-- **Version.** `project.yml` has `MARKETING_VERSION 0.2.0` and `CURRENT_PROJECT_VERSION 10`; raise the build number for
+- **Version.** `project.yml` has `MARKETING_VERSION 0.4.0` and `CURRENT_PROJECT_VERSION 10`; raise the build number for
   every real-device round.
 
 ## Real-vehicle checklist (both apps)
