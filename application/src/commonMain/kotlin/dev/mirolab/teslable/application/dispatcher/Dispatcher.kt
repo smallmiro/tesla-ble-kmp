@@ -11,6 +11,7 @@ import dev.mirolab.teslable.InternalTeslableApi
 import dev.mirolab.teslable.application.observe.AddressOwner
 import dev.mirolab.teslable.application.observe.ObservationLog
 import dev.mirolab.teslable.application.observe.ObservedAt
+import dev.mirolab.teslable.application.observe.isPlainBroadcast
 import dev.mirolab.teslable.cache.CachedSession
 import dev.mirolab.teslable.cache.SessionSnapshot
 import dev.mirolab.teslable.model.PublicKeyBytes
@@ -133,6 +134,21 @@ public class Dispatcher
          * 이 프레임의 드롭 규칙·로그는 그대로다. 수신 코루틴은 `tryEmit`만 한다(SDD §5).
          */
         public val unroutedFrames: SharedFlow<ByteArray> = unrouted.asSharedFlow()
+
+        // 기본 SUSPEND라서 버퍼가 차면 tryEmit이 실패한다 — 버린 수를 정확히 세고, 이미 든 프레임의 순서를 지킨다
+        private val broadcasts = MutableSharedFlow<ByteArray>(extraBufferCapacity = BROADCAST_BUFFER)
+
+        /**
+         * 원본에 없음(FR-035) — 차량이 요청 없이 보낸 **평문** VCSEC 브로드캐스트 프레임(받은 `RoutableMessage` 바이트 전체의 사본).
+         * 원본처럼 응답 매칭에서 버리는(`TO_DOMAIN`, dispatcher.go:270-272) 프레임 중 관찰 로그와 같은 게이트(from VCSEC, to BROADCAST,
+         * 요청 UUID·서명·세션 정보 없음)를 통과한 것만 나온다 — 복호화한 평문은 나오지 않는다(FR-112). replay 0: 구독 전에 온 프레임은
+         * 받지 못한다. 수신 코루틴은 `tryEmit`만 하고 기다리지 않는다(SDD §5): 구독자가 밀려 버퍼(64)가 차면 새 프레임을 버리고 세며,
+         * 첫 drop과 이후 100번째 drop마다 WARN을 남긴다. 드롭 규칙과 관찰 로그는 그대로다.
+         */
+        public val plainBroadcasts: SharedFlow<ByteArray> = broadcasts.asSharedFlow()
+
+        // 수신 코루틴(process)에서만 읽고 쓴다 — 수신 코루틴은 한 번에 하나뿐이다(start는 이전 job이 끝난 뒤 구독한다)
+        private var droppedBroadcasts = 0
 
         /** 같은 연결의 형제 계층이 링크 끊김을 본다. */
         internal val transportState: StateFlow<TransportState> get() = transport.state
@@ -534,6 +550,7 @@ public class Dispatcher
                         logDrop(routing.reason, message)
                         observeDrop(routing.reason, message, bytes)
                         if (routing.reason == DropReason.MISSING_SOURCE) unrouted.tryEmit(bytes.copyOf())
+                        if (routing.reason == DropReason.TO_DOMAIN && isPlainBroadcast(message)) emitPlainBroadcast(bytes)
                         return
                     }
                 }
@@ -564,6 +581,18 @@ public class Dispatcher
                 } else {
                     logger.log(LogLevel.ERROR, TAG) { "[$id] Dropping response to command because response handler queue is full" }
                     observe { observation.routable(ObservedAt.QUEUE_FULL, message, bytes.size, AddressOwner.OPEN_REQUEST) }
+                }
+            }
+        }
+
+        /** [plainBroadcasts]로 사본을 넘긴다. 기다리지 않는다 — 버퍼가 차서 실패하면 세고, 첫 drop과 100번째마다 WARN. */
+        private fun emitPlainBroadcast(bytes: ByteArray) {
+            if (broadcasts.tryEmit(bytes.copyOf())) return
+            droppedBroadcasts++ // 로거가 지연 평가하므로 람다 밖에서 센다
+            val count = droppedBroadcasts
+            if (count == 1 || count % BROADCAST_DROP_LOG_EVERY == 0) {
+                logger.log(LogLevel.WARN, TAG) {
+                    "Dropping plain broadcast because the broadcast buffer is full (dropped $count since connect)"
                 }
             }
         }
@@ -749,6 +778,12 @@ public class Dispatcher
         /** 상수와 메시지 조립. */
         public companion object {
             private const val EVENT_BUFFER = 16
+
+            /** [plainBroadcasts] 버퍼(BLE inbox와 같은 64). */
+            private const val BROADCAST_BUFFER = 64
+
+            /** 브로드캐스트 drop WARN 간격: 첫 drop, 그다음은 이 수의 배수마다. */
+            private const val BROADCAST_DROP_LOG_EVERY = 100
 
             /** 핸드셰이크 대상 도메인 전부(Go `StartSessions(nil)`). */
             public val ALL_DOMAINS: Set<Domain> = setOf(Domain.DOMAIN_VEHICLE_SECURITY, Domain.DOMAIN_INFOTAINMENT)
