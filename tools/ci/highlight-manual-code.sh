@@ -135,6 +135,9 @@ def highlight(text):
 files = []
 for _, html_rel in DOC_SETS:
     html_dir = root / html_rel
+    if not html_dir.is_dir():
+        print(f"{html_rel}: directory missing")
+        sys.exit(1)
     files += sorted(html_dir.glob("*/*.html")) + sorted(html_dir.glob("index.html"))
 stale = []
 for p in files:

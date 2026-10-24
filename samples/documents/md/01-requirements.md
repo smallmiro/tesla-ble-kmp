@@ -5,7 +5,7 @@ Sample requirements use the prefix `SFR-` so they never collide with the library
 
 | ID | Requirement | Platform | Status | Origin |
 |---|---|---|---|---|
-| SFR-001 | Android sample (Compose) covering the library flow: VIN input, scan, connect, pairing with progress events, key list and removal, lock / unlock / trunk / frunk, `vehicleStatus()`, wake-up, uncertain-result display with re-query, debug log view. Infotainment items (climate on/off, charge start/stop, at least one `getState`) are added when the library ships them (M5) | Android | VCSEC flow done (M4); debug log view not done (the Android sample sets no logger); Infotainment items wait for M5 | PRD FR-110 |
+| SFR-001 | Android sample (Compose) covering the library flow: VIN input, scan, connect, pairing with progress events, key list and removal, lock / unlock / trunk / frunk, `vehicleStatus()`, wake-up, uncertain-result display with re-query, debug log view. Infotainment items (climate on/off, charge start/stop, at least one `getState`) are added when the library ships them (M5) | Android | VCSEC flow done (M4); debug log view not done (`DebugLogger` writes to Logcat only; nothing is shown on screen); Infotainment items wait for M5 | PRD FR-110 |
 | SFR-002 | iOS sample (SwiftUI) with the same flow as SFR-001 through the SKIE Swift API, plus the observation mode (collects `observe` log lines, mark button, copy-all) | iOS | VCSEC flow and observation mode done (M4); Infotainment items wait for M5 | PRD FR-111 |
 
 ## Rules for this table
