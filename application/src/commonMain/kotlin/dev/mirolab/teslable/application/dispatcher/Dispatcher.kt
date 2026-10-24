@@ -712,18 +712,7 @@ public class Dispatcher
                 return
             }
             val wasUnconfirmed = session.isUnconfirmedCacheRestore
-            // 플랫폼 키의 ECDH 예외(최종 리뷰 I3)가 수신 코루틴을 죽이지 않게 한다 — Fault처럼(이벤트 없이) 넘어가고 응답은 그대로 전달
-            val result =
-                try {
-                    session.processHello(message.request_uuid.toByteArray(), info.toByteArray(), tag.toByteArray())
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (
-                    @Suppress("TooGenericExceptionCaught") e: Exception,
-                ) {
-                    logger.log(LogLevel.ERROR, TAG) { "[$id] Session info processing failed: ${e::class.simpleName}" }
-                    return
-                }
+            val result = processHelloOrNull(session, message, info, tag) ?: return
             when (result) {
                 is SignerResult.Fault -> {
                     logger.log(LogLevel.WARN, TAG) { "[$id] Session info error: ${result.fault.name}: ${result.detail}" }
@@ -743,6 +732,27 @@ public class Dispatcher
                 }
             }
         }
+
+        /**
+         * [checkForSessionUpdate]의 [SessionState.processHello] 호출. 플랫폼 키의 ECDH 예외(최종 리뷰 I3)가 수신 코루틴을 죽이지 않게
+         * 로그로 바꾸고 null을 돌려준다 — 호출자는 Fault처럼(이벤트 없이) 넘어가고 응답은 그대로 전달한다.
+         */
+        private suspend fun processHelloOrNull(
+            session: SessionState,
+            message: RoutableMessage,
+            info: ByteString,
+            tag: ByteString,
+        ): SignerResult<Unit>? =
+            try {
+                session.processHello(message.request_uuid.toByteArray(), info.toByteArray(), tag.toByteArray())
+            } catch (e: CancellationException) {
+                throw e
+            } catch (
+                @Suppress("TooGenericExceptionCaught") e: Exception,
+            ) {
+                logger.log(LogLevel.ERROR, TAG) { "[${message.request_uuid.hex()}] Session info processing failed: ${e::class.simpleName}" }
+                null
+            }
 
         /** Go `decrypt` + `session.decrypt`: 평문이면 그대로, 암호문이면 복호화 후 요청별 윈도우 검사. 드롭이면 null. */
         private suspend fun decryptIfNeeded(
