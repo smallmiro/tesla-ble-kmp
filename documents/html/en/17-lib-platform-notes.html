@@ -96,6 +96,7 @@
 <li>The simulator has no Bluetooth. Scanning and connecting can only be tried on a real iPhone.</li>
 <li>iOS has no MTU negotiation API; the library uses the write length the system picks. The observed block length on a real iPhone is 512. The response characteristic supports both notifications and indications; the Kable default subscription (notify) was confirmed on a real car (ADR-0003).</li>
 <li>Swift calls Kotlin through SKIE: <code>suspend</code> functions become <code>async throws</code>, <code>Flow</code> becomes <code>AsyncSequence</code>, sealed types work with <code>switch onEnum(of:)</code>, and companion members are reached through <code>.companion</code>.</li>
+<li>In Swift the public <code>VehicleStatus</code> is named <code>VehicleStatus_</code>, because a generated VCSEC message type already takes the plain name. Results of <code>vehicleStatus()</code> and <code>VehicleEvent.Status.status</code> have this type.</li>
 </ul>
 
 <h2 id="sec-keys">Key storage</h2>
