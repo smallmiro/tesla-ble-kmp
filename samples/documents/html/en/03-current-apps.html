@@ -34,11 +34,12 @@
     <li><a href="02-constraints.html">2. Constraints</a></li>
     <li><a class="active" href="03-current-apps.html">3. Current Apps</a></li>
     <li><a href="04-monitor-app.html">4. Monitor App</a></li>
+    <li><a href="05-key-control-tab.html">5. Key &amp; Control Tab</a></li>
   </ol>
 </nav>
 <main class="content">
 <h1>3. Current Apps</h1>
-<p class="lead">What the two apps do as of 2026-10-24 (milestone M4). Both are the monitor app (<a href="04-monitor-app.html">4. Monitor App</a>); the former single screen of each is its Control tab.</p>
+<p class="lead">What the two apps do as of 2026-10-24 (milestone M4). Both are the monitor app (<a href="04-monitor-app.html">4. Monitor App</a>); the former single screen of each is its Control tab. The Key &amp; Control tab (<a href="05-key-control-tab.html">5. Key &amp; Control Tab</a>, SFR-018) is the short path: get a key, enroll it, press the control buttons.</p>
 
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#sec-android">Android</a></li>
@@ -47,7 +48,7 @@
 </ol></div>
 
 <h2 id="sec-android">Android</h2>
-<p>The monitor app (<a href="04-monitor-app.html">4. Monitor App</a>, SFR-010 to SFR-017): four tabs and a foreground service. Build <code>0.2.0 (2)</code>; the unit tests pass and the real-device check is pending.</p>
+<p>The monitor app (<a href="04-monitor-app.html">4. Monitor App</a>, SFR-010 to SFR-018): five tabs and a foreground service. Build <code>0.3.0 (3)</code>; the unit tests pass and the real-device check is pending.</p>
 <p>Gradle module <code>:samples:android</code>, package and application id <code>dev.mirolab.teslable.sample</code>, <code>minSdk</code> 31. <code>MainActivity.kt</code> holds the tabs and the permission requests and keeps the screen on while it is visible. <code>MonitorService.kt</code> and <code>MonitorEngine.kt</code> run the service, the connection, the events, the queries and the logs. <code>SampleState.kt</code> holds the Control tab state and runs every action through <code>exclusive { }</code>, so only one library call runs at a time. The tabs are in <code>ui/</code>. Unit tests are in <code>src/test/</code> and run with <code>./gradlew :samples:android:testDebugUnitTest</code>.</p>
 <table>
 <thead><tr><th>Tab</th><th>Contents</th></tr></thead>
@@ -56,6 +57,7 @@
 <tr><td>Query</td><td><code>vehicleStatus()</code>, <code>keySummary()</code> and <code>listKeys()</code> every 30 seconds (adjustable), results with outcome and time, sessions, "query now"</td></tr>
 <tr><td>Log</td><td>Line counts, unrecognized count, last lines, file path, memo and Mark, new file</td></tr>
 <tr><td>Control</td><td>The former single screen (below). It uses the monitor's connection and key</td></tr>
+<tr><td>Key &amp; Control</td><td>Four steps (key, connect, enroll, control), a grid of VCSEC command buttons, a status card and results (<a href="05-key-control-tab.html">5. Key &amp; Control Tab</a>)</td></tr>
 </tbody>
 </table>
 <p>The Control tab:</p>
@@ -71,7 +73,7 @@
 </table>
 
 <h2 id="sec-ios">iOS</h2>
-<p>The monitor app (<a href="04-monitor-app.html">4. Monitor App</a>, SFR-010 to SFR-017): four tabs and one monitor object for the app's lifetime. Build <code>0.4.0 (11)</code>; the unit tests pass and the real-device check is pending.</p>
+<p>The monitor app (<a href="04-monitor-app.html">4. Monitor App</a>, SFR-010 to SFR-018): five tabs and one monitor object for the app's lifetime. Build <code>0.5.0 (12)</code>; the unit tests pass and the real-device check is pending.</p>
 <p>XcodeGen project (<code>project.yml</code>) with the schemes <code>TeslableSample</code> (simulator) and <code>TeslableSampleDevice</code> (phone). <code>project.yml</code> sets <code>UIBackgroundModes: [bluetooth-central]</code>, <code>UIFileSharingEnabled</code> and <code>LSSupportsOpeningDocumentsInPlace</code> in <code>Info.plist</code>. <code>MonitorModel.swift</code> and <code>MonitorEngine.swift</code> run the connection, the events, the queries and the logs; <code>ConnectionLoop.swift</code>, <code>LogLine.swift</code>, <code>LogWriter.swift</code>, <code>VinMask.swift</code>, <code>LiveState.swift</code> and <code>VehicleMapping.swift</code> are the pieces behind them (see <a href="04-monitor-app.html#sec-ios">iOS implementation</a>). <code>SampleModel.swift</code> holds the Control tab state and runs every action through <code>exclusive { }</code>, so only one library call runs at a time. The tabs are in <code>ContentView.swift</code> and <code>Views/</code>. Swift unit tests are in <code>Tests/</code> (<code>VinMaskTests</code>, <code>LogWriterTests</code>, <code>ConnectionLoopTests</code>, <code>LiveStateTests</code>, <code>TimeoutsTests</code>).</p>
 <table>
 <thead><tr><th>Tab</th><th>Contents</th></tr></thead>
@@ -80,6 +82,7 @@
 <tr><td>Query</td><td><code>vehicleStatus()</code>, <code>keySummary()</code> and <code>listKeys()</code> every 30 seconds (adjustable), results with outcome and time, sessions, "query now"</td></tr>
 <tr><td>Log</td><td>Line counts, unrecognized count, last lines and copy, file path, memo and Mark, new file</td></tr>
 <tr><td>Control</td><td>The former single screen (below). It uses the monitor's connection and key</td></tr>
+<tr><td>Key &amp; Control</td><td>Four steps (key, connect, enroll, control), a grid of VCSEC command buttons, a status card and results (<a href="05-key-control-tab.html">5. Key &amp; Control Tab</a>)</td></tr>
 </tbody>
 </table>
 <p>The Control tab (same groups as Android):</p>

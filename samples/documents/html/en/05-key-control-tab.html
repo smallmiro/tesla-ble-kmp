@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>5. Key &amp; Control Tab · tesla-ble-kmp Sample Apps</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>tesla-ble-kmp <b>Samples</b></span></a>
+  <span class="top-sub">Sample app specification</span>
+  <div class="theme-switch" role="radiogroup" aria-label="Theme">
+    <button type="button" role="radio" aria-checked="false" data-theme-choice="light" title="Light" aria-label="Light"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    <button type="button" role="radio" aria-checked="false" data-theme-choice="dark" title="Dark" aria-label="Dark"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button>
+    <button type="button" role="radio" aria-checked="false" data-theme-choice="system" title="System" aria-label="System"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></button>
+  </div>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>English</span></summary>
+    <ul>
+      <li><a href="../ko/05-key-control-tab.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a class="active" aria-current="true" href="../en/05-key-control-tab.html" hreflang="en" lang="en">English</a></li>
+      <li><a href="../ja/05-key-control-tab.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">Home</a></li>
+    <li class="group">Sample apps</li>
+    <li><a href="01-requirements.html">1. Requirements</a></li>
+    <li><a href="02-constraints.html">2. Constraints</a></li>
+    <li><a href="03-current-apps.html">3. Current Apps</a></li>
+    <li><a href="04-monitor-app.html">4. Monitor App</a></li>
+    <li><a class="active" href="05-key-control-tab.html">5. Key &amp; Control Tab</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>5. Key &amp; Control Tab</h1>
+<p class="lead">A fifth tab in the monitor app for the everyday path of a first-time user: get a key, enroll it in the car, then control the car with buttons. The Control tab stays as the diagnostic screen where every call is a separate button; this tab hides the order of calls behind four steps and a grid of buttons.</p>
+
+<div class="callout warn">
+<strong>Built on Android and iOS, real-device check pending</strong>
+<p>Android build <code>0.3.0 (3)</code> and iOS build <code>0.5.0 (12)</code>. The step rules and the command runner are covered by unit tests; the screen and the car are checked with the checklist at the end of this page.</p>
+</div>
+
+<div class="toc"><strong>On this page</strong><ol>
+<li><a href="#sec-req">Requirement</a></li>
+<li><a href="#sec-steps">Steps and when buttons are enabled</a></li>
+<li><a href="#sec-enroll">Enrollment state</a></li>
+<li><a href="#sec-run">Running a command</a></li>
+<li><a href="#sec-buttons">Buttons</a></li>
+<li><a href="#sec-impl">Implementation</a></li>
+<li><a href="#sec-check">Real-car checklist</a></li>
+</ol></div>
+
+<p>Library manual chapters this tab follows: 13 "Checking whether a key is enrolled" and "Enrolling a key", 15 "Implemented: VCSEC", 16 "Per-command re-query", 14 (<code>vehicleStatus()</code>) and 17 (Swift arguments).</p>
+
+<h2 id="sec-req">Requirement</h2>
+<table>
+<thead><tr><th>ID</th><th>What the app does</th></tr></thead>
+<tbody>
+<tr><td>SFR-018</td><td>A <strong>Key &amp; Control</strong> tab after Control. Four steps, each marked done, to do or blocked with a one-line hint: (1) <strong>Key</strong>: create or load the monitor key; (2) <strong>Connect</strong>: uses the saved VIN and the monitor's connection; (3) <strong>Enroll</strong>: request enrollment (key card on the console), progress lines, automatic confirmation; (4) <strong>Control</strong>: a grid of buttons for the available VCSEC commands. Every command first makes sure a VCSEC session exists and is then sent once; an <code>Uncertain</code> result is never resent and is followed by a <code>vehicleStatus()</code> re-query. A status card shows lock, trunk, frunk and sleep from the last <code>vehicleStatus()</code>.</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-steps">Steps and when buttons are enabled</h2>
+<p>The rules are one pure function (<code>KeyControlSteps</code>), so they are tested without a car. Its inputs: the key is ready, the key is locked by the phone lock, a VIN is saved, the app is connected, the enrollment state, and whether a call of this tab is running.</p>
+<table>
+<thead><tr><th>Step</th><th>Done when</th><th>Blocked when (hint)</th><th>Button enabled when</th></tr></thead>
+<tbody>
+<tr><td>1 Key</td><td>The key is ready</td><td>The key is locked (unlock the phone and press again)</td><td>Nothing is running</td></tr>
+<tr><td>2 Connect</td><td>Connected</td><td>No VIN saved (save the VIN on the Live tab)</td><td>A VIN is saved, not connected, nothing is running</td></tr>
+<tr><td>3 Enroll</td><td>Enrollment is <code>enrolled</code></td><td>Key not ready or not connected (finish steps 1 and 2 first)</td><td>Key ready, connected, enrollment is not <code>enrolled</code> or <code>checking</code>, nothing is running</td></tr>
+<tr><td>4 Control</td><td>–</td><td>Enrollment is not <code>enrolled</code> (the buttons turn on once the key is enrolled)</td><td>Key ready, connected, enrollment is <code>enrolled</code>, nothing is running</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-enroll">Enrollment state</h2>
+<p>The enrollment state is one of <code>unknown</code>, <code>checking</code>, <code>notEnrolled</code> and <code>enrolled</code>.</p>
+<ul>
+<li>The tab checks with <code>listKeys()</code>: it looks for the car's entry whose public key equals the local key (manual chapter 13). During the check the state is <code>checking</code>; afterwards <code>enrolled</code> or <code>notEnrolled</code>, or <code>unknown</code> when the result is <code>Uncertain</code> or <code>Failure</code>. The check runs once each time the tab sees a new connection with a ready key, and when <strong>Check enrollment</strong> is pressed.</li>
+<li>It becomes <code>enrolled</code> when the pairing confirmation succeeds: <code>sessionInfo(publicKey, INFOTAINMENT)</code> every 3 seconds for up to 2 minutes.</li>
+<li>It becomes <code>notEnrolled</code> when the session before a command fails with <code>KeyNotPaired</code>.</li>
+<li>It goes back to <code>unknown</code> when the connection is lost or the key changes.</li>
+</ul>
+
+<h2 id="sec-run">Running a command</h2>
+<p><code>KeyControlRunner.run(ensureSession, command, requery)</code> is pure and tested with fakes:</p>
+<ol>
+<li><code>ensureSession</code> is <code>startSession(setOf(VCSEC))</code>. A domain that is already <code>Ready</code> succeeds without a request. On <code>Failure</code> the command is <strong>not sent</strong> and the result line says why; <code>KeyNotPaired</code> sets the enrollment to <code>notEnrolled</code>, and <code>KeyStoreError.Locked</code> asks to unlock the phone.</li>
+<li><code>command</code> is called exactly once.</li>
+<li><code>Success</code> shows "succeeded", <code>Failure</code> shows "failed" with the message, <code>Uncertain</code> shows "uncertain" with the message and is never resent.</li>
+<li><code>requery</code> (<code>vehicleStatus()</code>) always runs after the command: after <code>Success</code> it refreshes the status card, after <code>Uncertain</code> it is the re-query the manual requires.</li>
+</ol>
+
+<h2 id="sec-buttons">Buttons</h2>
+<table>
+<thead><tr><th>Group</th><th>Button</th><th>Call</th><th>Asks first</th></tr></thead>
+<tbody>
+<tr><td>Doors</td><td>Lock</td><td><code>lock()</code></td><td>No</td></tr>
+<tr><td>Doors</td><td>Unlock</td><td><code>unlock()</code></td><td>No</td></tr>
+<tr><td>Doors</td><td>Wake up</td><td><code>wakeUp()</code></td><td>No</td></tr>
+<tr><td>Trunk</td><td>Trunk open / close (toggle)</td><td><code>actuateTrunk()</code></td><td>No</td></tr>
+<tr><td>Trunk</td><td>Close trunk</td><td><code>closeTrunk()</code></td><td>No</td></tr>
+<tr><td>Trunk</td><td>Open frunk</td><td><code>openFrunk()</code></td><td>Yes (it cannot be closed remotely)</td></tr>
+<tr><td>Drive</td><td>Allow remote drive</td><td><code>remoteDrive()</code></td><td>Yes</td></tr>
+<tr><td>Model X</td><td>Auto secure</td><td><code>autoSecureVehicle()</code></td><td>No</td></tr>
+<tr><td>Cybertruck</td><td>Tonneau open / close / stop</td><td><code>openTonneau()</code>, <code>closeTonneau()</code>, <code>stopTonneau()</code></td><td>No</td></tr>
+</tbody>
+</table>
+<p>The Model X and Cybertruck buttons sit in a collapsed "Other models" section. Infotainment commands (climate, charging, horn, lights) wait for M5 and are not shown. The tab also has a status card (lock, trunk, frunk, sleep and the time of the last read) with a <strong>Refresh status</strong> button, and a result list with the newest line first, time stamped and without the VIN.</p>
+<p>All library calls of this tab run one at a time through the tab's own <code>exclusive { }</code>, and the buttons are disabled while a call runs. The Control tab has its own guard; the library serializes VCSEC commands per connection, so presses on both tabs cannot interleave on the wire.</p>
+
+<h2 id="sec-impl">Implementation</h2>
+<table>
+<thead><tr><th>Part</th><th>Android</th><th>iOS</th></tr></thead>
+<tbody>
+<tr><td>Pure logic and tests</td><td><code>KeyControl.kt</code>, <code>src/test/.../KeyControlTest.kt</code></td><td><code>KeyControl.swift</code>, <code>Tests/KeyControlTests.swift</code></td></tr>
+<tr><td>State</td><td><code>KeyControlState.kt</code> (made in <code>MainViewModel</code>)</td><td><code>KeyControlModel.swift</code> (made in <code>MonitorModel</code>)</td></tr>
+<tr><td>Screen</td><td><code>ui/KeyControlTab.kt</code></td><td><code>Views/KeyControlTab.swift</code></td></tr>
+</tbody>
+</table>
+<p>Both apps use the monitor's connection and the monitor key (<code>teslable-monitor</code>) through <code>MonitorEngine</code>: <code>ensureKey()</code>, <code>currentVehicle()</code>, <code>currentKey()</code> and <code>connectNow()</code>.</p>
+
+<h2 id="sec-check">Real-car checklist</h2>
+<ol>
+<li>Fresh install: step 1 shows "to do"; press it and the key is created, step 1 is done.</li>
+<li>VIN saved and the car nearby: step 2 is done after connecting; the enrollment check runs (<code>checking</code>, then <code>notEnrolled</code> for a new key).</li>
+<li>Step 3: press it, put the key card on the console and approve on the car's screen; progress lines appear, then <code>enrolled</code>, and the step 4 buttons turn on.</li>
+<li>Lock, unlock, wake up: the result is "succeeded" and the status card follows.</li>
+<li>Trunk toggle and close; frunk with the confirmation dialog.</li>
+<li>Reinstall while the key is still enrolled: after connecting, the check gives <code>enrolled</code> without pairing again.</li>
+<li>Remove the key on the car's screen and press a command: the session fails with <code>KeyNotPaired</code> and step 3 goes back to "to do".</li>
+</ol>
+
+<footer class="page-nav">
+  <a href="04-monitor-app.html"><span>Previous</span>4. Monitor App</a>
+</footer>
+</main>
+</div>
+</body>
+</html>
