@@ -4,7 +4,6 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.snapshotFlow
 import dev.mirolab.teslable.Vehicle
-import dev.mirolab.teslable.model.PairingEvent
 import dev.mirolab.teslable.model.PublicKeyBytes
 import dev.mirolab.teslable.model.VehicleDomain
 import dev.mirolab.teslable.model.VehicleError
@@ -12,14 +11,11 @@ import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.VehicleStatus
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
 import java.time.Instant
-import kotlin.time.Duration.Companion.seconds
-import kotlin.time.TimeSource
 
 /** 결과 목록의 한 줄(시각 포함, VIN 없음). */
 data class ResultLine(
@@ -90,7 +86,7 @@ class KeyControlState(
     @OptIn(ExperimentalCoroutinesApi::class)
     suspend fun observe() {
         combine(engine.link, engine.keyStatus) { link, keyStatus ->
-            Seen((link as? LinkState.Connected)?.vehicle, keyStatus.ready, engine.currentKey()?.publicKey)
+            Seen((link as? LinkState.Connected)?.vehicle, keyStatus.state == KeyState.READY, engine.currentKey()?.publicKey)
         }.distinctUntilChanged()
             .collectLatest { seen ->
                 enrollment.value = Enrollment.UNKNOWN
@@ -133,11 +129,9 @@ class KeyControlState(
         val k = engine.currentKey() ?: return log("등록 상태 확인: 먼저 키를 만드세요")
         if (auto != null) checkedConnection = auto
         enrollment.value = Enrollment.CHECKING
-        var finished = false
         try {
             val e = KeyControlRunner.enrollmentFrom(v.listKeys(), k.publicKey)
             enrollment.value = e
-            finished = true
             log(
                 when (e) {
                     Enrollment.ENROLLED -> "등록 상태: 이 키가 차량에 등록되어 있습니다"
@@ -145,11 +139,10 @@ class KeyControlState(
                     else -> "등록 상태: 확인하지 못했습니다(다시 시도하세요)"
                 },
             )
-        } finally {
-            if (!finished) {
-                if (enrollment.value == Enrollment.CHECKING) enrollment.value = Enrollment.UNKNOWN
-                if (auto != null) checkedConnection = null
-            }
+        } catch (e: CancellationException) {
+            if (enrollment.value == Enrollment.CHECKING) enrollment.value = Enrollment.UNKNOWN
+            if (auto != null) checkedConnection = null
+            throw e
         }
     }
 
@@ -157,54 +150,10 @@ class KeyControlState(
      * 키 등록 요청. 이벤트마다 한 줄을 남기고, `Accepted`/`TimedOut`이면 3초 간격 최대 2분 동안 `sessionInfo`로 등록을 확인한다
      * (`13-lib-pairing.md` §Enrolling a key).
      */
-    @Suppress("CyclomaticComplexMethod") // PairingEvent 7종을 한 `when` 으로 문장에 옮기는 표라 갈래 수가 곧 복잡도다
     suspend fun enroll() {
         val v = vehicle ?: return log("키 등록: 먼저 연결하세요")
         val k = engine.currentKey() ?: return log("키 등록: 먼저 키를 만드세요")
-        var confirm = false
-        v.addKeyRequest(k.publicKey).collect { event ->
-            log(
-                when (event) {
-                    PairingEvent.Sent -> "요청 보냄: 중앙 콘솔에 키카드를 대고 화면에서 승인하세요"
-                    PairingEvent.WaitingForTap -> "카드 태그 대기 중"
-                    PairingEvent.Accepted -> "차량이 승인함: 동기화 확인 중".also { confirm = true }
-                    is PairingEvent.Rejected -> "거부: ${event.error.message}"
-                    is PairingEvent.Unknown -> "모르는 응답을 받음(무시)"
-                    is PairingEvent.Failed -> "실패: ${event.error.message}"
-                    PairingEvent.TimedOut -> "시간 초과: 등록 여부를 확인합니다".also { confirm = true }
-                },
-            )
-        }
-        if (confirm) confirmEnrollment(v, k.publicKey)
-    }
-
-    private suspend fun confirmEnrollment(
-        v: Vehicle,
-        publicKey: PublicKeyBytes,
-    ) {
-        var last = ""
-        val mark = TimeSource.Monotonic.markNow()
-        while (mark.elapsedNow() < ENROLL_WINDOW) {
-            val line =
-                when (val r = v.sessionInfo(publicKey, VehicleDomain.INFOTAINMENT, ENROLL_CALL_TIMEOUT)) {
-                    is VehicleResult.Success -> {
-                        enrollment.value = Enrollment.ENROLLED
-                        return log("등록 확인됨")
-                    }
-
-                    is VehicleResult.Failure -> {
-                        if (r.error is VehicleError.KeyNotPaired) "아직 등록되지 않음: 2분까지 반복 확인" else "등록 확인 실패: ${r.error.message}"
-                    }
-
-                    is VehicleResult.Uncertain -> {
-                        "등록 확인 불확실: ${r.error.message}"
-                    }
-                }
-            if (line != last) log(line)
-            last = line
-            delay(ENROLL_INTERVAL)
-        }
-        log("2분 안에 등록이 확인되지 않았습니다")
+        if (requestAndConfirmEnrollment(v, k.publicKey, ::log)) enrollment.value = Enrollment.ENROLLED
     }
 
     // --- 4 제어 ----------------------------------------------------------------------------------------------------------
@@ -257,8 +206,5 @@ class KeyControlState(
 
     private companion object {
         const val MAX_RESULTS = 200
-        val ENROLL_WINDOW = 120.seconds
-        val ENROLL_INTERVAL = 3.seconds
-        val ENROLL_CALL_TIMEOUT = 5.seconds
     }
 }

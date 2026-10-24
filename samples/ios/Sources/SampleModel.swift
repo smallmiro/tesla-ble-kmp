@@ -140,7 +140,7 @@ actor BleClient {
             }
         }
         guard confirm else { return false }
-        let confirmed = await confirmEnrollmentChecked()
+        let confirmed = await confirmEnrollment()
         await onEvent(confirmed.line)
         return confirmed.enrolled
     }
@@ -149,11 +149,8 @@ actor BleClient {
         (0..<bytes.size).map { String(format: "%02x", UInt8(bitPattern: bytes.get(index: $0))) }.joined()
     }
 
-    /// 3초 간격, 최대 2분 동안 Infotainment `sessionInfo`로 등록을 확인한다.
-    func confirmEnrollment() async -> String { await confirmEnrollmentChecked().line }
-
-    /// `confirmEnrollment()` 와 같되 등록이 확인됐는지도 돌려준다.
-    func confirmEnrollmentChecked() async -> (enrolled: Bool, line: String) {
+    /// 3초 간격, 최대 2분 동안 Infotainment `sessionInfo`로 등록을 확인한다. 등록이 확인됐는지와 화면용 한 줄을 돌려준다.
+    func confirmEnrollment() async -> (enrolled: Bool, line: String) {
         refresh()
         guard let vehicle else { return (false, "등록 확인: 먼저 연결하세요") }
         guard let key else { return (false, "등록 확인: 먼저 키를 만드세요") }
@@ -197,18 +194,32 @@ actor BleClient {
         return "\(line) [\(String(format: "%.1f", Date().timeIntervalSince(started)))초]"
     }
 
-    private func statusText() async -> String {
-        guard let vehicle else { return "연결 안 됨" }
+    /// `vehicleStatus()` 한 번의 결과. 값은 `StatusSnapshot` 으로 한 번만 옮기고, 못 읽으면 이유 한 줄을 돌려준다.
+    private enum StatusRead {
+        case snapshot(StatusSnapshot)
+        case unavailable(String)
+    }
+
+    /// 재조회가 쓰는 공통 읽기(`statusText()` 와 `statusCard()` 가 함께 쓴다). `refresh()` 는 부르는 쪽이 이미 했다.
+    private func readStatus() async -> StatusRead {
+        guard let vehicle else { return .unavailable("연결 안 됨") }
         do {
             let result = try await vehicle.vehicleStatus(timeout: nil)
             switch onEnum(of: result) {
             case .success(let s):
-                guard let st = s.value as? VehicleStatus_ else { return "형식 오류" }
-                return "잠금 \(st.lockState.name), 트렁크 \(st.closures.rearTrunk.name), 프렁크 \(st.closures.frontTrunk.name), 수면 \(st.sleepStatus.name)"
-            case .uncertain(let u): return "불확실: \(u.error.message)"
-            case .failure(let f): return "실패: \(f.error.message)"
+                guard let st = s.value as? VehicleStatus_ else { return .unavailable("형식 오류") }
+                return .snapshot(StatusSnapshot(st))
+            case .uncertain(let u): return .unavailable("불확실: \(u.error.message)")
+            case .failure(let f): return .unavailable("실패: \(f.error.message)")
             }
-        } catch { return "오류: \(error)" }
+        } catch { return .unavailable("오류: \(error)") }
+    }
+
+    private func statusText() async -> String {
+        switch await readStatus() {
+        case .snapshot(let s): return "잠금 \(s.lock), 트렁크 \(s.trunk), 프렁크 \(s.frunk), 수면 \(s.sleep)"
+        case .unavailable(let why): return why
+        }
     }
 
     func lock() async -> String { await control("잠금") { try await $0.lock(timeout: nil) } }
@@ -229,15 +240,6 @@ actor BleClient {
     func resetEntries() { keyEntries = [:] }
 
     // MARK: - 키·제어 탭 (SFR-018, `samples/documents/md/05-key-control-tab.md`)
-
-    /// 1단계: 모니터 키를 읽거나 만든다. 키 객체는 엔진이 가지고 화면에는 결과만 돌려준다.
-    func prepareKey() async -> KeyPrep {
-        switch await engine.ensureKey() {
-        case .ready: return .ready
-        case .locked: return .locked
-        case .failed(let why): return .failed(why)
-        }
-    }
 
     /// 차량의 키 목록에 이 기기의 공개키가 있는지 `listKeys()` 로 확인한다(`13-lib-pairing.md` §Checking whether a key is enrolled).
     /// `Uncertain`/`Failure`/연결 없음은 `.unknown`(나중에 다시 확인).
@@ -304,21 +306,13 @@ actor BleClient {
     /// `vehicleStatus()` 재조회. 성공하면 상태 카드 값을, 아니면 이유만 돌려준다(화면의 이전 값은 그대로 둔다).
     func statusCard() async -> RequeryOutcome {
         refresh()
-        guard let vehicle else { return RequeryOutcome(text: "연결 안 됨", card: nil) }
-        do {
-            let result = try await vehicle.vehicleStatus(timeout: nil)
-            switch onEnum(of: result) {
-            case .success(let s):
-                guard let st = s.value as? VehicleStatus_ else { return RequeryOutcome(text: "형식 오류", card: nil) }
-                let card = StatusCard(
-                    lock: st.lockState.name, trunk: st.closures.rearTrunk.name, frunk: st.closures.frontTrunk.name,
-                    sleep: st.sleepStatus.name, at: Date()
-                )
-                return RequeryOutcome(text: "잠금 \(card.lockText), 트렁크 \(card.trunkText), 프렁크 \(card.frunkText), 수면 \(card.sleepText)", card: card)
-            case .uncertain(let u): return RequeryOutcome(text: "불확실: \(u.error.message)", card: nil)
-            case .failure(let f): return RequeryOutcome(text: "실패: \(f.error.message)", card: nil)
-            }
-        } catch { return RequeryOutcome(text: "오류: \(error)", card: nil) }
+        switch await readStatus() {
+        case .snapshot(let s):
+            let card = StatusCard(s, at: Date())
+            return RequeryOutcome(text: "잠금 \(card.lockText), 트렁크 \(card.trunkText), 프렁크 \(card.frunkText), 수면 \(card.sleepText)", card: card)
+        case .unavailable(let why):
+            return RequeryOutcome(text: why, card: nil)
+        }
     }
 
     private func run(_ title: String, _ call: (Vehicle) async throws -> VehicleResult) async -> String {
@@ -453,7 +447,7 @@ final class SampleModel: ObservableObject {
     }
 
     func confirmEnrollment() async {
-        await exclusive { [self] in log(await client.confirmEnrollment()) }
+        await exclusive { [self] in log(await client.confirmEnrollment().line) }
     }
 
     func lock() async { await exclusive { [self] in log(await client.lock()) } }

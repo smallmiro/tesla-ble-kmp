@@ -3,7 +3,7 @@ import SwiftUI
 /// 키·제어 탭(SFR-018): 키 → 연결 → 등록 → 제어 네 단계와 버튼 격자.
 /// 규칙은 `KeyControlSteps`(순수), 호출 순서는 `KeyControlRunner`(순수)가 정한다. 이 화면은 그린다.
 struct KeyControlTab: View {
-    @ObservedObject var monitor: MonitorModel
+    let monitor: MonitorModel
     @ObservedObject var model: KeyControlModel
     @State private var showOtherModels = false
 
@@ -104,13 +104,10 @@ struct KeyControlTab: View {
         let enabled = steps.control.buttonEnabled
         return Card(title: "제어") {
             StepHint(info: steps.control)
-            group("문", [.lock, .unlock, .wakeUp], enabled: enabled)
-            group("트렁크", [.actuateTrunk, .closeTrunk, .openFrunk], enabled: enabled)
-            group("주행", [.remoteDrive], enabled: enabled)
+            ForEach(ControlButton.Group.primary, id: \.self) { group($0, enabled: enabled) }
             DisclosureGroup("다른 차종 (Model X, Cybertruck)", isExpanded: $showOtherModels) {
                 VStack(alignment: .leading, spacing: 12) {
-                    group("Model X", [.autoSecure], enabled: enabled)
-                    group("Cybertruck", [.openTonneau, .closeTonneau, .stopTonneau], enabled: enabled)
+                    ForEach(ControlButton.Group.otherModels, id: \.self) { group($0, enabled: enabled) }
                 }
                 .padding(.top, 8)
             }
@@ -119,11 +116,11 @@ struct KeyControlTab: View {
         }
     }
 
-    private func group(_ title: String, _ buttons: [ControlButton], enabled: Bool) -> some View {
+    private func group(_ group: ControlButton.Group, enabled: Bool) -> some View {
         VStack(alignment: .leading, spacing: 6) {
-            Text(title).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+            Text(group.title).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
             LazyVGrid(columns: Self.columns, spacing: 10) {
-                ForEach(buttons) { button in
+                ForEach(ControlButton.allCases.filter { $0.group == group }) { button in
                     Button { model.press(button) } label: {
                         VStack(spacing: 6) {
                             Image(systemName: button.symbol).font(.title3)
@@ -145,11 +142,13 @@ struct KeyControlTab: View {
             if model.results.isEmpty {
                 Text("아직 없습니다").font(.subheadline).foregroundStyle(.secondary)
             } else {
-                ForEach(model.results) { line in
-                    HStack(alignment: .firstTextBaseline, spacing: 6) {
-                        Text(Formatting.clockText(line.at)).font(.caption.monospaced()).foregroundStyle(.secondary)
-                        Text("\(line.title): \(line.text)").font(.footnote).foregroundStyle(color(line.tone))
-                            .textSelection(.enabled)
+                LazyVStack(alignment: .leading, spacing: 10) {
+                    ForEach(model.results) { line in
+                        HStack(alignment: .firstTextBaseline, spacing: 6) {
+                            Text(Formatting.clockText(line.at)).font(.caption.monospaced()).foregroundStyle(.secondary)
+                            Text("\(line.title): \(line.text)").font(.footnote).foregroundStyle(color(line.tone))
+                                .textSelection(.enabled)
+                        }
                     }
                 }
                 Button("결과 지우기", role: .destructive) { model.clearResults() }.font(.footnote)

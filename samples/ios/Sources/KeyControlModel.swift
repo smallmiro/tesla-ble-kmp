@@ -55,7 +55,10 @@ final class KeyControlModel: ObservableObject {
         }
     }
 
-    func keyChanged(ready: Bool, locked: Bool) {
+    func keyChanged(_ state: KeyState) {
+        let ready = state == .ready
+        let locked = state == .locked
+        guard ready != inputs.keyReady || locked != inputs.keyLocked else { return }
         let wasReady = inputs.keyReady
         inputs.keyReady = ready
         inputs.keyLocked = locked
@@ -67,6 +70,7 @@ final class KeyControlModel: ObservableObject {
     }
 
     func vinChanged(saved: Bool) {
+        guard saved != inputs.vinSaved else { return }
         inputs.vinSaved = saved
     }
 
@@ -112,12 +116,11 @@ final class KeyControlModel: ObservableObject {
     /// 1단계: 키를 만들거나 불러온다.
     func prepareKey() async {
         await exclusive { [self] in
-            switch await client.prepareKey() {
+            // 키 상태 입력은 엔진의 `.key` 갱신이 `MonitorModel.apply` 로 알려 준다.
+            switch await engine.ensureKey() {
             case .ready:
-                keyChanged(ready: true, locked: false)
                 add("키", "준비됨", .ok)
             case .locked:
-                keyChanged(ready: false, locked: true)
                 add("키", "잠겨 있습니다. 폰을 잠금 해제한 뒤 다시 누르세요(키는 지우지 않음)", .warn)
             case .failed(let why):
                 add("키", "실패: \(why)", .fail)

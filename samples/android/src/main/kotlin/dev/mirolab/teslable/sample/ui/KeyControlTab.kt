@@ -21,6 +21,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
@@ -32,6 +33,7 @@ import dev.mirolab.teslable.sample.KeyControlInputs
 import dev.mirolab.teslable.sample.KeyControlState
 import dev.mirolab.teslable.sample.KeyControlSteps
 import dev.mirolab.teslable.sample.KeyGroup
+import dev.mirolab.teslable.sample.KeyState
 import dev.mirolab.teslable.sample.LinkState
 import dev.mirolab.teslable.sample.LinkText
 import dev.mirolab.teslable.sample.MonitorEngine
@@ -55,13 +57,15 @@ fun KeyControlTab(
     val link by engine.link.collectAsState()
     val keyStatus by engine.keyStatus.collectAsState()
     val savedVin by engine.savedVin.collectAsState()
+    val vinSaved = remember(savedVin) { engine.parsedVin() != null }
+    val connected = link is LinkState.Connected
     val steps =
         KeyControlSteps.of(
             KeyControlInputs(
-                keyReady = keyStatus.ready,
-                keyLocked = keyStatus.locked,
-                vinSaved = savedVin != null && engine.parsedVin() != null,
-                connected = link is LinkState.Connected,
+                keyReady = keyStatus.state == KeyState.READY,
+                keyLocked = keyStatus.state == KeyState.LOCKED,
+                vinSaved = vinSaved,
+                connected = connected,
                 enrollment = state.enrollment.value,
                 busy = state.busy.value,
             ),
@@ -96,13 +100,11 @@ fun KeyControlTab(
             })
         }
 
-        StatusCard(state, refreshEnabled = link is LinkState.Connected && !state.busy.value, onRefresh = {
+        StatusCard(state, refreshEnabled = KeyControlSteps.refreshEnabled(connected, state.busy.value), onRefresh = {
             scope.launch { state.exclusive { refreshStatus() } }
         })
 
-        SectionTitle("결과 (최신이 위)")
-        if (state.results.isEmpty()) Text("아직 없습니다", style = MaterialTheme.typography.bodySmall)
-        state.results.toList().forEach { MonoSmall("${formatClock(it.at)}  ${it.text}") }
+        ResultList(state)
     }
 
     state.pendingConfirm.value?.let { cmd ->
@@ -181,6 +183,14 @@ private fun GroupButtons(
             repeat(GRID_COLUMNS - row.size) { Spacer(Modifier.weight(1f)) }
         }
     }
+}
+
+/** 결과 줄(최신이 위). 목록을 읽는 범위를 이 함수로 한정해, 줄이 늘 때 화면 전체가 아니라 이 목록만 다시 그린다. */
+@Composable
+private fun ResultList(state: KeyControlState) {
+    SectionTitle("결과 (최신이 위)")
+    if (state.results.isEmpty()) Text("아직 없습니다", style = MaterialTheme.typography.bodySmall)
+    state.results.forEach { MonoSmall("${formatClock(it.at)}  ${it.text}") }
 }
 
 /** 마지막 `vehicleStatus()`: 잠금, 트렁크, 프렁크, 수면과 읽은 시각. */
