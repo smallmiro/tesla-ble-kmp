@@ -96,6 +96,7 @@
 <li>シミュレーターには Bluetooth がありません。スキャンと接続は実機の iPhone でのみ試せます。</li>
 <li>iOS には MTU ネゴシエーションの API がないため、ライブラリはシステムが選んだ書き込み長を使います。実機の iPhone で観測したブロック長は 512 です。応答キャラクタリスティックは通知 (notification) と指示 (indication) の両方に対応し、Kable 既定の購読 (notify) が実車で動作することを確認しました (ADR-0003)。</li>
 <li>Swift は SKIE を通して Kotlin を呼び出します。<code>suspend</code> 関数は <code>async throws</code> に、<code>Flow</code> は <code>AsyncSequence</code> になり、sealed 型は <code>switch onEnum(of:)</code> で扱えます。companion メンバーには <code>.companion</code> を通してアクセスします。</li>
+<li>Swift では公開の <code>VehicleStatus</code> は <code>VehicleStatus_</code> という名前になります。生成された VCSEC メッセージ型がそのままの名前を使っているためです。<code>vehicleStatus()</code> の結果と <code>VehicleEvent.Status.status</code> がこの型です。</li>
 </ul>
 
 <h2 id="sec-keys">キーの保存</h2>
