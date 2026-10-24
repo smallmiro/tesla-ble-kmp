@@ -68,7 +68,10 @@ final class WakeSignal: @unchecked Sendable {
 
     func send() {
         let gate: Gate? = lock.withLock {
-            if let waiting { return waiting }
+            if let g = waiting {
+                waiting = nil // 같은 문을 두 번 쓰지 않는다: 다음 신호는 기억해 두었다가 다음 기다림에서 쓴다
+                return g
+            }
             pending = true
             return nil
         }
@@ -95,6 +98,33 @@ final class WakeSignal: @unchecked Sendable {
         await withTaskCancellationHandler { await gate.wait() } onCancel: { gate.fire() }
         timer.cancel()
         lock.withLock { waiting = nil }
+    }
+}
+
+/// 로그 통계를 화면에 보낼 때 줄마다 보내지 않고 0.25초에 한 번, 가장 새 값만 보낸다(줄이 몰려도 화면 쪽 큐가 쌓이지 않게).
+final class StatsPublisher: @unchecked Sendable {
+    private let lock = NSLock()
+    private var latest: LogStats?
+    private var scheduled = false
+    private let emit: AsyncStream<MonitorUpdate>.Continuation
+
+    init(emit: AsyncStream<MonitorUpdate>.Continuation) { self.emit = emit }
+
+    func submit(_ stats: LogStats) {
+        let schedule: Bool = lock.withLock {
+            latest = stats
+            if scheduled { return false }
+            scheduled = true
+            return true
+        }
+        guard schedule else { return }
+        DispatchQueue.global(qos: .utility).asyncAfter(deadline: .now() + 0.25) { [self] in
+            let stats: LogStats? = lock.withLock {
+                scheduled = false
+                return latest
+            }
+            if let stats { emit.yield(.log(stats)) }
+        }
     }
 }
 
@@ -132,8 +162,8 @@ final class MonitorEngine: @unchecked Sendable {
         var continuation: AsyncStream<MonitorUpdate>.Continuation!
         updates = AsyncStream(bufferingPolicy: .unbounded) { continuation = $0 }
         emit = continuation
-        let emitLog = continuation!
-        let writer = LogWriter(directory: folder, session: Self.sessionInfo(), onChange: { emitLog.yield(.log($0)) })
+        let stats = StatsPublisher(emit: continuation)
+        let writer = LogWriter(directory: folder, session: Self.sessionInfo(), onChange: { stats.submit($0) })
         log = writer
         ble = TeslaBle.companion.create(
             platform: PlatformContext(),
@@ -383,6 +413,7 @@ final class MonitorEngine: @unchecked Sendable {
     private func collectEvents(_ box: VehicleBox) async {
         nonisolated(unsafe) let events = box.vehicle.events
         for await event in events {
+            if Task.isCancelled { break } // 끊긴 연결의 늦은 이벤트가 새 연결의 로그와 Live 를 덮지 않게
             let mapped = MonitorEvent(event) // raw 는 여기서 한 번만 읽고 VIN 을 가려 쓴다
             log.write(LogLine.event(ts: log.stamp(), mapped))
             let next = lock.withLock { () -> LiveState in
@@ -404,17 +435,21 @@ final class MonitorEngine: @unchecked Sendable {
     /// 세 조회를 차례로. `Uncertain`/`Failure` 도 그대로 기록하고 다음 주기에 다시 조회한다(조회는 다시 보내도 안전하다, `16-lib-errors.md`).
     private func runQueries(_ box: VehicleBox) async {
         let vehicle = box.vehicle
+        if Task.isCancelled { return }
         await record("vehicleStatus", { try await vehicle.vehicleStatus(timeout: nil) }) { value in
             (value as? VehicleStatus_).map { LogLine.statusSummary(StatusSnapshot($0)) } ?? "형식 오류"
         }
+        if Task.isCancelled { return }
         await record("keySummary", { try await vehicle.keySummary(timeout: nil) }) { value in
             guard let s = value as? WhitelistSummary else { return "형식 오류" }
             return "entries=\(s.numberOfEntries) slots=\(LogLine.listText(s.occupiedSlots.map { String($0.intValue) }))"
         }
+        if Task.isCancelled { return }
         await record("listKeys", { try await vehicle.listKeys(timeout: nil) }) { value in
             guard let list = value as? [WhitelistEntry] else { return "형식 오류" }
             return "\(list.count) keys: " + list.map { "slot\($0.slot)/\($0.role.name)/\($0.formFactor.name)" }.joined(separator: ", ")
         }
+        if Task.isCancelled { return }
         emit.yield(.sessions(sessionsText(vehicle)))
     }
 
@@ -432,6 +467,7 @@ final class MonitorEngine: @unchecked Sendable {
             if Task.isCancelled { return } // 연결이 끝나서 취소된 조회는 기록하지 않는다
             (outcome, summary) = ("Failure", "\(error)")
         }
+        if Task.isCancelled { return } // 연결이 끝나는 중에 끝난 조회는 새 연결의 기록과 섞지 않는다
         let next = lock.withLock { () -> [String: QueryResult] in
             queries[call] = QueryResult(call: call, outcome: outcome, at: Date(), summary: summary)
             return queries
