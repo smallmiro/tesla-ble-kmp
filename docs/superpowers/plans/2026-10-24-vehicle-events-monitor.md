@@ -158,6 +158,25 @@
 
 Task 2 결과로 사용자가 승인한 경우에만. 이 계획을 먼저 고쳐 정확한 단계를 적은 뒤 진행한다(AGENTS §4 "계획에 없는 일은 계획을 먼저 고친다").
 
+**개정 2026-10-24 (🛑 사용자 승인 대기, 승인 전에는 Step 1부터 진행하지 않는다)**
+
+근거: `{{HANDOFF_DIR}}2026-10-24-monitor-device-log-build10.md` — 빌드 10이 잠긴 iPhone에서 첫 연결 시도 뒤 30초 타이머도 돌지 않고 정지, 이후 프로세스 없음.
+원인 후보: `KableGattConnector.scan`이 `Filter.Name.Exact`만 써서 Kable 0.45.0 iOS가 `scanForPeripheralsWithServices(null, …)`로 스캔한다
+(`CentralManagerCoreBluetoothScanner.kt` 62행, "native filtering only if each predicate set contains a `Filter.Service`").
+iOS는 서비스 UUID 없는 스캔에 백그라운드 결과·깨우기를 주지 않는다. 원본 Go도 이름만 쓰므로(`{{MANUAL_DIR}}02-ble-transport.md` §2) 바꾸면 **의도한 차이**가 된다.
+Task 2 스파이크(빌드 9)는 실행되지 않았고, 이 개정의 Step 0이 그 질문 (a)(b)를 대신 답한다.
+
+- [ ] **Step 0: 🛑 실차 확인(코드 변경 없음).** 사용자가 iPhone에서 범용 BLE 스캐너 앱(nRF Connect 등)으로 차 근처에서 `S…C` 광고를 열어,
+  광고 데이터(또는 스캔 응답)의 128-bit Service UUID 목록에 `00000211-b2d1-43f0-9b88-960cebf8b91e`가 있는지 확인한다(VIN·주소는 적지 않음).
+  - **있음** → Step 1로.
+  - **없음** → 서비스 UUID 필터는 쓸 수 없다. 이 Task를 닫고, `17-lib-platform-notes`에 "iOS 백그라운드·잠금 상태 스캔 불가(실기기 확인)"를 적는다.
+    대안(알려진 주변기기 식별자로 `connect` 대기, 상태 복원)은 별도 계획·ADR로 올린다.
+- [ ] **Step 1: struct(Tidy First).** `KableGattConnector.scan`의 필터 구성을 플랫폼별 `expect fun vehicleScanFilters(localName): …`(또는 같은 효과의 내부 함수)로 꺼낸다. 동작 변경 없음, `struct:` 커밋.
+- [ ] **Step 2: Red.** `adapter-ble` `iosTest`(없으면 만든다): iOS 필터가 `Filter.Service(BleUuids.SERVICE)`와 `Filter.Name.Exact(localName)`을 **한 predicate**에 담는지; `androidHostTest`/`jvmTest`: Android·JVM은 지금처럼 이름만(Android 동작 위험을 피하려고 iOS만 바꾼다).
+- [ ] **Step 3: Green.** iOS만 `match { services = listOf(BleUuids.SERVICE); name = Filter.Name.Exact(localName.value) }`. 이름 일치 검사는 그대로 유지(Kable이 네이티브 필터 뒤에 이름을 다시 거름).
+- [ ] **Step 4: 문서.** `17-lib-platform-notes` §Support(iOS 백그라운드 스캔 조건, 실기기 확인 전에는 미확인 표기), `SDD` 의도한 차이 목록, 필요하면 ADR(원본과 다른 스캔 필터) — MD + HTML ko/en/ja(절대 규칙 13). `verify.sh`, 새 컨텍스트 AI 리뷰, PR → 머지.
+- [ ] **Step 5: 🛑 실차 확인.** iOS 샘플 빌드 12, `samples/ios/README.md` 5·6·K2(잠근 채 멀어졌다 돌아오기, 잠긴 폰 30분). 로그에서 잠긴 동안 `backoff`·`connecting` 줄이 이어지고 돌아온 뒤 `connected`가 찍히는지 본다. 결과로 17-lib 미확인 표기를 고친다(Task 11 Step 2와 합침).
+
 ### Task 9: Android 모니터 앱 (SFR-010~017)
 
 **Files:**
