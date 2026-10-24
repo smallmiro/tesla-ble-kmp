@@ -66,6 +66,27 @@ public enum class UserPresence {
     PRESENT,
 }
 
+/**
+ * 기어(`VCSEC.Gear_E`, `VehicleStatus` 필드 7). Teslemetry 스키마의 TESLEMETRY-EXT 필드로 공식 Go 스키마에는 없다(FR-036).
+ * 모르는 값은 [UNKNOWN].
+ */
+public enum class Gear {
+    /** 알 수 없음. 차량이 보내지 않은 경우, `GEAR_UNKNOWN`(0), 모르는 값(더 새 펌웨어)을 구별하지 않는다. */
+    UNKNOWN,
+
+    /** P(주차). */
+    PARK,
+
+    /** D(주행). */
+    DRIVE,
+
+    /** R(후진). */
+    REVERSE,
+
+    /** N(중립). */
+    NEUTRAL,
+}
+
 /** 개폐부 8곳(`VCSEC.ClosureStatuses`). */
 public data class Closures(
     /** 운전석 앞문. */
@@ -86,7 +107,7 @@ public data class Closures(
     val tonneau: ClosureState,
 )
 
-/** `vehicleStatus()` 결과(FR-031, SDD §7.3). 인증·깨우기 없이 읽는다. */
+/** `vehicleStatus()` 결과(FR-031, FR-036, SDD §7.3). 인증·깨우기 없이 읽는다. */
 public data class VehicleStatus(
     /** 잠금 상태. */
     val lockState: LockState,
@@ -98,4 +119,9 @@ public data class VehicleStatus(
     val userPresence: UserPresence,
     /** 톤노 열린 비율(%). 보고하지 않으면 null. */
     val tonneauPercentOpen: Int?,
+    /**
+     * 기어(FR-036). proto3 enum이라 차량이 보내지 않은 것과 `GEAR_UNKNOWN`(0)을 구별할 수 없어 둘 다 [Gear.UNKNOWN]이다.
+     * 실차에서는 브로드캐스트로만 확인했다(조회 응답에 실리는지는 미확인).
+     */
+    val gear: Gear,
 )
