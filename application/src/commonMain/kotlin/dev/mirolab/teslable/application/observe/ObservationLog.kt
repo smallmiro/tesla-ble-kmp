@@ -245,7 +245,7 @@ internal class ObservationLog(
         private const val HEX = 16
         private val FROM_VCSEC_DETAIL_FIELDS = setOf(48, 53)
 
-        // 7(gear)은 스냅샷이 정의하지만 실차 의미가 미확인이라, 정의 밖 값이 unknownFields로 오면 원시 varint를 남긴다. 8은 스냅샷에도 없다.
+        // 7(gear)은 스냅샷이 정의하고 브로드캐스트에서 실차 확인됐지만(14-lib B3.1), 정의 밖 값이 unknownFields로 오면 원시 varint를 남긴다. 8은 스냅샷에도 없다.
         private val VEHICLE_STATUS_DETAIL_FIELDS = setOf(7, 8)
     }
 }
