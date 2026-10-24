@@ -14,6 +14,7 @@ import dev.mirolab.teslable.model.PublicKeyBytes
 import dev.mirolab.teslable.model.Vin
 import dev.mirolab.teslable.port.CryptoPrimitives
 import dev.mirolab.teslable.port.EcdhPrivateKey
+import dev.mirolab.teslable.port.KeyLockedException
 import dev.mirolab.teslable.port.RandomSource
 import dev.mirolab.teslable.util.toHex
 import okio.ByteString.Companion.toByteString
@@ -274,7 +275,11 @@ public class Signer
 
         /** 생성 팩토리. */
         public companion object {
-            /** Go `NewSigner`: ECDH → K, 세션정보 상태 복사. 차량 공개키가 잘못됐으면 `BAD_PARAMETER`. */
+            /**
+             * Go `NewSigner`: ECDH → K, 세션정보 상태 복사. 차량 공개키가 잘못됐으면 `BAD_PARAMETER`.
+             * @throws KeyLockedException [privateKey]를 기기 잠금 때문에 쓸 수 없을 때 — 잘못된 공개키(`BAD_PARAMETER`)와 구별되게 값으로
+             *   바꾸지 않고 그대로 던진다(FR-037, #96). 아래 두 팩토리도 같다.
+             */
             @Suppress("LongParameterList") // Go NewSigner 인자(+crypto/random/timeSource 주입)와 1:1 대응
             public suspend fun create(
                 privateKey: EcdhPrivateKey,
@@ -285,7 +290,10 @@ public class Signer
                 timeSource: TimeSource = TimeSource.Monotonic,
             ): SignerResult<Signer> = build(privateKey, vin, info, crypto, random, timeSource, age = Duration.ZERO)
 
-            /** Go `NewAuthenticatedSigner`: 디코딩 → 생성 → 태그 검증. */
+            /**
+             * Go `NewAuthenticatedSigner`: 디코딩 → 생성 → 태그 검증.
+             * @throws KeyLockedException [privateKey]를 기기 잠금 때문에 쓸 수 없을 때(태그는 K가 있어야 검증하므로 검증 전이다, FR-037).
+             */
             @Suppress("LongParameterList") // Go NewAuthenticatedSigner 인자(+crypto/random/timeSource 주입)와 1:1 대응
             public suspend fun createAuthenticated(
                 privateKey: EcdhPrivateKey,
@@ -322,6 +330,8 @@ public class Signer
              * [age]가 음수이면(캐시 저장과 불러오기 사이에 벽시계가 뒤로 감) 0으로 본다. 이는 프로그래밍 오류가 아닌
              * 런타임 조건이므로 예외를 던지지 않는다(ADR-0006). Go는 미래의 `generatedAt`을 그대로 받아 `timeZero`가
              * 더 나중이 된다(`timestamp()`가 작아져 명령이 일찍 만료될 수 있다).
+             *
+             * @throws KeyLockedException [privateKey]를 기기 잠금 때문에 쓸 수 없을 때(FR-037). 캐시 항목이 손상된 것이 아니다.
              */
             @Suppress("LongParameterList") // Go ImportSessionInfo 인자(+crypto/random/timeSource 주입)와 1:1 대응
             public suspend fun importSessionInfo(

@@ -5,9 +5,12 @@ import com.tesla.generated.universalmessage.Domain
 import dev.mirolab.teslable.application.dispatcher.Dispatcher
 import dev.mirolab.teslable.model.KeyId
 import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.LogLevel
 import dev.mirolab.teslable.port.SessionCache
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+
+private const val TAG = "SessionCacheSync"
 
 /**
  * [SessionCache] 포트와 [Dispatcher] 사이의 동기화(SDD §2.2 `SessionCacheSync`). 저장 시점: 핸드셰이크 완료·해제·세션정보 갱신(§7.1).
@@ -45,10 +48,22 @@ public class SessionCacheSync(
     /**
      * Go `UpdateCachedSessions`: `Cache()` → `Update`. 세션이 없으면 빈 목록을 저장한다(Go도 nil을 저장해 옛 캐시를 지운다).
      * [dispatcher]가 이미 [Dispatcher.close]된 뒤라면 세션이 전부 비어 있어 저장된 캐시를 지워 버린다 — 반드시 [close] 전에 부른다.
+     *
+     * 예외(Go에 없음, FR-037·#96): 이 연결에서 기기 잠금 때문에 복원하지 못한 도메인에 아직 세션이 없으면 아무것도 쓰지 않는다. 그 항목은
+     * 아직 유효한데, 포트는 목록 전체를 덮어쓰고 저장 시각을 새로 붙이므로 옛 항목만 남겨 둘 수 없다(나이가 틀려진다). 잠금이 풀려 그
+     * 도메인에 세션이 생기면 다시 평소처럼 쓴다.
      */
     public suspend fun store(dispatcher: Dispatcher) {
         storeMutex.withLock {
-            cache.store(vin, keyId, dispatcher.exportSessions().filter { it.domain !in staleDomains })
+            val sessions = dispatcher.exportSessions()
+            val keptForLock = dispatcher.restoresBlockedByLock.filter { blocked -> sessions.none { it.domain == blocked } }
+            if (keptForLock.isNotEmpty()) {
+                dispatcher.log.log(LogLevel.INFO, TAG) {
+                    "Keeping the session cache: cached sessions for $keptForLock were not restored while the device was locked"
+                }
+                return@withLock
+            }
+            cache.store(vin, keyId, sessions.filter { it.domain !in staleDomains })
         }
     }
 }

@@ -1,7 +1,9 @@
 package dev.mirolab.teslable.crypto
 
 import dev.mirolab.teslable.port.KeyAccessibility
+import dev.mirolab.teslable.port.KeyLockedException
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.value
 import platform.CoreFoundation.CFErrorGetCode
 import platform.CoreFoundation.CFErrorGetDomain
 import platform.CoreFoundation.CFErrorRef
@@ -92,6 +94,15 @@ internal object KeychainAccessibility {
 /**
  * `SecKeyCopyKeyExchangeResult`가 실패했을 때 던질 예외(Secure Enclave 키와 소프트웨어 키가 같이 쓴다). out-파라미터의 CFError는
  * 여기서 한 번 해제한다([takeDescription]). `memScoped` 안에서, 실패 직후 한 번만 부른다.
+ *
+ * 잠긴 기기([KeychainAccessibility.isDeviceLocked]: OSStatus 도메인의 -25308)면 [KeyLockedException] — 핸드셰이크는
+ * `KeyStoreError.Locked`로 끝나고 캐시 복원은 캐시를 지우지 않는다(FR-037, #96). 그 밖의 실패는 이전처럼 `IllegalArgumentException`
+ * (`Signer`가 `BAD_PARAMETER`로 다룬다). 잠금 예외에는 CFError 설명을 싣지 않는다. 실기기 확인 전: 잠긴 iPhone의 Secure Enclave ECDH가
+ * 실제로 이 도메인·코드로 실패를 알리는지(다른 형태면 이전처럼 핸드셰이크 시간 초과로 끝난다).
  */
 @OptIn(ExperimentalForeignApi::class)
-internal fun CFErrorRefVar.takeKeyExchangeFailure(): Exception = IllegalArgumentException("ECDH failed: ${takeDescription()}")
+internal fun CFErrorRefVar.takeKeyExchangeFailure(): Exception {
+    val locked = KeychainAccessibility.isDeviceLocked(value)
+    val description = takeDescription()
+    return if (locked) KeyLockedException() else IllegalArgumentException("ECDH failed: $description")
+}

@@ -79,6 +79,9 @@ public class SessionState internal constructor(
      * Go `processHello`: 세션정보를 검증해 반영한다. 첫 호출은 [Signer.createAuthenticated](태그 검증 포함), 이후는
      * [Signer.updateSignedSessionInfo]. 성공하면 준비 신호를 완료한다. challenge가 최근 요청의 uuid인지는 호출자(디스패처)가 보장한다.
      * 기존 세션이 다른 차량 공개키의 세션정보를 받으면 `UNKNOWN_KEY_ID`로 거부하고 세션은 그대로다(Go와 동일, 설계 구체화 8).
+     *
+     * @throws dev.mirolab.teslable.port.KeyLockedException 첫 호출의 ECDH를 기기 잠금 때문에 할 수 없을 때(FR-037, #96). 세션은 그대로
+     *   없다. 디스패처가 받아 요청에 표시한다.
      */
     public suspend fun processHello(
         challenge: ByteArray,
@@ -181,6 +184,8 @@ public class SessionState internal constructor(
     /**
      * Go `LoadCache`: 캐시된 세션정보로 [Signer]를 만들고 즉시 준비 상태로 둔다. [age]는 캐시 저장 후 경과(음수면 0으로 본다).
      * 기존 Signer가 있으면 닫고 교체한다. 디코딩 실패는 `DECODING` fault(예외 없음).
+     *
+     * @throws dev.mirolab.teslable.port.KeyLockedException ECDH를 기기 잠금 때문에 할 수 없을 때(FR-037, #96). 기존 상태는 그대로다.
      */
     public suspend fun loadFromCache(
         encodedInfo: ByteArray,

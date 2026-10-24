@@ -1,11 +1,18 @@
 package dev.mirolab.teslable.crypto
 
 import dev.mirolab.teslable.port.KeyAccessibility
+import dev.mirolab.teslable.port.KeyLockedException
 import dev.mirolab.teslable.port.KeyProtection
 import kotlinx.cinterop.ExperimentalForeignApi
+import kotlinx.cinterop.alloc
+import kotlinx.cinterop.memScoped
+import kotlinx.cinterop.value
 import kotlinx.coroutines.test.runTest
 import platform.CoreFoundation.CFErrorCreate
+import platform.CoreFoundation.CFErrorRefVar
+import platform.CoreFoundation.CFGetRetainCount
 import platform.CoreFoundation.CFRelease
+import platform.CoreFoundation.CFRetain
 import platform.CoreFoundation.kCFErrorDomainCocoa
 import platform.CoreFoundation.kCFErrorDomainOSStatus
 import platform.Security.errSecInteractionNotAllowed
@@ -23,6 +30,7 @@ import kotlin.test.Test
 import kotlin.test.assertContentEquals
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
+import kotlin.test.assertIs
 import kotlin.test.assertTrue
 
 /**
@@ -105,6 +113,32 @@ class KeychainAccessibilityTest {
             CFRelease(locked)
             CFRelease(other)
             CFRelease(sameCodeOtherDomain)
+        }
+    }
+
+    @Test
+    fun keyExchangeFailureFromALockedDeviceBecomesKeyLockedException() {
+        // FR-037(#96): SecKeyCopyKeyExchangeResult가 잠긴 기기(OSStatus 도메인 -25308)로 실패하면 KeyLockedException — 핸드셰이크가
+        // KeyStoreError.Locked로 끝난다. 다른 실패는 지금처럼 IllegalArgumentException(Signer가 BAD_PARAMETER로 다룬다).
+        // 시뮬레이터에는 Secure Enclave가 없어 실제 ECDH 오류는 만들 수 없다 — 판정과 CFError 해제만 확인한다(실기기 확인 항목).
+        memScoped {
+            val error = alloc<CFErrorRefVar>()
+            val locked = checkNotNull(CFErrorCreate(null, kCFErrorDomainOSStatus, errSecInteractionNotAllowed.toLong(), null))
+            CFRetain(locked) // 해제가 정확히 한 번인지 세려고 하나 더 쥔다
+            error.value = locked
+            assertIs<KeyLockedException>(error.takeKeyExchangeFailure())
+            assertEquals(1L, CFGetRetainCount(locked))
+            CFRelease(locked)
+
+            error.value = CFErrorCreate(null, kCFErrorDomainOSStatus, errSecNotAvailable.toLong(), null)
+            val other = assertIs<IllegalArgumentException>(error.takeKeyExchangeFailure())
+            assertTrue(checkNotNull(other.message).startsWith("ECDH failed"))
+
+            error.value = CFErrorCreate(null, kCFErrorDomainCocoa, errSecInteractionNotAllowed.toLong(), null)
+            assertIs<IllegalArgumentException>(error.takeKeyExchangeFailure())
+
+            error.value = null
+            assertIs<IllegalArgumentException>(error.takeKeyExchangeFailure())
         }
     }
 

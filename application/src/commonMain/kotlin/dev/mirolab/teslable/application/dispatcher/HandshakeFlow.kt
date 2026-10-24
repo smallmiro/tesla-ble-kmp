@@ -32,7 +32,8 @@ public class HandshakeFlow(
 
     /**
      * Go `StartSession`: 세션이 이미 있으면(캐시) 즉시 성공. 아니면 [tryStartSession]을 재시도가 아닌 결과가 나올 때까지 반복한다.
-     * 개인키가 없으면 [VehicleError.RequiresKey](Go `RequestSessionInfo` → `ErrRequiresKey`).
+     * 개인키가 없으면 [VehicleError.RequiresKey](Go `RequestSessionInfo` → `ErrRequiresKey`). 기기가 잠겨 개인키를 쓸 수 없으면 첫 응답
+     * 직후 [VehicleError.KeyStoreError.Locked](FR-037, #96, Go에 없음).
      */
     public suspend fun startSession(domain: Domain): VehicleResult<Unit> {
         val session = dispatcher.session(domain) ?: return VehicleResult.Failure(VehicleError.RequiresKey)
@@ -90,6 +91,10 @@ public class HandshakeFlow(
 
                 is Step.Reply -> {
                     ResponseClassifier.protocolError(step.message)?.let { return it.toResult() }
+                    // FR-037(#96): 응답의 세션정보를 기기 잠금 때문에 반영하지 못했다 — 다시 보내도 소용없으니 곧바로 Locked로 끝낸다(Go는
+                    // 키 오류를 구별하지 않고 재전송한다 — 의도한 차이, ADR-0014). 차량이 응답에 실은 오류(위)가 먼저다. 응답은 ECDH 전이라
+                    // 인증되지 않았지만 Locked는 이 기기의 사실이라 위조된 응답으로도 거짓이 되지 않고, 응답의 상태는 아무것도 쓰지 않는다.
+                    if (pending.keyLocked) return VehicleResult.Failure(VehicleError.KeyStoreError.Locked)
                     // 응답이 왔다. 정상이면 디스패처가 전달 전에 processHello를 끝내 ready가 이미 완료돼 있다; 아니면(잘못된 응답)
                     // 재전송 간격만큼 기다렸다가 다시 보낸다(Go 두 번째 select).
                     withTimeoutOrNull(dispatcher.retryInterval) {

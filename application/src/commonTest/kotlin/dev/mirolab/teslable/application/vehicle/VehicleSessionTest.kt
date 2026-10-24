@@ -15,6 +15,7 @@ import dev.mirolab.teslable.port.AuthMethod
 import dev.mirolab.teslable.port.SessionCache
 import dev.mirolab.teslable.port.TransportState
 import dev.mirolab.teslable.testing.FakeVehicle
+import dev.mirolab.teslable.testing.LockableEcdhKey
 import dev.mirolab.teslable.testing.RecordingSessionCache
 import dev.mirolab.teslable.testing.TestCrypto
 import kotlinx.coroutines.CompletableDeferred
@@ -98,6 +99,54 @@ class VehicleSessionTest {
             val result = assertIs<VehicleResult.Failure>(session.startSession(timeout = 5.milliseconds))
             assertEquals(VehicleError.Timeout(afterSend = false), result.error)
             assertEquals(0, h.dispatcher.pendingCount())
+        }
+
+    @Test
+    fun startSessionReturnsLockedWithoutRetryingWhenTheKeyIsLocked() =
+        // FR-037(#96): Locked는 temporary(잠금 해제 뒤 다시 부르면 된다)지만 핸드셰이크 재시도 루프는 되풀이하지 않는다 — 잠금 해제는
+        // 사용자 몫이고, 되풀이하면 handshakeTimeout 뒤 Timeout으로 바뀌어 앱이 "잠금을 푸세요"를 안내할 수 없다.
+        runTest {
+            val h = dispatcherHarness(privateKey = LockableEcdhKey(), start = false)
+            val session = VehicleSession(h.dispatcher)
+            session.connect()
+            val start = testTimeSource.markNow()
+            val result = assertIs<VehicleResult.Failure>(session.startSession(timeout = 5.seconds))
+            assertEquals(VehicleError.KeyStoreError.Locked, result.error)
+            assertTrue(start.elapsedNow() < h.dispatcher.retryInterval, "must neither retry nor wait for the timeout")
+            assertTrue(h.fake.sessionInfoRequests <= 2, "at most one request per domain, got ${h.fake.sessionInfoRequests}")
+            assertFalse(session.isReady(vcsec))
+            assertFalse(session.isReady(infotainment))
+        }
+
+    @Test
+    fun cacheRestoreBlockedByTheLockKeepsTheCacheAndStartSessionReturnsLocked() =
+        // FR-037(#96): 잠긴 동안 복원하지 못한 캐시는 아직 유효하다 — 핸드셰이크는 Locked로 끝나고, disconnect가 빈 목록으로 캐시를
+        // 지우지 않으며, 잠금이 풀린 다음 연결이 핸드셰이크 없이 복원한다.
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val cache = RecordingSessionCache()
+            val keyId = KeyId.of(TestCrypto.clientPublicKey, TestCrypto.primitives)
+            val sync = SessionCacheSync(cache, fake.vin, keyId)
+            val seeded = VehicleSession(dispatcherHarness(fake = fake, start = false).dispatcher, cacheSync = sync)
+            seeded.connect()
+            assertIs<VehicleResult.Success<Unit>>(seeded.startSession())
+            seeded.disconnect()
+            val storesBefore = cache.stores.size
+
+            val key = LockableEcdhKey()
+            val locked = VehicleSession(dispatcherHarness(privateKey = key, fake = fake, start = false).dispatcher, cacheSync = sync)
+            assertEquals(emptySet(), locked.connect())
+            assertEquals(VehicleResult.Failure(VehicleError.KeyStoreError.Locked), locked.startSession(timeout = 5.seconds))
+            locked.disconnect()
+            assertEquals(storesBefore, cache.stores.size) // 빈 목록을 쓰지 않았다
+            assertEquals(setOf(vcsec, infotainment), cache.load(fake.vin, keyId).map { it.domain }.toSet())
+
+            key.locked = false
+            val requestsBefore = fake.sessionInfoRequests
+            val unlocked = VehicleSession(dispatcherHarness(privateKey = key, fake = fake, start = false).dispatcher, cacheSync = sync)
+            assertEquals(setOf(vcsec, infotainment), unlocked.connect())
+            assertIs<VehicleResult.Success<Unit>>(unlocked.startSession())
+            assertEquals(requestsBefore, fake.sessionInfoRequests)
         }
 
     @Test

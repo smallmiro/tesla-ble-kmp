@@ -118,7 +118,10 @@ public class Session private constructor(
         /** AES-GCM 태그 길이 (bytes). */
         private const val TAG_SIZE: Int = 16
 
-        /** Go `NativeECDHKey.Exchange`: ECDH → K. */
+        /**
+         * Go `NativeECDHKey.Exchange`: ECDH → K.
+         * @throws dev.mirolab.teslable.port.KeyLockedException [privateKey]를 기기 잠금 때문에 쓸 수 없으면 그대로 전파한다(FR-037).
+         */
         public suspend fun establish(
             privateKey: EcdhPrivateKey,
             vehiclePublicKey: PublicKeyBytes,

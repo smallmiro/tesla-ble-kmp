@@ -92,7 +92,8 @@ public class VehicleSession(
         }
 
     /**
-     * Go `Vehicle.StartSession`: `shouldRetry()` 오류면 [retryInterval] 뒤 다시 핸드셰이크(`retryWhileRetriable`).
+     * Go `Vehicle.StartSession`: `shouldRetry()` 오류면 [retryInterval] 뒤 다시 핸드셰이크(`retryWhileRetriable`). 단 기기 잠금으로 개인키를
+     * 쓸 수 없으면(`KeyStoreError.Locked`, FR-037·#96) 다시 시도하지 않고 차량의 첫 응답 직후 그대로 돌려준다.
      * [handshake]는 절대 `setAwaiting`을 부르지 않으므로 시간 초과는 항상 `Failure(Timeout(afterSend = false))`다
      * (`withAttemptTimeout` — 세션이 만들어지지 않았고 부작용이 없다; 사용자 승인 답 b — 전용 타입 없음). 성공하면 세션 캐시에 저장한다(SDD §7.1).
      * 단 [disconnect]가 이미 닫기에 들어갔으면 저장하지 않는다.

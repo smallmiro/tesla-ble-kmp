@@ -248,7 +248,8 @@ internal class AppleSecureEnclaveKeys : SecureEnclaveKeys {
 /**
  * Secure Enclave 개인키 핸들. 공개키는 `SecKeyCopyPublicKey` -> 외부 표현(X9.63 65바이트).
  * 생성자가 [privateKey]의 +1 참조를 맡는다(생성자가 실패해도): 이 키가 수거될 때 해제되고, 넘긴 쪽은 해제하지 않는다([ReleaseWhenCollected]).
- * [accessibility]는 만들 때 고른 값이거나 항목에서 다시 읽은 값이다(FR-037).
+ * [accessibility]는 만들 때 고른 값이거나 항목에서 다시 읽은 값이다(FR-037). 기기 잠금 때문에 ECDH를 할 수 없으면 [sharedX]가
+ * `KeyLockedException`을 던진다(#96, [takeKeyExchangeFailure]).
  */
 @OptIn(ExperimentalForeignApi::class)
 internal class SecureEnclaveKey(

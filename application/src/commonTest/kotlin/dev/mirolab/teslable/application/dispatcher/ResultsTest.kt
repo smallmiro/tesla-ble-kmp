@@ -2,12 +2,14 @@ package dev.mirolab.teslable.application.dispatcher
 
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
+import dev.mirolab.teslable.model.shouldRetry
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -46,6 +48,24 @@ class ResultsTest {
                     VehicleResult.Failure(VehicleError.NoSession)
                 }
             assertEquals(VehicleError.NoSession, assertIs<VehicleResult.Failure>(result).error)
+            assertEquals(1, calls)
+        }
+
+    @Test
+    fun retryWhileRetriableReturnsLockedWithoutRetrying() =
+        // FR-037(#96): Locked는 temporary(잠금이 풀린 뒤 다시 부르면 된다)여서 shouldRetry()가 true지만, 잠금 해제는 사용자 몫이다.
+        // 되풀이하면 시간 제한 뒤 Timeout으로 바뀌어 앱이 원인을 모른다 — 첫 결과를 그대로 돌려준다.
+        runTest {
+            var calls = 0
+            val result =
+                withTimeoutOrNull(10.milliseconds) {
+                    retryWhileRetriable(1.milliseconds) {
+                        calls++
+                        VehicleResult.Failure(VehicleError.KeyStoreError.Locked)
+                    }
+                }
+            assertTrue(VehicleError.KeyStoreError.Locked.shouldRetry())
+            assertEquals(VehicleError.KeyStoreError.Locked, assertIs<VehicleResult.Failure>(result).error)
             assertEquals(1, calls)
         }
 

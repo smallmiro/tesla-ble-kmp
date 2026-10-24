@@ -5,7 +5,9 @@ import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
 import dev.mirolab.teslable.InternalTeslableApi
 import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.KeyLockedException
 import dev.mirolab.teslable.testing.FixedRandom
+import dev.mirolab.teslable.testing.LockableEcdhKey
 import dev.mirolab.teslable.testing.TestCrypto
 import dev.mirolab.teslable.testing.TestVerifier
 import dev.mirolab.teslable.testing.fixtures.ProtocolVectors
@@ -432,6 +434,27 @@ class SignerTest {
                     TestTimeSource(),
                 ),
             )
+        }
+
+    @Test
+    fun lockedKeyDuringKeyAgreementPropagatesInsteadOfBecomingABadParameterFault() =
+        // FR-037(#96): 잠긴 기기는 잘못된 공개키(BAD_PARAMETER)가 아니다. 세 팩토리 모두 KeyLockedException을 그대로 던져
+        // 디스패처가 KeyStoreError.Locked로 바꿀 수 있게 한다(Go에는 잠금 개념이 없다 — Exchange 오류를 그대로 돌려준다)
+        runTest {
+            val (verifier, signer) = pair()
+            val signed = verifier.signedSessionInfo(challenge)
+            val exported = signer.exportSessionInfo()
+            val locked = LockableEcdhKey()
+            assertFailsWith<KeyLockedException> {
+                Signer.createAuthenticated(locked, vin, challenge, signed.encoded, signed.tag, crypto, TestCrypto.random, TestTimeSource())
+            }
+            assertFailsWith<KeyLockedException> {
+                Signer.importSessionInfo(locked, vin, exported, age = 0.seconds, crypto, TestCrypto.random, TestTimeSource())
+            }
+            assertFailsWith<KeyLockedException> {
+                Signer.create(locked, vin, verifier.sessionInfo(), crypto, TestCrypto.random, TestTimeSource())
+            }
+            assertEquals(3, locked.exchanges)
         }
 
     @Test

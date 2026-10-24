@@ -40,6 +40,9 @@ internal inline fun <T> VehicleResult<T>.valueOr(onError: (VehicleError) -> Noth
  * Go `Vehicle.Send`/`Vehicle.StartSession`의 재시도 루프: [attempt]가 성공하거나 오류가
  * `shouldRetry()`가 아니면 그 결과를 바로 돌려주고, 그렇지 않으면 [interval] 만큼 기다린 뒤 다시 [attempt]한다.
  * `SendWithRetry.send`, `VehicleSession.startSession`, Task 10 `VcsecCommands`가 공유한다.
+ *
+ * 예외(Go에 없음, FR-037·#96): [VehicleError.KeyStoreError.Locked]는 temporary(`shouldRetry()`가 true)지만 되풀이하지 않고 바로
+ * 돌려준다 — 잠금 해제는 사용자 몫이라 기다려도 풀리지 않고, 되풀이하면 시간 제한 뒤 `Timeout`으로 바뀌어 앱이 원인을 알 수 없다.
  */
 internal suspend fun <T> retryWhileRetriable(
     interval: Duration,
@@ -48,7 +51,7 @@ internal suspend fun <T> retryWhileRetriable(
     while (true) {
         val result = attempt()
         val error = result.errorOrNull() ?: return result
-        if (!error.shouldRetry()) return result
+        if (!error.shouldRetry() || error == VehicleError.KeyStoreError.Locked) return result
         delay(interval)
     }
 }

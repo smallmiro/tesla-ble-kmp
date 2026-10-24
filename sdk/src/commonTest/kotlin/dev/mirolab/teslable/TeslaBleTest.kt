@@ -29,6 +29,7 @@ import dev.mirolab.teslable.port.VehicleKey
 import dev.mirolab.teslable.testing.FakeTransportFactory
 import dev.mirolab.teslable.testing.FakeVehicle
 import dev.mirolab.teslable.testing.FakeVehicleKeyStore
+import dev.mirolab.teslable.testing.LockableEcdhKey
 import dev.mirolab.teslable.testing.RecordingSessionCache
 import dev.mirolab.teslable.testing.TestCrypto
 import dev.mirolab.teslable.transport.LocalName
@@ -76,9 +77,9 @@ class TeslaBleTest {
         config: TeslaBleConfig = TeslaBleConfig(),
         fake: FakeVehicle = FakeVehicle(timeSource = testTimeSource),
         cache: RecordingSessionCache = RecordingSessionCache(),
+        keys: FakeVehicleKeyStore = FakeVehicleKeyStore(),
     ): Rig {
         val factory = FakeTransportFactory(fake)
-        val keys = FakeVehicleKeyStore()
         val ble =
             TeslaBle(
                 transports = factory,
@@ -149,6 +150,33 @@ class TeslaBleTest {
             assertEquals(VehicleDomain.ALL.associateWith { SessionStatus.Ready(fromCache = true) }, second.sessions.value)
             assertIs<VehicleResult.Success<Unit>>(second.startSession(timeout = 1.seconds))
             assertEquals(requestsBefore, r.fake.sessionInfoRequests)
+        }
+
+    @Test
+    fun keyLockedAfterItWasReadEndsTheHandshakeWithLockedAndKeepsTheCache() =
+        // FR-037(#96): 잠기기 전에 읽어 둔 WHEN_UNLOCKED 키 핸들. 캐시 복원은 건너뛰지만 캐시는 지우지 않고, startSession은 시간 초과가
+        // 아니라 곧바로 Locked로 끝난다. 잠금이 풀린 다음 연결은 캐시로 바로 준비된다.
+        runTest {
+            val key = LockableEcdhKey(locked = false)
+            val r = rig(keys = FakeVehicleKeyStore(key))
+            val first = r.connected()
+            assertIs<VehicleResult.Success<Unit>>(first.startSession(timeout = 1.seconds))
+            first.disconnect()
+            val storesBefore = r.cache.stores.size
+
+            key.locked = true
+            val second = r.connected()
+            assertEquals(VehicleDomain.ALL.associateWith { SessionStatus.None }, second.sessions.value)
+            val start = testTimeSource.markNow()
+            assertEquals(VehicleResult.Failure(VehicleError.KeyStoreError.Locked), second.startSession(timeout = 20.seconds))
+            assertTrue(start.elapsedNow() < 1.seconds, "must not wait for the handshake timeout")
+            assertEquals(VehicleDomain.ALL.associateWith { SessionStatus.None }, second.sessions.value)
+            second.disconnect()
+            assertEquals(storesBefore, r.cache.stores.size)
+
+            key.locked = false
+            val third = r.connected()
+            assertEquals(VehicleDomain.ALL.associateWith { SessionStatus.Ready(fromCache = true) }, third.sessions.value)
         }
 
     @Test

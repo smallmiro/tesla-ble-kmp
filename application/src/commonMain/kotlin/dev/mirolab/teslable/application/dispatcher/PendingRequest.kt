@@ -39,6 +39,9 @@ public class PendingRequest internal constructor(
     @Volatile
     private var closed = false
 
+    @Volatile
+    private var lockedKey = false
+
     /** Go `receiver.antireplay`: 이 요청의 응답 counter 슬라이딩 윈도우(32). 수신 코루틴만 갱신한다. */
     internal val antiReplay: SlidingWindow = SlidingWindow()
 
@@ -50,6 +53,18 @@ public class PendingRequest internal constructor(
 
     /** [close] 뒤 true. 디스패처가 맵에서 지운다. */
     internal val isClosed: Boolean get() = closed
+
+    /**
+     * 이 요청의 응답에 실린 세션정보를 기기 잠금 때문에 반영하지 못했는지(FR-037, #96, Go에 없음). 수신 코루틴이 그 응답을 전달하기
+     * **전에** 세우므로 응답을 받은 쪽에서 보인다. 내려가지 않지만 요청마다 새 객체라 다음 시도에 남지 않는다. 요청 하나의 첫 응답만 보는
+     * 핸드셰이크([HandshakeFlow])만 읽는다.
+     */
+    internal val keyLocked: Boolean get() = lockedKey
+
+    /** 수신 코루틴이 [keyLocked]를 세운다. */
+    internal fun markKeyLocked() {
+        lockedKey = true
+    }
 
     /** Go `Recv()`의 `select` 용 절. */
     internal val onReceive: SelectClause1<RoutableMessage> get() = channel.onReceive

@@ -230,8 +230,9 @@ public sealed interface VehicleError {
 
         /**
          * 기기가 잠겨 있어 키에 접근할 수 없음(FR-037): iOS `errSecInteractionNotAllowed`(-25308). `WHEN_UNLOCKED` 키는 잠긴 동안,
-         * 모든 키는 재시동 뒤 첫 잠금 해제 전까지 이렇게 된다. 일시적이다: 키를 지우거나 새로 만들지 말고 잠금이 풀린 뒤 다시 부른다.
-         * 라이브러리는 키 저장소 호출을 다시 시도하지 않는다.
+         * 모든 키는 재시동 뒤 첫 잠금 해제 전까지 이렇게 된다. 키 저장소 호출(`getOrCreate`/`get`/`delete`)과, 잠기기 전에 얻은 Secure Enclave
+         * 키 핸들로 하는 핸드셰이크(`startSession`, #96)가 돌려준다. 일시적이다: 키를 지우거나 새로 만들지 말고 잠금이 풀린 뒤 다시 부른다.
+         * 라이브러리는 키 저장소 호출도 핸드셰이크도 다시 시도하지 않는다(`shouldRetry()`가 true여도).
          */
         public data object Locked : KeyStoreError {
             override val message: String = "vehicle key is not accessible while the device is locked"
