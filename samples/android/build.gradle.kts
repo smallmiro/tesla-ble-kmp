@@ -31,4 +31,9 @@ dependencies {
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.androidx.activity.compose)
     implementation(libs.kotlinx.coroutines.android)
+    testImplementation(libs.kotlin.test.junit)
+    testImplementation(libs.junit)
+    testImplementation(libs.kotlinx.coroutines.test)
+    // android.jar의 org.json은 단위 테스트에서 "not mocked"이므로 JSON 검증용으로 실제 구현을 쓴다.
+    testImplementation(libs.org.json)
 }
