@@ -160,14 +160,14 @@
 <tr><td>4</td><td><code>userPresence</code></td><td><code>UserPresence_E</code></td><td>차 안의 사람</td><td><code>userPresence</code></td></tr>
 <tr><td>5</td><td><code>detailedClosureStatus</code></td><td><code>DetailedClosureStatus</code></td><td><code>tonneauPercentOpen</code>(1, uint32), Cybertruck</td><td><code>tonneauPercentOpen</code>(없으면 <code>null</code>)</td></tr>
 <tr><td>6</td><td><code>uiDesire</code></td><td><code>UIDesire_E</code>(Teslemetry)</td><td>스키마에만 있음</td><td><strong>노출하지 않음</strong>(M5 예정)</td></tr>
-<tr><td>7</td><td><code>gear</code></td><td><code>Gear_E</code>(Teslemetry, 실차로 확정)</td><td>현재 기어</td><td><strong>노출하지 않음</strong>(M5 예정)</td></tr>
+<tr><td>7</td><td><code>gear</code></td><td><code>Gear_E</code>(Teslemetry, 실차로 확정)</td><td>현재 기어</td><td><code>gear</code>. 없거나 스키마 밖의 값이면 <code>UNKNOWN</code></td></tr>
 <tr><td>8</td><td>(미확인, 스키마에 없음)</td><td>message</td><td>실차에서 관찰: <code>{1: 1|2, 2: 1|2, 3: 1}</code>. 의미 미확인</td><td>노출하지 않음</td></tr>
 </tbody>
 </table>
 <p><code>ClosureStatuses</code>에는 1~8번의 <code>ClosureState_E</code> 필드 여덟 개가 있습니다: <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code>, <code>tonneau</code>.</p>
 <div class="callout">
 <strong>변환 규칙</strong>
-<p>스키마 밖의 값은 0번 값이 아니라 <code>UNKNOWN</code>으로 바꿉니다. proto3에서는 빠진 enum과 0번 값을 구분할 수 없으므로 잠금 상태가 빠지면 <code>UNLOCKED</code>로 읽히며, 조회에서는 Go 동작을 그대로 따릅니다. 실차 결과상 차량은 모두 닫히면 <code>closureStatuses</code>를 생략하고 무언가 열려 있으면 보내므로(운전석 문과 충전구에서 확인) "없으면 모두 닫힘"은 관찰과 맞습니다. 실내 버튼으로 연 트렁크는 브로드캐스트로 보이지 않았으므로, 트렁크는 이 조회로 읽으세요.</p>
+<p>스키마 밖의 값은 0번 값이 아니라 <code>UNKNOWN</code>으로 바꿉니다. proto3에서는 빠진 enum과 0번 값을 구분할 수 없으므로 잠금 상태가 빠지면 <code>UNLOCKED</code>로 읽히며, 조회에서는 Go 동작을 그대로 따릅니다. <code>gear</code>는 Go에 대응하는 것이 없습니다(공식 Go 스키마는 필드 5까지). 0번 값이 <code>GEAR_UNKNOWN</code>이므로 기어가 빠지면 <code>UNKNOWN</code>으로 읽힙니다. 기어는 브로드캐스트로 확인했으며, 차량이 조회 응답에 기어를 채우는지는 실차로 확인하지 않았습니다. 실차 결과상 차량은 모두 닫히면 <code>closureStatuses</code>를 생략하고 무언가 열려 있으면 보내므로(운전석 문과 충전구에서 확인) "없으면 모두 닫힘"은 관찰과 맞습니다. 실내 버튼으로 연 트렁크는 브로드캐스트로 보이지 않았으므로, 트렁크는 이 조회로 읽으세요.</p>
 </div>
 
 <h2 id="sec-a-summary">A3. keySummary()</h2>
@@ -267,11 +267,11 @@
 <tr><td>4</td><td><code>CLOSURESTATE_FAILED_UNLATCH</code></td><td><code>FAILED_UNLATCH</code></td></tr>
 <tr><td>5</td><td><code>CLOSURESTATE_OPENING</code></td><td><code>OPENING</code></td></tr>
 <tr><td>6</td><td><code>CLOSURESTATE_CLOSING</code></td><td><code>CLOSING</code></td></tr>
-<tr><td rowspan="5"><code>Gear_E</code> (필드 7, Teslemetry, 실차로 확정)</td><td>0</td><td><code>GEAR_UNKNOWN</code></td><td>노출하지 않음</td></tr>
-<tr><td>1</td><td><code>GEAR_PARK</code></td><td>노출하지 않음</td></tr>
-<tr><td>2</td><td><code>GEAR_DRIVE</code></td><td>노출하지 않음</td></tr>
-<tr><td>3</td><td><code>GEAR_REVERSE</code></td><td>노출하지 않음</td></tr>
-<tr><td>4</td><td><code>GEAR_NEUTRAL</code></td><td>노출하지 않음</td></tr>
+<tr><td rowspan="5"><code>Gear_E</code> (필드 7, Teslemetry, 실차로 확정)</td><td>0</td><td><code>GEAR_UNKNOWN</code></td><td><code>UNKNOWN</code></td></tr>
+<tr><td>1</td><td><code>GEAR_PARK</code></td><td><code>PARK</code></td></tr>
+<tr><td>2</td><td><code>GEAR_DRIVE</code></td><td><code>DRIVE</code></td></tr>
+<tr><td>3</td><td><code>GEAR_REVERSE</code></td><td><code>REVERSE</code></td></tr>
+<tr><td>4</td><td><code>GEAR_NEUTRAL</code></td><td><code>NEUTRAL</code></td></tr>
 <tr><td rowspan="2"><code>UIDesire_E</code> (필드 6, Teslemetry, 스키마에만 있음)</td><td>0</td><td><code>UI_DESIRE_NONE</code></td><td>노출하지 않음</td></tr>
 <tr><td>1</td><td><code>UI_DESIRE_HAS_DATA</code></td><td>노출하지 않음</td></tr>
 <tr><td rowspan="9"><code>Keys.Role</code> (<code>keyRole</code>)</td><td>0</td><td><code>ROLE_NONE</code></td><td><code>NONE</code></td></tr>
@@ -300,9 +300,10 @@
 <tr><td><code>sleepStatus</code></td><td><code>AWAKE</code>, <code>ASLEEP</code>, <code>UNKNOWN</code></td></tr>
 <tr><td><code>userPresence</code></td><td><code>PRESENT</code>, <code>NOT_PRESENT</code>, <code>UNKNOWN</code></td></tr>
 <tr><td><code>tonneauPercentOpen</code></td><td>Cybertruck 전용, 그 외에는 <code>null</code></td></tr>
+<tr><td><code>gear</code></td><td><code>PARK</code>, <code>REVERSE</code>, <code>NEUTRAL</code>, <code>DRIVE</code>, <code>UNKNOWN</code>. 차량이 보내지 않은 경우에도 <code>UNKNOWN</code>(proto3에서는 <code>GEAR_UNKNOWN</code>과 구분할 수 없음). Go에 대응하는 것이 없는 Teslemetry 확장 필드이며, 생성자의 마지막 인자</td></tr>
 </tbody>
 </table>
-<p>여덟 개 개폐부는 <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code>, <code>tonneau</code>입니다. 각각 <code>CLOSED</code>, <code>OPEN</code>, <code>AJAR</code>, <code>OPENING</code>, <code>CLOSING</code>, <code>FAILED_UNLATCH</code>, <code>UNKNOWN</code> 중 하나입니다. <code>gear</code>와 <code>uiDesire</code>는 아직 이 모델에 없습니다(M5 예정).</p>
+<p>여덟 개 개폐부는 <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code>, <code>tonneau</code>입니다. 각각 <code>CLOSED</code>, <code>OPEN</code>, <code>AJAR</code>, <code>OPENING</code>, <code>CLOSING</code>, <code>FAILED_UNLATCH</code>, <code>UNKNOWN</code> 중 하나입니다. <code>uiDesire</code>는 아직 이 모델에 없습니다(M5 예정).</p>
 <div class="callout">
 <strong>알 수 없는 값은 실패로 처리하지 않습니다</strong>
 <p>새 차량 펌웨어가 라이브러리가 아직 모르는 값을 보내면, 조회를 실패시키지 않고 해당 필드를 <code>UNKNOWN</code>으로 읽습니다.</p>

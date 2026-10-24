@@ -99,7 +99,7 @@ suspend fun vehicleStatus(timeout: Duration? = null): VehicleResult<VehicleStatu
 | 4 | `userPresence` | `UserPresence_E` | Person in the vehicle | `userPresence` |
 | 5 | `detailedClosureStatus` | `DetailedClosureStatus` | `tonneauPercentOpen` (1, uint32), Cybertruck | `tonneauPercentOpen` (`null` if absent) |
 | 6 | `uiDesire` | `UIDesire_E` (TESLEMETRY-EXT) | In schema only | **Not surfaced** (planned M5) |
-| 7 | `gear` | `Gear_E` (TESLEMETRY-EXT, confirmed on a real car) | Current gear | **Not surfaced** (planned M5) |
+| 7 | `gear` | `Gear_E` (TESLEMETRY-EXT, confirmed on a real car) | Current gear | `gear`; absent or outside the schema becomes `UNKNOWN` |
 | 8 | (unknown, not in schema) | message | Seen on a real car: `{1: 1\|2, 2: 1\|2, 3: 1}`; meaning unknown | Not surfaced |
 
 `ClosureStatuses` has eight `ClosureState_E` fields, numbered 1 to 8: `frontDriverDoor`, `frontPassengerDoor`,
@@ -107,10 +107,12 @@ suspend fun vehicleStatus(timeout: Duration? = null): VehicleResult<VehicleStatu
 
 Mapping rules (`VcsecInfoMapping`): a value outside the schema (found in `unknownFields`) maps to `UNKNOWN` instead of the
 zero value. proto3 cannot tell "missing" from the zero value for enums, so a missing `vehicleLockState` reads as
-`UNLOCKED`; the library keeps that Go behaviour for the query. The real-car results show that the vehicle omits
-`closureStatuses` when everything is closed and sends it while something is open (driver door, charge port seen), so
-"absent = all `CLOSED`" matches what we saw for doors and the charge port. Trunk opened by the interior button was not
-visible in broadcasts, so read the trunk with this query.
+`UNLOCKED`; the library keeps that Go behaviour for the query. `gear` has no Go counterpart (the official Go `vcsec.proto`
+ends at field 5); its zero value is `GEAR_UNKNOWN`, so a missing `gear` reads as `UNKNOWN`. Gear was confirmed in
+broadcasts (B3.1); whether the vehicle fills it in a query reply has not been checked on a real car. The real-car
+results show that the vehicle omits `closureStatuses` when everything is closed and sends it while something is open
+(driver door, charge port seen), so "absent = all `CLOSED`" matches what we saw for doors and the charge port. Trunk
+opened by the interior button was not visible in broadcasts, so read the trunk with this query.
 
 ## A3. `keySummary()`
 
@@ -222,13 +224,13 @@ library does not know maps to `UNKNOWN`.
 `Gear_E` (`VehicleStatus.gear`, field 7, TESLEMETRY-EXT, **Confirmed on a real car**: each of P, R, N, D produced a
 broadcast with the matching value; `GEAR_UNKNOWN` was not seen):
 
-| Value | Name |
-|---|---|
-| 0 | `GEAR_UNKNOWN` |
-| 1 | `GEAR_PARK` |
-| 2 | `GEAR_DRIVE` |
-| 3 | `GEAR_REVERSE` |
-| 4 | `GEAR_NEUTRAL` |
+| Value | Name | Public `Gear` |
+|---|---|---|
+| 0 | `GEAR_UNKNOWN` | `UNKNOWN` |
+| 1 | `GEAR_PARK` | `PARK` |
+| 2 | `GEAR_DRIVE` | `DRIVE` |
+| 3 | `GEAR_REVERSE` | `REVERSE` |
+| 4 | `GEAR_NEUTRAL` | `NEUTRAL` |
 
 `UIDesire_E` (`VehicleStatus.uiDesire`, field 6, TESLEMETRY-EXT, **Schema-only**): 0 `UI_DESIRE_NONE`, 1 `UI_DESIRE_HAS_DATA`. Meaning on a real car is not established.
 
@@ -271,11 +273,12 @@ library sends none of them and has no API for them.
 | `sleepStatus` | `SleepStatus` | `UNKNOWN`, `AWAKE`, `ASLEEP` (Infotainment) |
 | `userPresence` | `UserPresence` | `UNKNOWN`, `NOT_PRESENT`, `PRESENT` |
 | `tonneauPercentOpen` | `Int?` | Cybertruck only; `null` if not reported |
+| `gear` | `Gear` | `UNKNOWN`, `PARK`, `DRIVE`, `REVERSE`, `NEUTRAL`. `UNKNOWN` if not sent (proto3 cannot tell that from `GEAR_UNKNOWN`) or outside the schema. Last constructor parameter. TESLEMETRY-EXT field 7, no Go counterpart (FR-036) |
 
 `Closures` has eight `ClosureState` fields: `frontDriverDoor`, `frontPassengerDoor`, `rearDriverDoor`,
 `rearPassengerDoor`, `rearTrunk`, `frontTrunk`, `chargePort`, `tonneau`. `ClosureState` values: `CLOSED`, `OPEN`, `AJAR`,
 `UNKNOWN`, `FAILED_UNLATCH`, `OPENING`, `CLOSING`. Every enum maps values the library does not know to `UNKNOWN`
-(newer firmware) instead of failing. `gear` and `uiDesire` are not in this model yet (planned M5).
+(newer firmware) instead of failing. `uiDesire` is not in this model yet (planned M5).
 
 ## `WhitelistSummary` and `WhitelistEntry`
 

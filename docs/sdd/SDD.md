@@ -539,7 +539,7 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 
 | 값 객체 | 원본 protobuf | 비고 |
 |---|---|---|
-| `VehicleStatus` | `VCSEC.VehicleStatus` | 잠금 상태, 도어 4, 프렁크·트렁크, 충전구, 톤노(+%), 수면, 탑승자. 알 수 없는 enum은 `UNKNOWN`. `closures`는 non-null — 차량이 `closureStatuses`를 생략하면(모두 닫힘) 전부 `CLOSED`(Go getter 기본값, 실차 확인 2026-10-18) |
+| `VehicleStatus` | `VCSEC.VehicleStatus` | 잠금 상태, 도어 4, 프렁크·트렁크, 충전구, 톤노(+%), 수면, 탑승자, 기어(`gear: Gear`, 필드 7, TESLEMETRY-EXT, FR-036 — 없음과 `GEAR_UNKNOWN`은 proto3에서 구별할 수 없어 둘 다 `UNKNOWN`). 알 수 없는 enum은 `UNKNOWN`. `closures`는 non-null — 차량이 `closureStatuses`를 생략하면(모두 닫힘) 전부 `CLOSED`(Go getter 기본값, 실차 확인 2026-10-18) |
 | `WhitelistSummary`, `WhitelistEntry` | `VCSEC.WhitelistInfo`, `WhitelistEntryInfo` | 공개키, 역할, 형태, 슬롯 |
 | `SessionInfoSummary` | `Signatures.SessionInfo` | status, counter, epoch(hex), clockTime |
 | `VehicleData` | `CarServer.VehicleData` (Wire) | 그대로 노출 |
@@ -710,7 +710,7 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 - `protocol.md` 테스트 키는 `:testing`에만 존재하고 `:sdk`에서 참조하지 않는다(detekt `ForbiddenImport`로 `:testing` → 운영 모듈 유입 차단).
 - 비밀 스캔 로컬 게이트(`tools/ci/verify.sh`, ADR-0012): `[A-HJ-NPR-Z0-9]{17}` VIN 패턴은 테스트 VIN(`5YJ30123456789ABC`, `5YJS0000000000000`, `0123456789ABCDEFG`) 허용 목록만 통과.
 - 서버 없음: Android 매니페스트에 `INTERNET` 권한이 없어야 하며, 로컬 게이트가 확인한다.
-- 관찰 로그(M4): `Dispatcher`가 버리는 메시지와 VCSEC 응답마다 요약 한 줄을 `DEBUG`, 태그 `observe`로 남긴다. 바이트 필드는 길이만, 공개키는 SHA-1 앞 4바이트만, 암호문과 세션정보는 길이만 쓰고, 감싸지 않은 프레임은 `FromVCSECMessage`로 다시 해석해 요약한다(복호화한 평문 페이로드는 쓰지 않는다, FR-112). 단 하나의 좁은 예외로, VCSEC가 원래 평문으로 보낸 `DOMAIN_BROADCAST` 프레임(서명·세션정보·요청 UUID 없음)의 `FromVCSECMessage` 미공개 필드 48·53과 `VehicleStatus` 미공개 필드 7·8은 값을 탐색용으로 상세 디코드한다(깊이 3, 필드 64개, LEN 256바이트 제한. 바이트를 포맷하기 전에 VIN을 가리고, 키·서명처럼 보이는 16/32/33/64/65바이트 LEN은 `redacted(NB)`로 남긴다). 복호화한 것이 아니라 원래 평문이므로 FR-112와 충돌하지 않는다. 형식은 `{{LIB_DOCS_DIR}}18-lib-troubleshooting.md` "Observation log". BLE inbox 넘침은 연결당 횟수를 세어 연결이 끝날 때 한 줄 남긴다.
+- 관찰 로그(M4): `Dispatcher`가 버리는 메시지와 VCSEC 응답마다 요약 한 줄을 `DEBUG`, 태그 `observe`로 남긴다. 바이트 필드는 길이만, 공개키는 SHA-1 앞 4바이트만, 암호문과 세션정보는 길이만 쓰고, 감싸지 않은 프레임은 `FromVCSECMessage`로 다시 해석해 요약한다(복호화한 평문 페이로드는 쓰지 않는다, FR-112). 단 하나의 좁은 예외로, VCSEC가 원래 평문으로 보낸 `DOMAIN_BROADCAST` 프레임(서명·세션정보·요청 UUID 없음)의 `FromVCSECMessage` 미공개 필드 48·53과 `VehicleStatus` 미공개 필드 8, 스키마 밖 값으로 온 필드 7(`gear`)은 값을 탐색용으로 상세 디코드한다(깊이 3, 필드 64개, LEN 256바이트 제한. 바이트를 포맷하기 전에 VIN을 가리고, 키·서명처럼 보이는 16/32/33/64/65바이트 LEN은 `redacted(NB)`로 남긴다). 복호화한 것이 아니라 원래 평문이므로 FR-112와 충돌하지 않는다. 형식은 `{{LIB_DOCS_DIR}}18-lib-troubleshooting.md` "Observation log". BLE inbox 넘침은 연결당 횟수를 세어 연결이 끝날 때 한 줄 남긴다.
 
 ---
 
@@ -748,7 +748,7 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 | 8 | `10-porting-guide.md` §12 보안 체크리스트 | `pkg/connector/ble/ble.go` `-debug` 로그(TX/RX 암호문 헥사) | 매뉴얼은 "복호화 전 페이로드를 로그에 남기지 말 것" — 복호화 전은 암호문이라 같은 줄 설명과 충돌. 뜻은 평문 | 평문 페이로드를 어떤 레벨에서도 로그에 쓰지 않음(FR-112). 2026-10-17 사용자 승인으로 매뉴얼 수정 완료(PRD FR-112, 이 문서 §보안도 같은 표현으로 정정) |
 | 9 | `03-ble-transport.html` `#sec-ids` (ko/en/ja) | `pkg/connector/ble/ble.go:291-300` | 매뉴얼은 "이름이 일치하지만 다른 값을 가진 광고"에서 `unexpected local name` 오류가 난다고 설명. 원본은 호출자가 넘긴 `ScanResult`의 이름이 VIN에서 계산한 이름과 다를 때 재시도 불가 오류 | **원본을 따름**. 2026-10-17 사용자 승인으로 HTML 세 언어 수정 완료(MD `02-ble-transport.md`는 원래 맞음) |
 
-**스키마 출처와 원본(ADR-0002 개정 2026-10-18).** `.proto`는 `{{PROTO_SCHEMA_REPO}}`@`{{PROTO_SCHEMA_COMMIT}}` 스냅샷이지만 동작 기준은 공식 Go다. 공식 Go에 없는 스냅샷 값의 처리: `Session_Info_Status` 2(`INVALID_HANDLE`)는 Go `default: ErrUnknown`처럼 `UnknownResponse`; `MessageFault_E` 29는 `ProtocolFault`(Go는 `RoutableMessageError{Code: 29}`, 메시지 "unrecognized error code 29" — 우리 메시지는 enum 이름)이며 재시도 대상 아님; `WhitelistOperation_information_E` 29~32와 `GenericError_E` 8·9는 이름 있는 `KeychainRejected`·`VcsecRejected`(Go는 코드 숫자만); 새 `Role`·`KeyFormFactor` 값은 모델 `UNKNOWN`; `Domain` 4·5·7·8은 이름 있는 도메인으로 읽히고 핸들러가 없어 드롭(Go와 결과 같음). 응답 AAD의 도메인 값은 Go처럼 원시 값이 된다(전에는 0으로 대체; 이 도메인들은 세션이 없어 복호화하지 않는다).
+**스키마 출처와 원본(ADR-0002 개정 2026-10-18).** `.proto`는 `{{PROTO_SCHEMA_REPO}}`@`{{PROTO_SCHEMA_COMMIT}}` 스냅샷이지만 동작 기준은 공식 Go다. 공식 Go에 없는 스냅샷 값의 처리: `Session_Info_Status` 2(`INVALID_HANDLE`)는 Go `default: ErrUnknown`처럼 `UnknownResponse`; `MessageFault_E` 29는 `ProtocolFault`(Go는 `RoutableMessageError{Code: 29}`, 메시지 "unrecognized error code 29" — 우리 메시지는 enum 이름)이며 재시도 대상 아님; `WhitelistOperation_information_E` 29~32와 `GenericError_E` 8·9는 이름 있는 `KeychainRejected`·`VcsecRejected`(Go는 코드 숫자만); 새 `Role`·`KeyFormFactor` 값은 모델 `UNKNOWN`; `Domain` 4·5·7·8은 이름 있는 도메인으로 읽히고 핸들러가 없어 드롭(Go와 결과 같음). 응답 AAD의 도메인 값은 Go처럼 원시 값이 된다(전에는 0으로 대체; 이 도메인들은 세션이 없어 복호화하지 않는다). `VehicleStatus.gear`(필드 7)는 공식 Go 스키마에 없는 스냅샷 필드지만 실차 브로드캐스트로 의미를 확인해 공개 `Gear`로 노출한다(FR-036). Go에는 대응 동작이 없다(Go는 필드 7을 모르는 필드로 둔다).
 
 HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 나머지 내용은 이번 설계에서 인용한 범위(`01`, `02`, `03`, `05`, `08`, `10`)에서 원본과 일치했다.
 
