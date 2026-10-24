@@ -35,3 +35,6 @@ samples/ios/Sources/Info.plist
 
 # Golden capture output (real vehicle data; never commit)
 tools/fixtures/captures/
+
+# Monitor logs pulled from devices (real vehicle data; never commit)
+samples/logs/

@@ -272,10 +272,12 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 
 ### 5.12 샘플 앱과 로깅
 
+샘플 앱 요구사항은 `{{SAMPLES_DOCS_DIR}}01-requirements.md`(SFR-xxx)에서 관리합니다. 이 PRD는 라이브러리 요구사항만 다룹니다. FR-110·111은 추적을 위해 이관 표시만 남깁니다.
+
 | ID | 요구사항 | P | 도메인 | Go | 근거 |
 |---|---|---|---|---|---|
-| FR-110 | Android 샘플(Compose): VIN 입력, 스캔, 페어링(진행 상태), 키 목록, 잠금/해제/트렁크, VehicleStatus, 깨우기, 공조 on/off, 충전 시작/정지, GetState 1개 이상, 결과 불확실 표시, 디버그 로그 보기 | P0 | – | `examples/ble` | `06-cli-tools examples/`, `09-recipes R1, R4~R6` |
-| FR-111 | iOS 샘플(SwiftUI): FR-110과 같은 흐름을 SKIE Swift API로 구현 | P0 | – | 〃 | 〃 |
+| FR-110 | **샘플 요구사항으로 이관(2026-10-24)** → `{{SAMPLES_DOCS_DIR}}01-requirements.md` SFR-001 (Android 샘플). 원래 내용과 상태는 그 문서에서 관리 | P0 | – | `examples/ble` | `06-cli-tools examples/`, `09-recipes R1, R4~R6` |
+| FR-111 | **샘플 요구사항으로 이관(2026-10-24)** → `{{SAMPLES_DOCS_DIR}}01-requirements.md` SFR-002 (iOS 샘플) | P0 | – | 〃 | 〃 |
 | FR-112 | 디버그 로거 포트: TX/RX 헥사는 디버그 모드에서만, VIN 마스킹, 키·세션키·복호화된(평문) 페이로드는 어떤 레벨에서도 출력하지 않음 | P0 | – | `internal/log`, `-debug` | `08-errors §9.1`, `10-porting-guide §12` |
 
 ### 5.13 HANDOFF §5 ↔ FR 추적 요약
@@ -361,8 +363,8 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | M1 | protocol 전체: Metadata, Signer(암호화·복호화), 세션정보 검증, SlidingWindow, 에러 분류 | FR-013~016, FR-019, FR-103, NFR-017 | Go 클라이언트 측 테스트 포팅본 PASS |
 | M2 | dispatcher + FakeVehicle: 매칭, 핸드셰이크, VCSEC 직렬화·다중 응답, 재시도, 세션 캐시·복구 | FR-010~012, FR-017~018, FR-048~049, FR-100~102, NFR-003, NFR-007, NFR-012 | 시나리오 테스트 전부 PASS |
 | M3 | transport(Kable) + keystore + 샘플 앱 골격 | FR-001~006, FR-020~021, FR-025, FR-028, FR-031, FR-112, NFR-004~006, NFR-009 | 샘플 앱에서 스캔, 연결, 키 목록, VehicleStatus (실차는 사용자 확인) |
-| M4 | 키 등록 + VCSEC 제어 | FR-022~024, FR-026~027, FR-040~047, FR-104, FR-110~111(VCSEC 부분) | 페어링, 잠금, 해제, 트렁크 (실차는 사용자 확인) |
-| M5 | Infotainment 제어 + GetState (P0/P1) | FR-033~034, FR-050~053, FR-060~085, FR-090~092, FR-110~111(전체) | P0/P1 항목 완료, 실차 체크리스트 전달 |
+| M4 | 키 등록 + VCSEC 제어 | FR-022~024, FR-026~027, FR-040~047, FR-104, FR-110~111(VCSEC 부분, → SFR-001~002) | 페어링, 잠금, 해제, 트렁크 (실차는 사용자 확인) |
+| M5 | Infotainment 제어 + GetState (P0/P1) | FR-033~034, FR-050~053, FR-060~085, FR-090~092, FR-110~111(전체, → SFR-001~002) | P0/P1 항목 완료, 실차 체크리스트 전달 |
 | M6 | 문서화, 배포 준비 | `{{LIB_DOCS_DIR}}` 완성, API 문서, NOTICE, mavenLocal/XCFramework 빌드. **마지막 과제**: GitHub Packages + SPM 배포 파이프라인(D13), 소비자용 PAT 설정 문서 | 문서 링크 검증, 배포 설정 |
 | v1.1 | P2 기능 | FR-054, FR-086~089, FR-093~094 | – |
 

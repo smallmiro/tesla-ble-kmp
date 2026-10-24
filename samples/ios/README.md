@@ -1,5 +1,8 @@
 # iOS 샘플
 
+> 샘플 스펙과 제약: `samples/documents/md/`(에이전트용) · `samples/documents/html/`(사람용). 에이전트 지침: `samples/ios/AGENTS.md`.
+> 이 README는 빌드 절차와 실차 확인 절차(runbook)를 담습니다.
+
 1. `./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64`
 2. `cd samples/ios && xcodegen generate`
 3. `open TeslableSample.xcodeproj` 또는

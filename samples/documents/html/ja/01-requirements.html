@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>1. 要件 · tesla-ble-kmp サンプルアプリ</title>
+<link rel="stylesheet" href="../assets/style.css">
+<script src="../assets/theme.js"></script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg class="logo" viewBox="0 0 24 24" aria-hidden="true"><rect x="1" y="1" width="22" height="22" rx="6"/><path d="M8 8.5l8 7-4 3.5v-14l4 3.5-8 7"/></svg><span>tesla-ble-kmp <b>Samples</b></span></a>
+  <span class="top-sub">サンプルアプリ仕様</span>
+  <div class="theme-switch" role="radiogroup" aria-label="テーマ">
+    <button type="button" role="radio" aria-checked="false" data-theme-choice="light" title="ライト" aria-label="ライト"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg></button>
+    <button type="button" role="radio" aria-checked="false" data-theme-choice="dark" title="ダーク" aria-label="ダーク"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg></button>
+    <button type="button" role="radio" aria-checked="false" data-theme-choice="system" title="システム" aria-label="システム"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="12" rx="2"/><path d="M8 20h8M12 16v4"/></svg></button>
+  </div>
+  <details class="lang-menu">
+    <summary aria-label="Language"><svg class="i" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M3 12h18M12 3c2.5 2.6 3.8 5.6 3.8 9s-1.3 6.4-3.8 9c-2.5-2.6-3.8-5.6-3.8-9S9.5 5.6 12 3z"/></svg><span>日本語</span></summary>
+    <ul>
+      <li><a href="../ko/01-requirements.html" hreflang="ko" lang="ko">한국어</a></li>
+      <li><a href="../en/01-requirements.html" hreflang="en" lang="en">English</a></li>
+      <li><a class="active" aria-current="true" href="../ja/01-requirements.html" hreflang="ja" lang="ja">日本語</a></li>
+    </ul>
+  </details>
+</header>
+<div class="layout">
+<nav class="sidebar">
+  <ol>
+    <li><a href="index.html">ホーム</a></li>
+    <li class="group">サンプルアプリ</li>
+    <li><a class="active" href="01-requirements.html">1. 要件</a></li>
+    <li><a href="02-constraints.html">2. 制約</a></li>
+    <li><a href="03-current-apps.html">3. 現在のアプリ</a></li>
+  </ol>
+</nav>
+<main class="content">
+<h1>1. 要件</h1>
+<p class="lead">サンプルの要件には独自の ID <code>SFR-xxx</code> を使い、ライブラリの <code>FR-xxx</code> や <code>NFR-xxx</code> と混ざらないようにしています。これらの要件は 2026-10-24 にライブラリの PRD からここへ移しました。PRD が扱うのは今後ライブラリだけです。</p>
+
+<div class="toc"><strong>このページの内容</strong><ol>
+<li><a href="#sec-list">要件一覧</a></li>
+<li><a href="#sec-rules">要件を追加するときのルール</a></li>
+</ol></div>
+
+<h2 id="sec-list">要件一覧</h2>
+<table>
+<thead><tr><th>ID</th><th>要件</th><th>プラットフォーム</th><th>状態</th><th>出典</th></tr></thead>
+<tbody>
+<tr><td>SFR-001</td><td>ライブラリを一通り試せる Android サンプル（Compose）。VIN 入力、スキャン、接続、進捗イベント付きペアリング、キー一覧と削除、ロック、アンロック、トランク、フランク、<code>vehicleStatus()</code>、ウェイクアップ、不確定な結果の表示と再取得、デバッグログ画面を含みます。エアコンのオン/オフ、充電の開始/停止、少なくとも 1 つの <code>getState</code> は、ライブラリが提供された時点（M5）で追加します。</td><td>Android</td><td><span class="badge ok">VCSEC 完了</span> M4。デバッグログ画面は未完了です（Android サンプルはロガーを設定していません）。インフォテインメント関連の項目は M5 待ちです。</td><td>PRD FR-110</td></tr>
+<tr><td>SFR-002</td><td>SKIE が生成する Swift API を使い、SFR-001 と同じフローを備えた iOS サンプル（SwiftUI）。加えて、<code>observe</code> のログ行を収集する観察モード、マークボタン、全件コピーを備えます。</td><td>iOS</td><td><span class="badge ok">VCSEC 完了</span> M4。観察モードを含みます。インフォテインメント関連の項目は M5 待ちです。</td><td>PRD FR-111</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-rules">要件を追加するときのルール</h2>
+<ul>
+<li>新しい要件には、次に空いている <code>SFR-</code> 番号を付けます。<code>docs/superpowers/specs/2026-10-24-vehicle-events-monitor-design.md</code> で計画している監視アプリは <code>SFR-010</code> から始まります。</li>
+<li>ライブラリマニュアルに「使用可能」と書かれていないライブラリ機能が必要な要件は、状態を「ライブラリ待ち」にしてここに書き、<code>library-api-request</code> スキルで要望を出します（<a href="02-constraints.html">2. 制約</a>を参照）。</li>
+<li>状態を表す言葉は、予定、進行中、完了、ライブラリ待ち、M5 待ちです。</li>
+</ul>
+
+<footer class="page-nav">
+  <a href="index.html"><span>前へ</span>ホーム</a>
+  <a class="next" href="02-constraints.html"><span>次へ</span>2. 制約</a>
+</footer>
+</main>
+</div>
+</body>
+</html>
