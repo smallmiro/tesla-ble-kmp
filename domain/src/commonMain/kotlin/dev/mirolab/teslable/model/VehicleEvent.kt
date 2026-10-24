@@ -30,7 +30,7 @@ public sealed interface VehicleEvent {
     public val unknownFields: List<String>
 
     /**
-     * `FromVCSECMessage.vehicleStatus`(1). [status]는 `vehicleStatus()` 조회와 같은 규칙으로 만든다: 차량은 열린 곳이 있을 때만
+     * `FromVCSECMessage.vehicleStatus`(1). [status]는 `vehicleStatus()` 조회와 같은 규칙으로 만든다: 차량은 `CLOSED`가 아닌 필드가 있을 때만
      * `closureStatuses`를 보내므로 없으면 모두 `CLOSED`, 모르는 enum 값은 `UNKNOWN`, `gear`도 같은 규칙. **트렁크 주의:** 밖에서 손으로
      * 열고 닫은 트렁크는 브로드캐스트로 왔지만, 실내 버튼으로 열고 닫았을 때는 오지 않았다. 트렁크 상태가 중요하면 `vehicleStatus()`로
      * 확인한다. 잠든 차가 깨어나는 첫 프레임들은 개폐 상태와 `gear`가 `UNKNOWN`일 수 있다.

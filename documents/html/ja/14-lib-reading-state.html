@@ -157,7 +157,7 @@
 <tr><td>1</td><td><code>closureStatuses</code></td><td><code>ClosureStatuses</code></td><td>開口部ごとの状態。<strong>何かが開いているときだけ送信</strong></td><td><code>closures</code>。なければすべて <code>CLOSED</code></td></tr>
 <tr><td>2</td><td><code>vehicleLockState</code></td><td><code>VehicleLockState_E</code></td><td>ロック状態</td><td><code>lockState</code></td></tr>
 <tr><td>3</td><td><code>vehicleSleepStatus</code></td><td><code>VehicleSleepStatus_E</code></td><td>インフォテインメントのスリープ状態</td><td><code>sleepStatus</code></td></tr>
-<tr><td>4</td><td><code>userPresence</code></td><td><code>UserPresence_E</code></td><td>車内の人</td><td><code>userPresence</code></td></tr>
+<tr><td>4</td><td><code>userPresence</code></td><td><code>UserPresence_E</code></td><td>車内または車のそばの人（ドアを開けて外に立っていても <code>PRESENT</code>、B3.1）</td><td><code>userPresence</code></td></tr>
 <tr><td>5</td><td><code>detailedClosureStatus</code></td><td><code>DetailedClosureStatus</code></td><td><code>tonneauPercentOpen</code>（1、uint32）、Cybertruck</td><td><code>tonneauPercentOpen</code>（なければ <code>null</code>）</td></tr>
 <tr><td>6</td><td><code>uiDesire</code></td><td><code>UIDesire_E</code>（Teslemetry）</td><td>スキーマにのみ存在</td><td><strong>公開しない</strong>（M5 予定）</td></tr>
 <tr><td>7</td><td><code>gear</code></td><td><code>Gear_E</code>（Teslemetry、ブロードキャストでのみ実車確認、問い合わせ応答は未確認）</td><td>現在のギア</td><td><code>gear</code>。欠けているかスキーマ外の値なら <code>UNKNOWN</code></td></tr>
@@ -167,7 +167,7 @@
 <p><code>ClosureStatuses</code> には 1〜8 番の <code>ClosureState_E</code> フィールドが 8 つあります: <code>frontDriverDoor</code>、<code>frontPassengerDoor</code>、<code>rearDriverDoor</code>、<code>rearPassengerDoor</code>、<code>rearTrunk</code>、<code>frontTrunk</code>、<code>chargePort</code>、<code>tonneau</code>。</p>
 <div class="callout">
 <strong>変換規則</strong>
-<p>スキーマ外の値は 0 番の値ではなく <code>UNKNOWN</code> に変換します。proto3 では欠けた enum と 0 番の値を区別できないため、ロック状態が欠けると <code>UNLOCKED</code> と読まれ、クエリでは Go の動作をそのまま踏襲しています。<code>gear</code> には Go 側の対応がありません（公式 Go のスキーマはフィールド 5 まで）。0 番の値が <code>GEAR_UNKNOWN</code> なので、ギアが欠けると <code>UNKNOWN</code> と読まれます。ギアはブロードキャストで確認しましたが、車両がクエリの応答にギアを入れるかは実車で確認していません。実車の結果では、車両はすべてのフィールドが <code>CLOSED</code>（0 番の値）のとき <code>closureStatuses</code> を省き、1 つでもそうでなければ送ってくるため（運転席と後席側のドア、リアトランク、充電ポートで確認）、「なければすべて閉」は観測と合っています。唯一の例外は室内ボタンで操作したトランクで、ブロードキャストがまったくありませんでしたが、このクエリでは報告されます。</p>
+<p>スキーマ外の値は 0 番の値ではなく <code>UNKNOWN</code> に変換します。proto3 では欠けた enum と 0 番の値を区別できないため、ロック状態が欠けると <code>UNLOCKED</code> と読まれ、クエリでは Go の動作をそのまま踏襲しています。<code>gear</code> には Go 側の対応がありません（公式 Go のスキーマはフィールド 5 まで）。0 番の値が <code>GEAR_UNKNOWN</code> なので、ギアが欠けると <code>UNKNOWN</code> と読まれます。ギアはブロードキャストで確認しましたが、車両がクエリの応答にギアを入れるかは実車で確認していません。実車の結果では、車両はすべてのフィールドが <code>CLOSED</code>（0 番の値）のとき <code>closureStatuses</code> を省き、1 つでもそうでなければ送ってくるため（運転席と運転席側の後席ドア、リアトランク、充電ポートで確認）、「なければすべて閉」は観測と合っています。唯一の例外は室内ボタンで操作したトランクで、ブロードキャストがまったくありませんでしたが、このクエリでは報告されるはずです（実車ではまだ確認していません）。</p>
 </div>
 
 <h2 id="sec-a-summary">A3. keySummary()</h2>
@@ -421,8 +421,8 @@
 <h3>アプリが守るルール</h3>
 <ul>
 <li><strong>繰り返しは変化ではありません。</strong>車両は何も変わらなくても 1〜25 秒ごとに、ときには 1 秒以内に何度も状態を送り直します。ライブラリは繰り返しを除かないので、前の値と自分で比べてください。</li>
-<li><strong>トランク:</strong> 外側から手でトランクを開け閉めしたときはブロードキャストが来ました (<code>rearTrunk = OPEN</code>、その後 <code>closureStatuses</code> なし)。室内ボタンでは<strong>来なかった</strong>ため、その方法で動かしたトランクは、次のブロードキャストが届くまで <code>events</code> 上では <code>CLOSED</code> のままです。トランクの状態が重要なときは <code>vehicleStatus()</code> で確認してください。</li>
-<li><strong>起動中の車両:</strong> スリープ中の車両の最初のフレームでは、開閉状態が <code>UNKNOWN</code>、<code>gear = UNKNOWN</code> になることがあります。実際の値は約 0.5 秒以内に続きます (B3.1)。これらの <code>UNKNOWN</code> を変化として扱わないでください。</li>
+<li><strong>トランク:</strong> 外側から手でトランクを開け閉めしたときはブロードキャストが来ました (<code>rearTrunk = OPEN</code>、その後 <code>closureStatuses</code> なし)。室内ボタンでは<strong>来なかった</strong>ため、<code>events</code> でトランクを追跡するアプリには <code>CLOSED</code> のまま見えます。トランクの状態が重要なときは <code>vehicleStatus()</code> で確認してください。</li>
+<li><strong>起動中の車両:</strong> スリープ中の車両の最初のフレームでは、開閉状態が <code>UNKNOWN</code>、<code>gear = UNKNOWN</code> になることがあります。実際の値は約 0.5 秒以内に続きます (B3.1)。これらの <code>UNKNOWN</code> を変化として扱わないでください。これらのフレームではロック状態も <code>UNLOCKED</code> と読まれますが、<code>UNLOCKED</code> はエンコードされない値なので、車両がまだロックされていたかは分かりません。重要な場合は <code>vehicleStatus()</code> で確認してください。</li>
 <li><strong>購読:</strong> 収集は始めた瞬間から受け取ります。それより前のブロードキャストは再送されません。複数の場所で収集すると、それぞれがすべてのイベントを受け取ります。</li>
 <li><strong>終わり:</strong> <code>connection</code> が理由を問わず <code>Disconnected</code> になるか <code>disconnect()</code> を呼ぶと、先に起きたほうでフローは例外なく正常に終わります。その後に始めた収集はすぐに終わります。その瞬間に受け渡し中だったフレームは失われることがあります。再接続の判断は <code>connection</code> で行い、リンクが切れた後も <code>disconnect()</code> は呼んでください。新しい接続は、自分の <code>events</code> を持つ新しい <code>Vehicle</code> です。</li>
 <li><strong>遅い収集側:</strong> ライブラリは遅れた収集側のためにフレームを 64 個まで保持します。それを超えると、その接続のすべての収集側から新しいフレームが抜け、破棄数を数え、最初と 100 回ごとに <code>WARN</code> の行を出します。エラーではありません (<a href="16-lib-errors.html">16. エラー処理</a>)。収集処理は軽く保ってください。</li>
@@ -451,13 +451,13 @@
 <tr><td><code>vehicleSleepStatus</code> (3)</td><td><span class="badge ok">確認済み</span></td><td>1 回目と 2 回目: すべての行が <code>AWAKE</code>。3 回目: スリープ中の車両の外側ハンドルを引いたとき、最初の 2 フレームは <code>ASLEEP</code>、約 0.1 秒後に <code>AWAKE</code></td></tr>
 <tr><td><code>userPresence</code> (4)</td><td><span class="badge ok">確認済み</span></td><td>着席中は <code>PRESENT</code>、降りた後は <code>NOT_PRESENT</code>。人がドアを開けて外に立っているときも <code>PRESENT</code>（後席ドアを開けてから約 2.6 秒後、運転席ドアを外から開けてから約 0.1 秒後）、後席ドアを閉めて約 0.2 秒後にまた <code>NOT_PRESENT</code>。つまり <code>PRESENT</code> は「着席」を意味しません</td></tr>
 <tr><td><code>gear</code> (7)</td><td><span class="badge ok">確認済み</span></td><td>P/R/N/D を変えるたびにブロードキャストがちょうど 1 つ届き、<code>gear</code> が操作順と一致しました（<code>GEAR_REVERSE</code>、<code>GEAR_NEUTRAL</code>、<code>GEAR_DRIVE</code>、<code>GEAR_PARK</code>、2 回続けて）。操作どおり約 10 秒間隔でした。インフォテインメントのセッションなしで、未登録のキーでも届きます</td></tr>
-<tr><td><code>closureStatuses</code> (1)</td><td>運転席ドア、後席側ドア、リアトランク、充電ポートで <span class="badge ok">確認済み</span></td><td><strong>いずれかのフィールドが <code>CLOSED</code> でないときだけ存在</strong>し、すべて <code>CLOSED</code> のときはなくなります（フレームサイズは、0 番の値を決してエンコードしない proto3 と一致します）。運転席ドアを室内ハンドル（2 回目）または外側ハンドル（3 回目）で開けると <code>frontDriverDoor = OPEN</code>、閉めるとまた消えます。後席側ドアを外から開けると <code>rearDriverDoor = OPEN</code>。リアトランクを外から手で開け閉めすると <code>rearTrunk = OPEN</code>、その後なくなります。充電ポート: 開けると <code>chargePort = OPEN</code>（2 回目）、充電器を挿したままドアハンドルを握ってラッチを解除したときも <code>chargePort = OPEN</code>（3 回目）で、プラグを抜いてポートドアが閉まるとまた消えます。充電器を挿してラッチされた状態では <code>CLOSED</code> と読めたため、<code>CLOSED</code> は「ケーブルなし」を意味しません。トランクを室内ボタンで操作したときは<strong>ブロードキャストがまったくありませんでした</strong>。起動中の車両: 最初のフレームでは 4 つのドアと 2 つのトランクが <code>UNKNOWN</code>（値 3）で、<code>frontTrunk</code> は 1 フレーム長く <code>UNKNOWN</code> のままでした。未検証: 助手席側ドア、フロントトランク、カードキー・スマートフォンキー・アプリによるトランク操作</td></tr>
+<tr><td><code>closureStatuses</code> (1)</td><td>運転席ドア、運転席側の後席ドア、リアトランク、充電ポートで <span class="badge ok">確認済み</span></td><td><strong>いずれかのフィールドが <code>CLOSED</code> でないときだけ存在</strong>し、すべて <code>CLOSED</code> のときはなくなります（フレームサイズは、0 番の値を決してエンコードしない proto3 と一致します）。運転席ドアを室内ハンドル（2 回目）または外側ハンドル（3 回目）で開けると <code>frontDriverDoor = OPEN</code>、閉めるとまた消えます。運転席側の後席ドアを外から開けると <code>rearDriverDoor = OPEN</code>。リアトランクを外から手で開け閉めすると <code>rearTrunk = OPEN</code>、その後なくなります。充電ポート: 開けると <code>chargePort = OPEN</code>（2 回目）、充電器を挿したままドアハンドルを握ってラッチを解除したときも <code>chargePort = OPEN</code>（3 回目）で、プラグを抜いてポートドアが閉まるとまた消えます。充電器を挿してラッチされた状態では <code>CLOSED</code> と読めたため、<code>CLOSED</code> は「ケーブルなし」を意味しません。トランクを室内ボタンで操作したときは<strong>ブロードキャストがまったくありませんでした</strong>。起動中の車両: 最初のフレームでは 4 つのドアと 2 つのトランクが <code>UNKNOWN</code>（値 3）で、<code>frontTrunk</code> は 1 フレーム長く <code>UNKNOWN</code> のままでした。未検証: 助手席側ドア、フロントトランク、カードキー・スマートフォンキー・アプリによるトランク操作</td></tr>
 <tr><td><code>uiDesire</code> (6)</td><td><span class="badge info">スキーマのみ</span></td><td>意味は未確立</td></tr>
 <tr><td><code>detailedClosureStatus</code> (5)</td><td><span class="badge info">スキーマのみ</span></td><td>Cybertruck のトノカバー。Model Y ではデータなし</td></tr>
 <tr><td>フィールド 8（スキーマになし）</td><td><span class="badge warn">不明</span></td><td><code>{1: 1|2, 2: 1|2, 3: 1}</code>。下位 1 は周期的に 1 と 2 を行き来します。下位 2 は充電ポートを開けて充電が始まったときに 2 から 1 に変わり（2 回目）、充電器を挿している間は 1 で、プラグを抜いた後に充電ポートが閉じたとき 1 から 2 に変わりました（3 回目）。充電ケーブルまたは充電の状態（1 = 使用中、2 = アイドル）かもしれませんが、<strong>未確認</strong>です（変化はケーブルを抜いてから 5 秒以上後のポートドアの閉鎖と同時でした）。下位 3 は常に 1 でした。ウインカーやライトとは無関係です</td></tr>
 </tbody>
 </table>
-<p>確認した発生契機: ギア変更、ロック変更（着席中の室内ロック、離れるときのロック）、室内ハンドルと外側ハンドルでのドアの開閉（運転席側と後席側のドア）、外から手でのトランクの開閉、充電ポートの開放・ラッチ解除・閉鎖、充電開始、在車状態の変化、起動。</p>
+<p>確認した発生契機: ギア変更、ロック変更（着席中の室内ロック、離れるときのロック）、室内ハンドルと外側ハンドルでのドアの開閉（運転席側と運転席側の後席ドア）、外から手でのトランクの開閉、充電ポートの開放・ラッチ解除・閉鎖、充電開始、在車状態の変化、起動。</p>
 <p>頻度: 変化がなくても繰り返し届きます。1 回目は起きている間 1〜25 秒ごと（<code>UNLOCKED</code> は 26 バイト、それ以外は 28 バイト）、2 回目は 1 秒以内に複数届くこともありました。3 回目は起動中の 0.5 秒以内に 9 フレーム、その後は変化があるあいだ 0.1〜8 秒に 1 回でした。繰り返しを変化として扱わないでください。</p>
 <p>ライブラリの規則: <code>closureStatuses</code> がなければすべて閉と見なします (A2)。両方の運転席側ドア、リアトランク、充電ポートで確認済みです。間違いになるのは、ブロードキャストを送らない室内ボタン操作のトランクだけです。<code>UNLOCKED</code> はロック状態の 0 番の値で、エンコードされないため、ブロードキャストではロック状態が欠けている場合と区別できません（車両がまだ <code>ASLEEP</code> の間に確認）。</p>
 
@@ -507,7 +507,7 @@
 <h2 id="sec-b-method">B5. 観察方法と環境</h2>
 <ul>
 <li>iPhone 16 Pro、iOS 27、Model Y（ファームウェアは未記録）。サンプル <code>dev.mirolab.TeslableSampleDevice</code> ビルド 7 と 8、キー <code>SECURE_ENCLAVE</code>。観察にキーの登録は不要です。</li>
-<li>1 回目 2026-10-18（ビルド 7、連続した記録 1 本、71 行）。2 回目 2026-10-24（ビルド 8、未知フィールドの詳細デコード、シナリオごとの記録）。3 回目 2026-10-24（ビルド 8、40 秒・25 行の記録 1 本: スリープ中でロックされた車両、後席側ドアを外から開ける、ハンドルを握ったまま充電ポートのラッチを解除、充電器のプラグを抜く、後席ドアを閉める、充電ポートのドアを閉める、トランクを外から手で開け閉めする、運転席ドアを外から開け閉めする）。</li>
+<li>1 回目 2026-10-18（ビルド 7、連続した記録 1 本、71 行）。2 回目 2026-10-24（ビルド 8、未知フィールドの詳細デコード、シナリオごとの記録）。3 回目 2026-10-24（ビルド 8、40 秒・25 行の記録 1 本: スリープ中でロックされた車両、運転席側の後席ドアを外から開ける、ハンドルを握ったまま充電ポートのラッチを解除、充電器のプラグを抜く、後席ドアを閉める、充電ポートのドアを閉める、トランクを外から手で開け閉めする、運転席ドアを外から開け閉めする）。</li>
 <li>再現手順: サンプルの観察モードをオンにし、シナリオを実行してから、表示ボタン（と「結果全体をコピー」）を押します。詳細とログの書式は <a href="18-lib-troubleshooting.html">18. トラブルシューティング</a> を参照してください。</li>
 </ul>
 
