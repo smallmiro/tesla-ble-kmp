@@ -171,6 +171,20 @@ final class ConnectionLoopTests: XCTestCase {
         XCTAssertEqual(f.state, .stopped)
     }
 
+    func testOverlappingStopsPublishStoppedOnce() async {
+        let f = Fixture([.connected("car1")])
+        f.loop.start()
+        await f.waitForState("car1 connected") { $0 == .connected("car1") }
+
+        // 끊기와 VIN 지우기를 같이 누른 경우: link 줄 `stopped` 가 두 번 쓰이면 안 된다
+        async let first: Void = f.loop.stop()
+        async let second: Void = f.loop.stop()
+        _ = await (first, second)
+
+        XCTAssertEqual(f.transitions.value.filter { $0 == .stopped }.count, 1)
+        XCTAssertEqual(f.state, .stopped)
+    }
+
     func testManualDisconnectDuringBackoffStopsReconnect() async {
         let f = Fixture([])
         f.loop.start()

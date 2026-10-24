@@ -165,6 +165,8 @@ final class ConnectionLoop<V: Sendable & Equatable>: @unchecked Sendable {
         defer { transitionLock.unlock() }
         let allowed: Bool = lock.withLock {
             if onlyIfNoRunningLoop && job != nil { return false }
+            // 겹친 stop() 두 번(끊기 + VIN 지우기)이 `stopped` 를 두 번 알리지 않게 한다.
+            if current == next, case .stopped = next { return false }
             current = next
             return true
         }
