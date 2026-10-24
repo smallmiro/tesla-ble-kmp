@@ -111,14 +111,6 @@ internal class ObservationLog(
         return "FromVCSECMessage{${parts.joinToString(", ")}}"
     }
 
-    /** 상세 디코드의 입구: VCSEC가 보낸 원래 평문 브로드캐스트(서명·세션 정보·요청 UUID 없음)만. */
-    private fun isPlainBroadcast(message: RoutableMessage): Boolean =
-        message.from_destination?.domain == Domain.DOMAIN_VEHICLE_SECURITY &&
-            message.to_destination?.domain == Domain.DOMAIN_BROADCAST &&
-            message.request_uuid.size == 0 &&
-            message.signature_data == null &&
-            message.session_info == null
-
     /** 도착 순서의 unknownFields 요약. [detailed] 번호만 값을 풀고 나머지는 번호만. */
     private fun unknownFields(
         bytes: ByteString,
