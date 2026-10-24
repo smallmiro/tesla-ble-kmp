@@ -36,7 +36,7 @@ Handle lifetime (issue #97):
 - `VehicleKey` has no `close()` and needs none. Keep the key while you use it, then drop the reference.
 - On iOS and Android, `get` and `getOrCreate` return a new handle to the same stored key on every call
   (`inMemoryVehicleKeyStore()` returns the same instance). Reading the key again, for example right before each
-  connection (§Key accessibility), does not accumulate handles.
+  connection, does not accumulate handles.
 - A `Vehicle` keeps a reference to the key it was connected with, so the app may drop its own reference after
   `connect`.
 - iOS: each key object owns one platform reference (`SecKeyRef`) and releases it exactly once after the object is
@@ -102,7 +102,7 @@ Invariants:
     after the phone locks (per API, not confirmed on a device). Only reading it from the key store returns `Locked`.
   - Not yet confirmed on a device: that iOS reports the locked Secure Enclave ECDH as `errSecInteractionNotAllowed`
     (-25308). If iOS reports another error, `startSession()` still ends with `Failure(Timeout(afterSend = false))`.
-  - Keep using one key object: every read returns a new handle (ADR-0014).
+  - Keep using one key object: reading it again from the key store while the phone is locked returns `Locked`.
 - `WHEN_UNLOCKED` does not stop an established session when the screen locks: commands in a live session need no
   private-key operation. Only a new handshake and restoring a cached session use the private key.
 
