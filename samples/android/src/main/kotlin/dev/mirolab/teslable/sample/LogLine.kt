@@ -32,6 +32,7 @@ class LogLine private constructor(
 
     override fun toString(): String = toJson()
 
+    @Suppress("TooManyFunctions") // 줄 종류마다 팩토리 하나(session, event, query, ...): 종류가 늘면 함수도 는다
     companion object {
         const val MEMO_MAX = 80
         private const val HEX_DIGITS = "0123456789abcdef"

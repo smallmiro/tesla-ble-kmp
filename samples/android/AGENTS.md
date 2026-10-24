@@ -18,6 +18,8 @@
 |---|---|
 | 빌드 | `./gradlew :samples:android:assembleDebug` |
 | 단위 테스트 | `./gradlew :samples:android:testDebugUnitTest` |
+| 스타일·정적 분석 | `./gradlew :samples:android:lintKotlin :samples:android:detekt` (포맷 수정은 `:samples:android:formatKotlin`) |
 | 전체 게이트 | `tools/ci/verify.sh` |
 
+- 샘플도 라이브러리와 같은 ktlint·detekt 게이트를 통과해야 합니다(`verify.sh` 단계 (a)). `explicitApi`·`forbiddenTokens` 는 적용하지 않고, 앱 코드라서 필요한 완화만 `config/detekt/detekt-samples.yml` 에 이유와 함께 둡니다. 한 곳에만 해당하는 예외는 코드에 `@Suppress` + 이유 주석으로 남깁니다.
 - 실기기 확인은 체크리스트로 하고 결과에 VIN·공개키 전문을 적지 않습니다.

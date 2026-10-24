@@ -150,7 +150,7 @@
 <li><strong>Query タブ。</strong> 間隔を変えるとすぐに 1 回問い合わせ、そこから数え直します。問い合わせは車を起こしません。</li>
 <li><strong>ログファイル。</strong> サイズは 10 進の MB です（20 000 000 バイトと 200 000 000 バイト）。削除はフォルダを上限以下に保ち、書き込み中のファイルは消しません。同じ秒に 2 つのファイルが始まるときは、2 つ目の名前を 1 秒後にします。行は書くたびにフラッシュします。書き込みのキューは 4096 行で、いっぱいになると、待たずに新しい行を捨てて数えます（Log タブ）。書き込みエラー（ディスクがいっぱい、フォルダがないなど）はその行を捨てたものとして数え、次の行でファイルを開き直します。アプリは落ちません。</li>
 <li><strong>取り出し。</strong> <code>adb pull</code> はファイルを <code>samples/logs/android/&lt;date&gt;/logs/</code> に置きます。</li>
-<li><strong>ゲートの対象外。</strong> <code>lintKotlin</code> と <code>detekt</code> はライブラリのモジュールにだけ動き、<code>samples/</code> には動きません。</li>
+<li><strong>スタイルゲート。</strong> <code>lintKotlin</code> と <code>detekt</code> は <code>:samples:android</code>（main と test のソース）にも動くので、<code>tools/ci/verify.sh</code> のステップ (a) がこのモジュールを検査します。ライブラリ専用のルール（<code>explicitApi</code>、<code>forbiddenTokens</code>）はサンプルには適用しません。detekt は <code>detekt.yml</code> の上に <code>config/detekt/detekt-samples.yml</code> を重ねます（Compose の関数名と長さ、<code>android.*</code> の import、省略できる注入引数）。<code>samples/ios/</code> の Swift ソースはこの Kotlin タスクの対象外です。</li>
 </ul>
 
 <h2 id="sec-ios">iOS の実装</h2>

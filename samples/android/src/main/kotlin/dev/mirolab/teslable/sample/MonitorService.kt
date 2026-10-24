@@ -29,6 +29,8 @@ class MonitorService : Service() {
 
     /** 알림의 "중지"를 처리하는 동안 새 시작 명령(연결 버튼)이 오면 그 중지는 서비스를 내리지 않는다. */
     private var stopToken = 0
+
+    @Suppress("LateinitUsage") // Service 는 생성자 대신 onCreate 에서 application 을 얻은 뒤에야 엔진을 쓸 수 있다
     private lateinit var engine: MonitorEngine
 
     override fun onCreate() {

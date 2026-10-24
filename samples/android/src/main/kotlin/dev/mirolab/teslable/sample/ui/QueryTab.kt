@@ -25,6 +25,9 @@ import androidx.compose.ui.unit.dp
 import dev.mirolab.teslable.sample.LinkState
 import dev.mirolab.teslable.sample.MonitorEngine
 
+/** 조회 주기 입력 칸의 최대 자릿수(초 단위). */
+private const val MAX_SECONDS_DIGITS = 4
+
 private val calls = listOf("vehicleStatus", "keySummary", "listKeys")
 
 /** Query 탭(SFR-015): 주기 조회 결과(Success / Uncertain / Failure와 시각), 조회 주기, 지금 조회. */
@@ -48,7 +51,7 @@ fun QueryTab(engine: MonitorEngine) {
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = secondsText,
-                onValueChange = { secondsText = it.filter(Char::isDigit).take(4) },
+                onValueChange = { secondsText = it.filter(Char::isDigit).take(MAX_SECONDS_DIGITS) },
                 label = { Text("조회 주기(초)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,

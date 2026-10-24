@@ -138,7 +138,7 @@ How it behaves, where the design left room:
   (Log tab) instead of blocking. A write error (disk full, folder gone) drops that line (counted) and the next line opens a file
   again; it never crashes the app.
 - **Pulling.** `adb pull` puts the files in `samples/logs/android/<date>/logs/`.
-- **Not covered by the gate.** `lintKotlin` and `detekt` run only on library modules, not on `samples/`.
+- **Style gate.** `lintKotlin` and `detekt` also run on `:samples:android` (main and test sources), so `tools/ci/verify.sh` step (a) covers it. The library-only rules (`explicitApi`, `forbiddenTokens`) do not apply to the sample; detekt layers `config/detekt/detekt-samples.yml` on `detekt.yml` (Compose function naming and length, `android.*` imports, optional injection parameters). The Swift sources in `samples/ios/` are not covered by these Kotlin tasks.
 
 ## iOS implementation
 

@@ -28,7 +28,10 @@ class VinMaskTest {
 
     @Test
     fun bytesWithoutVinAreUnchanged() {
-        val raw = byteArrayOf(1, 2, 3, 0x00) + "AAAAAAAAAAAAAAAA".toByteArray() + byteArrayOf(0x00) + "AAAAIAAAAAAAAAAAA".toByteArray() // 16자, 그리고 I가 든 17자
+        // 16자, 그리고 I가 든 17자
+        val raw =
+            byteArrayOf(1, 2, 3, 0x00) + "AAAAAAAAAAAAAAAA".toByteArray() + byteArrayOf(0x00) +
+                "AAAAIAAAAAAAAAAAA".toByteArray()
         assertContentEquals(raw, VinMask.maskBytes(raw))
     }
 
@@ -44,7 +47,9 @@ class VinMaskTest {
 
     @Test
     fun textWithoutVinIsUnchanged() {
-        val text = "[drop:no-handler] 83B from=domain(DOMAIN_VEHICLE_SECURITY) 5YJ**********0000 lowercase5yjs0000000000000 IOQIOQIOQIOQIOQIO"
+        val text =
+            "[drop:no-handler] 83B from=domain(DOMAIN_VEHICLE_SECURITY) 5YJ**********0000 " +
+                "lowercase5yjs0000000000000 IOQIOQIOQIOQIOQIO"
         assertEquals(text, VinMask.maskText(text))
     }
 

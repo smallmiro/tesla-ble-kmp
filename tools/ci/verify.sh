@@ -36,7 +36,7 @@ fail() {
   exit 1
 }
 
-# (a) ci.yml: lint, jvm-test, android, ios 잡의 Gradle 스텝을 한 번의 호출로.
+# (a) ci.yml: lint, jvm-test, android, ios 잡의 Gradle 스텝을 한 번의 호출로. lintKotlin/detekt 는 :samples:android 도 포함(NFR-015).
 step "gradle: check lintKotlin detekt forbiddenTokens jvmTest testAndroidHostTest :samples:android:assembleDebug iosSimulatorArm64Test apiCheck :sdk:linkDebugFrameworkIosSimulatorArm64"
 ./gradlew check lintKotlin detekt forbiddenTokens jvmTest testAndroidHostTest \
   :samples:android:assembleDebug iosSimulatorArm64Test apiCheck \

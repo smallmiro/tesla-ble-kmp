@@ -54,6 +54,7 @@ data class LogStats(
  * - [maxFileBytes]를 넘기게 되면 새 파일(기본 20 MB). 폴더 합계가 [maxTotalBytes]를 넘으면 가장 오래된 파일부터 지운다(기본 200 MB).
  * - 같은 초에 새 파일이 겹치면 이름의 초를 하나 올려서 이름 순서가 곧 시간 순서가 되게 한다.
  */
+@Suppress("TooManyFunctions") // 큐 소비, 파일 회전, 정리가 한 코루틴의 상태(열린 파일, 바이트 수)를 공유해 나누지 않는다
 class LogWriter(
     private val dir: File,
     private val session: SessionInfo,
@@ -126,6 +127,7 @@ class LogWriter(
      * 파일 쓰기 실패(디스크 가득 참, 폴더 삭제 등)는 앱을 죽이지 않는다: 열려 있는 파일을 닫고, 그 줄은 버린 것으로 세고,
      * 다음 줄에서 파일을 다시 연다. [Command.Flush]는 실패해도 반드시 끝낸다.
      */
+    @Suppress("SwallowedException") // 삼키는 것이 의도: 실패는 `dropped` 통계로 남기고 다음 줄에서 파일을 다시 연다
     private fun handle(command: Command) {
         try {
             when (command) {
@@ -191,9 +193,8 @@ class LogWriter(
     private fun pruneIfNeeded() {
         if (othersBytes + currentBytes <= maxTotalBytes) return
         val keep = current
-        for (file in listFiles()) {
+        for (file in listFiles().filter { it != keep }) {
             if (othersBytes + currentBytes <= maxTotalBytes) break
-            if (file == keep) continue
             val size = file.length()
             if (file.delete()) othersBytes -= size
         }

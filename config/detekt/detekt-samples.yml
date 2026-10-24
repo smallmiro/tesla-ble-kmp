@@ -1,0 +1,23 @@
+# config/detekt/detekt-samples.yml — 샘플 앱(samples/android)용 완화. detekt.yml 위에 겹쳐 쓴다(NFR-015, #99).
+# 라이브러리와 같은 규칙이 기본이고, 여기에는 "앱 코드라서 당연한" 것만 이유와 함께 둔다.
+# 한 곳에만 해당하는 예외는 이 파일이 아니라 그 코드에 @Suppress + 이유 주석으로 남긴다.
+
+style:
+  ForbiddenImport:
+    # 샘플은 Android 앱이라 android.* 가 플랫폼 API 그 자체다(서비스, 알림, 권한). platform.* 와 Kable(com.juul)을 직접 쓰지 못하게
+    # 하는 금지(샘플은 :sdk 공개 API만 쓴다, 절대 규칙 14)는 그대로 둔다.
+    forbiddenPatterns: '^(platform|com\.juul)\..*'
+
+naming:
+  FunctionNaming:
+    # Compose 규칙: @Composable 함수 이름은 PascalCase 다. (.editorconfig 도 ktlint 에서 같은 예외를 둔다)
+    ignoreAnnotated: ['Composable']
+
+complexity:
+  LongMethod:
+    # 선언형 UI는 한 화면을 한 @Composable 안에 중첩해 적는 것이 관례라 줄 수가 쉽게 한도를 넘는다.
+    ignoreAnnotated: ['Composable']
+  LongParameterList:
+    # 기본값이 있는 생성자·함수 인자는 호출하는 쪽에서 생략하는 선택 주입 지점(시계, 파일 열기 방식, 큐 크기 등 시험용)이다.
+    # 기본값이 없는 필수 인자만 한도(함수 6, 생성자 7)를 센다.
+    ignoreDefaultParameters: true
