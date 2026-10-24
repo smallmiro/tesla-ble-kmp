@@ -33,6 +33,9 @@ class DecodeTest(unittest.TestCase):
         nested = bytes.fromhex("0a020801")  # field 1 = message {1: 1}
         self.assertEqual(pbwire.decode(nested, max_depth=0)[0]["value"], "hex:0801")
 
+    def test_zero_length_len_is_an_empty_message(self):
+        self.assertEqual(pbwire.decode(bytes.fromhex("0a00")), [{"field": 1, "wire": "len", "value": []}])
+
     def test_repeated_fields_keep_arrival_order(self):
         fields = [e["field"] for e in pbwire.decode(bytes.fromhex("1001080110 02"))]
         self.assertEqual(fields, [2, 1, 2])

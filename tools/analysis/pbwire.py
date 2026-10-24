@@ -1,7 +1,7 @@
 """tools/analysis/pbwire.py — 스키마 없는 protobuf wire 디코더 (로그 분석용, 표준 라이브러리만)
 
-모니터 로그의 raw 헥사를 필드 트리로 펼친다. 판정은 documents/md/18-lib-troubleshooting.md 의 관찰 로그 상세 형식과
-같다: LEN 값은 하위 메시지로 끝까지 풀리면 목록, 아니면 출력 가능한 ASCII면 "text:…", 아니면 "hex:…".
+모니터 로그의 raw 헥사를 필드 트리로 펼친다. LEN 판정 순서는 documents/md/18-lib-troubleshooting.md 의 관찰 로그 상세 형식과
+같다(단 그 형식의 필드 64개·256바이트 상한은 두지 않는다. 분석용이라 끝까지 푼다): LEN 값은 하위 메시지로 끝까지 풀리면 목록, 아니면 출력 가능한 ASCII면 "text:…", 아니면 "hex:…".
 필드 이름은 만들지 않는다. 뜻은 분석 보고서에서 근거와 함께 다룬다.
 
 사용: python3 -I tools/analysis/pbwire.py <hex>   → JSON
