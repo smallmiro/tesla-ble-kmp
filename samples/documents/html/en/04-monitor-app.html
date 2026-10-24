@@ -107,7 +107,7 @@
 <li><code>query.summary</code> of <code>vehicleStatus</code> has the same form as the summary of a <code>Status</code> event. It holds no public keys and no VINs.</li>
 </ul>
 <ul>
-<li><strong>VIN masking:</strong> before writing, any 17-character VIN in the raw bytes or text keeps its first 3 and last 4 characters; the rest become <code>*</code>, so the length stays the same.</li>
+<li><strong>VIN masking:</strong> before writing, any run of 17 or more VIN characters in the raw bytes or text keeps its first 3 and last 4 characters of the run; the rest become <code>*</code>, so the length stays the same. A VIN with such characters right before or after it is masked as part of one longer run.</li>
 <li>Mark memos are at most 80 characters; an empty memo is ignored.</li>
 <li>Files are named <code>monitor-&lt;yyyyMMdd-HHmmss&gt;.jsonl</code>. A new file starts at 20 MB, and the oldest files are deleted when the folder passes 200 MB.</li>
 <li>Writing never holds up event collection. The writer is behind a small interface so a cloud destination can be added later.</li>
@@ -142,12 +142,12 @@
 </table>
 <p>How it behaves, where the design left room:</p>
 <ul>
-<li><strong>One connection.</strong> The Control tab uses the monitor's connection and key (the car allows 3 BLE connections). Its Connect and Disconnect buttons start and stop the monitor's loop.</li>
+<li><strong>One connection.</strong> The Control tab uses the monitor's connection and key (the car allows 3 BLE connections). Its Connect and Disconnect buttons start and stop the monitor's loop. A new connection waits until the previous vehicle has been disconnected.</li>
 <li><strong>One engine per process.</strong> It is created on first use and kept for the process (one library instance per process, chapter 12); the service keeps the process in the foreground. The notification's <strong>Stop</strong> disconnects, stops automatic reconnection and takes the service down. Opening the app again in the same process does <strong>not</strong> connect by itself: press Connect. A new process connects by itself when a VIN is saved.</li>
 <li><strong>Key errors.</strong> <code>KeyStoreError.Locked</code> fails the attempt, so the loop waits and reads the key again (the key is never deleted). Any other key error connects without a key: broadcasts and the three queries need none (chapter 14, B2.4). The Control tab shows the key's <code>protection</code> and <code>accessibility</code> and a warning if the key is <code>WHEN_UNLOCKED</code>.</li>
 <li><strong>Live tab.</strong> The recent-events list holds changes, authentication requests and unrecognized broadcasts (at most 100); repeated equal status broadcasts only move "last broadcast". Every event, repeat or not, goes into the log file. The first status shows "first seen" times because nothing earlier is known. The saved VIN is shown masked.</li>
 <li><strong>Query tab.</strong> Changing the interval queries once at once and then counts again. The queries do not wake the car.</li>
-<li><strong>Log files.</strong> Sizes are decimal MB (20 000 000 and 200 000 000 bytes). Pruning keeps the folder at or below the limit and never deletes the file being written. If two files would start in the same second, the second is named one second later. Each line is flushed as it is written. The writer has a queue of 4096 lines; when it is full the new line is dropped and counted (Log tab) instead of blocking.</li>
+<li><strong>Log files.</strong> Sizes are decimal MB (20 000 000 and 200 000 000 bytes). Pruning keeps the folder at or below the limit and never deletes the file being written. If two files would start in the same second, the second is named one second later. Each line is flushed as it is written. The writer has a queue of 4096 lines; when it is full the new line is dropped and counted (Log tab) instead of blocking. A write error (disk full, folder gone) drops that line (counted) and the next line opens a file again; it never crashes the app.</li>
 <li><strong>Pulling.</strong> <code>adb pull</code> puts the files in <code>samples/logs/android/&lt;date&gt;/logs/</code>.</li>
 <li><strong>Not covered by the gate.</strong> <code>lintKotlin</code> and <code>detekt</code> run only on the library modules, not on <code>samples/</code>.</li>
 </ul>

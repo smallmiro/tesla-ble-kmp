@@ -81,11 +81,6 @@ class SampleState(
         )
     }
 
-    /** 모니터의 연결 루프를 시작한다(기다리지 않고 바로). 상태는 Live 탭 배너에 보인다. */
-    fun connect() {
-        output.add(if (engine.connectNow()) "연결 시작 — 상태는 Live 탭에서" else "저장된 VIN이 없습니다(Live 탭에서 저장)")
-    }
-
     suspend fun vehicleStatus() = report("VehicleStatus") { it.vehicleStatus() }
 
     suspend fun listKeys() {

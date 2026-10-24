@@ -47,4 +47,41 @@ class VinMaskTest {
         val text = "[drop:no-handler] 83B from=domain(DOMAIN_VEHICLE_SECURITY) 5YJ**********0000 lowercase5yjs0000000000000 IOQIOQIOQIOQIOQIO"
         assertEquals(text, VinMask.maskText(text))
     }
+
+    /** VIN 앞뒤에 VIN 문자가 붙어 있어도 실행 구간 전체를 가리고 구간의 앞 3자, 뒤 4자만 남긴다. */
+    private fun assertRunMasked(
+        input: String,
+        output: String,
+    ) {
+        assertEquals(input.length, output.length)
+        assertEquals(input.take(3), output.take(3))
+        assertEquals(input.takeLast(4), output.takeLast(4))
+        assertEquals("*".repeat(input.length - 7), output.substring(3, output.length - 4))
+    }
+
+    @Test
+    fun textVinWithVinCharactersAroundIsMaskedAsOneRun() {
+        val run = "XX${vin}YY"
+        assertRunMasked(run, VinMask.maskText(run))
+        assertRunMasked("A$vin", VinMask.maskText("A$vin"))
+        assertRunMasked("${vin}Z", VinMask.maskText("${vin}Z"))
+        assertEquals("a b ${VinMask.maskText(run)} c", VinMask.maskText("a b $run c"))
+    }
+
+    @Test
+    fun bytesVinWithVinCharactersAroundIsMaskedAsOneRun() {
+        val run = "XX${vin}YY"
+        val raw = byteArrayOf(0x01) + run.toByteArray(Charsets.US_ASCII) + byteArrayOf(0x02)
+        val out = VinMask.maskBytes(raw)
+        assertEquals(raw.size, out.size)
+        assertEquals(0x01.toByte(), out.first())
+        assertEquals(0x02.toByte(), out.last())
+        assertRunMasked(run, String(out.copyOfRange(1, out.size - 1), Charsets.US_ASCII))
+    }
+
+    @Test
+    fun aRunOfExactly17IsStillMasked() {
+        assertEquals(masked, VinMask.maskText(vin))
+        assertEquals(17, VinMask.maskBytes(vin.toByteArray()).size)
+    }
 }

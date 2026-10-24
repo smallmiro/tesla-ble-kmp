@@ -79,8 +79,9 @@ Field notes (both apps write the same names and order):
 
 Rules:
 
-- **VIN masking** before writing: any ASCII run matching `[A-HJ-NPR-Z0-9]{17}` in the raw bytes or in text is replaced
-  with the same length, keeping the first 3 and last 4 characters (the other characters become `*`).
+- **VIN masking** before writing: any ASCII run of **17 or more** characters from `[A-HJ-NPR-Z0-9]` in the raw bytes or in
+  text is replaced with the same length, keeping the first 3 and last 4 characters **of the run** (the other characters
+  become `*`). A VIN with such characters right before or after it is masked as part of one longer run.
 - Mark memo: at most 80 characters, empty memo ignored, VIN-shaped text masked.
 - Files: `monitor-<yyyyMMdd-HHmmss>.jsonl`; a new file at 20 MB; oldest files deleted when the folder exceeds 200 MB.
 - Writing runs on its own queue and never blocks event collection.
@@ -117,7 +118,8 @@ Library calls used (manual page and section):
 How it behaves, where the design left room:
 
 - **One connection.** The Control tab uses the monitor's connection and key (the car allows 3 BLE connections). Its Connect
-  and Disconnect buttons start and stop the monitor's loop.
+  and Disconnect buttons start and stop the monitor's loop. A new
+  connection waits until the previous vehicle has been disconnected.
 - **One engine per process.** It is created on first use and kept for the process (one `TeslaBle` per process,
   `12-lib-getting-started.md`); the service keeps the process in the foreground. The notification's **Stop** disconnects,
   stops automatic reconnection and takes the service down. Opening the app again in the same process does **not** connect
@@ -132,7 +134,8 @@ How it behaves, where the design left room:
 - **Log files.** A size is counted in decimal MB (20 000 000 and 200 000 000 bytes). Pruning keeps the folder at or below the
   limit, never deleting the file being written. If two files would start in the same second the second one is named one second
   later. Each line is flushed as it is written. The writer has a queue of 4096 lines; a full queue drops the new line and counts it
-  (Log tab) instead of blocking.
+  (Log tab) instead of blocking. A write error (disk full, folder gone) drops that line (counted) and the next line opens a file
+  again; it never crashes the app.
 - **Pulling.** `adb pull` puts the files in `samples/logs/android/<date>/logs/`.
 - **Not covered by the gate.** `lintKotlin` and `detekt` run only on library modules, not on `samples/`.
 

@@ -215,7 +215,7 @@ class MonitorEngine(
         val text = "${k.alias}: ${k.protection}, 접근성 ${k.accessibility}"
         val warning =
             if (k.accessibility != KeyAccessibility.AFTER_FIRST_UNLOCK) {
-                "이 키는 폰이 잠긴 동안 쓸 수 없습니다. 새 이름으로 키를 만들고 차량에 다시 등록해야 합니다."
+                "이 키는 폰이 잠긴 동안 쓸 수 없습니다(WHEN_UNLOCKED). 키를 지우고 새로 만든 뒤 차량에 다시 등록해야 합니다."
             } else {
                 null
             }

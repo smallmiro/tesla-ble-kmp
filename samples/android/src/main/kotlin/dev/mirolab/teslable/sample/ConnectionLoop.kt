@@ -88,6 +88,9 @@ class ConnectionLoop<V : Any>(
     private val wake = Channel<Unit>(Channel.CONFLATED)
     private var job: Job? = null
 
+    /** 취소했지만 아직 정리(`release`)가 끝나지 않았을 수 있는 이전 루프들. 새 루프는 이것이 끝난 뒤에야 연결한다. */
+    private var teardown: Job? = null
+
     @Synchronized
     fun start() {
         val running = job
@@ -96,12 +99,28 @@ class ConnectionLoop<V : Any>(
             return
         }
         wake.tryReceive()
-        job = scope.launch { run() }
+        val previous = teardown
+        job =
+            scope.launch {
+                // 이전 차량의 disconnect()가 끝나기 전에 새로 연결하지 않는다(차의 연결 슬롯은 3개뿐이다).
+                previous?.join()
+                run()
+            }
     }
 
     suspend fun stop() {
-        val running = synchronized(this) { job.also { job = null } }
-        running?.cancelAndJoin()
+        val waiting =
+            synchronized(this) {
+                val running = job
+                job = null
+                if (running != null) {
+                    running.cancel()
+                    val older = teardown
+                    teardown = scope.launch { older?.join(); running.join() }
+                }
+                teardown
+            }
+        waiting?.join()
         // 정리하는 동안 사용자가 연결을 다시 눌렀으면([start]가 새 루프를 띄웠다) 그 루프의 상태를 덮어쓰지 않는다.
         val restarted = synchronized(this) { job != null }
         if (!restarted) publish(LinkState.Stopped)
