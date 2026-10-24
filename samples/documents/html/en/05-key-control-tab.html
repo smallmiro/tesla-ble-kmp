@@ -67,12 +67,12 @@
 </table>
 
 <h2 id="sec-steps">Steps and when buttons are enabled</h2>
-<p>The rules are one pure function (<code>KeyControlSteps</code>), so they are tested without a car. Its inputs: the key is ready, the key is locked by the phone lock, a VIN is saved, the app is connected with a key (<code>Connected</code> and <code>vehicle.hasKey</code>; a key-store error at connect time connects without a key, and the hint says to disconnect and connect again), the enrollment state, and whether a call of this tab is running.</p>
+<p>The rules are one pure function (<code>KeyControlSteps</code>), so they are tested without a car. Its inputs: the key is ready, the key is locked by the phone lock, a VIN is saved, the app is connected with a key (<code>Connected</code> and <code>vehicle.hasKey</code>; a key-store error at connect time connects without a key; step 2 then stays "to do" and its button becomes <strong>Disconnect and connect again</strong>, which stops the monitor's connection and connects again with the key), the enrollment state, and whether a call of this tab is running.</p>
 <table>
 <thead><tr><th>Step</th><th>Done when</th><th>Blocked when (hint)</th><th>Button enabled when</th></tr></thead>
 <tbody>
 <tr><td>1 Key</td><td>The key is ready</td><td>The key is locked (unlock the phone and press again)</td><td>Nothing is running</td></tr>
-<tr><td>2 Connect</td><td>Connected</td><td>No VIN saved (save the VIN on the Live tab)</td><td>A VIN is saved, not connected, nothing is running</td></tr>
+<tr><td>2 Connect</td><td>Connected with a key</td><td>No VIN saved (save the VIN on the Live tab)</td><td>A VIN is saved, not connected, nothing is running; or connected without a key and nothing is running (reconnect)</td></tr>
 <tr><td>3 Enroll</td><td>Enrollment is <code>enrolled</code></td><td>Key not ready or not connected (finish steps 1 and 2 first)</td><td>Key ready, connected, enrollment is not <code>enrolled</code> or <code>checking</code>, nothing is running</td></tr>
 <tr><td>4 Control</td><td>–</td><td>Enrollment is not <code>enrolled</code> (the buttons turn on once the key is enrolled)</td><td>Key ready, connected, enrollment is <code>enrolled</code>, nothing is running</td></tr>
 </tbody>
@@ -114,7 +114,7 @@
 <tr><td>Cybertruck</td><td>Tonneau open / close / stop</td><td><code>openTonneau()</code>, <code>closeTonneau()</code>, <code>stopTonneau()</code></td><td>No</td></tr>
 </tbody>
 </table>
-<p>Confirming a dialog checks the step 4 rule again; if it no longer holds, or another call is running, nothing is sent and a result line says why. The Model X and Cybertruck buttons sit in a collapsed "Other models" section. Infotainment commands (climate, charging, horn, lights) wait for M5 and are not shown. The tab also has a status card (lock, trunk, frunk, sleep and the time of the last read) with a <strong>Refresh status</strong> button, and a result list with the newest line first, time stamped and without the VIN.</p>
+<p>Confirming a dialog checks the step 4 rule again; if it no longer holds, or another call is running, nothing is sent and a result line says why. The Model X and Cybertruck buttons sit in a collapsed "Other models" section. Infotainment commands (climate, charging, horn, lights) wait for M5 and are not shown. The tab also has a status card (lock, trunk, frunk, sleep and the time of the last read) with a <strong>Refresh status</strong> button, and a result list with the newest line first, time stamped and without the VIN. The status card belongs to one connection: it is cleared when the connection changes, and a re-query that ends after the connection changed does not update it.</p>
 <p>All library calls of this tab run one at a time through the tab's own <code>exclusive { }</code>, and the buttons are disabled while a call runs. On Android they run in the view model's scope, so switching tabs or rotating the phone does not cancel them. The Control tab has its own guard; the library serializes VCSEC commands per connection, so presses on both tabs cannot interleave on the wire.</p>
 
 <h2 id="sec-impl">Implementation</h2>
