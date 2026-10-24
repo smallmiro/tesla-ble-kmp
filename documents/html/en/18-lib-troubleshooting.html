@@ -63,6 +63,7 @@
 <li><a href="#sec-pairing">Pairing and commands</a></li>
 <li><a href="#sec-other">Other messages</a></li>
 <li><a href="#sec-logs">Debug logging</a></li>
+<li><a href="#sec-events">Observation log and vehicle.events</a></li>
 <li><a href="#sec-observe">Observation log (development)</a></li>
 </ol></div>
 
@@ -109,6 +110,9 @@
 <thead><tr><th>Symptom</th><th>Likely cause</th><th>What to do</th></tr></thead>
 <tbody>
 <tr><td><code>Uncertain</code> with a timeout</td><td>The answer was lost after sending</td><td>Read the state again; do not resend</td></tr>
+<tr><td><code>vehicle.events</code> ended</td><td>The link dropped or <code>disconnect()</code> was called; a collection started after that ends at once</td><td>Look at <code>connection</code>, call <code>disconnect()</code>, and connect again for a new <code>Vehicle</code> with new <code>events</code></td></tr>
+<tr><td><code>vehicle.events</code> delivers nothing</td><td>The collection started after the broadcasts (there is no replay), the car sent none (it pushes only while awake), or the frames do not count as plain broadcasts (<a href="14-lib-reading-state.html#sec-b-library">14, B2</a>)</td><td>Change something on the car (open a door, shift gear) and compare with the observation log: a plain broadcast has a <code>[drop:to-domain]</code> line from the security domain to the broadcast domain</td></tr>
+<tr><td><code>WARN</code> <code>Dropping plain broadcast because the broadcast buffer is full</code></td><td>A collector of <code>vehicle.events</code> fell more than 64 frames behind</td><td>Keep the collector light and move slow work to another coroutine (<a href="16-lib-errors.html#sec-events">16. Error Handling</a>)</td></tr>
 <tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, values read as <code>UNKNOWN</code></td><td>Newer car firmware</td><td>Check for a library update</td></tr>
 <tr><td>A Keychain test fails with -25291 on the simulator</td><td>Plain Kotlin/Native test binaries cannot use the Keychain</td><td>Check Keychain behaviour in the sample app instead</td></tr>
 </tbody>
@@ -127,8 +131,26 @@
 </div>
 <p>To report a problem, use the iOS sample's "copy whole result" button log together with <code>DebugLogger</code>. There is no probe or diagnostics entry point.</p>
 
+<h2 id="sec-events">Observation log and vehicle.events</h2>
+<p>Both show the car's broadcasts, for different readers:</p>
+<table>
+<thead><tr><th></th><th>Observation log</th><th><code>vehicle.events</code></th></tr></thead>
+<tbody>
+<tr><td>What it is</td><td>One <code>DEBUG</code> text line per dropped message or security-domain reply, tag <code>observe</code></td><td>A public <code>Flow&lt;VehicleEvent&gt;</code> on <code>Vehicle</code> (FR-035)</td></tr>
+<tr><td>Which frames</td><td>Every dropped frame (replies to other phones, unreadable frames, broadcasts) and every security-domain reply</td><td>Only plain broadcasts (<a href="14-lib-reading-state.html#sec-b-library">14, B2</a>)</td></tr>
+<tr><td>Content</td><td>A summary for people; values of unknown fields only in the detailed form</td><td>Typed events, <code>unknownFields</code> paths, and the whole frame in <code>raw</code></td></tr>
+<tr><td>VIN</td><td>Masked by the library</td><td><strong>Not masked</strong> in <code>raw</code>; the app masks it before storing or sharing</td></tr>
+<tr><td>Needs</td><td>A logger that keeps <code>DEBUG</code> (development builds)</td><td>Nothing; it works in release builds</td></tr>
+<tr><td>Use it for</td><td>Exploring the protocol, reporting problems</td><td>App features such as live state, and collecting raw frames for analysis</td></tr>
+</tbody>
+</table>
+<ul>
+<li>When one frame carries both <code>vehicleStatus</code> and <code>authenticationRequest</code>, the observe line shows only the one that comes last: the schema puts both in one <code>oneof</code>, and an ordinary decode keeps only the last one. <code>vehicle.events</code> reads both fields and delivers both events (<code>Status</code>, then <code>AuthenticationRequest</code>).</li>
+<li>Do not parse observe lines in app code: their format is for development and may change. Use <code>vehicle.events</code>.</li>
+</ul>
+
 <h2 id="sec-observe">Observation log (development)</h2>
-<p>While you develop, the library can write one summary line for every message it drops and for every reply from the vehicle security domain. It shows what the car sends without being asked. It changes no behaviour: the library still drops those messages (<code>vehicle.events</code> is planned for M5). What each pushed message means is in <a href="14-lib-reading-state.html">14. Reading Vehicle State</a>, Part B.</p>
+<p>While you develop, the library can write one summary line for every message it drops and for every reply from the vehicle security domain. It shows what the car sends without being asked. It changes no behaviour: broadcasts are still kept out of reply matching, and the plain ones also reach apps through <code>vehicle.events</code> (previous section). What each pushed message means is in <a href="14-lib-reading-state.html">14. Reading Vehicle State</a>, Part B.</p>
 <ul>
 <li>Tag <code>observe</code>, level <code>DEBUG</code>. A logger that discards <code>DEBUG</code> never builds the line. Visible through <code>DebugLogger()</code> or your own <code>TeslaLogger</code>. The iOS sample's observation mode collects only these lines.</li>
 <li>Shape: <code>[point] NB from=… to=… request_uuid=… payload=…</code>, where <code>NB</code> is the size of the received frame.</li>
@@ -168,7 +190,7 @@
 <p>VINs (17 characters) are masked in text and in raw bytes before any hex is produced; only the first 3 and last 4 characters stay. Masking runs on the raw bytes before they are parsed, so masked bytes can change the value or structure that is shown (nothing leaks). This output is for exploration only. It does not tell what a field means. On the real car a missing <code>closureStatuses</code> meant all closed for doors and the charge port, but a trunk operated by the interior button produced no broadcast, so trunk state cannot be inferred from broadcasts yet (see 14, Part B).</p>
 <h3>Limits and rules</h3>
 <ul>
-<li>Detailed decoding is a narrow exception, and only for frames the car originally sent as plaintext (never for anything the library decrypted, so FR-112 is unaffected). All of these must hold: from the security domain, to the broadcast domain, empty request UUID, no signature, no session info, and a payload that reads as <code>FromVCSECMessage</code>. Then only <code>FromVCSECMessage</code> unknown fields 48 and 53 and <code>VehicleStatus</code> unknown fields 7 and 8 are decoded (field 7 is now the named <code>gear</code>, so it is unknown only when its value is outside the definitions; that raw value is still shown, for example <code>unknownFields=[7:varint=9(0x9)]</code>, because that value is outside the definitions). Every other field and frame keeps the number-only form.</li>
+<li>Detailed decoding is a narrow exception, and only for frames the car originally sent as plaintext (never for anything the library decrypted, so FR-112 is unaffected); <code>vehicle.events</code> hands such frames to apps as <code>raw</code>, decodable or not. All of these must hold: from the security domain, to the broadcast domain, empty request UUID, no signature, no session info, and a payload that reads as <code>FromVCSECMessage</code>. Then only <code>FromVCSECMessage</code> unknown fields 48 and 53 and <code>VehicleStatus</code> unknown fields 7 and 8 are decoded (field 7 is now the named <code>gear</code>, so it is unknown only when its value is outside the definitions; that raw value is still shown, for example <code>unknownFields=[7:varint=9(0x9)]</code>, because that value is outside the definitions). Every other field and frame keeps the number-only form.</li>
 <li>A missing enum value cannot be told from its zero value: an absent lock state reads <code>VEHICLELOCKSTATE_UNLOCKED</code> (sleep and presence read <code>UNKNOWN</code>). Only message parts can be reported as <code>absent</code>.</li>
 <li>Encrypted content and session info appear by length only, public keys by SHA-1 prefix only. The VIN and decrypted content never appear. Keep this rule when you add lines.</li>
 <li>The BLE transport counts inbox overflows per connection. Each dropped message logs <code>Dropping received message because inbox is full (dropped N since connect)</code> at <code>ERROR</code>; when the link ends, one line <code>BLE inbox overflowed N time(s) during this connection</code> is logged at <code>WARN</code> (only if N is above 0).</li>

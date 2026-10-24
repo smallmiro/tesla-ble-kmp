@@ -6,8 +6,8 @@ Scope: everything the library can read from the vehicle over BLE, in two parts.
   `listKeys()`, `sessionInfo()`), with wire format, field tables and enum tables. None needs a key, a session or a
   wake-up: VCSEC answers over BLE while Infotainment is asleep.
 - **Part B, broadcast:** data the vehicle pushes without a request. What each message is, how often it came, and what is
-  confirmed on a real car. The library drops these messages today (the observation log is the only way to see them);
-  a public `vehicle.events` API is planned for M5 and **does not exist yet**.
+  confirmed on a real car. The library delivers the plain VCSEC broadcasts through `Vehicle.events` (`Flow<VehicleEvent>`,
+  FR-035, B2); they still never reach a pending request, and the observation log still shows them.
 
 **`getState()` (Infotainment, M5) is not implemented.** Go original: `05-command-catalog.md` §B, `03-protocol.md` §11–12,
 `02-ble-transport.md`. Control payloads (lock, trunk, wake) are in `15-lib-commands.md`.
@@ -306,6 +306,8 @@ These are `StateFlow`s on `Vehicle`, not vehicle queries:
 | `hasKey` | `Boolean` | Connected with a private key |
 | `vin` | `Vin` | `toString()` is masked for logs; `value` is the raw VIN, never log it |
 
+`events` (`Flow<VehicleEvent>`, not a `StateFlow`) carries the broadcasts of the connection: B2.
+
 ## Wake behaviour
 
 - `vehicleStatus()`, `keySummary()` and `listKeys()` never wake the vehicle. Use `sleepStatus` to show whether
@@ -342,25 +344,109 @@ A broadcast arrives on the same `00000213-...` subscription as replies. It is a 
 | 46 | `nominalError` | `Errors.NominalError` | Error reply |
 | 48, 53 | unknown | | Seen on a real car, not in any schema (B3) |
 
-## B2. What the library does with broadcasts today
+## B2. What the library does with broadcasts: `Vehicle.events`
 
-- The dispatcher **drops** every broadcast: it has no routing address, so `route()` returns the drop reason `TO_DOMAIN`
-  (same as the Go original). Broadcasts therefore never reach a pending request and cannot be mixed up with replies,
-  which are matched by our routing address.
-- The only way to see them is the observation log: DEBUG, tag `observe`, line head `[drop:to-domain]`. Format and field
-  names: `18-lib-troubleshooting.md` §Observation log. Meaning of each message: B3 below.
-- **A public `vehicle.events` API is planned for M5 and is not implemented.** There is no public callback, flow or
-  model type for broadcasts today. Until then read lock, closures, sleep and presence with `vehicleStatus()`.
+Routing is unchanged and matches the Go original: a broadcast has no routing address, so the dispatcher's `route()`
+returns the drop reason `TO_DOMAIN`. Broadcasts never reach a pending request and cannot be mixed up with replies, which
+are matched by our routing address. The observation log still writes its `[drop:to-domain]` line (DEBUG, tag `observe`,
+`18-lib-troubleshooting.md` §Observation log).
+
+In addition (FR-035; the Go original drops these frames and emits nothing), every frame that passes the gate below is
+delivered through `Vehicle.events`. Meaning of each message: B3. Kotlin and Swift examples: `12-lib-getting-started.md`
+§Broadcast events.
+
+```kotlin
+val events: Flow<VehicleEvent>                    // member of Vehicle
+
+sealed interface VehicleEvent {                   // dev.mirolab.teslable.model
+    val raw: ByteArray                            // the whole received frame; a new copy on every access; not VIN-masked
+    val unknownFields: List<String>               // paths of fields the schema does not know, for example "53", "1.8"
+    class Status(val status: VehicleStatus, …) : VehicleEvent
+    class AuthenticationRequest(val requestedLevel: AuthenticationLevel, val reasons: List<AuthenticationReason>, …) : VehicleEvent
+    class Unrecognized(…) : VehicleEvent
+}
+```
+
+### B2.1 Gate
+
+A frame becomes events only if all of these hold. It is the observation log's detailed-decode gate without its last
+condition: the payload does not have to decode (an undecodable one gives `Unrecognized`).
+
+| Field | Required value |
+|---|---|
+| `from_destination` | `domain = DOMAIN_VEHICLE_SECURITY` |
+| `to_destination` | `domain = DOMAIN_BROADCAST` (no routing address) |
+| `request_uuid` | empty |
+| `signature_data` | absent |
+| `session_info` | absent |
+
+Everything else is not an event and stays an observation log line only: replies to other clients (`no-handler`),
+signed or encrypted frames, frames that do not parse as `RoutableMessage` (`unparseable`), frames without a source
+(`missing-source`). The library never decrypts a broadcast, and nothing it decrypted ever reaches an event (FR-112).
+
+### B2.2 Event types
+
+| Event | When | Fields |
+|---|---|---|
+| `VehicleEvent.Status` | The payload has `vehicleStatus` (field 1) | `status: VehicleStatus`, built with the same rules as `vehicleStatus()` (A2): absent `closureStatuses` = all `CLOSED`, values outside the schema = `UNKNOWN`, `gear` included |
+| `VehicleEvent.AuthenticationRequest` | The payload has `authenticationRequest` (field 3) | `requestedLevel: AuthenticationLevel`, `reasons: List<AuthenticationReason>` (B3.2). The 20-byte token is not a field; it is in `raw` |
+| `VehicleEvent.Unrecognized` | Neither field 1 nor field 3: only unknown fields (48, 53 on the real car), another `FromVCSECMessage` field, no payload, or a payload that does not decode as `FromVCSECMessage` (then `unknownFields` is empty) | none beyond `raw` and `unknownFields` |
+
+- One frame can give two events. With both fields 1 and 3, `Status` comes first, then `AuthenticationRequest`; both have
+  the same `raw` and the same `unknownFields`. The schema puts the two fields in one `oneof`, so a plain Wire decode keeps
+  only the last one; the library reads them separately and loses neither.
+- `raw` is the whole received `RoutableMessage` frame (without the 2-byte BLE length prefix), exactly as the vehicle sent
+  it in plaintext. Every access returns a new copy, so read it once. It is **not VIN-masked**: mask it before you store or
+  share it. Like the observation log's detailed decode, this is a narrow exception to "no plaintext payloads" that does
+  not touch FR-112: only frames the vehicle originally sent as plaintext, never anything the library decrypted.
+- `equals` and `hashCode` compare `raw` by content plus the other fields; `toString()` shows `raw` by length only.
+
+### B2.3 `unknownFields` paths
+
+Each entry is a dot path from `FromVCSECMessage` to a field the schema does not know:
+
+| Path | Meaning |
+|---|---|
+| `"n"` | Top-level field n, for example `"53"`, `"48"`; in arrival order |
+| `"1.n"` | Field n inside `vehicleStatus`, for example `"1.8"` |
+| `"1.1.n"`, `"1.5.n"` | Inside `closureStatuses`, inside `detailedClosureStatus` |
+| `"3.n"` | Inside `authenticationRequest` |
+| `"3.2.n"` | Inside its token message |
+
+- An enum value outside the schema also appears under its field number (the model reads it as `UNKNOWN`); a new gear
+  value gives `"1.7"`.
+- Inside a sub-message its own fields come first, then those of its nested messages. A number that occurs several times
+  is listed several times. The inside of other messages (`commandStatus` and so on) is not inspected.
+- A non-empty list means part of the frame was not understood; the bytes are in `raw`.
+
+### B2.4 Rules for apps
+
+- **A repeat is not a change.** The vehicle resends `vehicleStatus` every 1 to 25 s without a change, sometimes several
+  times within one second (B3.1). The library does not filter duplicates; compare with the previous value yourself.
+- **Trunk:** opening or closing the trunk with the interior button produced no broadcast (other methods untested). Read
+  the trunk with `vehicleStatus()`.
+- **Subscription:** each collection subscribes when it starts. There is no replay: a broadcast that arrived earlier is
+  not delivered. Several collectors each get every event.
+- **Completion:** the flow completes normally (no exception) when `connection` becomes `Disconnected`, whatever the
+  reason (`null` or a `TransportError`), or when `disconnect()` is called, whichever comes first. A collection started
+  after that completes at once. A frame still being handed over at that moment can be lost. Decide about reconnecting
+  from `connection`, not from the end of the flow, and still call `disconnect()` after a link loss. A new connection is a
+  new `Vehicle` with its own `events`.
+- **Slow collector:** the library holds up to 64 frames for collectors that fall behind. When that buffer is full, new
+  frames are dropped for every collector of the connection, counted per connection, and logged at `WARN` on the first
+  drop and every 100th: `Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)`. This is
+  not an error (`16-lib-errors.md`). Keep the collector light and hand slow work to another coroutine.
+- No key and no session are needed: `connect(vin, key = null)` is enough. The real-car observation used an unenrolled key.
 
 ## B3. Message catalogue
 
-| Message | Status | Where |
-|---|---|---|
-| `vehicleStatus` (field 1) | Confirmed | B3.1 |
-| `authenticationRequest` (field 3) | Confirmed (field names unverified) | B3.2 |
-| Field 53 | Unknown | B3.3 |
-| Field 48 | Unknown | B3.4 |
-| Replies for other clients | Confirmed (not a broadcast) | B3.5 |
+| Message | Status | In `Vehicle.events` | Where |
+|---|---|---|---|
+| `vehicleStatus` (field 1) | Confirmed | `VehicleEvent.Status` | B3.1 |
+| `authenticationRequest` (field 3) | Confirmed (field names unverified) | `VehicleEvent.AuthenticationRequest` | B3.2 |
+| Field 53 | Unknown | `"53"` in `unknownFields`; alone it is a `VehicleEvent.Unrecognized` | B3.3 |
+| Field 48 | Unknown | `"48"` in `unknownFields`; alone it is a `VehicleEvent.Unrecognized` | B3.4 |
+| Replies for other clients | Confirmed (not a broadcast) | Not an event (fails the gate) | B3.5 |
 
 ### B3.1 `vehicleStatus` broadcast
 
@@ -403,6 +489,12 @@ Status: **Confirmed** to occur; names of the sub-fields are unverified (Teslemet
 7 `PASSIVE_UNLOCK_AUTOPRESENT_DOOR`, 8 `ENTERED_HIGHER_AUTH_ZONE`, 9 `WALK_UP_UNLOCK`, 10 `IMMOBILIZER`
 (prefix `AUTHENTICATIONREASON_`). The related `AuthenticationResponse` (`UnsignedMessage` field 3, sent by a phone key) and
 `AuthenticationRejection_E` exist in the schema; the library does not send them.
+
+Public model (`VehicleEvent.AuthenticationRequest`, B2.2): `requestedLevel: AuthenticationLevel` is `NONE`, `UNLOCK`,
+`DRIVE`, or `UNKNOWN` for a value outside the schema; proto3 cannot tell an absent level from `NONE`. `reasons:
+List<AuthenticationReason>` has one entry per value sent, named as above without the prefix (`NOT_DOCUMENTED` …
+`IMMOBILIZER`); a value outside the schema is `UNKNOWN` and is listed after the known ones (its original position is
+lost; the exact order is in `raw`).
 
 Observed: `requestedLevel = DRIVE`, `reasons = [PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL]` when the interior handle was pulled;
 `ENTERED_HIGHER_AUTH_ZONE` was added when the charge port was opened and charging started. It came together with a

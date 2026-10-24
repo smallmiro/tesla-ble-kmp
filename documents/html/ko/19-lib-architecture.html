@@ -55,11 +55,12 @@
 </nav>
 <main class="content">
 <h1>19. 아키텍처</h1>
-<p class="lead">기여자를 위한 요약입니다. 모듈 간 의존 관계, 명령이 거치는 경로, 동시성 규칙, 세션 캐시 방식을 설명합니다. 전체 설계는 <code>docs/sdd/SDD.md</code>에 있습니다. 이 페이지는 M0부터 M3까지를 다루며, 제어 명령이 추가되면 확장됩니다.</p>
+<p class="lead">기여자를 위한 요약입니다. 모듈 간 의존 관계, 명령이 거치는 경로, 동시성 규칙, 세션 캐시 방식을 설명합니다. 전체 설계는 <code>docs/sdd/SDD.md</code>에 있습니다. 이 페이지는 M0부터 M3까지와 <code>vehicle.events</code> 뒤의 브로드캐스트 경로를 다루며, 제어 명령이 추가되면 확장됩니다.</p>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
 <li><a href="#sec-modules">모듈</a></li>
 <li><a href="#sec-path">명령이 거치는 경로</a></li>
+<li><a href="#sec-broadcasts">브로드캐스트와 vehicle.events</a></li>
 <li><a href="#sec-concurrency">동시성</a></li>
 <li><a href="#sec-ble">블루투스 어댑터</a></li>
 <li><a href="#sec-facade">파사드</a></li>
@@ -110,9 +111,19 @@
 </ol>
 <p>Infotainment 명령은 잠금 없이 재시도 루프부터 같은 단계를 거칩니다. 돌아오는 길에는 연결마다 하나인 수신 코루틴이 <code>Transport.incoming</code>을 읽고, 각 메시지를 파싱해 기다리는 요청과 짝지은 뒤, 첨부된 세션 정보를 적용하고, 복호화하고 재전송 공격 여부를 검사한 다음 넘겨줍니다.</p>
 
+<h2 id="sec-broadcasts">브로드캐스트와 vehicle.events</h2>
+<p>차량은 어떤 요청에도 답하지 않는 프레임도 보냅니다. Go 원본은 이를 버립니다. 이 라이브러리도 응답 짝짓기에서는 빼지만, 그중 평문 프레임은 넘겨줍니다(FR-035).</p>
+<ol class="steps">
+<li><strong>라우팅에서 버림.</strong> 라우팅 주소 대신 도메인으로 주소가 지정된 프레임은 이전처럼 드롭 사유 <code>TO_DOMAIN</code>과 관찰 로그 한 줄을 받습니다. 대기 중인 요청에는 닿지 않습니다.</li>
+<li><strong>게이트.</strong> 보안 도메인에서 와서 브로드캐스트 도메인으로 가고, 요청 UUID, 서명, 세션 정보가 없으면 평문 브로드캐스트입니다.</li>
+<li><strong>넘김.</strong> 수신 코루틴은 사본을 <code>tryEmit</code>으로 <code>Dispatcher.plainBroadcasts</code>에 넘깁니다. 다시 보내 주지 않고(replay 없음), 프레임 64개까지 담으며, 절대 기다리지 않습니다. 가득 차면 새 프레임을 버리고 세며, 1, 100, 200…번째 버림마다 <code>WARN</code>을 남깁니다.</li>
+<li><strong>매핑.</strong> <code>Vehicle.events</code>의 수집자마다 구독이 하나씩 있습니다. <code>VcsecBroadcasts</code>가 수집자의 코루틴에서 각 프레임을 <code>vehicleStatus()</code>와 같은 매핑으로 <code>Status</code>, <code>AuthenticationRequest</code>, <code>Unrecognized</code>로 바꿉니다.</li>
+<li><strong>끝.</strong> <code>connection</code>이 이유와 상관없이 <code>Disconnected</code>가 되거나 <code>disconnect()</code>가 불리면 흐름은 정상적으로 끝납니다.</li>
+</ol>
+
 <h2 id="sec-concurrency">동시성</h2>
 <ul>
-<li><strong>연결마다 수신 코루틴은 정확히 하나.</strong> 수신 코루틴은 다른 코루틴을 기다리지 않고, 논블로킹 <code>trySend</code>로 데이터를 넘깁니다. 유일한 대기는 새 수신 코루틴이 이전 코루틴의 종료를 기다리는 것입니다.</li>
+<li><strong>연결마다 수신 코루틴은 정확히 하나.</strong> 수신 코루틴은 다른 코루틴을 기다리지 않고, 논블로킹 <code>trySend</code>로 데이터를 넘깁니다(브로드캐스트는 <code>tryEmit</code>이므로 느린 <code>events</code> 수집자가 응답을 늦추지 못합니다). 유일한 대기는 새 수신 코루틴이 이전 코루틴의 종료를 기다리는 것입니다.</li>
 <li><strong>연결마다 VCSEC 명령은 한 번에 하나.</strong> 이전 명령을 기다리는 시간도 시간 제한에 포함됩니다. Infotainment 명령은 병렬로 실행될 수 있습니다.</li>
 <li>도메인마다 세션 상태가 하나 있습니다. 그 잠금은 암호화, 복호화, 세션 갱신에만 걸리므로 대기 시간이 짧습니다.</li>
 <li>두 도메인의 핸드셰이크는 병렬로 실행되며, 하나가 실패하면 다른 하나는 취소됩니다.</li>
@@ -123,7 +134,7 @@
 <p>Kable을 아는 클래스는 <code>KableGattConnector</code>(스캔, 열기)와 <code>KableGattLink</code>(쓰기, 구독, 끊김 감지) 두 개뿐입니다. <code>BleTransportFactory</code>와 <code>BleTransport</code>는 Kable 없이 프레이밍, 재조립, 재시도, 오류 매핑을 하므로 JVM에서 테스트합니다. 링크가 끊기면 수신 flow가 닫히고 상태가 <code>Disconnected</code>가 됩니다. 스캔은 광고된 로컬 이름이 정확히 일치하는 것을 찾습니다.</p>
 
 <h2 id="sec-facade">파사드</h2>
-<p><code>TeslaBle.create</code>는 플랫폼 어댑터(블루투스 전송, 키 보관소, 세션 캐시, 암호 원시 연산)를 조립합니다. <code>connect</code>는 전송을 열고, 해당 연결의 코루틴 스코프를 만들고, <code>Dispatcher</code>와 <code>VehicleSession</code>을 붙이고, 저장된 세션을 복원합니다. 도중에 무엇이든 실패하거나 취소되면 전송과 스코프는 항상 해제됩니다. <code>Vehicle</code> 하나는 연결 하나를 나타내며, <code>disconnect()</code> 후의 호출은 <code>NotConnected</code>로 실패합니다.</p>
+<p><code>TeslaBle.create</code>는 플랫폼 어댑터(블루투스 전송, 키 보관소, 세션 캐시, 암호 원시 연산)를 조립합니다. <code>connect</code>는 전송을 열고, 해당 연결의 코루틴 스코프를 만들고, <code>Dispatcher</code>와 <code>VehicleSession</code>을 붙이고, 저장된 세션을 복원합니다. 도중에 무엇이든 실패하거나 취소되면 전송과 스코프는 항상 해제됩니다. <code>Vehicle</code> 하나는 연결 하나를 나타내며, <code>disconnect()</code> 후의 호출은 <code>NotConnected</code>로 실패합니다. 디스패처의 브로드캐스트 흐름은 <code>Vehicle</code>에 전달되고, 그 <code>events</code>가 이를 매핑하며 연결과 함께 끝납니다.</p>
 
 <h2 id="sec-cache">세션 캐시</h2>
 <p>세션은 작은 바이너리 형식(버전 1)으로 저장되어, 다음 연결에서 새 핸드셰이크 없이 명령을 보낼 수 있게 합니다. 세션은 클라이언트 키(공개키의 SHA-1)에 묶이며, 다른 키의 세션은 무시되고 삭제됩니다. 핸드셰이크가 끝날 때, 세션 정보가 바뀔 때, 연결을 끊을 때 저장합니다. 개인키, 세션 암호화 키, 원본 VIN은 절대 저장하지 않습니다. 손상되었거나 인식할 수 없는 항목은 건너뛰고 나머지를 복원합니다.</p>
@@ -134,7 +145,7 @@
 <thead><tr><th>주제</th><th>규칙</th></tr></thead>
 <tbody>
 <tr><td>정답의 기준</td><td>의미, 암호, 라우팅, 오류는 공식 Go 코드(vehicle-command <code>a4b43c1</code>)가 기준입니다. 둘이 다르면 Go 코드를 따릅니다.</td></tr>
-<tr><td>추가된 필드와 값</td><td>생성된 타입으로만 존재합니다. 실차나 Go 코드로 확인되기 전에는 어떤 명령, 이벤트, 공개 값도 이를 쓰지 않습니다. <code>KeyRole</code>과 <code>KeyFormFactor</code>는 이를 <code>UNKNOWN</code>으로 읽습니다.</td></tr>
+<tr><td>추가된 필드와 값</td><td>생성된 타입으로만 존재합니다. 실차나 Go 코드로 확인되기 전에는 어떤 명령, 이벤트, 공개 값도 이를 쓰지 않습니다. <code>KeyRole</code>과 <code>KeyFormFactor</code>는 이를 <code>UNKNOWN</code>으로 읽습니다. 실차 캡처로 확인되어 공개된 것: <code>VehicleStatus.gear</code>, 그리고 <code>VehicleEvent.AuthenticationRequest</code>로 나오는 <code>authenticationRequest</code>(하위 필드 이름은 아직 미검증).</td></tr>
 <tr><td>갱신</td><td>tesla-protocol을 고정 커밋으로 체크아웃하고 <code>tools/proto/sync-protos.sh &lt;checkout&gt;</code>를 실행합니다(네트워크를 쓰지 않으며 다른 커밋이면 거부합니다). 다시 생성한 뒤 <code>apiDump</code>와 테스트를 돌립니다. 고정 커밋은 스크립트와 <code>docs/PATHS.md</code>에서 같은 PR로 바꿉니다.</td></tr>
 </tbody>
 </table>

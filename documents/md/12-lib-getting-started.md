@@ -1,8 +1,8 @@
 # Getting Started with tesla-ble-kmp
 
-Scope: M3 (scan, connect, key list, vehicle status) and M4 (pairing, VCSEC commands: see "Pair, then lock"). The main
-examples below use only the unauthenticated queries. Installation: `11-lib-overview.md` §Installation. Permissions: `17-lib-platform-notes.md`.
-Errors: `16-lib-errors.md`.
+Scope: M3 (scan, connect, key list, vehicle status), M4 (pairing, VCSEC commands: see "Pair, then lock") and broadcast
+events (`Vehicle.events`, FR-035: see "Broadcast events"). The main examples below use only the unauthenticated queries.
+Installation: `11-lib-overview.md` §Installation. Permissions: `17-lib-platform-notes.md`. Errors: `16-lib-errors.md`.
 
 ## Flow
 
@@ -159,9 +159,61 @@ _ = try await vehicle.startSession(domains: [.vcsec], timeout: nil)
 let result = try await vehicle.lock(timeout: nil)
 ```
 
+## Broadcast events
+
+The vehicle pushes plaintext state broadcasts (lock, closures, gear, presence, sleep) and authentication requests
+without being asked. `vehicle.events` (`Flow<VehicleEvent>`) delivers them; no key and no session are needed. Rules
+(gate, event types, `unknownFields`, buffer): `14-lib-reading-state.md` B2.
+
+- Collect in its own coroutine (Swift: its own `Task`). The flow **completes by itself** when the link drops or
+  `disconnect()` is called; a collection started after that ends at once. Then look at `connection` and call
+  `disconnect()`. A new connection gives a new `Vehicle` with new `events`.
+- Only broadcasts that arrive while you collect are delivered (no replay). **A repeat is not a change**: the vehicle
+  resends the same status every few seconds, so compare with the last value.
+- The trunk opened with the interior button sends no broadcast; read it with `vehicleStatus()`.
+- `raw` is the whole received frame, **not VIN-masked**, and every access returns a new copy: read it once and mask the
+  VIN before you store or share it.
+
+```kotlin
+// vehicle was connected as above (key = null is enough)
+scope.launch {
+    vehicle.events.collect { event ->
+        when (event) {
+            is VehicleEvent.Status -> render(event.status)                        // a repeat is not a change
+            is VehicleEvent.AuthenticationRequest -> note(event.requestedLevel, event.reasons)
+            is VehicleEvent.Unrecognized -> keep(event.raw, event.unknownFields)  // mask the VIN in raw before storing it
+        }
+    }
+    // completed: the link dropped or disconnect() was called. Check vehicle.connection, then call vehicle.disconnect().
+}
+```
+
+Swift: SKIE flows do not throw, so `for await` is enough. Write `AuthenticationLevel.none` with the type name: where the
+value is optional (for example a saved last level), a bare `.none` means `nil`. In Swift the public `VehicleStatus` model
+is named `VehicleStatus_` (the generated VCSEC message has the plain name), so `s.status` is a `VehicleStatus_`.
+
+```swift
+// in its own Task; the loop ends by itself when the link drops or disconnect() is called
+for await event in vehicle.events {
+    switch onEnum(of: event) {
+    case .status(let s):
+        render(s.status)                                         // a repeat is not a change
+    case .authenticationRequest(let a):
+        if a.requestedLevel != AuthenticationLevel.none {
+            print("authentication request: \(a.requestedLevel), reasons \(a.reasons)")
+        }
+    case .unrecognized(let u):
+        let raw = u.raw                                          // every access copies the bytes: read it once
+        keep(raw, u.unknownFields)                               // mask the VIN in raw before storing it
+    }
+}
+// the loop ended: check vehicle.connection, then call vehicle.disconnect()
+```
+
 ## Next steps
 
 - Key enrollment and the pairing events: `13-lib-pairing.md`. `connect(vin, key = null)` is still enough for
   `vehicleStatus()`, `keySummary()` and `listKeys()`.
 - Observe the link with `vehicle.connection` (`StateFlow<TransportState>`) and sessions with `vehicle.sessions`
   (`StateFlow<Map<VehicleDomain, SessionStatus>>`). Call `disconnect()` yourself when `Disconnected` arrives.
+- Live state from broadcasts: `vehicle.events` ("Broadcast events" above, `14-lib-reading-state.md` B2).

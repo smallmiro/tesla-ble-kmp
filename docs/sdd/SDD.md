@@ -226,7 +226,7 @@ public fun interface TeslaLogger {                           // 기본 NoOp
 
 | 구성 요소 | 책임 | Go 대응 |
 |---|---|---|
-| `Dispatcher` | `Transport.incoming`을 단일 수신 코루틴에서 소비해 `RoutableMessage`로 파싱 → `PendingRequest` 매칭 → 세션정보 갱신 → 복호화 → 핸들러 채널 전달. `start`/`stop`/`close`로 수신 코루틴 생애주기 관리, `send`(인가+전송+재시도)·`requestSessionInfo`·`exportSessions`·`loadSessions`, `maxLatency` | `dispatcher.go` `New`, `Start`, `Stop`, `Send`, `RequestSessionInfo`, `Cache`, `LoadCache`, `listen`, `process`, `checkForSessionUpdate`, `decrypt` |
+| `Dispatcher` | `Transport.incoming`을 단일 수신 코루틴에서 소비해 `RoutableMessage`로 파싱 → `PendingRequest` 매칭 → 세션정보 갱신 → 복호화 → 핸들러 채널 전달. `start`/`stop`/`close`로 수신 코루틴 생애주기 관리, `send`(인가+전송+재시도)·`requestSessionInfo`·`exportSessions`·`loadSessions`, `maxLatency`. 평문 브로드캐스트 흐름 `plainBroadcasts: SharedFlow<ByteArray>`(FR-035, 원본에 없음 — §3.3, §12) | `dispatcher.go` `New`, `Start`, `Stop`, `Send`, `RequestSessionInfo`, `Cache`, `LoadCache`, `listen`, `process`, `checkForSessionUpdate`, `decrypt` |
 | `SessionState` (도메인별) | `Signer` 보유. `Mutex`(임계 구역은 `Signer` 호출뿐) + `CompletableDeferred<Unit>`(`ready`). `processHello`(첫 호출은 `Signer.createAuthenticated`)·`authorize`·`decrypt`·`export`·`loadFromCache` | `session.go` |
 | `PendingRequest` | `(address, uuid?, domain)` 키, `Channel<RoutableMessage>(10)`, `SlidingWindow`(`antiReplay`), `requestHash`. `close()`는 suspend하지 않고 플래그 + 채널 닫기만(취소 중에도 안전); 맵에서 지우는 것은 `Dispatcher`가 `register`/`lookup` 때 지연 수행 | `receiver.go` |
 | `HandshakeFlow` | `startSession(domain)`: 세션 준비(`ready`)·응답·재전송 간격(`select`) 중 먼저 오는 것을 처리, 캐시 복원 세션은 즉시 성공. `startSessions(domains)`: 도메인마다 병렬, 첫 실패에 나머지 취소 | `StartSession`, `tryStartSession`, `StartSessions` |
@@ -239,6 +239,7 @@ public fun interface TeslaLogger {                           // 기본 NoOp
 | `VehicleSession` | `connect()`(캐시 복원 + 수신 시작), `startSession(domains, timeout)`(재시도 + 성공 시 캐시 저장), `disconnect()`(캐시 저장 1회 + `Dispatcher.close`). `handshake`/`send`/`vcsec`/`infotainment`를 조립해 들고 있다 | `vehicle.go` `NewVehicle`, `Connect`, `StartSession`, `Disconnect` |
 | `CommandTimeouts` | `commandTimeout`(5s)·`commandLifetime`(5s, `expires_at`)·`handshakeTimeout`(20s). M3 `TeslaBleConfig`가 채운다 | `tesla-control` 플래그 기본값 |
 | `KeyManagement`(M4) | `keySummary`, `keyInfoBySlot`, `listKeys`(슬롯 순회), `addKey`, `removeKey`, `sessionInfo(publicKey, domain)` | `security.go`, `vehicle.go` `SessionInfo` |
+| `VcsecBroadcasts` | 원본에 없음(FR-035). `events(frame)`: `plainBroadcasts`의 프레임 하나 → `List<VehicleEvent>`. 같은 게이트를 다시 확인하고, `vehicleStatus`(1)는 `VcsecInfoMapping.status`로 `Status`, `authenticationRequest`(3)는 `AuthenticationRequest`, 둘 다 없거나 디코딩 실패면 `Unrecognized`. 1과 3은 같은 oneof라 바이트를 따로 모아 디코딩한다. `unknownFields`는 `FromVCSECMessage`에서 시작하는 경로 문자열. 복호화하지 않는다. `:sdk`가 쓰도록 공개(`:application`은 공개 SDK 표면이 아니다) | (없음 — Go는 브로드캐스트를 버린다) |
 | `Pairing`(M4) | `ToVCSECMessage{PRESENT_KEY}` 직접 전송(RoutableMessage 아님) + 원시 프레임 구독으로 `FromVCSECMessage.commandStatus` 진행 상태 방출(D28) | `SendAddKeyRequestWithRole` + 확장 |
 
 ### 2.3 `:sdk` — 공개 파사드
@@ -279,6 +280,7 @@ public interface Vehicle {
     public val hasKey: Boolean
     public val connection: StateFlow<TransportState>                                // Connected / Disconnected(reason). 링크 손실 뒤에도 disconnect()를 불러야 세션 키·스코프가 풀린다
     public val sessions: StateFlow<Map<VehicleDomain, SessionStatus>>               // None / Handshaking / Ready(fromCache)
+    public val events: Flow<VehicleEvent>                                           // FR-035. 평문 VCSEC 브로드캐스트. 연결마다 hot, replay 0, 링크 손실·disconnect()에서 정상 완료
 
     public suspend fun startSession(domains: Set<VehicleDomain> = VehicleDomain.ALL, timeout: Duration? = null): VehicleResult<Unit>   // FR-012
     public suspend fun sessionInfo(publicKey: PublicKeyBytes, domain: VehicleDomain, timeout: Duration? = null): VehicleResult<SessionInfoSummary>  // FR-024
@@ -307,7 +309,8 @@ public interface Vehicle {
 ```
 
 - 모든 `timeout: Duration? = null`은 `TeslaBleConfig.commandTimeout`을 기본으로 쓴다.
-- **M4 구현 범위:** `Vehicle`에는 `vin`, `hasKey`, `connection`, `sessions`, `startSession`, `disconnect`, `vehicleStatus`, `keySummary`, `listKeys`(M3)와 `sessionInfo`, `addKeyRequest`, `addKey`, `removeKey`, VCSEC 제어 12종(M4)이 있다. 위 코드 블록의 나머지(`getState`, `ping`, Infotainment 제어)는 M5 설계이며 아직 없다.
+- **M4 구현 범위:** `Vehicle`에는 `vin`, `hasKey`, `connection`, `sessions`, `startSession`, `disconnect`, `vehicleStatus`, `keySummary`, `listKeys`(M3)와 `sessionInfo`, `addKeyRequest`, `addKey`, `removeKey`, VCSEC 제어 12종(M4), `events`(#91, FR-035)가 있다. 위 코드 블록의 나머지(`getState`, `ping`, Infotainment 제어)는 M5 설계이며 아직 없다.
+- **브로드캐스트 이벤트(FR-035):** `events`는 `Dispatcher.plainBroadcasts`(`DefaultVehicle` 생성자 인자 `broadcasts`로 받는다)를 `VcsecBroadcasts.events`로 바꿔 낸다. 모델은 `:domain`의 `VehicleEvent`(sealed: `Status(status)`, `AuthenticationRequest(requestedLevel, reasons)`, `Unrecognized`; 공통 `raw`(받은 `RoutableMessage` 프레임 전체, 읽을 때마다 사본, VIN 마스킹 없음)·`unknownFields`(경로 문자열))와 `AuthenticationLevel`, `AuthenticationReason`. 수집할 때마다 구독 하나(`channelFlow` 안에서 `UNDISPATCHED`로 구독, replay 0). 끝 신호는 `combine(connection, closed)`: `connection`이 `Disconnected`(이유 무관)이거나 `disconnect()`가 `closed`를 세우면, 먼저 온 쪽에서 구독만 취소하고 채널을 닫아 **정상 완료**한다(앱의 수집 코루틴은 취소되지 않는다). 이미 끝난 연결에서 수집하면 바로 끝난다. 그 순간 넘겨주지 못한 프레임은 버려질 수 있다. 버퍼는 `RENDEZVOUS`라 느린 수집자를 위한 버퍼는 디스패처의 64개 하나뿐이다. 재연결 판단은 `connection`으로 한다(아래 링크 손실 규칙 그대로).
 - **세션 표시:** `sessions`는 사건만 따르지 않고 `VehicleSession.isReady(domain)`을 원천으로 한다. 세션 사건(`Updated`/`StaleCache`)은 신호일 뿐이라 그 도메인을 다시 맞추고, 명령이 `NoSession`으로 끝나도 다시 맞춘다(사건이 유실돼도 회복). 핸드셰이크 중(`Handshaking`)이거나 `disconnect()` 뒤에는 건드리지 않는다. 이 연결의 키로 한 `sessionInfo`가 세션을 만들면 `Ready(fromCache = false)`로 보이고, 다른 차량 키로 저장된 오래된 캐시는 첫 명령이 `NoSession`으로 끝난 뒤 `None`으로 바뀐다.
 - **링크 손실:** BLE 링크가 끊기면 전송은 수신 흐름을 닫고 `connection`을 `Disconnected`로 바꾸며(M3에서 전송 자원은 풀린다), 진행 중이던 명령은 `Uncertain`/`NotConnected`로 끝난다. 세션 키와 스코프는 앱이 `Vehicle.disconnect()`를 불러야 풀린다. `connect`가 늦게 실패하거나 취소돼도 전송과 스코프를 풀고 다시 던진다.
 - `Vehicle`은 연결 하나에 객체 하나다. `disconnect()` 뒤 명령은 `Failure(NotConnected)`이고 세션 캐시는 유지된다(설계 구체화 13).
@@ -419,6 +422,9 @@ Vehicle.lock(timeout)                                          // VcsecCommands.
   // attempt를 처음부터 다시 부른다 — 같은 pending에서 계속 읽지 않고 새 routing_address·counter로 새 요청을 보낸다(Go와 동일).
   수신 측 (Dispatcher.process, 단일 코루틴):
     from_destination 없음 / request_uuid 길이 ≠ 0,16 / to_destination이 domain / address 길이 ≠ 16 → 드롭
+      └ to_destination이 domain(TO_DOMAIN)이고 평문 브로드캐스트 게이트(from VCSEC 도메인, to BROADCAST 도메인, request_uuid·signature_data·session_info 없음) 통과
+        → plainBroadcasts.tryEmit(프레임 사본)(FR-035, 원본에 없음; replay 0, 버퍼 64, 실패하면 새 프레임을 버리고 세며 1·100·200…번째에 WARN)
+        → Vehicle.events(수집자마다 구독): VcsecBroadcasts.events(frame) → Status / AuthenticationRequest / Unrecognized. 드롭 판정·로그는 그대로
     key = (address, uuid if domain != VCSEC else EMPTY, domain); pending 없음 → 드롭("without registered handler", WARN)
     checkForSessionUpdate (위와 동일)
     AES_GCM_Response_data 있음 → SessionState.decrypt(msg, pending.requestHash): AAD = SHA256(TLV{9, domain, VIN, counter, flags(항상), request_hash, fault})
@@ -472,7 +478,7 @@ Go는 1단계에서 `conn.Send` 후 즉시 반환하고 3단계를 하지 않는
 | 핸드셰이크 병렬 | `HandshakeFlow.startSessions`: 도메인마다 `async { startSession(it) }`, `select`로 먼저 끝나는 것을 처리; 하나가 실패하면 나머지 `job.cancel()`, 첫 실패 반환 | `StartSessions` |
 | 타임아웃 | 명령별 `withAttemptTimeout(timeout)`(D29). `afterSend`는 **현재 시도**의 단계다: 응답을 기다리는 동안 초과했으면 `true`(`Uncertain`), 전송 전이거나 재시도 대기 중(`delay(retryInterval)`)이면 `false`(`Failure`) — 이전 시도에서 응답을 기다렸었는지는 영향을 주지 않는다. 핸드셰이크(`VehicleSession.startSession`)도 같은 헬퍼를 쓰지만 `HandshakeFlow`는 `setAwaiting`을 절대 부르지 않으므로 항상 `afterSend = false`(사용자 승인 답 b) | `ctx` deadline |
 | 취소 | 호출 코루틴 취소 → `CancellationException` 전파. 전송 후 취소된 명령의 `PendingRequest`는 `finally`에서 해제(`close()`) | `ctx.Done()` |
-| 백프레셔 | `PendingRequest.channel = Channel(10)`, 가득 차면 `deliver()`가 `false`를 돌려주고 디스패처가 **ERROR** 레벨로 드롭 로그를 남긴다(Go `dispatcher.go:313`도 error 레벨 — 동일). 전송은 `Transport` 구현이 자체 순서를 보장 | `receiverBufferSize` |
+| 백프레셔 | `PendingRequest.channel = Channel(10)`, 가득 차면 `deliver()`가 `false`를 돌려주고 디스패처가 **ERROR** 레벨로 드롭 로그를 남긴다(Go `dispatcher.go:313`도 error 레벨 — 동일). 전송은 `Transport` 구현이 자체 순서를 보장. 평문 브로드캐스트(FR-035)는 `MutableSharedFlow(extraBufferCapacity = 64)`(기본 SUSPEND) + `tryEmit`: 수신 코루틴은 기다리지 않고, 가득 차면 새 프레임을 버리고 연결별로 세어 1·100·200…번째에 WARN(이미 버퍼에 든 프레임의 순서는 지킨다) | `receiverBufferSize` |
 | 스레드 안전 공개 API | `Vehicle` 메서드는 어느 스레드에서든 호출 가능. 콜백은 없고 `Flow`/`StateFlow`만 노출 | – |
 
 ---
@@ -541,6 +547,7 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 |---|---|---|
 | `VehicleStatus` | `VCSEC.VehicleStatus` | 잠금 상태, 도어 4, 프렁크·트렁크, 충전구, 톤노(+%), 수면, 탑승자, 기어(`gear: Gear`, 필드 7, TESLEMETRY-EXT, FR-036 — 없음과 `GEAR_UNKNOWN`은 proto3에서 구별할 수 없어 둘 다 `UNKNOWN`). 알 수 없는 enum은 `UNKNOWN`. `closures`는 non-null — 차량이 `closureStatuses`를 생략하면(모두 닫힘) 전부 `CLOSED`(Go getter 기본값, 실차 확인 2026-10-18) |
 | `WhitelistSummary`, `WhitelistEntry` | `VCSEC.WhitelistInfo`, `WhitelistEntryInfo` | 공개키, 역할, 형태, 슬롯 |
+| `VehicleEvent`(`Status`, `AuthenticationRequest`, `Unrecognized`), `AuthenticationLevel`, `AuthenticationReason` | 평문 브로드캐스트의 `FromVCSECMessage.vehicleStatus`(1)·`authenticationRequest`(3, TESLEMETRY-EXT) | FR-035. `raw`는 받은 프레임 전체(방어 복사, VIN 마스킹 없음), `unknownFields`는 경로 문자열. `equals`/`hashCode`는 `raw` 내용 기준, `toString`은 `raw` 길이만. 토큰(20 B)은 필드가 아니다(`raw`에 있음). 스키마 밖 `requestedLevel`·`reasons` 값은 `UNKNOWN`(이유는 아는 값 뒤) |
 | `SessionInfoSummary` | `Signatures.SessionInfo` | status, counter, epoch(hex), clockTime |
 | `VehicleData` | `CarServer.VehicleData` (Wire) | 그대로 노출 |
 | `KeyRole`, `KeyFormFactor`, `StateCategory`, `SeatPosition`, `Level`, `ClimateKeeperMode`, `ChargingPolicy` 등 | 각 enum | Go의 상수와 같은 값 |
@@ -710,6 +717,7 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 - `protocol.md` 테스트 키는 `:testing`에만 존재하고 `:sdk`에서 참조하지 않는다(detekt `ForbiddenImport`로 `:testing` → 운영 모듈 유입 차단).
 - 비밀 스캔 로컬 게이트(`tools/ci/verify.sh`, ADR-0012): `[A-HJ-NPR-Z0-9]{17}` VIN 패턴은 테스트 VIN(`5YJ30123456789ABC`, `5YJS0000000000000`, `0123456789ABCDEFG`) 허용 목록만 통과.
 - 서버 없음: Android 매니페스트에 `INTERNET` 권한이 없어야 하며, 로컬 게이트가 확인한다.
+- 평문 브로드캐스트 원본(FR-035): `VehicleEvent.raw`는 차량이 처음부터 평문으로 보낸 브로드캐스트 프레임 바이트 그대로다(게이트는 §3.3). VIN을 가리지 않으므로 저장·공유 전에 앱이 가린다. 복호화한 데이터는 이벤트로 나가지 않고 로그에도 쓰지 않는다. FR-112의 좁은 예외이며 관찰 로그의 상세 디코드와 같은 성격이다.
 - 관찰 로그(M4): `Dispatcher`가 버리는 메시지와 VCSEC 응답마다 요약 한 줄을 `DEBUG`, 태그 `observe`로 남긴다. 바이트 필드는 길이만, 공개키는 SHA-1 앞 4바이트만, 암호문과 세션정보는 길이만 쓰고, 감싸지 않은 프레임은 `FromVCSECMessage`로 다시 해석해 요약한다(복호화한 평문 페이로드는 쓰지 않는다, FR-112). 단 하나의 좁은 예외로, VCSEC가 원래 평문으로 보낸 `DOMAIN_BROADCAST` 프레임(서명·세션정보·요청 UUID 없음)의 `FromVCSECMessage` 미공개 필드 48·53과 `VehicleStatus` 미공개 필드 8, 스키마 밖 값으로 온 필드 7(`gear`)은 값을 탐색용으로 상세 디코드한다(깊이 3, 필드 64개, LEN 256바이트 제한. 바이트를 포맷하기 전에 VIN을 가리고, 키·서명처럼 보이는 16/32/33/64/65바이트 LEN은 `redacted(NB)`로 남긴다). 복호화한 것이 아니라 원래 평문이므로 FR-112와 충돌하지 않는다. 형식은 `{{LIB_DOCS_DIR}}18-lib-troubleshooting.md` "Observation log". BLE inbox 넘침은 연결당 횟수를 세어 연결이 끝날 때 한 줄 남긴다.
 
 ---
@@ -748,13 +756,14 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 | 8 | `10-porting-guide.md` §12 보안 체크리스트 | `pkg/connector/ble/ble.go` `-debug` 로그(TX/RX 암호문 헥사) | 매뉴얼은 "복호화 전 페이로드를 로그에 남기지 말 것" — 복호화 전은 암호문이라 같은 줄 설명과 충돌. 뜻은 평문 | 평문 페이로드를 어떤 레벨에서도 로그에 쓰지 않음(FR-112). 2026-10-17 사용자 승인으로 매뉴얼 수정 완료(PRD FR-112, 이 문서 §보안도 같은 표현으로 정정) |
 | 9 | `03-ble-transport.html` `#sec-ids` (ko/en/ja) | `pkg/connector/ble/ble.go:291-300` | 매뉴얼은 "이름이 일치하지만 다른 값을 가진 광고"에서 `unexpected local name` 오류가 난다고 설명. 원본은 호출자가 넘긴 `ScanResult`의 이름이 VIN에서 계산한 이름과 다를 때 재시도 불가 오류 | **원본을 따름**. 2026-10-17 사용자 승인으로 HTML 세 언어 수정 완료(MD `02-ble-transport.md`는 원래 맞음) |
 
-**스키마 출처와 원본(ADR-0002 개정 2026-10-18).** `.proto`는 `{{PROTO_SCHEMA_REPO}}`@`{{PROTO_SCHEMA_COMMIT}}` 스냅샷이지만 동작 기준은 공식 Go다. 공식 Go에 없는 스냅샷 값의 처리: `Session_Info_Status` 2(`INVALID_HANDLE`)는 Go `default: ErrUnknown`처럼 `UnknownResponse`; `MessageFault_E` 29는 `ProtocolFault`(Go는 `RoutableMessageError{Code: 29}`, 메시지 "unrecognized error code 29" — 우리 메시지는 enum 이름)이며 재시도 대상 아님; `WhitelistOperation_information_E` 29~32와 `GenericError_E` 8·9는 이름 있는 `KeychainRejected`·`VcsecRejected`(Go는 코드 숫자만); 새 `Role`·`KeyFormFactor` 값은 모델 `UNKNOWN`; `Domain` 4·5·7·8은 이름 있는 도메인으로 읽히고 핸들러가 없어 드롭(Go와 결과 같음). 응답 AAD의 도메인 값은 Go처럼 원시 값이 된다(전에는 0으로 대체; 이 도메인들은 세션이 없어 복호화하지 않는다). `VehicleStatus.gear`(필드 7)는 공식 Go 스키마에 없는 스냅샷 필드지만 실차 브로드캐스트로 의미를 확인해 공개 `Gear`로 노출한다(FR-036). Go에는 대응 동작이 없다(Go는 필드 7을 모르는 필드로 둔다).
+**스키마 출처와 원본(ADR-0002 개정 2026-10-18).** `.proto`는 `{{PROTO_SCHEMA_REPO}}`@`{{PROTO_SCHEMA_COMMIT}}` 스냅샷이지만 동작 기준은 공식 Go다. 공식 Go에 없는 스냅샷 값의 처리: `Session_Info_Status` 2(`INVALID_HANDLE`)는 Go `default: ErrUnknown`처럼 `UnknownResponse`; `MessageFault_E` 29는 `ProtocolFault`(Go는 `RoutableMessageError{Code: 29}`, 메시지 "unrecognized error code 29" — 우리 메시지는 enum 이름)이며 재시도 대상 아님; `WhitelistOperation_information_E` 29~32와 `GenericError_E` 8·9는 이름 있는 `KeychainRejected`·`VcsecRejected`(Go는 코드 숫자만); 새 `Role`·`KeyFormFactor` 값은 모델 `UNKNOWN`; `Domain` 4·5·7·8은 이름 있는 도메인으로 읽히고 핸들러가 없어 드롭(Go와 결과 같음). 응답 AAD의 도메인 값은 Go처럼 원시 값이 된다(전에는 0으로 대체; 이 도메인들은 세션이 없어 복호화하지 않는다). `VehicleStatus.gear`(필드 7)는 공식 Go 스키마에 없는 스냅샷 필드지만 실차 브로드캐스트로 의미를 확인해 공개 `Gear`로 노출한다(FR-036). Go에는 대응 동작이 없다(Go는 필드 7을 모르는 필드로 둔다). `FromVCSECMessage.authenticationRequest`(필드 3)도 공식 Go 스키마에 없는 스냅샷 필드지만 실차 캡처로 발생을 확인해 `VehicleEvent.AuthenticationRequest`로 노출한다(FR-035, 하위 필드 이름은 미검증). 스냅샷은 3을 oneof `sub_message`에 넣었다(Go 스키마에서는 모르는 필드).
 
 HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 나머지 내용은 이번 설계에서 인용한 범위(`01`, `02`, `03`, `05`, `08`, `10`)에서 원본과 일치했다.
 
 ### 원본과 다른 동작 (의도)
 
 - `Dispatcher`가 버리는 메시지·VCSEC 응답의 요약을 DEBUG로 남긴다(Go는 조용히 버린다, `dispatcher.go:269-293`); BLE inbox 넘침을 센다(`ble.go:78-82`). 버리는 동작은 같다.
+- 평문 VCSEC 브로드캐스트를 내보낸다(FR-035): `TO_DOMAIN`으로 버리는 프레임 중 평문 브로드캐스트 게이트를 통과한 것의 사본을 `Dispatcher.plainBroadcasts`로 넘기고, `Vehicle.events`가 `VehicleEvent`로 바꾼다. Go `process`는 `Destination_Domain`이면 "Dropping message to ..."(DEBUG)만 남기고 아무것도 내보내지 않는다(`dispatcher.go:270-272`). 응답 매칭에서 버리는 판정·로그는 그대로라 브로드캐스트는 여전히 어떤 요청에도 배달되지 않는다. 수신 코루틴은 `tryEmit`만 하고 기다리지 않는다(버퍼 64, 넘치면 새 프레임을 버리고 WARN). Wire는 oneof에서 마지막 멤버만 남기므로(Go와 같음) `vehicleStatus`(1)와 `authenticationRequest`(3)가 한 프레임에 같이 오면 디코딩 결과에는 하나만 남는다. `VcsecBroadcasts`는 두 필드의 바이트를 따로 모아 디코딩해 이벤트 둘(`Status`, `AuthenticationRequest`)을 낸다. 관찰 로그 줄은 지금처럼 Wire 디코딩 결과(마지막 멤버)만 보여 준다.
 - `Framer.frame`는 1024바이트를 넘는 메시지를 `IllegalArgumentException`으로 거부한다. Go `Connection.Send`(`pkg/connector/ble/ble.go`)는 검사하지 않지만 차량이 1024바이트 초과 메시지를 버리므로(`maxBLEMessageSize`) 정상 입력의 wire 바이트는 동일하다. 근거: NFR-017, 최종 리뷰 M-5.
 - `Signer.encrypt`는 `expiresIn`으로 계산한 만료 초가 음수이거나 2^30(`CommandMetadata.EPOCH_LENGTH_SECONDS`)을 넘으면 `BAD_PARAMETER`로 거부한다. Go는 먼저 `uint32`로 잘라서 2^32 이상이면 wrap된 값으로 검사한다. 정상 수명에서는 도달 불가.
 - `Signer.decrypt`의 인증 실패는 `SignerResult.Fault(INVALID_SIGNATURE)`다. Go는 AEAD 오류를 그대로 돌려준다(둘 다 드롭 대상이라는 결과는 같다).

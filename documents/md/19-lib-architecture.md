@@ -2,7 +2,8 @@
 
 A design summary for people contributing to tesla-ble-kmp. The authoritative design is `docs/sdd/SDD.md` in this
 repository; this page summarizes it and does not link to SDD sections. Covers M2 plus the M3 `:adapter-ble` and `:sdk`
-parts. It is filled in again when the control and query APIs (M4–M5) land.
+parts and the broadcast path behind `Vehicle.events` (FR-035). It is filled in again when the control and query APIs
+(M4–M5) land.
 
 ## Modules
 
@@ -13,7 +14,7 @@ App (Android Compose / iOS SwiftUI)
      :sdk            Public facade (TeslaBle, Vehicle). Scan, connect, queries in M3; extended in M4–M6
         │
         ▼
- :application        Dispatcher · SessionState · VcsecCommands · InfotainmentCommands · SessionCacheSync · VehicleSession
+ :application        Dispatcher · SessionState · VcsecCommands · VcsecBroadcasts · InfotainmentCommands · SessionCacheSync · VehicleSession
         │
         ▼
     :domain          Protocol model (Signer, Metadata, SlidingWindow…), ports (Transport, SessionCache, CryptoPrimitives…), pure Kotlin
@@ -53,11 +54,29 @@ Transport.incoming (Flow<ByteArray>)
       → hand to the matched PendingRequest
 ```
 
+**Broadcasts (`Vehicle.events`, FR-035)**
+
+```
+Dispatcher receive coroutine
+  → route(): to_destination is a domain (TO_DOMAIN) → drop from routing + observation log line (same drop as Go)
+      → plain broadcast gate (from VCSEC domain, to BROADCAST domain, no request_uuid, signature_data, session_info)
+          → plainBroadcasts.tryEmit(copy of the frame)       // SharedFlow, replay 0, buffer 64; never waits
+              full → drop the new frame, count per connection, WARN on drop 1, 100, 200, …
+  → Vehicle.events, one subscription per collector (channelFlow)
+      → VcsecBroadcasts.events(frame): Status / AuthenticationRequest / Unrecognized (same mapping as vehicleStatus())
+      → ends normally when connection is Disconnected (any reason) or disconnect() is called
+```
+
+The Go original drops these frames and emits nothing. Reply matching is unchanged: a broadcast never reaches a pending
+request. The receive coroutine only copies and offers the frame; `VcsecBroadcasts` decodes the copy again in the
+collector's coroutine.
+
 ## Concurrency
 
 - **Exactly one receive coroutine per vehicle connection.** It never suspends waiting for another coroutine (channel
-  receive, `Deferred.await`, `delay`); when it hands data to a channel it uses non-suspending `trySend`. The one
-  exception: when a new receive coroutine starts, it waits for the previous one to finish, so two never collect at once.
+  receive, `Deferred.await`, `delay`); when it hands data to a channel it uses non-suspending `trySend` (`tryEmit` for
+  the broadcast flow, so a slow `events` collector cannot delay replies). The one exception: when a new receive
+  coroutine starts, it waits for the previous one to finish, so two never collect at once.
 - **One VCSEC command at a time per connection** (serialization lock). Time spent waiting for the previous command
   counts against that command's timeout. **Infotainment commands may run in parallel.**
 - Each domain (VCSEC / INFOTAINMENT) has one session state. Its internal lock guards only encrypt, decrypt and session
@@ -77,7 +96,8 @@ transport state becomes `Disconnected`. The scan filter is an exact match on the
 `TeslaBle.create(platform, config)` assembles the platform adapters (BLE transport, key store, session cache, crypto
 primitives). `connect` opens the transport, creates a coroutine scope for that connection, attaches a `Dispatcher` and a
 `VehicleSession`, and restores the cache. If anything fails or is cancelled midway, it always releases the transport
-and the scope. `Vehicle` is one object per connection; after `disconnect()`, commands fail with `NotConnected`.
+and the scope. `Vehicle` is one object per connection; after `disconnect()`, commands fail with `NotConnected`. The
+dispatcher's `plainBroadcasts` is passed to the `Vehicle`, whose `events` maps it and completes when the connection ends.
 
 ## Session cache
 
@@ -101,6 +121,9 @@ Corrupted entries or entries with unrecognized values are skipped and the rest r
 - Extension fields and values exist as generated types only. No command, event or public model value is built on them
   until a real-vehicle capture or the official Go code confirms them. Public model enums (`KeyRole`, `KeyFormFactor`)
   map extension values to `UNKNOWN`. The observation log (`18-lib-troubleshooting.md`) prints their schema names.
+  Confirmed by real-vehicle captures and therefore public: `VehicleStatus.gear` (field 7) and
+  `FromVCSECMessage.authenticationRequest` (field 3, as `VehicleEvent.AuthenticationRequest`; its sub-field names stay
+  unverified).
 - To update: check out tesla-protocol at the pinned commit, run `tools/proto/sync-protos.sh <checkout>` (no network; it
   refuses any other commit), then `./gradlew :domain:generateCommonMainProtos`, `./gradlew :domain:apiDump` and the
   tests. The pinned commit is in the script and in `docs/PATHS.md` (`PROTO_SCHEMA_COMMIT`); change both in one PR.

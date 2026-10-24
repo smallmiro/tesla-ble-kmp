@@ -61,6 +61,7 @@
 <li><a href="#sec-outcomes">세 가지 결과</a></li>
 <li><a href="#sec-hierarchy">오류 타입</a></li>
 <li><a href="#sec-transport">블루투스와 키 보관소 오류</a></li>
+<li><a href="#sec-events">브로드캐스트 이벤트</a></li>
 <li><a href="#sec-retry">재시도와 시간 제한</a></li>
 <li><a href="#sec-requery">Uncertain 뒤에 읽을 것</a></li>
 </ol></div>
@@ -124,6 +125,16 @@
 <tr><td><code>HardwareUnavailable</code></td><td>하드웨어가 필요했지만 사용할 수 없음</td><td><code>PREFER_HARDWARE</code> 사용</td></tr>
 <tr><td><code>KeyNotFound</code></td><td>해당 별칭의 키가 없음</td><td><code>getOrCreate</code>로 생성</td></tr>
 <tr><td><code>PlatformFailure</code></td><td>플랫폼 키 보관소가 실패함. <code>stored key is corrupted</code>는 저장된 키가 손상되었다는 뜻</td><td>손상된 키는 자동으로 교체되지 않음. 삭제하고, 생성하고, 새 키를 다시 등록</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-events">브로드캐스트 이벤트</h2>
+<p><code>vehicle.events</code>에는 오류 값이 없고 예외도 던지지 않습니다. 링크가 끊기거나 <code>disconnect()</code>를 호출하면 정상적으로 끝납니다(<a href="14-lib-reading-state.html#sec-b-library">14. 차량 상태 조회, B2</a>). 링크가 끊긴 이유는 <code>connection</code>에 있습니다.</p>
+<table>
+<thead><tr><th>상황</th><th>일어나는 일</th><th>할 일</th></tr></thead>
+<tbody>
+<tr><td>수집자가 프레임 64개보다 더 뒤처짐</td><td>그 연결의 모든 수집자에게서 새 프레임이 빠지고 버린 수를 셉니다. 첫 번째와 100번째마다 <code>WARN</code> 줄(태그 <code>Dispatcher</code>): <code>Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)</code>. <strong>오류가 아닙니다</strong>. <code>VehicleError</code>가 없고 흐름은 계속됩니다</td><td>수집 코드는 가볍게 하고 느린 작업은 다른 코루틴에 넘기세요. 차량은 몇 초마다 상태를 다시 보내므로 최신 상태는 다시 옵니다. 또는 <code>vehicleStatus()</code>로 읽으세요</td></tr>
+<tr><td>라이브러리가 디코딩하지 못한 브로드캐스트</td><td><code>unknownFields</code>가 빈 <code>Unrecognized</code> 이벤트. 바이트는 <code>raw</code>에 있습니다</td><td>분석용으로 <code>raw</code>를 VIN을 가린 채 보관하세요</td></tr>
 </tbody>
 </table>
 

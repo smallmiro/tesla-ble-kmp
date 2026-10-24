@@ -55,7 +55,7 @@
 </nav>
 <main class="content">
 <h1>12. Getting Started with the Library</h1>
-<p class="lead">Walks through the whole flow: create the library, get a key, find the car, connect, read its state and disconnect. The last section shows pairing a new key and sending the first command (M4).</p>
+<p class="lead">Walks through the whole flow: create the library, get a key, find the car, connect, read its state and disconnect. The last two sections show pairing a new key and sending the first command (M4), and receiving the car's broadcasts.</p>
 
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#sec-flow">The flow</a></li>
@@ -63,6 +63,7 @@
 <li><a href="#sec-kotlin">Kotlin (Android)</a></li>
 <li><a href="#sec-swift">Swift (iOS)</a></li>
 <li><a href="#sec-pair">Pair, then lock</a></li>
+<li><a href="#sec-events">Broadcast events</a></li>
 <li><a href="#sec-next">Next steps</a></li>
 </ol></div>
 
@@ -199,10 +200,49 @@ _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class=
 <span class="k">let</span> result = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">lock</span>(timeout: <span class="n">nil</span>)</code></pre>
 <p>In Swift every argument is passed explicitly, because Kotlin default arguments do not become Swift overloads.</p>
 
+<h2 id="sec-events">Broadcast events</h2>
+<p>The car pushes plaintext broadcasts by itself: its state (lock, doors and other openings, gear, presence, sleep) and authentication requests. <code>vehicle.events</code> delivers them as a <code>Flow&lt;VehicleEvent&gt;</code>; no key and no session are needed. Which frames count, the event types, <code>unknownFields</code> and the buffer are explained in <a href="14-lib-reading-state.html#sec-b-library">14. Reading Vehicle State, B2</a>.</p>
+<ul>
+<li><strong>Collect it on its own.</strong> Use a separate coroutine (in Swift, a separate <code>Task</code>). The flow <strong>ends by itself</strong> when the link drops or <code>disconnect()</code> is called, and a collection started after that ends at once. Then look at <code>connection</code> and call <code>disconnect()</code>. A new connection gives a new <code>Vehicle</code> with new <code>events</code>.</li>
+<li><strong>Only what arrives while you listen.</strong> Earlier broadcasts are not replayed. <strong>A repeat is not a change</strong>: the car resends the same status every few seconds, so compare with the last value.</li>
+<li><strong>Trunk:</strong> a trunk opened with the interior button sends no broadcast; read it with <code>vehicleStatus()</code>.</li>
+<li><strong><code>raw</code> is the whole frame.</strong> It is not VIN-masked, and each access makes a new copy: read it once and mask the VIN before you store or share it.</li>
+</ul>
+<h3>Kotlin</h3>
+<pre><code class="language-kotlin"><span class="c">// vehicle was connected as above (key = null is enough)</span>
+scope.<span class="f">launch</span> {
+    vehicle.events.<span class="f">collect</span> { event <span class="o">-&gt;</span>
+        <span class="k">when</span> (event) {
+            <span class="k">is</span> <span class="t">VehicleEvent</span>.<span class="t">Status</span> <span class="o">-&gt;</span> <span class="f">render</span>(event.status)                        <span class="c">// a repeat is not a change</span>
+            <span class="k">is</span> <span class="t">VehicleEvent</span>.<span class="t">AuthenticationRequest</span> <span class="o">-&gt;</span> <span class="f">note</span>(event.requestedLevel, event.reasons)
+            <span class="k">is</span> <span class="t">VehicleEvent</span>.<span class="t">Unrecognized</span> <span class="o">-&gt;</span> <span class="f">keep</span>(event.raw, event.unknownFields)  <span class="c">// mask the VIN in raw before storing it</span>
+        }
+    }
+    <span class="c">// completed: the link dropped or disconnect() was called. Check vehicle.connection, then call vehicle.disconnect().</span>
+}</code></pre>
+<h3>Swift</h3>
+<p>SKIE flows do not throw, so <code>for await</code> is enough. Write <code>AuthenticationLevel.none</code> with the type name: where the value is optional (for example a saved last level), a bare <code>.none</code> means <code>nil</code>. In Swift the public <code>VehicleStatus</code> model is called <code>VehicleStatus_</code>, because the generated VCSEC message has the plain name, so <code>s.status</code> is a <code>VehicleStatus_</code>.</p>
+<pre><code class="language-swift"><span class="c">// in its own Task; the loop ends by itself when the link drops or disconnect() is called</span>
+<span class="k">for</span> <span class="k">await</span> event <span class="k">in</span> vehicle.events {
+    <span class="k">switch</span> <span class="f">onEnum</span>(of: event) {
+    <span class="k">case</span> .<span class="f">status</span>(<span class="k">let</span> s):
+        <span class="f">render</span>(s.status)                                         <span class="c">// a repeat is not a change</span>
+    <span class="k">case</span> .<span class="f">authenticationRequest</span>(<span class="k">let</span> a):
+        <span class="k">if</span> a.requestedLevel <span class="o">!=</span> <span class="t">AuthenticationLevel</span>.none {
+            <span class="f">print</span>(<span class="s">"authentication request: \(a.requestedLevel), reasons \(a.reasons)"</span>)
+        }
+    <span class="k">case</span> .<span class="f">unrecognized</span>(<span class="k">let</span> u):
+        <span class="k">let</span> raw = u.raw                                          <span class="c">// every access copies the bytes: read it once</span>
+        <span class="f">keep</span>(raw, u.unknownFields)                               <span class="c">// mask the VIN in raw before storing it</span>
+    }
+}
+<span class="c">// the loop ended: check vehicle.connection, then call vehicle.disconnect()</span></code></pre>
+
 <h2 id="sec-next">Next steps</h2>
 <ul>
 <li>Key enrollment and the pairing events: <a href="13-lib-pairing.html">13. Keys and Pairing</a>. <code>connect(vin, key = null)</code> is still enough for <code>vehicleStatus()</code>, <code>keySummary()</code> and <code>listKeys()</code>.</li>
 <li>Watch the link with <code>vehicle.connection</code> and the sessions with <code>vehicle.sessions</code>, both <code>StateFlow</code>s. When the link reports <code>Disconnected</code>, still call <code>disconnect()</code> yourself.</li>
+<li>Live state from the car's broadcasts: <code>vehicle.events</code> (<a href="#sec-events">Broadcast events</a> above, <a href="14-lib-reading-state.html#sec-b-library">14. Reading Vehicle State, B2</a>).</li>
 </ul>
 
 <footer class="page-nav">

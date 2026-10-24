@@ -59,7 +59,7 @@
 
 <div class="callout warn">
 <strong>現在の実装範囲</strong>
-<p>A 部の 4 つのクエリは実装済みです。ブロードキャスト（B 部）はライブラリが破棄するため、観察ログでしか見られません。公開 <code>vehicle.events</code> API と <code>getState()</code>（インフォテインメント）は M5 の予定で、まだ存在しません。</p>
+<p>A 部の 4 つのクエリは実装済みです。車両のブロードキャスト（B 部）は <code>vehicle.events</code> でアプリに届き（B2）、観察ログでも引き続き見られます。<code>getState()</code>（インフォテインメント）は M5 の予定で、まだ存在しません。</p>
 </div>
 
 <div class="toc"><strong>このページの内容</strong><ol>
@@ -75,7 +75,7 @@
 <li><a href="#sec-flows">接続とセッションの状態</a></li>
 <li><a href="#sec-wake">スリープとウェイクアップ</a></li>
 <li><a href="#sec-b-wire">B1. ブロードキャストのワイヤ上の形</a></li>
-<li><a href="#sec-b-library">B2. ライブラリのブロードキャスト処理</a></li>
+<li><a href="#sec-b-library">B2. ブロードキャストイベント: vehicle.events</a></li>
 <li><a href="#sec-b-catalogue">B3. メッセージ一覧</a></li>
 <li><a href="#sec-b-absent">B4. ブロードキャストでは受け取れないもの</a></li>
 <li><a href="#sec-b-method">B5. 観察方法と環境</a></li>
@@ -332,6 +332,7 @@
 <tr><td><code>vin</code></td><td>VIN。出力するとマスクされた形が表示されます。<code>vin.value</code> は生の VIN なので、ログに残してはいけません</td></tr>
 </tbody>
 </table>
+<p><code>events</code> は状態ではなく、車両のブロードキャストの流れです。<a href="#sec-b-library">B2</a> を参照してください。</p>
 
 <h2 id="sec-wake">スリープとウェイクアップ</h2>
 <ul>
@@ -366,23 +367,77 @@
 </tbody>
 </table>
 
-<h2 id="sec-b-library">B2. ライブラリのブロードキャスト処理</h2>
+<h2 id="sec-b-library">B2. ブロードキャストイベント: vehicle.events</h2>
+<p>応答の対応付けはこれまでどおりで、Go 原本とも同じです。ブロードキャストにはルーティングアドレスがないため、ディスパッチャーはルーティングから破棄します (破棄理由 <code>TO_DOMAIN</code>)。ブロードキャストは待機中の要求に届かず、応答と取り違えられることもありません。観察ログも引き続き <code>[drop:to-domain]</code> の行を書きます (<a href="18-lib-troubleshooting.html">18. トラブルシューティング</a>)。</p>
+<p>それに加えて、ライブラリは平文のブロードキャストをすべて <code>vehicle.events</code> でアプリに渡します (FR-035)。Go 原本にはこのような機能はなく、フレームを破棄するだけです。Kotlin と Swift の例は <a href="12-lib-getting-started.html#sec-events">12. ライブラリ入門</a> に、各メッセージの意味は B3 にあります。</p>
+<pre><code class="language-kotlin"><span class="k">val</span> events: <span class="t">Flow</span>&lt;<span class="t">VehicleEvent</span>&gt;                    <span class="c">// Vehicle のメンバー</span>
+
+<span class="k">sealed</span> <span class="k">interface</span> <span class="t">VehicleEvent</span> {                   <span class="c">// dev.mirolab.teslable.model</span>
+    <span class="k">val</span> raw: <span class="t">ByteArray</span>                            <span class="c">// 受信したフレーム全体。アクセスのたびに新しいコピー。VIN はマスクしない</span>
+    <span class="k">val</span> unknownFields: <span class="t">List</span>&lt;<span class="t">String</span>&gt;               <span class="c">// スキーマが知らないフィールドのパス。例: "53"、"1.8"</span>
+    <span class="k">class</span> <span class="t">Status</span>(<span class="k">val</span> status: <span class="t">VehicleStatus</span>, …) : <span class="t">VehicleEvent</span>
+    <span class="k">class</span> <span class="t">AuthenticationRequest</span>(<span class="k">val</span> requestedLevel: <span class="t">AuthenticationLevel</span>, <span class="k">val</span> reasons: <span class="t">List</span>&lt;<span class="t">AuthenticationReason</span>&gt;, …) : <span class="t">VehicleEvent</span>
+    <span class="k">class</span> <span class="t">Unrecognized</span>(…) : <span class="t">VehicleEvent</span>
+}</code></pre>
+<h3>イベントになるフレーム</h3>
+<p>次のすべてを満たす必要があります。観察ログの詳細デコードの条件と同じですが、ペイロードがデコードできなくてもかまいません (デコードできないペイロードは <code>Unrecognized</code> になります)。</p>
+<table>
+<thead><tr><th>フィールド</th><th>必要な値</th></tr></thead>
+<tbody>
+<tr><td><code>from_destination</code></td><td><code>domain = DOMAIN_VEHICLE_SECURITY</code></td></tr>
+<tr><td><code>to_destination</code></td><td><code>domain = DOMAIN_BROADCAST</code> (ルーティングアドレスなし)</td></tr>
+<tr><td><code>request_uuid</code></td><td>空</td></tr>
+<tr><td><code>signature_data</code></td><td>なし</td></tr>
+<tr><td><code>session_info</code></td><td>なし</td></tr>
+</tbody>
+</table>
+<p>それ以外のフレームは観察ログの 1 行として残るだけです。他のスマートフォン宛ての応答、署名または暗号化されたフレーム、解析できないフレーム、送信元のないフレームがこれに当たります。ライブラリはブロードキャストを復号せず、復号したデータがイベントに入ることもありません (FR-112)。</p>
+<h3>イベントの種類</h3>
+<table>
+<thead><tr><th>イベント</th><th>いつ</th><th>持つ内容</th></tr></thead>
+<tbody>
+<tr><td><code>VehicleEvent.Status</code></td><td>フレームに <code>vehicleStatus</code> (フィールド 1) がある</td><td><code>status</code>: <code>vehicleStatus()</code> (A2) と同じ規則で作った <code>VehicleStatus</code>。開いている箇所の報告がなければすべて閉、未知の値は <code>UNKNOWN</code>、<code>gear</code> を含む</td></tr>
+<tr><td><code>VehicleEvent.AuthenticationRequest</code></td><td>フレームに <code>authenticationRequest</code> (フィールド 3) がある</td><td><code>requestedLevel</code> と <code>reasons</code> (B3.2)。20 バイトのトークンはフィールドにせず、<code>raw</code> にある</td></tr>
+<tr><td><code>VehicleEvent.Unrecognized</code></td><td>どちらもない: 未知のフィールドだけ (実車では 48 と 53)、他のフィールド、ペイロードなし、デコードできないペイロード (このとき <code>unknownFields</code> は空)</td><td><code>raw</code> と <code>unknownFields</code> のみ</td></tr>
+</tbody>
+</table>
 <ul>
-<li>ディスパッチャーは Go 原本と同様、すべてのブロードキャストを<strong>破棄します</strong>。ルーティングアドレスがないため、ルーティングは破棄理由 <code>TO_DOMAIN</code> を返します。ブロードキャストは待機中の要求に届かず、こちらのルーティングアドレスで対応付ける応答と混ざりません。</li>
-<li>見る方法は観察ログだけです: <code>DEBUG</code>、タグ <code>observe</code>、行頭 <code>[drop:to-domain]</code>。行の形式とフィールド名は <a href="18-lib-troubleshooting.html">18. トラブルシューティング</a> に、各メッセージの意味は B3 にあります。</li>
-<li><strong>公開 <code>vehicle.events</code> API は M5 の予定で、実装されていません。</strong> 現在、ブロードキャスト向けの公開コールバック、Flow、モデル型はありません。それまでは、ロック、開口部、スリープ、在車状態を <code>vehicleStatus()</code> で読んでください。</li>
+<li>1 つのフレームが 2 つのイベントになることがあります。両方のフィールドがあると <code>Status</code> が先、<code>AuthenticationRequest</code> が後に来て、どちらも同じ <code>raw</code> と <code>unknownFields</code> を持ちます。スキーマが 2 つのフィールドを 1 つの <code>oneof</code> に入れているため通常のデコードでは片方しか残りませんが、ライブラリは両方を読みます。</li>
+<li><code>raw</code> は受信したフレーム全体 (BLE の長さプレフィックス 2 バイトを除く) で、車両が平文で送ったそのままです。アクセスのたびに新しいコピーを作るので、一度だけ読んでください。<strong>VIN はマスクされていない</strong>ので、保存や共有の前に VIN をマスクしてください。観察ログの詳細デコードと同じく「平文ペイロード禁止」の狭い例外で、FR-112 には抵触しません。車両が平文で送ったフレームだけが対象で、ライブラリが復号したものは決して入りません。</li>
+<li>2 つのイベントは、フィールドと <code>raw</code> のバイトが同じなら等しくなります。イベントを出力すると <code>raw</code> は長さだけが表示されます。</li>
+</ul>
+<h3>unknownFields</h3>
+<p>各項目は、<code>FromVCSECMessage</code> からスキーマが知らないフィールドまでたどるフィールド番号のパスです。</p>
+<table>
+<thead><tr><th>パス</th><th>意味</th></tr></thead>
+<tbody>
+<tr><td><code>"53"</code>, <code>"48"</code></td><td>トップレベルのフィールド、到着順</td></tr>
+<tr><td><code>"1.8"</code></td><td><code>vehicleStatus</code> 内のフィールド 8</td></tr>
+<tr><td><code>"1.1.n"</code>, <code>"1.5.n"</code></td><td><code>closureStatuses</code> 内、<code>detailedClosureStatus</code> 内</td></tr>
+<tr><td><code>"3.n"</code>, <code>"3.2.n"</code></td><td><code>authenticationRequest</code> 内、そのトークン内</td></tr>
+</tbody>
+</table>
+<p>スキーマ外の enum の値もそのフィールド番号で載ります (モデルでは <code>UNKNOWN</code>)。新しいギアの値なら <code>"1.7"</code> です。サブメッセージ内では、そのメッセージ自身のフィールドが、その中のメッセージのフィールドより先に来ます。2 回出た番号は 2 回載ります。リストが空でなければフレームの一部を解釈できなかったという意味で、バイトは <code>raw</code> にあります。</p>
+<h3>アプリが守るルール</h3>
+<ul>
+<li><strong>繰り返しは変化ではありません。</strong>車両は何も変わらなくても 1〜25 秒ごとに、ときには 1 秒以内に何度も状態を送り直します。ライブラリは繰り返しを除かないので、前の値と自分で比べてください。</li>
+<li><strong>トランク:</strong> 室内ボタンでトランクを開け閉めしたときはブロードキャストが来ませんでした (他の方法は未検証)。トランクは <code>vehicleStatus()</code> で読んでください。</li>
+<li><strong>購読:</strong> 収集は始めた瞬間から受け取ります。それより前のブロードキャストは再送されません。複数の場所で収集すると、それぞれがすべてのイベントを受け取ります。</li>
+<li><strong>終わり:</strong> <code>connection</code> が理由を問わず <code>Disconnected</code> になるか <code>disconnect()</code> を呼ぶと、先に起きたほうでフローは例外なく正常に終わります。その後に始めた収集はすぐに終わります。その瞬間に受け渡し中だったフレームは失われることがあります。再接続の判断は <code>connection</code> で行い、リンクが切れた後も <code>disconnect()</code> は呼んでください。新しい接続は、自分の <code>events</code> を持つ新しい <code>Vehicle</code> です。</li>
+<li><strong>遅い収集側:</strong> ライブラリは遅れた収集側のためにフレームを 64 個まで保持します。それを超えると、その接続のすべての収集側から新しいフレームが抜け、破棄数を数え、最初と 100 回ごとに <code>WARN</code> の行を出します。エラーではありません (<a href="16-lib-errors.html">16. エラー処理</a>)。収集処理は軽く保ってください。</li>
+<li>キーもセッションも不要で、<code>connect(vin, key = null)</code> で十分です。実車での観察は登録していないキーで行いました。</li>
 </ul>
 
 <h2 id="sec-b-catalogue">B3. メッセージ一覧</h2>
 <p>状態ラベル: <span class="badge ok">確認済み</span> 実車で確認、<span class="badge info">スキーマのみ</span> proto ファイルに定義されているが自分では見ていない、<span class="badge warn">不明</span> ワイヤ上で見たが意味は不明。</p>
 <table>
-<thead><tr><th>メッセージ</th><th>状態</th></tr></thead>
+<thead><tr><th>メッセージ</th><th>状態</th><th><code>vehicle.events</code> では</th></tr></thead>
 <tbody>
-<tr><td><code>vehicleStatus</code>（フィールド 1）</td><td><span class="badge ok">確認済み</span></td></tr>
-<tr><td><code>authenticationRequest</code>（フィールド 3）</td><td><span class="badge ok">確認済み</span>（フィールド名は未検証）</td></tr>
-<tr><td>フィールド 53</td><td><span class="badge warn">不明</span></td></tr>
-<tr><td>フィールド 48</td><td><span class="badge warn">不明</span></td></tr>
-<tr><td>他のクライアント宛ての応答（ブロードキャストではない）</td><td><span class="badge ok">確認済み</span></td></tr>
+<tr><td><code>vehicleStatus</code>（フィールド 1）</td><td><span class="badge ok">確認済み</span></td><td><code>VehicleEvent.Status</code></td></tr>
+<tr><td><code>authenticationRequest</code>（フィールド 3）</td><td><span class="badge ok">確認済み</span>（フィールド名は未検証）</td><td><code>VehicleEvent.AuthenticationRequest</code></td></tr>
+<tr><td>フィールド 53</td><td><span class="badge warn">不明</span></td><td><code>unknownFields</code> の <code>"53"</code>。これだけなら <code>Unrecognized</code> イベント</td></tr>
+<tr><td>フィールド 48</td><td><span class="badge warn">不明</span></td><td><code>unknownFields</code> の <code>"48"</code>。これだけなら <code>Unrecognized</code> イベント</td></tr>
+<tr><td>他のクライアント宛ての応答（ブロードキャストではない）</td><td><span class="badge ok">確認済み</span></td><td>イベントではない</td></tr>
 </tbody>
 </table>
 
@@ -415,6 +470,7 @@
 </tbody>
 </table>
 <p><code>AuthenticationReason_E</code>（接頭辞 <code>AUTHENTICATIONREASON_</code>）: 0 <code>NOT_DOCUMENTED</code>、1 <code>IDENTIFICATION</code>、2 <code>POWER_ON_VEHICLE_REQUEST</code>、3 <code>GTW_REQUEST</code>、4 <code>UI_UNLOCK_PASSIVE_AUTH</code>、5 <code>PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL</code>、6 <code>PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL</code>、7 <code>PASSIVE_UNLOCK_AUTOPRESENT_DOOR</code>、8 <code>ENTERED_HIGHER_AUTH_ZONE</code>、9 <code>WALK_UP_UNLOCK</code>、10 <code>IMMOBILIZER</code>。関連する <code>AuthenticationResponse</code>（<code>UnsignedMessage</code> のフィールド 3、スマートフォンキーが送る）と <code>AuthenticationRejection_E</code> はスキーマにあり、ライブラリは送りません。</p>
+<p>公開モデル (<code>VehicleEvent.AuthenticationRequest</code>、B2) では、<code>requestedLevel</code> は <code>NONE</code>、<code>UNLOCK</code>、<code>DRIVE</code> で、スキーマ外の値は <code>UNKNOWN</code> です。レベルがないことと <code>NONE</code> は区別できません。<code>reasons</code> は車両が送った値ごとに 1 つずつで、名前は上の接頭辞を除いたものです。スキーマ外の値は <code>UNKNOWN</code> になり、既知の値の後に並びます (正確な順序は <code>raw</code> にあります)。</p>
 <p>観察: 室内ハンドルを引くと <code>requestedLevel = DRIVE</code>、<code>reasons = [PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL]</code>。充電ポートを開けて充電が始まるときは <code>ENTERED_HIGHER_AUTH_ZONE</code> が加わりました。同じ瞬間に <code>vehicleStatus</code>（とフィールド 53）が一緒に届きました。他の理由は観察できていません。</p>
 <div class="callout">
 <strong>包まれており、裸ではない</strong>

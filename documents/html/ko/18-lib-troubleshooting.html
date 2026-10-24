@@ -63,6 +63,7 @@
 <li><a href="#sec-pairing">페어링과 명령</a></li>
 <li><a href="#sec-other">기타 메시지</a></li>
 <li><a href="#sec-logs">디버그 로깅</a></li>
+<li><a href="#sec-events">관찰 로그와 vehicle.events</a></li>
 <li><a href="#sec-observe">관찰 로그 (개발용)</a></li>
 </ol></div>
 
@@ -109,6 +110,9 @@
 <thead><tr><th>증상</th><th>가능한 원인</th><th>대처</th></tr></thead>
 <tbody>
 <tr><td>시간 초과와 함께 <code>Uncertain</code></td><td>전송 후 응답이 유실됨</td><td>상태를 다시 읽고, 재전송하지 않음</td></tr>
+<tr><td><code>vehicle.events</code>가 끝남</td><td>링크가 끊겼거나 <code>disconnect()</code>가 불렸음. 그 뒤에 시작한 수집은 바로 끝남</td><td><code>connection</code>을 확인하고 <code>disconnect()</code>를 호출한 뒤, 다시 연결해 새 <code>Vehicle</code>과 새 <code>events</code>를 받음</td></tr>
+<tr><td><code>vehicle.events</code>로 아무것도 오지 않음</td><td>브로드캐스트가 온 뒤에 수집을 시작했거나(다시 보내 주지 않음), 차량이 보내지 않았거나(깨어 있을 때만 보냄), 평문 브로드캐스트 조건에 맞지 않는 프레임임(<a href="14-lib-reading-state.html#sec-b-library">14, B2</a>)</td><td>차량에서 무언가를 바꾸고(문 열기, 기어 변경) 관찰 로그와 비교. 평문 브로드캐스트는 보안 도메인에서 브로드캐스트 도메인으로 가는 <code>[drop:to-domain]</code> 줄이 있음</td></tr>
+<tr><td><code>WARN</code> <code>Dropping plain broadcast because the broadcast buffer is full</code></td><td><code>vehicle.events</code>의 수집자가 프레임 64개보다 더 뒤처짐</td><td>수집 코드는 가볍게 하고 느린 작업은 다른 코루틴으로 옮김(<a href="16-lib-errors.html#sec-events">16. 에러 처리</a>)</td></tr>
 <tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UNKNOWN</code>으로 읽히는 값</td><td>새 차량 펌웨어</td><td>라이브러리 업데이트 확인</td></tr>
 <tr><td>시뮬레이터에서 키체인 테스트가 -25291로 실패</td><td>일반 Kotlin/Native 테스트 바이너리는 키체인을 쓸 수 없음</td><td>키체인 동작은 샘플 앱에서 확인</td></tr>
 </tbody>
@@ -127,8 +131,26 @@
 </div>
 <p>문제를 보고할 때는 iOS 샘플의 "결과 전체 복사" 버튼으로 얻은 로그와 <code>DebugLogger</code>를 사용하세요. 프로브나 진단 진입점은 없습니다.</p>
 
+<h2 id="sec-events">관찰 로그와 vehicle.events</h2>
+<p>둘 다 차량의 브로드캐스트를 보여 주지만 읽는 대상이 다릅니다.</p>
+<table>
+<thead><tr><th></th><th>관찰 로그</th><th><code>vehicle.events</code></th></tr></thead>
+<tbody>
+<tr><td>무엇인가</td><td>버린 메시지나 보안 도메인 응답마다 <code>DEBUG</code> 텍스트 한 줄, 태그 <code>observe</code></td><td><code>Vehicle</code>의 공개 <code>Flow&lt;VehicleEvent&gt;</code>(FR-035)</td></tr>
+<tr><td>어떤 프레임</td><td>버린 모든 프레임(다른 폰 앞 응답, 읽을 수 없는 프레임, 브로드캐스트)과 모든 보안 도메인 응답</td><td>평문 브로드캐스트만(<a href="14-lib-reading-state.html#sec-b-library">14, B2</a>)</td></tr>
+<tr><td>내용</td><td>사람이 읽는 요약. 모르는 필드의 값은 상세 형식에서만</td><td>타입이 있는 이벤트, <code>unknownFields</code> 경로, <code>raw</code>의 프레임 전체</td></tr>
+<tr><td>VIN</td><td>라이브러리가 가림</td><td><code>raw</code>에서는 <strong>가리지 않음</strong>. 저장하거나 공유하기 전에 앱이 가림</td></tr>
+<tr><td>필요한 것</td><td><code>DEBUG</code>를 남기는 로거(개발 빌드)</td><td>없음. 릴리스 빌드에서도 동작</td></tr>
+<tr><td>용도</td><td>프로토콜 탐색, 문제 보고</td><td>실시간 상태 같은 앱 기능, 분석용 원본 프레임 수집</td></tr>
+</tbody>
+</table>
+<ul>
+<li>한 프레임에 <code>vehicleStatus</code>와 <code>authenticationRequest</code>가 함께 있으면 관찰 로그 줄에는 마지막에 온 하나만 보입니다. 스키마가 둘을 하나의 <code>oneof</code>에 넣었고, 보통의 디코딩은 마지막 하나만 남기기 때문입니다. <code>vehicle.events</code>는 두 필드를 모두 읽어 이벤트 두 개(<code>Status</code>, 그다음 <code>AuthenticationRequest</code>)를 냅니다.</li>
+<li>앱 코드에서 관찰 로그 줄을 파싱하지 마세요. 형식은 개발용이며 바뀔 수 있습니다. <code>vehicle.events</code>를 쓰세요.</li>
+</ul>
+
 <h2 id="sec-observe">관찰 로그 (개발용)</h2>
-<p>개발하는 동안 라이브러리는 버리는 메시지마다, 그리고 차량 보안 도메인의 응답마다 요약 한 줄을 남길 수 있습니다. 차량이 요청 없이 보내는 것이 무엇인지 보여 줍니다. 동작은 바뀌지 않습니다. 라이브러리는 그 메시지를 여전히 버립니다(<code>vehicle.events</code>는 M5에서 계획). 푸시된 각 메시지의 의미는 <a href="14-lib-reading-state.html">14. 차량 상태 조회</a>의 B부에 있습니다.</p>
+<p>개발하는 동안 라이브러리는 버리는 메시지마다, 그리고 차량 보안 도메인의 응답마다 요약 한 줄을 남길 수 있습니다. 차량이 요청 없이 보내는 것이 무엇인지 보여 줍니다. 동작은 바뀌지 않습니다. 브로드캐스트는 여전히 응답 짝짓기에서 빠지며, 그중 평문 브로드캐스트는 <code>vehicle.events</code>로도 앱에 전달됩니다(앞 절). 푸시된 각 메시지의 의미는 <a href="14-lib-reading-state.html">14. 차량 상태 조회</a>의 B부에 있습니다.</p>
 <ul>
 <li>태그 <code>observe</code>, 레벨 <code>DEBUG</code>. <code>DEBUG</code>를 버리는 로거는 이 줄을 만들지도 않습니다. <code>DebugLogger()</code>나 직접 만든 <code>TeslaLogger</code>로 볼 수 있습니다. iOS 샘플의 관찰 모드는 이 줄만 모읍니다.</li>
 <li>형식: <code>[지점] NB from=… to=… request_uuid=… payload=…</code>. <code>NB</code>는 받은 프레임의 크기입니다.</li>
@@ -168,7 +190,7 @@
 <p>VIN(17자)은 헥사를 만들기 전에 텍스트와 원시 바이트 모두에서 가립니다. 앞 3자와 뒤 4자만 남습니다. 가리기는 바이트를 해석하기 전에 원시 바이트에서 일어나므로, 가려진 바이트 때문에 보이는 값이나 구조가 달라질 수 있습니다(유출은 없습니다). 이 출력은 탐색용일 뿐입니다. 필드의 뜻을 알려 주지 않습니다. 실차에서는 <code>closureStatuses</code>가 없으면 문과 충전구는 모두 닫힌 상태였지만, 실내 버튼으로 조작한 트렁크는 브로드캐스트가 없었으므로 트렁크 상태는 아직 브로드캐스트로 추론할 수 없습니다(14의 B부 참고).</p>
 <h3>한계와 규칙</h3>
 <ul>
-<li>상세 디코드는 좁은 예외이며, 차량이 원래 평문으로 보낸 프레임에만 적용됩니다(라이브러리가 복호화한 것에는 절대 쓰지 않으므로 FR-112와 충돌하지 않습니다). 다음이 모두 맞아야 합니다: 보안 도메인에서 출발, 브로드캐스트 도메인으로 도착, 요청 UUID 없음, 서명 없음, 세션 정보 없음, 페이로드가 <code>FromVCSECMessage</code>로 읽힘. 그때 <code>FromVCSECMessage</code>의 미공개 필드 48·53과 <code>VehicleStatus</code>의 미공개 필드 7·8만 풀어 씁니다(필드 7은 이제 이름이 있는 <code>gear</code>이므로 값이 정의 밖일 때만 미공개 필드가 됩니다. 정의 밖의 값이므로 그 원시 값을 <code>unknownFields=[7:varint=9(0x9)]</code>처럼 계속 보여 줍니다). 그 밖의 필드와 프레임은 번호만 적습니다.</li>
+<li>상세 디코드는 좁은 예외이며, 차량이 원래 평문으로 보낸 프레임에만 적용됩니다(라이브러리가 복호화한 것에는 절대 쓰지 않으므로 FR-112와 충돌하지 않습니다). <code>vehicle.events</code>는 그런 프레임을 디코딩 여부와 상관없이 <code>raw</code>로 앱에 넘깁니다. 다음이 모두 맞아야 합니다: 보안 도메인에서 출발, 브로드캐스트 도메인으로 도착, 요청 UUID 없음, 서명 없음, 세션 정보 없음, 페이로드가 <code>FromVCSECMessage</code>로 읽힘. 그때 <code>FromVCSECMessage</code>의 미공개 필드 48·53과 <code>VehicleStatus</code>의 미공개 필드 7·8만 풀어 씁니다(필드 7은 이제 이름이 있는 <code>gear</code>이므로 값이 정의 밖일 때만 미공개 필드가 됩니다. 정의 밖의 값이므로 그 원시 값을 <code>unknownFields=[7:varint=9(0x9)]</code>처럼 계속 보여 줍니다). 그 밖의 필드와 프레임은 번호만 적습니다.</li>
 <li>enum 값이 빠진 것과 0번 값은 구분할 수 없습니다. 잠금 상태가 없으면 <code>VEHICLELOCKSTATE_UNLOCKED</code>로 읽힙니다(sleep, presence는 <code>UNKNOWN</code>). <code>absent</code>로 알 수 있는 것은 메시지 부분뿐입니다.</li>
 <li>암호화된 내용과 세션 정보는 길이만, 공개키는 SHA-1 앞부분만 적습니다. VIN과 복호화된 내용은 나오지 않습니다. 줄을 추가할 때도 이 규칙을 지키세요.</li>
 <li>BLE 전송은 연결마다 수신 버퍼 넘침을 셉니다. 버려진 메시지마다 <code>ERROR</code>로 <code>Dropping received message because inbox is full (dropped N since connect)</code>를 남기고, 링크가 끝나면 <code>WARN</code>으로 <code>BLE inbox overflowed N time(s) during this connection</code> 한 줄을 남깁니다(N이 0보다 클 때만).</li>

@@ -1,6 +1,6 @@
 # Error Handling
 
-Scope: M1 error model, M2 retries and timeouts, M3 transport and key store errors, M4 `InsufficientPrivileges`, `UnknownVcsecError` and per-command re-query for VCSEC (Infotainment is added with M5). Go original: `08-errors.md` (MessageFault meanings and remedies in §3.1).
+Scope: M1 error model, M2 retries and timeouts, M3 transport and key store errors, M4 `InsufficientPrivileges`, `UnknownVcsecError` and per-command re-query for VCSEC (Infotainment is added with M5), broadcast events (`Vehicle.events`, FR-035). Go original: `08-errors.md` (MessageFault meanings and remedies in §3.1).
 
 ## Three outcomes (`VehicleResult<T>`)
 
@@ -74,6 +74,16 @@ should do.
 | `KeyStoreError.PlatformFailure(cause)` | Platform key store error. `stored key is corrupted` means the stored key is damaged | false | Corrupted keys are not replaced automatically: `delete` then `getOrCreate`, and **enroll the new key again** (`17-lib-platform-notes.md` §Key storage) |
 
 Call `Vehicle.disconnect()` even after the link dropped so session keys and the scope are released.
+
+## Broadcast events (`Vehicle.events`)
+
+`events` has no error values and never throws. It completes normally when the link drops or `disconnect()` is called
+(`14-lib-reading-state.md` B2); the reason for a link loss is in `connection` (`Disconnected(reason)`).
+
+| Situation | What happens | App action |
+|---|---|---|
+| A collector falls more than 64 frames behind | New frames are dropped for every collector of that connection and counted per connection. `WARN` (tag `Dispatcher`) on the first drop and every 100th: `Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)`. **Not an error:** no `VehicleError`, and the flow keeps running | Keep the collector light and hand slow work to another coroutine. The vehicle repeats its status every few seconds, so the latest state comes again; or read `vehicleStatus()` |
+| A broadcast the library cannot decode | `VehicleEvent.Unrecognized` with an empty `unknownFields`; the bytes are in `raw` | Keep `raw` (VIN-masked) for analysis |
 
 ## Retries and timeouts (M2)
 

@@ -59,7 +59,7 @@
 
 <div class="callout warn">
 <strong>What exists today</strong>
-<p>The four queries in Part A are implemented. Broadcasts (Part B) are dropped by the library; you can only see them in the observation log. A public <code>vehicle.events</code> API and <code>getState()</code> (infotainment) are planned for M5 and do not exist yet.</p>
+<p>The four queries in Part A are implemented. The car's broadcasts (Part B) reach your app through <code>vehicle.events</code> (B2); the observation log still shows them too. <code>getState()</code> (infotainment) is planned for M5 and does not exist yet.</p>
 </div>
 
 <div class="toc"><strong>On this page</strong><ol>
@@ -75,7 +75,7 @@
 <li><a href="#sec-flows">Connection and session state</a></li>
 <li><a href="#sec-wake">Sleep and wake-up</a></li>
 <li><a href="#sec-b-wire">B1. What a broadcast is on the wire</a></li>
-<li><a href="#sec-b-library">B2. What the library does with broadcasts</a></li>
+<li><a href="#sec-b-library">B2. Broadcast events: vehicle.events</a></li>
 <li><a href="#sec-b-catalogue">B3. Message catalogue</a></li>
 <li><a href="#sec-b-absent">B4. What is not available by broadcast</a></li>
 <li><a href="#sec-b-method">B5. Observation method and environment</a></li>
@@ -332,6 +332,7 @@
 <tr><td><code>vin</code></td><td>The VIN. Printing it shows a masked form; <code>vin.value</code> is the raw VIN, which should not go into logs</td></tr>
 </tbody>
 </table>
+<p><code>events</code> is not a state but the stream of the car's broadcasts; see <a href="#sec-b-library">B2</a>.</p>
 
 <h2 id="sec-wake">Sleep and wake-up</h2>
 <ul>
@@ -366,23 +367,77 @@
 </tbody>
 </table>
 
-<h2 id="sec-b-library">B2. What the library does with broadcasts</h2>
+<h2 id="sec-b-library">B2. Broadcast events: vehicle.events</h2>
+<p>Reply matching works as before and as in the Go original: a broadcast has no routing address, so the dispatcher drops it from routing (drop reason <code>TO_DOMAIN</code>). A broadcast never reaches a pending request and cannot be mistaken for a reply. The observation log still writes its <code>[drop:to-domain]</code> line (<a href="18-lib-troubleshooting.html">18. Troubleshooting</a>).</p>
+<p>In addition, the library hands every plain broadcast to your app through <code>vehicle.events</code> (FR-035). The Go original has nothing like it; it just drops the frame. Kotlin and Swift examples are in <a href="12-lib-getting-started.html#sec-events">12. Getting Started with the Library</a>; what each message means is in B3.</p>
+<pre><code class="language-kotlin"><span class="k">val</span> events: <span class="t">Flow</span>&lt;<span class="t">VehicleEvent</span>&gt;                    <span class="c">// member of Vehicle</span>
+
+<span class="k">sealed</span> <span class="k">interface</span> <span class="t">VehicleEvent</span> {                   <span class="c">// dev.mirolab.teslable.model</span>
+    <span class="k">val</span> raw: <span class="t">ByteArray</span>                            <span class="c">// the whole received frame; a new copy on every access; not VIN-masked</span>
+    <span class="k">val</span> unknownFields: <span class="t">List</span>&lt;<span class="t">String</span>&gt;               <span class="c">// paths of fields the schema does not know, for example "53", "1.8"</span>
+    <span class="k">class</span> <span class="t">Status</span>(<span class="k">val</span> status: <span class="t">VehicleStatus</span>, …) : <span class="t">VehicleEvent</span>
+    <span class="k">class</span> <span class="t">AuthenticationRequest</span>(<span class="k">val</span> requestedLevel: <span class="t">AuthenticationLevel</span>, <span class="k">val</span> reasons: <span class="t">List</span>&lt;<span class="t">AuthenticationReason</span>&gt;, …) : <span class="t">VehicleEvent</span>
+    <span class="k">class</span> <span class="t">Unrecognized</span>(…) : <span class="t">VehicleEvent</span>
+}</code></pre>
+<h3>Which frames become events</h3>
+<p>All of the following must hold. It is the observation log's gate for its detailed decode, except that the payload does not have to decode (a payload that does not decode gives <code>Unrecognized</code>).</p>
+<table>
+<thead><tr><th>Field</th><th>Required value</th></tr></thead>
+<tbody>
+<tr><td><code>from_destination</code></td><td><code>domain = DOMAIN_VEHICLE_SECURITY</code></td></tr>
+<tr><td><code>to_destination</code></td><td><code>domain = DOMAIN_BROADCAST</code> (no routing address)</td></tr>
+<tr><td><code>request_uuid</code></td><td>Empty</td></tr>
+<tr><td><code>signature_data</code></td><td>Absent</td></tr>
+<tr><td><code>session_info</code></td><td>Absent</td></tr>
+</tbody>
+</table>
+<p>Everything else stays an observation log line only: replies to other phones, signed or encrypted frames, frames that do not parse, frames without a source. The library never decrypts a broadcast, and nothing it decrypted ever reaches an event (FR-112).</p>
+<h3>Event types</h3>
+<table>
+<thead><tr><th>Event</th><th>When</th><th>What it carries</th></tr></thead>
+<tbody>
+<tr><td><code>VehicleEvent.Status</code></td><td>The frame has <code>vehicleStatus</code> (field 1)</td><td><code>status</code>: a <code>VehicleStatus</code> built with the same rules as <code>vehicleStatus()</code> (A2): no opening reported means all closed, unknown values become <code>UNKNOWN</code>, <code>gear</code> included</td></tr>
+<tr><td><code>VehicleEvent.AuthenticationRequest</code></td><td>The frame has <code>authenticationRequest</code> (field 3)</td><td><code>requestedLevel</code> and <code>reasons</code> (B3.2). The 20-byte token is not a field; it is in <code>raw</code></td></tr>
+<tr><td><code>VehicleEvent.Unrecognized</code></td><td>Neither: only unknown fields (48 and 53 on the real car), another field, no payload, or a payload that does not decode (then <code>unknownFields</code> is empty)</td><td>Only <code>raw</code> and <code>unknownFields</code></td></tr>
+</tbody>
+</table>
 <ul>
-<li>The dispatcher <strong>drops</strong> every broadcast, the same as the Go original: it has no routing address, so routing returns the drop reason <code>TO_DOMAIN</code>. Broadcasts never reach a pending request and cannot be mixed up with replies, which are matched by our routing address.</li>
-<li>The only way to see them is the observation log: <code>DEBUG</code>, tag <code>observe</code>, line head <code>[drop:to-domain]</code>. Line format and field names are in <a href="18-lib-troubleshooting.html">18. Troubleshooting</a>; the meaning of each message is in B3.</li>
-<li><strong>A public <code>vehicle.events</code> API is planned for M5 and is not implemented.</strong> There is no public callback, flow or model type for broadcasts today. Until then, read lock, openings, sleep and presence with <code>vehicleStatus()</code>.</li>
+<li>One frame can give two events. With both fields, <code>Status</code> comes first and <code>AuthenticationRequest</code> second, with the same <code>raw</code> and the same <code>unknownFields</code>. The schema puts the two fields in one <code>oneof</code>, so an ordinary decode would keep only one of them; the library reads both.</li>
+<li><code>raw</code> is the whole frame as received (without the 2-byte BLE length prefix), exactly as the car sent it in plaintext. Each access makes a new copy, so read it once. It is <strong>not VIN-masked</strong>: mask the VIN before you store or share it. Like the observation log's detailed decode, this is a narrow exception to "no plaintext payloads" that does not touch FR-112: only frames the car sent as plaintext, never anything the library decrypted.</li>
+<li>Two events are equal when their fields and their <code>raw</code> bytes are equal. Printing an event shows only the length of <code>raw</code>.</li>
+</ul>
+<h3>unknownFields</h3>
+<p>Each entry is a path of field numbers from <code>FromVCSECMessage</code> down to a field the schema does not know:</p>
+<table>
+<thead><tr><th>Path</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>"53"</code>, <code>"48"</code></td><td>Top-level fields, in arrival order</td></tr>
+<tr><td><code>"1.8"</code></td><td>Field 8 inside <code>vehicleStatus</code></td></tr>
+<tr><td><code>"1.1.n"</code>, <code>"1.5.n"</code></td><td>Inside <code>closureStatuses</code> and inside <code>detailedClosureStatus</code></td></tr>
+<tr><td><code>"3.n"</code>, <code>"3.2.n"</code></td><td>Inside <code>authenticationRequest</code> and inside its token</td></tr>
+</tbody>
+</table>
+<p>An enum value outside the schema is listed under its field number too (the model shows <code>UNKNOWN</code>); a new gear value gives <code>"1.7"</code>. Inside a sub-message its own fields come before those of its nested messages. A number that occurs twice is listed twice. A non-empty list means part of the frame was not understood; the bytes are in <code>raw</code>.</p>
+<h3>Rules for your app</h3>
+<ul>
+<li><strong>A repeat is not a change.</strong> The car resends its status every 1 to 25 seconds without any change, sometimes several times within one second. The library does not filter repeats; compare with the previous value yourself.</li>
+<li><strong>Trunk:</strong> opening or closing the trunk with the interior button sent no broadcast (other ways not tested). Read the trunk with <code>vehicleStatus()</code>.</li>
+<li><strong>Subscribing:</strong> a collection receives from the moment it starts; earlier broadcasts are not replayed. Several collectors each receive every event.</li>
+<li><strong>The end:</strong> the flow ends normally, without an exception, when <code>connection</code> becomes <code>Disconnected</code> for any reason or when you call <code>disconnect()</code>, whichever comes first. A collection started later ends at once. A frame that was still on its way at that moment can be lost. Decide about reconnecting from <code>connection</code>, and still call <code>disconnect()</code> after a link loss. A new connection is a new <code>Vehicle</code> with its own <code>events</code>.</li>
+<li><strong>Slow collector:</strong> the library keeps up to 64 frames for collectors that fall behind. Beyond that, new frames are dropped for every collector of the connection, counted, and logged as a <code>WARN</code> line on the first drop and every 100th. This is not an error (<a href="16-lib-errors.html">16. Error Handling</a>). Keep the collector light.</li>
+<li>No key and no session are needed; <code>connect(vin, key = null)</code> is enough. The real-car observation used a key that was not enrolled.</li>
 </ul>
 
 <h2 id="sec-b-catalogue">B3. Message catalogue</h2>
 <p>Status labels: <span class="badge ok">Confirmed</span> seen on a real car; <span class="badge info">Schema-only</span> defined in the proto files, never seen by us; <span class="badge warn">Unknown</span> seen on the wire, meaning not known.</p>
 <table>
-<thead><tr><th>Message</th><th>Status</th></tr></thead>
+<thead><tr><th>Message</th><th>Status</th><th>In <code>vehicle.events</code></th></tr></thead>
 <tbody>
-<tr><td><code>vehicleStatus</code> (field 1)</td><td><span class="badge ok">Confirmed</span></td></tr>
-<tr><td><code>authenticationRequest</code> (field 3)</td><td><span class="badge ok">Confirmed</span> (field names unverified)</td></tr>
-<tr><td>Field 53</td><td><span class="badge warn">Unknown</span></td></tr>
-<tr><td>Field 48</td><td><span class="badge warn">Unknown</span></td></tr>
-<tr><td>Replies for other clients (not broadcasts)</td><td><span class="badge ok">Confirmed</span></td></tr>
+<tr><td><code>vehicleStatus</code> (field 1)</td><td><span class="badge ok">Confirmed</span></td><td><code>VehicleEvent.Status</code></td></tr>
+<tr><td><code>authenticationRequest</code> (field 3)</td><td><span class="badge ok">Confirmed</span> (field names unverified)</td><td><code>VehicleEvent.AuthenticationRequest</code></td></tr>
+<tr><td>Field 53</td><td><span class="badge warn">Unknown</span></td><td><code>"53"</code> in <code>unknownFields</code>; alone, an <code>Unrecognized</code> event</td></tr>
+<tr><td>Field 48</td><td><span class="badge warn">Unknown</span></td><td><code>"48"</code> in <code>unknownFields</code>; alone, an <code>Unrecognized</code> event</td></tr>
+<tr><td>Replies for other clients (not broadcasts)</td><td><span class="badge ok">Confirmed</span></td><td>Not an event</td></tr>
 </tbody>
 </table>
 
@@ -415,6 +470,7 @@
 </tbody>
 </table>
 <p><code>AuthenticationReason_E</code> (prefix <code>AUTHENTICATIONREASON_</code>): 0 <code>NOT_DOCUMENTED</code>, 1 <code>IDENTIFICATION</code>, 2 <code>POWER_ON_VEHICLE_REQUEST</code>, 3 <code>GTW_REQUEST</code>, 4 <code>UI_UNLOCK_PASSIVE_AUTH</code>, 5 <code>PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL</code>, 6 <code>PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL</code>, 7 <code>PASSIVE_UNLOCK_AUTOPRESENT_DOOR</code>, 8 <code>ENTERED_HIGHER_AUTH_ZONE</code>, 9 <code>WALK_UP_UNLOCK</code>, 10 <code>IMMOBILIZER</code>. The related <code>AuthenticationResponse</code> (<code>UnsignedMessage</code> field 3, sent by a phone key) and <code>AuthenticationRejection_E</code> exist in the schema; the library does not send them.</p>
+<p>In the public model (<code>VehicleEvent.AuthenticationRequest</code>, B2), <code>requestedLevel</code> is <code>NONE</code>, <code>UNLOCK</code>, <code>DRIVE</code>, or <code>UNKNOWN</code> for a value outside the schema; an absent level cannot be told from <code>NONE</code>. <code>reasons</code> has one entry per value sent, named as above without the prefix; a value outside the schema becomes <code>UNKNOWN</code> and is listed after the known ones (the exact order is in <code>raw</code>).</p>
 <p>Observed: <code>requestedLevel = DRIVE</code> with <code>reasons = [PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL]</code> when the interior handle was pulled; <code>ENTERED_HIGHER_AUTH_ZONE</code> was added when the charge port was opened and charging started. It came together with a <code>vehicleStatus</code> (and field 53) at the same moment. Other reasons were not observed.</p>
 <div class="callout">
 <strong>Wrapped, not bare</strong>

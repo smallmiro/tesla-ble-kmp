@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Scope: M3–M4 (scan, connect, key store, read-only queries, pairing, VCSEC commands, observation log). Infotainment command problems are added with M5.
+Scope: M3–M4 (scan, connect, key store, read-only queries, pairing, VCSEC commands, observation log) and broadcast events (`Vehicle.events`, FR-035). Infotainment command problems are added with M5.
 Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 
 ## Symptom → cause → action
@@ -25,6 +25,9 @@ Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 | `lock()` (or any VCSEC command) → `NoSession` | No VCSEC session yet, or the cached session is stale | Call `startSession(setOf(VehicleDomain.VCSEC))` first. If `sessions` showed `Ready(fromCache = true)` it changes to `None` after this failure (the cache belonged to another key or vehicle); `startSession` fixes it |
 | `removeKey` / `addKey` → `InsufficientPrivileges` | The connection's key may not manage keys (for example a Driver key) | Use an Owner key |
 | `Uncertain(Timeout(afterSend = true))` | Response lost after sending | Query state again; do not resend |
+| `vehicle.events` completed | The link dropped or `disconnect()` was called (a collection started after that ends at once) | Look at `connection`; call `disconnect()`; connect again for a new `Vehicle` and new `events` |
+| `vehicle.events` delivers nothing | Collection started after the broadcasts (there is no replay), the vehicle sent none (it pushes only while awake), or the frames fail the gate (`14-lib-reading-state.md` B2.1) | Make a change on the car (open a door, shift gear). Compare with the observation log: a plain broadcast has a `[drop:to-domain]` line with `from=domain(DOMAIN_VEHICLE_SECURITY) to=domain(DOMAIN_BROADCAST)` |
+| `WARN` `Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)` | A collector of `vehicle.events` fell more than 64 frames behind | Keep the collector light; move slow work to another coroutine (`16-lib-errors.md`) |
 | `UnknownFault`, `UnknownKeychainCode`, enum values read as `UNKNOWN` | Newer vehicle firmware | Check for a library update |
 | Keychain test fails with -25291 on the simulator | Plain Kotlin/Native test binaries cannot use the Keychain | Verify Keychain behaviour in the sample app |
 
@@ -43,12 +46,30 @@ Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 
 To report a problem, use the iOS sample's "copy whole result" button log together with `DebugLogger`. There is no probe or diagnostics entry point.
 
+## Observation log and `vehicle.events`
+
+Both show the vehicle's broadcasts, for different readers:
+
+| | Observation log | `vehicle.events` |
+|---|---|---|
+| What it is | One `DEBUG` text line per dropped message or VCSEC reply, tag `observe` | Public `Flow<VehicleEvent>` on `Vehicle` (FR-035) |
+| Which frames | Every dropped frame (replies to other clients, unparseable frames, broadcasts) and every VCSEC reply | Only frames that pass the plain broadcast gate (`14-lib-reading-state.md` B2.1) |
+| Content | A summary for people; values of unknown fields only in the detailed decode | Typed model (`Status`, `AuthenticationRequest`, `Unrecognized`), `unknownFields` paths and the whole frame in `raw` |
+| VIN | Masked by the library | **Not masked** in `raw`: the app masks it before storing or sharing |
+| Needs | A logger that keeps `DEBUG` (development builds) | Nothing; it works in release builds |
+| Use it for | Exploring the protocol, reporting problems | App features (live state) and collecting raw frames for analysis |
+
+- When one frame carries both `vehicleStatus` and `authenticationRequest`, the observe line shows only the one that
+  comes last on the wire: the schema puts both in one `oneof`, and a Wire decode keeps only the last member. `events`
+  reads the two fields separately and delivers both (`Status`, then `AuthenticationRequest`).
+- Do not parse observe lines in app code: their format is for development and may change. Use `events`.
+
 ## Observation log (development)
 
 The dispatcher writes one summary line for every message it drops and for every VCSEC reply. It is for development, to
-see what the vehicle pushes without being asked. It changes no behaviour: the library still drops these messages
-(`vehicle.events` is planned for M5). What each pushed message means (confirmed on a real car or not) is in
-`14-lib-reading-state.md` Part B.
+see what the vehicle pushes without being asked. It changes no behaviour: broadcasts are still dropped from reply
+matching, and the ones that pass the plain broadcast gate are also delivered through `vehicle.events` (previous section).
+What each pushed message means (confirmed on a real car or not) is in `14-lib-reading-state.md` Part B.
 
 - Tag `observe`, level `DEBUG` (a logger that discards `DEBUG` never evaluates the line). Visible through `DebugLogger()`
   or any custom `TeslaLogger`. The iOS sample's observation mode collects only these lines.
@@ -92,9 +113,10 @@ Limits and rules:
 
 - proto3 enums cannot tell "missing" from the zero value: an absent lock state reads `VEHICLELOCKSTATE_UNLOCKED`
   (sleep and presence read `UNKNOWN`). Only message fields can be reported as `absent`.
-- Detailed unknown-field decoding (observation log v2) is the one narrow exception to "no plaintext payloads", and it
-  does not touch FR-112: it applies only to a frame the vehicle originally sent as plaintext, never to anything the
-  library decrypted. The gate is all of: `from=domain(DOMAIN_VEHICLE_SECURITY)`, `to=domain(DOMAIN_BROADCAST)`, empty
+- Detailed unknown-field decoding (observation log v2) is the one narrow exception to "no plaintext payloads" in logs,
+  and it does not touch FR-112: it applies only to a frame the vehicle originally sent as plaintext, never to anything
+  the library decrypted (`VehicleEvent.raw` hands such frames to the app: the first five conditions below, payload
+  decodable or not, `14-lib-reading-state.md` B2). The gate is all of: `from=domain(DOMAIN_VEHICLE_SECURITY)`, `to=domain(DOMAIN_BROADCAST)`, empty
   `request_uuid`, no `signature_data`, no `session_info`, and a payload that decodes as `FromVCSECMessage`. For such
   frames only `FromVCSECMessage` unknown fields 48 and 53 and `VehicleStatus` unknown fields 7 and 8 are decoded (`VehicleStatus`
   7 is now the named `gear`, so it is unknown only when its value is outside the schema; that raw value is still shown,

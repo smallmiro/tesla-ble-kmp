@@ -61,6 +61,7 @@
 <li><a href="#sec-outcomes">Three outcomes</a></li>
 <li><a href="#sec-hierarchy">Error types</a></li>
 <li><a href="#sec-transport">Bluetooth and key store errors</a></li>
+<li><a href="#sec-events">Broadcast events</a></li>
 <li><a href="#sec-retry">Retries and timeouts</a></li>
 <li><a href="#sec-requery">What to read after Uncertain</a></li>
 </ol></div>
@@ -124,6 +125,16 @@
 <tr><td><code>HardwareUnavailable</code></td><td>Hardware was required but is not available</td><td>Use <code>PREFER_HARDWARE</code></td></tr>
 <tr><td><code>KeyNotFound</code></td><td>No key under that alias</td><td>Create one with <code>getOrCreate</code></td></tr>
 <tr><td><code>PlatformFailure</code></td><td>The platform key store failed; <code>stored key is corrupted</code> means the saved key is damaged</td><td>Damaged keys are not replaced automatically: delete, create, and enroll the new key again</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-events">Broadcast events</h2>
+<p><code>vehicle.events</code> has no error values and never throws. It ends normally when the link drops or <code>disconnect()</code> is called (<a href="14-lib-reading-state.html#sec-b-library">14. Reading Vehicle State, B2</a>); why the link dropped is in <code>connection</code>.</p>
+<table>
+<thead><tr><th>Situation</th><th>What happens</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td>A collector falls more than 64 frames behind</td><td>New frames are dropped for every collector of the connection and counted. A <code>WARN</code> line (tag <code>Dispatcher</code>) on the first drop and every 100th: <code>Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)</code>. <strong>Not an error</strong>: no <code>VehicleError</code>, and the flow keeps running</td><td>Keep the collector light and hand slow work to another coroutine. The car repeats its status every few seconds, so the latest state comes again; or read <code>vehicleStatus()</code></td></tr>
+<tr><td>A broadcast the library cannot decode</td><td>An <code>Unrecognized</code> event with an empty <code>unknownFields</code>; the bytes are in <code>raw</code></td><td>Keep <code>raw</code> (with the VIN masked) for analysis</td></tr>
 </tbody>
 </table>
 

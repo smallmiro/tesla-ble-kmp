@@ -119,13 +119,13 @@
 
 **Interfaces:**
 - Consumes: `Dispatcher.plainBroadcasts`(Task 4), `VcsecBroadcasts.events`(Task 5).
-- Produces: `public val Vehicle.events: Flow<VehicleEvent>` (인터페이스 멤버). Swift: `for try await e in vehicle.events { switch onEnum(of: e) { … } }`.
+- Produces: `public val Vehicle.events: Flow<VehicleEvent>` (인터페이스 멤버). Swift: `for await e in vehicle.events { switch onEnum(of: e) { … } }` (SKIE 0.10.15 `SkieSwiftFlowIterator.next()`는 throws가 아니다. `for try await`도 컴파일되지만 필요 없다 — 기존 문서·샘플과 같은 `for await`).
 
-- [ ] **Step 1: 실패 테스트**(`FakeVehicle`/`FakeTransport.deliver`): `eventsDeliverBroadcast`(연결 후 브로드캐스트 1건 → `Status` 1건); `eventsCompleteOnLinkLoss`(`transport.close()` 또는 `Disconnected(reason)` → `toList()`가 정상 반환); `eventsCompleteOnDisconnect`; `noReplayBeforeSubscribe`; `newConnectionHasNewEvents`.
+- [ ] **Step 1: 실패 테스트**(`FakeVehicle`/`FakeTransport.deliver`): `eventsDeliverBroadcast`(연결 후 브로드캐스트 1건 → `Status` 1건); `eventsCompleteOnLinkLoss`(`transport.close()` → `Disconnected(null)`, **그리고** 수신 흐름을 열어 둔 채 `Disconnected(TransportError.Disconnected)`를 내는 전송 — 스파이크: 거리 이탈이 어느 쪽인지 문서에 없음 → 둘 다 정상 완료, 끝난 뒤 시작한 수집도 바로 끝남); `eventsCompleteOnDisconnect`(disconnect 뒤 시작한 수집이 가상 시간 없이 끝남); `noReplayBeforeSubscribe`(늦게 온 수집자는 그 뒤 프레임만); `newConnectionHasNewEvents`.
 - [ ] **Step 2:** FAIL 확인 (`./gradlew :sdk:jvmTest --tests '*VehicleEvents*'`).
-- [ ] **Step 3:** 구현: `broadcasts.transform { VcsecBroadcasts.events(it).forEach { e -> emit(e) } }`를 `connection.first { it is Disconnected }` 또는 `closed`까지만 수집(예: `channelFlow` + 종료 조건 `select`). 
+- [ ] **Step 3:** 구현: `broadcasts.transform { VcsecBroadcasts.events(it).forEach { e -> emit(e) } }`를 `connection.first { it is Disconnected }` 또는 `closed`까지만 수집(예: `channelFlow` + 종료 조건 `select`). 실제: `channelFlow` 안에서 `UNDISPATCHED`로 구독 → `combine(connection, closed).first { it }` → 구독 취소(앱 수집 코루틴은 취소되지 않음), `.buffer(RENDEZVOUS)`(버퍼는 디스패처 64 하나). `VcsecBroadcasts`(Task 5, `internal`)는 `:sdk`가 부를 수 있게 먼저 `struct:` 커밋으로 공개.
 - [ ] **Step 4:** PASS, `apiDump`, `./gradlew check`.
-- [ ] **Step 5:** 문서 — `lib-docs-sync`: 14 Part B2 "드롭만 함" → "`events`로 나옴"(게이트, 이벤트 종류, 반복은 변화가 아님, 트렁크 주의, `gear` 노출, A2 표 `gear` 행 "public `gear`"), 12 이벤트 구독 예제(Kotlin·Swift), 11 상태 표, 16 오버플로 WARN, 18 observe와 events 관계, 19 디스패처 경로. PRD/SDD 갱신.
+- [ ] **Step 5:** 문서 — `lib-docs-sync`: 14 Part B2 "드롭만 함" → "`events`로 나옴"(게이트, 이벤트 종류, 반복은 변화가 아님, 트렁크 주의, `gear` 노출, A2 표 `gear` 행 "public `gear`"), 12 이벤트 구독 예제(Kotlin·Swift), 11 상태 표, 16 오버플로 WARN, 18 observe와 events 관계, 19 디스패처 경로. PRD/SDD 갱신. (`gear` 항목은 PR #94에서 이미 반영 — 이 작업에서는 건너뜀. 샘플 스펙 04·01은 "`Vehicle.events` 사용 가능, iOS 키 접근성(FR-037)만 대기"로.)
 - [ ] **Step 6:** 커밋(`feat: Vehicle.events …`, `docs: …`), `verify.sh`, AI 리뷰, PR(Refs #91) → 머지. #91 체크.
 
 ### Task 7: iOS 키 접근성 선택 (FR-037) + ADR-0014
