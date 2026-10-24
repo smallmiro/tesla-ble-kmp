@@ -11,27 +11,22 @@ import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.Vin
 import dev.mirolab.teslable.model.WhitelistEntry
 import dev.mirolab.teslable.port.ScanEvent
-import dev.mirolab.teslable.port.TransportState
 import dev.mirolab.teslable.port.VehicleKey
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration.Companion.seconds
 import kotlin.time.TimeSource
 
-/** 샘플 화면 상태(iOS SampleModel과 같은 동작). */
+/**
+ * Control 탭의 상태(iOS SampleModel과 같은 동작). 연결과 키는 모니터가 가진 것([MonitorEngine])을 그대로 쓴다:
+ * 차량에는 연결 하나만 열고, 이 탭의 버튼은 그 연결 위에서 호출을 보낸다.
+ */
 class SampleState(
-    private val ble: TeslaBle,
+    private val engine: MonitorEngine,
 ) {
-    val vinText = mutableStateOf("")
+    private val ble: TeslaBle = engine.ble
     val keyInfo = mutableStateOf("키 없음")
-    val connection = mutableStateOf("연결 안 됨")
     val output = mutableStateListOf<String>()
 
     /** 호출이 진행 중이면 true — 버튼을 막아 호출이 겹치지 않게 한다. */
@@ -42,12 +37,8 @@ class SampleState(
 
     /** 삭제 확인 대기 중인 항목. */
     val pendingRemoval = mutableStateOf<WhitelistEntry?>(null)
-    private var key: VehicleKey? = null
-    private var vehicle: Vehicle? = null
-
-    /** 연결 표시를 `vehicle.connection`에 맞추는 수집기(링크 끊김도 보인다). */
-    private val uiScope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
-    private var connectionWatch: Job? = null
+    private val key: VehicleKey? get() = engine.currentKey()
+    private val vehicle: Vehicle? get() = engine.currentVehicle()
 
     /** [body]를 한 번에 하나만 실행한다. */
     suspend fun exclusive(body: suspend SampleState.() -> Unit) {
@@ -60,21 +51,13 @@ class SampleState(
         }
     }
 
-    /**
-     * 앱이 끝날 때 라이브러리를 닫는다(연결된 차량도 끊는다). `close()`는 suspend이고 ViewModel 스코프는 이미 취소됐으므로
-     * ViewModel보다 오래 사는 스코프에서 실행한다(`GlobalScope` 금지). `close()` 안의 끊기는 취소되지 않는다.
-     */
-    fun close() {
-        uiScope.cancel()
-        CoroutineScope(SupervisorJob() + Dispatchers.Default).launch { ble.close() }
-    }
+    private fun vin(): Vin? = engine.parsedVin()
 
-    private fun vin(): Vin? = Vin.parseOrNull(vinText.value)
-
+    /** 모니터 키(`teslable-monitor`, `AFTER_FIRST_UNLOCK`)를 읽거나 만든다. */
     suspend fun createKey() {
         keyInfo.value =
-            when (val r = ble.keys.getOrCreate()) {
-                is VehicleResult.Success -> r.value.also { key = it }.let { "${it.protection} ${it.publicKey}" }
+            when (val r = engine.ensureKey()) {
+                is VehicleResult.Success -> "${r.value.alias}: ${r.value.protection}, 접근성 ${r.value.accessibility}\n${r.value.publicKey}"
                 is VehicleResult.Uncertain -> "불확실: ${r.error.message}"
                 is VehicleResult.Failure -> "실패: ${r.error.message}"
             }
@@ -83,7 +66,7 @@ class SampleState(
     suspend fun scan() {
         val vin =
             vin() ?: run {
-                output.add("VIN 형식 오류")
+                output.add("저장된 VIN이 없습니다(Live 탭에서 저장)")
                 return
             }
         val event = withTimeoutOrNull(SCAN_TIMEOUT) { ble.scan(vin).first() }
@@ -98,35 +81,9 @@ class SampleState(
         )
     }
 
-    suspend fun connect() {
-        val vin =
-            vin() ?: run {
-                output.add("VIN 형식 오류")
-                return
-            }
-        disconnect() // 이미 연결돼 있으면 먼저 끊는다
-        connection.value = "연결 중…"
-        when (val r = ble.connect(vin, key)) {
-            is VehicleResult.Success -> watch(r.value.also { vehicle = it })
-            is VehicleResult.Uncertain -> connection.value = "불확실: ${r.error.message}"
-            is VehicleResult.Failure -> connection.value = "실패: ${r.error.message}"
-        }
-    }
-
-    /** 연결 상태 표시가 [Vehicle.connection]을 따른다 — 차량이 링크를 끊으면 이유와 함께 보인다. */
-    private fun watch(v: Vehicle) {
-        val keyLabel = if (v.hasKey) "있음" else "없음"
-        connectionWatch?.cancel()
-        connectionWatch =
-            uiScope.launch {
-                v.connection.collect { state ->
-                    connection.value =
-                        when (state) {
-                            TransportState.Connected -> "연결됨 (키: $keyLabel)"
-                            is TransportState.Disconnected -> state.reason?.let { "링크 끊김: ${it.message} — 연결 끊기를 누르세요" } ?: "연결 안 됨"
-                        }
-                }
-            }
+    /** 모니터의 연결 루프를 시작한다(기다리지 않고 바로). 상태는 Live 탭 배너에 보인다. */
+    fun connect() {
+        output.add(if (engine.connectNow()) "연결 시작 — 상태는 Live 탭에서" else "저장된 VIN이 없습니다(Live 탭에서 저장)")
     }
 
     suspend fun vehicleStatus() = report("VehicleStatus") { it.vehicleStatus() }
@@ -251,13 +208,11 @@ class SampleState(
 
     suspend fun wakeUp() = control("깨우기") { it.wakeUp() }
 
+    /** 연결을 끊고 자동 재연결도 멈춘다(SFR-012). 다시 연결할 때까지 재연결하지 않는다. */
     suspend fun disconnect() {
-        connectionWatch?.cancel()
-        connectionWatch = null
-        vehicle?.disconnect()
-        vehicle = null
+        engine.disconnect()
         keyEntries.clear()
-        connection.value = "연결 안 됨"
+        output.add("연결 끊음 — 자동 재연결 중지")
     }
 
     private suspend fun report(
