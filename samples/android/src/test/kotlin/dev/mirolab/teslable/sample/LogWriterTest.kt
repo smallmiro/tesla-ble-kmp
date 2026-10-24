@@ -12,6 +12,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.test.runTest
 import org.json.JSONObject
 import java.io.File
+import java.io.FileOutputStream
+import java.io.IOException
+import java.io.OutputStream
 import java.nio.file.Files
 import java.time.Clock
 import java.time.Instant
@@ -72,7 +75,8 @@ class LogWriterTest {
         maxFile: Long = LogWriter.DEFAULT_MAX_FILE_BYTES,
         maxTotal: Long = LogWriter.DEFAULT_MAX_TOTAL_BYTES,
         queue: Int = 1024,
-    ) = LogWriter(dir, session, scope, clock, maxFile, maxTotal, queue)
+        open: (File) -> OutputStream = { FileOutputStream(it, true) },
+    ) = LogWriter(dir, session, scope, clock, maxFile, maxTotal, queue, open)
 
     @Test
     fun defaultsAre20MbPerFileAnd200MbInTotal() {
@@ -293,6 +297,67 @@ class LogWriterTest {
             w.flush() // 두 번째 flush는 그 뒤에 들어간 NewFile 까지 처리된 것을 보장한다
 
             assertEquals(2, files(dir).size)
+        }
+
+    @Test
+    fun failureToOpenTheFileDropsTheLineAndTheNextLineRetries() =
+        runTest {
+            val dir = tempDir()
+            var opens = 0
+            val w =
+                writer(backgroundScope, dir, open = {
+                    if (++opens == 1) throw IOException("disk full") else FileOutputStream(it, true)
+                })
+            w.write(LogLine.mark(w.stamp(), "lost")!!)
+            w.flush() // 실패해도 flush는 돌아온다
+            assertEquals(1, w.stats.value.dropped)
+
+            w.write(LogLine.mark(w.stamp(), "kept")!!)
+            w.flush()
+
+            val memos = files(dir).flatMap { lines(it) }.filter { it.getString("kind") == "mark" }.map { it.getString("memo") }
+            assertEquals(listOf("kept"), memos)
+            assertEquals(1, w.stats.value.dropped)
+        }
+
+    @Test
+    fun failureWhileWritingClosesTheFileCountsTheLineAndReopens() =
+        runTest {
+            val dir = tempDir()
+            var opens = 0
+            val w =
+                writer(backgroundScope, dir, open = { file ->
+                    val real = FileOutputStream(file, true)
+                    if (++opens == 1) {
+                        object : OutputStream() {
+                            private var writes = 0
+
+                            override fun write(b: Int) = real.write(b)
+
+                            override fun write(
+                                b: ByteArray,
+                                off: Int,
+                                len: Int,
+                            ) {
+                                if (++writes > 1) throw IOException("I/O error") // session 줄은 쓰고 그다음 줄에서 실패
+                                real.write(b, off, len)
+                            }
+
+                            override fun close() = real.close()
+                        }
+                    } else {
+                        real
+                    }
+                })
+            w.write(LogLine.mark(w.stamp(), "fails")!!)
+            w.flush()
+            w.write(LogLine.mark(w.stamp(), "ok")!!)
+            w.flush()
+
+            assertEquals(1, w.stats.value.dropped)
+            val last = files(dir).last()
+            assertEquals(listOf("session", "mark"), lines(last).map { it.getString("kind") })
+            assertEquals("ok", lines(last)[1].getString("memo"))
         }
 
     @Test

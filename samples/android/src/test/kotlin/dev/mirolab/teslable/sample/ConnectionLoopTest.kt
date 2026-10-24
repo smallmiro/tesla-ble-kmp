@@ -213,7 +213,7 @@ class ConnectionLoopTest {
         }
 
     @Test
-    fun connectDuringStopKeepsTheNewLoop() =
+    fun connectDuringStopWaitsForTheOldVehicleToBeReleased() =
         runTest {
             val gate = kotlinx.coroutines.CompletableDeferred<Unit>()
             var calls = 0
@@ -232,6 +232,8 @@ class ConnectionLoopTest {
 
             loop.start()
             runCurrent()
+            // 이전 차량을 아직 정리하는 동안에는 새로 연결하지 않는다(차의 연결 슬롯은 3개뿐이다)
+            assertEquals(1, calls)
             gate.complete(Unit)
             runCurrent()
             stopping.join()

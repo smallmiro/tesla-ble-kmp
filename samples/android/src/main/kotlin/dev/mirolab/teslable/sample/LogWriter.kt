@@ -10,6 +10,7 @@ import kotlinx.coroutines.launch
 import java.io.BufferedWriter
 import java.io.File
 import java.io.FileOutputStream
+import java.io.OutputStream
 import java.io.OutputStreamWriter
 import java.time.Clock
 import java.time.LocalDateTime
@@ -61,6 +62,8 @@ class LogWriter(
     private val maxFileBytes: Long = DEFAULT_MAX_FILE_BYTES,
     private val maxTotalBytes: Long = DEFAULT_MAX_TOTAL_BYTES,
     queueCapacity: Int = DEFAULT_QUEUE,
+    /** 파일을 여는 방법. 기본은 이어 쓰기. 테스트에서 실패를 흉내 낼 때 바꾼다. */
+    private val openStream: (File) -> OutputStream = { FileOutputStream(it, true) },
 ) : LogSink {
     private sealed interface Command {
         class Line(
@@ -119,14 +122,27 @@ class LogWriter(
         queue.close()
     }
 
+    /**
+     * 파일 쓰기 실패(디스크 가득 참, 폴더 삭제 등)는 앱을 죽이지 않는다: 열려 있는 파일을 닫고, 그 줄은 버린 것으로 세고,
+     * 다음 줄에서 파일을 다시 연다. [Command.Flush]는 실패해도 반드시 끝낸다.
+     */
     private fun handle(command: Command) {
-        when (command) {
-            is Command.Line -> append(command.line)
-            Command.NewFile -> openNewFile()
-            is Command.Flush -> {
-                writer?.flush()
-                command.done.complete(Unit)
+        try {
+            when (command) {
+                is Command.Line -> append(command.line)
+                Command.NewFile -> openNewFile()
+                is Command.Flush -> writer?.flush()
             }
+        } catch (
+            @Suppress("TooGenericExceptionCaught") e: Exception,
+        ) {
+            closeFile()
+            if (command is Command.Line) {
+                val n = dropped.incrementAndGet()
+                mutableStats.update { it.copy(dropped = n) }
+            }
+        } finally {
+            if (command is Command.Flush) command.done.complete(Unit)
         }
     }
 
@@ -159,9 +175,10 @@ class LogWriter(
 
     private fun openNewFile() {
         closeFile()
+        dir.mkdirs()
         val file = freshFile()
         othersBytes = listFiles().sumOf { it.length() }
-        writer = BufferedWriter(OutputStreamWriter(FileOutputStream(file, true), Charsets.UTF_8))
+        writer = BufferedWriter(OutputStreamWriter(openStream(file), Charsets.UTF_8))
         current = file
         currentBytes = 0
         mutableStats.update { it.copy(currentFile = file.absolutePath) }
