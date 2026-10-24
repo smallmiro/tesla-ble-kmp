@@ -12,8 +12,10 @@ tests pass, real-device check pending.
 - Module `:samples:android`, package and application id `dev.mirolab.teslable.sample`, `minSdk` 31.
 - Files: see `04-monitor-app.md` §Android implementation. `MainActivity.kt` (tabs, permissions, `FLAG_KEEP_SCREEN_ON` while
   visible), `MonitorService.kt` and `MonitorEngine.kt` (service, connection, events, queries, logs), `SampleState.kt` (Control
-  tab state; every action runs through `exclusive { }` so only one library call runs at a time), `ui/*Tab.kt`.
-- Tests: `src/test/` (`VinMaskTest`, `LogWriterTest`, `ConnectionLoopTest`, `LiveStateTest`), run with
+  tab state; every action runs through `exclusive { }` so only one library call runs at a time), `KeyControl.kt` (Key & Control
+  step rules and command runner, pure), `KeyControlState.kt` (Key & Control tab state), `Enrollment.kt` (pair + confirm helper
+  shared by both tabs), `ui/*Tab.kt`.
+- Tests: `src/test/` (`VinMaskTest`, `LogWriterTest`, `ConnectionLoopTest`, `LiveStateTest`, `KeyControlTest`), run with
   `./gradlew :samples:android:testDebugUnitTest`.
 
 | Tab | Contents |
@@ -44,9 +46,10 @@ The monitor app (`04-monitor-app.md`, SFR-010 to SFR-018): five tabs, one monito
   `LSSupportsOpeningDocumentsInPlace` from `project.yml`.
 - Files: see `04-monitor-app.md` §iOS implementation. `MonitorModel.swift` and `MonitorEngine.swift` (connection, events,
   queries, logs), `ConnectionLoop.swift`, `LogLine.swift`, `LogWriter.swift`, `VinMask.swift`, `LiveState.swift`,
-  `VehicleMapping.swift`, `SampleModel.swift` (Control tab state; every action runs through `exclusive { }` so only one
-  library call runs at a time), `ContentView.swift`, `Views/*Tab.swift`.
-- Tests: `Tests/` (`VinMaskTests`, `LogWriterTests`, `ConnectionLoopTests`, `LiveStateTests`, `TimeoutsTests`), run with
+  `VehicleMapping.swift`, `SampleModel.swift` (Control tab state and `BleClient`; every action runs through `exclusive { }` so only one
+  library call runs at a time), `KeyControl.swift` (Key & Control step rules and command runner, pure), `KeyControlModel.swift`
+  (Key & Control tab state), `ContentView.swift`, `Views/*Tab.swift`.
+- Tests: `Tests/` (`VinMaskTests`, `LogWriterTests`, `ConnectionLoopTests`, `LiveStateTests`, `TimeoutsTests`, `KeyControlTests`), run with
   `xcodebuild ... test` (`02-constraints.md` §4).
 
 | Tab | Contents |

@@ -126,7 +126,8 @@
 <tr><td><code>ConnectionLoop.kt</code></td><td>状態機械 <code>Idle</code>、<code>Connecting(attempt)</code>、<code>Connected</code>、<code>Backoff(attempt, delay, reason)</code>、<code>Stopped</code>。ライブラリのことは何も知らず、仮想時間で単体テストします。</td></tr>
 <tr><td><code>LogLine.kt</code>、<code>LogWriter.kt</code>、<code>VinMask.kt</code></td><td>ログ行の形式、<code>LogSink</code> インターフェースの後ろにあるファイル書き込み、VIN のマスク。</td></tr>
 <tr><td><code>LiveState.kt</code></td><td>イベントを Live タブの状態（項目ごとの最後に変わった時刻）に変えます。</td></tr>
-<tr><td><code>ui/</code></td><td><code>LiveTab</code>、<code>QueryTab</code>、<code>LogTab</code>、<code>ControlTab</code>（以前の 1 画面）と共通のヘルパー。</td></tr>
+<tr><td><code>KeyControl.kt</code>、<code>KeyControlState.kt</code>、<code>Enrollment.kt</code></td><td>キー＆コントロールタブ（<a href="05-key-control-tab.html">5. キー＆コントロールタブ</a>）。純粋なステップ規則とコマンド実行部、タブの状態、Control タブと共有するペアリングと確認のヘルパー。</td></tr>
+<tr><td><code>ui/</code></td><td><code>LiveTab</code>、<code>QueryTab</code>、<code>LogTab</code>、<code>ControlTab</code>（以前の 1 画面）、<code>KeyControlTab</code> と共通のヘルパー。</td></tr>
 </tbody>
 </table>
 <p>使ったライブラリ呼び出しと、従ったマニュアルの章:</p>
@@ -139,7 +140,7 @@
 <tr><td>30 秒ごとに <code>vehicleStatus()</code>、<code>keySummary()</code>、<code>listKeys()</code>、<code>sessions</code>。<code>Uncertain</code> と <code>Failure</code> はそのまま表示します</td><td><code>MonitorEngine.runQueries</code></td><td>14 章「4 つのクエリ」、16 章「3 つの結果」</td></tr>
 <tr><td><code>keys.getOrCreate("teslable-monitor", PREFER_HARDWARE, AFTER_FIRST_UNLOCK)</code>。<code>Locked</code> なら待って再試行し、キーは消しません</td><td><code>MonitorEngine.ensureKey</code></td><td>13 章「スマートフォンのロック中にキーを使う」、16 章「Bluetooth とキーストアのエラー」</td></tr>
 <tr><td><code>TeslaLogger</code>（タグ <code>observe</code>）</td><td><code>MonitorEngine.kt</code> の <code>ObserveLogger</code></td><td>18 章「観察ログ（開発用）」</td></tr>
-<tr><td><code>Vin.parseOrNull</code>、<code>scan</code>、<code>addKeyRequest</code>、<code>sessionInfo</code>、<code>startSession</code>、VCSEC コマンド、<code>removeKey</code></td><td>Control タブ（<code>SampleState</code>）</td><td>12、13、15、16 章</td></tr>
+<tr><td><code>Vin.parseOrNull</code>、<code>scan</code>、<code>addKeyRequest</code>、<code>sessionInfo</code>、<code>startSession</code>、VCSEC コマンド、<code>removeKey</code></td><td>Control タブ（<code>SampleState</code>）、キー＆コントロールタブ（<code>KeyControlState</code>）、<code>Enrollment.kt</code></td><td>12、13、15、16 章</td></tr>
 </tbody>
 </table>
 <p>動作のしかたと、設計で余地を残した部分:</p>
@@ -159,14 +160,15 @@
 <table>
 <thead><tr><th>ファイル</th><th>役割</th></tr></thead>
 <tbody>
-<tr><td><code>MonitorModel.swift</code></td><td>アプリの存続期間中ずっと存在する 1 つのオブジェクト（<code>TeslableSampleApp</code> 内の <code>@StateObject</code>）。画面が読む内容を保持し、エンジンを 1 回だけ開始し（VIN が保存されていれば自動で接続します。XCTest の下では接続しません）、Control タブの <code>SampleModel</code> を作ります。</td></tr>
+<tr><td><code>MonitorModel.swift</code></td><td>アプリの存続期間中ずっと存在する 1 つのオブジェクト（<code>TeslableSampleApp</code> 内の <code>@StateObject</code>）。画面が読む内容を保持し、エンジンを 1 回だけ開始し（VIN が保存されていれば自動で接続します。XCTest の下では接続しません）、Control タブの <code>SampleModel</code> を作ります。キー＆コントロールタブの <code>KeyControlModel</code> も作ります。</td></tr>
 <tr><td><code>MonitorEngine.swift</code></td><td>ライブラリのインスタンス、<code>ConnectionLoop</code>、<code>Vehicle.events</code> の Task、問い合わせのポーリング Task、保存した VIN（<code>UserDefaults</code>）、モニターのキー、<code>LogWriter</code> を持ちます。変更は 1 つの <code>AsyncStream</code> を通してモデルに送り、順序を保ちます。<code>observe</code> の行は、すべてを <code>DebugLogger</code> に渡す <code>TeslaLogger</code> である <code>ObserveLogger</code> を通して入ってきます。</td></tr>
 <tr><td><code>ConnectionLoop.swift</code></td><td>状態機械 <code>idle</code>、<code>connecting(n)</code>、<code>connected(V)</code>、<code>backoff(attempt:delay:reason:)</code>、<code>stopped</code>。ライブラリのことは何も知らず、時計とスリープは差し替えられます（テストは手動の時計を使います）。</td></tr>
 <tr><td><code>LogLine.swift</code>、<code>LogWriter.swift</code>、<code>VinMask.swift</code></td><td>ログ行の形式、<code>LogSink</code> プロトコルの後ろにある専用シリアルキュー上のファイル書き込み、VIN のマスク。</td></tr>
 <tr><td><code>LiveState.swift</code></td><td>イベントを Live タブの状態（項目ごとの最後に変わった時刻）に変えます。</td></tr>
 <tr><td><code>VehicleMapping.swift</code></td><td><code>VehicleEvent</code> と <code>VehicleStatus_</code> を Swift の値（<code>MonitorEvent</code>、<code>StatusSnapshot</code>）に変える唯一の場所。<code>VehicleBox</code> は <code>Vehicle</code> をタスク間で運びます。</td></tr>
 <tr><td><code>SampleModel.swift</code>、<code>Views/ControlTab.swift</code></td><td>モニターの接続とキーを使う Control タブ（以前の 1 画面）。</td></tr>
-<tr><td><code>ContentView.swift</code>、<code>Views/</code></td><td>Live、Query、Log、Control を持つ <code>TabView</code>。<code>isIdleTimerDisabled</code> は <code>scenePhase == .active</code> に従います。</td></tr>
+<tr><td><code>KeyControl.swift</code>、<code>KeyControlModel.swift</code>、<code>Views/KeyControlTab.swift</code></td><td>キー＆コントロールタブ（<a href="05-key-control-tab.html">5. キー＆コントロールタブ</a>）。純粋なステップ規則とコマンド実行部、タブの状態と画面。ライブラリの呼び出しは <code>BleClient</code> を通ります。</td></tr>
+<tr><td><code>ContentView.swift</code>、<code>Views/</code></td><td>Live、Query、Log、Control、キー＆コントロールを持つ <code>TabView</code>。<code>isIdleTimerDisabled</code> は <code>scenePhase == .active</code> に従います。</td></tr>
 </tbody>
 </table>
 <p>使ったライブラリ呼び出し（Swift 形式）と、従ったマニュアルの章:</p>
@@ -179,7 +181,7 @@
 <tr><td>30 秒ごとに <code>vehicleStatus(timeout: nil)</code>、<code>keySummary(timeout: nil)</code>、<code>listKeys(timeout: nil)</code>、<code>sessions</code>。<code>Uncertain</code> と <code>Failure</code> はそのまま表示します</td><td><code>MonitorEngine.runQueries</code></td><td>14 章「4 つのクエリ」、16 章「3 つの結果」</td></tr>
 <tr><td><code>"teslable-monitor"</code>、<code>.preferHardware</code>、<code>.afterFirstUnlock</code> を指定した <code>keys.getOrCreate(alias:policy:accessibility:)</code>。<code>VehicleErrorKeyStoreErrorLocked</code> なら待って再試行し、キーは消しません</td><td><code>MonitorEngine.ensureKey</code></td><td>13 章「スマートフォンのロック中にキーを使う」、16 章「Bluetooth とキーストアのエラー」</td></tr>
 <tr><td><code>TeslaLogger</code>（タグ <code>observe</code>）</td><td><code>ObserveLogger</code></td><td>18 章「観察ログ（開発用）」</td></tr>
-<tr><td><code>Vin.companion.parseOrNull</code>、<code>scan</code>、<code>addKeyRequest</code>、<code>sessionInfo</code>、<code>startSession</code>、VCSEC コマンド、<code>removeKey</code></td><td>Control タブ（<code>BleClient</code>）</td><td>12、13、15、16 章</td></tr>
+<tr><td><code>Vin.companion.parseOrNull</code>、<code>scan</code>、<code>addKeyRequest</code>、<code>sessionInfo</code>、<code>startSession</code>、VCSEC コマンド、<code>removeKey</code></td><td>Control タブとキー＆コントロールタブ（<code>BleClient</code>）</td><td>12、13、15、16 章</td></tr>
 </tbody>
 </table>
 <p>動作のしかたと、設計で余地を残した部分:</p>
