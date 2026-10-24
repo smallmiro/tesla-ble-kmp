@@ -41,7 +41,10 @@ fun QueryTab(engine: MonitorEngine) {
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("연결돼 있는 동안 ${seconds}초마다 vehicleStatus(), keySummary(), listKeys() 를 조회합니다. 깨우지 않습니다.", style = MaterialTheme.typography.bodySmall)
+        Text(
+            "연결돼 있는 동안 ${seconds}초마다 vehicleStatus(), keySummary(), listKeys() 를 조회합니다. 깨우지 않습니다.",
+            style = MaterialTheme.typography.bodySmall,
+        )
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             OutlinedTextField(
                 value = secondsText,

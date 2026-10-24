@@ -197,7 +197,8 @@ class MonitorEngine(
                 key = result.value
                 keyStatus.value = describe(result.value)
             }
-            is VehicleResult.Failure ->
+
+            is VehicleResult.Failure -> {
                 keyStatus.value =
                     KeyStatus(
                         if (result.error == VehicleError.KeyStoreError.Locked) {
@@ -206,7 +207,11 @@ class MonitorEngine(
                             "키 오류: ${result.error.message}"
                         },
                     )
-            is VehicleResult.Uncertain -> keyStatus.value = KeyStatus("키 불확실: ${result.error.message}")
+            }
+
+            is VehicleResult.Uncertain -> {
+                keyStatus.value = KeyStatus("키 불확실: ${result.error.message}")
+            }
         }
         return result
     }
@@ -248,19 +253,27 @@ class MonitorEngine(
     private fun onTransition(state: LinkState<Vehicle>) {
         val ts = log.stamp()
         when (state) {
-            LinkState.Idle -> Unit
+            LinkState.Idle -> {
+                Unit
+            }
+
             is LinkState.Connecting -> {
                 stopConnectionJobs()
                 log.write(LogLine.link(ts, "connecting", attempt = state.attempt))
             }
+
             is LinkState.Connected -> {
                 log.write(LogLine.link(ts, "connected"))
                 startConnectionJobs(state.vehicle)
             }
+
             is LinkState.Backoff -> {
                 stopConnectionJobs()
-                log.write(LogLine.link(ts, "backoff", reason = state.reason, attempt = state.attempt, delayMs = state.delay.inWholeMilliseconds))
+                log.write(
+                    LogLine.link(ts, "backoff", reason = state.reason, attempt = state.attempt, delayMs = state.delay.inWholeMilliseconds),
+                )
             }
+
             LinkState.Stopped -> {
                 stopConnectionJobs()
                 log.write(LogLine.link(ts, "stopped"))
@@ -309,7 +322,10 @@ class MonitorEngine(
         record("listKeys", vehicle.listKeys()) { list ->
             "${list.size} keys: " + list.joinToString { "slot${it.slot}/${it.role}/${it.formFactor}" }
         }
-        sessionsText.value = "세션: " + vehicle.sessions.value.entries.joinToString { "${it.key}=${it.value}" }.ifEmpty { "없음" }
+        sessionsText.value = "세션: " +
+            vehicle.sessions.value.entries
+                .joinToString { "${it.key}=${it.value}" }
+                .ifEmpty { "없음" }
     }
 
     private fun <T> record(

@@ -116,7 +116,11 @@ class ConnectionLoop<V : Any>(
                 if (running != null) {
                     running.cancel()
                     val older = teardown
-                    teardown = scope.launch { older?.join(); running.join() }
+                    teardown =
+                        scope.launch {
+                            older?.join()
+                            running.join()
+                        }
                 }
                 teardown
             }
@@ -143,6 +147,7 @@ class ConnectionLoop<V : Any>(
                     failures++
                     reason = outcome.reason
                 }
+
                 is ConnectOutcome.Connected -> {
                     val vehicle = outcome.vehicle
                     publish(LinkState.Connected(vehicle))

@@ -53,11 +53,17 @@ object LiveReducer {
         now: Instant,
     ): LiveState =
         when (event) {
-            is VehicleEvent.Status -> reduceStatus(state, event, now)
-            is VehicleEvent.AuthenticationRequest ->
+            is VehicleEvent.Status -> {
+                reduceStatus(state, event, now)
+            }
+
+            is VehicleEvent.AuthenticationRequest -> {
                 state.withRecent(now, "인증 요청 level=${event.requestedLevel} reasons=${event.reasons}")
-            is VehicleEvent.Unrecognized ->
+            }
+
+            is VehicleEvent.Unrecognized -> {
                 state.withRecent(now, "알 수 없는 방송 unknownFields=${event.unknownFields}")
+            }
         }
 
     private fun reduceStatus(
@@ -72,8 +78,15 @@ object LiveReducer {
             val old = state.items[key]
             items[key] =
                 when {
-                    old == null -> LiveItem(value, now, changed = false)
-                    old.value == value -> old // 같은 값 반복은 변화가 아니다
+                    old == null -> {
+                        LiveItem(value, now, changed = false)
+                    }
+
+                    old.value == value -> {
+                        old
+                    }
+
+                    // 같은 값 반복은 변화가 아니다
                     else -> {
                         changes += "${key.label} ${old.value} → $value"
                         LiveItem(value, now, changed = true)

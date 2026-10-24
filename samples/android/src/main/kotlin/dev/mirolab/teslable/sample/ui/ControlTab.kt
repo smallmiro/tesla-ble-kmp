@@ -59,7 +59,10 @@ fun ControlTab(
         Button(enabled = enabled, onClick = { scope.launch { state.exclusive { pair() } } }) { Text("키 등록 요청") }
         Button(enabled = enabled, onClick = { scope.launch { state.exclusive { confirmEnrollment() } } }) { Text("등록 확인") }
         Text("세션", style = MaterialTheme.typography.titleSmall)
-        Button(enabled = enabled, onClick = { scope.launch { state.exclusive { startSession(vcsecOnly = true) } } }) { Text("핸드셰이크: VCSEC만") }
+        Button(
+            enabled = enabled,
+            onClick = { scope.launch { state.exclusive { startSession(vcsecOnly = true) } } },
+        ) { Text("핸드셰이크: VCSEC만") }
         Button(enabled = enabled, onClick = { scope.launch { state.exclusive { startSession(vcsecOnly = false) } } }) { Text("핸드셰이크: 전체") }
         Button(enabled = enabled, onClick = { state.showSessions() }) { Text("세션 상태 보기") }
         Text("제어", style = MaterialTheme.typography.titleSmall)

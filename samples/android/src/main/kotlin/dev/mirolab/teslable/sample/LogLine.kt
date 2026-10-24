@@ -104,10 +104,17 @@ class LogLine private constructor(
 
         private fun describe(event: VehicleEvent): Pair<String, String> =
             when (event) {
-                is VehicleEvent.Status -> "Status" to statusSummary(event)
-                is VehicleEvent.AuthenticationRequest ->
+                is VehicleEvent.Status -> {
+                    "Status" to statusSummary(event)
+                }
+
+                is VehicleEvent.AuthenticationRequest -> {
                     "AuthenticationRequest" to "level=${event.requestedLevel} reasons=${event.reasons}"
-                is VehicleEvent.Unrecognized -> "Unrecognized" to "unknownFields=${event.unknownFields}"
+                }
+
+                is VehicleEvent.Unrecognized -> {
+                    "Unrecognized" to "unknownFields=${event.unknownFields}"
+                }
             }
 
         /** 이벤트의 `Status` 요약. 앞의 세 항목 순서는 04-monitor-app.md 예시와 같다. */
