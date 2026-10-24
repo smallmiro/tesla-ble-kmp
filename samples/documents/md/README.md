@@ -17,6 +17,7 @@ They are not products.
 | 1 | `02-constraints.md` | Before any sample change |
 | 2 | `01-requirements.md` | When picking or checking a sample requirement (SFR) |
 | 3 | `03-current-apps.md` | When changing an existing screen or flow |
+| 4 | `04-monitor-app.md` | When working on the monitor app (SFR-010 to SFR-017) |
 
 ## File list
 
@@ -26,6 +27,7 @@ They are not products.
 | `01-requirements.md` | Sample requirements `SFR-xxx`, status, origin |
 | `02-constraints.md` | Rules every sample change follows: allowed API, platform setup, logs and secrets, build and test |
 | `03-current-apps.md` | What the two apps do today, screen by screen, and where the real-vehicle runbooks are |
+| `04-monitor-app.md` | Monitor app (planned): tabs, auto-connect and reconnect, background, live state, polling, log format, pull script |
 
 ## Keeping these pages current
 
