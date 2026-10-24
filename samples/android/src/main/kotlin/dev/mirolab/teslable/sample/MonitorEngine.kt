@@ -138,6 +138,12 @@ class MonitorEngine(
     /** 연결 끊기 버튼. 자동 재연결도 멈춘다(SFR-012). */
     suspend fun disconnect() = loop.stop()
 
+    /** 서비스가 내려갈 때: 아직 연결 중이거나 재연결 중이면 끊는다. */
+    fun stopAsync() {
+        val state = loop.state.value
+        if (state is LinkState.Connecting || state is LinkState.Connected || state is LinkState.Backoff) scope.launch { loop.stop() }
+    }
+
     /** VIN을 저장한다. 형식이 틀리면 `false`. 이미 연결돼 있으면 건드리지 않는다. */
     fun saveVin(text: String): Boolean {
         val vin = Vin.parseOrNull(text.trim().uppercase()) ?: return false
