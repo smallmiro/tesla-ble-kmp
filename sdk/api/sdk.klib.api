@@ -9,6 +9,8 @@
 abstract interface dev.mirolab.teslable/Vehicle { // dev.mirolab.teslable/Vehicle|null[0]
     abstract val connection // dev.mirolab.teslable/Vehicle.connection|{}connection[0]
         abstract fun <get-connection>(): kotlinx.coroutines.flow/StateFlow<dev.mirolab.teslable.port/TransportState> // dev.mirolab.teslable/Vehicle.connection.<get-connection>|<get-connection>(){}[0]
+    abstract val events // dev.mirolab.teslable/Vehicle.events|{}events[0]
+        abstract fun <get-events>(): kotlinx.coroutines.flow/Flow<dev.mirolab.teslable.model/VehicleEvent> // dev.mirolab.teslable/Vehicle.events.<get-events>|<get-events>(){}[0]
     abstract val hasKey // dev.mirolab.teslable/Vehicle.hasKey|{}hasKey[0]
         abstract fun <get-hasKey>(): kotlin/Boolean // dev.mirolab.teslable/Vehicle.hasKey.<get-hasKey>|<get-hasKey>(){}[0]
     abstract val sessions // dev.mirolab.teslable/Vehicle.sessions|{}sessions[0]

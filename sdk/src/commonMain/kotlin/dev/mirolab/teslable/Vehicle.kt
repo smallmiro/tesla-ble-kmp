@@ -6,6 +6,7 @@ import dev.mirolab.teslable.model.PairingEvent
 import dev.mirolab.teslable.model.PublicKeyBytes
 import dev.mirolab.teslable.model.SessionInfoSummary
 import dev.mirolab.teslable.model.VehicleDomain
+import dev.mirolab.teslable.model.VehicleEvent
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.VehicleStatus
 import dev.mirolab.teslable.model.Vin
@@ -33,6 +34,24 @@ public interface Vehicle {
 
     /** 도메인별 세션 상태. */
     public val sessions: StateFlow<Map<VehicleDomain, SessionStatus>>
+
+    /**
+     * 차량이 요청 없이 보낸 **평문** VCSEC 브로드캐스트(FR-035). 원본 Go는 이 프레임을 버린다 — 원본에 없는 동작이다. 키도 세션도
+     * 필요 없다(차량이 처음부터 평문으로 보낸 프레임만 나오고, 라이브러리가 복호화한 것은 나오지 않는다 — FR-112).
+     *
+     * - 연결 하나의 hot 스트림이다. 수집을 시작할 때 구독하며 그 전에 온 브로드캐스트는 받지 못한다(replay 0). 여러 곳에서 수집하면
+     *   각자 같은 이벤트를 받는다.
+     * - 프레임 하나에서 `vehicleStatus`는 [VehicleEvent.Status], `authenticationRequest`는 [VehicleEvent.AuthenticationRequest]가
+     *   된다(둘 다 있으면 이 순서로 둘). 둘 다 없으면 [VehicleEvent.Unrecognized]. 차량은 바뀐 것이 없어도 상태를 반복해 보낸다 —
+     *   반복은 변화가 아니며 비교는 앱이 한다.
+     * - [connection]이 `Disconnected`가 되거나(이유와 상관없이) [disconnect]가 불리면, 먼저 온 쪽에서 **정상 완료**한다(예외 없음).
+     *   이미 끝난 연결에서 수집하면 바로 끝난다. 그 순간 아직 넘겨주지 못한 프레임은 버려질 수 있다. 끊긴 이유와 재연결 판단은
+     *   [connection]으로 하고(흐름 완료로 판단하지 않는다), 링크 손실 뒤에도 [disconnect]는 불러야 한다. 새 연결은 새 [Vehicle]의 새 흐름이다.
+     * - 수집이 느리면 라이브러리가 프레임 64개까지 쌓아 두고, 넘치면 새 프레임을 버리고 WARN 로그를 남긴다. 버린 프레임은 이 연결의 모든
+     *   수집자에게서 빠진다. 오류가 아니다.
+     * - [VehicleEvent.raw]는 받은 프레임 그대로이며 VIN을 가리지 않는다 — 저장·공유 전에 앱이 가린다.
+     */
+    public val events: Flow<VehicleEvent>
 
     /** 핸드셰이크(FR-012). 캐시로 준비된 도메인은 요청 없이 성공. */
     public suspend fun startSession(
