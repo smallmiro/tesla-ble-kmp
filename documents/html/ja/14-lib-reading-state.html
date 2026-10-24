@@ -199,7 +199,7 @@
 <tbody>
 <tr><td>認証、ドメイン</td><td>なし、<code>DOMAIN_VEHICLE_SECURITY</code></td></tr>
 <tr><td>リクエスト</td><td>サマリーの要求を 1 回、続けて使用中のスロットごとに <code>GET_WHITELIST_ENTRY_INFO</code> を 1 つずつ順に</td></tr>
-<tr><td>スロット要求のペイロード</td><td><code>UnsignedMessage{InformationRequest{GET_WHITELIST_ENTRY_INFO, slot = N}}</code> = 16 進 <code>0a04080620NN</code>。例: スロット 0 は <code>0a0408062000</code>、スロット 2 は <code>0a0408062002</code>（タイプ 6、<code>slot</code> はフィールド 4）。<code>NN</code> は varint で、128 以上のスロットは 2 バイト必要です</td></tr>
+<tr><td>スロット要求のペイロード</td><td><code>UnsignedMessage{InformationRequest{GET_WHITELIST_ENTRY_INFO, slot = N}}</code> = 16 進 <code>0a04080620NN</code>。例: スロット 0 は <code>0a0408062000</code>、スロット 2 は <code>0a0408062002</code>（タイプ 6、<code>slot</code> はフィールド 4）。<code>NN</code> は varint で、128 以上のスロットは 2 バイト必要で、<code>InformationRequest</code> の長さバイトは 5 になります（<code>0a05080620</code> に varint の 2 バイトが続く）</td></tr>
 <tr><td>終了条件</td><td>各応答の最初のメッセージ</td></tr>
 <tr><td>応答</td><td><code>FromVCSECMessage.whitelistEntryInfo</code>（フィールド 17）。なければ <code>BadResponse("missing whitelistEntryInfo")</code></td></tr>
 <tr><td>時間予算</td><td>全体で <code>timeout</code> 1 つ。最初の <code>Failure</code> または <code>Uncertain</code> を返し、残り時間がなければ <code>Timeout(afterSend = false)</code></td></tr>
@@ -225,10 +225,10 @@
 <tbody>
 <tr><td>認証</td><td>なし。接続自身のキーだけでなく、65 バイトの公開鍵ならどれでも問い合わせられます</td></tr>
 <tr><td>ドメイン</td><td><code>domain</code>: <code>VCSEC</code>（<code>DOMAIN_VEHICLE_SECURITY</code>）または <code>INFOTAINMENT</code>（<code>DOMAIN_INFOTAINMENT</code>）</td></tr>
-<tr><td>リクエスト</td><td><code>RoutableMessage{to_destination{domain}, from_destination{routing_address = 16 バイト}, session_info_request{public_key}, uuid}</code>。アドレスは <code>VCSEC</code> では要求ごとに新しく作り、<code>INFOTAINMENT</code> では接続固有の固定アドレスを使います。省略可能な <code>challenge</code>（2）は送りません</td></tr>
+<tr><td>リクエスト</td><td><code>RoutableMessage{to_destination{domain}, from_destination{routing_address = 16 bytes}, session_info_request{public_key}, uuid}</code>。アドレスは <code>VCSEC</code> では要求ごとに新しく作り、<code>INFOTAINMENT</code> では接続固有の固定アドレスを使います。省略可能な <code>challenge</code>（2）は送りません</td></tr>
 <tr><td>終了条件</td><td>最初の応答。1 回だけ送り、再送しません</td></tr>
 <tr><td>応答</td><td><code>RoutableMessage.session_info</code>（15）= シリアライズした <code>Signatures.SessionInfo</code></td></tr>
-<tr><td>エラー</td><td>フォールト <code>UNKNOWN_KEY_ID</code>、または <code>status = KEY_NOT_ON_WHITELIST</code> は <code>Failure(KeyNotPaired)</code>、<code>session_info</code> がない、またはデコードできなければ <code>Failure(BadResponse)</code>、時間内に応答がなければ <code>Uncertain(Timeout(afterSend = true))</code></td></tr>
+<tr><td>エラー</td><td>フォールト <code>UNKNOWN_KEY_ID</code>、または <code>status = KEY_NOT_ON_WHITELIST</code> は <code>Failure(KeyNotPaired)</code>、<code>INVALID_HANDLE</code> や未知の <code>status</code> 値は <code>Failure(UnknownResponse)</code>、<code>session_info</code> がない、またはデコードできなければ <code>Failure(BadResponse)</code>、時間内に応答がなければ <code>Uncertain(Timeout(afterSend = true))</code></td></tr>
 <tr><td>副作用</td><td>接続自身のキーで問い合わせると、そのドメインのセッションも作られるため、<code>sessions</code> に <code>Ready(fromCache = false)</code> が表示されます</td></tr>
 </tbody>
 </table>
@@ -239,7 +239,7 @@
 <tr><td>2</td><td><code>publicKey</code></td><td>bytes</td><td><code>vehiclePublicKey</code>（有効な 65 バイトのキーでなければ <code>null</code>）</td></tr>
 <tr><td>3</td><td><code>epoch</code></td><td>bytes</td><td>公開しない</td></tr>
 <tr><td>4</td><td><code>clock_time</code></td><td>fixed32</td><td><code>clockTime</code>（秒）</td></tr>
-<tr><td>5</td><td><code>status</code></td><td><code>Session_Info_Status</code></td><td>検査しない: <code>OK</code> 0、<code>KEY_NOT_ON_WHITELIST</code> 1、<code>INVALID_HANDLE</code> 2（Teslemetry のみ）</td></tr>
+<tr><td>5</td><td><code>status</code></td><td><code>Session_Info_Status</code></td><td>ペイロードを使う前に検査: <code>OK</code> 0 は通過、<code>KEY_NOT_ON_WHITELIST</code> 1 は <code>KeyNotPaired</code>、<code>INVALID_HANDLE</code> 2（Teslemetry のみ）や未知の値は <code>UnknownResponse</code></td></tr>
 <tr><td>6</td><td><code>handle</code></td><td>uint32</td><td>公開しない（Teslemetry のみ）</td></tr>
 </tbody>
 </table>
@@ -421,7 +421,7 @@
 </div>
 
 <h3>B3.3 フィールド 53（不明）</h3>
-<p>状態: <span class="badge warn">不明</span>。<code>FromVCSECMessage</code> のフィールド 53: <code>{1: 小さな整数, 2: 35 バイト}</code> の繰り返し。</p>
+<p>状態: <span class="badge warn">不明</span>。<code>FromVCSECMessage</code> のフィールド 53: <code>{1: small int, 2: 35 bytes}</code> の繰り返し。</p>
 <ul>
 <li>接続直後と充電ポートのイベントでは合計 54 バイト（項目 1 つ、id 4）、ドアとロックのイベントでは 205〜220 バイト（項目 5 つ、id 1、3、4、6、7）。1 つのメッセージ内の 35 バイトのブロブは最後の 2 バイトだけが異なります。</li>
 <li>認証イベントと一緒に届きます。id 1、3、4、6、7 は登録済みキーのスロット番号（M3 で 7 本確認）と重なるため、キーごとの認証チャレンジと推測しています。<strong>未確定。</strong></li>
@@ -440,7 +440,8 @@
 <tr><td>ウインカー（左、右）、ハザード、ヘッドライト、ハイビーム</td><td>操作しても<strong>メッセージがまったくなく</strong>、BLE スキーマにも該当フィールドがありません（<code>vcsec.proto</code>、<code>vehicle.proto</code>、<code>car_server.proto</code>）。知られている経路は Tesla Fleet Telemetry（<code>LightsTurnSignal</code> 240、<code>LightsHazardsActive</code> 239、<code>LightsHighBeams</code> 241）だけで、これはインターネット上のサーバー経由なので、このライブラリのサーバーなしという範囲の外です</td></tr>
 <tr><td>室内ボタンで開けたトランク</td><td>ブロードキャストなし（他の方法は未検証）</td></tr>
 <tr><td>スリープ中の車両</td><td>観察できていない</td></tr>
-<tr><td>充電ケーブル、他のスマートフォンキーが近づくとき</td><td>記録していない</td></tr>
+<tr><td>充電ケーブル</td><td>2 回目に記録（充電ポートを開ける、充電器を接続、充電開始）: <code>chargePort = OPEN</code>、フィールド 8 の下位 2 が 2 から 1 に変化、<code>ENTERED_HIGHER_AUTH_ZONE</code> を含む <code>authenticationRequest</code>、項目 1 つのフィールド 53。ケーブル自体に対する個別のブロードキャストは見つかっていません</td></tr>
+<tr><td>他のスマートフォンキーが近づくとき</td><td>記録していない</td></tr>
 </tbody>
 </table>
 

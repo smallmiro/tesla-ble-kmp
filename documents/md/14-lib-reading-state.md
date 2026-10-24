@@ -143,7 +143,7 @@ suspend fun listKeys(timeout: Duration? = null): VehicleResult<List<WhitelistEnt
 |---|---|
 | Auth / domain | None / `DOMAIN_VEHICLE_SECURITY` |
 | Requests | One `keySummary` request, then one `GET_WHITELIST_ENTRY_INFO` per occupied slot, sequentially |
-| Slot request payload | `UnsignedMessage{InformationRequest{GET_WHITELIST_ENTRY_INFO, slot = N}}` = hex `0a04080620NN`, for example slot 0 `0a0408062000`, slot 2 `0a0408062002` (`informationRequestType` 6, `slot` field 4). `NN` is a varint; slots of 128 or more need two bytes |
+| Slot request payload | `UnsignedMessage{InformationRequest{GET_WHITELIST_ENTRY_INFO, slot = N}}` = hex `0a04080620NN`, for example slot 0 `0a0408062000`, slot 2 `0a0408062002` (`informationRequestType` 6, `slot` field 4). `NN` is a varint; for slots of 128 or more it takes two bytes and the `InformationRequest` length byte becomes 5 (`0a05080620` followed by the two varint bytes) |
 | Terminal rule | First message of each reply |
 | Reply | `FromVCSECMessage.whitelistEntryInfo` (field 17); missing becomes `BadResponse("missing whitelistEntryInfo")` |
 | Budget | One `timeout` for all requests; the first `Failure` or `Uncertain` is returned; no time left gives `Timeout(afterSend = false)` |
@@ -173,7 +173,7 @@ suspend fun sessionInfo(publicKey: PublicKeyBytes, domain: VehicleDomain, timeou
 | Request | `RoutableMessage{to_destination{domain}, from_destination{routing_address = 16 bytes}, session_info_request{public_key}, uuid}`; the address is fresh per request for `VCSEC` and the connection's own fixed address for `INFOTAINMENT`; the optional `challenge` (2) is not sent |
 | Terminal rule | The first reply; sent once, never repeated |
 | Reply | `RoutableMessage.session_info` (15) = serialized `Signatures.SessionInfo` |
-| Errors | `signedMessageStatus` fault `UNKNOWN_KEY_ID`, or `SessionInfo.status = KEY_NOT_ON_WHITELIST`, becomes `Failure(KeyNotPaired)`; missing `session_info` or an undecodable one becomes `Failure(BadResponse)`; no reply in time is `Uncertain(Timeout(afterSend = true))` |
+| Errors | `signedMessageStatus` fault `UNKNOWN_KEY_ID`, or `SessionInfo.status = KEY_NOT_ON_WHITELIST`, becomes `Failure(KeyNotPaired)`; `status = INVALID_HANDLE` or an unknown `status` value becomes `Failure(UnknownResponse)`; missing `session_info` or an undecodable one becomes `Failure(BadResponse)`; no reply in time is `Uncertain(Timeout(afterSend = true))` |
 | Side effect | Asking with the connection's own key also builds that domain's session, so `sessions` shows `Ready(fromCache = false)` |
 
 `Signatures.SessionInfo` (`signatures.proto`):
@@ -184,7 +184,7 @@ suspend fun sessionInfo(publicKey: PublicKeyBytes, domain: VehicleDomain, timeou
 | 2 | `publicKey` | bytes | `vehiclePublicKey` (`null` if not a valid 65-byte key) |
 | 3 | `epoch` | bytes | Not surfaced |
 | 4 | `clock_time` | fixed32 | `clockTime` (seconds) |
-| 5 | `status` | `Session_Info_Status` | Not checked: `OK` 0, `KEY_NOT_ON_WHITELIST` 1, `INVALID_HANDLE` 2 (Teslemetry-only) |
+| 5 | `status` | `Session_Info_Status` | Checked before the payload is used: `OK` 0 passes; `KEY_NOT_ON_WHITELIST` 1 gives `KeyNotPaired`; `INVALID_HANDLE` 2 (Teslemetry-only) or any unknown value gives `UnknownResponse` |
 | 6 | `handle` | uint32 | Not surfaced (Teslemetry-only) |
 
 Use it to confirm enrollment after pairing: `sessionInfo(publicKey, INFOTAINMENT)` (see `13-lib-pairing.md`).
@@ -438,7 +438,8 @@ right after a door event. The dispatcher drops it as `no-handler` (owner `other`
 | Turn signals (left, right), hazards, headlights, high beams | **No message at all** when operated, and no BLE schema field for them (`vcsec.proto`, `vehicle.proto`, `car_server.proto`). The only known source is Tesla Fleet Telemetry (`LightsTurnSignal` 240, `LightsHazardsActive` 239, `LightsHighBeams` 241), an internet server path outside this library's no-server scope |
 | Trunk opened with the interior button | No broadcast (other methods untested) |
 | Sleeping vehicle | Not observed |
-| Charging cable, other phone keys approaching | Not recorded |
+| Charging cable | Recorded in round 2 (charge port open, charger connected, charging start): `chargePort = OPEN`, field 8 sub-field 2 changed 2 to 1, `authenticationRequest` with `ENTERED_HIGHER_AUTH_ZONE`, field 53 with one entry. No separate broadcast for the cable itself was identified |
+| Another phone key approaching | Not recorded |
 
 ## B5. Observation method and environment
 
