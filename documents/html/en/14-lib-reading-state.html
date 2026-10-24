@@ -199,7 +199,7 @@
 <tbody>
 <tr><td>Authentication, domain</td><td>None, <code>DOMAIN_VEHICLE_SECURITY</code></td></tr>
 <tr><td>Requests</td><td>One summary request, then one <code>GET_WHITELIST_ENTRY_INFO</code> per occupied slot, one after another</td></tr>
-<tr><td>Slot request payload</td><td><code>UnsignedMessage{InformationRequest{GET_WHITELIST_ENTRY_INFO, slot = N}}</code> = hex <code>0a04080620NN</code>, for example slot 0 <code>0a0408062000</code>, slot 2 <code>0a0408062002</code> (type 6, <code>slot</code> field 4). <code>NN</code> is a varint; slots of 128 or more need two bytes</td></tr>
+<tr><td>Slot request payload</td><td><code>UnsignedMessage{InformationRequest{GET_WHITELIST_ENTRY_INFO, slot = N}}</code> = hex <code>0a04080620NN</code>, for example slot 0 <code>0a0408062000</code>, slot 2 <code>0a0408062002</code> (type 6, <code>slot</code> field 4). <code>NN</code> is a varint; for slots of 128 or more it takes two bytes and the <code>InformationRequest</code> length byte becomes 5 (<code>0a05080620</code> followed by the two varint bytes)</td></tr>
 <tr><td>Ends at</td><td>The first message of each reply</td></tr>
 <tr><td>Reply</td><td><code>FromVCSECMessage.whitelistEntryInfo</code> (field 17); missing becomes <code>BadResponse("missing whitelistEntryInfo")</code></td></tr>
 <tr><td>Time budget</td><td>One <code>timeout</code> for everything. The first <code>Failure</code> or <code>Uncertain</code> is returned; no time left gives <code>Timeout(afterSend = false)</code></td></tr>
@@ -228,7 +228,7 @@
 <tr><td>Request</td><td><code>RoutableMessage{to_destination{domain}, from_destination{routing_address = 16 bytes}, session_info_request{public_key}, uuid}</code>. The address is fresh per request for <code>VCSEC</code> and the connection's own fixed address for <code>INFOTAINMENT</code>. The optional <code>challenge</code> (2) is not sent</td></tr>
 <tr><td>Ends at</td><td>The first reply; sent once, never repeated</td></tr>
 <tr><td>Reply</td><td><code>RoutableMessage.session_info</code> (15) = serialized <code>Signatures.SessionInfo</code></td></tr>
-<tr><td>Errors</td><td>Fault <code>UNKNOWN_KEY_ID</code>, or <code>status = KEY_NOT_ON_WHITELIST</code>, becomes <code>Failure(KeyNotPaired)</code>; missing or undecodable <code>session_info</code> becomes <code>Failure(BadResponse)</code>; no reply in time is <code>Uncertain(Timeout(afterSend = true))</code></td></tr>
+<tr><td>Errors</td><td>Fault <code>UNKNOWN_KEY_ID</code>, or <code>status = KEY_NOT_ON_WHITELIST</code>, becomes <code>Failure(KeyNotPaired)</code>; <code>INVALID_HANDLE</code> or an unknown <code>status</code> value becomes <code>Failure(UnknownResponse)</code>; missing or undecodable <code>session_info</code> becomes <code>Failure(BadResponse)</code>; no reply in time is <code>Uncertain(Timeout(afterSend = true))</code></td></tr>
 <tr><td>Side effect</td><td>Asking with the connection's own key also builds that domain's session, so <code>sessions</code> shows <code>Ready(fromCache = false)</code></td></tr>
 </tbody>
 </table>
@@ -239,7 +239,7 @@
 <tr><td>2</td><td><code>publicKey</code></td><td>bytes</td><td><code>vehiclePublicKey</code> (<code>null</code> if not a valid 65-byte key)</td></tr>
 <tr><td>3</td><td><code>epoch</code></td><td>bytes</td><td>Not surfaced</td></tr>
 <tr><td>4</td><td><code>clock_time</code></td><td>fixed32</td><td><code>clockTime</code> (seconds)</td></tr>
-<tr><td>5</td><td><code>status</code></td><td><code>Session_Info_Status</code></td><td>Not checked: <code>OK</code> 0, <code>KEY_NOT_ON_WHITELIST</code> 1, <code>INVALID_HANDLE</code> 2 (Teslemetry only)</td></tr>
+<tr><td>5</td><td><code>status</code></td><td><code>Session_Info_Status</code></td><td>Checked before the payload is used: <code>OK</code> 0 passes; <code>KEY_NOT_ON_WHITELIST</code> 1 gives <code>KeyNotPaired</code>; <code>INVALID_HANDLE</code> 2 (Teslemetry only) or any unknown value gives <code>UnknownResponse</code></td></tr>
 <tr><td>6</td><td><code>handle</code></td><td>uint32</td><td>Not surfaced (Teslemetry only)</td></tr>
 </tbody>
 </table>
@@ -440,7 +440,8 @@
 <tr><td>Turn signals (left, right), hazards, headlights, high beams</td><td><strong>No message at all</strong> when operated, and no BLE schema field for them (<code>vcsec.proto</code>, <code>vehicle.proto</code>, <code>car_server.proto</code>). The only known source is Tesla Fleet Telemetry (<code>LightsTurnSignal</code> 240, <code>LightsHazardsActive</code> 239, <code>LightsHighBeams</code> 241), an internet server path outside this library's no-server scope</td></tr>
 <tr><td>Trunk opened with the interior button</td><td>No broadcast (other methods untested)</td></tr>
 <tr><td>Sleeping car</td><td>Not observed</td></tr>
-<tr><td>Charging cable, other phone keys approaching</td><td>Not recorded</td></tr>
+<tr><td>Charging cable</td><td>Recorded in round 2 (charge port open, charger connected, charging start): <code>chargePort = OPEN</code>, field 8 sub-field 2 changed 2 to 1, <code>authenticationRequest</code> with <code>ENTERED_HIGHER_AUTH_ZONE</code>, field 53 with one entry. No separate broadcast for the cable itself was identified</td></tr>
+<tr><td>Another phone key approaching</td><td>Not recorded</td></tr>
 </tbody>
 </table>
 
