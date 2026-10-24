@@ -36,6 +36,7 @@ private const val KEY_ATTRIBUTE_CAPACITY = 3L
 
 /**
  * Security.framework 소프트웨어 키. [privateKey]는 [createSecKey]로 만든 개인키 참조이고 [publicKey]와 짝이어야 한다.
+ * 생성자가 그 +1 참조를 맡는다: 이 키가 수거될 때 해제되고, 넘긴 쪽은 해제하지 않는다([ReleaseWhenCollected]).
  * M3의 Secure Enclave 키도 같은 `SecKeyCopyKeyExchangeResult` 경로를 쓴다.
  */
 @OptIn(ExperimentalForeignApi::class)
@@ -43,6 +44,10 @@ internal class AppleSoftwareEcdhKey(
     private val privateKey: SecKeyRef,
     override val publicKey: PublicKeyBytes,
 ) : EcdhPrivateKey {
+    // 맨 먼저: 뒤에 초기화가 늘어 실패해도 넘겨받은 참조가 새지 않는다
+    @Suppress("unused")
+    private val release = ReleaseWhenCollected(privateKey)
+
     /** 개인키 데이터 `0x04 || X || Y || d`(97바이트)로 참조를 만든다. */
     constructor(privateScalar: ByteArray, publicKey: PublicKeyBytes) :
         this(createSecKey(publicKey.toByteArray() + privateScalar, kSecAttrKeyClassPrivate), publicKey)
@@ -80,7 +85,8 @@ internal class AppleSoftwareEcdhKey(
 }
 
 /**
- * `SecKeyCreateWithData`로 P-256 키를 만든다. 실패하면 IllegalStateException. 호출자가 `CFRelease` 책임.
+ * `SecKeyCreateWithData`로 P-256 키를 만든다. 실패하면 IllegalStateException. 돌려준 +1 참조는 호출자 몫이다:
+ * 키 객체에 넘기거나(그 키가 수거될 때 해제, [ReleaseWhenCollected]) 다 쓰면 `CFRelease`한다.
  * [data]는 사용 후(성공/실패 모두) `fill(0)`으로 지운다 — 개인키 스칼라 등 민감한 바이트가 힙에 남지 않도록 한다.
  * `SecKeyCreateWithData`에 넘기는 `CFData` 사본은 불변(immutable)이라 지울 수 없다.
  */

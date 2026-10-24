@@ -17,7 +17,6 @@ import platform.CoreFoundation.CFDictionaryRef
 import platform.CoreFoundation.CFErrorRefVar
 import platform.CoreFoundation.CFNumberCreate
 import platform.CoreFoundation.CFNumberRef
-import platform.CoreFoundation.CFRelease
 import platform.CoreFoundation.CFRetain
 import platform.CoreFoundation.CFTypeRefVar
 import platform.CoreFoundation.kCFBooleanTrue
@@ -94,10 +93,10 @@ private const val TAG_PREFIX = "dev.mirolab.teslable.key."
 
 /**
  * `SecItemCopyMatching`(참조 + 속성)이 돌려준 딕셔너리에서 키 참조와 보호 등급(`kSecAttrAccessible`)을 읽는다(FR-037).
- * 키 참조는 딕셔너리가 가진 것이라 우리 몫을 retain한다 — [result]를 해제한 뒤에도 키 핸들이 쓴다. [result]는 호출자가 해제한다.
+ * 키 참조는 딕셔너리가 가진 것이라 키 몫을 retain해 키에 넘긴다 — [result]를 해제한 뒤에도 키가 쓰고, 키가 수거될 때 해제된다
+ * (공개키를 읽지 못해 키를 만들다 실패해도). [result]는 호출자가 해제한다.
  */
 @OptIn(ExperimentalForeignApi::class)
-@Suppress("TooGenericExceptionCaught") // 공개키를 읽지 못하면 retain한 참조를 놓고 예외를 그대로 낸다
 internal fun enclaveFoundOf(
     alias: String,
     result: CFDictionaryRef,
@@ -107,14 +106,7 @@ internal fun enclaveFoundOf(
     @Suppress("UNCHECKED_CAST")
     val reference = checkNotNull(CFDictionaryGetValue(result, kSecValueRef)) { "no key reference" } as SecKeyRef
     CFRetain(reference)
-    val key =
-        try {
-            SecureEnclaveKey(alias, reference, reported ?: KeyAccessibility.WHEN_UNLOCKED)
-        } catch (e: Exception) {
-            CFRelease(reference)
-            throw e
-        }
-    return EnclaveFind.Found(key, reported)
+    return EnclaveFind.Found(SecureEnclaveKey(alias, reference, reported ?: KeyAccessibility.WHEN_UNLOCKED), reported)
 }
 
 /** Security.framework 구현. 키는 `kSecAttrApplicationTag`(`TAG_PREFIX + alias`)로 찾는다. */
@@ -214,9 +206,8 @@ internal class AppleSecureEnclaveKeys : SecureEnclaveKeys {
                     null
                 } else {
                     try {
-                        SecureEnclaveKey(alias, key, accessibility)
+                        SecureEnclaveKey(alias, key, accessibility) // 참조는 키 몫이다(만들다 실패해도 수거될 때 해제)
                     } catch (e: Exception) {
-                        CFRelease(key)
                         delete(alias) // 영속 키가 남아 소프트웨어 대체 경로를 가리지 않게 한다
                         null
                     }
@@ -255,7 +246,8 @@ internal class AppleSecureEnclaveKeys : SecureEnclaveKeys {
 }
 
 /**
- * Secure Enclave 개인키 핸들. 공개키는 `SecKeyCopyPublicKey` -> 외부 표현(X9.63 65바이트). [privateKey]를 소유한다.
+ * Secure Enclave 개인키 핸들. 공개키는 `SecKeyCopyPublicKey` -> 외부 표현(X9.63 65바이트).
+ * 생성자가 [privateKey]의 +1 참조를 맡는다(생성자가 실패해도): 이 키가 수거될 때 해제되고, 넘긴 쪽은 해제하지 않는다([ReleaseWhenCollected]).
  * [accessibility]는 만들 때 고른 값이거나 항목에서 다시 읽은 값이다(FR-037).
  */
 @OptIn(ExperimentalForeignApi::class)
@@ -264,6 +256,10 @@ internal class SecureEnclaveKey(
     private val privateKey: SecKeyRef,
     override val accessibility: KeyAccessibility,
 ) : VehicleKey {
+    // 맨 먼저: 아래 초기화(공개키 읽기)가 실패해도 넘겨받은 참조가 새지 않는다
+    @Suppress("unused")
+    private val release = ReleaseWhenCollected(privateKey)
+
     override val protection: KeyProtection = KeyProtection.SECURE_ENCLAVE
     override val publicKey: PublicKeyBytes =
         memScoped {

@@ -14,7 +14,10 @@ import platform.CoreFoundation.CFErrorCopyDescription
 import platform.CoreFoundation.CFErrorRef
 import platform.CoreFoundation.CFErrorRefVar
 import platform.CoreFoundation.CFRelease
+import platform.CoreFoundation.CFTypeRef
 import platform.Foundation.CFBridgingRelease
+import kotlin.experimental.ExperimentalNativeApi
+import kotlin.native.ref.createCleaner
 
 @OptIn(ExperimentalForeignApi::class)
 internal fun ByteArray.toCFData(): CFDataRef {
@@ -58,3 +61,19 @@ internal inline fun <T> CFDataRef.use(block: (CFDataRef) -> T): T =
     } finally {
         CFRelease(this)
     }
+
+/**
+ * 키 객체가 맡은 Core Foundation 참조(+1) 하나를, 그 객체가 더는 쓰이지 않아 수거될 때(GC) 정확히 한 번 `CFRelease`한다(#97, FR-020).
+ * 키 객체의 첫 필드로 둔다: 생성자의 나머지 초기화가 실패해도 넘겨받은 참조가 새지 않으므로, 넘긴 쪽은 그 참조를 해제하지 않는다.
+ * 해제는 GC 뒤 다른 스레드에서 비동기로 일어난다(Core Foundation retain/release는 스레드 안전). 앱이나 연결이 키를 붙잡고 있는 동안에는
+ * 일어나지 않는다. 그래서 `VehicleKey`에는 `close()`가 없다 — Go `ECDHPrivateKey`도 수명을 GC에 맡긴다.
+ * 호출 하나 안에서 쓰고 버리는 참조(질의 딕셔너리, 상대 공개키, CFData)는 이것 대신 [releasing]·[use]로 바로 해제한다.
+ */
+@OptIn(ExperimentalForeignApi::class, ExperimentalNativeApi::class)
+internal class ReleaseWhenCollected(
+    reference: CFTypeRef,
+) {
+    // 소유자와 함께 수거되도록 붙잡아 두기만 한다. 정리 함수는 아무것도 캡처하지 않는다(createCleaner 규칙)
+    @Suppress("unused")
+    private val cleaner = createCleaner(reference) { CFRelease(it) }
+}
