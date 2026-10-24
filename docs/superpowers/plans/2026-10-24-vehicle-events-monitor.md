@@ -17,7 +17,7 @@
 - 원본 Go는 브로드캐스트를 버린다. drop 판정·응답 매칭은 바꾸지 않고, 방출은 "원본과 다른 의도적 동작"으로 SDD §12에 적는다.
 - 이벤트 게이트 = `ObservationLog.isPlainBroadcast`와 같은 조건(from `DOMAIN_VEHICLE_SECURITY`, to `DOMAIN_BROADCAST`, `request_uuid` 비어 있음, `signature_data == null`, `session_info == null`). 복호화한 평문은 절대 내보내지 않는다(FR-112).
 - `raw`는 수신 `RoutableMessage` 프레임 바이트 전체의 방어 복사본, VIN 마스킹 없음(앱이 저장 전 마스킹).
-- 디스패처는 이벤트 때문에 기다리지 않는다(`tryEmit`). 버퍼 64, 가득 차면 **새 프레임을 버리고**(설계 §5.3의 `DROP_OLDEST` 예시를 이 계획이 대체: `tryEmit` 실패로 버린 수를 정확히 셀 수 있고, 이미 버퍼에 든 프레임의 순서가 보존된다) 연결별 카운트, 첫 drop과 이후 100건마다 `WARN`.
+- 디스패처는 이벤트 때문에 기다리지 않는다(`tryEmit`). 버퍼 64, 가득 차면 **새 프레임을 버리고**(설계 §5.3의 `DROP_OLDEST` 예시를 이 계획이 대체: `tryEmit` 실패로 버린 수를 정확히 셀 수 있고, 이미 버퍼에 든 프레임의 순서가 보존된다) 연결별 카운트, 첫 drop과 100번째 배수마다(1·100·200…) `WARN`.
 - `events`는 `connection`이 `Disconnected`가 되거나 `disconnect()`가 불리면 **정상 완료**(예외 없음). replay 0.
 - 키 접근성 기본값은 `WHEN_UNLOCKED`(지금과 같음). 샘플만 `AFTER_FIRST_UNLOCK`. 기존 키 마이그레이션 없음.
 - 공개 API: `explicitApi`, KDoc, `apiDump`, `ByteArray` 방어 복사. `VehicleStatus`에 필드 추가는 배포 전이라 허용(PR에 명시).
@@ -83,7 +83,7 @@
 - Produces: `Dispatcher.plainBroadcasts: SharedFlow<ByteArray>` (public on `:application`, `@InternalTeslableApi` 아님 — `:application`은 공개 API 표면이 아님을 확인하고 BCV 덤프만 갱신). 원소는 수신 프레임 바이트 복사본.
 
 - [ ] **Step 1: 구조 커밋** — 게이트 함수를 `BroadcastGate.kt`로 옮기기만(`struct: extract plain broadcast gate`). `./gradlew :application:jvmTest` PASS.
-- [ ] **Step 2: 실패 테스트**(`dispatcherHarness`, `transport.deliver`, `runCurrent`): `plainBroadcastIsEmitted`(게이트 통과 프레임 → 같은 바이트 1건); `signedOrAddressedFrameIsNotEmitted`(`signature_data` 있음, `routing_address` 있음, `request_uuid` 16 B 각각 → 0건); `broadcastStillDroppedFromRouting`(observe 로그에 `[drop:to-domain]` 유지); `slowCollectorDoesNotDelayReplies`(구독자가 `awaitCancellation`으로 멈춘 상태에서 브로드캐스트 100건 + VCSEC 응답 → 응답 정상 완료); `overflowCountsAndWarns`(수집기가 첫 값을 받은 뒤 멈춘 상태에서 66건 → 버퍼 64 + 수집기 1, 66번째에서 첫 drop → `WARN` 1줄, 카운트 1).
+- [ ] **Step 2: 실패 테스트**(`dispatcherHarness`, `transport.deliver`, `runCurrent`): `plainBroadcastIsEmitted`(게이트 통과 프레임 → 같은 바이트 1건); `signedOrAddressedFrameIsNotEmitted`(`signature_data` 있음, `routing_address` 있음, `request_uuid` 16 B, `session_info` 있음 각각 → 0건); `frameFromOrToAnotherDomainIsNotEmitted`(게이트의 from/to 조건: from INFOTAINMENT, from 주소, to VCSEC 도메인, 빈 to → 0건); `broadcastStillDroppedFromRouting`(observe 로그의 `[drop:to-domain]` 줄 그대로, 열린 VCSEC 요청에 배달 안 됨); `slowCollectorDoesNotDelayReplies`(구독자가 `awaitCancellation`으로 멈춘 상태에서 브로드캐스트 100건 + VCSEC 응답 → 응답 정상 완료, 가상 시간 0); `overflowCountsAndWarns`(수집기가 첫 값을 **꺼낸 뒤**(첫 프레임 → `runCurrent`) 멈춘 상태에서 65건 더 → 버퍼 64 + 수집기 1, 66번째에서 첫 drop → `WARN` 1줄, 카운트 1. 실측: 수집기가 돌기 전에 한꺼번에 오면 첫 값도 버퍼에 남아 65번째가 첫 drop); `overflowWarnsAgainEveryHundredthDrop`(WARN은 drop 1·100·200번째); `emittedBytesAreACopyOfTheReceivedFrame`(받은 배열과 다른 인스턴스).
 - [ ] **Step 3:** `./gradlew :application:jvmTest --tests '*DispatcherBroadcast*'` → FAIL.
 - [ ] **Step 4:** 구현: `MutableSharedFlow<ByteArray>(extraBufferCapacity = 64)`(기본 SUSPEND) + `tryEmit` 실패 시 카운트·로그. 디코딩은 이미 `process`에서 끝났으므로 재사용.
 - [ ] **Step 5:** PASS, `apiDump`, 커밋 `feat: dispatcher emits plain VCSEC broadcasts` (Refs: FR-035).
