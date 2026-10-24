@@ -84,6 +84,7 @@
 <li>エイリアスには英字、数字、<code>.</code>、<code>_</code>、<code>-</code> を 64 文字まで使えます。ただし <code>.</code> や <code>..</code> にはできません。</li>
 <li><code>VehicleKey</code> はハンドルです。<code>alias</code>、<code>protection</code>、<code>accessibility</code>、<code>publicKey</code> (65 バイト、<code>0x04 ‖ X ‖ Y</code>) を公開します。秘密鍵はプラットフォームのキーストアから出ることはなく、エクスポート API もありません。</li>
 <li><code>VehicleKey</code> には閉じるものがありません。使っている間は保持し、使い終わったらそのまま手放してください。iOS と Android では <code>get</code> や <code>getOrCreate</code> は呼ぶたびに同じ保存済みキーの新しいハンドルを返し（メモリ上のストアは同じものを返します）、どこからも参照されなくなったハンドルは自動的に片付けられるため、接続のたびにキーを読み直してもハンドルはたまりません。接続した <code>Vehicle</code> は、自分のキーへの参照を自分で保持します。</li>
+<li>セッションを開始するとき、ライブラリはハンドルの鍵合意関数 <code>sharedX</code> を呼びます。アプリは呼びません。電話のロックがキーを妨げると、この関数は <code>KeyLockedException</code> を投げ、ライブラリはそれを <code>KeyStoreError.Locked</code> に変えます (<a href="#sec-accessibility">下記参照</a>)。</li>
 </ul>
 
 <h2 id="sec-protection">キーの保存場所</h2>
@@ -112,7 +113,7 @@
 <table>
 <thead><tr><th><code>KeyAccessibility</code></th><th>iOS キーチェーンのクラス</th><th>ロック中の使用</th><th>用途</th></tr></thead>
 <tbody>
-<tr><td><code>WHEN_UNLOCKED</code> (デフォルト)</td><td><code>kSecAttrAccessibleWhenUnlockedThisDeviceOnly</code></td><td><span class="badge warn">いいえ</span></td><td>ほとんどのアプリ。ロックされた iPhone はこのキーでセッションを開始できません</td></tr>
+<tr><td><code>WHEN_UNLOCKED</code> (デフォルト)</td><td><code>kSecAttrAccessibleWhenUnlockedThisDeviceOnly</code></td><td><span class="badge warn">いいえ</span></td><td>ほとんどのアプリ。スマートフォンがロックされている間、このキーは読み込めず、Secure Enclave のキーではセッションを開始できません (<code>Locked</code>)</td></tr>
 <tr><td><code>AFTER_FIRST_UNLOCK</code></td><td><code>kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly</code></td><td><span class="badge ok">はい</span> 最後の再起動後に一度ロックを解除してから</td><td>スマートフォンがロックされていてもバックグラウンドで動き続ける必要があるアプリ</td></tr>
 </tbody>
 </table>
@@ -122,7 +123,10 @@
 <li><strong>設定はキーの作成時に決まります。</strong>既存のエイリアスに別の値を求めても、既存のキーがそのまま返ります。実際の値は <code>key.accessibility</code> でわかり、iOS では保存されたキーから読み直した値です。キーチェーンが値を返さない場合 (想定外) は、キーは <code>WHEN_UNLOCKED</code> と報告され、<code>WARN</code> 行が記録されます。</li>
 <li>Android と JVM ではこの引数は無視され、すべてのキーが <code>AFTER_FIRST_UNLOCK</code> を報告します。Android Keystore のキーはロック解除やユーザー認証の要件なしで作成されるためです (API 上の話で、実機ではまだ確認していません)。</li>
 <li>ロックされた iPhone では、ロック解除中にだけ使えるキー、または再起動後の最初のロック解除前のすべてのキーについて、<code>getOrCreate</code>、<code>get</code>、<code>delete</code> が <code>KeyStoreError.Locked</code> を返します。<strong><code>Locked</code> を理由にキーを削除したり作り直したりしないでください。</strong>ロックを解除してから再試行します。スマートフォンがロックされていて新しいキーを作成できない場合、ライブラリはより弱いソフトウェアキーで代用しません。</li>
-<li>ロック解除中にだけ使えるキーを、スマートフォンのロックが解除されているときに読み込んでおき、ロックされた後に使うと、ハンドシェイクの中で失敗します。このとき <code>startSession()</code> は <code>Locked</code> ではなくタイムアウトで終わり、同じ理由で保存されたセッションの復元もスキップされます (既知の制限。想定される iOS の動作で、実機ではまだ確認していません)。代わりに <code>Locked</code> を受け取るには、スマートフォンがロックされている可能性があるときに接続前にキーを読み直すか、<code>AFTER_FIRST_UNLOCK</code> のキーを使ってください。読み込むたびに新しいハンドルができるため、動いている間は 1 つのハンドルを使い続けてください。</li>
+<li>ロック解除中にだけ使える Secure Enclave のキーを、スマートフォンのロックが解除されているときに読み込んでおき、ロックされた後に使うと、セッションを開始できません。<code>startSession()</code> は車両が応答するとすぐに <code>KeyStoreError.Locked</code> を返し (車両の両方の部分で同じ)、ライブラリは再試行しません。車両がその応答に自らエラーを含めた場合 (例: キーが登録されていない) は、そのエラーが優先されます。スマートフォンのロックを解除してから、同じキーで <code>startSession()</code> をもう一度呼んでください。</li>
+<li>同じ理由で、スマートフォンがロックされている間に接続すると、保存されたセッションは復元されません。保存されたセッションは<strong>残ります</strong>。車両のその部分に再びセッションができるまで、ライブラリはセッションキャッシュに何も書き込まないため、ロック解除後の最初の接続でそのセッションが復元されます。</li>
+<li>ソフトウェアキー (<code>SOFTWARE</code>) は秘密鍵をメモリに持つため、スマートフォンがロックされる前に読み込んだキーオブジェクトはロック後も動き続けます (API に基づく。実機では未確認)。キーストアから読み込むときだけ <code>Locked</code> になります。</li>
+<li>実機ではまだ確認していません: ロックされた Secure Enclave のキーを、iOS がライブラリの想定するエラーコード (-25308) で知らせるかどうか。別のコードで知らせる場合、<code>startSession()</code> はこれまでどおりタイムアウトで終わります。読み込むたびに新しいハンドルができるため、1 つのキーオブジェクトを使い続けてください。</li>
 <li>すでに進行中のセッションは、設定にかかわらず画面がロックされても動き続けます。進行中のセッションのコマンドは秘密鍵を使いません。秘密鍵が必要なのは、新しいセッションを開始するときと保存されたセッションを復元するときだけです。</li>
 </ul>
 <div class="callout warn">
@@ -176,7 +180,7 @@
 <li><code>keys.delete(alias)</code> はスマートフォンからだけキーを削除します。車両側で削除されるまで、車両はその公開鍵をリストに残します。</li>
 <li>保存されたセッションは 1 つのキーに属します。キーが変わると、次の接続で古いセッションを破棄して新しいハンドシェイクを始めます。</li>
 <li><strong>破損した</strong> 保存キー (<code>KeyStoreError.PlatformFailure</code>、<code>stored key is corrupted</code>) が自動で置き換えられることはありません。ユーザーに知らせ、<code>delete</code> を呼んでから <code>getOrCreate</code> を呼び、新しいキーを車両に登録し直してください。<a href="17-lib-platform-notes.html#sec-keys">プラットフォームノート</a> を参照してください。</li>
-<li><code>KeyStoreError.Locked</code> は破損ではありません。キーは正常で、スマートフォンがロックされているだけです。削除せず、ロックを解除してから再試行してください。</li>
+<li><code>KeyStoreError.Locked</code> は破損ではありません。キーは正常で、スマートフォンがロックされているだけです。削除せず、ロックを解除してから再試行してください。<code>startSession()</code> が返した <code>Locked</code> も同じです。</li>
 </ul>
 
 <h2 id="sec-enroll">キーの登録</h2>

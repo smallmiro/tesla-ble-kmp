@@ -9,7 +9,7 @@ and names may change when the milestone lands. Go original for every command:
 
 | Call | Returns | Notes |
 |---|---|---|
-| `startSession(domains = VehicleDomain.ALL, timeout = null)` | `VehicleResult<Unit>` | Handshake per domain, in parallel; one failure cancels the others (FR-012). Domains already `Ready` from the session cache succeed without a request. Needs a key (`RequiresKey`) that is enrolled (`KeyNotPaired`). `timeout = null` uses `handshakeTimeout` (20 s) |
+| `startSession(domains = VehicleDomain.ALL, timeout = null)` | `VehicleResult<Unit>` | Handshake per domain, in parallel; one failure cancels the others (FR-012). Domains already `Ready` from the session cache succeed without a request. Needs a key (`RequiresKey`) that is enrolled (`KeyNotPaired`). A key the phone lock blocks (iOS `WHEN_UNLOCKED` Secure Enclave key read before the lock) fails right after the first reply with `KeyStoreError.Locked`, not retried (FR-037, `13-lib-pairing.md` §Key accessibility). `timeout = null` uses `handshakeTimeout` (20 s) |
 | `disconnect()` | `Unit` | Saves the session cache, wipes session keys, closes the link. Idempotent (FR-005) |
 
 `sessions` reports `Handshaking` while `startSession` runs, then `Ready(fromCache = false)` or back to `None` on failure,

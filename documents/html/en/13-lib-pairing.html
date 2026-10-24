@@ -84,6 +84,7 @@
 <li>An alias may use letters, digits, <code>.</code>, <code>_</code> and <code>-</code>, up to 64 characters, and may not be <code>.</code> or <code>..</code>.</li>
 <li>A <code>VehicleKey</code> is a handle. It exposes <code>alias</code>, <code>protection</code>, <code>accessibility</code> and <code>publicKey</code> (65 bytes, <code>0x04 ‖ X ‖ Y</code>). The private key never leaves the platform key store, and there is no export API.</li>
 <li>A <code>VehicleKey</code> has nothing to close. Keep it while you use it, then simply let it go. On iOS and Android each <code>get</code> or <code>getOrCreate</code> returns a new handle to the same stored key (the in-memory store returns the same one), and handles that nothing refers to any more are cleaned up automatically, so reading the key again before each connection does not pile up handles. A connected <code>Vehicle</code> keeps its own reference to its key.</li>
+<li>To start a session the library calls the handle's key agreement function, <code>sharedX</code>; apps do not call it. When the phone lock blocks the key it throws <code>KeyLockedException</code>, and the library turns that into <code>KeyStoreError.Locked</code> (<a href="#sec-accessibility">see below</a>).</li>
 </ul>
 
 <h2 id="sec-protection">Where the key lives</h2>
@@ -112,7 +113,7 @@
 <table>
 <thead><tr><th><code>KeyAccessibility</code></th><th>iOS Keychain class</th><th>Usable while locked</th><th>For</th></tr></thead>
 <tbody>
-<tr><td><code>WHEN_UNLOCKED</code> (default)</td><td><code>kSecAttrAccessibleWhenUnlockedThisDeviceOnly</code></td><td><span class="badge warn">no</span></td><td>Most apps. A locked iPhone cannot start a session with this key</td></tr>
+<tr><td><code>WHEN_UNLOCKED</code> (default)</td><td><code>kSecAttrAccessibleWhenUnlockedThisDeviceOnly</code></td><td><span class="badge warn">no</span></td><td>Most apps. While the phone is locked this key cannot be read, and its Secure Enclave key cannot start a session (<code>Locked</code>)</td></tr>
 <tr><td><code>AFTER_FIRST_UNLOCK</code></td><td><code>kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly</code></td><td><span class="badge ok">yes</span> once the phone was unlocked after the last restart</td><td>Apps that must keep working in the background while the phone is locked</td></tr>
 </tbody>
 </table>
@@ -122,7 +123,10 @@
 <li><strong>The setting is fixed when the key is created.</strong> Asking for another value on an existing alias returns the existing key unchanged. <code>key.accessibility</code> gives the real value; on iOS it is read back from the stored key. If the Keychain does not report it (not expected), the key says <code>WHEN_UNLOCKED</code> and a <code>WARN</code> line is logged.</li>
 <li>On Android and the JVM the argument is ignored and every key reports <code>AFTER_FIRST_UNLOCK</code>: Android Keystore keys are created without an unlock or user-authentication requirement (per the API; not yet confirmed on a device).</li>
 <li>On a locked iPhone, a key that only works unlocked, or any key before the first unlock after a restart, makes <code>getOrCreate</code>, <code>get</code> and <code>delete</code> return <code>KeyStoreError.Locked</code>. <strong>Never delete or re-create the key because of <code>Locked</code>.</strong> Try again after the phone is unlocked. If a new key cannot be created because the phone is locked, the library does not fall back to a weaker software key.</li>
-<li>A key that only works unlocked, read while the phone was unlocked and used after it locked, fails inside the handshake: <code>startSession()</code> then ends with a timeout instead of <code>Locked</code>, and restoring a saved session is skipped for the same reason (a known limit; expected iOS behaviour, not yet confirmed on a device). To get <code>Locked</code> instead, read the key again before connecting while the phone may be locked, or use an <code>AFTER_FIRST_UNLOCK</code> key. Each read returns a new handle, so keep using one handle while it works.</li>
+<li>A Secure Enclave key that only works unlocked, read while the phone was unlocked and used after it locked, cannot start a session. <code>startSession()</code> returns <code>KeyStoreError.Locked</code> as soon as the car answers, for both parts of the car, and the library does not try again. If the car itself reports an error in that answer (for example, the key is not enrolled), that error comes first. Call <code>startSession()</code> again after the phone is unlocked, with the same key.</li>
+<li>For the same reason, a saved session is not restored when you connect while the phone is locked. The saved session is <strong>kept</strong>: the library writes nothing to the session cache until that part of the car has a session again, so the first connection after the unlock restores it.</li>
+<li>A software key (<code>SOFTWARE</code>) keeps its private key in memory, so a key object read before the phone locked keeps working after the lock (per the API, not confirmed on a device). Only reading it from the key store gives <code>Locked</code>.</li>
+<li>Not yet confirmed on a device: that iOS reports the locked Secure Enclave key with the error code the library expects (-25308). If it reports another one, <code>startSession()</code> still ends with a timeout. Each read returns a new handle, so keep using one key object.</li>
 <li>A session that is already running keeps working when the screen locks, whatever the setting: commands in a live session do not use the private key. Only starting a new session, or restoring a saved one, needs it.</li>
 </ul>
 <div class="callout warn">
@@ -176,7 +180,7 @@
 <li><code>keys.delete(alias)</code> removes the key from the phone only. The car keeps listing the public key until it is removed on the car.</li>
 <li>Saved sessions belong to one key. After the key changes, the next connection throws away the old sessions and starts a new handshake.</li>
 <li>A <strong>corrupted</strong> stored key (<code>KeyStoreError.PlatformFailure</code>, <code>stored key is corrupted</code>) is never replaced on its own. Tell the user, call <code>delete</code> then <code>getOrCreate</code>, and enroll the new key on the car again. See <a href="17-lib-platform-notes.html#sec-keys">Platform Notes</a>.</li>
-<li><code>KeyStoreError.Locked</code> is not damage: the key is fine but the phone is locked. Do not delete it; try again after the phone is unlocked.</li>
+<li><code>KeyStoreError.Locked</code> is not damage: the key is fine but the phone is locked. Do not delete it; try again after the phone is unlocked. The same holds for <code>Locked</code> from <code>startSession()</code>.</li>
 </ul>
 
 <h2 id="sec-enroll">Enrolling a key</h2>

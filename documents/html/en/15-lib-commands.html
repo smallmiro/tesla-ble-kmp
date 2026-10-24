@@ -69,7 +69,7 @@
 <table>
 <thead><tr><th>Call</th><th>What it does</th></tr></thead>
 <tbody>
-<tr><td><code>startSession(domains, timeout)</code></td><td>Runs the handshake for VCSEC and Infotainment (both by default) in parallel. A domain already restored from the session cache succeeds without asking the car. Needs a key that is enrolled. Default timeout 20 seconds</td></tr>
+<tr><td><code>startSession(domains, timeout)</code></td><td>Runs the handshake for VCSEC and Infotainment (both by default) in parallel. A domain already restored from the session cache succeeds without asking the car. Needs a key that is enrolled. If the phone lock blocks the key (an iOS Secure Enclave key that only works unlocked), it fails as soon as the car answers with <code>KeyStoreError.Locked</code> and is not retried (<a href="13-lib-pairing.html#sec-accessibility">13</a>). Default timeout 20 seconds</td></tr>
 <tr><td><code>disconnect()</code></td><td>Saves the session cache, erases session keys and closes the link. Safe to call more than once</td></tr>
 </tbody>
 </table>

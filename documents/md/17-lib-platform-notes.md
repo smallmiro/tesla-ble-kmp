@@ -101,10 +101,17 @@ checked on a real iPhone yet, so treat the library behaviour in the background a
   Enclave key creation, becomes `KeyStoreError.Locked`. A `WHEN_UNLOCKED` key cannot be read or used for a handshake
   while the phone is locked; an `AFTER_FIRST_UNLOCK` key can, once the phone was unlocked after the last restart. Before
   that first unlock every key is `Locked`. A key creation that fails with `Locked` does not fall back to a software key.
+- Locked iPhone, key object read before the lock (issue #96): when `SecKeyCopyKeyExchangeResult` fails with a `CFError`
+  in the OSStatus domain with code -25308 (the same narrow rule), the handshake ends with
+  `Failure(KeyStoreError.Locked)` right after the vehicle's reply and is not retried; a cached session that needed the
+  same ECDH is not restored and stays in the cache (`13-lib-pairing.md` §Key accessibility). Other ECDH errors keep
+  their old path (handshake retried until `handshakeTimeout`). A software fallback key object holds its private key in
+  memory and keeps working after the lock (per API).
 - Not yet confirmed on a device (sample app build 10 is ready; checks are plan Task 11): the Keychain round trip of both classes, the class
-  read-back, and a handshake on a locked iPhone with an `AFTER_FIRST_UNLOCK` Secure Enclave key. Using the key while the
-  phone is locked also needs the app to keep running in the background; background BLE is not documented yet (see
-  §Support).
+  read-back, and a handshake on a locked iPhone with an `AFTER_FIRST_UNLOCK` Secure Enclave key; also which error a
+  locked iPhone reports for ECDH with a `WHEN_UNLOCKED` Secure Enclave key (the library expects OSStatus -25308; if iOS
+  reports another error, `startSession()` still ends with `Timeout`). Using the key while the phone is locked also
+  needs the app to keep running in the background; background BLE is not documented yet (see §Support).
 - **A corrupted stored key is never replaced automatically.** When `getOrCreate` or `get` returns
   `KeyStoreError.PlatformFailure` (`stored key is corrupted`), the app tells the user, then calls `keys.delete(alias)`
   and `keys.getOrCreate(alias)`. The new key has a different public key, so it **must be enrolled on the vehicle
@@ -129,6 +136,8 @@ checked on a real iPhone yet, so treat the library behaviour in the background a
 - The cache belongs to the client key. **After a key change the next connection discards the cache** and handshakes
   again. A cache made stale by the vehicle (for example a vehicle-side key change) is also deleted automatically.
 - A missing or stale cache is not an error; the library just starts a new session.
+- A cached session that could not be restored because the phone lock blocked the key (iOS) is not stale: the library
+  writes nothing to the cache until that domain has a session again, so a disconnect while locked keeps the cache.
 
 ## Clocks
 
