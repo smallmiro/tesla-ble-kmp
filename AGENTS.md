@@ -20,7 +20,7 @@ Tesla 공식 Go SDK `vehicle-command` 의 **BLE 경로**를 **Kotlin Multiplatfo
 | 6 | `{{SDD_FILE}}` + `{{ADR_DIR}}` | 설계와 결정 기록 | 구조를 바꾸기 전 |
 | 7 | `{{PLANS_DIR}}` | 현재 구현 계획 | 작업을 고를 때 |
 | 8 | `{{HANDOFF_DIR}}` 최신 파일 | 직전 세션 인계 노트 | 세션을 시작할 때 |
-| 9 | `{{LIB_DOCS_INDEX}}` | 라이브러리 사용 문서 (산출물, `{{MANUAL_DIR}}`·`{{MANUAL_HTML_DIR}}` 안의 `11-lib-*`~`19-lib-*`) | 라이브러리를 쓰거나 바꿀 때, PR을 머지하기 전 |
+| 9 | `{{LIB_DOCS_INDEX}}` | 라이브러리 사용 문서 (산출물, `{{MANUAL_DIR}}`·`{{MANUAL_HTML_DIR}}` 안의 `11-lib-*`~`19-lib-*`) | 라이브러리를 쓰거나 바꿀 때, **예제(`{{SAMPLES_DIR}}`)를 개발할 때**(절대 규칙 14), PR을 머지하기 전 |
 
 PRD나 SDD가 아직 없으면 `{{HANDOFF_FILE}}` 의 워크플로를 따릅니다(Phase 0부터).
 
@@ -49,6 +49,12 @@ PRD나 SDD가 아직 없으면 `{{HANDOFF_FILE}}` 의 워크플로를 따릅니�
    - `{{LIB_DOCS_HTML_DIR}}` 의 `ko/`·`en/`·`ja/` 아래 `11-lib-*.html`~`19-lib-*.html`: **사람이 볼 문서.** 세 언어를 같은 내용으로, 개념·절차·표 위주.
    - 새 기능이 들어오면 "예정"으로 적어 둔 항목을 "사용 가능"으로 바꾸고 예제를 실제 API에 맞춥니다. `11-lib-overview` 의 상태 표도 고칩니다.
    - 바꿀 내용이 없으면 PR 본문에 "문서 영향 없음"과 이유를 적습니다.
+14. **예제 개발 = 라이브러리 사용 문서 기준**: `{{SAMPLES_DIR}}` 아래 예제(샘플 앱)는 라이브러리를 **처음 쓰는 앱 개발자의 입장**에서, `{{LIB_DOCS_DIR}}` 의 `11-lib-*.md`~`19-lib-*.md`(진입점 `{{LIB_DOCS_INDEX}}`)를 1차 기준으로 개발합니다.
+   - 작업 전에 `{{LIB_DOCS_INDEX}}` 의 "Reference files by task" 표로 해당 페이지를 찾아 읽습니다. 예: 연결·조회는 `12`·`14`, 페어링은 `13`, 명령은 `15`, 오류 처리는 `16`, 플랫폼 설정은 `17`, 관찰 로그는 `18`.
+   - 문서에 **"사용 가능"으로 적힌 `:sdk` 공개 API만** 씁니다. `:application`·`:adapter-*` 내부 타입, `@InternalTeslableApi`, 문서에 "예정(planned)"으로 적힌 API는 쓰지 않습니다.
+   - 호출 순서, 오류 처리(`Success`/`Uncertain`/`Failure`, 재조회), 시간 제한, 플랫폼 설정(권한, `Info.plist`, 백업 제외)은 문서에 적힌 대로 따릅니다. iOS(Swift)는 Kotlin 기본 인자가 Swift 오버로드로 생기지 않으므로 모든 인자를 넘깁니다(`17-lib-platform-notes`).
+   - 문서에 없는 동작이 필요하거나 문서와 실제 동작이 다르면, **예제에서 우회하지 않습니다.** 먼저 라이브러리 사용 문서(MD + HTML ko/en/ja, 절대 규칙 13)를 고치거나, 공개 API가 부족하면 라이브러리 작업으로 계획에 올립니다. 예제 PR 본문에 참고한 문서 페이지와 절을 적습니다.
+   - 예제 코드와 문서의 예제 코드가 서로 맞아야 합니다. 예제를 바꾸면서 문서 예제가 틀린 것을 발견하면 같은 PR에서 고칩니다.
 
 ## 4. 작업 흐름 (도구 공통)
 ```
@@ -68,7 +74,7 @@ PRD ─🛑승인→ SDD ─🛑승인→ 계획 ─🛑승인→ [작업 단위
  ├─ :adapter-crypto ─▶ :domain     (Android Keystore / iOS Security.framework)
  └─ :adapter-storage ▶ :domain     (세션 캐시)
 :domain = 순수 Kotlin (프로토콜 모델, Session, Metadata, SlidingWindow, 포트 인터페이스). 외부 의존은 Wire 런타임만.
-samples/* ──▶ :sdk 만
+{{SAMPLES_DIR}}* ──▶ :sdk 만   (예제는 라이브러리 사용 문서 기준으로 개발, 절대 규칙 14)
 ```
 
 ## 6. 명령어 (M0 이후 유효, SDD에서 확정)
