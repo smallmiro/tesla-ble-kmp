@@ -35,15 +35,17 @@ private const val P256_BITS = 256
 private const val KEY_ATTRIBUTE_CAPACITY = 3L
 
 /**
- * Security.framework 소프트웨어 키. 개인키 데이터 형식은 `0x04 || X || Y || d` (97바이트).
+ * Security.framework 소프트웨어 키. [privateKey]는 [createSecKey]로 만든 개인키 참조이고 [publicKey]와 짝이어야 한다.
  * M3의 Secure Enclave 키도 같은 `SecKeyCopyKeyExchangeResult` 경로를 쓴다.
  */
 @OptIn(ExperimentalForeignApi::class)
 internal class AppleSoftwareEcdhKey(
-    privateScalar: ByteArray,
+    private val privateKey: SecKeyRef,
     override val publicKey: PublicKeyBytes,
 ) : EcdhPrivateKey {
-    private val privateKey: SecKeyRef = createSecKey(publicKey.toByteArray() + privateScalar, kSecAttrKeyClassPrivate)
+    /** 개인키 데이터 `0x04 || X || Y || d`(97바이트)로 참조를 만든다. */
+    constructor(privateScalar: ByteArray, publicKey: PublicKeyBytes) :
+        this(createSecKey(publicKey.toByteArray() + privateScalar, kSecAttrKeyClassPrivate), publicKey)
 
     override suspend fun sharedX(peer: PublicKeyBytes): ByteArray =
         memScoped {
