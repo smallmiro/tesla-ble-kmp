@@ -205,7 +205,7 @@ _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class=
 <ul>
 <li><strong>Collect it on its own.</strong> Use a separate coroutine (in Swift, a separate <code>Task</code>). The flow <strong>ends by itself</strong> when the link drops or <code>disconnect()</code> is called, and a collection started after that ends at once. Then look at <code>connection</code> and call <code>disconnect()</code>. A new connection gives a new <code>Vehicle</code> with new <code>events</code>.</li>
 <li><strong>Only what arrives while you listen.</strong> Earlier broadcasts are not replayed. <strong>A repeat is not a change</strong>: the car resends the same status every few seconds, so compare with the last value.</li>
-<li><strong>Trunk:</strong> a trunk opened with the interior button sends no broadcast; read it with <code>vehicleStatus()</code>.</li>
+<li><strong>Trunk:</strong> a trunk opened or closed by hand from outside is broadcast, but with the interior button it is not; when the trunk state matters, read it with <code>vehicleStatus()</code>.</li>
 <li><strong><code>raw</code> is the whole frame.</strong> It is not VIN-masked, and each access makes a new copy: read it once and mask the VIN before you store or share it.</li>
 </ul>
 <h3>Kotlin</h3>

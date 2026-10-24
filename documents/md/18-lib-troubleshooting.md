@@ -110,7 +110,7 @@ order, repeated fields repeated. The path number and wire type are kept and no f
 
 VINs (`[A-HJ-NPR-Z0-9]{17}`) are masked in text and in raw bytes before any hex is produced (first 3 and last 4
 characters kept). Masking runs on the raw bytes before they are parsed, so masked bytes can change the value or structure that is shown (nothing leaks). This output is for exploration. It does not give the meaning of a field. On the real car a missing
-`closureStatuses` meant "all closed" for doors and the charge port, but a trunk operated by the interior button produced no broadcast, so trunk state cannot be inferred from broadcasts yet (see `14-lib-reading-state.md` Part B).
+`closureStatuses` meant "all closed" for the driver doors, the rear trunk and the charge port, but a trunk operated by the interior button produced no broadcast at all, so a broadcast alone cannot prove the trunk is closed (see `14-lib-reading-state.md` Part B).
 
 Limits and rules:
 

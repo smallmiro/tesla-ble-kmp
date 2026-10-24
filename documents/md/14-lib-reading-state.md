@@ -110,9 +110,10 @@ zero value. proto3 cannot tell "missing" from the zero value for enums, so a mis
 `UNLOCKED`; the library keeps that Go behaviour for the query. `gear` has no Go counterpart (the official Go `vcsec.proto`
 ends at field 5); its zero value is `GEAR_UNKNOWN`, so a missing `gear` reads as `UNKNOWN`. Gear was confirmed in
 broadcasts (B3.1); whether the vehicle fills it in a query reply has not been checked on a real car. The real-car
-results show that the vehicle omits `closureStatuses` when everything is closed and sends it while something is open
-(driver door, charge port seen), so "absent = all `CLOSED`" matches what we saw for doors and the charge port. Trunk
-opened by the interior button was not visible in broadcasts, so read the trunk with this query.
+results show that the vehicle omits `closureStatuses` when every field is `CLOSED` (the zero value) and sends it while
+any field is not (front and rear driver doors, rear trunk, charge port seen), so "absent = all `CLOSED`" matches what we
+saw. The one exception is the trunk operated with the interior button, which sent no broadcast at all; the query
+still reports it.
 
 ## A3. `keySummary()`
 
@@ -423,8 +424,12 @@ Each entry is a dot path from `FromVCSECMessage` to a field the schema does not 
 
 - **A repeat is not a change.** The vehicle resends `vehicleStatus` every 1 to 25 s without a change, sometimes several
   times within one second (B3.1). The library does not filter duplicates; compare with the previous value yourself.
-- **Trunk:** opening or closing the trunk with the interior button produced no broadcast (other methods untested). Read
-  the trunk with `vehicleStatus()`.
+- **Trunk:** opening and closing the trunk by hand from outside produced broadcasts (`rearTrunk = OPEN`, then
+  `closureStatuses` absent). Opening or closing it with the interior button produced **no** broadcast, so a trunk moved
+  that way stays `CLOSED` in `events` until some other broadcast arrives. When the trunk state matters, confirm it with
+  `vehicleStatus()`.
+- **Waking vehicle:** the first frames of a sleeping vehicle can carry `UNKNOWN` closures and `gear = UNKNOWN`; they
+  become real values within about 0.5 s (B3.1). Do not treat those `UNKNOWN` values as a change.
 - **Subscription:** each collection subscribes when it starts. There is no replay: a broadcast that arrived earlier is
   not delivered. Several collectors each get every event.
 - **Completion:** the flow completes normally (no exception) when `connection` becomes `Disconnected`, whatever the
@@ -450,27 +455,32 @@ Each entry is a dot path from `FromVCSECMessage` to a field the schema does not 
 
 ### B3.1 `vehicleStatus` broadcast
 
-Same fields as A2. What the real-car observation showed (iPhone, Model Y; 1st round 71 lines, 2nd round per scenario):
+Same fields as A2. What the real-car observation showed (iPhone, Model Y; 1st round 71 lines, 2nd round per scenario,
+3rd round one 40 s scenario of 25 lines starting from a sleeping vehicle):
 
 | Field | Status | Observed |
 |---|---|---|
 | `vehicleLockState` (2) | Confirmed | `UNLOCKED` right after connect; `INTERNAL_LOCKED` repeated while seated with doors closed; `LOCKED` after getting out; `UNLOCKED` to `LOCKED` when walking away with the connection still up (link lost about 30 s later) |
-| `vehicleSleepStatus` (3) | Confirmed | `AWAKE` in all lines. A sleeping vehicle was **not** observed |
-| `userPresence` (4) | Confirmed | `PRESENT` while seated, `NOT_PRESENT` after getting out |
+| `vehicleSleepStatus` (3) | Confirmed | Rounds 1 and 2: `AWAKE` in all lines. Round 3: the first two frames were `ASLEEP` when the exterior handle of the sleeping vehicle was pulled, then `AWAKE` about 0.1 s later |
+| `userPresence` (4) | Confirmed | `PRESENT` while seated, `NOT_PRESENT` after getting out. Also `PRESENT` while a person stood outside with a door open (about 2.6 s after the rear door opened; about 0.1 s after the driver door opened from outside), `NOT_PRESENT` again about 0.2 s after the rear door closed. So `PRESENT` does not mean "seated" |
 | `gear` (7) | **Confirmed** | Each P/R/N/D change produced exactly one broadcast whose `gear` matched the operation order (`GEAR_REVERSE`, `GEAR_NEUTRAL`, `GEAR_DRIVE`, `GEAR_PARK`, twice in a row), about 10 s apart as operated. Works without an Infotainment session and with an unenrolled key |
-| `closureStatuses` (1) | Confirmed for driver door and charge port | **Present only while something is open**, absent when all closed. Driver door opened with the interior handle: `frontDriverDoor = OPEN`; about 6 s after closing it the field is absent again. Charge port opened: `chargePort = OPEN`. Trunk operated by the interior button: **no broadcast at all**; other trunk methods (by hand outside, key card, phone key, app) are not tested |
+| `closureStatuses` (1) | Confirmed for front driver door, rear driver door, rear trunk and charge port | **Present only while some field is not `CLOSED`**, absent when all are `CLOSED` (frame sizes match proto3, which never encodes a zero value). Driver door opened with the interior handle (round 2) or the exterior handle (round 3): `frontDriverDoor = OPEN`; absent again after closing. Rear driver door opened from outside: `rearDriverDoor = OPEN`. Rear trunk opened and closed by hand from outside: `rearTrunk = OPEN`, then absent. Charge port: `chargePort = OPEN` when opened (round 2) and when the latch was released by holding a door handle with a charger plugged in (round 3); absent again after unplugging and the port door closing. With the charger plugged in and latched, `chargePort` read `CLOSED`, so `CLOSED` does not mean "no cable". Trunk operated by the interior button: **no broadcast at all**. Waking vehicle: the first frames had `UNKNOWN` (value 3) for the four doors and both trunks; `frontTrunk` stayed `UNKNOWN` for one more frame. Not tested: passenger doors, front trunk, trunk by key card, phone key or app |
 | `uiDesire` (6) | Schema-only | Meaning not established |
 | `detailedClosureStatus` (5) | Schema-only | Cybertruck tonneau; no data (Model Y) |
-| field 8 (unknown) | Unknown | `{1: 1\|2, 2: 1\|2, 3: 1}`. Sub-field 1 alternates 1 and 2 periodically, sub-field 2 changed 2 to 1 when the charge port opened and charging started, sub-field 3 was always 1. Meaning unknown. Not related to lights or turn signals |
+| field 8 (unknown) | Unknown | `{1: 1\|2, 2: 1\|2, 3: 1}`. Sub-field 1 alternates 1 and 2 periodically. Sub-field 2 changed 2 to 1 when the charge port opened and charging started (round 2), was 1 while a charger was plugged in and changed 1 to 2 when the charge port closed after unplugging (round 3); it may be a charging-cable or charging state (1 = in use, 2 = idle), **unconfirmed** (the change came with the port door closing, more than 5 s after the cable was pulled out). Sub-field 3 was always 1. Not related to lights or turn signals |
 
-Triggers seen: gear change, lock change (interior lock while seated, walk-away lock), door open/close via interior
-handle, charge port open and charging start, user presence change.
+Triggers seen: gear change, lock change (interior lock while seated, walk-away lock), door open/close via interior and
+exterior handles (front and rear driver doors), trunk open/close by hand from outside, charge port open, latch release
+and close, charging start, user presence change, waking up.
 
 Frequency: also repeated with no change. 1st round: every 1 to 25 s while awake (26 B UNLOCKED, 28 B otherwise). 2nd
-round: sometimes several within 1 s. Do not treat a repeat as a change.
+round: sometimes several within 1 s. 3rd round: nine frames within 0.5 s while waking, then one every 0.1 to 8 s while
+things changed. Do not treat a repeat as a change.
 
-Library rule: a missing `closureStatuses` in a `vehicleStatus` means "all closed" for doors and the charge port (A2), but
-not for the trunk when it is operated with the interior button.
+Library rule: a missing `closureStatuses` in a `vehicleStatus` means "all closed" (A2), confirmed for both driver doors,
+the rear trunk and the charge port. It is wrong only for a trunk operated with the interior button, which sends no
+broadcast. `vehicleLockState` `UNLOCKED` is the zero value and is never encoded, so in a broadcast it cannot be told
+apart from a missing lock state (seen while the vehicle was still `ASLEEP`).
 
 ### B3.2 `authenticationRequest` (field 3)
 
@@ -498,7 +508,9 @@ lost; the exact order is in `raw`).
 
 Observed: `requestedLevel = DRIVE`, `reasons = [PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL]` when the interior handle was pulled;
 `ENTERED_HIGHER_AUTH_ZONE` was added when the charge port was opened and charging started. It came together with a
-`vehicleStatus` (and field 53) in the same instant. Other reasons were not observed.
+`vehicleStatus` (and field 53) in the same instant. Other reasons were not observed. In round 3 (exterior handles on a
+sleeping, then awake vehicle; charge port latch release; trunk by hand) **no** `authenticationRequest` and no field 53
+arrived; `PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL` was never seen.
 
 **Wrapping:** this vehicle sent it inside a `RoutableMessage` (broadcast form above), unlike reports elsewhere
 (Teslemetry PR #179) of an unwrapped `FromVCSECMessage{authenticationRequest}` about every 1.1 s. No unwrapped frame
@@ -531,9 +543,9 @@ right after a door event. The dispatcher drops it as `no-handler` (owner `other`
 | Item | Result |
 |---|---|
 | Turn signals (left, right), hazards, headlights, high beams | **No message at all** when operated, and no BLE schema field for them (`vcsec.proto`, `vehicle.proto`, `car_server.proto`). The only known source is Tesla Fleet Telemetry (`LightsTurnSignal` 240, `LightsHazardsActive` 239, `LightsHighBeams` 241), an internet server path outside this library's no-server scope |
-| Trunk opened with the interior button | No broadcast (other methods untested) |
-| Sleeping vehicle | Not observed |
-| Charging cable | Recorded in round 2 (charge port open, charger connected, charging start): `chargePort = OPEN`, field 8 sub-field 2 changed 2 to 1, `authenticationRequest` with `ENTERED_HIGHER_AUTH_ZONE`, field 53 with one entry. No separate broadcast for the cable itself was identified |
+| Trunk opened with the interior button | No broadcast. Opened and closed by hand from outside: broadcast (B3.1). Key card, phone key and app not tested |
+| Sleeping vehicle | Only its first frames while waking (round 3, `ASLEEP` for about 0.1 s). A vehicle that stays asleep was not observed |
+| Charging cable | Round 2 (charge port open, charger connected, charging start): `chargePort = OPEN`, field 8 sub-field 2 changed 2 to 1, `authenticationRequest` with `ENTERED_HIGHER_AUTH_ZONE`, field 53 with one entry. Round 3 (latch release, unplug, port door closes): `chargePort` `CLOSED` while plugged in, `OPEN` after the latch release, absent after the port door closed; field 8 sub-field 2 changed 1 to 2. No separate broadcast for the cable itself was identified |
 | Another phone key approaching | Not recorded |
 
 ## B5. Observation method and environment
@@ -541,7 +553,10 @@ right after a door event. The dispatcher drops it as `no-handler` (owner `other`
 - iPhone 16 Pro, iOS 27, Model Y (firmware not recorded). Sample `dev.mirolab.TeslableSampleDevice` builds 7 and 8, key
   `SECURE_ENCLAVE`. The key does not need to be enrolled to observe.
 - 1st round 2026-10-18 (build 7, one continuous recording, 71 lines). 2nd round 2026-10-24 (build 8, detailed unknown-field
-  decode, one recording per scenario).
+  decode, one recording per scenario). 3rd round 2026-10-24 (build 8, one 40 s recording of 25 lines: sleeping and locked
+  vehicle, rear driver door opened from outside, charge port latch released while holding the handle, charger unplugged,
+  rear door closed, charge port door closed, trunk opened and closed by hand from outside, driver door opened and closed
+  from outside).
 - Reproduce: turn on the sample's observation mode, perform the scenario, then press the "show" button (and "copy whole
   result"). Details and log syntax: `18-lib-troubleshooting.md`.
 

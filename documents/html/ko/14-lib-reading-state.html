@@ -167,7 +167,7 @@
 <p><code>ClosureStatuses</code>에는 1~8번의 <code>ClosureState_E</code> 필드 여덟 개가 있습니다: <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code>, <code>tonneau</code>.</p>
 <div class="callout">
 <strong>변환 규칙</strong>
-<p>스키마 밖의 값은 0번 값이 아니라 <code>UNKNOWN</code>으로 바꿉니다. proto3에서는 빠진 enum과 0번 값을 구분할 수 없으므로 잠금 상태가 빠지면 <code>UNLOCKED</code>로 읽히며, 조회에서는 Go 동작을 그대로 따릅니다. <code>gear</code>는 Go에 대응하는 것이 없습니다(공식 Go 스키마는 필드 5까지). 0번 값이 <code>GEAR_UNKNOWN</code>이므로 기어가 빠지면 <code>UNKNOWN</code>으로 읽힙니다. 기어는 브로드캐스트로 확인했으며, 차량이 조회 응답에 기어를 채우는지는 실차로 확인하지 않았습니다. 실차 결과상 차량은 모두 닫히면 <code>closureStatuses</code>를 생략하고 무언가 열려 있으면 보내므로(운전석 문과 충전구에서 확인) "없으면 모두 닫힘"은 관찰과 맞습니다. 실내 버튼으로 연 트렁크는 브로드캐스트로 보이지 않았으므로, 트렁크는 이 조회로 읽으세요.</p>
+<p>스키마 밖의 값은 0번 값이 아니라 <code>UNKNOWN</code>으로 바꿉니다. proto3에서는 빠진 enum과 0번 값을 구분할 수 없으므로 잠금 상태가 빠지면 <code>UNLOCKED</code>로 읽히며, 조회에서는 Go 동작을 그대로 따릅니다. <code>gear</code>는 Go에 대응하는 것이 없습니다(공식 Go 스키마는 필드 5까지). 0번 값이 <code>GEAR_UNKNOWN</code>이므로 기어가 빠지면 <code>UNKNOWN</code>으로 읽힙니다. 기어는 브로드캐스트로 확인했으며, 차량이 조회 응답에 기어를 채우는지는 실차로 확인하지 않았습니다. 실차 결과상 차량은 모든 필드가 <code>CLOSED</code>(0번 값)이면 <code>closureStatuses</code>를 생략하고 하나라도 아니면 보내므로(앞뒤 운전석 문, 뒷트렁크, 충전구에서 확인) "없으면 모두 닫힘"은 관찰과 맞습니다. 유일한 예외는 실내 버튼으로 조작한 트렁크로, 브로드캐스트가 전혀 없었으며 이 조회는 그것을 그대로 보고합니다.</p>
 </div>
 
 <h2 id="sec-a-summary">A3. keySummary()</h2>
@@ -421,7 +421,8 @@
 <h3>앱이 지킬 규칙</h3>
 <ul>
 <li><strong>반복은 변화가 아닙니다.</strong> 차량은 바뀐 것이 없어도 1~25초마다, 때로는 1초 안에 여러 번 상태를 다시 보냅니다. 라이브러리는 반복을 거르지 않으므로 이전 값과 직접 비교하세요.</li>
-<li><strong>트렁크:</strong> 실내 버튼으로 트렁크를 열고 닫았을 때 브로드캐스트가 오지 않았습니다(다른 방법은 시험하지 않음). 트렁크는 <code>vehicleStatus()</code>로 읽으세요.</li>
+<li><strong>트렁크:</strong> 밖에서 손으로 트렁크를 열고 닫았을 때는 브로드캐스트가 왔습니다(<code>rearTrunk = OPEN</code>, 이후 <code>closureStatuses</code> 없음). 실내 버튼으로는 <strong>전혀 오지 않았으므로</strong>, 그렇게 움직인 트렁크는 다른 브로드캐스트가 올 때까지 <code>events</code>에서 <code>CLOSED</code>로 남습니다. 트렁크 상태가 중요하면 <code>vehicleStatus()</code>로 확인하세요.</li>
+<li><strong>깨어나는 차량:</strong> 잠든 차량의 첫 프레임은 닫힘 상태가 <code>UNKNOWN</code>, <code>gear = UNKNOWN</code>으로 보일 수 있으며, 약 0.5초 안에 실제 값이 따라옵니다(B3.1). 그 <code>UNKNOWN</code> 값을 변경으로 취급하지 마세요.</li>
 <li><strong>구독:</strong> 수집은 시작한 순간부터 받습니다. 그 전의 브로드캐스트는 다시 오지 않습니다. 여러 곳에서 수집하면 각자 모든 이벤트를 받습니다.</li>
 <li><strong>끝:</strong> <code>connection</code>이 이유와 상관없이 <code>Disconnected</code>가 되거나 <code>disconnect()</code>를 호출하면, 먼저 온 쪽에서 흐름이 예외 없이 정상적으로 끝납니다. 그 뒤에 시작한 수집은 바로 끝납니다. 그 순간 전달 중이던 프레임은 잃을 수 있습니다. 재연결 판단은 <code>connection</code>으로 하고, 링크가 끊긴 뒤에도 <code>disconnect()</code>는 호출하세요. 새 연결은 자기 <code>events</code>를 가진 새 <code>Vehicle</code>입니다.</li>
 <li><strong>느린 수집자:</strong> 라이브러리는 뒤처진 수집자를 위해 프레임을 64개까지 보관합니다. 그 이상이면 그 연결의 모든 수집자에게서 새 프레임이 빠지고, 버린 수를 세며, 첫 번째와 100번째마다 <code>WARN</code> 줄을 남깁니다. 오류가 아닙니다(<a href="16-lib-errors.html">16. 에러 처리</a>). 수집 코드는 가볍게 유지하세요.</li>
@@ -442,22 +443,23 @@
 </table>
 
 <h3>B3.1 vehicleStatus</h3>
-<p>필드는 A2와 같습니다. 실차 관찰 결과입니다(iPhone, Model Y. 1차 71줄, 2차는 시나리오별 기록).</p>
+<p>필드는 A2와 같습니다. 실차 관찰 결과입니다(iPhone, Model Y. 1차 71줄, 2차는 시나리오별 기록, 3차는 잠든 차량에서 시작한 40초 시나리오 1개, 25줄).</p>
 <table>
 <thead><tr><th>필드</th><th>상태</th><th>관찰 내용</th></tr></thead>
 <tbody>
 <tr><td><code>vehicleLockState</code> (2)</td><td><span class="badge ok">확인됨</span></td><td>연결 직후 <code>UNLOCKED</code>, 문을 닫고 앉아 있는 동안 <code>INTERNAL_LOCKED</code> 반복, 내린 뒤 <code>LOCKED</code>, 연결을 유지한 채 걸어서 멀어지면 <code>UNLOCKED</code>에서 <code>LOCKED</code>로(약 30초 뒤 링크 손실)</td></tr>
-<tr><td><code>vehicleSleepStatus</code> (3)</td><td><span class="badge ok">확인됨</span></td><td>모든 줄이 <code>AWAKE</code>. 잠든 차량은 관찰하지 <strong>못했습니다</strong></td></tr>
-<tr><td><code>userPresence</code> (4)</td><td><span class="badge ok">확인됨</span></td><td>앉아 있으면 <code>PRESENT</code>, 내린 뒤 <code>NOT_PRESENT</code></td></tr>
+<tr><td><code>vehicleSleepStatus</code> (3)</td><td><span class="badge ok">확인됨</span></td><td>1, 2차: 모든 줄이 <code>AWAKE</code>. 3차: 잠든 차량의 바깥 손잡이를 당겼을 때 첫 두 프레임이 <code>ASLEEP</code>, 약 0.1초 뒤 <code>AWAKE</code></td></tr>
+<tr><td><code>userPresence</code> (4)</td><td><span class="badge ok">확인됨</span></td><td>앉아 있으면 <code>PRESENT</code>, 내린 뒤 <code>NOT_PRESENT</code>. 사람이 문을 연 채 밖에 서 있을 때도 <code>PRESENT</code>(뒷문을 연 지 약 2.6초 뒤, 운전석 문을 밖에서 연 지 약 0.1초 뒤), 뒷문을 닫고 약 0.2초 뒤 다시 <code>NOT_PRESENT</code>. 따라서 <code>PRESENT</code>는 "앉아 있음"을 뜻하지 않습니다</td></tr>
 <tr><td><code>gear</code> (7)</td><td><span class="badge ok">확인됨</span></td><td>P/R/N/D를 바꿀 때마다 브로드캐스트가 정확히 하나씩 왔고 <code>gear</code>가 조작 순서와 일치했습니다(<code>GEAR_REVERSE</code>, <code>GEAR_NEUTRAL</code>, <code>GEAR_DRIVE</code>, <code>GEAR_PARK</code>, 두 번 연속). 조작한 대로 약 10초 간격이었습니다. 인포테인먼트 세션 없이, 등록되지 않은 키로도 옵니다</td></tr>
-<tr><td><code>closureStatuses</code> (1)</td><td>운전석 문과 충전구에서 <span class="badge ok">확인됨</span></td><td><strong>무언가 열려 있을 때만 있고</strong> 모두 닫히면 없습니다. 운전석 문을 실내 손잡이로 열면 <code>frontDriverDoor = OPEN</code>, 닫고 약 6초 뒤 다시 빠집니다. 충전구를 열면 <code>chargePort = OPEN</code>. 트렁크를 실내 버튼으로 조작하면 <strong>브로드캐스트가 전혀 없었습니다</strong>. 다른 트렁크 조작(밖에서 손으로, 키카드, 폰 키, 앱)은 시험하지 않았습니다</td></tr>
+<tr><td><code>closureStatuses</code> (1)</td><td>앞 운전석 문, 뒷 운전석 문, 뒷트렁크, 충전구에서 <span class="badge ok">확인됨</span></td><td><strong>일부 필드가 <code>CLOSED</code>가 아닐 때만 있고</strong> 모두 <code>CLOSED</code>이면 없습니다(프레임 크기가 proto3와 일치하며, proto3는 0번 값을 인코딩하지 않습니다). 운전석 문을 실내 손잡이(2차) 또는 바깥 손잡이(3차)로 열면 <code>frontDriverDoor = OPEN</code>, 닫으면 다시 빠집니다. 뒷 운전석 문을 밖에서 열면 <code>rearDriverDoor = OPEN</code>. 뒷트렁크를 밖에서 손으로 열고 닫으면 <code>rearTrunk = OPEN</code>, 이후 빠집니다. 충전구: 열 때(2차)와 충전기를 꽂은 채 문 손잡이를 잡아 걸쇠를 풀 때(3차) <code>chargePort = OPEN</code>, 케이블을 뽑고 충전구 문이 닫히면 다시 빠집니다. 충전기를 꽂고 걸쇠가 잠긴 상태에서는 <code>CLOSED</code>로 읽혔으므로 <code>CLOSED</code>는 "케이블 없음"을 뜻하지 않습니다. 트렁크를 실내 버튼으로 조작하면 <strong>브로드캐스트가 전혀 없었습니다</strong>. 깨어나는 차량: 첫 프레임에서 문 4개와 트렁크 2개가 <code>UNKNOWN</code>(값 3)이었고, <code>frontTrunk</code>는 한 프레임 더 <code>UNKNOWN</code>으로 남았습니다. 시험하지 않음: 조수석 쪽 문, 앞트렁크, 키카드·폰 키·앱으로 연 트렁크</td></tr>
 <tr><td><code>uiDesire</code> (6)</td><td><span class="badge info">스키마에만 있음</span></td><td>의미 미확립</td></tr>
 <tr><td><code>detailedClosureStatus</code> (5)</td><td><span class="badge info">스키마에만 있음</span></td><td>Cybertruck 톤노. Model Y에서는 데이터 없음</td></tr>
-<tr><td>필드 8 (스키마에 없음)</td><td><span class="badge warn">미확인</span></td><td><code>{1: 1|2, 2: 1|2, 3: 1}</code>. 하위 1은 주기적으로 1과 2를 오가고, 하위 2는 충전구를 열고 충전이 시작될 때 2에서 1로 바뀌었으며, 하위 3은 항상 1이었습니다. 의미 미확인. 방향지시등이나 라이트와는 무관합니다</td></tr>
+<tr><td>필드 8 (스키마에 없음)</td><td><span class="badge warn">미확인</span></td><td><code>{1: 1|2, 2: 1|2, 3: 1}</code>. 하위 1은 주기적으로 1과 2를 오갑니다. 하위 2는 충전구를 열고 충전이 시작될 때 2에서 1로 바뀌었고(2차), 충전기가 꽂혀 있는 동안 1이었다가 케이블을 뽑은 뒤 충전구가 닫힐 때 1에서 2로 바뀌었습니다(3차). 충전 케이블 또는 충전 상태(1 = 사용 중, 2 = 대기)일 수 있으나 <strong>미확인</strong>입니다(변화가 케이블을 뽑고 5초 넘게 지나 충전구 문이 닫힐 때 왔습니다). 하위 3은 항상 1이었습니다. 방향지시등이나 라이트와는 무관합니다</td></tr>
 </tbody>
 </table>
-<p>확인한 발생 계기: 기어 변경, 잠금 변경(앉은 채 실내 잠금, 멀어질 때 잠금), 실내 손잡이로 문 열고 닫기, 충전구 열기와 충전 시작, 탑승 여부 변경.</p>
-<p>빈도: 바뀐 것이 없어도 반복해서 옵니다. 1차는 깨어 있는 동안 1~25초마다(<code>UNLOCKED</code>는 26바이트, 그 외 28바이트), 2차는 1초 안에 여러 개가 오기도 했습니다. 반복을 변경으로 취급하지 마세요.</p>
+<p>확인한 발생 계기: 기어 변경, 잠금 변경(앉은 채 실내 잠금, 멀어질 때 잠금), 실내와 바깥 손잡이로 문 열고 닫기(앞뒤 운전석 문), 밖에서 손으로 트렁크 열고 닫기, 충전구 열기·걸쇠 풀기·닫기, 충전 시작, 탑승 여부 변경, 깨어남.</p>
+<p>빈도: 바뀐 것이 없어도 반복해서 옵니다. 1차는 깨어 있는 동안 1~25초마다(<code>UNLOCKED</code>는 26바이트, 그 외 28바이트), 2차는 1초 안에 여러 개가 오기도 했습니다. 3차는 깨어나는 동안 0.5초 안에 프레임 9개, 이후 변화가 있는 동안 0.1~8초마다 하나였습니다. 반복을 변경으로 취급하지 마세요.</p>
+<p>라이브러리 규칙: <code>closureStatuses</code>가 없으면 모두 닫힘으로 봅니다(A2). 양쪽 운전석 문, 뒷트렁크, 충전구에서 확인했습니다. 실내 버튼으로 조작한 트렁크는 브로드캐스트가 없으므로 이 경우에만 틀립니다. <code>UNLOCKED</code>는 잠금 상태의 0번 값이라 인코딩되지 않으므로, 브로드캐스트에서는 잠금 상태가 빠진 것과 구분할 수 없습니다(차량이 아직 <code>ASLEEP</code>일 때 관찰).</p>
 
 <h3>B3.2 authenticationRequest (필드 3)</h3>
 <p>상태: 발생은 <span class="badge ok">확인됨</span>, 하위 필드 이름은 미검증(Teslemetry 스키마).</p>
@@ -471,7 +473,7 @@
 </table>
 <p><code>AuthenticationReason_E</code>(접두어 <code>AUTHENTICATIONREASON_</code>): 0 <code>NOT_DOCUMENTED</code>, 1 <code>IDENTIFICATION</code>, 2 <code>POWER_ON_VEHICLE_REQUEST</code>, 3 <code>GTW_REQUEST</code>, 4 <code>UI_UNLOCK_PASSIVE_AUTH</code>, 5 <code>PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL</code>, 6 <code>PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL</code>, 7 <code>PASSIVE_UNLOCK_AUTOPRESENT_DOOR</code>, 8 <code>ENTERED_HIGHER_AUTH_ZONE</code>, 9 <code>WALK_UP_UNLOCK</code>, 10 <code>IMMOBILIZER</code>. 관련된 <code>AuthenticationResponse</code>(<code>UnsignedMessage</code> 필드 3, 폰 키가 보냄)와 <code>AuthenticationRejection_E</code>는 스키마에 있으며 라이브러리는 보내지 않습니다.</p>
 <p>공개 모델(<code>VehicleEvent.AuthenticationRequest</code>, B2)에서 <code>requestedLevel</code>은 <code>NONE</code>, <code>UNLOCK</code>, <code>DRIVE</code>이고, 스키마 밖 값은 <code>UNKNOWN</code>입니다. 수준이 없는 것과 <code>NONE</code>은 구별할 수 없습니다. <code>reasons</code>는 차량이 보낸 값마다 하나씩이며 이름은 위에서 접두어를 뺀 것입니다. 스키마 밖 값은 <code>UNKNOWN</code>이 되어 아는 값들 뒤에 옵니다(정확한 순서는 <code>raw</code>에 있습니다).</p>
-<p>관찰: 실내 손잡이를 당기면 <code>requestedLevel = DRIVE</code>, <code>reasons = [PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL]</code>. 충전구를 열고 충전이 시작될 때는 <code>ENTERED_HIGHER_AUTH_ZONE</code>이 추가되었습니다. 같은 순간 <code>vehicleStatus</code>(와 필드 53)가 함께 왔습니다. 다른 이유는 관찰하지 못했습니다.</p>
+<p>관찰: 실내 손잡이를 당기면 <code>requestedLevel = DRIVE</code>, <code>reasons = [PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL]</code>. 충전구를 열고 충전이 시작될 때는 <code>ENTERED_HIGHER_AUTH_ZONE</code>이 추가되었습니다. 같은 순간 <code>vehicleStatus</code>(와 필드 53)가 함께 왔습니다. 다른 이유는 관찰하지 못했습니다. 3차(잠든 뒤 깨어난 차량의 바깥 손잡이, 충전구 걸쇠 풀기, 손으로 연 트렁크)에서는 <code>authenticationRequest</code>도 필드 53도 <strong>오지 않았고</strong>, <code>PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL</code>은 한 번도 보이지 않았습니다.</p>
 <div class="callout">
 <strong>감싼 형태이며 맨몸이 아님</strong>
 <p>이 차량은 이것을 <code>RoutableMessage</code> 안에 담아(위의 브로드캐스트 형태) 보냈습니다. 약 1.1초마다 감싸지 않은 <code>FromVCSECMessage{authenticationRequest}</code>가 온다는 다른 보고(Teslemetry PR #179)와 다릅니다. 이 차량에서는 감싸지 않은 프레임이 보이지 않았습니다(<code>drop:missing-source</code>, <code>drop:unparseable</code>: 0줄).</p>
@@ -495,9 +497,9 @@
 <thead><tr><th>항목</th><th>결과</th></tr></thead>
 <tbody>
 <tr><td>방향지시등(좌, 우), 비상등, 전조등, 상향등</td><td>조작해도 <strong>메시지가 전혀 없고</strong> BLE 스키마에도 해당 필드가 없습니다(<code>vcsec.proto</code>, <code>vehicle.proto</code>, <code>car_server.proto</code>). 알려진 경로는 Tesla Fleet Telemetry(<code>LightsTurnSignal</code> 240, <code>LightsHazardsActive</code> 239, <code>LightsHighBeams</code> 241)뿐이며, 이는 인터넷 서버 경로라 이 라이브러리의 서버 없음 범위 밖입니다</td></tr>
-<tr><td>실내 버튼으로 연 트렁크</td><td>브로드캐스트 없음(다른 조작 방법은 미시험)</td></tr>
-<tr><td>잠든 차량</td><td>관찰하지 못함</td></tr>
-<tr><td>충전 케이블</td><td>2차에 기록함(충전구 열기, 충전기 연결, 충전 시작): <code>chargePort = OPEN</code>, 필드 8의 하위 2가 2에서 1로 변경, <code>ENTERED_HIGHER_AUTH_ZONE</code>이 든 <code>authenticationRequest</code>, 항목 1개짜리 필드 53. 케이블 자체에 대한 별도 브로드캐스트는 찾지 못했습니다</td></tr>
+<tr><td>실내 버튼으로 연 트렁크</td><td>브로드캐스트 없음. 밖에서 손으로 열고 닫으면 브로드캐스트 있음(B3.1). 키카드, 폰 키, 앱은 미시험</td></tr>
+<tr><td>잠든 차량</td><td>깨어나는 동안의 첫 프레임만(3차, 약 0.1초간 <code>ASLEEP</code>). 계속 잠든 채로 있는 차량은 관찰하지 못함</td></tr>
+<tr><td>충전 케이블</td><td>2차(충전구 열기, 충전기 연결, 충전 시작): <code>chargePort = OPEN</code>, 필드 8의 하위 2가 2에서 1로 변경, <code>ENTERED_HIGHER_AUTH_ZONE</code>이 든 <code>authenticationRequest</code>, 항목 1개짜리 필드 53. 3차(걸쇠 풀기, 뽑기, 충전구 문 닫힘): 꽂혀 있는 동안 <code>chargePort</code>는 <code>CLOSED</code>, 걸쇠를 풀면 <code>OPEN</code>, 충전구 문이 닫힌 뒤 없음. 필드 8의 하위 2가 1에서 2로 변경. 케이블 자체에 대한 별도 브로드캐스트는 찾지 못했습니다</td></tr>
 <tr><td>다른 폰 키가 다가올 때</td><td>기록하지 않음</td></tr>
 </tbody>
 </table>
@@ -505,7 +507,7 @@
 <h2 id="sec-b-method">B5. 관찰 방법과 환경</h2>
 <ul>
 <li>iPhone 16 Pro, iOS 27, Model Y(펌웨어 미기록). 샘플 <code>dev.mirolab.TeslableSampleDevice</code> 빌드 7, 8, 키 <code>SECURE_ENCLAVE</code>. 관찰에는 키가 등록되어 있을 필요가 없습니다.</li>
-<li>1차 2026-10-18(빌드 7, 연속 기록 하나, 71줄). 2차 2026-10-24(빌드 8, 미확인 필드 상세 해독, 시나리오별 기록).</li>
+<li>1차 2026-10-18(빌드 7, 연속 기록 하나, 71줄). 2차 2026-10-24(빌드 8, 미확인 필드 상세 해독, 시나리오별 기록). 3차 2026-10-24(빌드 8, 40초 기록 하나, 25줄: 잠든 채 잠긴 차량, 뒷 운전석 문을 밖에서 열기, 문 손잡이를 잡아 충전구 걸쇠 풀기, 충전기 뽑기, 뒷문 닫기, 충전구 문 닫기, 밖에서 손으로 트렁크 열고 닫기, 운전석 문을 밖에서 열고 닫기).</li>
 <li>재현 방법: 샘플의 관찰 모드를 켜고 시나리오를 수행한 뒤 표시 버튼(과 "결과 전체 복사")을 누릅니다. 자세한 내용과 로그 문법은 <a href="18-lib-troubleshooting.html">18. 문제 해결</a>을 참고하세요.</li>
 </ul>
 
