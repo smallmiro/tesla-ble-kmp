@@ -13,10 +13,11 @@
 | SDD | `brainstorming` (설계 단계) | `{{SDD_FILE}}`, 원본은 `{{SPECS_DIR}}`, 결정은 `{{ADR_DIR}}` |
 | 계획 | `writing-plans` | `{{PLANS_DIR}}` |
 | 작업 공간 | `using-git-worktrees`: 작업 단위마다 짧게 쓰고 바로 병합 | – |
-| 구현 | `subagent-driven-development` + `test-driven-development` | 코드 |
-| 예제(샘플 앱) 개발 | 구현과 같은 스킬. 단 기준 문서는 Go 매뉴얼이 아니라 `{{LIB_DOCS_DIR}}` 의 `11-lib-*`~`19-lib-*`(`AGENTS.md` 절대 규칙 14). 문서에 없는 동작이 필요하면 예제에서 우회하지 말고 문서를 먼저 고치거나 라이브러리 작업으로 올림 | `{{SAMPLES_DIR}}` |
+| 구현 | `subagent-driven-development` + `test-driven-development`. 구현 서브에이전트는 `library-developer` | 코드 |
+| 예제(샘플 앱) 개발 | 구현과 같은 스킬 + `sample-from-lib-docs`. 서브에이전트는 `android-developer`/`ios-developer`, API 부족은 `library-api-request`. 지침 `{{SAMPLES_DIR}}AGENTS.md`, 스펙 `{{SAMPLES_DOCS_INDEX}}`. 단 기준 문서는 Go 매뉴얼이 아니라 `{{LIB_DOCS_DIR}}` 의 `11-lib-*`~`19-lib-*`(`AGENTS.md` 절대 규칙 14). 문서에 없는 동작이 필요하면 예제에서 우회하지 말고 문서를 먼저 고치거나 라이브러리 작업으로 올림 | `{{SAMPLES_DIR}}`, `{{SAMPLES_DOCS_DIR}}`, `{{SAMPLES_DOCS_HTML_DIR}}` |
+| 로그 분석 | `analyze-monitor-logs`. 서브에이전트는 `protocol-analyst`(보고서만, 문서 반영은 `library-developer`) | `{{ANALYSIS_DIR}}` |
 | 디버깅 | `systematic-debugging`: 가설을 세우기 전에 원본 Go 코드와 대조 | – |
-| 문서 갱신 (머지 조건) | 직접 작성. 이번 작업으로 바뀐 내용을 `{{LIB_DOCS_DIR}}`(에이전트용 MD, 영어)와 `{{LIB_DOCS_HTML_DIR}}`(사람용 HTML, ko/en/ja)에 반영 (`AGENTS.md` 절대 규칙 13). HTML은 영어판을 먼저 쓰고 ko/ja는 같은 마크업으로 번역(번역은 서브에이전트에 맡겨도 됨) | `{{LIB_DOCS_DIR}}`, `{{LIB_DOCS_HTML_DIR}}` |
+| 문서 갱신 (머지 조건) | 직접 작성. 이번 작업으로 바뀐 내용을 `{{LIB_DOCS_DIR}}`(에이전트용 MD, 영어)와 `{{LIB_DOCS_HTML_DIR}}`(사람용 HTML, ko/en/ja)에 반영 (`AGENTS.md` 절대 규칙 13). 절차는 `lib-docs-sync` 스킬. HTML은 영어판을 먼저 쓰고 ko/ja는 같은 마크업으로 번역(`docs-translator`) | `{{LIB_DOCS_DIR}}`, `{{LIB_DOCS_HTML_DIR}}` |
 | 리뷰 (머지 조건) | `requesting-code-review` → 지적 사항은 `receiving-code-review` 로 처리 | PR 본문에 요약 첨부 |
 | 마무리 | `verification-before-completion`(있다면) → 라이브러리 사용 문서 갱신 확인 → `finishing-a-development-branch` | – |
 
@@ -28,6 +29,8 @@
 - 사용자가 "진행"이라고 명시하기 전에는 다음 Phase로 넘어가지 않습니다.
 
 ## 3. 서브에이전트 사용 원칙
+- 역할 에이전트(`.claude/agents/`)를 씁니다: 라이브러리 `library-developer`(opus/max), 분석 `protocol-analyst`(opus/xhigh), 샘플 `android-developer`·`ios-developer`(sonnet/high), 번역 `docs-translator`(sonnet/low). 역할 경계와 Codex 협의 규칙은 `AGENTS.md` §9.
+- 실차 버그 추적, 암호·세션 문제처럼 어려운 디버깅을 맡길 때만 그 호출의 effort를 올립니다(예: 샘플 백그라운드 문제를 opus로).
 - 구현 서브에이전트에는 **작업 1개 + 관련 FR ID + 참고할 `{{MANUAL_DIR}}` 매뉴얼 문서 + 대응하는 Go 원본 경로 + 먼저 작성할 실패 테스트**만 전달합니다.
 - 예제(`{{SAMPLES_DIR}}`) 작업 서브에이전트에는 Go 원본 대신 **참고할 `{{LIB_DOCS_DIR}}` 페이지(예: `12`·`13`·`14`·`15`·`16`·`17`)와 "문서에 사용 가능으로 적힌 `:sdk` 공개 API만 쓴다"는 조건**을 전달합니다. 리뷰 서브에이전트에는 예제 코드가 그 문서의 호출 순서·오류 처리·예제 코드와 맞는지 확인하게 합니다.
 - 리뷰 서브에이전트는 구현을 보지 않은 새 컨텍스트로 띄우고, `{{WORKFLOW_FILE}}` §9 DoD를 체크리스트로 줍니다. 라이브러리 사용 문서(MD, HTML)가 코드와 맞는지도 확인하게 합니다.

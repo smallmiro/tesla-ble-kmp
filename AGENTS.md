@@ -21,6 +21,8 @@ Tesla 공식 Go SDK `vehicle-command` 의 **BLE 경로**를 **Kotlin Multiplatfo
 | 7 | `{{PLANS_DIR}}` | 현재 구현 계획 | 작업을 고를 때 |
 | 8 | `{{HANDOFF_DIR}}` 최신 파일 | 직전 세션 인계 노트 | 세션을 시작할 때 |
 | 9 | `{{LIB_DOCS_INDEX}}` | 라이브러리 사용 문서 (산출물, `{{MANUAL_DIR}}`·`{{MANUAL_HTML_DIR}}` 안의 `11-lib-*`~`19-lib-*`) | 라이브러리를 쓰거나 바꿀 때, **예제(`{{SAMPLES_DIR}}`)를 개발할 때**(절대 규칙 14), PR을 머지하기 전 |
+| 10 | `{{SAMPLES_DIR}}AGENTS.md` + `{{SAMPLES_DOCS_INDEX}}` | 샘플 앱 지침과 스펙 (SFR-xxx, 제약, 앱별 스펙). MD `{{SAMPLES_DOCS_DIR}}` + HTML `{{SAMPLES_DOCS_HTML_DIR}}` | 샘플을 개발하거나 바꿀 때 |
+| 11 | §9 역할 분담 | 어떤 에이전트가 무엇을 맡고 어디로 넘기는지, Codex 협의 규칙 | 작업을 나누거나 위임할 때 |
 
 PRD나 SDD가 아직 없으면 `{{HANDOFF_FILE}}` 의 워크플로를 따릅니다(Phase 0부터).
 
@@ -44,6 +46,7 @@ PRD나 SDD가 아직 없으면 `{{HANDOFF_FILE}}` 의 워크플로를 따릅니�
    - `{{MANUAL_DIR}}`(AI 에이전트용 Markdown)는 **영어로만** 씁니다. 한국어 등 다른 언어 문장을 섞지 않습니다.
    - `{{MANUAL_HTML_DIR}}`(사람용 HTML)는 **한국어(`ko/`), 영어(`en/`), 일본어(`ja/`) 세 벌**을 유지합니다. 세 언어의 페이지 구성과 내용은 같아야 하며, 한 언어를 고치면 **같은 PR에서** 나머지 두 언어도 고칩니다.
    - 식별자, 코드, 명령, 파일 경로, 상수는 어느 언어 판에서도 원문 그대로 둡니다.
+   - 샘플 앱 스펙도 같은 규칙입니다: `{{SAMPLES_DOCS_DIR}}`(영어 MD)와 `{{SAMPLES_DOCS_HTML_DIR}}`(ko/en/ja HTML). `tools/ci/check-manual-i18n.sh` 가 두 문서 세트를 모두 검사합니다.
 13. **개발 완료 = 라이브러리 사용 문서 갱신**: 작업(PR)을 머지하기 전에 그 작업으로 바뀐 라이브러리 동작, 공개 API, 마일스톤 상태를 라이브러리 사용 문서에 반영합니다. **같은 PR**에서 두 벌을 모두 고칩니다.
    - `{{LIB_DOCS_DIR}}` 의 `11-lib-*.md`~`19-lib-*.md`: **AI 에이전트가 볼 문서.** 영어, 정확한 시그니처·불변 조건·상태 위주.
    - `{{LIB_DOCS_HTML_DIR}}` 의 `ko/`·`en/`·`ja/` 아래 `11-lib-*.html`~`19-lib-*.html`: **사람이 볼 문서.** 세 언어를 같은 내용으로, 개념·절차·표 위주.
@@ -55,6 +58,7 @@ PRD나 SDD가 아직 없으면 `{{HANDOFF_FILE}}` 의 워크플로를 따릅니�
    - 호출 순서, 오류 처리(`Success`/`Uncertain`/`Failure`, 재조회), 시간 제한, 플랫폼 설정(권한, `Info.plist`, 백업 제외)은 문서에 적힌 대로 따릅니다. iOS(Swift)는 Kotlin 기본 인자가 Swift 오버로드로 생기지 않으므로 모든 인자를 넘깁니다(`17-lib-platform-notes`).
    - 문서에 없는 동작이 필요하거나 문서와 실제 동작이 다르면, **예제에서 우회하지 않습니다.** 먼저 라이브러리 사용 문서(MD + HTML ko/en/ja, 절대 규칙 13)를 고치거나, 공개 API가 부족하면 라이브러리 작업으로 계획에 올립니다. 예제 PR 본문에 참고한 문서 페이지와 절을 적습니다.
    - 예제 코드와 문서의 예제 코드가 서로 맞아야 합니다. 예제를 바꾸면서 문서 예제가 틀린 것을 발견하면 같은 PR에서 고칩니다.
+   - 샘플의 요구사항(SFR-xxx)·제약·앱별 스펙은 `{{SAMPLES_DOCS_INDEX}}`, 샘플 작업 지침은 `{{SAMPLES_DIR}}AGENTS.md` 에 있습니다. 샘플 동작이 바뀌면 샘플 스펙(MD + HTML ko/en/ja)을 같은 PR에서 고칩니다.
 
 ## 4. 작업 흐름 (도구 공통)
 ```
@@ -74,7 +78,7 @@ PRD ─🛑승인→ SDD ─🛑승인→ 계획 ─🛑승인→ [작업 단위
  ├─ :adapter-crypto ─▶ :domain     (Android Keystore / iOS Security.framework)
  └─ :adapter-storage ▶ :domain     (세션 캐시)
 :domain = 순수 Kotlin (프로토콜 모델, Session, Metadata, SlidingWindow, 포트 인터페이스). 외부 의존은 Wire 런타임만.
-{{SAMPLES_DIR}}* ──▶ :sdk 만   (예제는 라이브러리 사용 문서 기준으로 개발, 절대 규칙 14)
+{{SAMPLES_DIR}}* ──▶ :sdk 만   (예제는 라이브러리 사용 문서 기준으로 개발, 절대 규칙 14, 지침 {{SAMPLES_DIR}}AGENTS.md)
 ```
 
 ## 6. 명령어 (M0 이후 유효, SDD에서 확정)
@@ -101,3 +105,24 @@ PRD ─🛑승인→ SDD ─🛑승인→ 계획 ─🛑승인→ [작업 단위
 1. `{{MANUAL_DIR}}` 개발 매뉴얼 → 원본 Go 코드 → `vehicle-command/pkg/protocol/protocol.md` 순으로 해당 동작을 찾습니다.
 2. 그래도 모호하면 추측으로 구현하지 않습니다. 질문 목록을 만들어 사용자에게 묻습니다.
 3. 컨텍스트가 길어졌거나 주제가 바뀌면 `{{HANDOFF_DIR}}` 에 인계 노트를 쓰고 새 세션을 제안합니다(`{{WORKFLOW_FILE}}` §10).
+
+## 9. 역할 분담과 Codex 협의
+역할은 도구와 상관없이 같습니다. Claude Code는 `.claude/agents/` 의 같은 이름 에이전트로 실행하고, 다른 도구는 아래 표를 역할 지침으로 따릅니다.
+
+| 역할(에이전트) | 맡는 경로 | 1차 기준 | 산출물 | 넘기는 곳 | 모델 / effort |
+|---|---|---|---|---|---|
+| `library-developer` | `:domain`·`:application`·`:adapter-*`·`:sdk`, PRD/SDD/ADR, `{{LIB_DOCS_DIR}}` | `{{REF_REPO_DIR}}`(원본 Go), `{{MANUAL_DIR}}` `00`~`10` | 라이브러리 코드, 사용 문서 MD | HTML 번역 → `docs-translator`, 새 API를 쓰는 샘플 작업 → 샘플 개발자 | opus / max |
+| `protocol-analyst` | `{{ANALYSIS_DIR}}` | `{{SAMPLE_LOGS_DIR}}` 의 로그, `14-lib-reading-state` Part B, proto 스키마 | 분석 보고서만 | 문서 반영 → `library-developer`, API 부족 → `library-api-request`, 다음 관찰 시나리오 → 샘플 개발자 | opus / xhigh |
+| `android-developer` | `{{SAMPLES_DIR}}android/`, 샘플 스펙 | `{{LIB_DOCS_DIR}}` `11`~`19`, `{{SAMPLES_DOCS_INDEX}}` | 샘플 코드, 샘플 스펙 | API 부족·문서 불일치 → `library-api-request`, 로그 → `protocol-analyst` | sonnet / high |
+| `ios-developer` | `{{SAMPLES_DIR}}ios/`, 샘플 스펙 | 같음 + `17-lib-platform-notes` Swift 규칙 | 샘플 코드, 샘플 스펙, `samples/ios/README.md` runbook | 같음 | sonnet / high |
+| `docs-translator` | `{{LIB_DOCS_HTML_DIR}}`·`{{SAMPLES_DOCS_HTML_DIR}}` 의 `ko/`·`ja/` | 같은 페이지의 `en/` | 번역 HTML | 내용 오류 발견 → 그 페이지의 담당 개발자 | sonnet / low |
+
+- **넘김 흐름**: 샘플에서 API 부족 발견 → `library-api-request` 요청서 → 계획 → `library-developer` 구현·문서 → 샘플이 문서대로 사용. 로그 수집(샘플) → `protocol-analyst` 보고서 → `library-developer` 가 근거를 확인해 Part B 등에 반영(최종 상태는 `library-developer` 가 결정).
+- **effort 상향**: 위 표가 기본값입니다. 실차 버그 추적, 암호·세션 문제처럼 어려운 디버깅을 맡길 때만 그 작업에 한해 effort를 올립니다.
+
+### Codex 협의 (모든 역할 공통)
+- **언제**: 자기 판단과 다른 의견을 듣고 싶을 때, 또는 설계 선택·원본 해석·분석 가설처럼 더 상세한 토론과 분석이 필요할 때.
+- **방법**: `codex mcp-server` 로 띄운 Codex MCP 도구를 씁니다(`codex` 로 새 대화, `codex-reply` 로 이어서 질문). 프로젝트 `.mcp.json` 에 `"codex": {"type": "stdio", "command": "codex", "args": ["mcp-server"]}` 가 등록되어 있어야 하며, Claude Code는 세션 시작 때 이 서버의 승인을 묻습니다.
+- **질문 형식**: 대상 브랜치와 HEAD 커밋을 적고, Codex에게 `git branch --show-current` / `git rev-parse --short HEAD` 가 같은지 확인한 뒤 답하게 합니다. Codex가 브랜치를 바꾸지 않게 합니다. 긴 답은 git이 무시하는 파일에 쓰게 합니다.
+- **기록**: 의견이 갈렸으면 양쪽 근거와 최종 판단을 작업 산출물(계획 기록, PR 본문, 분석 보고서)에 남깁니다.
+- **사용량 제한**: Codex가 사용량(토큰) 제한에 걸려 있으면 협의를 건너뛰고, 산출물에 `Codex 협의 생략: 사용량 제한(<시각>), 질문: <협의하려던 질문>` 메모만 남긴 뒤 작업을 계속합니다.
