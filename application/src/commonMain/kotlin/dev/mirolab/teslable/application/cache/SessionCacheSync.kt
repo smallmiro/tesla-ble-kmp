@@ -51,13 +51,14 @@ public class SessionCacheSync(
      *
      * 예외(Go에 없음, FR-037·#96): 이 연결에서 기기 잠금 때문에 복원하지 못한 도메인에 아직 세션이 없으면 아무것도 쓰지 않는다. 그 항목은
      * 아직 유효한데, 포트는 목록 전체를 덮어쓰고 저장 시각을 새로 붙이므로 옛 항목만 남겨 둘 수 없다(나이가 틀려진다). 잠금이 풀려 그
-     * 도메인에 세션이 생기면 다시 평소처럼 쓴다.
+     * 도메인에 세션이 생기면 다시 평소처럼 쓴다. 단 [markStale]한 도메인이 있으면 이 예외를 쓰지 않는다 — 옛 목록을 남기면 이미 오래됐다고
+     * 판정된 항목도 남아 다음 연결이 그것을 또 복원한다. 막힌 도메인의 항목을 잃는 비용(핸드셰이크 한 번)이 더 작다.
      */
     public suspend fun store(dispatcher: Dispatcher) {
         storeMutex.withLock {
             val sessions = dispatcher.exportSessions()
             val keptForLock = dispatcher.restoresBlockedByLock.filter { blocked -> sessions.none { it.domain == blocked } }
-            if (keptForLock.isNotEmpty()) {
+            if (keptForLock.isNotEmpty() && staleDomains.isEmpty()) {
                 dispatcher.log.log(LogLevel.INFO, TAG) {
                     "Keeping the session cache: cached sessions for $keptForLock were not restored while the device was locked"
                 }
