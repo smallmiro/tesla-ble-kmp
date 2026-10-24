@@ -119,10 +119,12 @@ actor BleClient {
     }
 
     /// 키 등록 요청. 이벤트마다 한국어 한 줄을 `onEvent`로 보내고, 끝이 `Accepted`/`TimedOut`이면 등록 확인을 잇는다.
-    func pair(onEvent: @escaping @Sendable (String) async -> ()) async {
+    /// 등록 확인까지 끝나 등록이 확인되면 `true`(키·제어 탭이 등록 상태를 바꾸는 데 쓴다).
+    @discardableResult
+    func pair(onEvent: @escaping @Sendable (String) async -> ()) async -> Bool {
         refresh()
-        guard let vehicle else { await onEvent("키 등록: 먼저 연결하세요"); return }
-        guard let key else { await onEvent("키 등록: 먼저 키를 만드세요"); return }
+        guard let vehicle else { await onEvent("키 등록: 먼저 연결하세요"); return false }
+        guard let key else { await onEvent("키 등록: 먼저 키를 만드세요"); return false }
         var confirm = false
         for await event in vehicle.addKeyRequest(
             publicKey: key.publicKey, role: .owner, formFactor: KeyFormFactors_iosKt.platformKeyFormFactor(), timeout: nil
@@ -137,7 +139,10 @@ actor BleClient {
             case .timedOut: await onEvent("시간 초과 — 등록 여부를 확인합니다"); confirm = true
             }
         }
-        if confirm { await onEvent(await confirmEnrollment()) }
+        guard confirm else { return false }
+        let confirmed = await confirmEnrollmentChecked()
+        await onEvent(confirmed.line)
+        return confirmed.enrolled
     }
 
     private func hex(_ bytes: KotlinByteArray) -> String {
@@ -145,10 +150,13 @@ actor BleClient {
     }
 
     /// 3초 간격, 최대 2분 동안 Infotainment `sessionInfo`로 등록을 확인한다.
-    func confirmEnrollment() async -> String {
+    func confirmEnrollment() async -> String { await confirmEnrollmentChecked().line }
+
+    /// `confirmEnrollment()` 와 같되 등록이 확인됐는지도 돌려준다.
+    func confirmEnrollmentChecked() async -> (enrolled: Bool, line: String) {
         refresh()
-        guard let vehicle else { return "등록 확인: 먼저 연결하세요" }
-        guard let key else { return "등록 확인: 먼저 키를 만드세요" }
+        guard let vehicle else { return (false, "등록 확인: 먼저 연결하세요") }
+        guard let key else { return (false, "등록 확인: 먼저 키를 만드세요") }
         var last = "등록 확인: 시도하지 못함"
         let deadline = Date().addingTimeInterval(120)
         while Date() < deadline {
@@ -157,7 +165,7 @@ actor BleClient {
                     publicKey: key.publicKey, domain: .infotainment, timeout: Timeouts.shared.seconds(seconds: 5)
                 )
                 switch onEnum(of: result) {
-                case .success: return "등록 확인됨(Infotainment)"
+                case .success: return (true, "등록 확인됨(Infotainment)")
                 case .failure(let f):
                     if f.error is VehicleErrorKeyNotPaired { last = "아직 등록되지 않음(KeyNotPaired) — 2분까지 반복" }
                     else { last = "등록 확인 실패: \(f.error.message)" }
@@ -167,7 +175,7 @@ actor BleClient {
             if Task.isCancelled { break }
             try? await Task.sleep(for: .seconds(3))
         }
-        return "\(last) (2분 안에 확인되지 않음)"
+        return (false, "\(last) (2분 안에 확인되지 않음)")
     }
 
     /// 제어 명령. 결과가 `Uncertain`이면 다시 보내지 않고 곧바로 `vehicleStatus()`로 재조회한다(FR-102).
@@ -219,6 +227,99 @@ actor BleClient {
 
     /// 연결이 바뀌면 지난 목록의 공개키를 버린다.
     func resetEntries() { keyEntries = [:] }
+
+    // MARK: - 키·제어 탭 (SFR-018, `samples/documents/md/05-key-control-tab.md`)
+
+    /// 1단계: 모니터 키를 읽거나 만든다. 키 객체는 엔진이 가지고 화면에는 결과만 돌려준다.
+    func prepareKey() async -> KeyPrep {
+        switch await engine.ensureKey() {
+        case .ready: return .ready
+        case .locked: return .locked
+        case .failed(let why): return .failed(why)
+        }
+    }
+
+    /// 차량의 키 목록에 이 기기의 공개키가 있는지 `listKeys()` 로 확인한다(`13-lib-pairing.md` §Checking whether a key is enrolled).
+    /// `Uncertain`/`Failure`/연결 없음은 `.unknown`(나중에 다시 확인).
+    func checkEnrollment() async -> Enrollment {
+        refresh()
+        guard let vehicle, let key else { return .unknown }
+        do {
+            let result = try await vehicle.listKeys(timeout: nil)
+            switch onEnum(of: result) {
+            case .success(let s):
+                guard let entries = s.value as? [WhitelistEntry] else { return .unknown }
+                let own = entries.contains { e in e.publicKey.map { $0.isEqual(key.publicKey) } ?? false }
+                return own ? .enrolled : .notEnrolled
+            case .uncertain, .failure: return .unknown
+            }
+        } catch { return .unknown }
+    }
+
+    /// 명령 앞의 세션 보장: `startSession(setOf(VCSEC))`. 이미 `Ready` 인 도메인은 요청 없이 성공한다(`15-lib-commands.md`).
+    func ensureVcsecSession() async -> SessionOutcome {
+        refresh()
+        guard let vehicle else { return .failed("연결되어 있지 않습니다") }
+        let domains: Set<VehicleDomain> = [VehicleDomain.vcsec]
+        do {
+            let result = try await vehicle.startSession(domains: domains, timeout: nil)
+            switch onEnum(of: result) {
+            case .success: return .ready
+            case .failure(let f):
+                if f.error is VehicleErrorKeyNotPaired { return .notEnrolled }
+                if f.error is VehicleErrorKeyStoreErrorLocked { return .locked }
+                return .failed(f.error.message)
+            case .uncertain(let u): return .failed("불확실: \(u.error.message)")
+            }
+        } catch { return .failed("\(error)") }
+    }
+
+    /// 버튼에 맞는 VCSEC 명령을 한 번 보낸다. 다시 보내지 않는다(재조회는 `KeyControlRunner` 가 한다).
+    func send(_ button: ControlButton) async -> CommandOutcome {
+        refresh()
+        guard let vehicle else { return .failure("연결되어 있지 않습니다") }
+        do {
+            let result: VehicleResult
+            switch button {
+            case .lock: result = try await vehicle.lock(timeout: nil)
+            case .unlock: result = try await vehicle.unlock(timeout: nil)
+            case .wakeUp: result = try await vehicle.wakeUp(timeout: nil)
+            case .actuateTrunk: result = try await vehicle.actuateTrunk(timeout: nil)
+            case .closeTrunk: result = try await vehicle.closeTrunk(timeout: nil)
+            case .openFrunk: result = try await vehicle.openFrunk(timeout: nil)
+            case .remoteDrive: result = try await vehicle.remoteDrive(timeout: nil)
+            case .autoSecure: result = try await vehicle.autoSecureVehicle(timeout: nil)
+            case .openTonneau: result = try await vehicle.openTonneau(timeout: nil)
+            case .closeTonneau: result = try await vehicle.closeTonneau(timeout: nil)
+            case .stopTonneau: result = try await vehicle.stopTonneau(timeout: nil)
+            }
+            switch onEnum(of: result) {
+            case .success: return .success
+            case .failure(let f): return .failure(f.error.message)
+            case .uncertain(let u): return .uncertain(u.error.message)
+            }
+        } catch { return .failure("\(error)") }
+    }
+
+    /// `vehicleStatus()` 재조회. 성공하면 상태 카드 값을, 아니면 이유만 돌려준다(화면의 이전 값은 그대로 둔다).
+    func statusCard() async -> RequeryOutcome {
+        refresh()
+        guard let vehicle else { return RequeryOutcome(text: "연결 안 됨", card: nil) }
+        do {
+            let result = try await vehicle.vehicleStatus(timeout: nil)
+            switch onEnum(of: result) {
+            case .success(let s):
+                guard let st = s.value as? VehicleStatus_ else { return RequeryOutcome(text: "형식 오류", card: nil) }
+                let card = StatusCard(
+                    lock: st.lockState.name, trunk: st.closures.rearTrunk.name, frunk: st.closures.frontTrunk.name,
+                    sleep: st.sleepStatus.name, at: Date()
+                )
+                return RequeryOutcome(text: "잠금 \(card.lockText), 트렁크 \(card.trunkText), 프렁크 \(card.frunkText), 수면 \(card.sleepText)", card: card)
+            case .uncertain(let u): return RequeryOutcome(text: "불확실: \(u.error.message)", card: nil)
+            case .failure(let f): return RequeryOutcome(text: "실패: \(f.error.message)", card: nil)
+            }
+        } catch { return RequeryOutcome(text: "오류: \(error)", card: nil) }
+    }
 
     private func run(_ title: String, _ call: (Vehicle) async throws -> VehicleResult) async -> String {
         guard let vehicle else { return "\(title): 먼저 연결하세요" }

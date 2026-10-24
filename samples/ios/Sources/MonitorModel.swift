@@ -4,11 +4,13 @@ import Teslable
 import UIKit
 
 /// 앱 수명 동안 하나만 있는 모니터 객체(SFR-010). `MonitorEngine` 이 라이브러리·연결 루프·로그를 가지고, 이 객체는 화면이 읽는 값만 모아 둔다.
-/// Control 탭의 상태(`SampleModel`)도 여기서 만든다(탭이 바뀌어도 사라지지 않게).
+/// Control 탭의 상태(`SampleModel`)와 키·제어 탭의 상태(`KeyControlModel`)도 여기서 만든다(탭이 바뀌어도 사라지지 않게).
 @MainActor
 final class MonitorModel: ObservableObject {
     let engine: MonitorEngine
     let control: SampleModel
+    /// 키·제어 탭(SFR-018)의 상태. 연결·키·VIN 의 변화는 `apply` 가 알려 준다.
+    let keyControl: KeyControlModel
 
     @Published var link: LinkState<VehicleBox> = .idle
     @Published var live = LiveState()
@@ -29,6 +31,7 @@ final class MonitorModel: ObservableObject {
         let engine = MonitorEngine()
         self.engine = engine
         control = SampleModel(engine: engine)
+        keyControl = KeyControlModel(engine: engine)
         let updates = engine.updates
         Task { [weak self] in
             for await update in updates { self?.apply(update) }
@@ -51,12 +54,18 @@ final class MonitorModel: ObservableObject {
 
     private func apply(_ update: MonitorUpdate) {
         switch update {
-        case .link(let state): link = state
+        case .link(let state):
+            link = state
+            keyControl.connectionChanged(connected: isConnected)
         case .live(let state): live = state
         case .queries(let results): queries = results
         case .sessions(let text): sessions = text
-        case .key(let status): keyStatus = status
-        case .vin(let vin): savedVin = vin
+        case .key(let status):
+            keyStatus = status
+            keyControl.keyChanged(ready: status.ready, locked: status.locked)
+        case .vin(let vin):
+            savedVin = vin
+            keyControl.vinChanged(saved: vin != nil)
         case .pollSeconds(let seconds): pollSeconds = seconds
         case .log(let stats): logStats = stats
         }
