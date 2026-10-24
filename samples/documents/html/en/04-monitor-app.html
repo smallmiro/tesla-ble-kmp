@@ -69,7 +69,7 @@
 </table>
 
 <h2 id="sec-key">The key on a locked phone</h2>
-<p>The monitor uses its own key, <code>teslable-monitor</code>, created so that it can be used while the phone is locked (<code>KeyAccessibility.AFTER_FIRST_UNLOCK</code> on iOS; Android keys already report that they work when locked, not yet confirmed on a device). This setting is fixed when the key is made. If the phone already has that key with the stricter setting, the app asks you to delete it, make a new one and enroll it on the car again. The Control tab shows which setting the key has. The app reads the key from the key store before every connection attempt. If the key store answers <code>KeyStoreError.Locked</code> (the phone has not been unlocked since it restarted, or the key only works unlocked), the app waits and tries again after the phone is unlocked, and never deletes the key for this reason.</p>
+<p>The monitor uses its own key, <code>teslable-monitor</code>, created so that it can be used while the phone is locked (<code>KeyAccessibility.AFTER_FIRST_UNLOCK</code> on iOS; Android keys already report that they work when locked, not yet confirmed on a device). This setting is fixed when the key is made. If the phone already has that key with the stricter setting, the app asks you to delete it, make a new one and enroll it on the car again. The Control tab shows which setting the key has. The app reads the key when it starts and keeps using that handle. If the key store answers <code>KeyStoreError.Locked</code> (the phone has not been unlocked since it restarted, or the key only works unlocked), the app waits, reads the key again after the phone is unlocked, and never deletes the key for this reason.</p>
 
 <h2 id="sec-bg">Running in the background</h2>
 <table>

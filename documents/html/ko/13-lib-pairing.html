@@ -121,7 +121,7 @@
 <li><strong>설정은 키를 만들 때 정해집니다.</strong> 이미 있는 별칭에 다른 값을 요청하면 기존 키를 그대로 돌려줍니다. 실제 값은 <code>key.accessibility</code>로 확인하며, iOS에서는 저장된 키에서 다시 읽은 값입니다. 키체인이 값을 알려 주지 않으면(예상하지 않은 경우) 키는 <code>WHEN_UNLOCKED</code>로 보고되고 <code>WARN</code> 줄이 남습니다.</li>
 <li>Android와 JVM에서는 이 인자를 무시하고 모든 키가 <code>AFTER_FIRST_UNLOCK</code>을 보고합니다. Android Keystore 키는 잠금 해제나 사용자 인증 요구 없이 만들어지기 때문입니다(API 기준, 실기기에서는 아직 확인하지 않음).</li>
 <li>잠긴 iPhone에서 잠금 해제 중에만 동작하는 키, 또는 재시동 뒤 첫 잠금 해제 전의 모든 키는 <code>getOrCreate</code>, <code>get</code>, <code>delete</code>가 <code>KeyStoreError.Locked</code>를 반환합니다. <strong><code>Locked</code> 때문에 키를 삭제하거나 다시 만들지 마세요.</strong> 잠금을 푼 뒤 다시 시도합니다. 휴대폰이 잠겨 새 키를 만들 수 없을 때 라이브러리는 더 약한 소프트웨어 키로 대신하지 않습니다.</li>
-<li>연결하거나 다시 연결하기 직전마다 키 보관소에서 키를 읽으세요. 잠금 해제 중에만 동작하는 키를 미리 읽어 두었다가 휴대폰이 잠긴 뒤에 쓰면 핸드셰이크 안에서 실패합니다. 이때 <code>startSession()</code>은 <code>Locked</code>가 아니라 시간 초과로 끝납니다(알려진 한계. 예상되는 iOS 동작이며 실기기에서는 아직 확인하지 않음).</li>
+<li>잠금 해제 중에만 동작하는 키를 휴대폰이 풀려 있을 때 읽어 두었다가 잠긴 뒤에 쓰면 핸드셰이크 안에서 실패합니다. 이때 <code>startSession()</code>은 <code>Locked</code>가 아니라 시간 초과로 끝나고, 같은 이유로 저장된 세션 복원도 건너뜁니다(알려진 한계. 예상되는 iOS 동작이며 실기기에서는 아직 확인하지 않음). 대신 <code>Locked</code>를 받으려면 휴대폰이 잠겨 있을 수 있을 때 연결 전에 키를 다시 읽거나, <code>AFTER_FIRST_UNLOCK</code> 키를 쓰세요. 읽을 때마다 새 핸들이 생기므로, 동작하는 동안에는 핸들 하나를 계속 쓰세요.</li>
 <li>이미 진행 중인 세션은 설정과 상관없이 화면이 잠겨도 계속 동작합니다. 진행 중인 세션의 명령은 개인키를 쓰지 않습니다. 새 세션을 시작하거나 저장된 세션을 복원할 때만 개인키가 필요합니다.</li>
 </ul>
 <div class="callout warn">
