@@ -206,6 +206,37 @@ class SessionCacheSyncTest {
         }
 
     @Test
+    fun staleEntryIsDroppedEvenWhileADomainBlockedByTheLockHasNoSession() =
+        // #96 후속(Codex 종료 리뷰): 잠금 보존 규칙이 이미 오래됐다고 판정된 항목까지 남기면 다음 연결마다 같은 옛 세션을 복원한다.
+        // 오래된 항목을 지우는 쪽이 우선이다 — 막힌 도메인의 항목을 잃는 비용은 핸드셰이크 한 번이다.
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val first = dispatcherHarness(fake = fake)
+            assertIs<VehicleResult.Success<Unit>>(HandshakeFlow(first.dispatcher).startSessions())
+            val cache = RecordingSessionCache()
+            val sync = SessionCacheSync(cache, fake.vin, keyId)
+            sync.store(first.dispatcher)
+            val key = LockableEcdhKey()
+            val unlocksAfterOneAttempt =
+                object : EcdhPrivateKey by key {
+                    override suspend fun sharedX(peer: PublicKeyBytes): ByteArray =
+                        try {
+                            key.sharedX(peer)
+                        } finally {
+                            key.locked = false
+                        }
+                }
+            val second = dispatcherHarness(privateKey = unlocksAfterOneAttempt, fake = fake)
+            assertEquals(setOf(infotainment), sync.load(second.dispatcher))
+            assertEquals(setOf(vcsec), second.dispatcher.restoresBlockedByLock)
+            sync.markStale(infotainment) // VehicleSession이 StaleCache를 받으면 부른다
+            val storesBefore = cache.stores.size
+            sync.store(second.dispatcher)
+            assertEquals(storesBefore + 1, cache.stores.size)
+            assertFalse(infotainment in cache.load(fake.vin, keyId).map { it.domain })
+        }
+
+    @Test
     fun storingAfterCloseWipesThePreviouslySavedCacheHazard() =
         // M1 fold: Dispatcher.close() zeroes every signer, so exportSessions() afterwards is empty and store()
         // (which writes empty lists by design, see exportSkipsDomainsWithoutSessionAndStoreWritesEvenWhenEmpty

@@ -33,7 +33,7 @@
   - 어댑터(`takeKeyExchangeFailure`)가 위 Locked 판정과 같은 규칙(OSStatus 도메인, -25308)의 `CFError`를 `:domain`의 `KeyLockedException`으로 던진다 — 포트 `EcdhPrivateKey.sharedX`의 계약이고, 앞의 판정처럼 설명 문자열은 보지 않으며 예외에 싣지도 않는다. 그 밖의 ECDH 실패는 이전과 같다(`BAD_PARAMETER`).
   - 이 예외는 `Session`·`Signer`·`SessionState`를 값으로 바뀌지 않고 지나 디스패처 경계의 좁은 `catch`에서 잡힌다. 핸드셰이크 응답이면 그 요청에 표시하고(WARN), `HandshakeFlow`가 첫 응답 직후 `Failure(KeyStoreError.Locked)`로 끝낸다. 차량이 응답에 실은 오류(`KeyNotPaired` 등)가 먼저다. 응답은 ECDH 전이라 인증되지 않았지만 `Locked`는 이 기기의 사실이고 응답의 상태는 아무것도 쓰지 않는다.
   - `retryWhileRetriable`은 `Locked`를 되풀이하지 않는다. `temporary = true`는 그대로 둔다(잠금이 풀리면 앱이 다시 부르면 된다는 뜻) — 잠금 해제는 사용자 몫이라 되풀이하면 `handshakeTimeout` 뒤 `Timeout`으로 바뀔 뿐이다.
-  - 캐시 복원은 그 항목을 건너뛰되("invalid cache"가 아닌 WARN) 도메인을 `Dispatcher.restoresBlockedByLock`에 남기고, `SessionCacheSync.store`는 그 도메인에 세션이 생길 때까지 아무것도 쓰지 않는다. 포트는 목록 전체를 덮어쓰고 저장 시각을 새로 붙이므로 옛 항목만 남길 수 없다(나이가 틀려진다).
+  - 캐시 복원은 그 항목을 건너뛰되("invalid cache"가 아닌 WARN) 도메인을 `Dispatcher.restoresBlockedByLock`에 남기고, `SessionCacheSync.store`는 그 도메인에 세션이 생길 때까지 아무것도 쓰지 않는다. 포트는 목록 전체를 덮어쓰고 저장 시각을 새로 붙이므로 옛 항목만 남길 수 없다(나이가 틀려진다). 같은 연결에서 오래됨(`markStale`)으로 판정된 도메인이 있으면 보존하지 않고 그 도메인을 뺀 목록을 쓴다(오래된 항목 보존 방지).
   - Go는 키 `Exchange` 오류를 구별하지 않는다(핸드셰이크는 로그 후 `RetryInterval`마다 재전송하다 데드라인으로 끝나고, `LoadCache`는 전체 실패한다) — 의도한 차이다.
   - 소프트웨어 대체 키 핸들은 개인키를 프로세스 메모리에 가지고 있어 잠긴 뒤에도 핸드셰이크할 수 있다(API 기준). `WHEN_UNLOCKED`가 막는 것은 Keychain에서 다시 읽는 것뿐이다 — 위 노출면 위험과 같은 이유다.
   - **실기기 확인 전:** 잠긴 iPhone의 Secure Enclave ECDH가 실제로 OSStatus -25308로 실패를 알리는지(Apple 문서가 보장하지 않는다, CryptoTokenKit 도메인일 수도 있다). 다른 형태면 이전처럼 `Timeout`으로 끝난다 — 실기기에서 `CFError` 도메인·코드를 확인하고, 다르면 판정 규칙을 근거와 함께 넓힌다.

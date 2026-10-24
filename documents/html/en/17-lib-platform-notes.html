@@ -161,7 +161,7 @@
 <li>Names are hashes of the VIN, so the VIN itself is not stored.</li>
 <li>Sessions belong to one key. After the key changes, or when the car has moved on, old sessions are discarded on the next connection.</li>
 <li>A missing or outdated cache is not an error; the library simply starts a new session.</li>
-<li>A saved session that could not be restored because the phone lock blocked the key (iOS) is not outdated. The library writes nothing to the cache until that part of the car has a session again, so disconnecting while the phone is locked keeps the saved sessions.</li>
+<li>A saved session that could not be restored because the phone lock blocked the key (iOS) is not outdated. The library writes nothing to the cache until that part of the car has a session again, so disconnecting while the phone is locked keeps the saved sessions. Exception: if another saved session turned out to be outdated in the same connection, the library rewrites the cache without it, and the blocked session is dropped too (that part of the car makes a new handshake next time).</li>
 </ul>
 
 <h2 id="sec-clock">Clocks</h2>

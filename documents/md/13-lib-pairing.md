@@ -96,6 +96,8 @@ Invariants:
     Restoring a cached session at `connect` is skipped for the same reason (`sessions` stays `None`; `WARN` tag
     `Dispatcher`: `Cached session for <domain> not restored: the private key is locked (device locked)`), and the
     cache is **kept**: nothing is written to the session cache until that domain has a session again.
+    Exception: if another restored session in that connection turned out stale, the cache is rewritten without it
+    (the blocked entry is lost too and that domain makes a new handshake next time).
     `sessionInfo(key.publicKey, domain)` still returns the summary, but no session is made. After the phone is
     unlocked, call `startSession()` again with the same key object.
   - Software fallback key (`protection == SOFTWARE`): the object holds the private key in memory, so it keeps working
