@@ -78,6 +78,8 @@
 </tbody>
 </table>
 
+<p>Two more buttons: <strong>Check enrollment</strong> is enabled when the key is ready, connected, the enrollment is not <code>checking</code> and nothing is running (it stays on when <code>enrolled</code>, so a key removed on the car can be checked again); <strong>Refresh status</strong> is enabled when connected and nothing is running (<code>vehicleStatus()</code> needs no key).</p>
+
 <h2 id="sec-enroll">Enrollment state</h2>
 <p>The enrollment state is one of <code>unknown</code>, <code>checking</code>, <code>notEnrolled</code> and <code>enrolled</code>.</p>
 <ul>
@@ -90,7 +92,7 @@
 <h2 id="sec-run">Running a command</h2>
 <p><code>KeyControlRunner.run(ensureSession, command, requery)</code> is pure and tested with fakes:</p>
 <ol>
-<li><code>ensureSession</code> is <code>startSession(setOf(VCSEC))</code>. A domain that is already <code>Ready</code> succeeds without a request. On <code>Failure</code> the command is <strong>not sent</strong> and the result line says why; <code>KeyNotPaired</code> sets the enrollment to <code>notEnrolled</code>, and <code>KeyStoreError.Locked</code> asks to unlock the phone.</li>
+<li><code>ensureSession</code> is <code>startSession(setOf(VCSEC))</code>. A domain that is already <code>Ready</code> succeeds without a request. On <code>Failure</code> (or <code>Uncertain</code>) the command is <strong>not sent</strong> and nothing is re-queried and the result line says why; <code>KeyNotPaired</code> sets the enrollment to <code>notEnrolled</code>, and <code>KeyStoreError.Locked</code> asks to unlock the phone.</li>
 <li><code>command</code> is called exactly once.</li>
 <li><code>Success</code> shows "succeeded", <code>Failure</code> shows "failed" with the message, <code>Uncertain</code> shows "uncertain" with the message and is never resent.</li>
 <li><code>requery</code> (<code>vehicleStatus()</code>) always runs after the command: after <code>Success</code> it refreshes the status card, after <code>Uncertain</code> it is the re-query the manual requires.</li>

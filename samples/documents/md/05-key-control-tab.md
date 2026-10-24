@@ -28,6 +28,10 @@ connected, enrollment (`unknown`, `checking`, `notEnrolled`, `enrolled`), busy (
 | 3 Enroll | enrollment = `enrolled` | key not ready or not connected (hint: finish steps 1 and 2 first) | key ready, connected, enrollment ≠ `enrolled`, ≠ `checking`, not busy |
 | 4 Control | – | enrollment ≠ `enrolled` (hint: the buttons turn on once the key is enrolled) | key ready, connected, enrollment = `enrolled`, not busy |
 
+Two more buttons: **Check enrollment** is enabled when the key is ready, connected, enrollment ≠ `checking` and not
+busy (it stays on when `enrolled`, so a key removed on the car can be checked again); **Refresh status** is enabled when
+connected and not busy (`vehicleStatus()` needs no key).
+
 Enrollment state:
 
 - Becomes `checking` and then `enrolled` / `notEnrolled` / back to `unknown` when the tab checks with `listKeys()`:
@@ -44,7 +48,7 @@ Enrollment state:
 `KeyControlRunner.run(ensureSession, command, requery)` (pure, unit tested with fakes):
 
 1. `ensureSession` = `startSession(setOf(VCSEC))`. A domain already `Ready` succeeds without a request
-   (`15-lib-commands.md`). On `Failure` the command is **not sent**; the result line says why, and `KeyNotPaired`
+   (`15-lib-commands.md`). On `Failure` (or `Uncertain`) the command is **not sent** and nothing is re-queried; the result line says why, and `KeyNotPaired`
    sets enrollment to `notEnrolled`. `KeyStoreError.Locked` says to unlock the phone.
 2. `command` is called exactly once.
 3. `Success` → "succeeded"; `Failure` → "failed: <message>"; `Uncertain` → "uncertain: <message>", never resent.
