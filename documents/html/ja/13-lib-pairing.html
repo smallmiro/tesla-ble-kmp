@@ -60,6 +60,7 @@
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-store">キーストア</a></li>
 <li><a href="#sec-protection">キーの保存場所</a></li>
+<li><a href="#sec-accessibility">スマートフォンのロック中にキーを使う</a></li>
 <li><a href="#sec-check">自分のキーは登録されているか</a></li>
 <li><a href="#sec-delete">キーの削除と置き換え</a></li>
 <li><a href="#sec-enroll">キーの登録</a></li>
@@ -72,7 +73,8 @@
 <table>
 <thead><tr><th>呼び出し</th><th>戻り値</th><th>動作</th></tr></thead>
 <tbody>
-<tr><td><code>getOrCreate(alias, policy)</code></td><td><code>VehicleResult&lt;VehicleKey&gt;</code></td><td>保存済みのキーを返すか、そのエイリアスで NIST P-256 キーペアを作成します</td></tr>
+<tr><td><code>getOrCreate(alias, policy)</code></td><td><code>VehicleResult&lt;VehicleKey&gt;</code></td><td>保存済みのキーを返すか、そのエイリアスでスマートフォンのロック解除中にだけ使える (<code>WHEN_UNLOCKED</code>) NIST P-256 キーペアを作成します</td></tr>
+<tr><td><code>getOrCreate(alias, policy, accessibility)</code></td><td><code>VehicleResult&lt;VehicleKey&gt;</code></td><td>同じですが、新しいキーには選んだアクセシビリティが付きます (<a href="#sec-accessibility">下記参照</a>)。既存のキーはそのまま返ります</td></tr>
 <tr><td><code>get(alias)</code></td><td><code>VehicleResult&lt;VehicleKey?&gt;</code></td><td>キーがない場合は <code>Success(null)</code></td></tr>
 <tr><td><code>delete(alias)</code></td><td><code>VehicleResult&lt;Unit&gt;</code></td><td>キーがない場合も成功します</td></tr>
 </tbody>
@@ -80,7 +82,7 @@
 <ul>
 <li>デフォルトのエイリアスは <code>"teslable-default"</code> です (<code>VehicleKeyStore.DEFAULT_ALIAS</code>、Swift では <code>VehicleKeyStoreCompanion.shared.DEFAULT_ALIAS</code>)。</li>
 <li>エイリアスには英字、数字、<code>.</code>、<code>_</code>、<code>-</code> を 64 文字まで使えます。ただし <code>.</code> や <code>..</code> にはできません。</li>
-<li><code>VehicleKey</code> はハンドルです。<code>alias</code>、<code>protection</code>、<code>publicKey</code> (65 バイト、<code>0x04 ‖ X ‖ Y</code>) を公開します。秘密鍵はプラットフォームのキーストアから出ることはなく、エクスポート API もありません。</li>
+<li><code>VehicleKey</code> はハンドルです。<code>alias</code>、<code>protection</code>、<code>accessibility</code>、<code>publicKey</code> (65 バイト、<code>0x04 ‖ X ‖ Y</code>) を公開します。秘密鍵はプラットフォームのキーストアから出ることはなく、エクスポート API もありません。</li>
 </ul>
 
 <h2 id="sec-protection">キーの保存場所</h2>
@@ -104,6 +106,60 @@
 </table>
 <p>実機が <code>SOFTWARE</code> を報告した場合は、ユーザーに知らせることを検討してください。そのキーはハードウェアキーより弱いためです。</p>
 
+<h2 id="sec-accessibility">スマートフォンのロック中にキーを使う</h2>
+<p>キーを作成するときに、スマートフォンがロックされている間もそのキーを使えるようにするかを選びます。この選択が意味を持つのは iOS だけです。デフォルトはこれまでと同じ動作で、モニターサンプルのようにバックグラウンドで車両を見守るアプリだけが明示的に選びます。</p>
+<table>
+<thead><tr><th><code>KeyAccessibility</code></th><th>iOS キーチェーンのクラス</th><th>ロック中の使用</th><th>用途</th></tr></thead>
+<tbody>
+<tr><td><code>WHEN_UNLOCKED</code> (デフォルト)</td><td><code>kSecAttrAccessibleWhenUnlockedThisDeviceOnly</code></td><td><span class="badge warn">いいえ</span></td><td>ほとんどのアプリ。ロックされた iPhone はこのキーでセッションを開始できません</td></tr>
+<tr><td><code>AFTER_FIRST_UNLOCK</code></td><td><code>kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly</code></td><td><span class="badge ok">はい</span> 最後の再起動後に一度ロックを解除してから</td><td>スマートフォンがロックされていてもバックグラウンドで動き続ける必要があるアプリ</td></tr>
+</tbody>
+</table>
+<ul>
+<li>3 番目の引数で渡します: <code>getOrCreate(alias, policy, accessibility)</code>、Swift では <code>getOrCreate(alias:policy:accessibility:)</code>。引数が 2 つの呼び出しは <code>WHEN_UNLOCKED</code> のキーを作成します。</li>
+<li>どちらの設定でもキーはこのスマートフォンにだけ置かれます。バックアップやデバイスの移行で別のデバイスに移ることはありません。</li>
+<li><strong>設定はキーの作成時に決まります。</strong>既存のエイリアスに別の値を求めても、既存のキーがそのまま返ります。実際の値は <code>key.accessibility</code> でわかり、iOS では保存されたキーから読み直した値です。キーチェーンが値を返さない場合 (想定外) は、キーは <code>WHEN_UNLOCKED</code> と報告され、<code>WARN</code> 行が記録されます。</li>
+<li>Android と JVM ではこの引数は無視され、すべてのキーが <code>AFTER_FIRST_UNLOCK</code> を報告します。Android Keystore のキーはロック解除やユーザー認証の要件なしで作成されるためです (API 上の話で、実機ではまだ確認していません)。</li>
+<li>ロックされた iPhone では、ロック解除中にだけ使えるキー、または再起動後の最初のロック解除前のすべてのキーについて、<code>getOrCreate</code>、<code>get</code>、<code>delete</code> が <code>KeyStoreError.Locked</code> を返します。<strong><code>Locked</code> を理由にキーを削除したり作り直したりしないでください。</strong>ロックを解除してから再試行します。スマートフォンがロックされていて新しいキーを作成できない場合、ライブラリはより弱いソフトウェアキーで代用しません。</li>
+<li>接続や再接続の直前に、毎回キーストアからキーを読み込んでください。ロック解除中にだけ使えるキーを先に読み込んでおき、スマートフォンがロックされた後に使うと、ハンドシェイクの中で失敗します。このとき <code>startSession()</code> は <code>Locked</code> ではなくタイムアウトで終わります (既知の制限。想定される iOS の動作で、実機ではまだ確認していません)。</li>
+<li>すでに進行中のセッションは、設定にかかわらず画面がロックされても動き続けます。進行中のセッションのコマンドは秘密鍵を使いません。秘密鍵が必要なのは、新しいセッションを開始するときと保存されたセッションを復元するときだけです。</li>
+</ul>
+<div class="callout warn">
+<strong>AFTER_FIRST_UNLOCK のリスク</strong>
+<p>再起動後に一度ロックが解除されたスマートフォンであれば、ロックされたスマートフォンを手にした人やアプリの権限で動くコードが、Bluetooth でこのキーを使えます。キーのロールが許すこと、たとえば車両のロック解除までできます。Secure Enclave はキーのコピーは防ぎますが使用は防がず、コマンドごとの確認も求めません。ユーザーに知らせ、画面に <code>key.accessibility</code> を表示し、モニタリング用にはロールを制限したキーを検討してください。ソフトウェアキー (<code>protection</code> が <code>SOFTWARE</code>) はより多くさらされます。ハードウェアキーが必要なら <code>REQUIRE_HARDWARE</code> を使ってください。</p>
+</div>
+<h3>キーを別の設定に切り替える</h3>
+<p>設定は変えられないため、切り替えるには新しいエイリアスで新しいキーを作成して登録し直します。</p>
+<ol>
+<li>新しいエイリアスを決めます。例: <code>teslable-monitor</code>。新しいキーが動くまで、古いキーはそのまま残します。</li>
+<li><code>keys.getOrCreate(newAlias, KeyPolicy.PREFER_HARDWARE, KeyAccessibility.AFTER_FIRST_UNLOCK)</code> を呼び出し、<code>key.accessibility</code> と <code>key.protection</code> を確認します。</li>
+<li>新しい公開キーを登録します (<a href="#sec-enroll">キーの登録</a>)。NFC キーカードで登録するか、登録済みのキーがキーを追加できる接続から <code>addKey</code> で登録します。</li>
+<li><code>sessionInfo(key.publicKey, VehicleDomain.INFOTAINMENT)</code> または <code>listKeys()</code> で確認します。</li>
+<li>必要なら、古い公開キーを車両 (<code>removeKey</code>) とスマートフォン (<code>keys.delete(oldAlias)</code>) から削除します。</li>
+</ol>
+<h3>Kotlin</h3>
+<pre><code class="language-kotlin"><span class="k">val</span> key = <span class="k">when</span> (<span class="k">val</span> r = ble.keys.<span class="f">getOrCreate</span>(<span class="s">"teslable-monitor"</span>, <span class="t">KeyPolicy</span>.<span class="t">PREFER_HARDWARE</span>, <span class="t">KeyAccessibility</span>.<span class="t">AFTER_FIRST_UNLOCK</span>)) {
+    <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> r.value
+    <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span>
+        <span class="k">if</span> (r.error <span class="o">==</span> <span class="t">VehicleError</span>.<span class="t">KeyStoreError</span>.<span class="t">Locked</span>) <span class="k">return</span> <span class="f">waitForUnlock</span>()   <span class="c">// never delete or re-create here</span>
+        <span class="k">else</span> <span class="k">return</span> <span class="f">show</span>(<span class="s">"Key store: ${r.error.message}"</span>)
+    <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Uncertain</span> <span class="o">-&gt;</span> <span class="k">return</span>                                          <span class="c">// the key store does not return it</span>
+}
+<span class="k">if</span> (key.accessibility <span class="o">!=</span> <span class="t">KeyAccessibility</span>.<span class="t">AFTER_FIRST_UNLOCK</span>) {
+    <span class="f">show</span>(<span class="s">"This key works only while the phone is unlocked. Create a key under a new alias and enroll it again."</span>)
+}</code></pre>
+<h3>Swift</h3>
+<pre><code class="language-swift"><span class="k">let</span> r = <span class="k">try</span> <span class="k">await</span> ble.keys.<span class="f">getOrCreate</span>(alias: <span class="s">"teslable-monitor"</span>, policy: .preferHardware, accessibility: .afterFirstUnlock)
+<span class="k">switch</span> <span class="f">onEnum</span>(of: r) {
+<span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s):
+    <span class="k">guard</span> <span class="k">let</span> key = s.value <span class="k">as</span>? <span class="t">VehicleKey</span> <span class="k">else</span> { <span class="k">return</span> }
+    <span class="k">if</span> key.accessibility <span class="o">!=</span> .afterFirstUnlock { <span class="f">print</span>(<span class="s">"unlocked-only key: create a new alias and enroll it again"</span>) }
+<span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f):
+    <span class="k">if</span> f.error is <span class="t">VehicleErrorKeyStoreErrorLocked</span> { <span class="f">print</span>(<span class="s">"phone locked: try again after unlock"</span>) }   <span class="c">// never delete</span>
+    <span class="k">else</span> { <span class="f">print</span>(<span class="s">"key store: \(f.error.message)"</span>) }
+<span class="k">case</span> .uncertain: <span class="k">break</span>                                                                               <span class="c">// not returned by the key store</span>
+}</code></pre>
+
 <h2 id="sec-check">自分のキーは登録されているか</h2>
 <p><code>vehicle.listKeys()</code> はキーなしで、車両をウェイクアップせずに動作します。車両のリストと自分の公開鍵を比較します:</p>
 <pre><code class="language-kotlin"><span class="k">val</span> mine = key.publicKey.<span class="f">toByteArray</span>()
@@ -119,6 +175,7 @@
 <li><code>keys.delete(alias)</code> はスマートフォンからだけキーを削除します。車両側で削除されるまで、車両はその公開鍵をリストに残します。</li>
 <li>保存されたセッションは 1 つのキーに属します。キーが変わると、次の接続で古いセッションを破棄して新しいハンドシェイクを始めます。</li>
 <li><strong>破損した</strong> 保存キー (<code>KeyStoreError.PlatformFailure</code>、<code>stored key is corrupted</code>) が自動で置き換えられることはありません。ユーザーに知らせ、<code>delete</code> を呼んでから <code>getOrCreate</code> を呼び、新しいキーを車両に登録し直してください。<a href="17-lib-platform-notes.html#sec-keys">プラットフォームノート</a> を参照してください。</li>
+<li><code>KeyStoreError.Locked</code> は破損ではありません。キーは正常で、スマートフォンがロックされているだけです。削除せず、ロックを解除してから再試行してください。</li>
 </ul>
 
 <h2 id="sec-enroll">キーの登録</h2>

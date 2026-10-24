@@ -91,7 +91,7 @@
 <tr><td><code>BadResponse</code></td><td>The answer could not be read</td><td>no</td><td>yes for VCSEC and Infotainment answers</td></tr>
 <tr><td><code>KeychainRejected</code>, <code>VcsecRejected</code>, <code>InfotainmentRejected</code></td><td>The car understood but refused</td><td>no</td><td>no</td></tr>
 <tr><td><code>TransportError</code></td><td>Bluetooth scan, connect or write</td><td>Only scan timeout, connect failed, write failed</td><td>no</td></tr>
-<tr><td><code>KeyStoreError</code></td><td>Platform key store</td><td>no</td><td>no</td></tr>
+<tr><td><code>KeyStoreError</code></td><td>Platform key store</td><td>Only <code>Locked</code></td><td>no</td></tr>
 <tr><td><code>Timeout</code></td><td>The command ran out of time</td><td>yes</td><td>If it had already been sent</td></tr>
 <tr><td><code>InvalidArgument</code></td><td>A bad argument</td><td>no</td><td>no</td></tr>
 </tbody>
@@ -125,6 +125,7 @@
 <tr><td><code>HardwareUnavailable</code></td><td>Hardware was required but is not available</td><td>Use <code>PREFER_HARDWARE</code></td></tr>
 <tr><td><code>KeyNotFound</code></td><td>No key under that alias</td><td>Create one with <code>getOrCreate</code></td></tr>
 <tr><td><code>PlatformFailure</code></td><td>The platform key store failed; <code>stored key is corrupted</code> means the saved key is damaged</td><td>Damaged keys are not replaced automatically: delete, create, and enroll the new key again</td></tr>
+<tr><td><code>Locked</code></td><td>iOS: the phone is locked and the key only works while the phone is unlocked, or the phone has not been unlocked since it restarted. A key that cannot be created for this reason is not replaced by a software key</td><td>Do <strong>not</strong> delete or re-create the key: try again after the phone is unlocked. To use the key while the phone is locked, create an <code>AFTER_FIRST_UNLOCK</code> key under a new alias and enroll it (<a href="13-lib-pairing.html#sec-accessibility">13. Keys and Pairing</a>). The library does not retry key store calls</td></tr>
 </tbody>
 </table>
 

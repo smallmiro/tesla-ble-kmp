@@ -110,9 +110,23 @@
 </tbody>
 </table>
 <ul>
-<li>Software keys are wrapped by an Android Keystore AES key, or stored as an iOS Keychain item that is readable only while the device is unlocked and never leaves the device.</li>
+<li>Software keys are wrapped by an Android Keystore AES key, or stored as an iOS Keychain item that never leaves the device and is protected according to the key's accessibility setting.</li>
 <li>On iOS, a failed Secure Enclave lookup is reported as an error, not as "no key", so a working key is never overwritten by mistake.</li>
 <li>There is no API to export a private key.</li>
+</ul>
+<h3>Using the key while the phone is locked</h3>
+<p>Each key has an accessibility setting, <code>VehicleKey.accessibility</code>. How to choose it and switch keys is in <a href="13-lib-pairing.html#sec-accessibility">13. Keys and Pairing</a>.</p>
+<table>
+<thead><tr><th>Platform</th><th>When a key is created</th><th>What an existing key reports</th></tr></thead>
+<tbody>
+<tr><td>iOS</td><td><code>WHEN_UNLOCKED</code> (default) uses <code>kSecAttrAccessibleWhenUnlockedThisDeviceOnly</code> and <code>AFTER_FIRST_UNLOCK</code> uses <code>kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly</code>, for the Secure Enclave key and the software key alike</td><td>The setting read back from the stored key. It never changes afterwards</td></tr>
+<tr><td>Android</td><td>The setting is ignored</td><td>Always <code>AFTER_FIRST_UNLOCK</code>: the Keystore keys have no unlock or user-authentication requirement, and the key file can be read after the first unlock. By the API; not yet confirmed on a device</td></tr>
+<tr><td>JVM</td><td>The setting is ignored</td><td>Always <code>AFTER_FIRST_UNLOCK</code>: keys in memory have no lock</td></tr>
+</tbody>
+</table>
+<ul>
+<li>On a locked iPhone, the Keychain error <code>errSecInteractionNotAllowed</code> (-25308) becomes <code>KeyStoreError.Locked</code>. A <code>WHEN_UNLOCKED</code> key cannot be read or used for a handshake while the phone is locked; an <code>AFTER_FIRST_UNLOCK</code> key can, once the phone was unlocked after the last restart. Before that first unlock every key is locked. A key that cannot be created because the phone is locked is not replaced by a software key.</li>
+<li>Not yet confirmed on a device: the Keychain round trip of both settings, reading the setting back, and a handshake on a locked iPhone with an <code>AFTER_FIRST_UNLOCK</code> Secure Enclave key. They are checked with the sample app. Using the key while the phone is locked also needs the app to keep running in the background, which these pages do not cover yet.</li>
 </ul>
 <div class="callout danger">
 <strong>A corrupted key is never replaced automatically</strong>

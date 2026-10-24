@@ -1,8 +1,8 @@
 # Monitor App (SFR-010 to SFR-017)
 
-Status: **planned** (issue #91). `Vehicle.events` is available in the library (`12-lib-getting-started.md` §Broadcast
-events, `14-lib-reading-state.md` B2); the app still waits for key accessibility on iOS (FR-037, plan Task 7). This page
-describes the target. Library design:
+Status: **planned** (issue #91), ready to build: the library APIs it needs are available, `Vehicle.events`
+(`12-lib-getting-started.md` §Broadcast events, `14-lib-reading-state.md` B2) and the iOS key accessibility
+`KeyAccessibility` (`13-lib-pairing.md` §Key accessibility, FR-037). This page describes the target. Library design:
 `docs/superpowers/specs/2026-10-24-vehicle-events-monitor-design.md`. Plan:
 `docs/superpowers/plans/2026-10-24-vehicle-events-monitor.md`.
 
@@ -27,10 +27,14 @@ raw bytes so that unknown protocol fields can be analysed later (`protocol-analy
 
 ## Key on a locked phone
 
-The monitor uses its own key alias `teslable-monitor`, created with `KeyAccessibility.AFTER_FIRST_UNLOCK` so that the
-handshake works while the phone is locked (iOS; Android keys already work when locked). Accessibility is fixed when a key
-is created: a phone that already has a key under that alias with `WHEN_UNLOCKED` is told to delete it, create a new one
-and enroll it on the car again. The Control tab shows the key's accessibility.
+The monitor uses its own key alias `teslable-monitor`, created with
+`keys.getOrCreate("teslable-monitor", KeyPolicy.PREFER_HARDWARE, KeyAccessibility.AFTER_FIRST_UNLOCK)` so that the
+handshake works while the phone is locked (iOS; Android keys already report `AFTER_FIRST_UNLOCK`, not yet confirmed on a
+device). Accessibility is fixed when a key is created: a phone that already has a key under that alias whose
+`key.accessibility` is `WHEN_UNLOCKED` is told to delete it, create a new one and enroll it on the car again. The Control
+tab shows the key's accessibility. The app reads the key from the key store before every connection attempt; on
+`KeyStoreError.Locked` (the phone was not unlocked since restart, or a `WHEN_UNLOCKED` key while locked) it waits and
+tries again after unlock and never deletes the key (`13-lib-pairing.md` §Key accessibility, `16-lib-errors.md`).
 
 ## Background
 

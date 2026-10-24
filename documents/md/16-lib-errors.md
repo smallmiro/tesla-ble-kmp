@@ -1,6 +1,6 @@
 # Error Handling
 
-Scope: M1 error model, M2 retries and timeouts, M3 transport and key store errors, M4 `InsufficientPrivileges`, `UnknownVcsecError` and per-command re-query for VCSEC (Infotainment is added with M5), broadcast events (`Vehicle.events`, FR-035). Go original: `08-errors.md` (MessageFault meanings and remedies in §3.1).
+Scope: M1 error model, M2 retries and timeouts, M3 transport and key store errors, M4 `InsufficientPrivileges`, `UnknownVcsecError` and per-command re-query for VCSEC (Infotainment is added with M5), broadcast events (`Vehicle.events`, FR-035), key store `Locked` on a locked iPhone (FR-037). Go original: `08-errors.md` (MessageFault meanings and remedies in §3.1).
 
 ## Three outcomes (`VehicleResult<T>`)
 
@@ -37,7 +37,7 @@ write retry loops.
 | `VcsecRejected(error)` | VCSEC `nominalError` | false | false |
 | `InfotainmentRejected(reason)` | `actionStatus ERROR` | false | false |
 | `TransportError.*` | Scan, connect, write (M3) | true only for `ScanTimeout`, `ConnectFailed`, `WriteFailed` | false |
-| `KeyStoreError.*` | Key store (M3) | false | false |
+| `KeyStoreError.*` | Key store (M3; `Locked` FR-037) | true only for `Locked` | false |
 | `Timeout(afterSend)` | Command timed out | true | `afterSend` |
 | `InvalidArgument(detail)` | Bad call argument | false | false |
 
@@ -72,6 +72,7 @@ should do.
 | `KeyStoreError.HardwareUnavailable` | `REQUIRE_HARDWARE` but no hardware key | false | Use `PREFER_HARDWARE` or check the device |
 | `KeyStoreError.KeyNotFound` | No key under that alias | false | Create one with `getOrCreate` |
 | `KeyStoreError.PlatformFailure(cause)` | Platform key store error. `stored key is corrupted` means the stored key is damaged | false | Corrupted keys are not replaced automatically: `delete` then `getOrCreate`, and **enroll the new key again** (`17-lib-platform-notes.md` §Key storage) |
+| `KeyStoreError.Locked` | iOS: the phone is locked and the key is `WHEN_UNLOCKED`, or the phone was not unlocked since restart (`errSecInteractionNotAllowed`, -25308). Returned by `getOrCreate`, `get`, `delete`; creation does not fall back to a software key | true | **Do not delete or re-create the key.** Call again after the phone is unlocked. For use while locked, create a key with `KeyAccessibility.AFTER_FIRST_UNLOCK` under a new alias and enroll it (`13-lib-pairing.md` §Key accessibility). The library does not retry key store calls |
 
 Call `Vehicle.disconnect()` even after the link dropped so session keys and the scope are released.
 

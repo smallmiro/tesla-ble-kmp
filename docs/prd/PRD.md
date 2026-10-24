@@ -68,7 +68,7 @@ Tesla 공식 Go SDK `vehicle-command`는 BLE로 차량과 직접 통신하는 �
 ### 3.1 In scope (HANDOFF §3 + Phase 1 결정)
 - BLE 전송: 스캔(광고 이름 매칭), 연결, MTU 협상, 청크 분할·재조립, indication 구독, 연결 해제
 - 프로토콜: RoutableMessage, 도메인별 핸드셰이크, 세션 키 유도, AES-GCM 명령 암호화, 응답 복호화, 세션정보 HMAC 검증, 재전송 방지 윈도우, 세션 캐시(D18), 세션 복구
-- 키 관리: 키쌍 생성·보관(D10), add-key-request(D11), 인증된 add-key, 키 목록 조회, 키 삭제, 등록 확인
+- 키 관리: 키쌍 생성·보관(D10), add-key-request(D11), 인증된 add-key, 키 목록 조회, 키 삭제, 등록 확인, iOS 키 접근성 선택(잠긴 휴대폰에서 키 사용, FR-037)
 - 조회: VCSEC `VehicleStatus`, Whitelist, Infotainment `GetState` 12개 카테고리, 차량이 요청 없이 보내는 평문 VCSEC 브로드캐스트(`Vehicle.events`, FR-035)
 - 제어: `pkg/vehicle` 공개 API 중 **BLE로 전송 가능한 전부** (§5, P0/P1은 v1, P2는 v1.1)
 - 에러 모델: 성공 / 실패 / 결과 불확실(PossibleSuccess), 재시도 정책
@@ -169,6 +169,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | FR-026 | 키 삭제: `removePublicKeyFromWhitelist` (인증 필요) | P0 | VCSEC | `RemoveKey` | `05-command-catalog B` |
 | FR-027 | 인증된 키 추가: 등록된 Owner 키로 다른 공개키를 역할·형태와 함께 추가 | P1 | VCSEC | `AddKeyWithRole` | `05-command-catalog B` |
 | FR-028 | 키 삭제(로컬): 키스토어의 키쌍을 삭제하고 관련 세션 캐시를 비움 | P0 | – | – | `10-porting-guide §12` |
+| FR-037 | iOS 키 접근성 선택: `getOrCreate(alias, policy, accessibility: KeyAccessibility)`로 새 키의 Keychain 보호 등급을 고른다. `WHEN_UNLOCKED`(기본, `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, 지금과 같음), `AFTER_FIRST_UNLOCK`(`kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`, 재시동 뒤 첫 잠금 해제 다음에는 잠긴 동안에도 사용). 둘 다 `ThisDeviceOnly`. 기존 2인자 `getOrCreate`는 `WHEN_UNLOCKED`(Swift에 두 판 모두). 접근성은 생성 때 고정, 마이그레이션 없음: 이미 있는 별칭은 기존 키를 그대로 돌려주고 `VehicleKey.accessibility`로 실제 값(항목의 `kSecAttrAccessible`을 다시 읽음, 보고되지 않으면 `WHEN_UNLOCKED` + WARN)을 알린다. 잠긴 기기(`errSecInteractionNotAllowed` -25308)는 키 저장소 호출(`getOrCreate`/`get`/`delete`)에서 `KeyStoreError.Locked`(temporary)이고, 생성 중 `Locked`면 소프트웨어 대체 키를 만들지 않는다. Android·JVM은 요청을 무시하고 `AFTER_FIRST_UNLOCK`을 보고한다(Android Keystore 키에 잠금 해제·사용자 인증 요구 없음, 실기기 미확인). **범위 밖(후속 후보):** 잠금 전에 얻은 `WHEN_UNLOCKED` 키 핸들로 잠긴 동안 핸드셰이크하면 `Locked`가 아니라 `startSession` 시간 초과 | P1 | – | (없음 — Go는 키 파일·OS 키링을 쓴다) | ADR-0014, `13-lib-pairing` §Key accessibility, `17-lib-platform-notes` §Key storage |
 
 ### 5.4 조회
 
@@ -366,7 +367,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | M2 | dispatcher + FakeVehicle: 매칭, 핸드셰이크, VCSEC 직렬화·다중 응답, 재시도, 세션 캐시·복구 | FR-010~012, FR-017~018, FR-048~049, FR-100~102, NFR-003, NFR-007, NFR-012 | 시나리오 테스트 전부 PASS |
 | M3 | transport(Kable) + keystore + 샘플 앱 골격 | FR-001~006, FR-020~021, FR-025, FR-028, FR-031, FR-112, NFR-004~006, NFR-009 | 샘플 앱에서 스캔, 연결, 키 목록, VehicleStatus (실차는 사용자 확인) |
 | M4 | 키 등록 + VCSEC 제어 | FR-022~024, FR-026~027, FR-040~047, FR-104, FR-110~111(VCSEC 부분, → SFR-001~002) | 페어링, 잠금, 해제, 트렁크 (실차는 사용자 확인) |
-| #91 (M4 뒤, M5 전) | 차량 브로드캐스트 이벤트와 기어 (모니터 샘플의 선행 작업, 원래 M5 항목이던 `vehicle.events`를 앞당김) | FR-035, FR-036 | FakeVehicle 시나리오 테스트 PASS, 사용 문서 갱신. 실차 확인은 모니터 샘플로 |
+| #91 (M4 뒤, M5 전) | 차량 브로드캐스트 이벤트, 기어, iOS 키 접근성 선택 (모니터 샘플의 선행 작업, 원래 M5 항목이던 `vehicle.events`를 앞당김) | FR-035, FR-036, FR-037 | FakeVehicle 시나리오 테스트·가짜 Keychain 테스트 PASS, 사용 문서 갱신. 실차·실기기 확인은 모니터 샘플로 |
 | M5 | Infotainment 제어 + GetState (P0/P1) | FR-033~034, FR-050~053, FR-060~085, FR-090~092, FR-110~111(전체, → SFR-001~002) | P0/P1 항목 완료, 실차 체크리스트 전달 |
 | M6 | 문서화, 배포 준비 | `{{LIB_DOCS_DIR}}` 완성, API 문서, NOTICE, mavenLocal/XCFramework 빌드. **마지막 과제**: GitHub Packages + SPM 배포 파이프라인(D13), 소비자용 PAT 설정 문서 | 문서 링크 검증, 배포 설정 |
 | v1.1 | P2 기능 | FR-054, FR-086~089, FR-093~094 | – |

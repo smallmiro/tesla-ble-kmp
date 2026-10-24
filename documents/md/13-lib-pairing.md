@@ -1,14 +1,16 @@
 # Keys and Pairing
 
 Scope: what exists on `main` (M4) is the local key store, the read-only key list, enrolling a key on the vehicle
-(`addKeyRequest`, `sessionInfo`, `addKey`, `removeKey`). Real-vehicle check of pairing is pending. Go original behaviour: `09-recipes.md` (key pairing), `10-porting-guide.md`
+(`addKeyRequest`, `sessionInfo`, `addKey`, `removeKey`), and the key accessibility choice for a locked iPhone (FR-037,
+issue #91). Real-vehicle check of pairing is pending. Go original behaviour: `09-recipes.md` (key pairing), `10-porting-guide.md`
 §10 and §12. Errors: `16-lib-errors.md` §Transport and key store errors. Storage details: `17-lib-platform-notes.md`.
 
 ## Key store API (`TeslaBle.keys: VehicleKeyStore`)
 
 | Call | Returns | Notes |
 |---|---|---|
-| `getOrCreate(alias = DEFAULT_ALIAS, policy = KeyPolicy.PREFER_HARDWARE)` | `VehicleResult<VehicleKey>` | Returns the stored key or creates a NIST P-256 key pair under `alias` |
+| `getOrCreate(alias = DEFAULT_ALIAS, policy = KeyPolicy.PREFER_HARDWARE)` | `VehicleResult<VehicleKey>` | Returns the stored key or creates a NIST P-256 key pair under `alias` with `KeyAccessibility.WHEN_UNLOCKED`. Same as the three-argument form with `WHEN_UNLOCKED`. Swift: `getOrCreate(alias:policy:)` |
+| `getOrCreate(alias, policy, accessibility)` | `VehicleResult<VehicleKey>` | FR-037. Creates a missing key with `accessibility` (§Key accessibility). An existing key is returned unchanged whatever `accessibility` says. No defaults; Swift: `getOrCreate(alias:policy:accessibility:)` |
 | `get(alias = DEFAULT_ALIAS)` | `VehicleResult<VehicleKey?>` | `Success(null)` when no key exists |
 | `delete(alias = DEFAULT_ALIAS)` | `VehicleResult<Unit>` | Succeeds when the key does not exist |
 | `VehicleKeyStore.DEFAULT_ALIAS` | `"teslable-default"` | Swift: `VehicleKeyStoreCompanion.shared.DEFAULT_ALIAS` |
@@ -20,6 +22,7 @@ Scope: what exists on `main` (M4) is the local key store, the read-only key list
 |---|---|---|
 | `alias` | `String` | Key store alias |
 | `protection` | `KeyProtection` | Where the private key actually lives |
+| `accessibility` | `KeyAccessibility` | When the key can be used. iOS reads it back from the stored Keychain item; Android and JVM always report `AFTER_FIRST_UNLOCK` |
 | `publicKey` | `PublicKeyBytes` | Uncompressed `0x04 ‖ X ‖ Y`, 65 bytes. `toByteArray()`, `x`, `y` return copies |
 
 There is no API to export a private key (NFR-004, ADR-0008). ECDH runs inside the platform key store.
@@ -40,6 +43,87 @@ There is no API to export a private key (NFR-004, ADR-0008). ECDH runs inside th
 | `SOFTWARE` | false | Software key wrapped by the platform key store (Android Keystore AES key, iOS Keychain) or in memory (JVM) |
 
 Show `protection` to the user when it is `SOFTWARE` on a real device: the key is weaker than a hardware key.
+
+## Key accessibility (locked phone, FR-037)
+
+Whether the private key can be used while the phone is locked is chosen when the key is created (ADR-0014). The choice
+only matters on iOS.
+
+| `KeyAccessibility` | iOS Keychain class | Usable while the phone is locked | Use |
+|---|---|---|---|
+| `WHEN_UNLOCKED` (default) | `kSecAttrAccessibleWhenUnlockedThisDeviceOnly` | No | Same as before FR-037. A locked iPhone cannot hand-shake with this key |
+| `AFTER_FIRST_UNLOCK` | `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly` | Yes, once the phone was unlocked after the last restart | Opt in only when the app needs it, for example background monitoring |
+
+Both classes are `ThisDeviceOnly`: the key never moves to another device through backup or device migration. The Secure
+Enclave key gets the class through its access control; the software fallback key through its Keychain item.
+
+Invariants:
+
+- **Fixed at creation, no migration.** `getOrCreate(alias, policy, accessibility)` on an existing alias returns the
+  existing key unchanged. Read `key.accessibility` for the real value.
+- iOS reads the value back from the stored item's protection class (`kSecAttrAccessible`). If the Keychain does not
+  report it (not expected), the key reports `WHEN_UNLOCKED` and the key store logs a `WARN` (tag `keystore`):
+  `Keychain did not report the protection class of key <alias>; reporting WHEN_UNLOCKED`.
+- Android and JVM ignore the argument and report `AFTER_FIRST_UNLOCK`: Android Keystore keys are generated without an
+  unlocked-device or user-authentication requirement (per API; not yet confirmed on a device), and in-memory JVM keys
+  have no lock.
+- **Locked.** On iOS, `getOrCreate`, `get` and `delete` return `Failure(KeyStoreError.Locked)` while the phone is locked
+  and the key is `WHEN_UNLOCKED`, and for every key before the first unlock after a restart. **Never delete or re-create
+  the key on `Locked`**; call again after the phone is unlocked (iOS:
+  `UIApplication.protectedDataDidBecomeAvailableNotification`). A key that cannot be created because the phone is locked
+  is not replaced by a software key.
+- Read the key from the key store right before every connect or reconnect. A `WHEN_UNLOCKED` key object read earlier and
+  used for a handshake after the phone locked fails inside the handshake: `startSession()` ends with
+  `Failure(Timeout(afterSend = false))`, not `Locked` (known limit, ADR-0014). Expected iOS behaviour, not yet confirmed
+  on a device.
+- `WHEN_UNLOCKED` does not stop an established session when the screen locks: commands in a live session need no
+  private-key operation. Only a new handshake and restoring a cached session use the private key.
+
+Risk of `AFTER_FIRST_UNLOCK`: after the first unlock, anyone holding the locked phone, or code running with the app's
+authority, can use the key over BLE for whatever its role allows (for example unlocking the car). The Secure Enclave
+prevents export of the key, not its use, and asks for no confirmation per command. Tell the user, show
+`key.accessibility`, and consider a restricted role for a monitoring key. A software fallback key
+(`protection == SOFTWARE`) is more exposed; use `KeyPolicy.REQUIRE_HARDWARE` when the app needs a hardware key.
+
+Changing the accessibility of a key (re-create and re-enroll):
+
+1. Choose a new alias, for example `teslable-monitor`. Keep the old key until the new one works.
+2. `keys.getOrCreate(newAlias, KeyPolicy.PREFER_HARDWARE, KeyAccessibility.AFTER_FIRST_UNLOCK)`. Check
+   `key.accessibility == AFTER_FIRST_UNLOCK` and `key.protection`.
+3. Enroll the new public key (§Enrolling a key): `addKeyRequest` with the NFC key card, or `addKey` from a connection
+   whose enrolled key may add keys.
+4. Confirm with `sessionInfo(key.publicKey, VehicleDomain.INFOTAINMENT)` or `listKeys()`.
+5. Optionally remove the old public key on the vehicle (`removeKey`) and on the phone (`keys.delete(oldAlias)`).
+
+Kotlin:
+
+```kotlin
+val key = when (val r = ble.keys.getOrCreate("teslable-monitor", KeyPolicy.PREFER_HARDWARE, KeyAccessibility.AFTER_FIRST_UNLOCK)) {
+    is VehicleResult.Success -> r.value
+    is VehicleResult.Failure ->
+        if (r.error == VehicleError.KeyStoreError.Locked) return waitForUnlock()   // never delete or re-create here
+        else return show("Key store: ${r.error.message}")
+    is VehicleResult.Uncertain -> return                                          // the key store does not return it
+}
+if (key.accessibility != KeyAccessibility.AFTER_FIRST_UNLOCK) {
+    show("This key works only while the phone is unlocked. Create a key under a new alias and enroll it again.")
+}
+```
+
+Swift (pass every argument):
+
+```swift
+let r = try await ble.keys.getOrCreate(alias: "teslable-monitor", policy: .preferHardware, accessibility: .afterFirstUnlock)
+switch onEnum(of: r) {
+case .success(let s):
+    guard let key = s.value as? VehicleKey else { return }
+    if key.accessibility != .afterFirstUnlock { print("unlocked-only key: create a new alias and enroll it again") }
+case .failure(let f):
+    if f.error is VehicleErrorKeyStoreErrorLocked { print("phone locked: try again after unlock") }   // never delete
+    else { print("key store: \(f.error.message)") }
+case .uncertain: break                                                                               // not returned by the key store
+}
+```
 
 ## Checking whether a key is enrolled
 
@@ -67,6 +151,7 @@ key fails with `VehicleError.KeyNotPaired`.
 - A corrupted stored key (`KeyStoreError.PlatformFailure`, message `stored key is corrupted`) is **never replaced
   automatically**. The app tells the user, calls `delete(alias)` then `getOrCreate(alias)`, and the new public key has
   to be enrolled again. See `17-lib-platform-notes.md` §Key storage.
+- `KeyStoreError.Locked` is not damage: the key is fine but the phone is locked. Do not delete it; retry after unlock.
 
 ## Enrolling a key (M4)
 

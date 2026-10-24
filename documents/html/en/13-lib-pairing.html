@@ -60,6 +60,7 @@
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#sec-store">The key store</a></li>
 <li><a href="#sec-protection">Where the key lives</a></li>
+<li><a href="#sec-accessibility">Using the key while the phone is locked</a></li>
 <li><a href="#sec-check">Is my key enrolled?</a></li>
 <li><a href="#sec-delete">Deleting or replacing a key</a></li>
 <li><a href="#sec-enroll">Enrolling a key</a></li>
@@ -72,7 +73,8 @@
 <table>
 <thead><tr><th>Call</th><th>Returns</th><th>What it does</th></tr></thead>
 <tbody>
-<tr><td><code>getOrCreate(alias, policy)</code></td><td><code>VehicleResult&lt;VehicleKey&gt;</code></td><td>Returns the stored key, or creates a NIST P-256 key pair under the alias</td></tr>
+<tr><td><code>getOrCreate(alias, policy)</code></td><td><code>VehicleResult&lt;VehicleKey&gt;</code></td><td>Returns the stored key, or creates a NIST P-256 key pair under the alias that works only while the phone is unlocked (<code>WHEN_UNLOCKED</code>)</td></tr>
+<tr><td><code>getOrCreate(alias, policy, accessibility)</code></td><td><code>VehicleResult&lt;VehicleKey&gt;</code></td><td>The same, but a new key gets the chosen accessibility (<a href="#sec-accessibility">see below</a>). An existing key is returned unchanged</td></tr>
 <tr><td><code>get(alias)</code></td><td><code>VehicleResult&lt;VehicleKey?&gt;</code></td><td><code>Success(null)</code> when there is no key</td></tr>
 <tr><td><code>delete(alias)</code></td><td><code>VehicleResult&lt;Unit&gt;</code></td><td>Also succeeds when there is no key</td></tr>
 </tbody>
@@ -80,7 +82,7 @@
 <ul>
 <li>The default alias is <code>"teslable-default"</code> (<code>VehicleKeyStore.DEFAULT_ALIAS</code>; in Swift <code>VehicleKeyStoreCompanion.shared.DEFAULT_ALIAS</code>).</li>
 <li>An alias may use letters, digits, <code>.</code>, <code>_</code> and <code>-</code>, up to 64 characters, and may not be <code>.</code> or <code>..</code>.</li>
-<li>A <code>VehicleKey</code> is a handle. It exposes <code>alias</code>, <code>protection</code> and <code>publicKey</code> (65 bytes, <code>0x04 ‖ X ‖ Y</code>). The private key never leaves the platform key store, and there is no export API.</li>
+<li>A <code>VehicleKey</code> is a handle. It exposes <code>alias</code>, <code>protection</code>, <code>accessibility</code> and <code>publicKey</code> (65 bytes, <code>0x04 ‖ X ‖ Y</code>). The private key never leaves the platform key store, and there is no export API.</li>
 </ul>
 
 <h2 id="sec-protection">Where the key lives</h2>
@@ -104,6 +106,60 @@
 </table>
 <p>If a real device reports <code>SOFTWARE</code>, consider telling the user: the key is weaker than a hardware key.</p>
 
+<h2 id="sec-accessibility">Using the key while the phone is locked</h2>
+<p>When a key is created you choose whether it can be used while the phone is locked. The choice only matters on iOS. The default keeps the earlier behaviour; an app that watches the car in the background, such as the monitor sample, opts in.</p>
+<table>
+<thead><tr><th><code>KeyAccessibility</code></th><th>iOS Keychain class</th><th>Usable while locked</th><th>For</th></tr></thead>
+<tbody>
+<tr><td><code>WHEN_UNLOCKED</code> (default)</td><td><code>kSecAttrAccessibleWhenUnlockedThisDeviceOnly</code></td><td><span class="badge warn">no</span></td><td>Most apps. A locked iPhone cannot start a session with this key</td></tr>
+<tr><td><code>AFTER_FIRST_UNLOCK</code></td><td><code>kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly</code></td><td><span class="badge ok">yes</span> once the phone was unlocked after the last restart</td><td>Apps that must keep working in the background while the phone is locked</td></tr>
+</tbody>
+</table>
+<ul>
+<li>Pass the choice as the third argument: <code>getOrCreate(alias, policy, accessibility)</code>, in Swift <code>getOrCreate(alias:policy:accessibility:)</code>. The two-argument call creates <code>WHEN_UNLOCKED</code> keys.</li>
+<li>Both settings keep the key on this phone: it never moves to another device through a backup or a device transfer.</li>
+<li><strong>The setting is fixed when the key is created.</strong> Asking for another value on an existing alias returns the existing key unchanged. <code>key.accessibility</code> gives the real value; on iOS it is read back from the stored key. If the Keychain does not report it (not expected), the key says <code>WHEN_UNLOCKED</code> and a <code>WARN</code> line is logged.</li>
+<li>On Android and the JVM the argument is ignored and every key reports <code>AFTER_FIRST_UNLOCK</code>: Android Keystore keys are created without an unlock or user-authentication requirement (per the API; not yet confirmed on a device).</li>
+<li>On a locked iPhone, a key that only works unlocked, or any key before the first unlock after a restart, makes <code>getOrCreate</code>, <code>get</code> and <code>delete</code> return <code>KeyStoreError.Locked</code>. <strong>Never delete or re-create the key because of <code>Locked</code>.</strong> Try again after the phone is unlocked. If a new key cannot be created because the phone is locked, the library does not fall back to a weaker software key.</li>
+<li>Read the key from the key store right before each connection or reconnection. A key that only works unlocked, read earlier and used after the phone locked, fails inside the handshake: <code>startSession()</code> then ends with a timeout instead of <code>Locked</code> (a known limit; expected iOS behaviour, not yet confirmed on a device).</li>
+<li>A session that is already running keeps working when the screen locks, whatever the setting: commands in a live session do not use the private key. Only starting a new session, or restoring a saved one, needs it.</li>
+</ul>
+<div class="callout warn">
+<strong>The risk of AFTER_FIRST_UNLOCK</strong>
+<p>Once the phone has been unlocked after a restart, anyone holding the locked phone, or code running with the app's permissions, can use this key over Bluetooth for whatever its role allows, for example unlocking the car. The Secure Enclave stops the key from being copied, not from being used, and asks for no confirmation per command. Tell the user, show <code>key.accessibility</code> on screen, and consider a key with a limited role for monitoring. A software key (<code>protection</code> is <code>SOFTWARE</code>) is more exposed; use <code>REQUIRE_HARDWARE</code> when the app needs a hardware key.</p>
+</div>
+<h3>Switching a key to the other setting</h3>
+<p>The setting cannot change, so switching means a new key under a new alias that is enrolled again:</p>
+<ol>
+<li>Choose a new alias, for example <code>teslable-monitor</code>. Keep the old key until the new one works.</li>
+<li>Call <code>keys.getOrCreate(newAlias, KeyPolicy.PREFER_HARDWARE, KeyAccessibility.AFTER_FIRST_UNLOCK)</code> and check <code>key.accessibility</code> and <code>key.protection</code>.</li>
+<li>Enroll the new public key (<a href="#sec-enroll">Enrolling a key</a>): with the NFC key card, or with <code>addKey</code> from a connection whose enrolled key may add keys.</li>
+<li>Confirm with <code>sessionInfo(key.publicKey, VehicleDomain.INFOTAINMENT)</code> or <code>listKeys()</code>.</li>
+<li>If you wish, remove the old public key from the car (<code>removeKey</code>) and from the phone (<code>keys.delete(oldAlias)</code>).</li>
+</ol>
+<h3>Kotlin</h3>
+<pre><code class="language-kotlin"><span class="k">val</span> key = <span class="k">when</span> (<span class="k">val</span> r = ble.keys.<span class="f">getOrCreate</span>(<span class="s">"teslable-monitor"</span>, <span class="t">KeyPolicy</span>.<span class="t">PREFER_HARDWARE</span>, <span class="t">KeyAccessibility</span>.<span class="t">AFTER_FIRST_UNLOCK</span>)) {
+    <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> r.value
+    <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span>
+        <span class="k">if</span> (r.error <span class="o">==</span> <span class="t">VehicleError</span>.<span class="t">KeyStoreError</span>.<span class="t">Locked</span>) <span class="k">return</span> <span class="f">waitForUnlock</span>()   <span class="c">// never delete or re-create here</span>
+        <span class="k">else</span> <span class="k">return</span> <span class="f">show</span>(<span class="s">"Key store: ${r.error.message}"</span>)
+    <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Uncertain</span> <span class="o">-&gt;</span> <span class="k">return</span>                                          <span class="c">// the key store does not return it</span>
+}
+<span class="k">if</span> (key.accessibility <span class="o">!=</span> <span class="t">KeyAccessibility</span>.<span class="t">AFTER_FIRST_UNLOCK</span>) {
+    <span class="f">show</span>(<span class="s">"This key works only while the phone is unlocked. Create a key under a new alias and enroll it again."</span>)
+}</code></pre>
+<h3>Swift</h3>
+<pre><code class="language-swift"><span class="k">let</span> r = <span class="k">try</span> <span class="k">await</span> ble.keys.<span class="f">getOrCreate</span>(alias: <span class="s">"teslable-monitor"</span>, policy: .preferHardware, accessibility: .afterFirstUnlock)
+<span class="k">switch</span> <span class="f">onEnum</span>(of: r) {
+<span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s):
+    <span class="k">guard</span> <span class="k">let</span> key = s.value <span class="k">as</span>? <span class="t">VehicleKey</span> <span class="k">else</span> { <span class="k">return</span> }
+    <span class="k">if</span> key.accessibility <span class="o">!=</span> .afterFirstUnlock { <span class="f">print</span>(<span class="s">"unlocked-only key: create a new alias and enroll it again"</span>) }
+<span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f):
+    <span class="k">if</span> f.error is <span class="t">VehicleErrorKeyStoreErrorLocked</span> { <span class="f">print</span>(<span class="s">"phone locked: try again after unlock"</span>) }   <span class="c">// never delete</span>
+    <span class="k">else</span> { <span class="f">print</span>(<span class="s">"key store: \(f.error.message)"</span>) }
+<span class="k">case</span> .uncertain: <span class="k">break</span>                                                                               <span class="c">// not returned by the key store</span>
+}</code></pre>
+
 <h2 id="sec-check">Is my key enrolled?</h2>
 <p><code>vehicle.listKeys()</code> works without a key and without waking the car. Compare the car's list with your public key:</p>
 <pre><code class="language-kotlin"><span class="k">val</span> mine = key.publicKey.<span class="f">toByteArray</span>()
@@ -119,6 +175,7 @@
 <li><code>keys.delete(alias)</code> removes the key from the phone only. The car keeps listing the public key until it is removed on the car.</li>
 <li>Saved sessions belong to one key. After the key changes, the next connection throws away the old sessions and starts a new handshake.</li>
 <li>A <strong>corrupted</strong> stored key (<code>KeyStoreError.PlatformFailure</code>, <code>stored key is corrupted</code>) is never replaced on its own. Tell the user, call <code>delete</code> then <code>getOrCreate</code>, and enroll the new key on the car again. See <a href="17-lib-platform-notes.html#sec-keys">Platform Notes</a>.</li>
+<li><code>KeyStoreError.Locked</code> is not damage: the key is fine but the phone is locked. Do not delete it; try again after the phone is unlocked.</li>
 </ul>
 
 <h2 id="sec-enroll">Enrolling a key</h2>
