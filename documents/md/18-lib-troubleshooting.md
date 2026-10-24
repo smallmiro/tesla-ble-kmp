@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Scope: M3–M4 (scan, connect, key store, read-only queries, pairing, VCSEC commands, observation log) and broadcast events (`Vehicle.events`, FR-035). Infotainment command problems are added with M5.
+Scope: M3–M4 (scan, connect, key store, read-only queries, pairing, VCSEC commands, observation log), broadcast events (`Vehicle.events`, FR-035) and key accessibility on a locked iPhone (FR-037). Infotainment command problems are added with M5.
 Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 
 ## Symptom → cause → action
@@ -17,6 +17,9 @@ Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 | `startSession()` → `KeyNotPaired` | The public key is not enrolled on the vehicle | Enroll it with `addKeyRequest` (`13-lib-pairing.md`). Check with `listKeys()` or `sessionInfo` |
 | `KeyStoreError.PlatformFailure("stored key is corrupted")` | Android backup restored the key file without its wrapping key, or storage damage | `delete` then `getOrCreate`, then enroll the new key. Exclude `files/teslable/keys/` from backup (`17-lib-platform-notes.md`) |
 | `KeyStoreError.HardwareUnavailable` | `REQUIRE_HARDWARE` on a device without StrongBox / TEE / Secure Enclave | Use `PREFER_HARDWARE` |
+| `KeyStoreError.Locked` | iOS: the phone is locked and the key is `WHEN_UNLOCKED`, or the phone was not unlocked since restart | Never delete the key. Call again after unlock. For use while locked, create an `AFTER_FIRST_UNLOCK` key under a new alias and enroll it (`13-lib-pairing.md` §Key accessibility) |
+| `startSession()` → `Timeout` only while the iPhone is locked; `WARN` `Session info error: MESSAGEFAULT_ERROR_BAD_PARAMETER: invalid public key` | The `WHEN_UNLOCKED` key object was read before the phone locked; its handshake ECDH fails (known limit, ADR-0014; expected iOS behaviour, not yet confirmed on a device) | Read the key from the key store right before connecting (you then get `Locked`), or use an `AFTER_FIRST_UNLOCK` key |
+| `WARN` `Keychain did not report the protection class of key <alias>; reporting WHEN_UNLOCKED` (tag `keystore`) | The Keychain returned no protection class for the stored key (not expected) | The key reports `WHEN_UNLOCKED`. Report it with the iOS version |
 | First command after restoring a cached session fails with `TIME_EXPIRED` and then succeeds | Device slept, monotonic clock lagged | Nothing; the library resyncs from the attached session info and retries |
 | `addKeyRequest` ends with `TimedOut` | The card was not tapped, or the on-screen confirmation was not given in time (default 60 s), or the reply was not recognized | Ask the user to tap the key card on the center console and confirm on the screen, then check `sessionInfo(publicKey, INFOTAINMENT)`. It may still have been enrolled |
 | `addKeyRequest` emits `Rejected(KeychainRejected(WHITELIST_FULL))` or another `KeychainRejected` code | The vehicle refused: key list full, no permission to add, … | Remove an unused key on the vehicle's touchscreen or with `removeKey`; see `16-lib-errors.md` |

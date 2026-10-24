@@ -51,7 +51,7 @@
 <tbody>
 <tr><td>SFR-001</td><td>ライブラリを一通り試せる Android サンプル（Compose）。VIN 入力、スキャン、接続、進捗イベント付きペアリング、キー一覧と削除、ロック、アンロック、トランク、フランク、<code>vehicleStatus()</code>、ウェイクアップ、不確定な結果の表示と再取得、デバッグログ画面を含みます。エアコンのオン/オフ、充電の開始/停止、少なくとも 1 つの <code>getState</code> は、ライブラリが提供された時点（M5）で追加します。</td><td>Android</td><td><span class="badge ok">VCSEC 完了</span> M4。デバッグログ画面は未完了です（<code>DebugLogger</code> は Logcat にだけ出力し、画面には表示されません）。インフォテインメント関連の項目は M5 待ちです。</td><td>PRD FR-110</td></tr>
 <tr><td>SFR-002</td><td>SKIE が生成する Swift API を使い、SFR-001 と同じフローを備えた iOS サンプル（SwiftUI）。加えて、<code>observe</code> のログ行を収集する観察モード、マークボタン、全件コピーを備えます。</td><td>iOS</td><td><span class="badge ok">VCSEC 完了</span> M4。観察モードを含みます。インフォテインメント関連の項目は M5 待ちです。</td><td>PRD FR-111</td></tr>
-<tr><td>SFR-010 to SFR-017</td><td>モニターアプリ。タブ、VIN の保存と自動接続、バックグラウンドでの再接続、画面の点灯維持、<code>Vehicle.events</code> によるライブ状態、定期的な問い合わせ、マーク付きの JSON Lines ログ、ログを取り出すスクリプト。<a href="04-monitor-app.html">4. モニターアプリ</a>を参照してください。</td><td>Android, iOS</td><td><span class="badge warn">ライブラリ待ち</span> iOS のキーアクセシビリティ（FR-037、issue #91）。<code>Vehicle.events</code> は使えます。</td><td>設計 2026-10-24</td></tr>
+<tr><td>SFR-010 to SFR-017</td><td>モニターアプリ。タブ、VIN の保存と自動接続、バックグラウンドでの再接続、画面の点灯維持、<code>Vehicle.events</code> によるライブ状態、定期的な問い合わせ、マーク付きの JSON Lines ログ、ログを取り出すスクリプト。<a href="04-monitor-app.html">4. モニターアプリ</a>を参照してください。</td><td>Android, iOS</td><td><span class="badge warn">予定</span> すぐに作り始められます (issue #91)。必要なライブラリ API である <code>Vehicle.events</code> と iOS のキーアクセシビリティ (FR-037) が使えます。</td><td>設計 2026-10-24</td></tr>
 </tbody>
 </table>
 

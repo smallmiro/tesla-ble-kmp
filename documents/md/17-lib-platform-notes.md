@@ -55,8 +55,24 @@ Scope: M3. Items not yet confirmed on a real device are marked so. Go original B
 | `SOFTWARE` | Software key: emulators, simulators, or when every hardware attempt failed |
 
 - Software key format: the private key is serialized as `04‖X‖Y‖d` (97 bytes). Android stores it as a `TBK1` file
-  wrapped by a Keystore AES key; iOS stores it as a Keychain generic password
-  (`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`).
+  wrapped by a Keystore AES key; iOS stores it as a Keychain generic password whose `kSecAttrAccessible` is the chosen
+  accessibility (always `ThisDeviceOnly`).
+- Key accessibility (FR-037, ADR-0014; API and procedure in `13-lib-pairing.md` §Key accessibility):
+
+| Platform | `getOrCreate(alias, policy, accessibility)` | `VehicleKey.accessibility` of an existing key |
+|---|---|---|
+| iOS | `WHEN_UNLOCKED` (default) → `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, `AFTER_FIRST_UNLOCK` → `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. Secure Enclave key: the class of its access control (`SecAccessControlCreateWithFlags(<class>, kSecAccessControlPrivateKeyUsage)`); software key: the Keychain item's class | Read back from the item's `kSecAttrAccessible`. AfterFirstUnlock classes → `AFTER_FIRST_UNLOCK`; WhenUnlocked and WhenPasscodeSet classes → `WHEN_UNLOCKED`; not reported → `WHEN_UNLOCKED` and a `WARN` (tag `keystore`). Never changed afterwards (no migration) |
+| Android | Ignored | Always `AFTER_FIRST_UNLOCK`: the `KeyGenParameterSpec` of the EC key and of the AES key that wraps a software key set neither `setUnlockedDeviceRequired` nor `setUserAuthenticationRequired`, and `filesDir` is readable after the first unlock. Per API; **not yet confirmed on a device** |
+| JVM | Ignored | Always `AFTER_FIRST_UNLOCK` (in-memory keys have no lock) |
+
+- Locked iPhone: `errSecInteractionNotAllowed` (-25308) from a Keychain lookup, read, write or delete, or from Secure
+  Enclave key creation, becomes `KeyStoreError.Locked`. A `WHEN_UNLOCKED` key cannot be read or used for a handshake
+  while the phone is locked; an `AFTER_FIRST_UNLOCK` key can, once the phone was unlocked after the last restart. Before
+  that first unlock every key is `Locked`. A key creation that fails with `Locked` does not fall back to a software key.
+- Not yet confirmed on a device (sample app, plan Task 10 and 11): the Keychain round trip of both classes, the class
+  read-back, and a handshake on a locked iPhone with an `AFTER_FIRST_UNLOCK` Secure Enclave key. Using the key while the
+  phone is locked also needs the app to keep running in the background; background BLE is not documented yet (see
+  §Support).
 - **A corrupted stored key is never replaced automatically.** When `getOrCreate` or `get` returns
   `KeyStoreError.PlatformFailure` (`stored key is corrupted`), the app tells the user, then calls `keys.delete(alias)`
   and `keys.getOrCreate(alias)`. The new key has a different public key, so it **must be enrolled on the vehicle
@@ -65,8 +81,9 @@ Scope: M3. Items not yet confirmed on a real device are marked so. Go original B
   overwriting the alias with a new key.
 - There is no private key export API (ADR-0008).
 - Simulator Keychain: **plain Kotlin/Native test binaries** running on the simulator cannot use the Keychain
-  (`SecItemAdd` fails with -25291). Real Keychain round trips are therefore checked in the **sample app** (an app
-  bundle), not in unit tests.
+  (`SecItemAdd` fails with -25291). Real Keychain round trips, including the accessibility read-back, are therefore
+  checked in the **sample app** (an app bundle), not in unit tests. Unit tests cover the class mapping, the parsing of
+  query results and the key store's decisions with fakes.
 
 ## Session cache
 

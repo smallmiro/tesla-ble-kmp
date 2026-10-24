@@ -91,7 +91,7 @@
 <tr><td><code>BadResponse</code></td><td>応答を読み取れなかった</td><td>いいえ</td><td>VCSEC と Infotainment の応答でははい</td></tr>
 <tr><td><code>KeychainRejected</code>, <code>VcsecRejected</code>, <code>InfotainmentRejected</code></td><td>車両は理解したが拒否した</td><td>いいえ</td><td>いいえ</td></tr>
 <tr><td><code>TransportError</code></td><td>Bluetooth のスキャン、接続、書き込み</td><td>スキャンのタイムアウト、接続失敗、書き込み失敗のみ</td><td>いいえ</td></tr>
-<tr><td><code>KeyStoreError</code></td><td>プラットフォームのキーストア</td><td>いいえ</td><td>いいえ</td></tr>
+<tr><td><code>KeyStoreError</code></td><td>プラットフォームのキーストア</td><td><code>Locked</code> のみ</td><td>いいえ</td></tr>
 <tr><td><code>Timeout</code></td><td>コマンドが時間切れになった</td><td>はい</td><td>すでに送信済みだった場合</td></tr>
 <tr><td><code>InvalidArgument</code></td><td>不正な引数</td><td>いいえ</td><td>いいえ</td></tr>
 </tbody>
@@ -125,6 +125,7 @@
 <tr><td><code>HardwareUnavailable</code></td><td>ハードウェアが必須だが使えない</td><td><code>PREFER_HARDWARE</code> を使います</td></tr>
 <tr><td><code>KeyNotFound</code></td><td>そのエイリアスのキーがない</td><td><code>getOrCreate</code> で作成します</td></tr>
 <tr><td><code>PlatformFailure</code></td><td>プラットフォームのキーストアが失敗した。<code>stored key is corrupted</code> は保存されたキーが破損していることを示す</td><td>破損したキーは自動で置き換えられません。削除して作成し、新しいキーを再度登録します</td></tr>
+<tr><td><code>Locked</code></td><td>iOS: スマートフォンがロックされていて、キーがロック解除中にだけ使えるキーである、または再起動後にまだ一度もロックを解除していない。この理由で作成できなかったキーはソフトウェアキーで代用しない</td><td>キーを削除したり作り直したり<strong>しないでください</strong>。ロックを解除してから再試行します。ロック中もキーを使うには、新しいエイリアスで <code>AFTER_FIRST_UNLOCK</code> のキーを作成して登録します (<a href="13-lib-pairing.html#sec-accessibility">13. キーとペアリング</a>)。ライブラリはキーストアの呼び出しをリトライしません</td></tr>
 </tbody>
 </table>
 

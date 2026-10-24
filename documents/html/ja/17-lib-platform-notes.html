@@ -110,9 +110,23 @@
 </tbody>
 </table>
 <ul>
-<li>ソフトウェアキーは Android Keystore の AES キーでラップされるか、デバイスのロック解除中のみ読み取り可能でデバイスの外に出ない iOS キーチェーン項目として保存されます。</li>
+<li>ソフトウェアキーは Android Keystore の AES キーでラップされるか、デバイスの外に出ず、キーのアクセシビリティ設定に従って保護される iOS キーチェーン項目として保存されます。</li>
 <li>iOS では、Secure Enclave の検索失敗は「キーなし」ではなくエラーとして報告されるため、正常なキーが誤って上書きされることはありません。</li>
 <li>秘密鍵をエクスポートする API はありません。</li>
+</ul>
+<h3>スマートフォンのロック中にキーを使う</h3>
+<p>キーごとにアクセシビリティ設定 <code>VehicleKey.accessibility</code> があります。選び方とキーを切り替える手順は <a href="13-lib-pairing.html#sec-accessibility">13. キーとペアリング</a> にあります。</p>
+<table>
+<thead><tr><th>プラットフォーム</th><th>キーを作成するとき</th><th>既存のキーが報告する値</th></tr></thead>
+<tbody>
+<tr><td>iOS</td><td><code>WHEN_UNLOCKED</code> (デフォルト) は <code>kSecAttrAccessibleWhenUnlockedThisDeviceOnly</code>、<code>AFTER_FIRST_UNLOCK</code> は <code>kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly</code> を使います。Secure Enclave のキーとソフトウェアキーのどちらも同じです</td><td>保存されたキーから読み直した設定。後から変わることはありません</td></tr>
+<tr><td>Android</td><td>設定は無視されます</td><td>常に <code>AFTER_FIRST_UNLOCK</code>。Keystore のキーにはロック解除やユーザー認証の要件がなく、キーファイルは最初のロック解除後に読み取れます。API 上の話で、実機ではまだ確認していません</td></tr>
+<tr><td>JVM</td><td>設定は無視されます</td><td>常に <code>AFTER_FIRST_UNLOCK</code>。メモリ上のキーにはロックがありません</td></tr>
+</tbody>
+</table>
+<ul>
+<li>ロックされた iPhone では、キーチェーンのエラー <code>errSecInteractionNotAllowed</code> (-25308) が <code>KeyStoreError.Locked</code> になります。<code>WHEN_UNLOCKED</code> のキーはスマートフォンのロック中は読み取ることもハンドシェイクに使うこともできず、<code>AFTER_FIRST_UNLOCK</code> のキーは最後の再起動後に一度ロックを解除してからは使えます。最初のロック解除の前は、すべてのキーがロックされています。スマートフォンがロックされていて作成できなかったキーを、ソフトウェアキーで代用することはありません。</li>
+<li>実機でまだ確認していないこと: 両方の設定でのキーチェーンの往復、設定の読み直し、ロックされた iPhone での <code>AFTER_FIRST_UNLOCK</code> の Secure Enclave キーによるハンドシェイク。サンプルアプリで確認します。スマートフォンのロック中にキーを使うには、アプリがバックグラウンドで動き続ける必要がありますが、その内容はまだこのドキュメントで扱っていません。</li>
 </ul>
 <div class="callout danger">
 <strong>破損したキーが自動で置き換えられることはありません</strong>

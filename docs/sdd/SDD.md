@@ -7,7 +7,7 @@
 | 정답 기준 | `{{REF_REPO_DIR}}` @ `{{REF_REPO_COMMIT}}` + `pkg/protocol/protocol.md` |
 | 1차 가이드 | `{{MANUAL_DIR}}` (`01-architecture`, `02-ble-transport`, `03-protocol`, `08-errors`, `10-porting-guide`) |
 | 설계 원본 | `{{SPECS_DIR}}2026-09-26-tesla-ble-kmp-design.md` |
-| 결정 기록 | `{{ADR_DIR}}0001` ~ `0013` (§11) |
+| 결정 기록 | `{{ADR_DIR}}0001` ~ `0014` (§11) |
 | 다음 문서 | `{{PLANS_DIR}}` (Phase 3) |
 
 경로는 `{{PATHS_FILE}}` 의 키로 참조한다. Go 파일 경로는 `{{REF_REPO_DIR}}` 기준이며, 인용한 줄 번호는 커밋 `{{REF_REPO_COMMIT}}` 기준이다.
@@ -333,7 +333,7 @@ public interface Vehicle {
 | 플랫폼 | `CryptoPrimitives` | `VehicleKeyStore` / `EcdhPrivateKey` |
 |---|---|---|
 | Android (API 31+) | JCA `MessageDigest`(SHA-1/256), `Mac`(HmacSHA256), `Cipher("AES/GCM/NoPadding")`, `SecureRandom`, `MessageDigest.isEqual` | `AndroidKeyStore` EC P-256, `PURPOSE_AGREE_KEY`, `setIsStrongBoxBacked(true)` 시도 → 실패 시 TEE → 실패 시 `KeyPairGenerator("EC")` 소프트웨어 키를 `04‖X‖Y‖d`(97바이트)로 직렬화해 Keystore AES 키로 감싼 `TBK1` 파일로 앱 전용 보관(D10, 설계 구체화 10). Keystore 별칭은 `teslable.key:<alias>`/`teslable.wrap:<alias>`로 네임스페이스를 둔다. `KeyAgreement("ECDH", "AndroidKeyStore").generateSecret()` = 32바이트 X |
-| iOS (16+) | CommonCrypto `CC_SHA1`, `CC_SHA256`, `CCHmac`; `SecRandomCopyBytes`; AES-GCM은 **ADR-0004** 공급자; 상수 시간 비교는 Kotlin 구현(XOR 누적) | `SecKeyCreateRandomKey` + `kSecAttrTokenIDSecureEnclave`(가능 시) → 실패 시 Keychain generic password(service `dev.mirolab.teslable.key`)에 `04‖X‖Y‖d`(97바이트)로 저장한 소프트웨어 키(설계 구체화 10). Secure Enclave 조회 자체가 실패한 경우는 "키 없음"이 아니라 오류다(덮어쓰지 않음). `SecKeyCopyKeyExchangeResult(kSecKeyAlgorithmECDHKeyExchangeStandard)` = 32바이트 X. 공개키는 `SecKeyCopyExternalRepresentation`(65바이트 X9.63) |
+| iOS (16+) | CommonCrypto `CC_SHA1`, `CC_SHA256`, `CCHmac`; `SecRandomCopyBytes`; AES-GCM은 **ADR-0004** 공급자; 상수 시간 비교는 Kotlin 구현(XOR 누적) | `SecKeyCreateRandomKey` + `kSecAttrTokenIDSecureEnclave`(가능 시) → 실패 시 Keychain generic password(service `dev.mirolab.teslable.key`)에 `04‖X‖Y‖d`(97바이트)로 저장한 소프트웨어 키(설계 구체화 10). Secure Enclave 조회 자체가 실패한 경우는 "키 없음"이 아니라 오류다(덮어쓰지 않음). 새 키의 보호 등급은 `getOrCreate`의 `KeyAccessibility`(SE는 접근 제어, 소프트웨어 키는 Keychain 항목), 기존 키는 항목의 `kSecAttrAccessible`을 다시 읽는다. `errSecInteractionNotAllowed`(-25308)는 `KeyStoreError.Locked`(FR-037, ADR-0014). `SecKeyCopyKeyExchangeResult(kSecKeyAlgorithmECDHKeyExchangeStandard)` = 32바이트 X. 공개키는 `SecKeyCopyExternalRepresentation`(65바이트 X9.63) |
 | 테스트 (`:testing`) | JVM: 위 JCA 구현 재사용. iOS 시뮬레이터: 위 iOS 구현 | `SoftwareEcdhKey(privateScalar)`: JVM은 JCA `ECPrivateKeySpec`, iOS는 `SecKeyCreateWithData`(kSecAttrKeyClassPrivate). `protocol.md` 클라이언트 키로 벡터 검증 |
 
 ### 2.6 `:adapter-storage`
@@ -506,7 +506,7 @@ public data class UnknownVcsecError(val rawCode: Int) : VehicleError            
 public data class InfotainmentRejected(val reason: String) : VehicleError          // actionStatus ERROR + plain_text ("unspecified error" 기본)
 // 전송·플랫폼 계층 (어댑터가 변환)
 public sealed interface TransportError : VehicleError { ScanTimeout, MaxConnectionsExceeded, ConnectFailed(cause), Disconnected, BluetoothOff, PermissionDenied, WriteFailed(cause, temporary=true) }
-public sealed interface KeyStoreError : VehicleError { HardwareUnavailable, KeyNotFound, PlatformFailure(cause) }
+public sealed interface KeyStoreError : VehicleError { HardwareUnavailable, KeyNotFound, PlatformFailure(cause), Locked(temporary=true) }  // Locked: 잠긴 iPhone(-25308), FR-037
 public data class Timeout(val afterSend: Boolean) : VehicleError                   // mayHaveSucceeded = afterSend, temporary = true
 public data class InvalidArgument(val detail: String) : VehicleError               // PIN 형식, 볼륨 범위, 좌석 조합 등
 // 중복 응답(재전송 응답)은 공개 VehicleError가 아니다: PendingRequest.antiReplay(SlidingWindow)가 실패하면 Dispatcher.process가
@@ -539,7 +539,7 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 
 ### 7.2 키 메타데이터
 
-`VehicleKeyStore`는 별칭(`alias`, 기본 `"teslable-default"`)으로 키를 찾는다. 키마다 `KeyProtection`(SECURE_ENCLAVE / STRONGBOX / TEE / SOFTWARE)과 공개키 65바이트를 노출한다(생성 시각은 노출하지 않는다 — `VehicleKey`에 없다). 소프트웨어 대체 키의 개인키 직렬화는 플랫폼 공통으로 `04‖X‖Y‖d`(97바이트)다(설계 구체화 10). Android는 `filesDir/teslable/keys/<alias>.enc` = `"TBK1" ‖ wrap(04‖X‖Y‖d)`(Keystore AES-GCM 키 `teslable.wrap:<alias>`로 감쌈, 임시 파일 + rename으로 원자적 쓰기)에 둔다. iOS는 Keychain generic password(`kSecAttrAccessibleWhenUnlockedThisDeviceOnly`)에 둔다. **손상된 저장 키(매직·길이·태그 불일치, 복호화 실패)는 자동으로 교체하지 않고** `KeyStoreError.PlatformFailure("stored key is corrupted")`로 돌려준다 — 앱이 `delete` 후 재생성하고 차량에 다시 등록한다. Android 자동 백업이 `.enc` 파일만 복원하면 이 상태가 되므로 앱은 `files/teslable/keys/`를 백업에서 제외한다(`{{LIB_DOCS_DIR}}platform-notes.md`).
+`VehicleKeyStore`는 별칭(`alias`, 기본 `"teslable-default"`)으로 키를 찾는다. 키마다 `KeyProtection`(SECURE_ENCLAVE / STRONGBOX / TEE / SOFTWARE), `KeyAccessibility`(WHEN_UNLOCKED / AFTER_FIRST_UNLOCK, FR-037)와 공개키 65바이트를 노출한다(생성 시각은 노출하지 않는다 — `VehicleKey`에 없다). 소프트웨어 대체 키의 개인키 직렬화는 플랫폼 공통으로 `04‖X‖Y‖d`(97바이트)다(설계 구체화 10). Android는 `filesDir/teslable/keys/<alias>.enc` = `"TBK1" ‖ wrap(04‖X‖Y‖d)`(Keystore AES-GCM 키 `teslable.wrap:<alias>`로 감쌈, 임시 파일 + rename으로 원자적 쓰기)에 둔다. iOS는 Keychain generic password에 두며 보호 등급은 키를 만들 때 고른 접근성이다(`ThisDeviceOnly`, §8.2). **손상된 저장 키(매직·길이·태그 불일치, 복호화 실패)는 자동으로 교체하지 않고** `KeyStoreError.PlatformFailure("stored key is corrupted")`로 돌려준다 — 앱이 `delete` 후 재생성하고 차량에 다시 등록한다. Android 자동 백업이 `.enc` 파일만 복원하면 이 상태가 되므로 앱은 `files/teslable/keys/`를 백업에서 제외한다(`{{LIB_DOCS_DIR}}platform-notes.md`).
 
 ### 7.3 공개 값 객체 ↔ protobuf
 
@@ -579,8 +579,10 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 
 | | Android | iOS |
 |---|---|---|
-| 생성 | `KeyPairGenerator("EC", "AndroidKeyStore")`, `KeyGenParameterSpec(alias, PURPOSE_AGREE_KEY)`, `setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))`. 1차 `setIsStrongBoxBacked(true)` → `StrongBoxUnavailableException`이면 2차 TEE → 실패 시 소프트웨어 대체 | `SecKeyCreateRandomKey` with `kSecAttrKeyTypeECSECPrimeRandom`, 256비트, `kSecAttrTokenIDSecureEnclave`, 접근 제어 `SecAccessControlCreateWithFlags(kSecAttrAccessibleWhenUnlockedThisDeviceOnly, kSecAccessControlPrivateKeyUsage)` → 실패(시뮬레이터 등) 시 토큰 없는 Keychain 소프트웨어 키 |
+| 생성 | `KeyPairGenerator("EC", "AndroidKeyStore")`, `KeyGenParameterSpec(alias, PURPOSE_AGREE_KEY)`, `setAlgorithmParameterSpec(ECGenParameterSpec("secp256r1"))`. 1차 `setIsStrongBoxBacked(true)` → `StrongBoxUnavailableException`이면 2차 TEE → 실패 시 소프트웨어 대체 | `SecKeyCreateRandomKey` with `kSecAttrKeyTypeECSECPrimeRandom`, 256비트, `kSecAttrTokenIDSecureEnclave`, 접근 제어 `SecAccessControlCreateWithFlags(<접근성의 보호 등급>, kSecAccessControlPrivateKeyUsage)` → 실패(시뮬레이터 등) 시 토큰 없는 Keychain 소프트웨어 키(같은 보호 등급). 잠긴 기기 실패(CFError OSStatus -25308)는 소프트웨어로 넘어가지 않고 `Locked` |
 | 보관 수준 판정 | `KeyInfo.securityLevel` (API 31+): `STRONGBOX` / `TRUSTED_ENVIRONMENT` / `SOFTWARE` | 생성 경로로 판정: SE 성공이면 `SECURE_ENCLAVE`, 아니면 `SOFTWARE` |
+| 접근성(FR-037, ADR-0014) | 요청 무시, 항상 `AFTER_FIRST_UNLOCK`: EC 키와 래핑 AES 키의 `KeyGenParameterSpec`에 `setUnlockedDeviceRequired`·`setUserAuthenticationRequired` 없음(API 기준, 실기기 미확인) | 생성: `WHEN_UNLOCKED`(기본) → `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`, `AFTER_FIRST_UNLOCK` → `kSecAttrAccessibleAfterFirstUnlockThisDeviceOnly`. 기존 키: `SecItemCopyMatching`에 `kSecReturnAttributes`를 더해 `kSecAttrAccessible`(`pdmn`)을 읽음(AfterFirstUnlock 계열 → `AFTER_FIRST_UNLOCK`, 나머지 → `WHEN_UNLOCKED`, 없음·모름 → `WHEN_UNLOCKED` + WARN). 마이그레이션 없음 |
+| 잠긴 기기 | 해당 없음(키에 잠금 요구 없음) | `errSecInteractionNotAllowed`(-25308): 조회·읽기·쓰기·삭제의 OSStatus와 `SecKeyCreateRandomKey`의 CFError(OSStatus 도메인) → `KeyStoreError.Locked`. 잠금 전에 얻은 `WHEN_UNLOCKED` 핸들의 ECDH 실패는 아직 `Signer`의 `BAD_PARAMETER`(→ `startSession` 시간 초과) — 후속 후보 |
 | 공개키 | `ECPublicKey.w` → `0x04‖X(32)‖Y(32)` (좌표를 32바이트로 0-패딩) | `SecKeyCopyPublicKey` → `SecKeyCopyExternalRepresentation` (X9.63 65바이트 그대로) |
 | ECDH | `KeyAgreement.getInstance("ECDH", "AndroidKeyStore").init(priv); doPhase(peerPub, true); generateSecret()` → 32바이트 X | `SecKeyCopyKeyExchangeResult(priv, kSecKeyAlgorithmECDHKeyExchangeStandard, peerPub, params{})` → 32바이트 X. peerPub는 `SecKeyCreateWithData`(65바이트, `kSecAttrKeyClassPublic`) |
 | 삭제 | `KeyStore.deleteEntry(alias)` + 대체 키 파일 삭제 | `SecItemDelete` |
@@ -739,6 +741,7 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 | 0011 | 골든 픽스처를 Kotlin 상수로 | D30 |
 | 0012 | 로컬 검증 게이트가 GitHub Actions CI를 대체 | 사용자 결정 (2026-09-27) |
 | 0013 | 패키지 루트를 `dev.mirolab.teslable` 로 변경 | PRD D14 (2026-10-17) |
+| 0014 | iOS 키 접근성 선택(잠긴 휴대폰에서 키 사용), 기본값 유지·옵트인, ADR-0008 보완 | 설계 §5.6 (2026-10-24), FR-037 |
 
 ---
 

@@ -145,6 +145,14 @@
 - [ ] **Step 4:** PASS, `apiDump`, ADR-0014(배경: 잠긴 폰 모니터링, 선택지, 기본값 유지 이유, 위험, Android 근거), 문서·PRD·SDD.
 - [ ] **Step 5:** 커밋, `verify.sh`, AI 리뷰(`security` 라벨), PR → 머지. #91 체크.
 
+**구현 기록(2026-10-24, ADR-0014):**
+- 다시 읽기: 기존 질의에 `kSecReturnAttributes`를 더해 항목의 `kSecAttrAccessible`(`pdmn`)을 읽는다(결과 딕셔너리의 `kSecValueRef`는 retain). 라벨 같은 별도 메타데이터는 저장하지 않는다. 보고되지 않거나 모르는 값이면 `WHEN_UNLOCKED`로 보고하고 WARN.
+- `Locked`: OSStatus -25308(조회·읽기·쓰기·삭제)과 `SecKeyCreateRandomKey`의 CFError(OSStatus 도메인, -25308)만. 생성 중 `Locked`면 소프트웨어 대체 없음(`KeyCreationChain` + 내부 `KeyStoreLockedException`). `temporary = true`.
+- 범위를 좁힘: FR-037의 `Locked`는 키 저장소 호출에 한정한다. 잠금 전에 얻은 `WHEN_UNLOCKED` 키 핸들의 핸드셰이크 ECDH 실패는 지금 `startSession` 시간 초과다(Codex는 이 작업에 넣거나 FR-037을 명시적으로 좁히라고 함 → 좁히고 문서화, 후속 작업 여부는 사용자 결정).
+- 함께 바뀐 파일: `KeychainAccessibility.kt`(+Test), `KeyCreationChain.kt`, `SoftwareVehicleKey.kt`, `InMemoryVehicleKeyStore.kt`, `testing/FakeVehicleKeyStore.kt`(iOS처럼 생성 때 접근성 기억), `adapter-storage` 복사본 머리 주석(차이 기록), `18-lib-troubleshooting`, 매뉴얼 `index.html` 13번 카드. 구조 변경은 `struct:` 커밋 하나(Secure Enclave 키 생성의 CFError 범위 분리).
+- 추가 테스트: `keychainQueryResultCarriesTheItemsAccessibility`, `enclaveQueryResultCarriesTheKeysAccessibilityAndOutlivesTheResult`, `protectionClassIsComparedByContentNotIdentity`, `secureEnclaveLockedErrorIsRecognized`, `creatingAKeyWhileLockedIsLockedAndLeavesNoSoftwareKey`, `unreportedProtectionClassReadsAsWhenUnlockedWithAWarning`, `lockedHardwareAttemptIsLockedAndNeverFallsBackToSoftware`, `keystoreKeysReportAfterFirstUnlock`, `lockedKeyStoreIsTemporaryAndNeverExecuted`.
+- Swift 표면(SKIE 생성 코드로 확인): `getOrCreate(alias:policy:)`, `getOrCreate(alias:policy:accessibility:)`, `KeyAccessibility { .whenUnlocked, .afterFirstUnlock }`, `VehicleKey.accessibility`, `VehicleErrorKeyStoreErrorLocked`(`onEnum`의 `.locked`).
+
 ### Task 8: (조건부) 스캔 필터 변경
 
 Task 2 결과로 사용자가 승인한 경우에만. 이 계획을 먼저 고쳐 정확한 단계를 적은 뒤 진행한다(AGENTS §4 "계획에 없는 일은 계획을 먼저 고친다").

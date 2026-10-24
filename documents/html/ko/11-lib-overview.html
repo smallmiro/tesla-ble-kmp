@@ -66,7 +66,7 @@
 </ol></div>
 
 <h2 id="sec-status">현재 동작하는 기능</h2>
-<p>라이브러리는 마일스톤 단위로 만들어집니다. 이 페이지들은 <code>main</code>의 코드를 설명하며, 현재 <strong>M4</strong> 단계이고, 이슈 #91의 브로드캐스트 이벤트가 더해졌습니다.</p>
+<p>라이브러리는 마일스톤 단위로 만들어집니다. 이 페이지들은 <code>main</code>의 코드를 설명하며, 현재 <strong>M4</strong> 단계이고, 이슈 #91의 브로드캐스트 이벤트와 키 접근성 선택이 더해졌습니다.</p>
 <table>
 <thead><tr><th>영역</th><th>마일스톤</th><th>상태</th><th>페이지</th></tr></thead>
 <tbody>
@@ -75,13 +75,14 @@
 <tr><td>키 없이 하는 읽기 전용 조회: <code>vehicleStatus()</code>, <code>keySummary()</code>, <code>listKeys()</code></td><td>M3</td><td><span class="badge ok">완료</span></td><td><a href="14-lib-reading-state.html">14</a></td></tr>
 <tr><td>키 등록(<code>addKeyRequest</code>, <code>sessionInfo</code>, <code>addKey</code>, <code>removeKey</code>), VCSEC 제어(잠금, 잠금 해제, 트렁크 등)</td><td>M4</td><td><span class="badge ok">완료</span> 실차 확인 전</td><td><a href="13-lib-pairing.html">13</a>, <a href="15-lib-commands.html">15</a></td></tr>
 <tr><td>브로드캐스트 이벤트 <code>vehicle.events</code>(<code>VehicleEvent</code>)와 <code>VehicleStatus.gear</code></td><td>#91 (M5 이전)</td><td><span class="badge ok">완료</span> 브로드캐스트 자체는 실차에서 확인했고, <code>events</code> API는 FakeVehicle 테스트로 확인(실차 확인 전)</td><td><a href="14-lib-reading-state.html#sec-b-library">14</a>, <a href="12-lib-getting-started.html#sec-events">12</a></td></tr>
+<tr><td>잠긴 iPhone을 위한 키 접근성: <code>KeyAccessibility</code>, <code>VehicleKey.accessibility</code>, <code>KeyStoreError.Locked</code></td><td>#91 (M5 이전)</td><td><span class="badge ok">완료</span> 단위 테스트와 가짜 객체로 확인. 키체인 왕복과 잠긴 iPhone에서의 사용은 나중에 실기기에서 확인</td><td><a href="13-lib-pairing.html#sec-accessibility">13</a>, <a href="17-lib-platform-notes.html#sec-keys">17</a></td></tr>
 <tr><td>Infotainment 제어와 <code>getState()</code></td><td>M5</td><td><span class="badge warn">예정</span></td><td><a href="14-lib-reading-state.html">14</a>, <a href="15-lib-commands.html">15</a></td></tr>
 <tr><td>패키지: GitHub Packages와 Swift Package Manager</td><td>M6</td><td><span class="badge warn">예정</span></td><td><a href="#sec-install">설치</a></td></tr>
 </tbody>
 </table>
 <div class="callout warn">
 <strong>예정된 API는 아직 사용할 수 없습니다</strong>
-<p>예정된 메서드의 이름은 요구사항 문서(<code>docs/prd/PRD.md</code>)에서 가져온 것이며 마일스톤이 반영될 때 바뀔 수 있습니다. 그때까지 앱은 스캔, 연결, 상태 읽기, 차량 브로드캐스트 수신, 키 등록, VCSEC 제어 명령 전송을 할 수 있지만 인포테인먼트 명령은 보낼 수 없습니다. 페어링과 VCSEC 명령은 아직 실차에서 확인하지 않았습니다.</p>
+<p>예정된 메서드의 이름은 요구사항 문서(<code>docs/prd/PRD.md</code>)에서 가져온 것이며 마일스톤이 반영될 때 바뀔 수 있습니다. 그때까지 앱은 스캔, 연결, 상태 읽기, 차량 브로드캐스트 수신, 키 등록, 휴대폰이 잠겨 있을 때도 키를 쓸지 선택, VCSEC 제어 명령 전송을 할 수 있지만 인포테인먼트 명령은 보낼 수 없습니다. 페어링과 VCSEC 명령은 아직 실차에서 확인하지 않았습니다.</p>
 </div>
 
 <h2 id="sec-platforms">플랫폼과 패키지</h2>
@@ -110,6 +111,7 @@
 <tr><td>앱에서 스캔, 연결하고 차량 상태 표시하기</td><td><a href="12-lib-getting-started.html">12. 라이브러리 시작하기</a>, <a href="14-lib-reading-state.html">14. 차량 상태 조회</a></td></tr>
 <tr><td>차량 브로드캐스트로 실시간 상태 표시하기</td><td><a href="12-lib-getting-started.html#sec-events">12. 라이브러리 시작하기</a>, <a href="14-lib-reading-state.html#sec-b-library">14. 차량 상태 조회</a></td></tr>
 <tr><td>휴대폰 키 생성, 조회, 삭제와 등록 여부 확인</td><td><a href="13-lib-pairing.html">13. 키와 페어링</a></td></tr>
+<tr><td>휴대폰이 잠겨 있을 때 휴대폰 키 쓰기</td><td><a href="13-lib-pairing.html#sec-accessibility">13. 키와 페어링</a>, <a href="17-lib-platform-notes.html#sec-keys">17. 플랫폼 노트</a></td></tr>
 <tr><td>어떤 명령이 있고 어떤 명령이 추가될지 확인</td><td><a href="15-lib-commands.html">15. 명령</a></td></tr>
 <tr><td>오류를 어떻게 처리할지 결정</td><td><a href="16-lib-errors.html">16. 에러 처리</a></td></tr>
 <tr><td>권한, <code>Info.plist</code>, 백업 규칙 설정</td><td><a href="17-lib-platform-notes.html">17. 플랫폼 노트</a></td></tr>
