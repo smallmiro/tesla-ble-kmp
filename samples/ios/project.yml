@@ -5,7 +5,7 @@ settings:
   base:
     # 샘플 앱 버전(앱 정보 화면에 표시). 실차 확인 빌드마다 CURRENT_PROJECT_VERSION을 올린다.
     MARKETING_VERSION: "0.4.0"
-    CURRENT_PROJECT_VERSION: "10"
+    CURRENT_PROJECT_VERSION: "11"
   deploymentTarget:
     iOS: "16.0"
 targets:

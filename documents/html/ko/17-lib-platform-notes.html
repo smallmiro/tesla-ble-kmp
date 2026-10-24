@@ -148,7 +148,7 @@
 <ul>
 <li>잠긴 iPhone에서 키체인 오류 <code>errSecInteractionNotAllowed</code>(-25308)는 <code>KeyStoreError.Locked</code>가 됩니다. <code>WHEN_UNLOCKED</code> 키는 휴대폰이 잠긴 동안 읽거나 핸드셰이크에 쓸 수 없고, <code>AFTER_FIRST_UNLOCK</code> 키는 마지막 재시동 뒤 한 번 잠금을 푼 다음부터 쓸 수 있습니다. 첫 잠금 해제 전에는 모든 키가 잠겨 있습니다. 휴대폰이 잠겨 만들지 못한 키를 소프트웨어 키로 대신하지 않습니다.</li>
 <li>휴대폰이 잠기기 전에 읽어 둔 키 객체: Secure Enclave가 같은 오류(-25308)로 키 합의를 거부하면 핸드셰이크는 차량이 답하자마자 <code>KeyStoreError.Locked</code>로 끝나고 다시 시도하지 않으며, 그 키가 필요한 저장된 세션은 복원하지 않지만 그대로 남깁니다(<a href="13-lib-pairing.html#sec-accessibility">13</a>). 다른 키 합의 오류는 이전과 같습니다(핸드셰이크가 시간 제한까지 계속 시도). 소프트웨어 키 객체는 개인키를 메모리에 두므로 잠긴 뒤에도 계속 동작합니다(API 기준).</li>
-<li>실기기에서 아직 확인하지 않은 것: 두 설정의 키체인 왕복, 설정 다시 읽기, 잠긴 iPhone에서 <code>AFTER_FIRST_UNLOCK</code> Secure Enclave 키로 하는 핸드셰이크, 그리고 잠긴 iPhone이 <code>WHEN_UNLOCKED</code> Secure Enclave 키의 키 합의에 어떤 오류를 내는지(라이브러리는 -25308을 기대합니다. 다른 오류면 <code>startSession()</code>은 여전히 시간 초과로 끝납니다). 샘플 앱으로 확인합니다(빌드 10이 준비되었고, 확인은 계획 Task 11입니다). 휴대폰이 잠긴 동안 키를 쓰려면 앱이 백그라운드에서 계속 실행되어야 하며, 이 내용은 아직 이 문서에서 다루지 않습니다.</li>
+<li>실기기에서 아직 확인하지 않은 것: 두 설정의 키체인 왕복, 설정 다시 읽기, 잠긴 iPhone에서 <code>AFTER_FIRST_UNLOCK</code> Secure Enclave 키로 하는 핸드셰이크, 그리고 잠긴 iPhone이 <code>WHEN_UNLOCKED</code> Secure Enclave 키의 키 합의에 어떤 오류를 내는지(라이브러리는 -25308을 기대합니다. 다른 오류면 <code>startSession()</code>은 여전히 시간 초과로 끝납니다). 샘플 앱으로 확인합니다(빌드 11이 준비되었고, 확인은 계획 Task 11입니다). 휴대폰이 잠긴 동안 키를 쓰려면 앱이 백그라운드에서 계속 실행되어야 하며, 이 내용은 아직 이 문서에서 다루지 않습니다.</li>
 </ul>
 <div class="callout danger">
 <strong>손상된 키는 자동으로 교체되지 않습니다</strong>
