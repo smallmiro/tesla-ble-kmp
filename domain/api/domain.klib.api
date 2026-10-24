@@ -1559,6 +1559,40 @@ final enum class com.tesla.generated.vcsec/WhitelistOperation_information_E : co
     }
 }
 
+final enum class dev.mirolab.teslable.model/AuthenticationLevel : kotlin/Enum<dev.mirolab.teslable.model/AuthenticationLevel> { // dev.mirolab.teslable.model/AuthenticationLevel|null[0]
+    enum entry DRIVE // dev.mirolab.teslable.model/AuthenticationLevel.DRIVE|null[0]
+    enum entry NONE // dev.mirolab.teslable.model/AuthenticationLevel.NONE|null[0]
+    enum entry UNKNOWN // dev.mirolab.teslable.model/AuthenticationLevel.UNKNOWN|null[0]
+    enum entry UNLOCK // dev.mirolab.teslable.model/AuthenticationLevel.UNLOCK|null[0]
+
+    final val entries // dev.mirolab.teslable.model/AuthenticationLevel.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.mirolab.teslable.model/AuthenticationLevel> // dev.mirolab.teslable.model/AuthenticationLevel.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.mirolab.teslable.model/AuthenticationLevel // dev.mirolab.teslable.model/AuthenticationLevel.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.mirolab.teslable.model/AuthenticationLevel> // dev.mirolab.teslable.model/AuthenticationLevel.values|values#static(){}[0]
+}
+
+final enum class dev.mirolab.teslable.model/AuthenticationReason : kotlin/Enum<dev.mirolab.teslable.model/AuthenticationReason> { // dev.mirolab.teslable.model/AuthenticationReason|null[0]
+    enum entry ENTERED_HIGHER_AUTH_ZONE // dev.mirolab.teslable.model/AuthenticationReason.ENTERED_HIGHER_AUTH_ZONE|null[0]
+    enum entry GTW_REQUEST // dev.mirolab.teslable.model/AuthenticationReason.GTW_REQUEST|null[0]
+    enum entry IDENTIFICATION // dev.mirolab.teslable.model/AuthenticationReason.IDENTIFICATION|null[0]
+    enum entry IMMOBILIZER // dev.mirolab.teslable.model/AuthenticationReason.IMMOBILIZER|null[0]
+    enum entry NOT_DOCUMENTED // dev.mirolab.teslable.model/AuthenticationReason.NOT_DOCUMENTED|null[0]
+    enum entry PASSIVE_UNLOCK_AUTOPRESENT_DOOR // dev.mirolab.teslable.model/AuthenticationReason.PASSIVE_UNLOCK_AUTOPRESENT_DOOR|null[0]
+    enum entry PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL // dev.mirolab.teslable.model/AuthenticationReason.PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL|null[0]
+    enum entry PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL // dev.mirolab.teslable.model/AuthenticationReason.PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL|null[0]
+    enum entry POWER_ON_VEHICLE_REQUEST // dev.mirolab.teslable.model/AuthenticationReason.POWER_ON_VEHICLE_REQUEST|null[0]
+    enum entry UI_UNLOCK_PASSIVE_AUTH // dev.mirolab.teslable.model/AuthenticationReason.UI_UNLOCK_PASSIVE_AUTH|null[0]
+    enum entry UNKNOWN // dev.mirolab.teslable.model/AuthenticationReason.UNKNOWN|null[0]
+    enum entry WALK_UP_UNLOCK // dev.mirolab.teslable.model/AuthenticationReason.WALK_UP_UNLOCK|null[0]
+
+    final val entries // dev.mirolab.teslable.model/AuthenticationReason.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.mirolab.teslable.model/AuthenticationReason> // dev.mirolab.teslable.model/AuthenticationReason.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.mirolab.teslable.model/AuthenticationReason // dev.mirolab.teslable.model/AuthenticationReason.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.mirolab.teslable.model/AuthenticationReason> // dev.mirolab.teslable.model/AuthenticationReason.values|values#static(){}[0]
+}
+
 final enum class dev.mirolab.teslable.model/ClosureState : kotlin/Enum<dev.mirolab.teslable.model/ClosureState> { // dev.mirolab.teslable.model/ClosureState|null[0]
     enum entry AJAR // dev.mirolab.teslable.model/ClosureState.AJAR|null[0]
     enum entry CLOSED // dev.mirolab.teslable.model/ClosureState.CLOSED|null[0]
@@ -2386,6 +2420,58 @@ sealed interface dev.mirolab.teslable.model/VehicleError { // dev.mirolab.teslab
         final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.model/VehicleError.UnknownResponse.equals|equals(kotlin.Any?){}[0]
         final fun hashCode(): kotlin/Int // dev.mirolab.teslable.model/VehicleError.UnknownResponse.hashCode|hashCode(){}[0]
         final fun toString(): kotlin/String // dev.mirolab.teslable.model/VehicleError.UnknownResponse.toString|toString(){}[0]
+    }
+}
+
+sealed interface dev.mirolab.teslable.model/VehicleEvent { // dev.mirolab.teslable.model/VehicleEvent|null[0]
+    abstract val raw // dev.mirolab.teslable.model/VehicleEvent.raw|{}raw[0]
+        abstract fun <get-raw>(): kotlin/ByteArray // dev.mirolab.teslable.model/VehicleEvent.raw.<get-raw>|<get-raw>(){}[0]
+    abstract val unknownFields // dev.mirolab.teslable.model/VehicleEvent.unknownFields|{}unknownFields[0]
+        abstract fun <get-unknownFields>(): kotlin.collections/List<kotlin/String> // dev.mirolab.teslable.model/VehicleEvent.unknownFields.<get-unknownFields>|<get-unknownFields>(){}[0]
+
+    final class AuthenticationRequest : dev.mirolab.teslable.model/VehicleEvent { // dev.mirolab.teslable.model/VehicleEvent.AuthenticationRequest|null[0]
+        constructor <init>(dev.mirolab.teslable.model/AuthenticationLevel, kotlin.collections/List<dev.mirolab.teslable.model/AuthenticationReason>, kotlin/ByteArray, kotlin.collections/List<kotlin/String>) // dev.mirolab.teslable.model/VehicleEvent.AuthenticationRequest.<init>|<init>(dev.mirolab.teslable.model.AuthenticationLevel;kotlin.collections.List<dev.mirolab.teslable.model.AuthenticationReason>;kotlin.ByteArray;kotlin.collections.List<kotlin.String>){}[0]
+
+        final val raw // dev.mirolab.teslable.model/VehicleEvent.AuthenticationRequest.raw|{}raw[0]
+            final fun <get-raw>(): kotlin/ByteArray // dev.mirolab.teslable.model/VehicleEvent.AuthenticationRequest.raw.<get-raw>|<get-raw>(){}[0]
+        final val reasons // dev.mirolab.teslable.model/VehicleEvent.AuthenticationRequest.reasons|{}reasons[0]
+            final fun <get-reasons>(): kotlin.collections/List<dev.mirolab.teslable.model/AuthenticationReason> // dev.mirolab.teslable.model/VehicleEvent.AuthenticationRequest.reasons.<get-reasons>|<get-reasons>(){}[0]
+        final val requestedLevel // dev.mirolab.teslable.model/VehicleEvent.AuthenticationRequest.requestedLevel|{}requestedLevel[0]
+            final fun <get-requestedLevel>(): dev.mirolab.teslable.model/AuthenticationLevel // dev.mirolab.teslable.model/VehicleEvent.AuthenticationRequest.requestedLevel.<get-requestedLevel>|<get-requestedLevel>(){}[0]
+        final val unknownFields // dev.mirolab.teslable.model/VehicleEvent.AuthenticationRequest.unknownFields|{}unknownFields[0]
+            final fun <get-unknownFields>(): kotlin.collections/List<kotlin/String> // dev.mirolab.teslable.model/VehicleEvent.AuthenticationRequest.unknownFields.<get-unknownFields>|<get-unknownFields>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.model/VehicleEvent.AuthenticationRequest.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.mirolab.teslable.model/VehicleEvent.AuthenticationRequest.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.mirolab.teslable.model/VehicleEvent.AuthenticationRequest.toString|toString(){}[0]
+    }
+
+    final class Status : dev.mirolab.teslable.model/VehicleEvent { // dev.mirolab.teslable.model/VehicleEvent.Status|null[0]
+        constructor <init>(dev.mirolab.teslable.model/VehicleStatus, kotlin/ByteArray, kotlin.collections/List<kotlin/String>) // dev.mirolab.teslable.model/VehicleEvent.Status.<init>|<init>(dev.mirolab.teslable.model.VehicleStatus;kotlin.ByteArray;kotlin.collections.List<kotlin.String>){}[0]
+
+        final val raw // dev.mirolab.teslable.model/VehicleEvent.Status.raw|{}raw[0]
+            final fun <get-raw>(): kotlin/ByteArray // dev.mirolab.teslable.model/VehicleEvent.Status.raw.<get-raw>|<get-raw>(){}[0]
+        final val status // dev.mirolab.teslable.model/VehicleEvent.Status.status|{}status[0]
+            final fun <get-status>(): dev.mirolab.teslable.model/VehicleStatus // dev.mirolab.teslable.model/VehicleEvent.Status.status.<get-status>|<get-status>(){}[0]
+        final val unknownFields // dev.mirolab.teslable.model/VehicleEvent.Status.unknownFields|{}unknownFields[0]
+            final fun <get-unknownFields>(): kotlin.collections/List<kotlin/String> // dev.mirolab.teslable.model/VehicleEvent.Status.unknownFields.<get-unknownFields>|<get-unknownFields>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.model/VehicleEvent.Status.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.mirolab.teslable.model/VehicleEvent.Status.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.mirolab.teslable.model/VehicleEvent.Status.toString|toString(){}[0]
+    }
+
+    final class Unrecognized : dev.mirolab.teslable.model/VehicleEvent { // dev.mirolab.teslable.model/VehicleEvent.Unrecognized|null[0]
+        constructor <init>(kotlin/ByteArray, kotlin.collections/List<kotlin/String>) // dev.mirolab.teslable.model/VehicleEvent.Unrecognized.<init>|<init>(kotlin.ByteArray;kotlin.collections.List<kotlin.String>){}[0]
+
+        final val raw // dev.mirolab.teslable.model/VehicleEvent.Unrecognized.raw|{}raw[0]
+            final fun <get-raw>(): kotlin/ByteArray // dev.mirolab.teslable.model/VehicleEvent.Unrecognized.raw.<get-raw>|<get-raw>(){}[0]
+        final val unknownFields // dev.mirolab.teslable.model/VehicleEvent.Unrecognized.unknownFields|{}unknownFields[0]
+            final fun <get-unknownFields>(): kotlin.collections/List<kotlin/String> // dev.mirolab.teslable.model/VehicleEvent.Unrecognized.unknownFields.<get-unknownFields>|<get-unknownFields>(){}[0]
+
+        final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.model/VehicleEvent.Unrecognized.equals|equals(kotlin.Any?){}[0]
+        final fun hashCode(): kotlin/Int // dev.mirolab.teslable.model/VehicleEvent.Unrecognized.hashCode|hashCode(){}[0]
+        final fun toString(): kotlin/String // dev.mirolab.teslable.model/VehicleEvent.Unrecognized.toString|toString(){}[0]
     }
 }
 

@@ -10147,6 +10147,34 @@ public final class dev/mirolab/teslable/cache/SessionSnapshot {
 	public final fun getSessionInfo ()[B
 }
 
+public final class dev/mirolab/teslable/model/AuthenticationLevel : java/lang/Enum {
+	public static final field DRIVE Ldev/mirolab/teslable/model/AuthenticationLevel;
+	public static final field NONE Ldev/mirolab/teslable/model/AuthenticationLevel;
+	public static final field UNKNOWN Ldev/mirolab/teslable/model/AuthenticationLevel;
+	public static final field UNLOCK Ldev/mirolab/teslable/model/AuthenticationLevel;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/model/AuthenticationLevel;
+	public static fun values ()[Ldev/mirolab/teslable/model/AuthenticationLevel;
+}
+
+public final class dev/mirolab/teslable/model/AuthenticationReason : java/lang/Enum {
+	public static final field ENTERED_HIGHER_AUTH_ZONE Ldev/mirolab/teslable/model/AuthenticationReason;
+	public static final field GTW_REQUEST Ldev/mirolab/teslable/model/AuthenticationReason;
+	public static final field IDENTIFICATION Ldev/mirolab/teslable/model/AuthenticationReason;
+	public static final field IMMOBILIZER Ldev/mirolab/teslable/model/AuthenticationReason;
+	public static final field NOT_DOCUMENTED Ldev/mirolab/teslable/model/AuthenticationReason;
+	public static final field PASSIVE_UNLOCK_AUTOPRESENT_DOOR Ldev/mirolab/teslable/model/AuthenticationReason;
+	public static final field PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL Ldev/mirolab/teslable/model/AuthenticationReason;
+	public static final field PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL Ldev/mirolab/teslable/model/AuthenticationReason;
+	public static final field POWER_ON_VEHICLE_REQUEST Ldev/mirolab/teslable/model/AuthenticationReason;
+	public static final field UI_UNLOCK_PASSIVE_AUTH Ldev/mirolab/teslable/model/AuthenticationReason;
+	public static final field UNKNOWN Ldev/mirolab/teslable/model/AuthenticationReason;
+	public static final field WALK_UP_UNLOCK Ldev/mirolab/teslable/model/AuthenticationReason;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/model/AuthenticationReason;
+	public static fun values ()[Ldev/mirolab/teslable/model/AuthenticationReason;
+}
+
 public final class dev/mirolab/teslable/model/ClosureState : java/lang/Enum {
 	public static final field AJAR Ldev/mirolab/teslable/model/ClosureState;
 	public static final field CLOSED Ldev/mirolab/teslable/model/ClosureState;
@@ -10719,6 +10747,41 @@ public final class dev/mirolab/teslable/model/VehicleError$VcsecRejected : dev/m
 public final class dev/mirolab/teslable/model/VehicleErrorKt {
 	public static final fun shouldRetry (Ldev/mirolab/teslable/model/VehicleError;)Z
 	public static final fun toResult (Ldev/mirolab/teslable/model/VehicleError;)Ldev/mirolab/teslable/model/VehicleResult;
+}
+
+public abstract interface class dev/mirolab/teslable/model/VehicleEvent {
+	public abstract fun getRaw ()[B
+	public abstract fun getUnknownFields ()Ljava/util/List;
+}
+
+public final class dev/mirolab/teslable/model/VehicleEvent$AuthenticationRequest : dev/mirolab/teslable/model/VehicleEvent {
+	public fun <init> (Ldev/mirolab/teslable/model/AuthenticationLevel;Ljava/util/List;[BLjava/util/List;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getRaw ()[B
+	public final fun getReasons ()Ljava/util/List;
+	public final fun getRequestedLevel ()Ldev/mirolab/teslable/model/AuthenticationLevel;
+	public fun getUnknownFields ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/mirolab/teslable/model/VehicleEvent$Status : dev/mirolab/teslable/model/VehicleEvent {
+	public fun <init> (Ldev/mirolab/teslable/model/VehicleStatus;[BLjava/util/List;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getRaw ()[B
+	public final fun getStatus ()Ldev/mirolab/teslable/model/VehicleStatus;
+	public fun getUnknownFields ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
+}
+
+public final class dev/mirolab/teslable/model/VehicleEvent$Unrecognized : dev/mirolab/teslable/model/VehicleEvent {
+	public fun <init> ([BLjava/util/List;)V
+	public fun equals (Ljava/lang/Object;)Z
+	public fun getRaw ()[B
+	public fun getUnknownFields ()Ljava/util/List;
+	public fun hashCode ()I
+	public fun toString ()Ljava/lang/String;
 }
 
 public abstract interface class dev/mirolab/teslable/model/VehicleResult {
