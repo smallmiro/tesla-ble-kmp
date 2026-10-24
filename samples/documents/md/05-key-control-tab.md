@@ -20,12 +20,12 @@ The rules are a pure function (`KeyControlSteps`) so they are unit tested withou
 
 Inputs: key ready (the monitor key exists and is readable), key locked (phone lock blocks the key), VIN saved,
 connected with a key (`connection` is `Connected` and `vehicle.hasKey`, `14-lib-reading-state.md`; a key-store error at
-connect time connects without a key, and the hint says to disconnect and connect again), enrollment (`unknown`, `checking`, `notEnrolled`, `enrolled`), busy (a library call of this tab runs).
+connect time connects without a key; step 2 then stays "to do" and its button becomes **Disconnect and connect again**, which stops the monitor's connection and connects again with the key), enrollment (`unknown`, `checking`, `notEnrolled`, `enrolled`), busy (a library call of this tab runs).
 
 | Step | Done when | Blocked when (hint) | Button enabled when |
 |---|---|---|---|
 | 1 Key | key ready | key locked (hint: unlock the phone and press again) | not busy |
-| 2 Connect | connected | no VIN saved (hint: save the VIN on the Live tab) | VIN saved, not connected, not busy |
+| 2 Connect | connected with a key | no VIN saved (hint: save the VIN on the Live tab) | VIN saved, not connected, not busy; or connected without a key and not busy (reconnect) |
 | 3 Enroll | enrollment = `enrolled` | key not ready or not connected (hint: finish steps 1 and 2 first) | key ready, connected, enrollment ≠ `enrolled`, ≠ `checking`, not busy |
 | 4 Control | – | enrollment ≠ `enrolled` (hint: the buttons turn on once the key is enrolled) | key ready, connected, enrollment = `enrolled`, not busy |
 
@@ -80,7 +80,8 @@ a result line says why. Model X and Cybertruck buttons sit in a collapsed "Other
 lights) wait for M5 and are not shown.
 
 Other controls: a status card (lock, trunk, frunk, sleep, time of the last read) with a **Refresh status** button
-(`vehicleStatus()`), and a result list (newest first, time stamped, no VIN).
+(`vehicleStatus()`), and a result list (newest first, time stamped, no VIN). The status card belongs to one connection: it is
+cleared when the connection changes, and a re-query that ends after the connection changed does not update it.
 
 ## Concurrency
 
