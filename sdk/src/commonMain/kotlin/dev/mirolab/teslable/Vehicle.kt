@@ -53,7 +53,11 @@ public interface Vehicle {
      */
     public val events: Flow<VehicleEvent>
 
-    /** 핸드셰이크(FR-012). 캐시로 준비된 도메인은 요청 없이 성공. */
+    /**
+     * 핸드셰이크(FR-012). 캐시로 준비된 도메인은 요청 없이 성공. 기기가 잠겨 개인키를 쓸 수 없으면(잠기기 전에 얻은 iOS `WHEN_UNLOCKED`
+     * Secure Enclave 키) 차량의 첫 응답 직후 `Failure(KeyStoreError.Locked)` — 다시 시도하지 않는다. 키를 지우지 말고 잠금이 풀린 뒤
+     * 다시 부른다(FR-037).
+     */
     public suspend fun startSession(
         domains: Set<VehicleDomain> = VehicleDomain.ALL,
         timeout: Duration? = null,
@@ -73,7 +77,8 @@ public interface Vehicle {
 
     /**
      * [publicKey]에 대한 [domain]의 세션정보(FR-024). 인증 없음. 등록돼 있지 않으면 `Failure(KeyNotPaired)`.
-     * 페어링 확정은 `sessionInfo(publicKey, INFOTAINMENT)`로 확인한다. 이 연결의 키로 물으면 세션이 만들어져 [sessions]에도 반영된다.
+     * 페어링 확정은 `sessionInfo(publicKey, INFOTAINMENT)`로 확인한다. 이 연결의 키로 물으면 세션이 만들어져 [sessions]에도 반영된다
+     * (기기가 잠겨 개인키를 쓸 수 없으면 조회는 성공하지만 세션은 만들어지지 않는다, FR-037).
      */
     public suspend fun sessionInfo(
         publicKey: PublicKeyBytes,

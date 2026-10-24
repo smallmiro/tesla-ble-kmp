@@ -12,6 +12,10 @@ public interface EcdhPrivateKey {
     /** 이 키의 공개키, 65바이트 비압축. */
     public val publicKey: PublicKeyBytes
 
-    /** ECDH 공유점의 X좌표 32바이트 (Go `sharedX.FillBytes(32)`). */
+    /**
+     * ECDH 공유점의 X좌표 32바이트 (Go `sharedX.FillBytes(32)`).
+     * @throws KeyLockedException 키는 있지만 기기가 잠겨 지금은 쓸 수 없을 때(FR-037, #96 — 예: 잠기기 전에 얻은 iOS `WHEN_UNLOCKED`
+     *   Secure Enclave 키). Go `Exchange`에는 없는 구분이다. 핸드셰이크가 `KeyStoreError.Locked`로 바꾼다.
+     */
     public suspend fun sharedX(peer: PublicKeyBytes): ByteArray
 }

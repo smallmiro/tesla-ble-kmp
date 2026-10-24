@@ -9,11 +9,14 @@ import dev.mirolab.teslable.application.dispatcher.dispatcherHarness
 import dev.mirolab.teslable.application.dispatcher.testCommand
 import dev.mirolab.teslable.cache.SessionCacheCodec
 import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.model.PublicKeyBytes
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.port.AuthMethod
+import dev.mirolab.teslable.port.EcdhPrivateKey
 import dev.mirolab.teslable.protocol.ResponseClassifier
 import dev.mirolab.teslable.testing.FakeVehicle
+import dev.mirolab.teslable.testing.LockableEcdhKey
 import dev.mirolab.teslable.testing.RecordingSessionCache
 import dev.mirolab.teslable.testing.TestCrypto
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -160,6 +163,46 @@ class SessionCacheSyncTest {
                     .single()
             assertEquals(infotainment, stored.domain)
             assertEquals(0, SessionInfo.ADAPTER.decode(stored.sessionInfo).clock_time)
+        }
+
+    @Test
+    fun storeWritesNothingWhileADomainBlockedByTheLockHasNoSession() =
+        // FR-037(#96): 포트는 목록 전체를 덮어쓰고 저장 시각을 새로 붙인다 — 잠금 때문에 복원하지 못한 도메인의 옛 항목만 남길 수
+        // 없으므로(나이가 틀려진다) 그 도메인에 세션이 생길 때까지 쓰지 않는다. 여기서는 잠금이 첫 항목(VCSEC)과 둘째 항목 사이에 풀렸다.
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val first = dispatcherHarness(fake = fake)
+            assertIs<VehicleResult.Success<Unit>>(HandshakeFlow(first.dispatcher).startSessions())
+            val cache = RecordingSessionCache()
+            val sync = SessionCacheSync(cache, fake.vin, keyId)
+            sync.store(first.dispatcher)
+            val key = LockableEcdhKey()
+            val unlocksAfterOneAttempt =
+                object : EcdhPrivateKey by key {
+                    override suspend fun sharedX(peer: PublicKeyBytes): ByteArray =
+                        try {
+                            key.sharedX(peer)
+                        } finally {
+                            key.locked = false
+                        }
+                }
+            val second = dispatcherHarness(privateKey = unlocksAfterOneAttempt, fake = fake)
+            assertEquals(setOf(infotainment), sync.load(second.dispatcher))
+            assertEquals(setOf(vcsec), second.dispatcher.restoresBlockedByLock)
+            val storesBefore = cache.stores.size
+            sync.store(second.dispatcher) // INFOTAINMENT만 쓰면 아직 유효한 VCSEC 항목이 지워진다
+            assertEquals(storesBefore, cache.stores.size)
+            assertEquals(setOf(vcsec, infotainment), cache.load(fake.vin, keyId).map { it.domain }.toSet())
+            assertIs<VehicleResult.Success<Unit>>(HandshakeFlow(second.dispatcher).startSession(vcsec))
+            sync.store(second.dispatcher) // 막혔던 도메인에 세션이 생겼다 — 다시 쓴다
+            assertEquals(
+                setOf(vcsec, infotainment),
+                cache.stores
+                    .last()
+                    .entries
+                    .map { it.domain }
+                    .toSet(),
+            )
         }
 
     @Test

@@ -38,7 +38,10 @@ public enum class KeyPolicy {
  * Android·JVM은 요청을 무시하고 실제 값 [AFTER_FIRST_UNLOCK]을 보고한다.
  */
 public enum class KeyAccessibility {
-    /** 기기 잠금이 풀린 동안만(iOS `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`). 기본값. 잠긴 iPhone에서는 핸드셰이크를 할 수 없다. */
+    /**
+     * 기기 잠금이 풀린 동안만(iOS `kSecAttrAccessibleWhenUnlockedThisDeviceOnly`). 기본값. 잠긴 iPhone에서는 키를 읽을 수 없고
+     * (`KeyStoreError.Locked`), 잠기기 전에 읽어 둔 Secure Enclave 키로도 핸드셰이크할 수 없다(`startSession`이 `Locked`, #96).
+     */
     WHEN_UNLOCKED,
 
     /**

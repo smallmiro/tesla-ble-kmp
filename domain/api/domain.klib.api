@@ -12611,6 +12611,10 @@ final class dev.mirolab.teslable.port/ConnectOptions { // dev.mirolab.teslable.p
     final fun toString(): kotlin/String // dev.mirolab.teslable.port/ConnectOptions.toString|toString(){}[0]
 }
 
+final class dev.mirolab.teslable.port/KeyLockedException : kotlin/Exception { // dev.mirolab.teslable.port/KeyLockedException|null[0]
+    constructor <init>(kotlin/String = ...) // dev.mirolab.teslable.port/KeyLockedException.<init>|<init>(kotlin.String){}[0]
+}
+
 final class dev.mirolab.teslable.port/VehicleAdvertisement { // dev.mirolab.teslable.port/VehicleAdvertisement|null[0]
     constructor <init>(dev.mirolab.teslable.transport/LocalName, kotlin/String, kotlin/Int, kotlin/Boolean?) // dev.mirolab.teslable.port/VehicleAdvertisement.<init>|<init>(dev.mirolab.teslable.transport.LocalName;kotlin.String;kotlin.Int;kotlin.Boolean?){}[0]
 

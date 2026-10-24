@@ -1,16 +1,25 @@
 package dev.mirolab.teslable.application.dispatcher
 
+import com.tesla.generated.signatures.HMAC_Signature_Data
+import com.tesla.generated.signatures.SessionInfo
+import com.tesla.generated.signatures.Session_Info_Status
+import com.tesla.generated.signatures.SignatureData
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
+import com.tesla.generated.universalmessage.RoutableMessage
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.port.AuthMethod
 import dev.mirolab.teslable.protocol.ResponseClassifier
+import dev.mirolab.teslable.testing.LockableEcdhKey
+import dev.mirolab.teslable.testing.TestCrypto
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
 import kotlinx.coroutines.withTimeoutOrNull
+import okio.ByteString.Companion.toByteString
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -146,6 +155,72 @@ class HandshakeFlowTest {
             assertTrue(start.elapsedNow() < h.dispatcher.retryInterval * 2, "must not wait for the sleeping domain")
             runCurrent()
             assertEquals(0, h.dispatcher.pendingCount())
+        }
+
+    @Test
+    fun startSessionFailsWithLockedRightAfterTheReplyWhenTheKeyIsLocked() =
+        // FR-037(#96): 잠긴 키로는 다시 보내도 소용없다 — 재전송도 시간 초과도 없이 첫 응답 직후 Locked. Go tryStartSession은
+        // 키 Exchange 오류를 로그만 남기고 RetryInterval마다 다시 보낸다(의도한 차이, ADR-0014).
+        runTest {
+            for (domain in listOf(vcsec, infotainment)) {
+                val h = dispatcherHarness(privateKey = LockableEcdhKey())
+                val start = testTimeSource.markNow()
+                val result =
+                    assertIs<VehicleResult.Failure>(withTimeoutOrNull(quiescentDelay) { HandshakeFlow(h.dispatcher).startSession(domain) })
+                assertEquals(VehicleError.KeyStoreError.Locked, result.error, "$domain")
+                assertTrue(start.elapsedNow() < h.dispatcher.retryInterval, "$domain must not wait for a retransmission")
+                assertEquals(1, h.fake.sessionInfoRequests, "$domain")
+                assertFalse(assertNotNull(h.dispatcher.session(domain)).isReady)
+                runCurrent()
+                assertEquals(0, h.dispatcher.pendingCount())
+            }
+        }
+
+    @Test
+    fun startSessionsFailsWithLockedThenSucceedsOnceTheKeyIsUnlocked() =
+        // 두 도메인을 함께 시작해도 첫 Locked를 돌려주고 나머지를 취소한다. 잠금이 풀리면 다음 시도는 새 요청이라 이전 표시가 남지 않는다.
+        runTest {
+            val key = LockableEcdhKey()
+            val h = dispatcherHarness(privateKey = key)
+            val flow = HandshakeFlow(h.dispatcher)
+            val start = testTimeSource.markNow()
+            val locked = assertIs<VehicleResult.Failure>(withTimeoutOrNull(quiescentDelay) { flow.startSessions() })
+            assertEquals(VehicleError.KeyStoreError.Locked, locked.error)
+            assertTrue(start.elapsedNow() < h.dispatcher.retryInterval, "must not wait for a retransmission")
+            runCurrent()
+            assertEquals(0, h.dispatcher.pendingCount())
+            key.locked = false
+            assertIs<VehicleResult.Success<Unit>>(withTimeoutOrNull(quiescentDelay) { flow.startSessions() })
+            assertTrue(assertNotNull(h.dispatcher.session(vcsec)).isReady)
+            assertTrue(assertNotNull(h.dispatcher.session(infotainment)).isReady)
+        }
+
+    @Test
+    fun keyNotPairedInTheReplyWinsOverALockedKey() =
+        // Go GetError 순서를 지킨다: 응답에 실린 차량의 오류(session_info.status KEY_NOT_ON_WHITELIST)가 잠금보다 먼저다 — 잠금을 풀어도
+        // 소용없는 오류를 Locked로 가리지 않는다. 이 응답은 세션정보와 태그를 실어 수신 루프가 ECDH까지 가게 만든다.
+        runTest {
+            val h = dispatcherHarness(privateKey = LockableEcdhKey())
+            h.fake.sleep() // 차량은 답하지 않는다 — 응답은 아래에서 직접 만든다
+            val result = async { HandshakeFlow(h.dispatcher).startSession(vcsec) }
+            runCurrent()
+            val request = h.fake.received.last { it.session_info_request != null }
+            val info =
+                SessionInfo(
+                    status = Session_Info_Status.SESSION_INFO_STATUS_KEY_NOT_ON_WHITELIST,
+                    publicKey = TestCrypto.vehiclePublicKey.toByteArray().toByteString(),
+                )
+            val reply =
+                RoutableMessage(
+                    to_destination = request.from_destination,
+                    from_destination = request.to_destination,
+                    request_uuid = request.uuid,
+                    session_info = SessionInfo.ADAPTER.encode(info).toByteString(),
+                    signature_data = SignatureData(session_info_tag = HMAC_Signature_Data(tag = ByteArray(32).toByteString())),
+                )
+            assertTrue(h.transport.deliver(encode(reply)))
+            assertEquals(VehicleError.KeyNotPaired, assertIs<VehicleResult.Failure>(result.await()).error)
+            assertTrue(h.logger.contains("private key is locked")) // ECDH까지 갔다
         }
 
     @Test

@@ -23,6 +23,7 @@ import dev.mirolab.teslable.model.toResult
 import dev.mirolab.teslable.port.AuthMethod
 import dev.mirolab.teslable.port.CryptoPrimitives
 import dev.mirolab.teslable.port.EcdhPrivateKey
+import dev.mirolab.teslable.port.KeyLockedException
 import dev.mirolab.teslable.port.LogLevel
 import dev.mirolab.teslable.port.RandomSource
 import dev.mirolab.teslable.port.TeslaLogger
@@ -412,11 +413,20 @@ public class Dispatcher
 
         /**
          * Go `LoadCache`: 항목마다 [SessionState.loadFromCache](즉시 준비 상태). 손상된 항목·개인키 없음·키의 ECDH 예외는 WARN 로그 후 건너뛴다
-         * (Go는 전체 실패 — 설계 구체화 6). 복원한 도메인 집합을 돌려준다. Go는 세션 맵을 통째로 새로 만들어 교체하지만 이 구현은
-         * 기존 [sessions]에 도메인별로 병합한다 — 새 [Dispatcher](세션이 전부 비어 있는 상태)에서 부르면 결과는 같다.
+         * (Go는 전체 실패 — 설계 구체화 6). 기기 잠금으로 막힌 항목도 건너뛰되 [restoresBlockedByLock]에 남긴다(FR-037, #96). 복원한 도메인
+         * 집합을 돌려준다. Go는 세션 맵을 통째로 새로 만들어 교체하지만 이 구현은 기존 [sessions]에 도메인별로 병합한다 — 새 [Dispatcher]
+         * (세션이 전부 비어 있는 상태)에서 부르면 결과는 같다.
          */
         public suspend fun loadSessions(entries: List<CachedSession>): Set<Domain> =
             entries.filter { loadEntry(it) }.map { it.domain }.toSet()
+
+        /**
+         * 이 연결에서 캐시 세션을 복원하지 못한 이유가 기기 잠금([KeyLockedException])이었던 도메인(FR-037, #96, Go에 없음). 그 항목은 아직
+         * 유효하므로 `SessionCacheSync.store`는 이 도메인에 세션이 생길 때까지 캐시를 덮어쓰지 않는다. [loadSessions]만 늘린다.
+         */
+        @Volatile
+        internal var restoresBlockedByLock: Set<Domain> = emptySet()
+            private set
 
         /** [loadSessions]의 항목 하나. 복원했으면 true, 건너뛰었으면(WARN 로그) false. */
         private suspend fun loadEntry(entry: CachedSession): Boolean {
@@ -430,6 +440,13 @@ public class Dispatcher
                     session.loadFromCache(entry.sessionInfo, entry.age)
                 } catch (e: CancellationException) {
                     throw e
+                } catch (ignored: KeyLockedException) {
+                    // FR-037(#96): 손상이 아니라 잠금이다 — 아직 유효한 항목이므로 건너뛰되 도메인을 기억해 캐시 저장이 지우지 않게 한다
+                    logger.log(LogLevel.WARN, TAG) {
+                        "Cached session for ${entry.domain} not restored: the private key is locked (device locked)"
+                    }
+                    restoresBlockedByLock = restoresBlockedByLock + entry.domain
+                    return false
                 } catch (
                     @Suppress("TooGenericExceptionCaught") e: Exception,
                 ) {
@@ -712,7 +729,7 @@ public class Dispatcher
                 return
             }
             val wasUnconfirmed = session.isUnconfirmedCacheRestore
-            val result = processHelloOrNull(session, message, info, tag) ?: return
+            val result = processHelloOrNull(session, message, info, tag, handler) ?: return
             when (result) {
                 is SignerResult.Fault -> {
                     logger.log(LogLevel.WARN, TAG) { "[$id] Session info error: ${result.fault.name}: ${result.detail}" }
@@ -736,17 +753,28 @@ public class Dispatcher
         /**
          * [checkForSessionUpdate]의 [SessionState.processHello] 호출. 플랫폼 키의 ECDH 예외(최종 리뷰 I3)가 수신 코루틴을 죽이지 않게
          * 로그로 바꾸고 null을 돌려준다 — 호출자는 Fault처럼(이벤트 없이) 넘어가고 응답은 그대로 전달한다.
+         *
+         * 기기 잠금([KeyLockedException], FR-037·#96)은 예상 밖 오류가 아니므로 WARN이고, [handler]에 표시해 핸드셰이크가 재전송 없이
+         * `KeyStoreError.Locked`로 끝나게 한다. Go `checkForSessionUpdate`는 키 오류를 구별하지 않고 로그만 남긴다(의도한 차이, ADR-0014).
          */
         private suspend fun processHelloOrNull(
             session: SessionState,
             message: RoutableMessage,
             info: ByteString,
             tag: ByteString,
+            handler: PendingRequest,
         ): SignerResult<Unit>? =
             try {
                 session.processHello(message.request_uuid.toByteArray(), info.toByteArray(), tag.toByteArray())
             } catch (e: CancellationException) {
                 throw e
+            } catch (ignored: KeyLockedException) {
+                logger.log(LogLevel.WARN, TAG) {
+                    "[${message.request_uuid.hex()}] Session info not applied for ${handler.key.domain}: " +
+                        "the private key is locked (device locked)"
+                }
+                handler.markKeyLocked()
+                null
             } catch (
                 @Suppress("TooGenericExceptionCaught") e: Exception,
             ) {
