@@ -20,6 +20,7 @@ struct KeyControlTab: View {
             .padding(16)
         }
         .background(Color(.systemGroupedBackground))
+        .onAppear { model.tabAppeared() }
         .confirmationDialog(
             model.pendingConfirm?.confirmation?.title ?? "",
             isPresented: Binding(get: { model.pendingConfirm != nil }, set: { if !$0 { model.pendingConfirm = nil } }),
@@ -27,7 +28,7 @@ struct KeyControlTab: View {
             presenting: model.pendingConfirm
         ) { button in
             Button(button.confirmation?.action ?? button.title, role: .destructive) {
-                Task { await model.run(button) }
+                Task { await model.runConfirmed(button) }
             }
             Button("취소", role: .cancel) {}
         } message: { button in

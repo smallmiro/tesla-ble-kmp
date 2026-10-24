@@ -32,6 +32,7 @@ final class MonitorModel: ObservableObject {
         self.engine = engine
         control = SampleModel(engine: engine)
         keyControl = KeyControlModel(engine: engine)
+        control.onEnrollmentChange = { [weak keyControl] change in keyControl?.enrollmentChangedElsewhere(change) }
         let updates = engine.updates
         Task { [weak self] in
             for await update in updates { self?.apply(update) }
@@ -56,7 +57,9 @@ final class MonitorModel: ObservableObject {
         switch update {
         case .link(let state):
             link = state
-            keyControl.connectionChanged(connected: isConnected)
+            var hasKey = false
+            if case .connected(let box) = state { hasKey = box.vehicle.hasKey }
+            keyControl.connectionChanged(connected: isConnected, hasKey: hasKey)
         case .live(let state): live = state
         case .queries(let results): queries = results
         case .sessions(let text): sessions = text
