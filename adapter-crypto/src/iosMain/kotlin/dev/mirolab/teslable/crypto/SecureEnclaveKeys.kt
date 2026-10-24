@@ -281,7 +281,7 @@ internal class SecureEnclaveKey(
                     val error = alloc<CFErrorRefVar>()
                     val result =
                         SecKeyCopyKeyExchangeResult(privateKey, kSecKeyAlgorithmECDHKeyExchangeStandard, peerKey, params, error.ptr)
-                            ?: throw IllegalArgumentException("ECDH failed: ${error.takeDescription()}")
+                            ?: throw error.takeKeyExchangeFailure()
                     result.use { it.toByteArray() }
                 }
             }

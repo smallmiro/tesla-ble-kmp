@@ -5,6 +5,7 @@ import kotlinx.cinterop.ExperimentalForeignApi
 import platform.CoreFoundation.CFErrorGetCode
 import platform.CoreFoundation.CFErrorGetDomain
 import platform.CoreFoundation.CFErrorRef
+import platform.CoreFoundation.CFErrorRefVar
 import platform.CoreFoundation.CFGetTypeID
 import platform.CoreFoundation.CFStringCompare
 import platform.CoreFoundation.CFStringGetTypeID
@@ -87,3 +88,10 @@ internal object KeychainAccessibility {
         return CFStringCompare(value as CFStringRef, string, 0UL) == kCFCompareEqualTo
     }
 }
+
+/**
+ * `SecKeyCopyKeyExchangeResult`가 실패했을 때 던질 예외(Secure Enclave 키와 소프트웨어 키가 같이 쓴다). out-파라미터의 CFError는
+ * 여기서 한 번 해제한다([takeDescription]). `memScoped` 안에서, 실패 직후 한 번만 부른다.
+ */
+@OptIn(ExperimentalForeignApi::class)
+internal fun CFErrorRefVar.takeKeyExchangeFailure(): Exception = IllegalArgumentException("ECDH failed: ${takeDescription()}")

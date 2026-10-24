@@ -69,7 +69,7 @@ internal class AppleSoftwareEcdhKey(
                 try {
                     val result =
                         SecKeyCopyKeyExchangeResult(privateKey, kSecKeyAlgorithmECDHKeyExchangeStandard, peerKey, params, cfError.ptr)
-                            ?: throw IllegalArgumentException("ECDH failed: ${cfError.takeDescription()}")
+                            ?: throw cfError.takeKeyExchangeFailure()
                     result.use { data ->
                         val sharedX = data.toByteArray()
                         check(sharedX.size == SHARED_X_SIZE) { "unexpected shared secret length ${sharedX.size}" }
