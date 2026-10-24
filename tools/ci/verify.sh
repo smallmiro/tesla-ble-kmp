@@ -11,6 +11,7 @@
 #   (e) tools/ci/check-license.sh  → license 잡
 #   (f) tools/ci/scan-secrets.sh   → secrets 잡
 #   (g) tools/ci/check-manual-i18n.sh → (CI 잡 없음) 매뉴얼 언어 규칙, AGENTS.md §3 규칙 12
+#   (h) tools/analysis 단위 테스트   → (CI 잡 없음) 로그 분석 도구(pbwire.py)
 set -euo pipefail
 
 if [ "$(uname -s)" != "Darwin" ]; then
@@ -21,7 +22,7 @@ fi
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
-TOTAL_STEPS=7
+TOTAL_STEPS=8
 STEP=0
 START_TIME=$(date +%s)
 
@@ -87,6 +88,10 @@ tools/ci/scan-secrets.sh || fail "scan-secrets.sh"
 # (g) 매뉴얼 언어 규칙 — MD는 영어로만, HTML은 ko/en/ja가 같은 구성 (AGENTS.md §3 규칙 12).
 step "tools/ci/check-manual-i18n.sh"
 tools/ci/check-manual-i18n.sh || fail "check-manual-i18n.sh"
+
+# (h) 로그 분석 도구 단위 테스트 (protocol-analyst 가 쓰는 tools/analysis/*.py).
+step "python3 -I -m unittest discover -s tools/analysis"
+python3 -I -m unittest discover -s tools/analysis -p 'test_*.py' || fail "tools/analysis unit tests"
 
 END_TIME=$(date +%s)
 ELAPSED=$((END_TIME - START_TIME))
