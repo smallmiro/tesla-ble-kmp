@@ -1,6 +1,5 @@
 package dev.mirolab.teslable.application.observe
 
-import com.squareup.wire.ProtoReader
 import com.tesla.generated.carserver.server.Response
 import com.tesla.generated.universalmessage.Destination
 import com.tesla.generated.universalmessage.Domain
@@ -15,9 +14,7 @@ import dev.mirolab.teslable.InternalTeslableApi
 import dev.mirolab.teslable.port.CryptoPrimitives
 import dev.mirolab.teslable.protocol.decodeOrNull
 import dev.mirolab.teslable.util.toHex
-import okio.Buffer
 import okio.ByteString
-import okio.IOException
 
 /** 관찰 지점(설계 구체화 1). [label]이 로그 줄의 머리다. */
 internal enum class ObservedAt(
@@ -240,20 +237,4 @@ internal class ObservationLog(
         // 7(gear)은 스냅샷이 정의하고 브로드캐스트에서 실차 확인됐지만(14-lib B3.1), 정의 밖 값이 unknownFields로 오면 원시 varint를 남긴다. 8은 스냅샷에도 없다.
         private val VEHICLE_STATUS_DETAIL_FIELDS = setOf(7, 8)
     }
-}
-
-/** Wire `unknownFields`의 필드 번호(중복 제거, 나온 순서). 손상된 버퍼는 읽은 데까지. */
-internal fun unknownFieldNumbers(bytes: ByteString): List<Int> {
-    if (bytes.size == 0) return emptyList()
-    val tags = mutableListOf<Int>()
-    try {
-        val reader = ProtoReader(Buffer().write(bytes))
-        reader.forEachTag { tag ->
-            tags += tag
-            reader.skip()
-        }
-    } catch (ignored: IOException) {
-        // 읽은 데까지만 남긴다
-    }
-    return tags.distinct()
 }
