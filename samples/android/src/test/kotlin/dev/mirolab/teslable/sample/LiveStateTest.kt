@@ -75,7 +75,16 @@ class LiveStateTest {
         assertTrue(gear.changed)
         assertEquals(t0, second.items.getValue(LiveItemKey.LOCK).since)
         assertEquals(1, second.recent.size)
-        assertTrue(second.recent.first().text.contains("PARK") && second.recent.first().text.contains("DRIVE"))
+        assertTrue(
+            second.recent
+                .first()
+                .text
+                .contains("PARK") &&
+                second.recent
+                    .first()
+                    .text
+                    .contains("DRIVE"),
+        )
     }
 
     @Test
@@ -90,14 +99,29 @@ class LiveStateTest {
 
     @Test
     fun authenticationRequestAndUnrecognizedAreListed() {
-        var s = LiveReducer.reduce(LiveState(), VehicleEvent.AuthenticationRequest(AuthenticationLevel.DRIVE, emptyList(), byteArrayOf(2), emptyList()), t0)
+        var s =
+            LiveReducer.reduce(
+                LiveState(),
+                VehicleEvent.AuthenticationRequest(AuthenticationLevel.DRIVE, emptyList(), byteArrayOf(2), emptyList()),
+                t0,
+            )
         s = LiveReducer.reduce(s, VehicleEvent.Unrecognized(byteArrayOf(3), listOf("53")), t0.plusSeconds(1))
 
         assertNull(s.lastStatusAt)
         assertTrue(s.items.isEmpty())
         assertEquals(2, s.recent.size)
-        assertTrue(s.recent.last().text.contains("DRIVE"))
-        assertTrue(s.recent.first().text.contains("53"))
+        assertTrue(
+            s.recent
+                .last()
+                .text
+                .contains("DRIVE"),
+        )
+        assertTrue(
+            s.recent
+                .first()
+                .text
+                .contains("53"),
+        )
     }
 
     @Test

@@ -77,7 +77,13 @@ class MonitorService : Service() {
     }
 
     private fun notification(state: LinkState<*>): Notification {
-        val stop = PendingIntent.getService(this, 0, Intent(this, MonitorService::class.java).setAction(ACTION_STOP), PendingIntent.FLAG_IMMUTABLE)
+        val stop =
+            PendingIntent.getService(
+                this,
+                0,
+                Intent(this, MonitorService::class.java).setAction(ACTION_STOP),
+                PendingIntent.FLAG_IMMUTABLE,
+            )
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_IMMUTABLE)
         return Notification
             .Builder(this, CHANNEL_ID)
@@ -110,12 +116,25 @@ class MonitorService : Service() {
 object LinkText {
     fun of(state: LinkState<*>): String =
         when (state) {
-            LinkState.Idle -> "대기 중 (연결 전)"
-            is LinkState.Connecting -> "연결 중… (시도 ${state.attempt})"
-            is LinkState.Connected -> "연결됨"
-            is LinkState.Backoff ->
+            LinkState.Idle -> {
+                "대기 중 (연결 전)"
+            }
+
+            is LinkState.Connecting -> {
+                "연결 중… (시도 ${state.attempt})"
+            }
+
+            is LinkState.Connected -> {
+                "연결됨"
+            }
+
+            is LinkState.Backoff -> {
                 "재연결 대기 (연속 실패 ${state.attempt}회, ${state.delay.inWholeSeconds}초 뒤)" +
                     (state.reason?.let { ": $it" } ?: "")
-            LinkState.Stopped -> "연결 끊음 (자동 재연결 중지)"
+            }
+
+            LinkState.Stopped -> {
+                "연결 끊음 (자동 재연결 중지)"
+            }
         }
 }

@@ -72,11 +72,18 @@ class SampleState(
         val event = withTimeoutOrNull(SCAN_TIMEOUT) { ble.scan(vin).first() }
         output.add(
             when (event) {
-                null -> "스캔 시간 초과 (30초)"
-                is ScanEvent.Found ->
+                null -> {
+                    "스캔 시간 초과 (30초)"
+                }
+
+                is ScanEvent.Found -> {
                     "광고: ${event.advertisement.localName.value} rssi=${event.advertisement.rssi} " +
                         "connectable=${event.advertisement.isConnectable}"
-                is ScanEvent.Failed -> "스캔 실패: ${event.error.message}"
+                }
+
+                is ScanEvent.Failed -> {
+                    "스캔 실패: ${event.error.message}"
+                }
             },
         )
     }
@@ -91,8 +98,14 @@ class SampleState(
                 keyEntries.addAll(r.value)
                 output.add("키 목록: ${r.value.size}개")
             }
-            is VehicleResult.Uncertain -> output.add("키 목록 불확실: ${r.error.message}")
-            is VehicleResult.Failure -> output.add("키 목록 실패: ${r.error.message}")
+
+            is VehicleResult.Uncertain -> {
+                output.add("키 목록 불확실: ${r.error.message}")
+            }
+
+            is VehicleResult.Failure -> {
+                output.add("키 목록 실패: ${r.error.message}")
+            }
         }
     }
 
@@ -156,11 +169,18 @@ class SampleState(
         val mark = TimeSource.Monotonic.markNow()
         while (mark.elapsedNow() < ENROLL_WINDOW) {
             when (val r = v.sessionInfo(k.publicKey, VehicleDomain.INFOTAINMENT, ENROLL_CALL_TIMEOUT)) {
-                is VehicleResult.Success -> return run { output.add("등록 확인됨(Infotainment)") }
-                is VehicleResult.Failure ->
+                is VehicleResult.Success -> {
+                    return run { output.add("등록 확인됨(Infotainment)") }
+                }
+
+                is VehicleResult.Failure -> {
                     last =
                         if (r.error is VehicleError.KeyNotPaired) "아직 등록되지 않음(KeyNotPaired) — 2분까지 반복" else "등록 확인 실패: ${r.error.message}"
-                is VehicleResult.Uncertain -> last = "등록 확인 불확실: ${r.error.message}"
+                }
+
+                is VehicleResult.Uncertain -> {
+                    last = "등록 확인 불확실: ${r.error.message}"
+                }
             }
             delay(ENROLL_INTERVAL)
         }
@@ -185,10 +205,17 @@ class SampleState(
 
     private suspend fun statusText(v: Vehicle): String =
         when (val r = v.vehicleStatus()) {
-            is VehicleResult.Success ->
+            is VehicleResult.Success -> {
                 r.value.let { "잠금 ${it.lockState}, 트렁크 ${it.closures.rearTrunk}, 프렁크 ${it.closures.frontTrunk}, 수면 ${it.sleepStatus}" }
-            is VehicleResult.Uncertain -> "불확실: ${r.error.message}"
-            is VehicleResult.Failure -> "실패: ${r.error.message}"
+            }
+
+            is VehicleResult.Uncertain -> {
+                "불확실: ${r.error.message}"
+            }
+
+            is VehicleResult.Failure -> {
+                "실패: ${r.error.message}"
+            }
         }
 
     suspend fun lock() = control("잠금") { it.lock() }

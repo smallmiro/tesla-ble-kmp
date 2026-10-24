@@ -110,7 +110,13 @@ class ConnectionLoopTest {
     @Test
     fun stableConnectionResetsBackoff() =
         runTest {
-            val f = fixture(ConnectOutcome.Failed("a"), ConnectOutcome.Failed("b"), ConnectOutcome.Failed("c"), ConnectOutcome.Connected("car1"))
+            val f =
+                fixture(
+                    ConnectOutcome.Failed("a"),
+                    ConnectOutcome.Failed("b"),
+                    ConnectOutcome.Failed("c"),
+                    ConnectOutcome.Connected("car1"),
+                )
             f.loop.start()
             advanceTimeBy(2.seconds + 4.seconds + 8.seconds)
             runCurrent()
@@ -180,7 +186,14 @@ class ConnectionLoopTest {
     @Test
     fun manualConnectSkipsBackoff() =
         runTest {
-            val f = fixture(ConnectOutcome.Failed("a"), ConnectOutcome.Failed("b"), ConnectOutcome.Failed("c"), ConnectOutcome.Failed("d"), ConnectOutcome.Failed("e"))
+            val f =
+                fixture(
+                    ConnectOutcome.Failed("a"),
+                    ConnectOutcome.Failed("b"),
+                    ConnectOutcome.Failed("c"),
+                    ConnectOutcome.Failed("d"),
+                    ConnectOutcome.Failed("e"),
+                )
             f.loop.start()
             advanceTimeBy(2.seconds + 4.seconds + 8.seconds + 16.seconds + 1.seconds)
             runCurrent()

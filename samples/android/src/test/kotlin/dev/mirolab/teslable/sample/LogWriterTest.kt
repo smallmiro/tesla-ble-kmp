@@ -56,8 +56,14 @@ class LogWriterTest {
         VehicleStatus(
             LockState.LOCKED,
             Closures(
-                ClosureState.CLOSED, ClosureState.CLOSED, ClosureState.CLOSED, ClosureState.CLOSED,
-                ClosureState.CLOSED, ClosureState.CLOSED, ClosureState.CLOSED, ClosureState.CLOSED,
+                ClosureState.CLOSED,
+                ClosureState.CLOSED,
+                ClosureState.CLOSED,
+                ClosureState.CLOSED,
+                ClosureState.CLOSED,
+                ClosureState.CLOSED,
+                ClosureState.CLOSED,
+                ClosureState.CLOSED,
             ),
             SleepStatus.AWAKE,
             UserPresence.NOT_PRESENT,
@@ -126,8 +132,9 @@ class LogWriterTest {
             assertEquals(listOf("1.8"), o.getJSONArray("unknownFields").let { a -> (0 until a.length()).map { a.getString(it) } })
             assertTrue(o.getBoolean("unrecognized"))
             // raw: 소문자 16진수, VIN은 같은 길이로 가려진다
-            val expected = (byteArrayOf(0x0a, 0x11) + "5YJ**********0000".toByteArray(Charsets.US_ASCII) + byteArrayOf(0x7f))
-                .joinToString("") { "%02x".format(it) }
+            val expected =
+                (byteArrayOf(0x0a, 0x11) + "5YJ**********0000".toByteArray(Charsets.US_ASCII) + byteArrayOf(0x7f))
+                    .joinToString("") { "%02x".format(it) }
             assertEquals(expected, o.getString("raw"))
             assertFalse(file(dir).readText().contains(vin))
         }

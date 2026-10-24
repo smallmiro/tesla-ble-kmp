@@ -34,7 +34,12 @@ fun LogTab(engine: MonitorEngine) {
         modifier = Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
     ) {
-        Text("쓴 줄 ${stats.totalLines} (" + stats.byKind.entries.sortedBy { it.key }.joinToString { "${it.key} ${it.value}" } + ")")
+        Text(
+            "쓴 줄 ${stats.totalLines} (" +
+                stats.byKind.entries
+                    .sortedBy { it.key }
+                    .joinToString { "${it.key} ${it.value}" } + ")",
+        )
         Text("알 수 없는 이벤트(unrecognized) ${stats.unrecognized}  ·  큐가 가득 차 버린 줄 ${stats.dropped}")
         Text("파일: ${stats.currentFile ?: "아직 없음"}", style = MaterialTheme.typography.bodySmall)
         Text("가져오기: tools/samples/pull-monitor-logs.sh android", style = MaterialTheme.typography.bodySmall)

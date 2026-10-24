@@ -199,7 +199,10 @@ class LogWriter(
         }
     }
 
-    private fun listFiles(): List<File> = dir.listFiles { f -> f.name.startsWith("monitor-") && f.name.endsWith(".jsonl") }.orEmpty().sortedBy { it.name }
+    private fun listFiles(): List<File> =
+        dir.listFiles { f -> f.name.startsWith("monitor-") && f.name.endsWith(".jsonl") }.orEmpty().sortedBy {
+            it.name
+        }
 
     /**
      * 새 파일 이름. 시계가 뒤로 가도(서머타임 끝, 시계 조정) 이름 순서가 곧 만든 순서가 되도록, 이미 있는 가장 새 파일보다
@@ -207,7 +210,10 @@ class LogWriter(
      */
     private fun freshFile(): File {
         var at = LocalDateTime.now(clock).truncatedTo(ChronoUnit.SECONDS)
-        val newest = listFiles().lastOrNull()?.name?.let { runCatching { LocalDateTime.parse(it.removePrefix("monitor-").removeSuffix(".jsonl"), NAME_FORMAT) }.getOrNull() }
+        val newest =
+            listFiles().lastOrNull()?.name?.let {
+                runCatching { LocalDateTime.parse(it.removePrefix("monitor-").removeSuffix(".jsonl"), NAME_FORMAT) }.getOrNull()
+            }
         if (newest != null && !at.isAfter(newest)) at = newest.plusSeconds(1)
         return File(dir, "monitor-${at.format(NAME_FORMAT)}.jsonl")
     }
