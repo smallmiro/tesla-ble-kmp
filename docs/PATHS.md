@@ -31,6 +31,11 @@
 | `PROTO_SCHEMA_COMMIT` | `e6f7afb1b633d7215e34d0cdac66dab983c6ae78` | 스키마 고정 커밋. `tools/proto/sync-protos.sh` 의 `EXPECTED_COMMIT` 과 같아야 함 |
 | `POC_DIR` | `reference/poc/` | 검증된 PoC 코드 |
 | `SAMPLES_DIR` | `samples/` | 예제(샘플) 앱. `android/`(Compose), `ios/`(SwiftUI, xcodegen). `:sdk` 공개 API만 쓰고 `{{LIB_DOCS_DIR}}` 를 기준으로 개발한다 |
+| `SAMPLES_DOCS_DIR` | `samples/documents/md/` | **샘플 앱 스펙 (에이전트용 MD, 영어).** 샘플 요구사항(SFR-xxx), 제약, 앱별 스펙. 샘플 지침은 `{{SAMPLES_DIR}}AGENTS.md` |
+| `SAMPLES_DOCS_INDEX` | `{{SAMPLES_DOCS_DIR}}README.md` | 샘플 앱 스펙 목차 (진입점) |
+| `SAMPLES_DOCS_HTML_DIR` | `samples/documents/html/` | **샘플 앱 스펙의 사람용 HTML.** `ko/`·`en/`·`ja/` 세 벌, `{{SAMPLES_DOCS_DIR}}` 와 같은 내용. `assets/` 는 `{{MANUAL_HTML_DIR}}assets/` 와 같은 파일(게이트가 검사). 진입점 `index.html` 은 `en/index.html` 의 사본(`tools/ci/sync-manual-root-index.sh`) |
+| `SAMPLE_LOGS_DIR` | `samples/logs/` | 기기에서 가져온 모니터 로그. **git-ignored, 커밋 금지** (실차 데이터) |
+| `ANALYSIS_DIR` | `docs/analysis/` | 프로토콜 분석 보고서 (`YYYY-MM-DD-<topic>.md`, `protocol-analyst` 산출물) |
 | `LIB_NAME` | `tesla-ble-kmp` | 라이브러리 / Gradle 루트 이름 (= GitHub 저장소 이름, 2026-09-26 확정) |
 | `REPO_URL` | `https://github.com/smallmiro/tesla-ble-kmp` | 공개 저장소 (Apache-2.0). 브랜치 `main` 보호 |
 | `PACKAGES_MAVEN_URL` | `https://maven.pkg.github.com/smallmiro/tesla-ble-kmp` | GitHub Packages Maven 레지스트리 (M6에서 첫 배포). 소비자는 `read:packages` 토큰 필요 |
