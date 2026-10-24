@@ -30,6 +30,7 @@
 | `PROTO_SCHEMA_REPO` | `https://github.com/Teslemetry/tesla-protocol` | protobuf 스키마 출처 (Apache-2.0, `proto/command/` 9개만 사용). 의미·암호·라우팅의 정답 기준은 계속 `{{REF_REPO_URL}}` (ADR-0002 개정 2026-10-18) |
 | `PROTO_SCHEMA_COMMIT` | `e6f7afb1b633d7215e34d0cdac66dab983c6ae78` | 스키마 고정 커밋. `tools/proto/sync-protos.sh` 의 `EXPECTED_COMMIT` 과 같아야 함 |
 | `POC_DIR` | `reference/poc/` | 검증된 PoC 코드 |
+| `SAMPLES_DIR` | `samples/` | 예제(샘플) 앱. `android/`(Compose), `ios/`(SwiftUI, xcodegen). `:sdk` 공개 API만 쓰고 `{{LIB_DOCS_DIR}}` 를 기준으로 개발한다 |
 | `LIB_NAME` | `tesla-ble-kmp` | 라이브러리 / Gradle 루트 이름 (= GitHub 저장소 이름, 2026-09-26 확정) |
 | `REPO_URL` | `https://github.com/smallmiro/tesla-ble-kmp` | 공개 저장소 (Apache-2.0). 브랜치 `main` 보호 |
 | `PACKAGES_MAVEN_URL` | `https://maven.pkg.github.com/smallmiro/tesla-ble-kmp` | GitHub Packages Maven 레지스트리 (M6에서 첫 배포). 소비자는 `read:packages` 토큰 필요 |
