@@ -137,9 +137,9 @@ checked on a real iPhone yet, so treat the library behaviour in the background a
   again. A cache made stale by the vehicle (for example a vehicle-side key change) is also deleted automatically.
 - A missing or stale cache is not an error; the library just starts a new session.
 - A cached session that could not be restored because the phone lock blocked the key (iOS) is not stale: the library
-  writes nothing to the cache until that domain has a session again, so a disconnect while locked keeps the cache. Exception: if another restored
-  session turned out stale in the same connection, the cache is rewritten without the stale entry (and without the
-  blocked one).
+  writes nothing to the cache until that domain has a session again, so a disconnect while locked keeps the cache.
+  Exception: if another restored session turned out stale in the same connection, the cache is rewritten without the
+  stale entry (and without the blocked one), and the rest of that connection stores as usual.
 
 ## Clocks
 

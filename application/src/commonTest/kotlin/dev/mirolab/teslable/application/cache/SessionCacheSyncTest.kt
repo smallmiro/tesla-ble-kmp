@@ -233,7 +233,12 @@ class SessionCacheSyncTest {
             val storesBefore = cache.stores.size
             sync.store(second.dispatcher)
             assertEquals(storesBefore + 1, cache.stores.size)
-            assertFalse(infotainment in cache.load(fake.vin, keyId).map { it.domain })
+            assertTrue(cache.load(fake.vin, keyId).isEmpty()) // 오래된 INFOTAINMENT도, 막힌 VCSEC 항목도 빠졌다
+            // 보존할 항목이 이미 사라졌으므로 이 연결에서는 보존 규칙을 다시 쓰지 않는다 — 새 INFOTAINMENT 세션은 저장된다
+            assertIs<VehicleResult.Success<Unit>>(HandshakeFlow(second.dispatcher).startSession(infotainment))
+            sync.markFresh(infotainment)
+            sync.store(second.dispatcher)
+            assertEquals(setOf(infotainment), cache.load(fake.vin, keyId).map { it.domain }.toSet())
         }
 
     @Test
