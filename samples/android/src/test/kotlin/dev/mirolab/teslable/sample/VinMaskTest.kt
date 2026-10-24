@@ -6,8 +6,8 @@ import kotlin.test.assertEquals
 
 class VinMaskTest {
     // 실제 VIN이 아닌 가짜 값(형식만 같다). 17자, I·O·Q 없음.
-    private val vin = "5YJAAAA1111222333"
-    private val masked = "5YJ**********2333"
+    private val vin = "5YJS0000000000000"
+    private val masked = "5YJ**********0000"
 
     @Test
     fun masksVinInBytesKeepingLength() {
@@ -44,7 +44,7 @@ class VinMaskTest {
 
     @Test
     fun textWithoutVinIsUnchanged() {
-        val text = "[drop:no-handler] 83B from=domain(DOMAIN_VEHICLE_SECURITY) 5YJ**********2333 lowercase5yjaaaa1111222333 IOQIOQIOQIOQIOQIO"
+        val text = "[drop:no-handler] 83B from=domain(DOMAIN_VEHICLE_SECURITY) 5YJ**********0000 lowercase5yjs0000000000000 IOQIOQIOQIOQIOQIO"
         assertEquals(text, VinMask.maskText(text))
     }
 }
