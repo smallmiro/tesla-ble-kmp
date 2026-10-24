@@ -251,6 +251,10 @@ final object dev.mirolab.teslable.application.infotainment/InfotainmentResponses
     final fun interpret(kotlin/ByteArray?): dev.mirolab.teslable.model/VehicleResult<com.tesla.generated.carserver.server/Response> // dev.mirolab.teslable.application.infotainment/InfotainmentResponses.interpret|interpret(kotlin.ByteArray?){}[0]
 }
 
+final object dev.mirolab.teslable.application.vcsec/VcsecBroadcasts { // dev.mirolab.teslable.application.vcsec/VcsecBroadcasts|null[0]
+    final fun events(kotlin/ByteArray): kotlin.collections/List<dev.mirolab.teslable.model/VehicleEvent> // dev.mirolab.teslable.application.vcsec/VcsecBroadcasts.events|events(kotlin.ByteArray){}[0]
+}
+
 final object dev.mirolab.teslable.application.vcsec/VcsecResponses { // dev.mirolab.teslable.application.vcsec/VcsecResponses|null[0]
     final val COMMAND_STATUS_ABSENT // dev.mirolab.teslable.application.vcsec/VcsecResponses.COMMAND_STATUS_ABSENT|{}COMMAND_STATUS_ABSENT[0]
         final fun <get-COMMAND_STATUS_ABSENT>(): dev.mirolab.teslable.application.vcsec/VcsecResponses.TerminalTest // dev.mirolab.teslable.application.vcsec/VcsecResponses.COMMAND_STATUS_ABSENT.<get-COMMAND_STATUS_ABSENT>|<get-COMMAND_STATUS_ABSENT>(){}[0]

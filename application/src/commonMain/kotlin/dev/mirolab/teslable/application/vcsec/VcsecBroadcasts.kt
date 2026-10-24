@@ -35,9 +35,10 @@ import com.tesla.generated.vcsec.VehicleStatus as WireVehicleStatus
  * - "깨진 페이로드"의 기준은 Wire의 `FromVCSECMessage` 디코딩이다(관찰 로그의 `undecodable`과 같은 기준).
  * - `unknownFields`: [VehicleEvent.unknownFields]의 경로 규칙. 최상위는 이 함수가 필드를 하나씩 읽는 순서(도착 순서), 하위 메시지는
  *   Wire가 모은 `unknownFields` 순서. 반복은 그대로 둔다([unknownFieldOccurrences]).
+ * - `:sdk`의 `Vehicle.events`가 쓰므로 공개다(`:application`은 공개 SDK 표면이 아니다 — `:sdk`가 `implementation`으로 의존한다).
  */
 @OptIn(InternalTeslableApi::class)
-internal object VcsecBroadcasts {
+public object VcsecBroadcasts {
     private const val VEHICLE_STATUS_TAG = 1 // FromVCSECMessage.vehicleStatus
     private const val AUTHENTICATION_REQUEST_TAG = 3 // FromVCSECMessage.authenticationRequest (TESLEMETRY-EXT)
     private const val CLOSURE_STATUSES_TAG = 1 // VehicleStatus.closureStatuses
@@ -46,7 +47,8 @@ internal object VcsecBroadcasts {
     private const val REQUESTED_LEVEL_TAG = 3 // AuthenticationRequest.requestedLevel (이름 미확인)
     private const val REASONS_TAG = 4 // AuthenticationRequest.reasonsForAuth (이름 미확인)
 
-    fun events(frame: ByteArray): List<VehicleEvent> {
+    /** 받은 프레임 하나([frame], `RoutableMessage` 바이트 전체)의 이벤트. 게이트를 통과하지 못하거나 디코딩되지 않으면 빈 목록. */
+    public fun events(frame: ByteArray): List<VehicleEvent> {
         val message = RoutableMessage.ADAPTER.decodeOrNull(frame)
         if (message == null || !isPlainBroadcast(message)) return emptyList()
         val payload =

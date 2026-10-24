@@ -131,6 +131,11 @@ public final class dev/mirolab/teslable/application/vcsec/KeyManagement {
 	public static synthetic fun sessionInfo-exY8QGI$default (Ldev/mirolab/teslable/application/vcsec/KeyManagement;Ldev/mirolab/teslable/model/PublicKeyBytes;Lcom/tesla/generated/universalmessage/Domain;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
+public final class dev/mirolab/teslable/application/vcsec/VcsecBroadcasts {
+	public static final field INSTANCE Ldev/mirolab/teslable/application/vcsec/VcsecBroadcasts;
+	public final fun events ([B)Ljava/util/List;
+}
+
 public final class dev/mirolab/teslable/application/vcsec/VcsecCommands {
 	public final fun execute-myKFqkg ([BLdev/mirolab/teslable/port/AuthMethod;Ldev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalTest;IJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun execute-myKFqkg$default (Ldev/mirolab/teslable/application/vcsec/VcsecCommands;[BLdev/mirolab/teslable/port/AuthMethod;Ldev/mirolab/teslable/application/vcsec/VcsecResponses$TerminalTest;IJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
