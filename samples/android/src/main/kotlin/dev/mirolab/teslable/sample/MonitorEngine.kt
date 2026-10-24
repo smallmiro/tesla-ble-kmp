@@ -45,6 +45,10 @@ data class KeyStatus(
     val text: String = "키 없음",
     /** 키가 있는데 잠금 중 사용이 안 될 때 사용자에게 알릴 문장. */
     val warning: String? = null,
+    /** 키가 있고 읽을 수 있다(키·제어 탭의 1단계). */
+    val ready: Boolean = false,
+    /** 폰 잠금 때문에 키를 읽지 못했다(키는 지우지 않았다). */
+    val locked: Boolean = false,
 )
 
 /** 로그 `observe` 줄만 골라 [sink]에 넘기고, 나머지(와 observe 줄도)는 Logcat용 [delegate]로 그대로 넘긴다. BLE `TX:`/`RX:` 줄은 파일에 쓰지 않는다. */
@@ -201,13 +205,11 @@ class MonitorEngine(
 
             is VehicleResult.Failure -> {
                 keyStatus.value =
-                    KeyStatus(
-                        if (result.error == VehicleError.KeyStoreError.Locked) {
-                            "키 잠김: 폰을 잠금 해제하면 다시 읽습니다(키는 지우지 않음)"
-                        } else {
-                            "키 오류: ${result.error.message}"
-                        },
-                    )
+                    if (result.error == VehicleError.KeyStoreError.Locked) {
+                        KeyStatus("키 잠김: 폰을 잠금 해제하면 다시 읽습니다(키는 지우지 않음)", locked = true)
+                    } else {
+                        KeyStatus("키 오류: ${result.error.message}")
+                    }
             }
 
             is VehicleResult.Uncertain -> {
@@ -225,7 +227,7 @@ class MonitorEngine(
             } else {
                 null
             }
-        return KeyStatus(text, warning)
+        return KeyStatus(text, warning, ready = true)
     }
 
     // --- 연결 루프에 끼우는 함수 -------------------------------------------------------------------------------------------

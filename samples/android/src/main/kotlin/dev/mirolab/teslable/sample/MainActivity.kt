@@ -22,10 +22,13 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.AndroidViewModel
+import androidx.lifecycle.viewModelScope
 import dev.mirolab.teslable.sample.ui.ControlTab
+import dev.mirolab.teslable.sample.ui.KeyControlTab
 import dev.mirolab.teslable.sample.ui.LiveTab
 import dev.mirolab.teslable.sample.ui.LogTab
 import dev.mirolab.teslable.sample.ui.QueryTab
+import kotlinx.coroutines.launch
 
 /** 설정 변경(회전 등)에도 Control 탭 상태를 유지한다. 라이브러리와 연결은 [MonitorEngine]이 프로세스 단위로 가진다. */
 class MainViewModel(
@@ -33,9 +36,17 @@ class MainViewModel(
 ) : AndroidViewModel(app) {
     val engine: MonitorEngine = MonitorRuntime.get(app)
     val control = SampleState(engine)
+    val keyControl = KeyControlState(engine)
+
+    init {
+        // 연결·키를 지켜보며 등록 상태를 맞춘다(탭을 열지 않아도). ViewModel이 살아 있는 동안 한 번만 돈다.
+        viewModelScope.launch { keyControl.observe() }
+    }
 }
 
-private val tabs = listOf("Live", "Query", "Log", "Control")
+private const val TAB_CONTROL = 3
+
+private val tabs = listOf("Live", "Query", "Log", "Control", "키·제어")
 
 class MainActivity : ComponentActivity() {
     private val viewModel: MainViewModel by viewModels()
@@ -109,7 +120,8 @@ private fun MonitorApp(
             0 -> LiveTab(viewModel.engine, onConnect)
             1 -> QueryTab(viewModel.engine)
             2 -> LogTab(viewModel.engine)
-            else -> ControlTab(viewModel.control, viewModel.engine, onConnect)
+            TAB_CONTROL -> ControlTab(viewModel.control, viewModel.engine, onConnect)
+            else -> KeyControlTab(viewModel.keyControl, viewModel.engine, onConnect)
         }
     }
 }
