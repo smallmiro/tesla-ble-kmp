@@ -160,7 +160,7 @@
 <tr><td>4</td><td><code>userPresence</code></td><td><code>UserPresence_E</code></td><td>A person in the car</td><td><code>userPresence</code></td></tr>
 <tr><td>5</td><td><code>detailedClosureStatus</code></td><td><code>DetailedClosureStatus</code></td><td><code>tonneauPercentOpen</code> (1, uint32), Cybertruck</td><td><code>tonneauPercentOpen</code> (<code>null</code> if absent)</td></tr>
 <tr><td>6</td><td><code>uiDesire</code></td><td><code>UIDesire_E</code> (Teslemetry)</td><td>In the schema only</td><td><strong>Not surfaced</strong> (planned M5)</td></tr>
-<tr><td>7</td><td><code>gear</code></td><td><code>Gear_E</code> (Teslemetry, confirmed on a real car)</td><td>Current gear</td><td><code>gear</code>; absent or outside the schema becomes <code>UNKNOWN</code></td></tr>
+<tr><td>7</td><td><code>gear</code></td><td><code>Gear_E</code> (Teslemetry; confirmed in broadcasts only, query reply unchecked)</td><td>Current gear</td><td><code>gear</code>; absent or outside the schema becomes <code>UNKNOWN</code></td></tr>
 <tr><td>8</td><td>(unknown, not in the schema)</td><td>message</td><td>Seen on a real car: <code>{1: 1|2, 2: 1|2, 3: 1}</code>; meaning unknown</td><td>Not surfaced</td></tr>
 </tbody>
 </table>
@@ -267,7 +267,7 @@
 <tr><td>4</td><td><code>CLOSURESTATE_FAILED_UNLATCH</code></td><td><code>FAILED_UNLATCH</code></td></tr>
 <tr><td>5</td><td><code>CLOSURESTATE_OPENING</code></td><td><code>OPENING</code></td></tr>
 <tr><td>6</td><td><code>CLOSURESTATE_CLOSING</code></td><td><code>CLOSING</code></td></tr>
-<tr><td rowspan="5"><code>Gear_E</code> (field 7, Teslemetry; confirmed on a real car)</td><td>0</td><td><code>GEAR_UNKNOWN</code></td><td><code>UNKNOWN</code></td></tr>
+<tr><td rowspan="5"><code>Gear_E</code> (field 7, Teslemetry; confirmed on a real car in broadcasts)</td><td>0</td><td><code>GEAR_UNKNOWN</code></td><td><code>UNKNOWN</code></td></tr>
 <tr><td>1</td><td><code>GEAR_PARK</code></td><td><code>PARK</code></td></tr>
 <tr><td>2</td><td><code>GEAR_DRIVE</code></td><td><code>DRIVE</code></td></tr>
 <tr><td>3</td><td><code>GEAR_REVERSE</code></td><td><code>REVERSE</code></td></tr>
@@ -300,7 +300,7 @@
 <tr><td><code>sleepStatus</code></td><td><code>AWAKE</code>, <code>ASLEEP</code>, <code>UNKNOWN</code></td></tr>
 <tr><td><code>userPresence</code></td><td><code>PRESENT</code>, <code>NOT_PRESENT</code>, <code>UNKNOWN</code></td></tr>
 <tr><td><code>tonneauPercentOpen</code></td><td>Cybertruck only; <code>null</code> otherwise</td></tr>
-<tr><td><code>gear</code></td><td><code>PARK</code>, <code>REVERSE</code>, <code>NEUTRAL</code>, <code>DRIVE</code>, <code>UNKNOWN</code>. <code>UNKNOWN</code> also when the car did not send it (proto3 cannot tell that apart from <code>GEAR_UNKNOWN</code>). A Teslemetry extension field with no Go counterpart; it is the last constructor parameter</td></tr>
+<tr><td><code>gear</code></td><td><code>PARK</code>, <code>REVERSE</code>, <code>NEUTRAL</code>, <code>DRIVE</code>, <code>UNKNOWN</code>. <code>UNKNOWN</code> also when the car did not send it (proto3 cannot tell that apart from <code>GEAR_UNKNOWN</code>). A Teslemetry extension field with no Go counterpart; it is the last constructor parameter. Confirmed in broadcasts; not yet checked in query replies</td></tr>
 </tbody>
 </table>
 <p>The eight openings are <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code> and <code>tonneau</code>. Each is <code>CLOSED</code>, <code>OPEN</code>, <code>AJAR</code>, <code>OPENING</code>, <code>CLOSING</code>, <code>FAILED_UNLATCH</code> or <code>UNKNOWN</code>. <code>uiDesire</code> is not in this model yet (planned M5).</p>

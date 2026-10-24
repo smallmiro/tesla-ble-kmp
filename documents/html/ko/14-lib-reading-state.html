@@ -160,7 +160,7 @@
 <tr><td>4</td><td><code>userPresence</code></td><td><code>UserPresence_E</code></td><td>차 안의 사람</td><td><code>userPresence</code></td></tr>
 <tr><td>5</td><td><code>detailedClosureStatus</code></td><td><code>DetailedClosureStatus</code></td><td><code>tonneauPercentOpen</code>(1, uint32), Cybertruck</td><td><code>tonneauPercentOpen</code>(없으면 <code>null</code>)</td></tr>
 <tr><td>6</td><td><code>uiDesire</code></td><td><code>UIDesire_E</code>(Teslemetry)</td><td>스키마에만 있음</td><td><strong>노출하지 않음</strong>(M5 예정)</td></tr>
-<tr><td>7</td><td><code>gear</code></td><td><code>Gear_E</code>(Teslemetry, 실차로 확정)</td><td>현재 기어</td><td><code>gear</code>. 없거나 스키마 밖의 값이면 <code>UNKNOWN</code></td></tr>
+<tr><td>7</td><td><code>gear</code></td><td><code>Gear_E</code>(Teslemetry, 브로드캐스트에서만 실차 확정, 조회 응답은 미확인)</td><td>현재 기어</td><td><code>gear</code>. 없거나 스키마 밖의 값이면 <code>UNKNOWN</code></td></tr>
 <tr><td>8</td><td>(미확인, 스키마에 없음)</td><td>message</td><td>실차에서 관찰: <code>{1: 1|2, 2: 1|2, 3: 1}</code>. 의미 미확인</td><td>노출하지 않음</td></tr>
 </tbody>
 </table>
@@ -267,7 +267,7 @@
 <tr><td>4</td><td><code>CLOSURESTATE_FAILED_UNLATCH</code></td><td><code>FAILED_UNLATCH</code></td></tr>
 <tr><td>5</td><td><code>CLOSURESTATE_OPENING</code></td><td><code>OPENING</code></td></tr>
 <tr><td>6</td><td><code>CLOSURESTATE_CLOSING</code></td><td><code>CLOSING</code></td></tr>
-<tr><td rowspan="5"><code>Gear_E</code> (필드 7, Teslemetry, 실차로 확정)</td><td>0</td><td><code>GEAR_UNKNOWN</code></td><td><code>UNKNOWN</code></td></tr>
+<tr><td rowspan="5"><code>Gear_E</code> (필드 7, Teslemetry, 브로드캐스트에서 실차로 확정)</td><td>0</td><td><code>GEAR_UNKNOWN</code></td><td><code>UNKNOWN</code></td></tr>
 <tr><td>1</td><td><code>GEAR_PARK</code></td><td><code>PARK</code></td></tr>
 <tr><td>2</td><td><code>GEAR_DRIVE</code></td><td><code>DRIVE</code></td></tr>
 <tr><td>3</td><td><code>GEAR_REVERSE</code></td><td><code>REVERSE</code></td></tr>
@@ -300,7 +300,7 @@
 <tr><td><code>sleepStatus</code></td><td><code>AWAKE</code>, <code>ASLEEP</code>, <code>UNKNOWN</code></td></tr>
 <tr><td><code>userPresence</code></td><td><code>PRESENT</code>, <code>NOT_PRESENT</code>, <code>UNKNOWN</code></td></tr>
 <tr><td><code>tonneauPercentOpen</code></td><td>Cybertruck 전용, 그 외에는 <code>null</code></td></tr>
-<tr><td><code>gear</code></td><td><code>PARK</code>, <code>REVERSE</code>, <code>NEUTRAL</code>, <code>DRIVE</code>, <code>UNKNOWN</code>. 차량이 보내지 않은 경우에도 <code>UNKNOWN</code>(proto3에서는 <code>GEAR_UNKNOWN</code>과 구분할 수 없음). Go에 대응하는 것이 없는 Teslemetry 확장 필드이며, 생성자의 마지막 인자</td></tr>
+<tr><td><code>gear</code></td><td><code>PARK</code>, <code>REVERSE</code>, <code>NEUTRAL</code>, <code>DRIVE</code>, <code>UNKNOWN</code>. 차량이 보내지 않은 경우에도 <code>UNKNOWN</code>(proto3에서는 <code>GEAR_UNKNOWN</code>과 구분할 수 없음). Go에 대응하는 것이 없는 Teslemetry 확장 필드이며, 생성자의 마지막 인자. 브로드캐스트에서는 확정, 조회 응답에서는 아직 확인하지 않음</td></tr>
 </tbody>
 </table>
 <p>여덟 개 개폐부는 <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code>, <code>tonneau</code>입니다. 각각 <code>CLOSED</code>, <code>OPEN</code>, <code>AJAR</code>, <code>OPENING</code>, <code>CLOSING</code>, <code>FAILED_UNLATCH</code>, <code>UNKNOWN</code> 중 하나입니다. <code>uiDesire</code>는 아직 이 모델에 없습니다(M5 예정).</p>

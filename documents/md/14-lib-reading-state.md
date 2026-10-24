@@ -99,7 +99,7 @@ suspend fun vehicleStatus(timeout: Duration? = null): VehicleResult<VehicleStatu
 | 4 | `userPresence` | `UserPresence_E` | Person in the vehicle | `userPresence` |
 | 5 | `detailedClosureStatus` | `DetailedClosureStatus` | `tonneauPercentOpen` (1, uint32), Cybertruck | `tonneauPercentOpen` (`null` if absent) |
 | 6 | `uiDesire` | `UIDesire_E` (TESLEMETRY-EXT) | In schema only | **Not surfaced** (planned M5) |
-| 7 | `gear` | `Gear_E` (TESLEMETRY-EXT, confirmed on a real car) | Current gear | `gear`; absent or outside the schema becomes `UNKNOWN` |
+| 7 | `gear` | `Gear_E` (TESLEMETRY-EXT; confirmed in broadcasts only, not yet checked in query replies) | Current gear | `gear`; absent or outside the schema becomes `UNKNOWN` |
 | 8 | (unknown, not in schema) | message | Seen on a real car: `{1: 1\|2, 2: 1\|2, 3: 1}`; meaning unknown | Not surfaced |
 
 `ClosureStatuses` has eight `ClosureState_E` fields, numbered 1 to 8: `frontDriverDoor`, `frontPassengerDoor`,
@@ -221,7 +221,7 @@ library does not know maps to `UNKNOWN`.
 | 5 | `CLOSURESTATE_OPENING` | `OPENING` |
 | 6 | `CLOSURESTATE_CLOSING` | `CLOSING` |
 
-`Gear_E` (`VehicleStatus.gear`, field 7, TESLEMETRY-EXT, **Confirmed on a real car**: each of P, R, N, D produced a
+`Gear_E` (`VehicleStatus.gear`, field 7, TESLEMETRY-EXT, **Confirmed on a real car in broadcasts**: each of P, R, N, D produced a
 broadcast with the matching value; `GEAR_UNKNOWN` was not seen):
 
 | Value | Name | Public `Gear` |
@@ -273,7 +273,7 @@ library sends none of them and has no API for them.
 | `sleepStatus` | `SleepStatus` | `UNKNOWN`, `AWAKE`, `ASLEEP` (Infotainment) |
 | `userPresence` | `UserPresence` | `UNKNOWN`, `NOT_PRESENT`, `PRESENT` |
 | `tonneauPercentOpen` | `Int?` | Cybertruck only; `null` if not reported |
-| `gear` | `Gear` | `UNKNOWN`, `PARK`, `DRIVE`, `REVERSE`, `NEUTRAL`. `UNKNOWN` if not sent (proto3 cannot tell that from `GEAR_UNKNOWN`) or outside the schema. Last constructor parameter. TESLEMETRY-EXT field 7, no Go counterpart (FR-036) |
+| `gear` | `Gear` | `UNKNOWN`, `PARK`, `DRIVE`, `REVERSE`, `NEUTRAL`. `UNKNOWN` if not sent (proto3 cannot tell that from `GEAR_UNKNOWN`) or outside the schema. Last constructor parameter. TESLEMETRY-EXT field 7, no Go counterpart (FR-036). Confirmed in broadcasts; not yet checked in query replies |
 
 `Closures` has eight `ClosureState` fields: `frontDriverDoor`, `frontPassengerDoor`, `rearDriverDoor`,
 `rearPassengerDoor`, `rearTrunk`, `frontTrunk`, `chargePort`, `tonneau`. `ClosureState` values: `CLOSED`, `OPEN`, `AJAR`,

@@ -1,6 +1,6 @@
 # Monitor App (SFR-010 to SFR-017)
 
-Status: **planned** (issue #91). The library features it needs (`Vehicle.events`, `VehicleStatus.gear`, key
+Status: **planned** (issue #91). The library features it needs (`Vehicle.events`, key
 accessibility on iOS) are not available yet; this page describes the target. Library design:
 `docs/superpowers/specs/2026-10-24-vehicle-events-monitor-design.md`. Plan:
 `docs/superpowers/plans/2026-10-24-vehicle-events-monitor.md`.
