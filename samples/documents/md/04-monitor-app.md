@@ -1,6 +1,6 @@
 # Monitor App (SFR-010 to SFR-017)
 
-Status: **Android implemented** (build `0.2.0 (2)`) and **iOS implemented** (build `0.4.0 (11)`); unit tests and builds
+Status: **Android implemented** (build `0.3.0 (3)`) and **iOS implemented** (build `0.5.0 (12)`); unit tests and builds
 pass, **real-device checks pending** for both (iOS background reconnect is unconfirmed until the plan Task 2 spike).
 Issue #91. The library APIs it needs are available: `Vehicle.events`
 (`12-lib-getting-started.md` §Broadcast events, `14-lib-reading-state.md` B2) and the key accessibility `KeyAccessibility`
@@ -18,7 +18,7 @@ raw bytes so that unknown protocol fields can be analysed later (`protocol-analy
 
 | ID | Requirement |
 |---|---|
-| SFR-010 | Tab layout: **Live**, **Query**, **Log**, **Control** (the existing single screen moves into Control) |
+| SFR-010 | Tab layout: **Live**, **Query**, **Log**, **Control** (the existing single screen moves into Control), then **Key & Control** (SFR-018, `05-key-control-tab.md`) |
 | SFR-011 | The VIN is entered once and saved (Android `SharedPreferences`, iOS `UserDefaults`), with a button to clear it. On app start, if a VIN is saved, the app scans and connects automatically. A **Connect** button always tries immediately |
 | SFR-012 | When `connection` becomes `Disconnected`, the app calls `Vehicle.disconnect()` and reconnects with back-off (2 s doubling to at most 30 s), also in the background. **Disconnect** stops automatic reconnection until Connect is pressed |
 | SFR-013 | While the app is visible, the screen does not turn off (Android `FLAG_KEEP_SCREEN_ON`, iOS `isIdleTimerDisabled` tied to the active scene phase) |
@@ -192,7 +192,7 @@ How it behaves, where the design left room:
   gap between two `link` lines shows how long that was.
 - **Pulling.** `tools/samples/pull-monitor-logs.sh ios [--device <id>]` copies `Documents/logs` of the device build
   (`dev.mirolab.TeslableSampleDevice`) with `xcrun devicectl device copy from` into `samples/logs/ios/<date>/`.
-- **Version.** `project.yml` has `MARKETING_VERSION 0.4.0` and `CURRENT_PROJECT_VERSION 10`; raise the build number for
+- **Version.** `project.yml` has `MARKETING_VERSION 0.5.0` and `CURRENT_PROJECT_VERSION 12`; raise the build number for
   every real-device round.
 
 ## Real-vehicle checklist (both apps)

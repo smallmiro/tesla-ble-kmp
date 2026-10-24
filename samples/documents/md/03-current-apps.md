@@ -1,11 +1,12 @@
 # Current Sample Apps
 
 State as of 2026-10-24 (M4). Both apps are the monitor app (`04-monitor-app.md`); the former single screen of each is its
-Control tab.
+Control tab. The Key & Control tab (`05-key-control-tab.md`, SFR-018) is the short path: get a key, enroll it, press
+control buttons.
 
 ## Android (`samples/android`)
 
-The monitor app (`04-monitor-app.md`, SFR-010 to SFR-017): four tabs and a foreground service. Build `0.2.0 (2)`; unit
+The monitor app (`04-monitor-app.md`, SFR-010 to SFR-018): five tabs and a foreground service. Build `0.3.0 (3)`; unit
 tests pass, real-device check pending.
 
 - Module `:samples:android`, package and application id `dev.mirolab.teslable.sample`, `minSdk` 31.
@@ -21,6 +22,7 @@ tests pass, real-device check pending.
 | Query | `vehicleStatus()`, `keySummary()`, `listKeys()` every 30 s (changeable), results with outcome and time, sessions, "query now" |
 | Log | Line counts, unrecognized count, last lines, file path, memo and Mark, new file |
 | Control | The former single screen (below). Uses the monitor's connection and key |
+| Key & Control | Four steps (key, connect, enroll, control) and a button grid of the VCSEC commands, status card, results (`05-key-control-tab.md`) |
 
 Control tab (the former single screen):
 
@@ -34,8 +36,8 @@ Control tab (the former single screen):
 
 ## iOS (`samples/ios`)
 
-The monitor app (`04-monitor-app.md`, SFR-010 to SFR-017): four tabs, one monitor object for the app's lifetime. Build
-`0.4.0 (11)`; unit tests pass, real-device check pending.
+The monitor app (`04-monitor-app.md`, SFR-010 to SFR-018): five tabs, one monitor object for the app's lifetime. Build
+`0.5.0 (12)`; unit tests pass, real-device check pending.
 
 - XcodeGen project (`project.yml`), schemes `TeslableSample` (simulator) and `TeslableSampleDevice` (device).
   `Info.plist` gets `UIBackgroundModes: [bluetooth-central]`, `UIFileSharingEnabled` and
@@ -53,6 +55,7 @@ The monitor app (`04-monitor-app.md`, SFR-010 to SFR-017): four tabs, one monito
 | Query | `vehicleStatus()`, `keySummary()`, `listKeys()` every 30 s (changeable), results with outcome and time, sessions, "query now" |
 | Log | Line counts, unrecognized count, last lines and copy, file path, memo and Mark, new file |
 | Control | The former single screen (below). Uses the monitor's connection and key |
+| Key & Control | Four steps (key, connect, enroll, control) and a button grid of the VCSEC commands, status card, results (`05-key-control-tab.md`) |
 
 Control tab (the former single screen; same groups as Android):
 

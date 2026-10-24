@@ -34,11 +34,12 @@
     <li><a href="02-constraints.html">2. 제약 조건</a></li>
     <li><a class="active" href="03-current-apps.html">3. 현재 앱</a></li>
     <li><a href="04-monitor-app.html">4. 모니터 앱</a></li>
+    <li><a href="05-key-control-tab.html">5. 키·제어 탭</a></li>
   </ol>
 </nav>
 <main class="content">
 <h1>3. 현재 앱</h1>
-<p class="lead">2026-10-24 기준(마일스톤 M4) 두 앱이 하는 일입니다. 둘 다 모니터 앱(<a href="04-monitor-app.html">4. 모니터 앱</a>)이며, 각 앱의 예전 단일 화면은 Control 탭이 되었습니다.</p>
+<p class="lead">2026-10-24 기준(마일스톤 M4) 두 앱이 하는 일입니다. 둘 다 모니터 앱(<a href="04-monitor-app.html">4. 모니터 앱</a>)이며, 각 앱의 예전 단일 화면은 Control 탭이 되었습니다. 키·제어 탭(<a href="05-key-control-tab.html">5. 키·제어 탭</a>, SFR-018)은 지름길입니다. 키를 만들고, 등록하고, 제어 버튼을 누릅니다.</p>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
 <li><a href="#sec-android">Android</a></li>
@@ -47,7 +48,7 @@
 </ol></div>
 
 <h2 id="sec-android">Android</h2>
-<p>모니터 앱입니다(<a href="04-monitor-app.html">4. 모니터 앱</a>, SFR-010~SFR-017). 탭 네 개와 포그라운드 서비스로 이루어져 있습니다. 빌드 <code>0.2.0 (2)</code>, 단위 테스트는 통과했고 실기기 확인은 대기 중입니다.</p>
+<p>모니터 앱입니다(<a href="04-monitor-app.html">4. 모니터 앱</a>, SFR-010~SFR-018). 탭 다섯 개와 포그라운드 서비스로 이루어져 있습니다. 빌드 <code>0.3.0 (3)</code>, 단위 테스트는 통과했고 실기기 확인은 대기 중입니다.</p>
 <p>Gradle 모듈 <code>:samples:android</code>, 패키지와 애플리케이션 ID는 <code>dev.mirolab.teslable.sample</code>, <code>minSdk</code>는 31입니다. <code>MainActivity.kt</code>는 탭과 권한 요청을 담당하고 화면이 보이는 동안 화면을 켜 둡니다. <code>MonitorService.kt</code>와 <code>MonitorEngine.kt</code>가 서비스, 연결, 이벤트, 조회, 로그를 운영합니다. <code>SampleState.kt</code>는 Control 탭의 상태를 보관하고 모든 동작을 <code>exclusive { }</code>로 실행하므로 라이브러리 호출은 한 번에 하나만 실행됩니다. 탭 화면은 <code>ui/</code>에 있습니다. 단위 테스트는 <code>src/test/</code>에 있고 <code>./gradlew :samples:android:testDebugUnitTest</code>로 실행합니다.</p>
 <table>
 <thead><tr><th>탭</th><th>내용</th></tr></thead>
@@ -56,6 +57,7 @@
 <tr><td>Query</td><td><code>vehicleStatus()</code>, <code>keySummary()</code>, <code>listKeys()</code>를 30초마다(변경 가능) 조회, 결과와 시각, 세션, "지금 조회"</td></tr>
 <tr><td>Log</td><td>줄 수, 인식하지 못한 이벤트 수, 마지막 줄들, 파일 경로, 메모와 Mark, 새 파일</td></tr>
 <tr><td>Control</td><td>예전의 단일 화면(아래). 모니터의 연결과 키를 사용합니다</td></tr>
+<tr><td>키·제어</td><td>네 단계(키, 연결, 등록, 제어), VCSEC 명령 버튼 그리드, 상태 카드, 결과 (<a href="05-key-control-tab.html">5. 키·제어 탭</a>)</td></tr>
 </tbody>
 </table>
 <p>Control 탭:</p>
@@ -71,7 +73,7 @@
 </table>
 
 <h2 id="sec-ios">iOS</h2>
-<p>모니터 앱입니다(<a href="04-monitor-app.html">4. 모니터 앱</a>, SFR-010~SFR-017). 탭 네 개와 앱 수명 동안 유지되는 모니터 객체 하나로 이루어져 있습니다. 빌드 <code>0.4.0 (11)</code>, 단위 테스트는 통과했고 실기기 확인은 대기 중입니다.</p>
+<p>모니터 앱입니다(<a href="04-monitor-app.html">4. 모니터 앱</a>, SFR-010~SFR-018). 탭 다섯 개와 앱 수명 동안 유지되는 모니터 객체 하나로 이루어져 있습니다. 빌드 <code>0.5.0 (12)</code>, 단위 테스트는 통과했고 실기기 확인은 대기 중입니다.</p>
 <p>스킴 <code>TeslableSample</code>(시뮬레이터)과 <code>TeslableSampleDevice</code>(실기기)가 있는 XcodeGen 프로젝트(<code>project.yml</code>)입니다. <code>project.yml</code>은 <code>Info.plist</code>에 <code>UIBackgroundModes: [bluetooth-central]</code>, <code>UIFileSharingEnabled</code>, <code>LSSupportsOpeningDocumentsInPlace</code>를 설정합니다. <code>MonitorModel.swift</code>와 <code>MonitorEngine.swift</code>가 연결, 이벤트, 조회, 로그를 운영하고, <code>ConnectionLoop.swift</code>, <code>LogLine.swift</code>, <code>LogWriter.swift</code>, <code>VinMask.swift</code>, <code>LiveState.swift</code>, <code>VehicleMapping.swift</code>가 그 뒤를 받치는 부품입니다(<a href="04-monitor-app.html#sec-ios">iOS 구현</a> 참고). <code>SampleModel.swift</code>는 Control 탭의 상태를 보관하고 모든 동작을 <code>exclusive { }</code>로 실행하므로 라이브러리 호출은 한 번에 하나만 실행됩니다. 탭은 <code>ContentView.swift</code>와 <code>Views/</code>에 있습니다. Swift 단위 테스트는 <code>Tests/</code>에 있습니다(<code>VinMaskTests</code>, <code>LogWriterTests</code>, <code>ConnectionLoopTests</code>, <code>LiveStateTests</code>, <code>TimeoutsTests</code>).</p>
 <table>
 <thead><tr><th>탭</th><th>내용</th></tr></thead>
@@ -80,6 +82,7 @@
 <tr><td>Query</td><td><code>vehicleStatus()</code>, <code>keySummary()</code>, <code>listKeys()</code>를 30초마다(변경 가능) 조회, 결과와 시각, 세션, "지금 조회"</td></tr>
 <tr><td>Log</td><td>줄 수, 인식하지 못한 이벤트 수, 마지막 줄들, 파일 경로, 메모와 Mark, 새 파일</td></tr>
 <tr><td>Control</td><td>예전의 단일 화면(아래). 모니터의 연결과 키를 사용합니다</td></tr>
+<tr><td>키·제어</td><td>네 단계(키, 연결, 등록, 제어), VCSEC 명령 버튼 그리드, 상태 카드, 결과 (<a href="05-key-control-tab.html">5. 키·제어 탭</a>)</td></tr>
 </tbody>
 </table>
 <p>Control 탭(Android와 같은 그룹):</p>

@@ -34,11 +34,12 @@
     <li><a href="02-constraints.html">2. 制約</a></li>
     <li><a class="active" href="03-current-apps.html">3. 現在のアプリ</a></li>
     <li><a href="04-monitor-app.html">4. モニターアプリ</a></li>
+    <li><a href="05-key-control-tab.html">5. キー＆コントロールタブ</a></li>
   </ol>
 </nav>
 <main class="content">
 <h1>3. 現在のアプリ</h1>
-<p class="lead">2 つのアプリの 2026-10-24 時点（マイルストーン M4）の動作です。どちらもモニターアプリ（<a href="04-monitor-app.html">4. モニターアプリ</a>）で、それぞれの以前の 1 画面は Control タブになりました。</p>
+<p class="lead">2 つのアプリの 2026-10-24 時点（マイルストーン M4）の動作です。どちらもモニターアプリ（<a href="04-monitor-app.html">4. モニターアプリ</a>）で、それぞれの以前の 1 画面は Control タブになりました。 キー＆コントロールタブ（<a href="05-key-control-tab.html">5. キー＆コントロールタブ</a>、SFR-018）は近道です。キーを作り、登録し、操作ボタンを押します。</p>
 
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-android">Android</a></li>
@@ -47,7 +48,7 @@
 </ol></div>
 
 <h2 id="sec-android">Android</h2>
-<p>モニターアプリです（<a href="04-monitor-app.html">4. モニターアプリ</a>、SFR-010～SFR-017）。4 つのタブとフォアグラウンドサービスでできています。ビルド <code>0.2.0 (2)</code>、単体テストは通過し、実機確認は待機中です。</p>
+<p>モニターアプリです（<a href="04-monitor-app.html">4. モニターアプリ</a>、SFR-010～SFR-018）。5 つのタブとフォアグラウンドサービスでできています。ビルド <code>0.3.0 (3)</code>、単体テストは通過し、実機確認は待機中です。</p>
 <p>Gradle モジュールは <code>:samples:android</code>、パッケージ名とアプリケーション ID は <code>dev.mirolab.teslable.sample</code>、<code>minSdk</code> は 31 です。<code>MainActivity.kt</code> がタブと権限の要求を担当し、画面が表示されている間は画面を点灯させたままにします。<code>MonitorService.kt</code> と <code>MonitorEngine.kt</code> がサービス、接続、イベント、問い合わせ、ログを動かします。<code>SampleState.kt</code> は Control タブの状態を保持し、すべての操作を <code>exclusive { }</code> 経由で実行するため、ライブラリの呼び出しは同時に 1 つしか動きません。タブの画面は <code>ui/</code> にあります。単体テストは <code>src/test/</code> にあり、<code>./gradlew :samples:android:testDebugUnitTest</code> で実行します。</p>
 <table>
 <thead><tr><th>タブ</th><th>内容</th></tr></thead>
@@ -56,6 +57,7 @@
 <tr><td>Query</td><td><code>vehicleStatus()</code>、<code>keySummary()</code>、<code>listKeys()</code> を 30 秒ごと（変更可）に問い合わせ、結果と時刻、セッション、「今すぐ問い合わせ」</td></tr>
 <tr><td>Log</td><td>行数、認識できないイベントの数、最後の行、ファイルのパス、メモと Mark、新しいファイル</td></tr>
 <tr><td>Control</td><td>以前の 1 画面（下）。モニターの接続とキーを使います</td></tr>
+<tr><td>キー＆コントロール</td><td>4 つのステップ（キー、接続、登録、操作）、VCSEC コマンドボタンのグリッド、状態カード、結果（<a href="05-key-control-tab.html">5. キー＆コントロールタブ</a>）</td></tr>
 </tbody>
 </table>
 <p>Control タブ:</p>
@@ -71,7 +73,7 @@
 </table>
 
 <h2 id="sec-ios">iOS</h2>
-<p>モニターアプリです（<a href="04-monitor-app.html">4. モニターアプリ</a>、SFR-010～SFR-017）。4 つのタブと、アプリの存続期間中ずっと存在する 1 つのモニターオブジェクトでできています。ビルド <code>0.4.0 (11)</code>、単体テストは通過し、実機確認は待機中です。</p>
+<p>モニターアプリです（<a href="04-monitor-app.html">4. モニターアプリ</a>、SFR-010～SFR-018）。5 つのタブと、アプリの存続期間中ずっと存在する 1 つのモニターオブジェクトでできています。ビルド <code>0.5.0 (12)</code>、単体テストは通過し、実機確認は待機中です。</p>
 <p>XcodeGen プロジェクト（<code>project.yml</code>）で、スキームは <code>TeslableSample</code>（シミュレータ用）と <code>TeslableSampleDevice</code>（実機用）です。<code>project.yml</code> は <code>Info.plist</code> に <code>UIBackgroundModes: [bluetooth-central]</code>、<code>UIFileSharingEnabled</code>、<code>LSSupportsOpeningDocumentsInPlace</code> を設定します。<code>MonitorModel.swift</code> と <code>MonitorEngine.swift</code> が接続、イベント、問い合わせ、ログを動かします。<code>ConnectionLoop.swift</code>、<code>LogLine.swift</code>、<code>LogWriter.swift</code>、<code>VinMask.swift</code>、<code>LiveState.swift</code>、<code>VehicleMapping.swift</code> はその裏にある部品です（<a href="04-monitor-app.html#sec-ios">iOS の実装</a>を参照）。<code>SampleModel.swift</code> は Control タブの状態を保持し、すべての操作を <code>exclusive { }</code> 経由で実行するため、ライブラリの呼び出しは同時に 1 つしか動きません。タブは <code>ContentView.swift</code> と <code>Views/</code> にあります。Swift の単体テストは <code>Tests/</code> にあります（<code>VinMaskTests</code>、<code>LogWriterTests</code>、<code>ConnectionLoopTests</code>、<code>LiveStateTests</code>、<code>TimeoutsTests</code>）。</p>
 <table>
 <thead><tr><th>タブ</th><th>内容</th></tr></thead>
@@ -80,6 +82,7 @@
 <tr><td>Query</td><td><code>vehicleStatus()</code>、<code>keySummary()</code>、<code>listKeys()</code> を 30 秒ごと（変更可）に問い合わせ、結果と時刻、セッション、「今すぐ問い合わせ」</td></tr>
 <tr><td>Log</td><td>行数、認識できないイベントの数、最後の行とコピー、ファイルのパス、メモと Mark、新しいファイル</td></tr>
 <tr><td>Control</td><td>以前の 1 画面（下）。モニターの接続とキーを使います</td></tr>
+<tr><td>キー＆コントロール</td><td>4 つのステップ（キー、接続、登録、操作）、VCSEC コマンドボタンのグリッド、状態カード、結果（<a href="05-key-control-tab.html">5. キー＆コントロールタブ</a>）</td></tr>
 </tbody>
 </table>
 <p>Control タブ（Android と同じグループ）:</p>

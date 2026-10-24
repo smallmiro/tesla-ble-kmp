@@ -12,7 +12,7 @@ Library pages this tab follows: `13-lib-pairing.md` (§Checking whether a key is
 
 | ID | Requirement |
 |---|---|
-| SFR-018 | Tab **키·제어** (Key & Control) after Control. Four steps, each showing done / to do / blocked with a one-line hint: (1) **Key**: create or load the monitor key; (2) **Connect**: uses the saved VIN and the monitor's connection; (3) **Enroll**: request enrollment (NFC card on the console), progress lines, automatic confirmation; (4) **Control**: a button grid of the available VCSEC commands. Every command first makes sure a VCSEC session exists, then sends the command once; `Uncertain` is never resent and is followed by a `vehicleStatus()` re-query. A status card shows lock, trunk, frunk and sleep from the last `vehicleStatus()` |
+| SFR-018 | Tab **Key & Control** after Control. Four steps, each showing done / to do / blocked with a one-line hint: (1) **Key**: create or load the monitor key; (2) **Connect**: uses the saved VIN and the monitor's connection; (3) **Enroll**: request enrollment (NFC card on the console), progress lines, automatic confirmation; (4) **Control**: a button grid of the available VCSEC commands. Every command first makes sure a VCSEC session exists, then sends the command once; `Uncertain` is never resent and is followed by a `vehicleStatus()` re-query. A status card shows lock, trunk, frunk and sleep from the last `vehicleStatus()` |
 
 ## Steps and enabling rules
 
@@ -23,17 +23,17 @@ connected, enrollment (`unknown`, `checking`, `notEnrolled`, `enrolled`), busy (
 
 | Step | Done when | Blocked when (hint) | Button enabled when |
 |---|---|---|---|
-| 1 Key | key ready | key locked ("폰을 잠금 해제한 뒤 다시 누르세요") | not busy |
-| 2 Connect | connected | no VIN saved ("Live 탭에서 VIN을 저장하세요") | VIN saved, not connected, not busy |
-| 3 Enroll | enrollment = `enrolled` | key not ready or not connected ("1·2단계를 먼저 끝내세요") | key ready, connected, enrollment ≠ `enrolled`, ≠ `checking`, not busy |
-| 4 Control | – | enrollment ≠ `enrolled` ("키를 차량에 등록하면 버튼이 켜집니다") | key ready, connected, enrollment = `enrolled`, not busy |
+| 1 Key | key ready | key locked (hint: unlock the phone and press again) | not busy |
+| 2 Connect | connected | no VIN saved (hint: save the VIN on the Live tab) | VIN saved, not connected, not busy |
+| 3 Enroll | enrollment = `enrolled` | key not ready or not connected (hint: finish steps 1 and 2 first) | key ready, connected, enrollment ≠ `enrolled`, ≠ `checking`, not busy |
+| 4 Control | – | enrollment ≠ `enrolled` (hint: the buttons turn on once the key is enrolled) | key ready, connected, enrollment = `enrolled`, not busy |
 
 Enrollment state:
 
 - Becomes `checking` and then `enrolled` / `notEnrolled` / back to `unknown` when the tab checks with `listKeys()`:
   the vehicle entry whose public key equals the local key (`13-lib-pairing.md` §Checking whether a key is enrolled).
   `Uncertain` or `Failure` gives `unknown`. The check runs automatically once each time the tab sees a new connection
-  with a ready key, and on the **등록 상태 확인** button.
+  with a ready key, and on the **Check enrollment** button.
 - Becomes `enrolled` when the pairing confirmation (`sessionInfo(publicKey, INFOTAINMENT)` polling, every 3 s for up to
   2 min, `13-lib-pairing.md` §Enrolling a key) succeeds.
 - Becomes `notEnrolled` when `startSession` before a command fails with `KeyNotPaired`.
@@ -47,28 +47,28 @@ Enrollment state:
    (`15-lib-commands.md`). On `Failure` the command is **not sent**; the result line says why, and `KeyNotPaired`
    sets enrollment to `notEnrolled`. `KeyStoreError.Locked` says to unlock the phone.
 2. `command` is called exactly once.
-3. `Success` → "성공"; `Failure` → "실패: <message>"; `Uncertain` → "불확실: <message>", never resent.
+3. `Success` → "succeeded"; `Failure` → "failed: <message>"; `Uncertain` → "uncertain: <message>", never resent.
 4. `requery` = `vehicleStatus()` always runs after the command (also after `Success`, to refresh the status card;
    after `Uncertain` it is the re-query the manual requires).
 
 ## Buttons
 
-| Group | Button (UI label) | Call | Confirm first |
+| Group | Button (meaning of the Korean UI label) | Call | Confirm first |
 |---|---|---|---|
-| Doors | 잠금 | `lock()` | no |
-| Doors | 잠금 해제 | `unlock()` | no |
-| Doors | 깨우기 | `wakeUp()` | no |
-| Trunk | 트렁크 열기/닫기 (toggle) | `actuateTrunk()` | no |
-| Trunk | 트렁크 닫기 | `closeTrunk()` | no |
-| Trunk | 프렁크 열기 | `openFrunk()` | yes ("원격으로 닫을 수 없습니다") |
-| Drive | 원격 주행 허용 | `remoteDrive()` | yes |
-| Model X | 자동 잠금 (Auto secure) | `autoSecureVehicle()` | no |
-| Cybertruck | 토노 열기 / 닫기 / 정지 | `openTonneau()` / `closeTonneau()` / `stopTonneau()` | no |
+| Doors | Lock | `lock()` | no |
+| Doors | Unlock | `unlock()` | no |
+| Doors | Wake up | `wakeUp()` | no |
+| Trunk | Trunk open / close (toggle) | `actuateTrunk()` | no |
+| Trunk | Close trunk | `closeTrunk()` | no |
+| Trunk | Open frunk | `openFrunk()` | yes (it cannot be closed remotely) |
+| Drive | Allow remote drive | `remoteDrive()` | yes |
+| Model X | Auto secure | `autoSecureVehicle()` | no |
+| Cybertruck | Tonneau open / close / stop | `openTonneau()` / `closeTonneau()` / `stopTonneau()` | no |
 
-Model X and Cybertruck buttons sit in a collapsed "다른 차종" section. Infotainment commands (climate, charging, horn,
+Model X and Cybertruck buttons sit in a collapsed "Other models" section. Infotainment commands (climate, charging, horn,
 lights) wait for M5 and are not shown.
 
-Other controls: a status card (lock, trunk, frunk, sleep, time of the last read) with a **상태 새로고침** button
+Other controls: a status card (lock, trunk, frunk, sleep, time of the last read) with a **Refresh status** button
 (`vehicleStatus()`), and a result list (newest first, time stamped, no VIN).
 
 ## Concurrency
@@ -94,7 +94,7 @@ Both apps use the monitor's connection and the monitor key (`teslable-monitor`):
 2. VIN saved, car nearby: step 2 done after connect; enrollment check runs (`checking` → `notEnrolled` for a new key).
 3. Step 3: tap, put the key card on the console, approve on the screen → progress lines, then `enrolled`; step 4 buttons
    turn on.
-4. Lock / unlock / wake: result "성공" and the status card follows.
+4. Lock / unlock / wake: result "succeeded" and the status card follows.
 5. Trunk toggle and close, frunk with the confirmation dialog.
 6. Reinstall with the key still enrolled: after connect the check gives `enrolled` without pairing again.
 7. Remove the key on the car's screen, press a command: the session fails with `KeyNotPaired`, step 3 becomes "to do".

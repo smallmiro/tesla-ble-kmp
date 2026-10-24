@@ -18,6 +18,7 @@ They are not products.
 | 2 | `01-requirements.md` | When picking or checking a sample requirement (SFR) |
 | 3 | `03-current-apps.md` | When changing an existing screen or flow |
 | 4 | `04-monitor-app.md` | When working on the monitor app (SFR-010 to SFR-017) |
+| 5 | `05-key-control-tab.md` | When working on the Key & Control tab (SFR-018) |
 
 ## File list
 
@@ -27,7 +28,8 @@ They are not products.
 | `01-requirements.md` | Sample requirements `SFR-xxx`, status, origin |
 | `02-constraints.md` | Rules every sample change follows: allowed API, platform setup, logs and secrets, build and test |
 | `03-current-apps.md` | What the two apps do today, screen by screen, and where the real-vehicle runbooks are |
-| `04-monitor-app.md` | Monitor app (planned): tabs, auto-connect and reconnect, background, live state, polling, log format, pull script |
+| `04-monitor-app.md` | Monitor app: tabs, auto-connect and reconnect, background, live state, polling, log format, pull script |
+| `05-key-control-tab.md` | Key & Control tab: get a key, enroll it, control the vehicle with buttons (steps, enabling rules, command runner, buttons, checklist) |
 
 ## Keeping these pages current
 
