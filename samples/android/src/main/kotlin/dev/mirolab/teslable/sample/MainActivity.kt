@@ -35,8 +35,8 @@ class MainViewModel(
     app: Application,
 ) : AndroidViewModel(app) {
     val engine: MonitorEngine = MonitorRuntime.get(app)
-    val control = SampleState(engine)
-    val keyControl = KeyControlState(engine)
+    val keyControl = KeyControlState(engine, viewModelScope) // 동작은 ViewModel 범위에서 돌려 탭을 바꾸거나 화면을 돌려도 끊기지 않는다
+    val control = SampleState(engine, onEnrollmentChanged = keyControl::onEnrollmentChangedElsewhere)
 
     init {
         // 연결·키를 지켜보며 등록 상태를 맞춘다(탭을 열지 않아도). ViewModel이 살아 있는 동안 한 번만 돈다.

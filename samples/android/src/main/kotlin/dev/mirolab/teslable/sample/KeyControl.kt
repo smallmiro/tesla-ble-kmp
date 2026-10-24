@@ -26,6 +26,8 @@ data class KeyControlInputs(
     val keyLocked: Boolean,
     val vinSaved: Boolean,
     val connected: Boolean,
+    /** 연결이 개인키를 갖고 있다(`Vehicle.hasKey`). 연결할 때 키 저장소 오류가 있었다면 키 없이 연결된다. */
+    val hasKey: Boolean,
     val enrollment: Enrollment,
     /** 이 탭의 라이브러리 호출이 진행 중이다. */
     val busy: Boolean,
@@ -45,9 +47,11 @@ data class KeyControlSteps(
         const val HINT_NO_VIN = "Live 탭에서 VIN을 저장하세요"
         const val HINT_FINISH_1_2 = "1·2단계를 먼저 끝내세요"
         const val HINT_NOT_ENROLLED_YET = "키를 차량에 등록하면 버튼이 켜집니다"
+        const val HINT_CONNECTED_WITHOUT_KEY = "키 없이 연결됨 — 연결 끊기 후 다시 연결하세요"
+        const val REASON_BUSY = "다른 호출이 진행 중입니다"
 
         fun of(i: KeyControlInputs): KeyControlSteps {
-            val ready = i.keyReady && i.connected
+            val ready = i.keyReady && i.connected && i.hasKey
             val idle = !i.busy
             return KeyControlSteps(
                 key = keyStep(i),
@@ -73,7 +77,8 @@ data class KeyControlSteps(
 
         private fun connectStep(i: KeyControlInputs): StepView =
             when {
-                i.connected -> StepView(StepStatus.DONE, "차량에 연결됨", false)
+                i.connected && i.hasKey -> StepView(StepStatus.DONE, "차량에 연결됨", false)
+                i.connected -> StepView(StepStatus.TODO, HINT_CONNECTED_WITHOUT_KEY, !i.busy)
                 !i.vinSaved -> StepView(StepStatus.BLOCKED, HINT_NO_VIN, false)
                 else -> StepView(StepStatus.TODO, "연결 버튼을 누르세요", !i.busy)
             }
@@ -115,14 +120,14 @@ data class KeyControlSteps(
             }
 
         /**
-         * 새 연결마다 한 번만 등록을 자동으로 확인한다. [connection]은 연결된 차량(없으면 null), [checked]는 이미 확인한 연결.
-         * 연결이 바뀌면(재연결) 새 연결이다.
+         * 제어 명령을 지금 보내도 되는가. 보낼 수 없으면 그 이유 한 줄(확인 창을 누른 사이 조건이 바뀌었을 때 결과에 남긴다), 되면 `null`.
          */
-        fun needsAutoCheck(
-            connection: Any?,
-            keyReady: Boolean,
-            checked: Any?,
-        ): Boolean = connection != null && keyReady && connection !== checked
+        fun commandBlockedReason(i: KeyControlInputs): String? =
+            when {
+                i.busy -> REASON_BUSY
+                !of(i).control.buttonEnabled -> of(i).control.hint
+                else -> null
+            }
     }
 }
 
@@ -147,14 +152,14 @@ enum class KeyCommand(
     LOCK("잠금", KeyGroup.DOORS),
     UNLOCK("잠금 해제", KeyGroup.DOORS),
     WAKE_UP("깨우기", KeyGroup.DOORS),
-    ACTUATE_TRUNK("트렁크 열기/닫기 (토글)", KeyGroup.TRUNK),
+    ACTUATE_TRUNK("트렁크 열기/닫기", KeyGroup.TRUNK),
     CLOSE_TRUNK("트렁크 닫기", KeyGroup.TRUNK),
     OPEN_FRUNK("프렁크 열기", KeyGroup.TRUNK, "프렁크는 원격으로 닫을 수 없습니다. 열까요?"),
     REMOTE_DRIVE("원격 주행 허용", KeyGroup.DRIVE, "원격 주행을 허용하면 차가 키 없이 움직일 수 있는 상태가 됩니다. 허용할까요?"),
-    AUTO_SECURE("자동 잠금 (Auto secure)", KeyGroup.MODEL_X),
-    OPEN_TONNEAU("톤노 열기", KeyGroup.CYBERTRUCK),
-    CLOSE_TONNEAU("톤노 닫기", KeyGroup.CYBERTRUCK),
-    STOP_TONNEAU("톤노 정지", KeyGroup.CYBERTRUCK),
+    AUTO_SECURE("자동 잠금", KeyGroup.MODEL_X),
+    OPEN_TONNEAU("토노 열기", KeyGroup.CYBERTRUCK),
+    CLOSE_TONNEAU("토노 닫기", KeyGroup.CYBERTRUCK),
+    STOP_TONNEAU("토노 정지", KeyGroup.CYBERTRUCK),
 }
 
 /**
@@ -188,18 +193,43 @@ object KeyControlRunner {
     ): CommandOutcome {
         ensureSession().errorOrNull()?.let { return sessionFailed(it) }
 
+        // 세션이 이미 Ready라 startSession이 아무것도 보내지 않았어도, 명령 자체가 KeyNotPaired면 등록되지 않은 것이다.
+        var enrollment: Enrollment? = null
         val message =
             when (val r = command()) {
-                is VehicleResult.Success -> "성공"
-                is VehicleResult.Failure -> "실패: ${r.error.message}"
-                is VehicleResult.Uncertain -> "불확실: ${r.error.message}"
+                is VehicleResult.Success -> {
+                    "성공"
+                }
+
+                is VehicleResult.Failure -> {
+                    if (r.error == VehicleError.KeyNotPaired) enrollment = Enrollment.NOT_ENROLLED
+                    "실패: ${r.error.message}"
+                }
+
+                is VehicleResult.Uncertain -> {
+                    "불확실: ${r.error.message}"
+                }
             }
         val q = requery()
         return if (q is VehicleResult.Success) {
-            CommandOutcome(message, status = q.value)
+            CommandOutcome(message, enrollment = enrollment, status = q.value)
         } else {
-            CommandOutcome(message, requeryMessage = "재조회 실패: ${q.errorOrNull()?.message}")
+            CommandOutcome(message, enrollment = enrollment, requeryMessage = "재조회 실패: ${q.errorOrNull()?.message}")
         }
+    }
+
+    /**
+     * 자동 등록 확인. 첫 확인이 `UNKNOWN`(`Uncertain`/`Failure`)이면 모니터의 첫 조회와 VCSEC 호출이 겹쳤을 수 있으니
+     * [wait] 뒤 한 번만 더 확인한다.
+     */
+    suspend fun autoCheck(
+        check: suspend () -> Enrollment,
+        wait: suspend () -> Unit,
+    ): Enrollment {
+        val first = check()
+        if (first != Enrollment.UNKNOWN) return first
+        wait()
+        return check()
     }
 
     private fun sessionFailed(error: VehicleError): CommandOutcome =

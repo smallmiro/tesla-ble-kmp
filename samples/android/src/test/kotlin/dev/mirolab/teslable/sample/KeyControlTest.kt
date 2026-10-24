@@ -13,7 +13,9 @@ import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.VehicleStatus
 import dev.mirolab.teslable.model.WhitelistEntry
+import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.testTimeSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
@@ -21,7 +23,11 @@ import kotlin.test.assertNotNull
 import kotlin.test.assertNull
 import kotlin.test.assertTrue
 
-/** 차 없이 키·제어 탭의 규칙(SFR-018)을 시험한다. 단계 표는 `05-key-control-tab.md` §Steps and enabling rules 의 행마다 하나. */
+/**
+ * 차 없이 키·제어 탭의 규칙(SFR-018)을 시험한다. 단계 표는 `05-key-control-tab.md` §Steps and enabling rules 의 행마다 하나.
+ * 등록 확인 폴링의 2분은 `testTimeSource`(가상 시간)로 잰다.
+ */
+@OptIn(ExperimentalCoroutinesApi::class)
 class KeyControlTest {
     private fun inputs(
         keyReady: Boolean = true,
@@ -30,7 +36,8 @@ class KeyControlTest {
         connected: Boolean = true,
         enrollment: Enrollment = Enrollment.ENROLLED,
         busy: Boolean = false,
-    ) = KeyControlInputs(keyReady, keyLocked, vinSaved, connected, enrollment, busy)
+        hasKey: Boolean = true,
+    ) = KeyControlInputs(keyReady, keyLocked, vinSaved, connected, hasKey, enrollment, busy)
 
     // --- 1 키 -----------------------------------------------------------------------------------------------------------
 
@@ -89,6 +96,26 @@ class KeyControlTest {
 
         assertEquals(StepStatus.TODO, step.status)
         assertTrue(step.buttonEnabled)
+    }
+
+    @Test
+    fun connectedWithoutAKeyIsNotDoneAndOffersToReconnect() {
+        val step = KeyControlSteps.of(inputs(connected = true, hasKey = false)).connect
+
+        assertEquals(StepStatus.TODO, step.status)
+        assertEquals("키 없이 연결됨 — 연결 끊기 후 다시 연결하세요", step.hint)
+        assertTrue(step.buttonEnabled)
+        assertFalse(KeyControlSteps.of(inputs(connected = true, hasKey = false, busy = true)).connect.buttonEnabled)
+    }
+
+    @Test
+    fun enrollCheckAndControlNeedAConnectionThatHasTheKey() {
+        val steps = KeyControlSteps.of(inputs(connected = true, hasKey = false, enrollment = Enrollment.UNKNOWN))
+
+        assertEquals(StepStatus.BLOCKED, steps.enroll.status)
+        assertFalse(steps.enroll.buttonEnabled)
+        assertFalse(steps.checkEnabled)
+        assertFalse(KeyControlSteps.of(inputs(hasKey = false, enrollment = Enrollment.ENROLLED)).control.buttonEnabled)
     }
 
     @Test
@@ -308,6 +335,29 @@ class KeyControlTest {
         }
 
     @Test
+    fun keyNotPairedFromTheCommandItselfAlsoMeansNotEnrolled() =
+        runTest {
+            // 세션이 이미 Ready라 startSession이 아무것도 보내지 않았고, 명령의 결과가 KeyNotPaired다.
+            val f =
+                Fakes(command = VehicleResult.Failure(VehicleError.KeyNotPaired), requery = VehicleResult.Success(statusOk))
+
+            val out = f.run()
+
+            assertEquals(listOf("session", "command", "requery"), f.calls)
+            assertEquals(Enrollment.NOT_ENROLLED, out.enrollment)
+            assertTrue(out.message.startsWith("실패"), out.message)
+            assertEquals(statusOk, out.status)
+        }
+
+    @Test
+    fun otherCommandFailuresDoNotChangeEnrollment() =
+        runTest {
+            val f = Fakes(command = VehicleResult.Failure(VehicleError.InsufficientPrivileges), requery = VehicleResult.Success(statusOk))
+
+            assertNull(f.run().enrollment)
+        }
+
+    @Test
     fun lockedKeyStoreInTheSessionSaysToUnlockThePhone() =
         runTest {
             val f =
@@ -434,22 +484,83 @@ class KeyControlTest {
         assertFalse(null.isSameKeyAs(keyBytes(1)))
     }
 
-    // --- 연결마다 한 번 자동 확인 ------------------------------------------------------------------------------------------
+    // --- 자동 확인: 한 번 실패하면 한 번 더 -------------------------------------------------------------------------------
 
     @Test
-    fun autoCheckRunsOncePerNewConnectionWithAReadyKey() {
-        val a = Any()
-        val b = Any()
+    fun autoCheckStopsAtTheFirstDefiniteAnswer() =
+        runTest {
+            for (definite in listOf(Enrollment.ENROLLED, Enrollment.NOT_ENROLLED)) {
+                var checks = 0
+                var waits = 0
 
-        assertTrue(KeyControlSteps.needsAutoCheck(connection = a, keyReady = true, checked = null))
-        assertFalse(KeyControlSteps.needsAutoCheck(connection = a, keyReady = true, checked = a))
-        assertTrue(KeyControlSteps.needsAutoCheck(connection = b, keyReady = true, checked = a)) // 재연결 = 새 연결
+                val e =
+                    KeyControlRunner.autoCheck(check = {
+                        checks++
+                        definite
+                    }, wait = { waits++ })
+
+                assertEquals(definite, e)
+                assertEquals(1, checks)
+                assertEquals(0, waits)
+            }
+        }
+
+    @Test
+    fun autoCheckRetriesOnceAfterAWaitWhenTheFirstAnswerIsUnknown() =
+        runTest {
+            val answers = ArrayDeque(listOf(Enrollment.UNKNOWN, Enrollment.ENROLLED))
+            val order = mutableListOf<String>()
+
+            val e =
+                KeyControlRunner.autoCheck(check = {
+                    order += "check"
+                    answers.removeFirst()
+                }, wait = { order += "wait" })
+
+            assertEquals(Enrollment.ENROLLED, e)
+            assertEquals(listOf("check", "wait", "check"), order)
+        }
+
+    @Test
+    fun autoCheckGivesUpAfterOneRetry() =
+        runTest {
+            var checks = 0
+
+            val e =
+                KeyControlRunner.autoCheck(check = {
+                    checks++
+                    Enrollment.UNKNOWN
+                }, wait = {})
+
+            assertEquals(Enrollment.UNKNOWN, e)
+            assertEquals(2, checks)
+        }
+
+    // --- 명령을 보내기 전 다시 확인(확인 창 뒤) ------------------------------------------------------------------------------
+
+    @Test
+    fun commandIsAllowedOnlyWhenTheControlButtonsAreEnabled() {
+        assertNull(KeyControlSteps.commandBlockedReason(inputs(enrollment = Enrollment.ENROLLED)))
     }
 
     @Test
-    fun autoCheckWaitsForTheKeyAndNeedsAConnection() {
-        assertFalse(KeyControlSteps.needsAutoCheck(connection = Any(), keyReady = false, checked = null))
-        assertFalse(KeyControlSteps.needsAutoCheck(connection = null, keyReady = true, checked = null))
+    fun commandBlockedReasonNamesWhyItWasNotSent() {
+        assertEquals(
+            "다른 호출이 진행 중입니다",
+            KeyControlSteps.commandBlockedReason(inputs(enrollment = Enrollment.ENROLLED, busy = true)),
+        )
+        assertEquals(
+            KeyControlSteps.HINT_NOT_ENROLLED_YET,
+            KeyControlSteps.commandBlockedReason(inputs(enrollment = Enrollment.NOT_ENROLLED)),
+        )
+        assertEquals(
+            KeyControlSteps.HINT_FINISH_1_2,
+            KeyControlSteps.commandBlockedReason(inputs(connected = false, enrollment = Enrollment.ENROLLED)),
+        )
+        assertEquals(
+            KeyControlSteps.HINT_FINISH_1_2,
+            KeyControlSteps.commandBlockedReason(inputs(hasKey = false, enrollment = Enrollment.ENROLLED)),
+        )
     }
 
     // --- 버튼 표 ---------------------------------------------------------------------------------------------------------
@@ -486,4 +597,92 @@ class KeyControlTest {
                 .size,
         )
     }
+
+    @Test
+    fun buttonLabelsMatchTheIosSample() {
+        assertEquals(
+            mapOf(
+                KeyCommand.LOCK to "잠금",
+                KeyCommand.UNLOCK to "잠금 해제",
+                KeyCommand.WAKE_UP to "깨우기",
+                KeyCommand.ACTUATE_TRUNK to "트렁크 열기/닫기",
+                KeyCommand.CLOSE_TRUNK to "트렁크 닫기",
+                KeyCommand.OPEN_FRUNK to "프렁크 열기",
+                KeyCommand.REMOTE_DRIVE to "원격 주행 허용",
+                KeyCommand.AUTO_SECURE to "자동 잠금",
+                KeyCommand.OPEN_TONNEAU to "토노 열기",
+                KeyCommand.CLOSE_TONNEAU to "토노 닫기",
+                KeyCommand.STOP_TONNEAU to "토노 정지",
+            ),
+            KeyCommand.entries.associateWith { it.label },
+        )
+    }
+
+    // --- 등록 확인 폴링(13-lib-pairing.md waitUntilEnrolled) -----------------------------------------------------------------
+
+    private val sessionInfoOk = VehicleResult.Success(Unit)
+
+    @Test
+    fun pollingStopsWithSuccessAndConfirms() =
+        runTest {
+            val c = pollEnrollment(timeSource = testTimeSource) { sessionInfoOk }
+
+            assertTrue(c.confirmed)
+        }
+
+    @Test
+    fun pollingKeepsGoingOnKeyNotPairedAndUncertainThenConfirms() =
+        runTest {
+            val answers =
+                ArrayDeque<VehicleResult<Unit>>(
+                    listOf(
+                        VehicleResult.Failure(VehicleError.KeyNotPaired),
+                        VehicleResult.Uncertain(VehicleError.Timeout(afterSend = true)),
+                        VehicleResult.Success(Unit),
+                    ),
+                )
+            var calls = 0
+
+            val c =
+                pollEnrollment(timeSource = testTimeSource) {
+                    calls++
+                    answers.removeFirst()
+                }
+
+            assertTrue(c.confirmed)
+            assertEquals(3, calls)
+        }
+
+    @Test
+    fun pollingStopsAtOnceOnAnyOtherFailure() =
+        runTest {
+            var calls = 0
+
+            val c =
+                pollEnrollment(timeSource = testTimeSource) {
+                    calls++
+                    VehicleResult.Failure(VehicleError.NotConnected)
+                }
+
+            assertFalse(c.confirmed)
+            assertEquals(1, calls)
+            assertTrue(c.line.startsWith("등록 확인 실패"), c.line)
+            assertFalse(c.line.contains("2분 안에"), c.line) // 시간이 다 돼서 끝난 것이 아니다
+        }
+
+    @Test
+    fun pollingGivesUpAfterTheWindowWhenNeverEnrolled() =
+        runTest {
+            var calls = 0
+
+            val c =
+                pollEnrollment(timeSource = testTimeSource) {
+                    calls++
+                    VehicleResult.Failure(VehicleError.KeyNotPaired)
+                }
+
+            assertFalse(c.confirmed)
+            assertTrue(calls > 1)
+            assertTrue(c.line.contains("2분 안에 확인되지 않음"), c.line)
+        }
 }

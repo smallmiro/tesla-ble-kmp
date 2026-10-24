@@ -22,6 +22,8 @@ import kotlin.time.TimeSource
 @Suppress("TooManyFunctions") // Control 탭의 버튼마다 함수 하나: 한 화면의 상태를 한 곳에 모은 구조라 일부러 나누지 않는다
 class SampleState(
     private val engine: MonitorEngine,
+    /** 이 기기 키의 등록 상태를 바꿨을 때(등록 확인됨, 키 삭제) 키·제어 탭에 알린다. */
+    private val onEnrollmentChanged: (Enrollment) -> Unit = {},
 ) {
     private val ble: TeslaBle = engine.ble
     val keyInfo = mutableStateOf("키 없음")
@@ -117,6 +119,7 @@ class SampleState(
     suspend fun removeKey(entry: WhitelistEntry) {
         val pk = entry.publicKey ?: return run { output.add("키 삭제: 공개키 없는 항목") }
         control("키 삭제(슬롯 ${entry.slot})") { it.removeKey(pk) }
+        if (isOwn(entry)) onEnrollmentChanged(Enrollment.UNKNOWN) // 결과를 모르니 키·제어 탭이 보일 때 다시 확인한다
         listKeys()
     }
 
@@ -142,14 +145,16 @@ class SampleState(
     suspend fun pair() {
         val v = vehicle ?: return run { output.add("키 등록: 먼저 연결하세요") }
         val k = key ?: return run { output.add("키 등록: 먼저 키를 만드세요") }
-        requestAndConfirmEnrollment(v, k.publicKey) { output.add(it) }
+        if (requestAndConfirmEnrollment(v, k.publicKey) { output.add(it) }) onEnrollmentChanged(Enrollment.ENROLLED)
     }
 
     /** 3초 간격, 최대 2분 동안 Infotainment `sessionInfo`로 등록을 확인한다. */
     suspend fun confirmEnrollment() {
         val v = vehicle ?: return run { output.add("등록 확인: 먼저 연결하세요") }
         val k = key ?: return run { output.add("등록 확인: 먼저 키를 만드세요") }
-        output.add(confirmEnrollment(v, k.publicKey).line)
+        val result = confirmEnrollment(v, k.publicKey)
+        output.add(result.line)
+        if (result.confirmed) onEnrollmentChanged(Enrollment.ENROLLED)
     }
 
     /** 제어 명령. `Uncertain`이면 다시 보내지 않고 곧바로 `vehicleStatus()`로 재조회한다(FR-102). */
