@@ -41,8 +41,8 @@
 <p class="lead">車内または車の近くに置いたスマートフォンが自動で接続し、接続を保ち、車の状態をライブで表示し、ライブラリが読み取れるものをすべてポーリングし、すべてのブロードキャストを生のバイト列とともに記録します。これにより、未知のプロトコルフィールドを後から分析できます。</p>
 
 <div class="callout warn">
-<strong>予定</strong>
-<p>issue #91 で管理しており、すぐに作り始められます。必要なライブラリ API はすべて使えます: <code>Vehicle.events</code>（ライブラリマニュアル 12 章「ブロードキャストイベント」、14 章 B2）と iOS のキーアクセシビリティの選択（13 章「スマートフォンのロック中にキーを使う」、FR-037）。このページは目標とする姿を説明しています。</p>
+<strong>Android は実装済み、実機確認待ち</strong>
+<p>Android アプリは実装済みで（ビルド <code>0.2.0 (2)</code>、単体テストは通過）、実車での確認を待っています。iOS アプリは予定です（計画 Task 10）。必要なライブラリ API はすべて使えます: <code>Vehicle.events</code>（ライブラリマニュアル 12 章「ブロードキャストイベント」、14 章 B2）と iOS のキーアクセシビリティの選択（13 章「スマートフォンのロック中にキーを使う」、FR-037）。</p>
 </div>
 
 <div class="toc"><strong>このページの内容</strong><ol>
@@ -50,6 +50,7 @@
 <li><a href="#sec-key">ロック中のスマートフォンでのキー</a></li>
 <li><a href="#sec-bg">バックグラウンドでの動作</a></li>
 <li><a href="#sec-log">ログファイル</a></li>
+<li><a href="#sec-android">Android の実装</a></li>
 <li><a href="#sec-check">実車チェックリスト</a></li>
 </ol></div>
 
@@ -99,12 +100,56 @@
 <tr><td><code>mark</code></td><td>Mark ボタンで残したメモ</td></tr>
 </tbody>
 </table>
+<p>フィールドの補足（両アプリは同じ名前と順序で書きます）:</p>
+<ul>
+<li><code>event.summary</code> は <code>lock=… gear=… presence=…</code> で始まり、<code>Status</code> ではその後に <code>sleep=…</code>、<code>doors=FD/FP/RD/RP</code>、<code>frunk=…</code>、<code>trunk=…</code>、<code>chargePort=…</code> が続きます。<code>AuthenticationRequest</code> は <code>level=… reasons=[…]</code>、<code>Unrecognized</code> は <code>unknownFields=[…]</code> です。</li>
+<li><code>link</code>: 該当しない <code>reason</code>、<code>attempt</code>、<code>delayMs</code> は書きません。<code>connecting.attempt</code> は開始、またはリンクが切れてからの試行回数です。<code>backoff.attempt</code> は連続失敗の回数（リンクが切れたこともその 1 回目として数えます）で、<code>delayMs</code> は次の試行までの待ち時間なので、待ち時間は 2000、4000、8000、16000、30000、30000 と並びます。リンクが切れると <code>disconnected</code> の行（ライブラリが理由を返したときはその理由つき）を書き、続けて <code>backoff</code> の行を書きます。10 秒以上続いた接続は、待ち時間を再び 2 秒から始めます。</li>
+<li><code>vehicleStatus</code> の <code>query.summary</code> は <code>Status</code> イベントの要約と同じ形式です。公開鍵も VIN も含みません。</li>
+</ul>
 <ul>
 <li><strong>VIN のマスク：</strong>書き込む前に、生のバイト列やテキストに含まれる 17 文字の VIN は、先頭 3 文字と末尾 4 文字を残し、残りを <code>*</code> に置き換えます。そのため長さは変わりません。</li>
 <li>マークのメモは最大 80 文字です。空のメモは無視されます。</li>
 <li>ファイル名は <code>monitor-&lt;yyyyMMdd-HHmmss&gt;.jsonl</code> です。20 MB で新しいファイルを開始し、フォルダーが 200 MB を超えると最も古いファイルから削除します。</li>
 <li>書き込みがイベントの収集を止めることはありません。ライターは小さなインターフェースの背後にあり、将来クラウドへの出力先を追加できます。</li>
 <li>ファイルの場所：Android は <code>Android/data/dev.mirolab.teslable.sample/files/logs/</code>（<code>adb pull</code> で読み取れます）。iOS は <code>Documents/logs/</code> で、Finder とファイルアプリからも見えます。</li>
+</ul>
+
+<h2 id="sec-android">Android の実装</h2>
+<p><code>samples/android/src/main/kotlin/dev/mirolab/teslable/sample/</code> のファイル:</p>
+<table>
+<thead><tr><th>ファイル</th><th>役割</th></tr></thead>
+<tbody>
+<tr><td><code>MonitorService.kt</code></td><td>フォアグラウンドサービス（<code>foregroundServiceType="connectedDevice"</code>）。通知（リンクの状態と<strong>停止</strong>）を表示し、エンジンを生かし続けます。画面が表示されている間に、<code>BLUETOOTH_CONNECT</code> が許可された後で開始します。<code>START_NOT_STICKY</code>。</td></tr>
+<tr><td><code>MonitorEngine.kt</code></td><td>プロセスに 1 つ: ライブラリのインスタンス、接続ループ、イベントの購読、30 秒ごとの問い合わせ、保存した VIN、モニターのキー、ログの書き込み。<code>observe</code> の行は、それ以外を <code>DebugLogger</code> に渡す <code>TeslaLogger</code> を通して入ってきます。</td></tr>
+<tr><td><code>ConnectionLoop.kt</code></td><td>状態機械 <code>Idle</code>、<code>Connecting(attempt)</code>、<code>Connected</code>、<code>Backoff(attempt, delay, reason)</code>、<code>Stopped</code>。ライブラリのことは何も知らず、仮想時間で単体テストします。</td></tr>
+<tr><td><code>LogLine.kt</code>、<code>LogWriter.kt</code>、<code>VinMask.kt</code></td><td>ログ行の形式、<code>LogSink</code> インターフェースの後ろにあるファイル書き込み、VIN のマスク。</td></tr>
+<tr><td><code>LiveState.kt</code></td><td>イベントを Live タブの状態（項目ごとの最後に変わった時刻）に変えます。</td></tr>
+<tr><td><code>ui/</code></td><td><code>LiveTab</code>、<code>QueryTab</code>、<code>LogTab</code>、<code>ControlTab</code>（以前の 1 画面）と共通のヘルパー。</td></tr>
+</tbody>
+</table>
+<p>使ったライブラリ呼び出しと、従ったマニュアルの章:</p>
+<table>
+<thead><tr><th>呼び出し</th><th>場所</th><th>マニュアル</th></tr></thead>
+<tbody>
+<tr><td><code>TeslaBle.create</code>、<code>connect(vin, key)</code>、リンクが切れるたびに <code>vehicle.disconnect()</code></td><td><code>MonitorEngine</code></td><td>12 章「全体の流れ」、17 章「接続スロットとリンク切断」</td></tr>
+<tr><td><code>vehicle.connection</code>（<code>Disconnected</code> になるまで待つ）</td><td><code>MonitorEngine.awaitLoss</code></td><td>12 章「次のステップ」、14 章「接続とセッションの状態」</td></tr>
+<tr><td>専用のコルーチンで収集する <code>vehicle.events</code>。<code>raw</code> は一度だけ読み、保存する前にマスクします</td><td><code>MonitorEngine.collectEvents</code></td><td>12 章「ブロードキャストイベント」、14 章 B2、B2.4</td></tr>
+<tr><td>30 秒ごとに <code>vehicleStatus()</code>、<code>keySummary()</code>、<code>listKeys()</code>、<code>sessions</code>。<code>Uncertain</code> と <code>Failure</code> はそのまま表示します</td><td><code>MonitorEngine.runQueries</code></td><td>14 章「4 つのクエリ」、16 章「3 つの結果」</td></tr>
+<tr><td><code>keys.getOrCreate("teslable-monitor", PREFER_HARDWARE, AFTER_FIRST_UNLOCK)</code>。<code>Locked</code> なら待って再試行し、キーは消しません</td><td><code>MonitorEngine.ensureKey</code></td><td>13 章「スマートフォンのロック中にキーを使う」、16 章「Bluetooth とキーストアのエラー」</td></tr>
+<tr><td><code>TeslaLogger</code>（タグ <code>observe</code>）</td><td><code>MonitorEngine.kt</code> の <code>ObserveLogger</code></td><td>18 章「観察ログ（開発用）」</td></tr>
+<tr><td><code>Vin.parseOrNull</code>、<code>scan</code>、<code>addKeyRequest</code>、<code>sessionInfo</code>、<code>startSession</code>、VCSEC コマンド、<code>removeKey</code></td><td>Control タブ（<code>SampleState</code>）</td><td>12、13、15、16 章</td></tr>
+</tbody>
+</table>
+<p>動作のしかたと、設計で余地を残した部分:</p>
+<ul>
+<li><strong>接続は 1 つ。</strong> Control タブはモニターの接続とキーを使います（車は BLE 接続を 3 つまで受け付けます）。Control タブの接続ボタンと切断ボタンは、モニターのループを開始・停止します。</li>
+<li><strong>プロセスごとにエンジンは 1 つ。</strong> 最初に使うときに作られ、プロセスが続く間は保たれます（プロセスごとにライブラリのインスタンスは 1 つ、12 章）。サービスがプロセスをフォアグラウンドに保ちます。通知の<strong>停止</strong>は、接続を切り、自動再接続を止め、サービスを終了させます。同じプロセスでアプリを開き直しても自動では接続<strong>しません</strong>。接続ボタンを押してください。新しいプロセスは、VIN が保存されていれば自動で接続します。</li>
+<li><strong>キーのエラー。</strong> <code>KeyStoreError.Locked</code> ならその試行は失敗となり、ループは待ってからキーを読み直します（キーは消しません）。それ以外のキーのエラーは、キーなしで接続します。ブロードキャストと 3 つの問い合わせにキーは要りません（14 章 B2.4）。Control タブはキーの <code>protection</code> と <code>accessibility</code> を表示し、キーが <code>WHEN_UNLOCKED</code> なら警告します。</li>
+<li><strong>Live タブ。</strong> 最近のイベントの一覧には、変化、認証要求、認識できないブロードキャストが入ります（最大 100 件）。同じ状態のブロードキャストが繰り返されても、動くのは「最後のブロードキャスト」だけです。繰り返しかどうかにかかわらず、すべてのイベントはログファイルに入ります。最初の状態はそれ以前を知りようがないので、「初めて観測」の時刻を表示します。保存した VIN はマスクして表示します。</li>
+<li><strong>Query タブ。</strong> 間隔を変えるとすぐに 1 回問い合わせ、そこから数え直します。問い合わせは車を起こしません。</li>
+<li><strong>ログファイル。</strong> サイズは 10 進の MB です（20 000 000 バイトと 200 000 000 バイト）。削除はフォルダを上限以下に保ち、書き込み中のファイルは消しません。同じ秒に 2 つのファイルが始まるときは、2 つ目の名前を 1 秒後にします。行は書くたびにフラッシュします。書き込みのキューは 4096 行で、いっぱいになると、待たずに新しい行を捨てて数えます（Log タブ）。</li>
+<li><strong>取り出し。</strong> <code>adb pull</code> はファイルを <code>samples/logs/android/&lt;date&gt;/logs/</code> に置きます。</li>
+<li><strong>ゲートの対象外。</strong> <code>lintKotlin</code> と <code>detekt</code> はライブラリのモジュールにだけ動き、<code>samples/</code> には動きません。</li>
 </ul>
 
 <h2 id="sec-check">実車チェックリスト</h2>

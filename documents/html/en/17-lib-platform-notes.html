@@ -60,6 +60,7 @@
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#sec-support">Support</a></li>
 <li><a href="#sec-android">Android</a></li>
+<li><a href="#sec-android-bg">Android background use by the sample</a></li>
 <li><a href="#sec-ios">iOS</a></li>
 <li><a href="#sec-keys">Key storage</a></li>
 <li><a href="#sec-cache">Session cache</a></li>
@@ -88,6 +89,15 @@
 <strong>Exclude the key files from Auto Backup</strong>
 <p>A software key is saved as <code>files/teslable/keys/&lt;alias&gt;.enc</code>, wrapped by a Keystore key that is never backed up. If Auto Backup restores the file without its wrapping key, the key reads as corrupted. Exclude <code>files/teslable/keys/</code> in <code>dataExtractionRules</code> or <code>fullBackupContent</code>. The sample app simply sets <code>android:allowBackup="false"</code>. Saved sessions in <code>files/teslable/sessions</code> are harmless to lose, but excluding them is cleaner.</p>
 </div>
+
+<h2 id="sec-android-bg">Android background use by the sample</h2>
+<p>The library is supported in the foreground (see Support). The Android sample's monitor app keeps its connection in the background with a <strong>foreground service</strong> and has not been checked on a real device yet, so treat the library's behaviour in the background as unconfirmed.</p>
+<ul>
+<li>Manifest: <code>FOREGROUND_SERVICE</code>, <code>FOREGROUND_SERVICE_CONNECTED_DEVICE</code>, <code>POST_NOTIFICATIONS</code> (asked at runtime) and <code>&lt;service android:foregroundServiceType="connectedDevice" /&gt;</code>. Still no <code>INTERNET</code>.</li>
+<li>Android 14 and later: a <code>connectedDevice</code> foreground service can only start after <code>BLUETOOTH_CONNECT</code> is granted, and only while the app is visible (or another start exemption applies). Do not rely on the system to restart it.</li>
+<li>The service owns the single library instance and calls <code>vehicle.disconnect()</code> after every link loss, then connects again with a new <code>Vehicle</code> (2 second wait, doubling to 30 seconds). Retrying is the app's job, not the library's.</li>
+<li>Key store: the sample creates its key with <code>KeyAccessibility.AFTER_FIRST_UNLOCK</code>; Android ignores the argument and reports <code>AFTER_FIRST_UNLOCK</code> (per API, not yet confirmed on a device, see Key storage).</li>
+</ul>
 
 <h2 id="sec-ios">iOS</h2>
 <ul>
