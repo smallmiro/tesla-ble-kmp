@@ -13,6 +13,7 @@ public final class dev/mirolab/teslable/application/dispatcher/Dispatcher {
 	public final fun close (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun exportSessions (Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public final fun getMaxLatency-UwyO8pc ()J
+	public final fun getPlainBroadcasts ()Lkotlinx/coroutines/flow/SharedFlow;
 	public final fun getRetryInterval-UwyO8pc ()J
 	public final fun getSessionEvents ()Lkotlinx/coroutines/flow/SharedFlow;
 	public final fun getUnroutedFrames ()Lkotlinx/coroutines/flow/SharedFlow;

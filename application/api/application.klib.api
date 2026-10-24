@@ -48,6 +48,8 @@ final class dev.mirolab.teslable.application.dispatcher/Dispatcher { // dev.miro
 
     final val isListening // dev.mirolab.teslable.application.dispatcher/Dispatcher.isListening|{}isListening[0]
         final fun <get-isListening>(): kotlin/Boolean // dev.mirolab.teslable.application.dispatcher/Dispatcher.isListening.<get-isListening>|<get-isListening>(){}[0]
+    final val plainBroadcasts // dev.mirolab.teslable.application.dispatcher/Dispatcher.plainBroadcasts|{}plainBroadcasts[0]
+        final fun <get-plainBroadcasts>(): kotlinx.coroutines.flow/SharedFlow<kotlin/ByteArray> // dev.mirolab.teslable.application.dispatcher/Dispatcher.plainBroadcasts.<get-plainBroadcasts>|<get-plainBroadcasts>(){}[0]
     final val retryInterval // dev.mirolab.teslable.application.dispatcher/Dispatcher.retryInterval|{}retryInterval[0]
         final fun <get-retryInterval>(): kotlin.time/Duration // dev.mirolab.teslable.application.dispatcher/Dispatcher.retryInterval.<get-retryInterval>|<get-retryInterval>(){}[0]
     final val sessionEvents // dev.mirolab.teslable.application.dispatcher/Dispatcher.sessionEvents|{}sessionEvents[0]
