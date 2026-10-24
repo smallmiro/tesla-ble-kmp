@@ -20,6 +20,7 @@
 - **라이브러리 코드를 고치지 않습니다.** API가 부족하거나 문서와 동작이 다르면 `library-api-request` 스킬로 요청서를 쓰고 계획에 올립니다. 샘플에서 우회하지 않습니다.
 - **TDD 범위**: 차량 없이 시험할 수 있는 로직(파싱, 마스킹, 타이머, 상태 계산, 로그 형식)은 실패 테스트부터 씁니다. 화면과 실차 동작은 실기기 확인 체크리스트로 검증합니다(`{{SAMPLES_DOCS_DIR}}02-constraints.md` §4).
 - **문서 갱신 의무**: 샘플 동작이 바뀌면 `{{SAMPLES_DOCS_DIR}}` 와 `{{SAMPLES_DOCS_HTML_DIR}}`(ko/en/ja)를 같은 PR에서 고칩니다. 라이브러리 사용 문서의 예제가 틀린 것을 발견하면 그것도 같은 PR에서 고칩니다.
+- **스타일·정적 분석**: 샘플 Kotlin 코드도 `lintKotlin`·`detekt` 게이트(`tools/ci/verify.sh` 단계 (a))를 통과해야 합니다. 샘플 전용 완화는 `config/detekt/detekt-samples.yml` 에 이유와 함께 두고, 명령은 `samples/android/AGENTS.md` 에 있습니다.
 - **로그와 실차 데이터**: 기기에서 가져온 로그는 `{{SAMPLE_LOGS_DIR}}`(git-ignored)에만 둡니다. 커밋하지 않습니다. 분석은 `protocol-analyst` 몫입니다.
 - **PR 본문**: 참고한 라이브러리 사용 문서 페이지와 절, 지킨 샘플 요구사항 ID(`SFR-xxx`)를 적습니다.
 

@@ -150,7 +150,7 @@
 <li><strong>Query tab.</strong> Changing the interval queries once at once and then counts again. The queries do not wake the car.</li>
 <li><strong>Log files.</strong> Sizes are decimal MB (20 000 000 and 200 000 000 bytes). Pruning keeps the folder at or below the limit and never deletes the file being written. If two files would start in the same second, the second is named one second later. Each line is flushed as it is written. The writer has a queue of 4096 lines; when it is full the new line is dropped and counted (Log tab) instead of blocking. A write error (disk full, folder gone) drops that line (counted) and the next line opens a file again; it never crashes the app.</li>
 <li><strong>Pulling.</strong> <code>adb pull</code> puts the files in <code>samples/logs/android/&lt;date&gt;/logs/</code>.</li>
-<li><strong>Not covered by the gate.</strong> <code>lintKotlin</code> and <code>detekt</code> run only on the library modules, not on <code>samples/</code>.</li>
+<li><strong>Style gate.</strong> <code>lintKotlin</code> and <code>detekt</code> also run on <code>:samples:android</code> (main and test sources), so <code>tools/ci/verify.sh</code> step (a) covers it. The library-only rules (<code>explicitApi</code>, <code>forbiddenTokens</code>) do not apply to the sample; detekt layers <code>config/detekt/detekt-samples.yml</code> on <code>detekt.yml</code> (Compose function naming and length, <code>android.*</code> imports, optional injection parameters). The Swift sources in <code>samples/ios/</code> are not covered by these Kotlin tasks.</li>
 </ul>
 
 <h2 id="sec-ios">iOS implementation</h2>

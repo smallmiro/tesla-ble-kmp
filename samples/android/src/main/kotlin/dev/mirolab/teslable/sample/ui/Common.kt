@@ -12,6 +12,10 @@ import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
+private const val TICK_MILLIS = 1_000L
+private const val SECONDS_PER_MINUTE = 60
+private const val SECONDS_PER_HOUR = 3_600
+
 private val clockFormat: DateTimeFormatter = DateTimeFormatter.ofPattern("HH:mm:ss").withZone(ZoneId.systemDefault())
 
 fun formatClock(at: Instant): String = clockFormat.format(at)
@@ -21,7 +25,7 @@ fun formatClock(at: Instant): String = clockFormat.format(at)
 fun rememberNow(): State<Instant> =
     produceState(Instant.now()) {
         while (true) {
-            delay(1_000)
+            delay(TICK_MILLIS)
             value = Instant.now()
         }
     }
@@ -33,9 +37,9 @@ fun formatAgo(
 ): String {
     val s = (now.epochSecond - since.epochSecond).coerceAtLeast(0)
     return when {
-        s < 60 -> "${s}초 전"
-        s < 3_600 -> "${s / 60}분 ${s % 60}초 전"
-        else -> "${s / 3_600}시간 ${(s % 3_600) / 60}분 전"
+        s < SECONDS_PER_MINUTE -> "${s}초 전"
+        s < SECONDS_PER_HOUR -> "${s / SECONDS_PER_MINUTE}분 ${s % SECONDS_PER_MINUTE}초 전"
+        else -> "${s / SECONDS_PER_HOUR}시간 ${(s % SECONDS_PER_HOUR) / SECONDS_PER_MINUTE}분 전"
     }
 }
 

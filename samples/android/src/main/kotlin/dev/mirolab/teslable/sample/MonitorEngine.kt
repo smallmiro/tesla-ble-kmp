@@ -75,6 +75,7 @@ private class ObserveLogger(
  * 모니터의 심장. 프로세스에 하나만 있다(`TeslaBle`은 프로세스당 하나, 12-lib-getting-started.md).
  * [MonitorService]가 이것을 포그라운드로 붙들고 알림을 띄운다. 연결 루프, 이벤트 구독, 주기 조회, 로그 쓰기를 모두 여기서 한다.
  */
+@Suppress("TooManyFunctions") // 연결·구독·조회·로그를 한 프로세스 단일 객체가 맡는다(위 KDoc): 일부러 나누지 않는다
 class MonitorEngine(
     private val app: Application,
 ) {

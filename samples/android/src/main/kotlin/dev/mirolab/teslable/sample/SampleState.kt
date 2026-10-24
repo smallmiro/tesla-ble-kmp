@@ -22,6 +22,7 @@ import kotlin.time.TimeSource
  * Control 탭의 상태(iOS SampleModel과 같은 동작). 연결과 키는 모니터가 가진 것([MonitorEngine])을 그대로 쓴다:
  * 차량에는 연결 하나만 열고, 이 탭의 버튼은 그 연결 위에서 호출을 보낸다.
  */
+@Suppress("TooManyFunctions") // Control 탭의 버튼마다 함수 하나: 한 화면의 상태를 한 곳에 모은 구조라 일부러 나누지 않는다
 class SampleState(
     private val engine: MonitorEngine,
 ) {
@@ -141,6 +142,7 @@ class SampleState(
     }
 
     /** 키 등록 요청. 이벤트마다 한 줄을 `output`에 남기고, `Accepted`/`TimedOut`이면 등록 확인을 잇는다. */
+    @Suppress("CyclomaticComplexMethod") // PairingEvent 7종을 한 `when` 으로 문장에 옮기는 표라 갈래 수가 곧 복잡도다
     suspend fun pair() {
         val v = vehicle ?: return run { output.add("키 등록: 먼저 연결하세요") }
         val k = key ?: return run { output.add("키 등록: 먼저 키를 만드세요") }
