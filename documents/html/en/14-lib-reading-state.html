@@ -55,34 +55,245 @@
 </nav>
 <main class="content">
 <h1>14. Reading Vehicle State</h1>
-<p class="lead">Three queries read the car's security controller (VCSEC) over BLE. They need no key, no session and no wake-up, because VCSEC answers even while the infotainment computer sleeps.</p>
+<p class="lead">Everything the library can read from the car over BLE, in two parts: Part A is data you ask for (four security-controller queries), Part B is data the car sends by itself (broadcasts). Queries need no key, no session and no wake-up, because VCSEC answers even while the infotainment computer sleeps.</p>
+
+<div class="callout warn">
+<strong>What exists today</strong>
+<p>The four queries in Part A are implemented. Broadcasts (Part B) are dropped by the library; you can only see them in the observation log. A public <code>vehicle.events</code> API and <code>getState()</code> (infotainment) are planned for M5 and do not exist yet.</p>
+</div>
 
 <div class="toc"><strong>On this page</strong><ol>
-<li><a href="#sec-calls">The three queries</a></li>
-<li><a href="#sec-status">What vehicleStatus() returns</a></li>
-<li><a href="#sec-keys">What the key queries return</a></li>
+<li><a href="#sec-calls">The four queries</a></li>
+<li><a href="#sec-a-transport">A1. How a request travels</a></li>
+<li><a href="#sec-a-status">A2. vehicleStatus()</a></li>
+<li><a href="#sec-a-summary">A3. keySummary()</a></li>
+<li><a href="#sec-a-list">A4. listKeys()</a></li>
+<li><a href="#sec-a-session">A5. sessionInfo()</a></li>
+<li><a href="#sec-a-enums">A6. Enum value tables</a></li>
+<li><a href="#sec-a-other">A7. Other request types in the schema</a></li>
+<li><a href="#sec-status">Result types</a></li>
 <li><a href="#sec-flows">Connection and session state</a></li>
 <li><a href="#sec-wake">Sleep and wake-up</a></li>
+<li><a href="#sec-b-wire">B1. What a broadcast is on the wire</a></li>
+<li><a href="#sec-b-library">B2. What the library does with broadcasts</a></li>
+<li><a href="#sec-b-catalogue">B3. Message catalogue</a></li>
+<li><a href="#sec-b-absent">B4. What is not available by broadcast</a></li>
+<li><a href="#sec-b-method">B5. Observation method and environment</a></li>
+<li><a href="#sec-b-provenance">B6. Provenance</a></li>
 </ol></div>
 
-<h2 id="sec-calls">The three queries</h2>
+<h2 id="sec-calls">The four queries</h2>
 <table>
-<thead><tr><th>Call</th><th>Returns</th><th>Go original</th></tr></thead>
+<thead><tr><th>Call</th><th>Returns</th><th>Go original</th><th>FR</th></tr></thead>
 <tbody>
-<tr><td><code>vehicleStatus()</code></td><td>Lock, doors, trunks, charge port, sleep state, presence</td><td><code>BodyControllerState</code></td></tr>
-<tr><td><code>keySummary()</code></td><td>Number of enrolled keys and which slots are used</td><td><code>KeySummary</code></td></tr>
-<tr><td><code>listKeys()</code></td><td>Every enrolled key with its public key, role and form factor</td><td><code>KeySummary</code> + <code>KeyInfoBySlot</code></td></tr>
+<tr><td><code>vehicleStatus(timeout = null)</code></td><td><code>VehicleResult&lt;VehicleStatus&gt;</code></td><td><code>BodyControllerState</code> (<code>InformationRequest{GET_STATUS}</code>)</td><td>FR-031</td></tr>
+<tr><td><code>keySummary(timeout = null)</code></td><td><code>VehicleResult&lt;WhitelistSummary&gt;</code></td><td><code>KeySummary</code> (<code>GET_WHITELIST_INFO</code>)</td><td>FR-032</td></tr>
+<tr><td><code>listKeys(timeout = null)</code></td><td><code>VehicleResult&lt;List&lt;WhitelistEntry&gt;&gt;</code></td><td><code>KeySummary</code> + <code>KeyInfoBySlot</code> per occupied slot</td><td>FR-025</td></tr>
+<tr><td><code>sessionInfo(publicKey, domain, timeout = null)</code></td><td><code>VehicleResult&lt;SessionInfoSummary&gt;</code></td><td><code>SessionInfo</code> (<code>session_info_request</code>)</td><td>FR-024</td></tr>
 </tbody>
 </table>
 <ul>
 <li>Each takes an optional <code>timeout</code>; without it the default command timeout (5 seconds) applies. For <code>listKeys()</code> the timeout covers all of its requests together.</li>
 <li>The car handles one VCSEC request at a time per connection. A query that has to wait for another one spends part of its timeout waiting.</li>
 <li>These are queries, so an <code>Uncertain</code> result can simply be asked again.</li>
+<li>Control payloads (lock, trunk, wake-up) are in <a href="15-lib-commands.html">15. Commands</a>.</li>
 </ul>
 
-<h2 id="sec-status">What vehicleStatus() returns</h2>
+<h2 id="sec-a-transport">A1. How a request travels</h2>
 <table>
-<thead><tr><th>Field</th><th>Values</th></tr></thead>
+<thead><tr><th>Item</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>GATT service</td><td><code>00000211-b2d1-43f0-9b88-960cebf8b91e</code></td></tr>
+<tr><td>Write characteristic (phone to car)</td><td><code>00000212-b2d1-43f0-9b88-960cebf8b91e</code></td></tr>
+<tr><td>Notify/indicate characteristic (car to phone)</td><td><code>00000213-b2d1-43f0-9b88-960cebf8b91e</code></td></tr>
+<tr><td>Framing</td><td>2-byte big-endian length prefix, then the serialized <code>RoutableMessage</code>. Maximum message 1024 bytes; a larger one fails with <code>InvalidArgument</code></td></tr>
+<tr><td>Write block length</td><td><code>min(ATT MTU, 1024) - 3</code>; 20 if the MTU exchange fails</td></tr>
+</tbody>
+</table>
+<p>Every frame, in both directions, is a <code>RoutableMessage</code> (<code>universal_message.proto</code>):</p>
+<table>
+<thead><tr><th>Field</th><th>Number</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>to_destination</code></td><td>6</td><td><code>Destination</code></td><td>Either <code>domain</code> (1, enum <code>Domain</code>) or <code>routing_address</code> (2, bytes)</td></tr>
+<tr><td><code>from_destination</code></td><td>7</td><td><code>Destination</code></td><td>Same shape. Requests carry our routing address; the car's replies carry the car's domain</td></tr>
+<tr><td><code>protobuf_message_as_bytes</code></td><td>10</td><td>bytes</td><td>Payload (one of): serialized domain message (<code>UnsignedMessage</code> or <code>ToVCSECMessage</code> to the car, <code>FromVCSECMessage</code> back)</td></tr>
+<tr><td><code>session_info_request</code></td><td>14</td><td><code>SessionInfoRequest</code></td><td>Payload (one of): <code>public_key</code> (1), <code>challenge</code> (2)</td></tr>
+<tr><td><code>session_info</code></td><td>15</td><td>bytes</td><td>Payload (one of): serialized <code>Signatures.SessionInfo</code></td></tr>
+<tr><td><code>signature_data</code></td><td>13</td><td><code>Signatures.SignatureData</code></td><td>Present on authenticated (AES-GCM) commands and replies</td></tr>
+<tr><td><code>signedMessageStatus</code></td><td>12</td><td><code>MessageStatus</code></td><td><code>operation_status</code> (1), <code>signed_message_fault</code> (2, <code>MessageFault_E</code>)</td></tr>
+<tr><td><code>request_uuid</code></td><td>50</td><td>bytes</td><td>Echo of the request <code>uuid</code> (16 bytes). Used to match infotainment replies</td></tr>
+<tr><td><code>uuid</code></td><td>51</td><td>bytes</td><td>Request id, 16 random bytes</td></tr>
+<tr><td><code>flags</code></td><td>52</td><td>uint32</td><td>Bit mask of <code>Flags</code> (<code>FLAG_USER_COMMAND</code> 0, <code>FLAG_ENCRYPT_RESPONSE</code> 1; 2 to 4 exist only in the Teslemetry schema)</td></tr>
+</tbody>
+</table>
+<p><code>Domain</code> values: <code>DOMAIN_BROADCAST</code> 0, <code>DOMAIN_VEHICLE_SECURITY</code> 2 (VCSEC), <code>DOMAIN_INFOTAINMENT</code> 3. The Teslemetry schema also lists 4, 5, 7 and 8; the library does not use them. Its field 53 <code>message_frame</code> is unconfirmed and unused.</p>
+<p>Routing rules for VCSEC requests:</p>
+<ul>
+<li><code>to_destination.domain</code> is <code>DOMAIN_VEHICLE_SECURITY</code> and <code>from_destination.routing_address</code> is <strong>a fresh random 16-byte address for every request</strong>. The reply comes back to that address and the library matches it by address (and the car's domain). <code>request_uuid</code> is <strong>not</strong> used to match VCSEC replies. The <code>uuid</code> (51) is still filled with 16 random bytes.</li>
+<li>A reply addressed to any other routing address is not ours and is dropped as <code>no-handler</code> (see B3).</li>
+<li>Queries are <strong>unauthenticated</strong>: no <code>signature_data</code>, and <code>protobuf_message_as_bytes</code> is the plain <code>UnsignedMessage</code>. Commands use the same envelope with <code>signature_data</code> and an AES-GCM protected payload.</li>
+<li>For <code>sessionInfo</code> the payload is <code>session_info_request</code> (14) and <code>to_destination.domain</code> is the requested domain; the reply carries <code>session_info</code> (15).</li>
+</ul>
+
+<h2 id="sec-a-status">A2. vehicleStatus()</h2>
+<pre><code class="language-kotlin"><span class="k">suspend</span> <span class="k">fun</span> <span class="f">vehicleStatus</span>(timeout: <span class="t">Duration</span>? = <span class="n">null</span>): <span class="t">VehicleResult</span>&lt;<span class="t">VehicleStatus</span>&gt;
+</code></pre>
+<table>
+<thead><tr><th>Item</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Authentication</td><td>None (works with an unenrolled key, no session)</td></tr>
+<tr><td>Domain</td><td><code>DOMAIN_VEHICLE_SECURITY</code></td></tr>
+<tr><td>Request payload</td><td><code>UnsignedMessage{InformationRequest{GET_STATUS}}</code> = hex <code>0a00</code> (field 1, length 0; type 0 is the proto3 default and is not encoded)</td></tr>
+<tr><td>Ends at</td><td>The first message of the reply</td></tr>
+<tr><td>Reply</td><td><code>FromVCSECMessage.vehicleStatus</code> (field 1)</td></tr>
+<tr><td>Missing field</td><td><code>Failure(BadResponse("missing vehicleStatus"))</code></td></tr>
+<tr><td>Errors</td><td><code>nominalError</code> (46) becomes <code>Failure(VcsecRejected(...))</code>; a lost reply is <code>Uncertain(Timeout(afterSend = true))</code></td></tr>
+</tbody>
+</table>
+<p><code>VCSEC.VehicleStatus</code> (<code>vcsec.proto</code>):</p>
+<table>
+<thead><tr><th>#</th><th>Field</th><th>Type</th><th>Meaning</th><th>In public <code>VehicleStatus</code></th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>closureStatuses</code></td><td><code>ClosureStatuses</code></td><td>State of each opening; <strong>only sent while something is open</strong></td><td><code>closures</code>; absent becomes all <code>CLOSED</code></td></tr>
+<tr><td>2</td><td><code>vehicleLockState</code></td><td><code>VehicleLockState_E</code></td><td>Lock state</td><td><code>lockState</code></td></tr>
+<tr><td>3</td><td><code>vehicleSleepStatus</code></td><td><code>VehicleSleepStatus_E</code></td><td>Infotainment sleep state</td><td><code>sleepStatus</code></td></tr>
+<tr><td>4</td><td><code>userPresence</code></td><td><code>UserPresence_E</code></td><td>A person in the car</td><td><code>userPresence</code></td></tr>
+<tr><td>5</td><td><code>detailedClosureStatus</code></td><td><code>DetailedClosureStatus</code></td><td><code>tonneauPercentOpen</code> (1, uint32), Cybertruck</td><td><code>tonneauPercentOpen</code> (<code>null</code> if absent)</td></tr>
+<tr><td>6</td><td><code>uiDesire</code></td><td><code>UIDesire_E</code> (Teslemetry)</td><td>In the schema only</td><td><strong>Not surfaced</strong> (planned M5)</td></tr>
+<tr><td>7</td><td><code>gear</code></td><td><code>Gear_E</code> (Teslemetry, confirmed on a real car)</td><td>Current gear</td><td><strong>Not surfaced</strong> (planned M5)</td></tr>
+<tr><td>8</td><td>(unknown, not in the schema)</td><td>message</td><td>Seen on a real car: <code>{1: 1|2, 2: 1|2, 3: 1}</code>; meaning unknown</td><td>Not surfaced</td></tr>
+</tbody>
+</table>
+<p><code>ClosureStatuses</code> has eight <code>ClosureState_E</code> fields, numbered 1 to 8: <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code>, <code>tonneau</code>.</p>
+<div class="callout">
+<strong>Mapping rules</strong>
+<p>A value outside the schema maps to <code>UNKNOWN</code> instead of the zero value. proto3 cannot tell a missing enum from its zero value, so a missing lock state reads as <code>UNLOCKED</code>; the library keeps that Go behaviour for the query. The real-car results show the car omits <code>closureStatuses</code> when everything is closed and sends it while something is open (driver door and charge port seen), so "absent means all closed" matches what we saw. A trunk opened with the interior button was not visible in broadcasts, so read the trunk with this query.</p>
+</div>
+
+<h2 id="sec-a-summary">A3. keySummary()</h2>
+<pre><code class="language-kotlin"><span class="k">suspend</span> <span class="k">fun</span> <span class="f">keySummary</span>(timeout: <span class="t">Duration</span>? = <span class="n">null</span>): <span class="t">VehicleResult</span>&lt;<span class="t">WhitelistSummary</span>&gt;
+</code></pre>
+<table>
+<thead><tr><th>Item</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Authentication, domain</td><td>None, <code>DOMAIN_VEHICLE_SECURITY</code></td></tr>
+<tr><td>Request payload</td><td><code>UnsignedMessage{InformationRequest{GET_WHITELIST_INFO}}</code> = hex <code>0a020805</code> (type 5)</td></tr>
+<tr><td>Ends at</td><td>The first message of the reply</td></tr>
+<tr><td>Reply</td><td><code>FromVCSECMessage.whitelistInfo</code> (field 16); missing becomes <code>BadResponse("missing whitelistInfo")</code></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>#</th><th>Field (<code>WhitelistInfo</code>)</th><th>Type</th><th>Meaning</th><th>Public model</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>numberOfEntries</code></td><td>uint32</td><td>Enrolled keys</td><td><code>WhitelistSummary.numberOfEntries</code></td></tr>
+<tr><td>2</td><td><code>whitelistEntries</code></td><td>repeated <code>KeyIdentifier{publicKeySHA1 = 1}</code></td><td>Key ids</td><td>Not surfaced</td></tr>
+<tr><td>3</td><td><code>slotMask</code></td><td>uint32</td><td>Bit <em>i</em> set = slot <em>i</em> occupied</td><td><code>slotMask</code>, <code>occupiedSlots</code></td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-a-list">A4. listKeys()</h2>
+<pre><code class="language-kotlin"><span class="k">suspend</span> <span class="k">fun</span> <span class="f">listKeys</span>(timeout: <span class="t">Duration</span>? = <span class="n">null</span>): <span class="t">VehicleResult</span>&lt;<span class="t">List</span>&lt;<span class="t">WhitelistEntry</span>&gt;&gt;
+</code></pre>
+<table>
+<thead><tr><th>Item</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Authentication, domain</td><td>None, <code>DOMAIN_VEHICLE_SECURITY</code></td></tr>
+<tr><td>Requests</td><td>One summary request, then one <code>GET_WHITELIST_ENTRY_INFO</code> per occupied slot, one after another</td></tr>
+<tr><td>Slot request payload</td><td><code>UnsignedMessage{InformationRequest{GET_WHITELIST_ENTRY_INFO, slot = N}}</code> = hex <code>0a04080620NN</code>, for example slot 0 <code>0a0408062000</code>, slot 2 <code>0a0408062002</code> (type 6, <code>slot</code> field 4). <code>NN</code> is a varint; slots of 128 or more need two bytes</td></tr>
+<tr><td>Ends at</td><td>The first message of each reply</td></tr>
+<tr><td>Reply</td><td><code>FromVCSECMessage.whitelistEntryInfo</code> (field 17); missing becomes <code>BadResponse("missing whitelistEntryInfo")</code></td></tr>
+<tr><td>Time budget</td><td>One <code>timeout</code> for everything. The first <code>Failure</code> or <code>Uncertain</code> is returned; no time left gives <code>Timeout(afterSend = false)</code></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>#</th><th>Field (<code>WhitelistEntryInfo</code>)</th><th>Type</th><th>Meaning</th><th>Public model</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>keyId</code></td><td><code>KeyIdentifier{publicKeySHA1 = 1}</code></td><td>SHA-1 of the public key</td><td><code>keyIdSha1Hex</code> (<code>null</code> if empty)</td></tr>
+<tr><td>2</td><td><code>publicKey</code></td><td><code>PublicKey{PublicKeyRaw = 1}</code></td><td>65-byte key</td><td><code>publicKey</code> (<code>null</code> if missing or malformed)</td></tr>
+<tr><td>4</td><td><code>metadataForKey</code></td><td><code>KeyMetadata{keyFormFactor = 1}</code></td><td>Form factor</td><td><code>formFactor</code></td></tr>
+<tr><td>6</td><td><code>slot</code></td><td>uint32</td><td>Slot</td><td><code>slot</code> is the <strong>requested</strong> slot, not this field (same as Go <code>list-keys</code>)</td></tr>
+<tr><td>7</td><td><code>keyRole</code></td><td><code>Keys.Role</code></td><td>Role</td><td><code>role</code></td></tr>
+</tbody>
+</table>
+<p>A single-slot query exists on the internal query class but is not part of <code>Vehicle</code>.</p>
+
+<h2 id="sec-a-session">A5. sessionInfo()</h2>
+<pre><code class="language-kotlin"><span class="k">suspend</span> <span class="k">fun</span> <span class="f">sessionInfo</span>(publicKey: <span class="t">PublicKeyBytes</span>, domain: <span class="t">VehicleDomain</span>, timeout: <span class="t">Duration</span>? = <span class="n">null</span>): <span class="t">VehicleResult</span>&lt;<span class="t">SessionInfoSummary</span>&gt;
+</code></pre>
+<table>
+<thead><tr><th>Item</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td>Authentication</td><td>None. You can ask about any 65-byte public key, not only the connection's own</td></tr>
+<tr><td>Domain</td><td><code>domain</code>: <code>VCSEC</code> (<code>DOMAIN_VEHICLE_SECURITY</code>) or <code>INFOTAINMENT</code> (<code>DOMAIN_INFOTAINMENT</code>)</td></tr>
+<tr><td>Request</td><td><code>RoutableMessage{to_destination{domain}, from_destination{routing_address = 16 bytes}, session_info_request{public_key}, uuid}</code>. The address is fresh per request for <code>VCSEC</code> and the connection's own fixed address for <code>INFOTAINMENT</code>. The optional <code>challenge</code> (2) is not sent</td></tr>
+<tr><td>Ends at</td><td>The first reply; sent once, never repeated</td></tr>
+<tr><td>Reply</td><td><code>RoutableMessage.session_info</code> (15) = serialized <code>Signatures.SessionInfo</code></td></tr>
+<tr><td>Errors</td><td>Fault <code>UNKNOWN_KEY_ID</code>, or <code>status = KEY_NOT_ON_WHITELIST</code>, becomes <code>Failure(KeyNotPaired)</code>; missing or undecodable <code>session_info</code> becomes <code>Failure(BadResponse)</code>; no reply in time is <code>Uncertain(Timeout(afterSend = true))</code></td></tr>
+<tr><td>Side effect</td><td>Asking with the connection's own key also builds that domain's session, so <code>sessions</code> shows <code>Ready(fromCache = false)</code></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>#</th><th>Field (<code>Signatures.SessionInfo</code>)</th><th>Type</th><th>Public <code>SessionInfoSummary</code></th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>counter</code></td><td>uint32</td><td><code>counter</code></td></tr>
+<tr><td>2</td><td><code>publicKey</code></td><td>bytes</td><td><code>vehiclePublicKey</code> (<code>null</code> if not a valid 65-byte key)</td></tr>
+<tr><td>3</td><td><code>epoch</code></td><td>bytes</td><td>Not surfaced</td></tr>
+<tr><td>4</td><td><code>clock_time</code></td><td>fixed32</td><td><code>clockTime</code> (seconds)</td></tr>
+<tr><td>5</td><td><code>status</code></td><td><code>Session_Info_Status</code></td><td>Not checked: <code>OK</code> 0, <code>KEY_NOT_ON_WHITELIST</code> 1, <code>INVALID_HANDLE</code> 2 (Teslemetry only)</td></tr>
+<tr><td>6</td><td><code>handle</code></td><td>uint32</td><td>Not surfaced (Teslemetry only)</td></tr>
+</tbody>
+</table>
+<p>Use it to confirm enrollment after pairing: <code>sessionInfo(publicKey, INFOTAINMENT)</code> (see <a href="13-lib-pairing.html">13. Keys and Pairing</a>).</p>
+
+<h2 id="sec-a-enums">A6. Enum value tables</h2>
+<p>Values come from <code>vcsec.proto</code> and <code>universal_message.proto</code>. A value the library does not know maps to <code>UNKNOWN</code>.</p>
+<table>
+<thead><tr><th>Enum</th><th>Value</th><th>Wire name</th><th>Public value</th></tr></thead>
+<tbody>
+<tr><td rowspan="4"><code>VehicleLockState_E</code> (field 2)</td><td>0</td><td><code>VEHICLELOCKSTATE_UNLOCKED</code></td><td><code>UNLOCKED</code></td></tr>
+<tr><td>1</td><td><code>VEHICLELOCKSTATE_LOCKED</code></td><td><code>LOCKED</code></td></tr>
+<tr><td>2</td><td><code>VEHICLELOCKSTATE_INTERNAL_LOCKED</code></td><td><code>INTERNAL_LOCKED</code></td></tr>
+<tr><td>3</td><td><code>VEHICLELOCKSTATE_SELECTIVE_UNLOCKED</code></td><td><code>SELECTIVE_UNLOCKED</code></td></tr>
+<tr><td rowspan="3"><code>VehicleSleepStatus_E</code> (field 3)</td><td>0</td><td><code>VEHICLE_SLEEP_STATUS_UNKNOWN</code></td><td><code>UNKNOWN</code></td></tr>
+<tr><td>1</td><td><code>VEHICLE_SLEEP_STATUS_AWAKE</code></td><td><code>AWAKE</code></td></tr>
+<tr><td>2</td><td><code>VEHICLE_SLEEP_STATUS_ASLEEP</code></td><td><code>ASLEEP</code></td></tr>
+<tr><td rowspan="3"><code>UserPresence_E</code> (field 4)</td><td>0</td><td><code>VEHICLE_USER_PRESENCE_UNKNOWN</code></td><td><code>UNKNOWN</code></td></tr>
+<tr><td>1</td><td><code>VEHICLE_USER_PRESENCE_NOT_PRESENT</code></td><td><code>NOT_PRESENT</code></td></tr>
+<tr><td>2</td><td><code>VEHICLE_USER_PRESENCE_PRESENT</code></td><td><code>PRESENT</code></td></tr>
+<tr><td rowspan="7"><code>ClosureState_E</code> (each opening)</td><td>0</td><td><code>CLOSURESTATE_CLOSED</code></td><td><code>CLOSED</code></td></tr>
+<tr><td>1</td><td><code>CLOSURESTATE_OPEN</code></td><td><code>OPEN</code></td></tr>
+<tr><td>2</td><td><code>CLOSURESTATE_AJAR</code></td><td><code>AJAR</code></td></tr>
+<tr><td>3</td><td><code>CLOSURESTATE_UNKNOWN</code></td><td><code>UNKNOWN</code></td></tr>
+<tr><td>4</td><td><code>CLOSURESTATE_FAILED_UNLATCH</code></td><td><code>FAILED_UNLATCH</code></td></tr>
+<tr><td>5</td><td><code>CLOSURESTATE_OPENING</code></td><td><code>OPENING</code></td></tr>
+<tr><td>6</td><td><code>CLOSURESTATE_CLOSING</code></td><td><code>CLOSING</code></td></tr>
+<tr><td rowspan="5"><code>Gear_E</code> (field 7, Teslemetry; confirmed on a real car)</td><td>0</td><td><code>GEAR_UNKNOWN</code></td><td>Not surfaced</td></tr>
+<tr><td>1</td><td><code>GEAR_PARK</code></td><td>Not surfaced</td></tr>
+<tr><td>2</td><td><code>GEAR_DRIVE</code></td><td>Not surfaced</td></tr>
+<tr><td>3</td><td><code>GEAR_REVERSE</code></td><td>Not surfaced</td></tr>
+<tr><td>4</td><td><code>GEAR_NEUTRAL</code></td><td>Not surfaced</td></tr>
+<tr><td rowspan="2"><code>UIDesire_E</code> (field 6, Teslemetry; schema only)</td><td>0</td><td><code>UI_DESIRE_NONE</code></td><td>Not surfaced</td></tr>
+<tr><td>1</td><td><code>UI_DESIRE_HAS_DATA</code></td><td>Not surfaced</td></tr>
+<tr><td rowspan="9"><code>Keys.Role</code> (<code>keyRole</code>)</td><td>0</td><td><code>ROLE_NONE</code></td><td><code>NONE</code></td></tr>
+<tr><td>1</td><td><code>ROLE_SERVICE</code></td><td><code>SERVICE</code></td></tr>
+<tr><td>2</td><td><code>ROLE_OWNER</code></td><td><code>OWNER</code></td></tr>
+<tr><td>3</td><td><code>ROLE_DRIVER</code></td><td><code>DRIVER</code></td></tr>
+<tr><td>4</td><td><code>ROLE_FM</code></td><td><code>FLEET_MANAGER</code></td></tr>
+<tr><td>5</td><td><code>ROLE_VEHICLE_MONITOR</code></td><td><code>VEHICLE_MONITOR</code></td></tr>
+<tr><td>6</td><td><code>ROLE_CHARGING_MANAGER</code></td><td><code>CHARGING_MANAGER</code></td></tr>
+<tr><td>8</td><td><code>ROLE_GUEST</code></td><td><code>GUEST</code></td></tr>
+<tr><td>7, 9, 10, 11</td><td><code>ROLE_SERVICE_TECH</code>, <code>ROLE_RIDER</code>, <code>ROLE_PREDELIVERY</code>, <code>ROLE_INFOTAINMENT</code> (Teslemetry, unconfirmed)</td><td><code>UNKNOWN</code></td></tr>
+</tbody>
+</table>
+<p><code>Gear_E</code> was confirmed on a real car: each of P, R, N and D produced one broadcast with the matching value; <code>GEAR_UNKNOWN</code> was not seen. <code>UIDesire_E</code> has no established meaning on a real car.</p>
+<p><code>KeyFormFactor</code>: the public model has only <code>UNKNOWN</code>, <code>NFC_CARD</code>, <code>IOS_DEVICE</code>, <code>ANDROID_DEVICE</code> and <code>CLOUD_KEY</code>. Wire values 0, 1, 6, 7 and 9 map to them. <strong>The Teslemetry snapshot values map to <code>UNKNOWN</code>:</strong> 2 <code>3_BUTTON_BLE_CAR_KEYFOB</code>, 3 <code>BLE_DEVICE</code>, 4 <code>NFC_DEVICE</code>, 5 <code>BLE_AND_NFC_DEVICE</code>, 8 <code>3_BUTTON_BLE_CAR_KEYFOB_P60</code>, 10 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60</code>, 11 <code>5_BUTTON_GEN2_CAR_KEYFOB_P60</code>, 12 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60_V2</code>, 13 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60_V3</code>, 14 <code>NFC_CARD_P71</code>, 15 <code>NFC_CARD_METAL_CARD</code>, 16 <code>NFC_CARD_PLASTIC_CARD</code>, 17 <code>APPLE_WATCH</code>, 18 <code>NFC_CARD_WD_PLASTIC_CARD</code>, 19 <code>HARMONY_OS_NEXT_DEVICE</code> (each with the prefix <code>KEY_FORM_FACTOR_</code>).</p>
+
+<h2 id="sec-a-other">A7. Other request types in the schema</h2>
+<p><code>InformationRequestType</code> also defines <code>GET_TOKEN</code> 1, <code>GET_COUNTER</code> 2, <code>GET_EPHEMERAL_PUBLIC_KEY</code> 3, <code>GET_SESSION_DATA</code> 4, <code>GET_PERSONALIZATION_INFO</code> 7, <code>GET_KEYSTATUS_INFO</code> 8, <code>GET_ACTIVE_KEY</code> 9 and <code>GET_CAPABILITIES</code> 16 (Teslemetry only). The library sends none of them and has no API for them. <code>getState(category)</code> (infotainment) is planned for M5 and has no API either.</p>
+
+<h2 id="sec-status">Result types</h2>
+<table>
+<thead><tr><th>Field of <code>VehicleStatus</code></th><th>Values</th></tr></thead>
 <tbody>
 <tr><td><code>lockState</code></td><td><code>UNLOCKED</code>, <code>LOCKED</code>, <code>INTERNAL_LOCKED</code>, <code>SELECTIVE_UNLOCKED</code>, <code>UNKNOWN</code></td></tr>
 <tr><td><code>closures</code></td><td>Eight openings, each a <code>ClosureState</code>; all <code>CLOSED</code> if the car did not send them (it omits them when everything is closed, like the Go getters)</td></tr>
@@ -91,13 +302,11 @@
 <tr><td><code>tonneauPercentOpen</code></td><td>Cybertruck only; <code>null</code> otherwise</td></tr>
 </tbody>
 </table>
-<p>The eight openings are <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code> and <code>tonneau</code>. Each is <code>CLOSED</code>, <code>OPEN</code>, <code>AJAR</code>, <code>OPENING</code>, <code>CLOSING</code>, <code>FAILED_UNLATCH</code> or <code>UNKNOWN</code>.</p>
+<p>The eight openings are <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code> and <code>tonneau</code>. Each is <code>CLOSED</code>, <code>OPEN</code>, <code>AJAR</code>, <code>OPENING</code>, <code>CLOSING</code>, <code>FAILED_UNLATCH</code> or <code>UNKNOWN</code>. <code>gear</code> and <code>uiDesire</code> are not in this model yet (planned M5).</p>
 <div class="callout">
 <strong>Unknown values do not fail</strong>
 <p>When newer car firmware sends a value the library does not know yet, the field reads <code>UNKNOWN</code> instead of failing the query.</p>
 </div>
-
-<h2 id="sec-keys">What the key queries return</h2>
 <table>
 <thead><tr><th>Type</th><th>Field</th><th>Meaning</th></tr></thead>
 <tbody>
@@ -107,6 +316,7 @@
 <tr><td></td><td><code>publicKey</code></td><td>65-byte public key, or <code>null</code> if missing or malformed</td></tr>
 <tr><td></td><td><code>keyIdSha1Hex</code></td><td>SHA-1 of the public key in hex, or <code>null</code></td></tr>
 <tr><td></td><td><code>role</code>, <code>formFactor</code></td><td>For example <code>OWNER</code> and <code>IOS_DEVICE</code>; see <a href="13-lib-pairing.html">13. Keys and Pairing</a></td></tr>
+<tr><td><code>SessionInfoSummary</code></td><td><code>counter</code>, <code>clockTime</code>, <code>vehiclePublicKey</code></td><td>See A5</td></tr>
 </tbody>
 </table>
 
@@ -124,10 +334,130 @@
 
 <h2 id="sec-wake">Sleep and wake-up</h2>
 <ul>
-<li>None of the three queries wakes the car. Use <code>sleepStatus</code> to show whether it is asleep.</li>
+<li>None of the queries wakes the car. Use <code>sleepStatus</code> to show whether it is asleep.</li>
 <li>Coming in M5: <code>getState(category)</code> reads the twelve infotainment categories (charge, climate, drive, location, closures, charge schedule, preconditioning schedule, tire pressure, media, media detail, software update, parental controls). It needs an enrolled key and an awake car.</li>
 <li><code>wakeUp()</code> (M4) needs only the VCSEC session.</li>
 <li>When a lock or trunk command (M4) comes back <code>Uncertain</code>, read <code>vehicleStatus()</code> again instead of sending the command a second time.</li>
+</ul>
+
+<h2 id="sec-b-wire">B1. What a broadcast is on the wire</h2>
+<p>A broadcast arrives on the same <code>00000213-...</code> subscription as replies. It is a <code>RoutableMessage</code> with these properties:</p>
+<table>
+<thead><tr><th>Field</th><th>Value</th></tr></thead>
+<tbody>
+<tr><td><code>from_destination.domain</code></td><td><code>DOMAIN_VEHICLE_SECURITY</code> (2)</td></tr>
+<tr><td><code>to_destination.domain</code></td><td><code>DOMAIN_BROADCAST</code> (0), no routing address</td></tr>
+<tr><td><code>request_uuid</code></td><td>Empty</td></tr>
+<tr><td><code>signature_data</code></td><td>Absent (plaintext, not authenticated)</td></tr>
+<tr><td><code>protobuf_message_as_bytes</code></td><td>Serialized <code>FromVCSECMessage</code></td></tr>
+</tbody>
+</table>
+<table>
+<thead><tr><th>#</th><th>Field of <code>FromVCSECMessage</code> (6 to 10 reserved)</th><th>Type</th><th>Notes</th></tr></thead>
+<tbody>
+<tr><td>1</td><td><code>vehicleStatus</code></td><td><code>VehicleStatus</code></td><td>Same message as the query reply (A2)</td></tr>
+<tr><td>3</td><td><code>authenticationRequest</code></td><td><code>AuthenticationRequest</code></td><td>Teslemetry extension</td></tr>
+<tr><td>4</td><td><code>commandStatus</code></td><td><code>CommandStatus</code></td><td>Replies to commands</td></tr>
+<tr><td>16</td><td><code>whitelistInfo</code></td><td><code>WhitelistInfo</code></td><td>Query reply</td></tr>
+<tr><td>17</td><td><code>whitelistEntryInfo</code></td><td><code>WhitelistEntryInfo</code></td><td>Query reply</td></tr>
+<tr><td>46</td><td><code>nominalError</code></td><td><code>Errors.NominalError</code></td><td>Error reply</td></tr>
+<tr><td>48, 53</td><td>unknown</td><td></td><td>Seen on a real car, in no schema (B3)</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-b-library">B2. What the library does with broadcasts</h2>
+<ul>
+<li>The dispatcher <strong>drops</strong> every broadcast, the same as the Go original: it has no routing address, so routing returns the drop reason <code>TO_DOMAIN</code>. Broadcasts never reach a pending request and cannot be mixed up with replies, which are matched by our routing address.</li>
+<li>The only way to see them is the observation log: <code>DEBUG</code>, tag <code>observe</code>, line head <code>[drop:to-domain]</code>. Line format and field names are in <a href="18-lib-troubleshooting.html">18. Troubleshooting</a>; the meaning of each message is in B3.</li>
+<li><strong>A public <code>vehicle.events</code> API is planned for M5 and is not implemented.</strong> There is no public callback, flow or model type for broadcasts today. Until then, read lock, openings, sleep and presence with <code>vehicleStatus()</code>.</li>
+</ul>
+
+<h2 id="sec-b-catalogue">B3. Message catalogue</h2>
+<p>Status labels: <span class="badge ok">Confirmed</span> seen on a real car; <span class="badge info">Schema-only</span> defined in the proto files, never seen by us; <span class="badge warn">Unknown</span> seen on the wire, meaning not known.</p>
+<table>
+<thead><tr><th>Message</th><th>Status</th></tr></thead>
+<tbody>
+<tr><td><code>vehicleStatus</code> (field 1)</td><td><span class="badge ok">Confirmed</span></td></tr>
+<tr><td><code>authenticationRequest</code> (field 3)</td><td><span class="badge ok">Confirmed</span> (field names unverified)</td></tr>
+<tr><td>Field 53</td><td><span class="badge warn">Unknown</span></td></tr>
+<tr><td>Field 48</td><td><span class="badge warn">Unknown</span></td></tr>
+<tr><td>Replies for other clients (not broadcasts)</td><td><span class="badge ok">Confirmed</span></td></tr>
+</tbody>
+</table>
+
+<h3>B3.1 vehicleStatus</h3>
+<p>The fields are those of A2. What the real-car observation showed (iPhone, Model Y; first round 71 lines, second round one recording per scenario):</p>
+<table>
+<thead><tr><th>Field</th><th>Status</th><th>Observed</th></tr></thead>
+<tbody>
+<tr><td><code>vehicleLockState</code> (2)</td><td><span class="badge ok">Confirmed</span></td><td><code>UNLOCKED</code> right after connecting; <code>INTERNAL_LOCKED</code> repeated while seated with doors closed; <code>LOCKED</code> after getting out; <code>UNLOCKED</code> to <code>LOCKED</code> when walking away with the connection still up (link lost about 30 s later)</td></tr>
+<tr><td><code>vehicleSleepStatus</code> (3)</td><td><span class="badge ok">Confirmed</span></td><td><code>AWAKE</code> in all lines. A sleeping car was <strong>not</strong> observed</td></tr>
+<tr><td><code>userPresence</code> (4)</td><td><span class="badge ok">Confirmed</span></td><td><code>PRESENT</code> while seated, <code>NOT_PRESENT</code> after getting out</td></tr>
+<tr><td><code>gear</code> (7)</td><td><span class="badge ok">Confirmed</span></td><td>Each P/R/N/D change produced exactly one broadcast whose <code>gear</code> matched the order of operation (<code>GEAR_REVERSE</code>, <code>GEAR_NEUTRAL</code>, <code>GEAR_DRIVE</code>, <code>GEAR_PARK</code>, twice in a row), about 10 s apart as operated. It works without an infotainment session and with an unenrolled key</td></tr>
+<tr><td><code>closureStatuses</code> (1)</td><td><span class="badge ok">Confirmed</span> for driver door and charge port</td><td><strong>Present only while something is open</strong>, absent when all is closed. Driver door opened with the interior handle: <code>frontDriverDoor = OPEN</code>; about 6 s after closing it the field is absent again. Charge port opened: <code>chargePort = OPEN</code>. Trunk operated by the interior button: <strong>no broadcast at all</strong>; other trunk methods (by hand outside, key card, phone key, app) are not tested</td></tr>
+<tr><td><code>uiDesire</code> (6)</td><td><span class="badge info">Schema-only</span></td><td>Meaning not established</td></tr>
+<tr><td><code>detailedClosureStatus</code> (5)</td><td><span class="badge info">Schema-only</span></td><td>Cybertruck tonneau; no data from a Model Y</td></tr>
+<tr><td>field 8 (not in the schema)</td><td><span class="badge warn">Unknown</span></td><td><code>{1: 1|2, 2: 1|2, 3: 1}</code>. Sub-field 1 alternates between 1 and 2 periodically, sub-field 2 changed from 2 to 1 when the charge port was opened and charging started, sub-field 3 was always 1. Meaning unknown. Not related to lights or turn signals</td></tr>
+</tbody>
+</table>
+<p>Triggers seen: gear change, lock change (interior lock while seated, walk-away lock), door open and close with the interior handle, charge port open and charging start, change of user presence.</p>
+<p>Frequency: it is also repeated with no change. First round: every 1 to 25 s while awake (26 bytes when <code>UNLOCKED</code>, 28 bytes otherwise). Second round: sometimes several within 1 s. Do not treat a repeat as a change.</p>
+
+<h3>B3.2 authenticationRequest (field 3)</h3>
+<p>Status: <span class="badge ok">Confirmed</span> to occur; the sub-field names are unverified (Teslemetry schema).</p>
+<table>
+<thead><tr><th>#</th><th>Field (<code>AuthenticationRequest</code>)</th><th>Type</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td>2</td><td><code>sessionInfo</code> (name unverified)</td><td><code>AuthenticationRequestToken{token = 1}</code></td><td><code>token</code>: 20 bytes</td></tr>
+<tr><td>3</td><td><code>requestedLevel</code> (name unverified)</td><td><code>AuthenticationLevel_E</code></td><td>0 <code>NONE</code>, 1 <code>UNLOCK</code>, 2 <code>DRIVE</code> (prefix <code>AUTHENTICATION_LEVEL_</code>)</td></tr>
+<tr><td>4</td><td><code>reasonsForAuth</code> (name unverified)</td><td>repeated <code>AuthenticationReason_E</code></td><td>Why the car asks</td></tr>
+</tbody>
+</table>
+<p><code>AuthenticationReason_E</code> (prefix <code>AUTHENTICATIONREASON_</code>): 0 <code>NOT_DOCUMENTED</code>, 1 <code>IDENTIFICATION</code>, 2 <code>POWER_ON_VEHICLE_REQUEST</code>, 3 <code>GTW_REQUEST</code>, 4 <code>UI_UNLOCK_PASSIVE_AUTH</code>, 5 <code>PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL</code>, 6 <code>PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL</code>, 7 <code>PASSIVE_UNLOCK_AUTOPRESENT_DOOR</code>, 8 <code>ENTERED_HIGHER_AUTH_ZONE</code>, 9 <code>WALK_UP_UNLOCK</code>, 10 <code>IMMOBILIZER</code>. The related <code>AuthenticationResponse</code> (<code>UnsignedMessage</code> field 3, sent by a phone key) and <code>AuthenticationRejection_E</code> exist in the schema; the library does not send them.</p>
+<p>Observed: <code>requestedLevel = DRIVE</code> with <code>reasons = [PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL]</code> when the interior handle was pulled; <code>ENTERED_HIGHER_AUTH_ZONE</code> was added when the charge port was opened and charging started. It came together with a <code>vehicleStatus</code> (and field 53) at the same moment. Other reasons were not observed.</p>
+<div class="callout">
+<strong>Wrapped, not bare</strong>
+<p>This car sent it inside a <code>RoutableMessage</code> (the broadcast form above), unlike reports elsewhere (Teslemetry PR #179) of a bare <code>FromVCSECMessage{authenticationRequest}</code> about every 1.1 s. No bare frame was seen on this car (<code>drop:missing-source</code> and <code>drop:unparseable</code>: 0 lines).</p>
+</div>
+
+<h3>B3.3 Field 53 (unknown)</h3>
+<p>Status: <span class="badge warn">Unknown</span>. <code>FromVCSECMessage</code> field 53: repeated <code>{1: small int, 2: 35 bytes}</code>.</p>
+<ul>
+<li>54 bytes in total (1 entry, id 4) right after connecting and at the charge port event; 205 to 220 bytes (5 entries, ids 1, 3, 4, 6, 7) at door and lock events. The 35-byte blobs of one message differ only in their last 2 bytes.</li>
+<li>It arrives with authentication events. The ids 1, 3, 4, 6, 7 overlap with enrolled key slot numbers (7 keys seen in M3), so it is probably a per-key authentication challenge. <strong>Unconfirmed.</strong></li>
+</ul>
+
+<h3>B3.4 Field 48 (unknown)</h3>
+<p>Status: <span class="badge warn">Unknown</span>. <code>FromVCSECMessage</code> field 48, 20 bytes, about every 5.0 s while the car is awake and a person is present (with gaps). Seen only in the first round, not in the second. Probably a heartbeat; the condition is unknown.</p>
+
+<h3>B3.5 Replies addressed to other clients</h3>
+<p>These are not broadcasts. A signed 83-byte reply (<code>to_destination.routing_address</code> is another client's 16-byte address, 16-byte <code>request_uuid</code>, empty body) answers another phone's VCSEC request. It reaches our link too, about every 1 to 2 minutes and right after a door event. The library drops it as <code>no-handler</code> (owner <code>other</code>).</p>
+
+<h2 id="sec-b-absent">B4. What is not available by broadcast</h2>
+<table>
+<thead><tr><th>Item</th><th>Result</th></tr></thead>
+<tbody>
+<tr><td>Turn signals (left, right), hazards, headlights, high beams</td><td><strong>No message at all</strong> when operated, and no BLE schema field for them (<code>vcsec.proto</code>, <code>vehicle.proto</code>, <code>car_server.proto</code>). The only known source is Tesla Fleet Telemetry (<code>LightsTurnSignal</code> 240, <code>LightsHazardsActive</code> 239, <code>LightsHighBeams</code> 241), an internet server path outside this library's no-server scope</td></tr>
+<tr><td>Trunk opened with the interior button</td><td>No broadcast (other methods untested)</td></tr>
+<tr><td>Sleeping car</td><td>Not observed</td></tr>
+<tr><td>Charging cable, other phone keys approaching</td><td>Not recorded</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-b-method">B5. Observation method and environment</h2>
+<ul>
+<li>iPhone 16 Pro, iOS 27, Model Y (firmware not recorded). Sample <code>dev.mirolab.TeslableSampleDevice</code> builds 7 and 8, key <code>SECURE_ENCLAVE</code>. The key does not need to be enrolled to observe.</li>
+<li>First round 2026-10-18 (build 7, one continuous recording, 71 lines). Second round 2026-10-24 (build 8, detailed unknown-field decoding, one recording per scenario).</li>
+<li>To reproduce: turn on the sample's observation mode, perform the scenario, then press the show button (and "copy whole result"). Details and log syntax: <a href="18-lib-troubleshooting.html">18. Troubleshooting</a>.</li>
+</ul>
+
+<h2 id="sec-b-provenance">B6. Provenance</h2>
+<ul>
+<li>Official <code>vehicle-command</code> at <code>a4b43c1</code> (Apache-2.0): routing, framing, VCSEC queries.</li>
+<li>Teslemetry <code>tesla-protocol</code> at <code>e6f7afb1</code> (Apache-2.0): proto snapshot with the extension fields (<code>gear</code>, <code>uiDesire</code>, <code>authenticationRequest</code>, extra enum values); ADR-0002 (revised 2026-10-18).</li>
+<li>Teslemetry <code>python-tesla-fleet-api</code> PRs #178 and #179: facts only.</li>
+<li>Our own captures: the real-car results note <code>docs/handoff/2026-10-18-m4-push-observation-results.md</code>.</li>
+<li>AGPL repositories were not used.</li>
 </ul>
 
 <footer class="page-nav">
