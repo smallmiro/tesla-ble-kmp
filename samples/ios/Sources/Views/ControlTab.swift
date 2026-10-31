@@ -30,8 +30,17 @@ struct ControlTab: View {
                 Button("키 목록") { Task { await model.listKeys() } }
                 ForEach(model.keyRows) { row in
                     HStack {
-                        Text(row.label).font(.footnote.monospaced())
+                        VStack(alignment: .leading, spacing: 2) {
+                            if let name = model.nickname(for: row) {
+                                Text(name).font(.subheadline.bold())
+                            }
+                            Text(row.label).font(.footnote.monospaced())
+                        }
                         Spacer()
+                        // SFR-019: 이름은 이 폰에만 저장된다(차량에는 이름 칸이 없다).
+                        Button(model.nickname(for: row) == nil ? "이름" : "이름 수정") { model.beginEditingNickname(row) }
+                            .disabled(row.keyId == nil)
+                            .buttonStyle(.borderless)
                         Button("삭제", role: .destructive) { model.pendingRemoval = row }
                             .disabled(!row.removable)
                             .buttonStyle(.borderless)
@@ -82,6 +91,21 @@ struct ControlTab: View {
             }
             .font(.footnote.monospaced())
         }
+        .alert(
+            "키 이름",
+            isPresented: Binding(get: { model.nicknameEditing != nil }, set: { if !$0 { model.nicknameEditing = nil } }),
+            presenting: model.nicknameEditing
+        ) { row in
+            TextField("이름 (최대 \(KeyNickname.maxLength)자)", text: $model.nicknameDraft)
+            Button("저장") { model.commitNickname(row) }
+            Button("취소", role: .cancel) {}
+        } message: { row in
+            Text("이 폰에만 저장됩니다. 차량에는 키 이름 칸이 없어 차 화면의 이름은 바뀌지 않습니다. 비우고 저장하면 이름을 지웁니다.\n\(row.label)")
+        }
+        .onChange(of: model.nicknameDraft) { draft in
+            let clamped = KeyNickname.clamped(draft)
+            if clamped != draft { model.nicknameDraft = clamped }
+        }
         .confirmationDialog(
             "키를 삭제할까요?",
             isPresented: Binding(get: { model.pendingRemoval != nil }, set: { if !$0 { model.pendingRemoval = nil } }),
@@ -93,7 +117,8 @@ struct ControlTab: View {
             }
             Button("취소", role: .cancel) {}
         } message: { row in
-            Text(row.isOwn ? "이 기기의 키를 지웁니다. 지우면 이 기기로는 더 이상 차량을 제어할 수 없습니다.\n\(row.label)" : row.label)
+            let name = model.nickname(for: row).map { "\($0)\n" } ?? ""
+            Text(row.isOwn ? "이 기기의 키를 지웁니다. 지우면 이 기기로는 더 이상 차량을 제어할 수 없습니다.\n\(name)\(row.label)" : "\(name)\(row.label)")
         }
     }
 }

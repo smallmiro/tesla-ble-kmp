@@ -341,12 +341,18 @@ final class SampleModel: ObservableObject {
     @Published var keyRows: [BleClient.KeyRow] = []
     /// 삭제 확인 대기 중인 항목.
     @Published var pendingRemoval: BleClient.KeyRow?
+    /// 키 ID → 별명(SFR-019). 폰 안(`UserDefaults`)에만 있고 차량으로는 가지 않는다.
+    @Published private(set) var nicknames: [String: String]
+    /// 별명 입력창을 띄운 항목과 입력 중인 글.
+    @Published var nicknameEditing: BleClient.KeyRow?
+    @Published var nicknameDraft = ""
 
     /// 라이브러리 호출이 진행 중이면 true — 모든 버튼을 막아 호출이 겹치지 않게 한다.
     @Published var busy = false
 
     private let engine: MonitorEngine
     private let client: BleClient
+    private let nicknameStore: KeyNicknameStore
 
     /// 이 탭의 동작이 이 기기의 키 등록 상태를 바꿨을 수 있을 때 키·제어 탭에 알린다(`MonitorModel` 이 연결한다).
     enum EnrollmentChange: Equatable {
@@ -358,9 +364,37 @@ final class SampleModel: ObservableObject {
 
     var onEnrollmentChange: ((EnrollmentChange) -> ())?
 
-    init(engine: MonitorEngine) {
+    init(engine: MonitorEngine, nicknameStore: KeyNicknameStore = KeyNicknameStore()) {
         self.engine = engine
+        self.nicknameStore = nicknameStore
+        nicknames = nicknameStore.all
         client = BleClient(engine: engine)
+    }
+
+    /// 행의 별명. 키 ID 가 없는 행은 별명을 가질 수 없다.
+    func nickname(for row: BleClient.KeyRow) -> String? {
+        row.keyId.flatMap { nicknames[$0.lowercased()] }
+    }
+
+    /// 별명 입력창을 연다(현재 별명을 채운다).
+    func beginEditingNickname(_ row: BleClient.KeyRow) {
+        guard row.keyId != nil else { return }
+        nicknameDraft = nickname(for: row) ?? ""
+        nicknameEditing = row
+    }
+
+    /// 입력창의 글을 저장한다. 빈 글은 별명을 지운다. 결과 줄에는 슬롯만 적는다.
+    func commitNickname(_ row: BleClient.KeyRow) {
+        guard let keyId = row.keyId else { return }
+        nicknameEditing = nil
+        switch nicknameStore.set(nicknameDraft, forKeyId: keyId) {
+        case .saved: log("키 이름 저장(슬롯 \(row.slot))")
+        case .removed: log("키 이름 지움(슬롯 \(row.slot))")
+        case .tooLong: log("키 이름이 너무 깁니다(최대 \(KeyNickname.maxLength)자)")
+        case .noKeyId: log("키 이름: 이 항목은 키 ID가 없어 이름을 붙일 수 없음")
+        }
+        nicknames = nicknameStore.all
+        nicknameDraft = ""
     }
 
     private static let clock: DateFormatter = {
