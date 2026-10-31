@@ -49,7 +49,7 @@ car's screen, and never written to the log files or the result list (the result 
 |---|---|
 | Where | Control tab key list (after **Key list**). Each row shows the nickname above the usual label (`slot N formFactor role`, "this device") and a **Name** / **Edit name** button; a text box opens with a note that the name stays on the phone |
 | Key | The key id: `WhitelistEntry.keyIdSha1Hex` (SHA-1 of the public key, hex; `14-lib-reading-state.md` §`WhitelistSummary` and `WhitelistEntry`, `13-lib-pairing.md`). **Not the slot**, because slots can change. A row whose entry has no key id (`keyIdSha1Hex` is `null` or empty) cannot have a nickname; its button is off |
-| Input | Trimmed (spaces and line breaks at both ends). At most **32 characters** (counted as characters, so one emoji is one); the text box cuts longer input. Empty or whitespace-only input **removes** the nickname |
+| Input | Trimmed (spaces and line breaks at both ends). At most **32 characters** (counted as characters, so one emoji is one); the text box cuts longer input (leading spaces are not counted). Empty or whitespace-only input **removes** the nickname |
 | Storage | `UserDefaults` (iOS) / `SharedPreferences` (Android, planned), one entry mapping key id (lower case) → nickname. It is an ordinary app preference, so uninstalling the app removes it. Nicknames of keys later deleted from the car stay until overwritten or cleared; the same key enrolled again gets its old name back |
 | Not shown | The public key in full, the VIN. Only the nickname and the usual row label are on screen; the delete confirmation also shows the nickname |
 
@@ -176,6 +176,7 @@ Files in `samples/ios/Sources/` (tests in `samples/ios/Tests/`, names as in the 
 | `VehicleMapping.swift` | The only place that turns `VehicleEvent` / `VehicleStatus_` into Swift values (`MonitorEvent`, `StatusSnapshot`); `VehicleBox` carries a `Vehicle` across tasks |
 | `SampleModel.swift`, `Views/ControlTab.swift` | Control tab (the former single screen) on the monitor's connection and key |
 | `KeyControl.swift`, `KeyControlModel.swift`, `Views/KeyControlTab.swift` | Key & Control tab (`05-key-control-tab.md`): pure step rules and command runner, tab state, screen; library calls go through `BleClient` |
+| `KeyNickname.swift`, `Tests/KeyNicknameTests.swift` | Local key nickname (SFR-019, §Key nickname): `KeyNickname` (trim, 32-character check, input clamp) and `KeyNicknameStore` (set / get / remove over an injected `UserDefaults`), pure and unit tested; the Control tab key list (`SampleModel.swift`, `Views/ControlTab.swift`) shows and edits it |
 | `ContentView.swift`, `Views/` | `TabView` Live / Query / Log / Control / Key & Control; `isIdleTimerDisabled` follows `scenePhase == .active` |
 
 Library calls used (Swift form) and the manual page and section:

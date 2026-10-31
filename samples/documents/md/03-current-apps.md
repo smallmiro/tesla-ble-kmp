@@ -48,8 +48,8 @@ The monitor app (`04-monitor-app.md`, SFR-010 to SFR-019): five tabs, one monito
   queries, logs), `ConnectionLoop.swift`, `LogLine.swift`, `LogWriter.swift`, `VinMask.swift`, `LiveState.swift`,
   `VehicleMapping.swift`, `SampleModel.swift` (Control tab state and `BleClient`; every action runs through `exclusive { }` so only one
   library call runs at a time), `KeyControl.swift` (Key & Control step rules and command runner, pure), `KeyControlModel.swift`
-  (Key & Control tab state), `ContentView.swift`, `Views/*Tab.swift`.
-- Tests: `Tests/` (`VinMaskTests`, `LogWriterTests`, `ConnectionLoopTests`, `LiveStateTests`, `TimeoutsTests`, `KeyControlTests`), run with
+  (Key & Control tab state), `KeyNickname.swift` (local key nickname rules and store, pure, SFR-019), `ContentView.swift`, `Views/*Tab.swift`.
+- Tests: `Tests/` (`VinMaskTests`, `LogWriterTests`, `ConnectionLoopTests`, `LiveStateTests`, `TimeoutsTests`, `KeyControlTests`, `KeyNicknameTests`), run with
   `xcodebuild ... test` (`02-constraints.md` §4).
 
 | Tab | Contents |

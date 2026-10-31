@@ -82,7 +82,7 @@
 <tbody>
 <tr><td>場所</td><td>コントロールタブのキー一覧（<strong>キー一覧</strong>ボタンの下）。各行は通常のラベル（スロット、フォームファクター、ロール、「この端末」）の上にニックネームを表示し、<strong>名前</strong> / <strong>名前を編集</strong>ボタンを置きます。ボタンを押すと、名前はスマートフォンにだけ保存される旨の案内とともに入力欄が開きます。</td></tr>
 <tr><td>キー</td><td>キー ID: <code>WhitelistEntry.keyIdSha1Hex</code>（公開鍵の SHA-1、16 進数）。スロットは変わり得るため、<strong>スロットでは保存しません</strong>。エントリにキー ID がない行（<code>keyIdSha1Hex</code> が <code>null</code> または空）にはニックネームを付けられず、ボタンは無効になります。</td></tr>
-<tr><td>入力</td><td>前後の空白と改行を削ります。最大 <strong>32 文字</strong>（文字数で数えるので絵文字 1 つが 1 文字）で、入力欄はそれより長い入力を切り詰めます。空または空白だけの入力はニックネームを<strong>削除</strong>します。</td></tr>
+<tr><td>入力</td><td>前後の空白と改行を削ります。最大 <strong>32 文字</strong>（文字数で数えるので絵文字 1 つが 1 文字）で、入力欄はそれより長い入力を切り詰めます（先頭の空白は数えません）。空または空白だけの入力はニックネームを<strong>削除</strong>します。</td></tr>
 <tr><td>保存</td><td><code>UserDefaults</code>（iOS）または <code>SharedPreferences</code>（Android、予定）: キー ID（小文字）をニックネームに対応づけた 1 項目。通常のアプリ設定なので、アプリを削除すると一緒に消えます。後で車から削除したキーのニックネームは、上書きまたは削除するまで残り、同じキーを再登録すると以前の名前が戻ります。</td></tr>
 <tr><td>表示しないもの</td><td>公開鍵の全体と VIN。画面にはニックネームと通常の行ラベルだけが出て、削除の確認ダイアログにもニックネームが表示されます。</td></tr>
 </tbody>
@@ -183,6 +183,7 @@
 <tr><td><code>LiveState.swift</code></td><td>イベントを Live タブの状態（項目ごとの最後に変わった時刻）に変えます。</td></tr>
 <tr><td><code>VehicleMapping.swift</code></td><td><code>VehicleEvent</code> と <code>VehicleStatus_</code> を Swift の値（<code>MonitorEvent</code>、<code>StatusSnapshot</code>）に変える唯一の場所。<code>VehicleBox</code> は <code>Vehicle</code> をタスク間で運びます。</td></tr>
 <tr><td><code>SampleModel.swift</code>、<code>Views/ControlTab.swift</code></td><td>モニターの接続とキーを使う Control タブ（以前の 1 画面）。</td></tr>
+<tr><td><code>KeyNickname.swift</code>、<code>Tests/KeyNicknameTests.swift</code></td><td>ローカルのキーニックネーム（SFR-019、<a href="#sec-nickname">キーのニックネーム</a>）: <code>KeyNickname</code>（削る、32 文字の確認、入力の切り詰め）と <code>KeyNicknameStore</code>（注入した <code>UserDefaults</code> への保存、取得、削除）。純粋なロジックで、単体テストします。コントロールタブのキー一覧（<code>SampleModel.swift</code>、<code>Views/ControlTab.swift</code>）が表示と編集を行います。</td></tr>
 <tr><td><code>KeyControl.swift</code>、<code>KeyControlModel.swift</code>、<code>Views/KeyControlTab.swift</code></td><td>キー＆コントロールタブ（<a href="05-key-control-tab.html">5. キー＆コントロールタブ</a>）。純粋なステップ規則とコマンド実行部、タブの状態と画面。ライブラリの呼び出しは <code>BleClient</code> を通ります。</td></tr>
 <tr><td><code>ContentView.swift</code>、<code>Views/</code></td><td>Live、Query、Log、Control、キー＆コントロールを持つ <code>TabView</code>。<code>isIdleTimerDisabled</code> は <code>scenePhase == .active</code> に従います。</td></tr>
 </tbody>

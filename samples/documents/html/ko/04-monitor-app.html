@@ -82,7 +82,7 @@
 <tbody>
 <tr><td>위치</td><td>제어 탭의 키 목록(<strong>키 목록</strong> 버튼 아래). 각 행은 평소 라벨(슬롯, 폼 팩터, 역할, "이 기기") 위에 별명을 보여 주고 <strong>이름</strong> / <strong>이름 수정</strong> 버튼을 둡니다. 버튼을 누르면 이름이 폰에만 저장된다는 안내와 함께 입력창이 열립니다.</td></tr>
 <tr><td>키</td><td>키 ID: <code>WhitelistEntry.keyIdSha1Hex</code>(공개키의 SHA-1, 16진수). 슬롯은 바뀔 수 있으므로 <strong>슬롯으로 저장하지 않습니다</strong>. 항목에 키 ID가 없으면(<code>keyIdSha1Hex</code>가 <code>null</code>이거나 비어 있으면) 그 행에는 별명을 붙일 수 없고 버튼이 꺼집니다.</td></tr>
-<tr><td>입력</td><td>앞뒤 공백과 줄바꿈을 자릅니다. 최대 <strong>32자</strong>(글자 수 기준이라 이모지 하나가 한 글자)이며 입력창이 더 긴 입력을 잘라 냅니다. 비었거나 공백뿐이면 별명을 <strong>지웁니다</strong>.</td></tr>
+<tr><td>입력</td><td>앞뒤 공백과 줄바꿈을 자릅니다. 최대 <strong>32자</strong>(글자 수 기준이라 이모지 하나가 한 글자)이며 입력창이 더 긴 입력을 잘라 냅니다(앞 공백은 세지 않습니다). 비었거나 공백뿐이면 별명을 <strong>지웁니다</strong>.</td></tr>
 <tr><td>저장</td><td><code>UserDefaults</code>(iOS) 또는 <code>SharedPreferences</code>(Android, 예정): 키 ID(소문자)를 별명에 대응시킨 항목 하나. 일반 앱 설정이므로 앱을 지우면 함께 사라집니다. 나중에 차에서 지운 키의 별명은 덮어쓰거나 지우기 전까지 남고, 같은 키를 다시 등록하면 예전 이름이 돌아옵니다.</td></tr>
 <tr><td>표시하지 않는 것</td><td>공개키 전문과 VIN. 화면에는 별명과 평소 행 라벨만 나오며, 삭제 확인 창에도 별명이 함께 보입니다.</td></tr>
 </tbody>
@@ -183,6 +183,7 @@
 <tr><td><code>LiveState.swift</code></td><td>이벤트를 Live 탭 상태(항목별 마지막으로 바뀐 시각)로 바꿉니다.</td></tr>
 <tr><td><code>VehicleMapping.swift</code></td><td><code>VehicleEvent</code>와 <code>VehicleStatus_</code>를 Swift 값(<code>MonitorEvent</code>, <code>StatusSnapshot</code>)으로 바꾸는 유일한 곳입니다. <code>VehicleBox</code>는 <code>Vehicle</code>을 Task 사이에서 전달합니다.</td></tr>
 <tr><td><code>SampleModel.swift</code>, <code>Views/ControlTab.swift</code></td><td>모니터의 연결과 키를 쓰는 Control 탭(예전의 단일 화면).</td></tr>
+<tr><td><code>KeyNickname.swift</code>, <code>Tests/KeyNicknameTests.swift</code></td><td>로컬 키 별명(SFR-019, <a href="#sec-nickname">키 별명</a>): <code>KeyNickname</code>(자르기, 32자 확인, 입력 제한)과 <code>KeyNicknameStore</code>(주입한 <code>UserDefaults</code>에 저장, 조회, 삭제). 순수 로직이며 단위 테스트합니다. Control 탭 키 목록(<code>SampleModel.swift</code>, <code>Views/ControlTab.swift</code>)이 이를 보여 주고 편집합니다.</td></tr>
 <tr><td><code>KeyControl.swift</code>, <code>KeyControlModel.swift</code>, <code>Views/KeyControlTab.swift</code></td><td>키·제어 탭(<a href="05-key-control-tab.html">5. 키·제어 탭</a>): 순수 단계 규칙과 명령 실행기, 탭 상태와 화면. 라이브러리 호출은 <code>BleClient</code>를 거칩니다.</td></tr>
 <tr><td><code>ContentView.swift</code>, <code>Views/</code></td><td>Live, Query, Log, Control, 키·제어가 있는 <code>TabView</code>. <code>isIdleTimerDisabled</code>는 <code>scenePhase == .active</code>를 따릅니다.</td></tr>
 </tbody>
