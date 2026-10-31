@@ -71,6 +71,8 @@ actor BleClient {
         let label: String
         let isOwn: Bool
         let removable: Bool
+        /// 키 ID(공개키 SHA-1 16진수, `WhitelistEntry.keyIdSha1Hex`). 차량이 보내지 않은 항목은 `nil`.
+        let keyId: String?
         var id: Int { slot }
     }
 
@@ -92,7 +94,8 @@ actor BleClient {
                         slot: Int(e.slot),
                         label: "슬롯 \(e.slot) \(e.formFactor.name) \(e.role.name)\(own ? " (이 기기)" : "")",
                         isOwn: own,
-                        removable: e.publicKey != nil
+                        removable: e.publicKey != nil,
+                        keyId: e.keyIdSha1Hex.flatMap { $0.isEmpty ? nil : $0 }
                     )
                 }
                 return ("키 목록: \(rows.count)개", rows)
