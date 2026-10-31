@@ -43,12 +43,13 @@
 
 <div class="callout warn">
 <strong>Android と iOS は実装済み、実機確認待ち</strong>
-<p>Android アプリ（ビルド <code>0.3.0 (3)</code>）と iOS アプリ（ビルド <code>0.5.0 (12)</code>）は実装済みで、単体テストは通過しています。どちらも実車での確認を待っています。iOS がバックグラウンドで再接続するかどうかは、計画の Task 2 のスパイクまで未確認です。必要なライブラリ API はすべて使えます: <code>Vehicle.events</code>（ライブラリマニュアル 12 章「ブロードキャストイベント」、14 章 B2）と iOS のキーアクセシビリティの選択（13 章「スマートフォンのロック中にキーを使う」、FR-037）。</p>
+<p>Android アプリ（ビルド <code>0.3.0 (3)</code>）と iOS アプリ（ビルド <code>0.5.0 (14)</code>）は実装済みで、単体テストは通過しています。どちらも実車での確認を待っています。iOS がバックグラウンドで再接続するかどうかは、計画の Task 2 のスパイクまで未確認です。必要なライブラリ API はすべて使えます: <code>Vehicle.events</code>（ライブラリマニュアル 12 章「ブロードキャストイベント」、14 章 B2）と iOS のキーアクセシビリティの選択（13 章「スマートフォンのロック中にキーを使う」、FR-037）。</p>
 </div>
 
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-req">要件</a></li>
 <li><a href="#sec-key">ロック中のスマートフォンでのキー</a></li>
+<li><a href="#sec-nickname">キーのニックネーム（ローカル専用）</a></li>
 <li><a href="#sec-bg">バックグラウンドでの動作</a></li>
 <li><a href="#sec-log">ログファイル</a></li>
 <li><a href="#sec-android">Android の実装</a></li>
@@ -73,6 +74,21 @@
 
 <h2 id="sec-key">ロック中のスマートフォンでのキー</h2>
 <p>モニターは専用のキー <code>teslable-monitor</code> を使います。このキーは、スマートフォンがロックされていても使えるように作られます（iOS では <code>KeyAccessibility.AFTER_FIRST_UNLOCK</code>、Android のキーはもともとロック中でも使えると報告します。実機ではまだ確認していません）。この設定はキーを作る時点で固定されます。スマートフォンにすでにそのキーが厳しい設定で存在する場合、アプリは、それを削除して新しく作り、車に登録し直すよう求めます。Control タブには、キーがどの設定になっているかが表示されます。アプリは起動時にキーを読み込み、そのハンドルを使い続けます。キーストアが <code>KeyStoreError.Locked</code> を返した場合（再起動後にまだロックを解除していない、またはロック解除中にだけ使えるキーの場合）、アプリは待ってからロック解除後にキーを読み直し、この理由でキーを削除することはありません。</p>
+
+<h2 id="sec-nickname">キーのニックネーム（ローカル専用）</h2>
+<p>車両には<strong>キー名の欄がありません</strong>。VCSEC の <code>KeyMetadata</code> メッセージは <code>keyFormFactor</code> だけを持つため、車は既定の名前を表示し、<code>listKeys()</code> も名前を返しません（ライブラリマニュアル 14 章 A4）。キーを見分けられるよう、コントロールタブでキーごとに<strong>このスマートフォンだけにあるニックネーム</strong>を付けられます。ニックネームは車両へ送らず、車の画面にも表示せず、ログファイルや結果リストにも書きません（結果リストにはスロットだけを書いた 1 行が残ります）。</p>
+<table>
+<thead><tr><th>ルール</th><th>内容</th></tr></thead>
+<tbody>
+<tr><td>場所</td><td>コントロールタブのキー一覧（<strong>キー一覧</strong>ボタンの下）。各行は通常のラベル（スロット、フォームファクター、ロール、「この端末」）の上にニックネームを表示し、<strong>名前</strong> / <strong>名前を編集</strong>ボタンを置きます。ボタンを押すと、名前はスマートフォンにだけ保存される旨の案内とともに入力欄が開きます。</td></tr>
+<tr><td>キー</td><td>キー ID: <code>WhitelistEntry.keyIdSha1Hex</code>（公開鍵の SHA-1、16 進数）。スロットは変わり得るため、<strong>スロットでは保存しません</strong>。エントリにキー ID がない行（<code>keyIdSha1Hex</code> が <code>null</code> または空）にはニックネームを付けられず、ボタンは無効になります。</td></tr>
+<tr><td>入力</td><td>前後の空白と改行を削ります。最大 <strong>32 文字</strong>（文字数で数えるので絵文字 1 つが 1 文字）で、入力欄はそれより長い入力を切り詰めます。空または空白だけの入力はニックネームを<strong>削除</strong>します。</td></tr>
+<tr><td>保存</td><td><code>UserDefaults</code>（iOS）または <code>SharedPreferences</code>（Android、予定）: キー ID（小文字）をニックネームに対応づけた 1 項目。通常のアプリ設定なので、アプリを削除すると一緒に消えます。後で車から削除したキーのニックネームは、上書きまたは削除するまで残り、同じキーを再登録すると以前の名前が戻ります。</td></tr>
+<tr><td>表示しないもの</td><td>公開鍵の全体と VIN。画面にはニックネームと通常の行ラベルだけが出て、削除の確認ダイアログにもニックネームが表示されます。</td></tr>
+</tbody>
+</table>
+<p>ルールは小さな純粋な型です（<code>KeyNickname</code>: 削る、長さの確認、切り詰め。<code>KeyNicknameStore</code>: 注入した <code>UserDefaults</code> への保存、取得、削除）。車両なしで単体テストします（<code>Tests/KeyNicknameTests.swift</code>）。画面は <code>samples/ios/README.md</code> の実機確認リストで確認します（SFR-019）。</p>
+<p><strong>状態:</strong> iOS ビルド済み（<code>0.5.0 (14)</code>）、単体テストは通過、実機確認待ち。Android: 予定、同じ仕様。</p>
 
 <h2 id="sec-bg">バックグラウンドでの動作</h2>
 <table>

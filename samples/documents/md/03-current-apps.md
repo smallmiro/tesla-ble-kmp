@@ -38,8 +38,8 @@ Control tab (the former single screen):
 
 ## iOS (`samples/ios`)
 
-The monitor app (`04-monitor-app.md`, SFR-010 to SFR-018): five tabs, one monitor object for the app's lifetime. Build
-`0.5.0 (12)`; unit tests pass, real-device check pending.
+The monitor app (`04-monitor-app.md`, SFR-010 to SFR-019): five tabs, one monitor object for the app's lifetime. Build
+`0.5.0 (14)`; unit tests pass, real-device check pending.
 
 - XcodeGen project (`project.yml`), schemes `TeslableSample` (simulator) and `TeslableSampleDevice` (device).
   `Info.plist` gets `UIBackgroundModes: [bluetooth-central]`, `UIFileSharingEnabled` and
@@ -65,7 +65,7 @@ Control tab (the former single screen; same groups as Android):
 | Group | Buttons (UI label) | Library calls |
 |---|---|---|
 | Key | Create / load key (`teslable-monitor`, shows protection and accessibility) | `keys.getOrCreate(alias:policy:accessibility:)` |
-| BLE | Scan, Connect, VehicleStatus, Key list (Delete per row), Disconnect | `scan(vin:)`, the monitor's connection, `vehicleStatus()`, `listKeys()`, `removeKey()`, `disconnect()` |
+| BLE | Scan, Connect, VehicleStatus, Key list (Delete and a local nickname per row, SFR-019), Disconnect | `scan(vin:)`, the monitor's connection, `vehicleStatus()`, `listKeys()`, `removeKey()`, `disconnect()` |
 | Pairing | Request key enrollment, Confirm enrollment | `addKeyRequest()` (progress events); confirmation polls `sessionInfo(publicKey, INFOTAINMENT)` every 3 s for up to 2 min |
 | Session | Handshake VCSEC only, Handshake all, Show session state | `startSession(domains:)`, `sessions` |
 | Control | Lock, Unlock, Open / close trunk, Open frunk, Wake up | VCSEC commands; `Uncertain` is followed by a `vehicleStatus()` re-query |

@@ -1,6 +1,6 @@
 # Monitor App (SFR-010 to SFR-017)
 
-Status: **Android implemented** (build `0.3.0 (3)`) and **iOS implemented** (build `0.5.0 (12)`); unit tests and builds
+Status: **Android implemented** (build `0.3.0 (3)`) and **iOS implemented** (build `0.5.0 (14)`); unit tests and builds
 pass, **real-device checks pending** for both (iOS background reconnect is unconfirmed until the plan Task 2 spike).
 Issue #91. The library APIs it needs are available: `Vehicle.events`
 (`12-lib-getting-started.md` §Broadcast events, `14-lib-reading-state.md` B2) and the key accessibility `KeyAccessibility`
@@ -37,6 +37,27 @@ device). Accessibility is fixed when a key is created: a phone that already has 
 tab shows the key's accessibility. The app reads the key when it starts and keeps that handle; on
 `KeyStoreError.Locked` (the phone was not unlocked since restart, or a `WHEN_UNLOCKED` key while locked) it waits, reads
 it again after unlock and never deletes the key (`13-lib-pairing.md` §Key accessibility, `16-lib-errors.md`).
+
+## Key nickname (SFR-019)
+
+The vehicle has **no key-name field**: the VCSEC `KeyMetadata` message carries only `keyFormFactor`, so the car shows
+default names and `listKeys()` returns no name (`14-lib-reading-state.md` §A4). To tell keys apart, the Control tab lets
+the user give each key a **nickname that exists only on this phone**. It is never sent to the vehicle, never shown on the
+car's screen, and never written to the log files or the result list (the result list gets only a line with the slot).
+
+| Rule | Detail |
+|---|---|
+| Where | Control tab key list (after **Key list**). Each row shows the nickname above the usual label (`slot N formFactor role`, "this device") and a **Name** / **Edit name** button; a text box opens with a note that the name stays on the phone |
+| Key | The key id: `WhitelistEntry.keyIdSha1Hex` (SHA-1 of the public key, hex; `14-lib-reading-state.md` §`WhitelistSummary` and `WhitelistEntry`, `13-lib-pairing.md`). **Not the slot**, because slots can change. A row whose entry has no key id (`keyIdSha1Hex` is `null` or empty) cannot have a nickname; its button is off |
+| Input | Trimmed (spaces and line breaks at both ends). At most **32 characters** (counted as characters, so one emoji is one); the text box cuts longer input. Empty or whitespace-only input **removes** the nickname |
+| Storage | `UserDefaults` (iOS) / `SharedPreferences` (Android, planned), one entry mapping key id (lower case) → nickname. It is an ordinary app preference, so uninstalling the app removes it. Nicknames of keys later deleted from the car stay until overwritten or cleared; the same key enrolled again gets its old name back |
+| Not shown | The public key in full, the VIN. Only the nickname and the usual row label are on screen; the delete confirmation also shows the nickname |
+
+The rules are a small pure type (`KeyNickname`: trim, length check, clamp; `KeyNicknameStore`: set / get / remove over an
+injected `UserDefaults`) that is unit tested without a vehicle (`Tests/KeyNicknameTests.swift`). The screen is checked
+with the real-device checklist in `samples/ios/README.md` (SFR-019).
+
+Status: iOS built (`0.5.0 (14)`), unit tests pass, real-device check pending. Android: planned, same spec.
 
 ## Background
 

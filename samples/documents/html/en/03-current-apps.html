@@ -73,7 +73,7 @@
 </table>
 
 <h2 id="sec-ios">iOS</h2>
-<p>The monitor app (<a href="04-monitor-app.html">4. Monitor App</a>, SFR-010 to SFR-018): five tabs and one monitor object for the app's lifetime. Build <code>0.5.0 (12)</code>; the unit tests pass and the real-device check is pending.</p>
+<p>The monitor app (<a href="04-monitor-app.html">4. Monitor App</a>, SFR-010 to SFR-019): five tabs and one monitor object for the app's lifetime. Build <code>0.5.0 (14)</code>; the unit tests pass and the real-device check is pending.</p>
 <p>XcodeGen project (<code>project.yml</code>) with the schemes <code>TeslableSample</code> (simulator) and <code>TeslableSampleDevice</code> (phone). <code>project.yml</code> sets <code>UIBackgroundModes: [bluetooth-central]</code>, <code>UIFileSharingEnabled</code> and <code>LSSupportsOpeningDocumentsInPlace</code> in <code>Info.plist</code>. <code>MonitorModel.swift</code> and <code>MonitorEngine.swift</code> run the connection, the events, the queries and the logs; <code>ConnectionLoop.swift</code>, <code>LogLine.swift</code>, <code>LogWriter.swift</code>, <code>VinMask.swift</code>, <code>LiveState.swift</code> and <code>VehicleMapping.swift</code> are the pieces behind them (see <a href="04-monitor-app.html#sec-ios">iOS implementation</a>). <code>SampleModel.swift</code> holds the Control tab state and <code>BleClient</code>, and runs every action through <code>exclusive { }</code>, so only one library call runs at a time. <code>KeyControl.swift</code> (pure step rules and command runner) and <code>KeyControlModel.swift</code> (tab state) make up the Key &amp; Control tab. The tabs are in <code>ContentView.swift</code> and <code>Views/</code>. Swift unit tests are in <code>Tests/</code> (<code>VinMaskTests</code>, <code>LogWriterTests</code>, <code>ConnectionLoopTests</code>, <code>LiveStateTests</code>, <code>TimeoutsTests</code>, <code>KeyControlTests</code>).</p>
 <table>
 <thead><tr><th>Tab</th><th>Contents</th></tr></thead>
@@ -90,7 +90,7 @@
 <thead><tr><th>Group</th><th>Buttons</th><th>Library calls</th></tr></thead>
 <tbody>
 <tr><td>Key</td><td>Create or load key (<code>teslable-monitor</code>, shows protection and accessibility)</td><td><code>keys.getOrCreate(alias:policy:accessibility:)</code></td></tr>
-<tr><td>BLE</td><td>Scan, Connect, VehicleStatus, Key list (Delete on each row), Disconnect</td><td><code>scan(vin:)</code>, the monitor's connection, <code>vehicleStatus()</code>, <code>listKeys()</code>, <code>removeKey()</code>, <code>disconnect()</code></td></tr>
+<tr><td>BLE</td><td>Scan, Connect, VehicleStatus, Key list (Delete and a local nickname on each row, SFR-019), Disconnect</td><td><code>scan(vin:)</code>, the monitor's connection, <code>vehicleStatus()</code>, <code>listKeys()</code>, <code>removeKey()</code>, <code>disconnect()</code></td></tr>
 <tr><td>Pairing</td><td>Request enrollment, Confirm enrollment</td><td><code>addKeyRequest()</code> with progress events. Confirmation calls <code>sessionInfo(publicKey, INFOTAINMENT)</code> every 3 seconds for up to 2 minutes</td></tr>
 <tr><td>Session</td><td>Handshake VCSEC only, Handshake all, Show session state</td><td><code>startSession(domains:)</code>, <code>sessions</code></td></tr>
 <tr><td>Control</td><td>Lock, Unlock, Open or close trunk, Open frunk, Wake up</td><td>VCSEC commands. An <code>Uncertain</code> result is followed by a <code>vehicleStatus()</code> re-query</td></tr>

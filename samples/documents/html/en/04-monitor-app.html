@@ -43,12 +43,13 @@
 
 <div class="callout warn">
 <strong>Android and iOS built, real-device checks pending</strong>
-<p>The Android app (build <code>0.3.0 (3)</code>) and the iOS app (build <code>0.5.0 (12)</code>) are implemented and their unit tests pass; both wait for the real-car check. Whether iOS reconnects in the background is unconfirmed until the plan Task 2 spike. The library APIs it needs are available: <code>Vehicle.events</code> (library manual, chapter 12 "Broadcast events" and chapter 14, B2) and the key accessibility choice on iOS (chapter 13 "Using the key while the phone is locked", FR-037).</p>
+<p>The Android app (build <code>0.3.0 (3)</code>) and the iOS app (build <code>0.5.0 (14)</code>) are implemented and their unit tests pass; both wait for the real-car check. Whether iOS reconnects in the background is unconfirmed until the plan Task 2 spike. The library APIs it needs are available: <code>Vehicle.events</code> (library manual, chapter 12 "Broadcast events" and chapter 14, B2) and the key accessibility choice on iOS (chapter 13 "Using the key while the phone is locked", FR-037).</p>
 </div>
 
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#sec-req">Requirements</a></li>
 <li><a href="#sec-key">The key on a locked phone</a></li>
+<li><a href="#sec-nickname">Key nickname (local only)</a></li>
 <li><a href="#sec-bg">Running in the background</a></li>
 <li><a href="#sec-log">Log files</a></li>
 <li><a href="#sec-android">Android implementation</a></li>
@@ -73,6 +74,21 @@
 
 <h2 id="sec-key">The key on a locked phone</h2>
 <p>The monitor uses its own key, <code>teslable-monitor</code>, created so that it can be used while the phone is locked (<code>KeyAccessibility.AFTER_FIRST_UNLOCK</code> on iOS; Android keys already report that they work when locked, not yet confirmed on a device). This setting is fixed when the key is made. If the phone already has that key with the stricter setting, the app asks you to delete it, make a new one and enroll it on the car again. The Control tab shows which setting the key has. The app reads the key when it starts and keeps using that handle. If the key store answers <code>KeyStoreError.Locked</code> (the phone has not been unlocked since it restarted, or the key only works unlocked), the app waits, reads the key again after the phone is unlocked, and never deletes the key for this reason.</p>
+
+<h2 id="sec-nickname">Key nickname (local only)</h2>
+<p>The vehicle has <strong>no key-name field</strong>: the VCSEC <code>KeyMetadata</code> message carries only <code>keyFormFactor</code>, so the car shows default names and <code>listKeys()</code> returns no name (library manual, chapter 14, A4). To tell keys apart, the Control tab lets you give each key a <strong>nickname that exists only on this phone</strong>. It is never sent to the vehicle, never shown on the car's screen, and never written to the log files or the result list (the result list gets only a line with the slot).</p>
+<table>
+<thead><tr><th>Rule</th><th>Detail</th></tr></thead>
+<tbody>
+<tr><td>Where</td><td>The key list of the Control tab (after <strong>Key list</strong>). Each row shows the nickname above the usual label (slot, form factor, role, "this device") and a <strong>Name</strong> / <strong>Edit name</strong> button. A text box opens with a note that the name stays on the phone.</td></tr>
+<tr><td>Key</td><td>The key id: <code>WhitelistEntry.keyIdSha1Hex</code> (SHA-1 of the public key, in hex). <strong>Not the slot</strong>, because slots can change. A row whose entry has no key id (<code>keyIdSha1Hex</code> is <code>null</code> or empty) cannot have a nickname, and its button is off.</td></tr>
+<tr><td>Input</td><td>Trimmed (spaces and line breaks at both ends). At most <strong>32 characters</strong> (counted as characters, so one emoji counts as one); the text box cuts longer input. Empty or whitespace-only input <strong>removes</strong> the nickname.</td></tr>
+<tr><td>Storage</td><td><code>UserDefaults</code> (iOS) or <code>SharedPreferences</code> (Android, planned): one entry that maps the key id (lower case) to the nickname. It is an ordinary app preference, so uninstalling the app removes it. Nicknames of keys that were later deleted from the car stay until they are overwritten or cleared; the same key enrolled again gets its old name back.</td></tr>
+<tr><td>Not shown</td><td>The public key in full and the VIN. Only the nickname and the usual row label are on screen; the delete confirmation also shows the nickname.</td></tr>
+</tbody>
+</table>
+<p>The rules are a small pure type (<code>KeyNickname</code>: trim, length check, clamp; <code>KeyNicknameStore</code>: set, get and remove over an injected <code>UserDefaults</code>) that is unit tested without a vehicle (<code>Tests/KeyNicknameTests.swift</code>). The screen is checked with the real-device checklist in <code>samples/ios/README.md</code> (SFR-019).</p>
+<p><strong>Status:</strong> iOS built (<code>0.5.0 (14)</code>), unit tests pass, real-device check pending. Android: planned, same spec.</p>
 
 <h2 id="sec-bg">Running in the background</h2>
 <table>

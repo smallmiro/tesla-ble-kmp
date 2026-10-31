@@ -43,12 +43,13 @@
 
 <div class="callout warn">
 <strong>Android와 iOS 구현 완료, 실기기 확인 대기</strong>
-<p>Android 앱(빌드 <code>0.3.0 (3)</code>)과 iOS 앱(빌드 <code>0.5.0 (12)</code>)은 구현되어 있고 단위 테스트를 통과했으며, 둘 다 실차 확인을 기다립니다. iOS의 백그라운드 재연결은 계획 Task 2 스파이크 전까지 확인되지 않았습니다. 필요한 라이브러리 API를 모두 쓸 수 있습니다: <code>Vehicle.events</code>(라이브러리 매뉴얼 12장 "브로드캐스트 이벤트", 14장 B2)와 iOS의 키 접근성 선택(13장 "휴대폰이 잠겨 있을 때 키 쓰기", FR-037).</p>
+<p>Android 앱(빌드 <code>0.3.0 (3)</code>)과 iOS 앱(빌드 <code>0.5.0 (14)</code>)은 구현되어 있고 단위 테스트를 통과했으며, 둘 다 실차 확인을 기다립니다. iOS의 백그라운드 재연결은 계획 Task 2 스파이크 전까지 확인되지 않았습니다. 필요한 라이브러리 API를 모두 쓸 수 있습니다: <code>Vehicle.events</code>(라이브러리 매뉴얼 12장 "브로드캐스트 이벤트", 14장 B2)와 iOS의 키 접근성 선택(13장 "휴대폰이 잠겨 있을 때 키 쓰기", FR-037).</p>
 </div>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
 <li><a href="#sec-req">요구사항</a></li>
 <li><a href="#sec-key">잠긴 휴대폰에서의 키</a></li>
+<li><a href="#sec-nickname">키 별명(로컬 전용)</a></li>
 <li><a href="#sec-bg">백그라운드 실행</a></li>
 <li><a href="#sec-log">로그 파일</a></li>
 <li><a href="#sec-android">Android 구현</a></li>
@@ -73,6 +74,21 @@
 
 <h2 id="sec-key">잠긴 휴대폰에서의 키</h2>
 <p>모니터는 자체 키 <code>teslable-monitor</code>를 사용합니다. 이 키는 휴대폰이 잠겨 있을 때도 쓸 수 있도록 만들어집니다(iOS에서는 <code>KeyAccessibility.AFTER_FIRST_UNLOCK</code>, Android 키는 이미 잠금 상태에서도 동작한다고 보고합니다. 실기기에서는 아직 확인하지 않았습니다). 이 설정은 키를 만들 때 정해집니다. 휴대폰에 같은 이름의 키가 더 엄격한 설정으로 이미 있으면, 앱이 그 키를 삭제하고 새로 만들어 차량에 다시 등록하라고 안내합니다. Control 탭에서 키의 설정을 확인할 수 있습니다. 앱은 시작할 때 키를 읽고 그 핸들을 계속 씁니다. 키 보관소가 <code>KeyStoreError.Locked</code>를 반환하면(재시동 뒤 아직 잠금을 풀지 않았거나, 잠금 해제 중에만 동작하는 키인 경우) 앱은 기다렸다가 잠금이 풀린 뒤 키를 다시 읽으며, 이 이유로 키를 삭제하지 않습니다.</p>
+
+<h2 id="sec-nickname">키 별명(로컬 전용)</h2>
+<p>차량에는 <strong>키 이름 칸이 없습니다</strong>. VCSEC <code>KeyMetadata</code> 메시지는 <code>keyFormFactor</code>만 담으므로 차는 기본 이름을 보여 주고 <code>listKeys()</code>도 이름을 돌려주지 않습니다(라이브러리 매뉴얼 14장 A4). 키를 구분할 수 있도록 제어 탭에서 키마다 <strong>이 폰에만 있는 별명</strong>을 붙일 수 있습니다. 별명은 차량으로 보내지 않고, 차량 화면에도 나타나지 않으며, 로그 파일과 결과 목록에도 적지 않습니다(결과 목록에는 슬롯만 적은 한 줄이 남습니다).</p>
+<table>
+<thead><tr><th>규칙</th><th>내용</th></tr></thead>
+<tbody>
+<tr><td>위치</td><td>제어 탭의 키 목록(<strong>키 목록</strong> 버튼 아래). 각 행은 평소 라벨(슬롯, 폼 팩터, 역할, "이 기기") 위에 별명을 보여 주고 <strong>이름</strong> / <strong>이름 수정</strong> 버튼을 둡니다. 버튼을 누르면 이름이 폰에만 저장된다는 안내와 함께 입력창이 열립니다.</td></tr>
+<tr><td>키</td><td>키 ID: <code>WhitelistEntry.keyIdSha1Hex</code>(공개키의 SHA-1, 16진수). 슬롯은 바뀔 수 있으므로 <strong>슬롯으로 저장하지 않습니다</strong>. 항목에 키 ID가 없으면(<code>keyIdSha1Hex</code>가 <code>null</code>이거나 비어 있으면) 그 행에는 별명을 붙일 수 없고 버튼이 꺼집니다.</td></tr>
+<tr><td>입력</td><td>앞뒤 공백과 줄바꿈을 자릅니다. 최대 <strong>32자</strong>(글자 수 기준이라 이모지 하나가 한 글자)이며 입력창이 더 긴 입력을 잘라 냅니다. 비었거나 공백뿐이면 별명을 <strong>지웁니다</strong>.</td></tr>
+<tr><td>저장</td><td><code>UserDefaults</code>(iOS) 또는 <code>SharedPreferences</code>(Android, 예정): 키 ID(소문자)를 별명에 대응시킨 항목 하나. 일반 앱 설정이므로 앱을 지우면 함께 사라집니다. 나중에 차에서 지운 키의 별명은 덮어쓰거나 지우기 전까지 남고, 같은 키를 다시 등록하면 예전 이름이 돌아옵니다.</td></tr>
+<tr><td>표시하지 않는 것</td><td>공개키 전문과 VIN. 화면에는 별명과 평소 행 라벨만 나오며, 삭제 확인 창에도 별명이 함께 보입니다.</td></tr>
+</tbody>
+</table>
+<p>규칙은 작은 순수 타입입니다(<code>KeyNickname</code>: 자르기, 길이 확인, 제한. <code>KeyNicknameStore</code>: 주입한 <code>UserDefaults</code>에 저장, 조회, 삭제). 차량 없이 단위 테스트합니다(<code>Tests/KeyNicknameTests.swift</code>). 화면은 <code>samples/ios/README.md</code>의 실기기 확인 목록으로 확인합니다(SFR-019).</p>
+<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (14)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 예정, 같은 스펙.</p>
 
 <h2 id="sec-bg">백그라운드 실행</h2>
 <table>
