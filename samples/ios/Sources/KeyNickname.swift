@@ -24,9 +24,14 @@ enum KeyNickname {
         return .name(trimmed)
     }
 
-    /// 입력 칸용: `maxLength` 글자에서 자른다(글자 단위라 이모지를 쪼개지 않는다).
+    /// 입력 칸용: 앞 공백 뒤로 `maxLength` 글자에서 자른다. 저장 때 `normalise` 가 앞 공백을 자르므로
+    /// 앞 공백을 세지 않아야 붙여 넣은 글에서 글자를 잃지 않는다. 글자 단위라 이모지를 쪼개지 않고,
+    /// 단어 사이 공백은 그대로 둔다.
     static func clamped(_ input: String) -> String {
-        input.count > maxLength ? String(input.prefix(maxLength)) : input
+        let leading = input.prefix(while: { $0.isWhitespace })
+        let rest = input.dropFirst(leading.count)
+        guard rest.count > maxLength else { return input }
+        return String(leading) + String(rest.prefix(maxLength))
     }
 }
 

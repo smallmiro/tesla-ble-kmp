@@ -62,6 +62,24 @@ final class KeyNicknameTests: XCTestCase {
         XCTAssertEqual(KeyNickname.clamped("짧다"), "짧다")
     }
 
+    func testClampedDoesNotCountLeadingWhitespaceSoNoTrimmedCharacterIsLost() {
+        // 붙여 넣은 글: 앞 공백 3 + 32자. 저장 때 공백이 잘려도 32자가 그대로 남아야 한다.
+        let name = String(repeating: "가", count: KeyNickname.maxLength)
+        let pasted = "   \(name)"
+        XCTAssertEqual(KeyNickname.clamped(pasted), pasted)
+        XCTAssertEqual(KeyNickname.normalise(KeyNickname.clamped(pasted)), .name(name))
+    }
+
+    func testClampedStillCutsAfterLeadingWhitespace() {
+        let name = String(repeating: "a", count: KeyNickname.maxLength)
+        XCTAssertEqual(KeyNickname.clamped("\n  \(name)bbbb"), "\n  \(name)")
+    }
+
+    func testClampedKeepsSpacesBetweenWords() {
+        XCTAssertEqual(KeyNickname.clamped("내 아이폰 15 "), "내 아이폰 15 ")
+        XCTAssertEqual(KeyNickname.clamped(" "), " ")
+    }
+
     // MARK: store
 
     func testNothingStoredGivesNil() {
