@@ -529,6 +529,12 @@ final class MonitorEngine: @unchecked Sendable {
         return nil
     }
 
+    /// `connect(target: nil)` 가 스스로 스캔했을 때만 값이 있다(기억하던 target 이면 `nil`). 12-lib-getting-started.md §Connect scan observation.
+    private static func scanHit(of vehicle: Vehicle) -> ScanHit? {
+        guard let scan = vehicle.scanObservation else { return nil }
+        return ScanHit(hitAfterMs: Int(scan.hitAfterMillis), rssi: scan.rssi.map { Int($0.int32Value) }, openAttempt: Int(scan.openAttempt))
+    }
+
     private func onTransition(_ state: LinkState<VehicleBox>) {
         let ts = log.stamp()
         // 화면(키·제어 탭)이 연결을 알기 전에 문을 닫아 둔다: 그래야 탭의 자동 확인이 첫 조회와 겹치지 않는다.
@@ -540,7 +546,7 @@ final class MonitorEngine: @unchecked Sendable {
             stopConnectionJobs()
             log.write(LogLine.link(ts: ts, state: "connecting", attempt: attempt))
         case .connected(let box):
-            log.write(LogLine.link(ts: ts, state: "connected"))
+            log.write(LogLine.link(ts: ts, state: "connected", scan: Self.scanHit(of: box.vehicle)))
             startConnectionJobs(box)
         case .backoff(let attempt, let delay, let reason):
             stopConnectionJobs()

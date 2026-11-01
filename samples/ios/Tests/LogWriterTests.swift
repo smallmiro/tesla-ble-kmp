@@ -203,6 +203,26 @@ final class LogWriterTests: XCTestCase {
             .hasSuffix(#""summary":"s","startedAt":"b"}"#))
     }
 
+    func testConnectedLinkCarriesTheScanHitAfterTheOldFields() async throws {
+        let dir = tempDir()
+        let w = writer(dir)
+        w.write(LogLine.link(ts: "t", state: "connected", scan: ScanHit(hitAfterMs: 1234, rssi: -62, openAttempt: 2)))
+        w.write(LogLine.link(ts: "t", state: "connected", scan: ScanHit(hitAfterMs: 80, rssi: nil, openAttempt: 1))) // 플랫폼이 RSSI 를 주지 않음
+        w.write(LogLine.link(ts: "t", state: "connected", scan: nil)) // 기억하던 target(스캔 없음)
+        await w.flush()
+
+        let all = try lines(try XCTUnwrap(files(dir).first))
+        XCTAssertEqual(Set(all[1].keys), ["ts", "kind", "state", "scanHitMs", "rssi", "openAttempt"])
+        XCTAssertEqual(all[1]["scanHitMs"] as? Int, 1234)
+        XCTAssertEqual(all[1]["rssi"] as? Int, -62)
+        XCTAssertEqual(all[1]["openAttempt"] as? Int, 2)
+        XCTAssertEqual(Set(all[2].keys), ["ts", "kind", "state", "scanHitMs", "openAttempt"])
+        XCTAssertEqual(Set(all[3].keys), ["ts", "kind", "state"])
+        // 새 필드는 맨 끝: 앞의 필드 순서는 그대로다
+        XCTAssertTrue(LogLine.link(ts: "a", state: "connected", scan: ScanHit(hitAfterMs: 5, rssi: -70, openAttempt: 1)).toJSON()
+            .hasSuffix(#""state":"connected","scanHitMs":5,"rssi":-70,"openAttempt":1}"#))
+    }
+
     func testAppLinesCarryScenePhaseProtectedDataAndTheStartReason() async throws {
         let dir = tempDir()
         let w = writer(dir)
