@@ -160,5 +160,5 @@ responses (`vehicle-command/pkg/protocol/protocol.md:751`). A plaintext reply ca
 the BLE link could forge read data. **Do not base safety decisions on `getState`.** The same goes for `vehicleStatus()`
 and `vehicle.events`, which are unauthenticated plaintext by design (`14-lib-reading-state.md` A1, B1). Command replies
 are not exempt: the plaintext path has no domain check, so a forged plaintext VCSEC reply can make a command such as
-`lock()` return `Success` even if the vehicle never ran it. Whether to reject plaintext replies is an open decision;
-rejecting them would drop firmware before 2024.38.
+`lock()` return `Success` even if the vehicle never ran it. Planned (not implemented yet, ADR-0015): authenticated commands
+will need a verified encrypted reply to succeed, and firmware before 2024.38 will no longer be supported.
