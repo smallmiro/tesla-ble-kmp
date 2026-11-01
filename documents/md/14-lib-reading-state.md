@@ -317,6 +317,10 @@ These are `StateFlow`s on `Vehicle`, not vehicle queries:
   location, closures, charge schedule, preconditioning schedule, tire pressure, media, media detail, software update,
   parental controls) returning Wire generated types (FR-033). It needs an authenticated Infotainment session and an
   awake vehicle. `wakeUp()` (FR-042, M4) uses only the VCSEC session.
+- Planned contract for `getState` (FR-033, #115, #116): one category per request, with no combined query. A field
+  the vehicle did not send stays absent; do not read it as 0. Speed, power and odometer exist only in `Drive`, whose
+  reply can exceed the vehicle's size limit: see "Response size limit" in `16-lib-errors.md`. Real-time speed is not
+  guaranteed. The speed unit is not confirmed yet (#118).
 - After an `Uncertain` VCSEC command result (M4), re-read with `vehicleStatus()` instead of resending.
 
 # Part B: Broadcast data (the vehicle pushes it)

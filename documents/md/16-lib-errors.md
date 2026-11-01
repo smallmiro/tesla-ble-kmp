@@ -116,3 +116,15 @@ After `Uncertain`, never resend. Read the state the command changes:
 | `addKeyRequest` (`TimedOut`, or a `Flow` that ended without a terminal reply) | `sessionInfo(publicKey, VehicleDomain.INFOTAINMENT)` | `Success` = enrolled; `Failure(KeyNotPaired)` = not (yet) |
 
 Infotainment commands (M5) will be added to this table.
+
+## Response size limit on `getState` (planned, M5, FR-033, #116)
+
+The vehicle returns no data when its reply exceeds a size limit. The largest reply seen on real vehicles is about
+453 bytes; this is an observed value, not a specified one. `getState()` will return
+`Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))`, and the client cannot make the reply smaller.
+
+- It is most likely on `Drive`: a long destination name raises the rate, with reports of failures lasting tens of
+  seconds, and of one Model S/X build (`2026.27.6.15`, South Korea) failing almost always even with no route.
+- The library does not resend it and does not change the session, connection or sleep state. It does not mean the
+  vehicle is gone or asleep.
+- Apps keep the last value with its age, show "unavailable" when it is too old, and do not retry in a tight loop.

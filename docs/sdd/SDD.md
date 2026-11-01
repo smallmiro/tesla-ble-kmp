@@ -518,6 +518,7 @@ public data class InvalidArgument(val detail: String) : VehicleError            
 
 - `shouldRetry(e) = !e.mayHaveSucceeded && e.temporary` (Go `ShouldRetry`). 단 `KeyStoreError.Locked`는 temporary지만 `retryWhileRetriable`이 되풀이하지 않는다(FR-037, #96: 잠금 해제는 사용자 몫, 되풀이하면 `Timeout`으로 바뀐다). Go에 없는 오류다.
 - `VehicleResult` 매핑: `mayHaveSucceeded` → `Uncertain`, 그 외 → `Failure`.
+- `getState`(M5, FR-033, #116): 카테고리 하나당 요청 하나만 보낸다. 차량 응답이 크기 상한을 넘으면 `Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))`로 돌려준다. `shouldRetry`가 거짓이라 자동 재전송은 없고, 세션·연결·수면 상태를 바꾸지 않는다. 빠른 재조회 금지와 화면 표시 방법은 `16-lib-errors`에 적는다.
 - Go의 `GetError` 순서를 그대로 유지: `signed_message_fault` → `session_info.status` → `operation_status`. RoutableMessage 계층의 `OPERATIONSTATUS_ERROR`는 Go와 같이 **오류로 취급하지 않는다**(`error.go:257-263` 스위치가 빈 case로 통과).
 - 재시도 간격은 `Transport.retryInterval`(BLE 1초). 재시도 횟수 상한 없이 `timeout` 안에서 반복한다(Go와 동일).
 
