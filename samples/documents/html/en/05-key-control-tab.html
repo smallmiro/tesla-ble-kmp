@@ -50,6 +50,7 @@
 <li><a href="#sec-req">Requirement</a></li>
 <li><a href="#sec-steps">Steps and when buttons are enabled</a></li>
 <li><a href="#sec-enroll">Enrollment state</a></li>
+<li><a href="#sec-popup">Enrollment progress popup</a></li>
 <li><a href="#sec-replace">Delete and recreate the key</a></li>
 <li><a href="#sec-run">Running a command</a></li>
 <li><a href="#sec-buttons">Buttons</a></li>
@@ -89,6 +90,28 @@
 <li>It is checked again when the Control tab confirms an enrollment or removes this device's key.</li>
 <li>It becomes <code>notEnrolled</code> when the session before a command, or the command itself (the session was already <code>Ready</code>, so nothing was sent for it), fails with <code>KeyNotPaired</code>.</li>
 <li>It goes back to <code>unknown</code> when the connection is lost or the key changes.</li>
+</ul>
+
+<h2 id="sec-popup">Enrollment progress popup</h2>
+<p>Pressing <strong>Request enrollment</strong> (step 3) opens a blocking sheet at once and keeps it until the flow ends. It shows the existing flow (<code>addKeyRequest</code>, then the confirmation from manual chapter 13 "Enrolling a key") as three rows and one message. Built on iOS; Android: planned, same spec. The Control tab's <strong>Request enrollment</strong> keeps its result lines and has no popup.</p>
+<table>
+<thead><tr><th>Phase</th><th>When</th><th>What the sheet says</th><th>Buttons</th></tr></thead>
+<tbody>
+<tr><td>Sending</td><td>The button was pressed</td><td>Sending the request</td><td>Cancel</td></tr>
+<tr><td>Waiting for the card</td><td><code>Sent</code> / <code>WaitingForTap</code></td><td>Request sent: put the key card on the centre console and approve on the car's screen</td><td>Cancel</td></tr>
+<tr><td>Checking</td><td><code>Accepted</code>, or the request ended with <code>TimedOut</code></td><td><code>sessionInfo(publicKey, INFOTAINMENT)</code> every 3 seconds: attempt number, elapsed and remaining time out of 2:00 and a progress bar (refreshed at each attempt, so up to 3 seconds old). After <code>TimedOut</code> the text says the request timed out and the check is running</td><td>Cancel</td></tr>
+<tr><td>Done</td><td>The confirmation succeeded</td><td>The key is enrolled, the step 4 buttons work</td><td>Close</td></tr>
+<tr><td>Not confirmed</td><td>No confirmation within 2 minutes</td><td>Not confirmed in 2 minutes; check that the approval was given on the car, then press <strong>Check enrollment</strong></td><td>Close</td></tr>
+<tr><td>Failed</td><td><code>Rejected</code>, <code>Failed</code>, a <code>Failure</code> of the check other than <code>KeyNotPaired</code> (for example <code>NotConnected</code>), or the request could not start (no connection or key)</td><td>"Failed: " and the message</td><td>Close</td></tr>
+<tr><td>Cancelled</td><td>The user pressed Cancel</td><td>See below</td><td>Close</td></tr>
+</tbody>
+</table>
+<ul>
+<li><strong>Blocking.</strong> The sheet cannot be swiped away while the flow runs; only <strong>Cancel</strong> (and <strong>Close</strong> once it has ended).</li>
+<li><strong>Cancel really stops the waiting.</strong> It cancels the task of the flow: the request collection and the 3-second check loop end (a <code>sessionInfo</code> call already in flight ends within its 5-second timeout). After pressing it the sheet says it is stopping, then shows the cancelled state. The step 3 state is not changed by cancelling.</li>
+<li><strong>What cancelling does not undo.</strong> The request already sent to the car cannot be recalled. The car may still show its approval prompt, and a key card tap afterwards can still enroll the key. The cancelled sheet says so and points to <strong>Check enrollment</strong>.</li>
+<li><strong>Dismissed when the app has moved on.</strong> Any change of the connection (link loss, reconnect) or of the key closes the sheet at once, stops the flow, and adds a result line ("enrollment waiting was stopped"); updates that arrive afterwards are dropped. A finished sheet (done, not confirmed, failed, cancelled) also goes away in that case.</li>
+<li>Step and state logic is pure: <code>EnrollmentPopup</code> (phases, rows, texts, button rules, remaining time), <code>EnrollmentUpdate</code> (what the flow reports), <code>EnrollmentWaiter.wait(onAttempt:)</code>; tests in <code>Tests/EnrollmentPopupTests.swift</code>. The sheet in <code>Views/KeyControlTab.swift</code> only draws it.</li>
 </ul>
 
 <h2 id="sec-replace">Delete and recreate the key</h2>
@@ -139,7 +162,7 @@
 <table>
 <thead><tr><th>Part</th><th>Android</th><th>iOS</th></tr></thead>
 <tbody>
-<tr><td>Pure logic and tests</td><td><code>KeyControl.kt</code>, <code>src/test/.../KeyControlTest.kt</code></td><td><code>KeyControl.swift</code>, <code>Tests/KeyControlTests.swift</code>; <code>KeyReplacement.swift</code>, <code>Tests/KeyReplacementTests.swift</code> (SFR-020)</td></tr>
+<tr><td>Pure logic and tests</td><td><code>KeyControl.kt</code>, <code>src/test/.../KeyControlTest.kt</code></td><td><code>KeyControl.swift</code>, <code>Tests/KeyControlTests.swift</code>; <code>KeyReplacement.swift</code>, <code>Tests/KeyReplacementTests.swift</code> (SFR-020); <code>EnrollmentProgress.swift</code>, <code>Tests/EnrollmentPopupTests.swift</code> (SFR-021)</td></tr>
 <tr><td>State</td><td><code>KeyControlState.kt</code> (made in <code>MainViewModel</code>)</td><td><code>KeyControlModel.swift</code> (made in <code>MonitorModel</code>)</td></tr>
 <tr><td>Screen</td><td><code>ui/KeyControlTab.kt</code></td><td><code>Views/KeyControlTab.swift</code></td></tr>
 </tbody>
@@ -164,6 +187,15 @@
 <li>Enroll the new key (step 3). A nickname given to the old key id does not appear on the new key.</li>
 <li>After a restart, before the first unlock: the button is off, or the result says the key store is locked and nothing changed (no key deleted, connection unchanged).</li>
 <li>With the VIN saved but disconnected (Disconnect pressed): a new key is created and no connection is started.</li>
+</ol>
+<p>SFR-021, enrollment progress popup (the iOS runbook is in <code>samples/ios/README.md</code>):</p>
+<ol start="13">
+<li>Press <strong>Request enrollment</strong>: the sheet opens at once, then says the request was sent and to put the key card on the centre console and approve on the car's screen.</li>
+<li>Tap the card and approve: the sheet moves to checking with attempt number, elapsed and remaining time; then "done" and <strong>Close</strong>; step 3 is done and the step 4 buttons work.</li>
+<li>Do not approve for 2 minutes: "not confirmed in 2 minutes" with the advice; <strong>Close</strong>; <strong>Check enrollment</strong> works.</li>
+<li>Press <strong>Cancel</strong> while waiting: the sheet says it is stopping, then cancelled with the note that the request cannot be recalled; no further <code>sessionInfo</code> requests (Log tab). Tap the card afterwards, then <strong>Check enrollment</strong>: it may show <code>enrolled</code>.</li>
+<li>Turn Bluetooth off or walk away while the sheet is open: the sheet closes at once and a result line says the waiting was stopped.</li>
+<li>While the flow runs, swipe the sheet down: it stays.</li>
 </ol>
 
 <footer class="page-nav">

@@ -50,6 +50,7 @@
 <li><a href="#sec-req">要件</a></li>
 <li><a href="#sec-steps">ステップとボタンが有効になる条件</a></li>
 <li><a href="#sec-enroll">登録状態</a></li>
+<li><a href="#sec-popup">登録の進行ポップアップ</a></li>
 <li><a href="#sec-replace">キーの削除と再作成</a></li>
 <li><a href="#sec-run">コマンドの実行</a></li>
 <li><a href="#sec-buttons">ボタン</a></li>
@@ -89,6 +90,28 @@
 <li>Control タブが登録を確認したとき、またはこの端末のキーを削除したときに、再度確認します。</li>
 <li>コマンド前のセッション、またはコマンド自体（セッションはすでに <code>Ready</code> だったため、そのコマンドは何も送っていません）が <code>KeyNotPaired</code> で失敗すると <code>notEnrolled</code> になります。</li>
 <li>接続が切れるかキーが変わると <code>unknown</code> に戻ります。</li>
+</ul>
+
+<h2 id="sec-popup">登録の進行ポップアップ</h2>
+<p><strong>キー登録の要求</strong>（ステップ 3）を押すと、操作をブロックするシートがすぐ開き、流れが終わるまで残ります。既存の流れ（<code>addKeyRequest</code>、続いてマニュアル 13 章「Enrolling a key」の確認）を 3 行とメッセージ 1 つで示します。iOS はビルド済み、Android: 予定、同じ仕様。コントロールタブの<strong>キー登録の要求</strong>は結果行だけを残し、ポップアップはありません。</p>
+<table>
+<thead><tr><th>段階</th><th>いつ</th><th>シートの内容</th><th>ボタン</th></tr></thead>
+<tbody>
+<tr><td>送信中</td><td>ボタンを押したとき</td><td>要求を送信中</td><td>キャンセル</td></tr>
+<tr><td>カード待ち</td><td><code>Sent</code> / <code>WaitingForTap</code></td><td>要求を送りました: センターコンソールにキーカードをかざし、車の画面で承認してください</td><td>キャンセル</td></tr>
+<tr><td>確認中</td><td><code>Accepted</code>、または要求が <code>TimedOut</code> で終わったとき</td><td><code>sessionInfo(publicKey, INFOTAINMENT)</code> を 3 秒ごとに: 試行番号、2:00 のうちの経過・残り時間、進行バー（試行ごとに更新されるため最大 3 秒前の値）。<code>TimedOut</code> の後は、要求がタイムアウトし確認を実行中であると表示します</td><td>キャンセル</td></tr>
+<tr><td>完了</td><td>確認に成功</td><td>キーが登録され、ステップ 4 のボタンが使えます</td><td>閉じる</td></tr>
+<tr><td>未確認</td><td>2 分以内に確認できない</td><td>2 分以内に確認できませんでした。車で承認したか確かめてから<strong>登録状態の確認</strong>を押してください</td><td>閉じる</td></tr>
+<tr><td>失敗</td><td><code>Rejected</code>、<code>Failed</code>、<code>KeyNotPaired</code> 以外の確認の <code>Failure</code>（例: <code>NotConnected</code>）、または要求を開始できない（接続やキーがない）</td><td>「失敗: 」とメッセージ</td><td>閉じる</td></tr>
+<tr><td>キャンセル済み</td><td>ユーザーがキャンセルを押した</td><td>下記参照</td><td>閉じる</td></tr>
+</tbody>
+</table>
+<ul>
+<li><strong>ブロック。</strong>流れが動いている間はシートを下に引いて閉じられず、押せるのは<strong>キャンセル</strong>（終わった後は<strong>閉じる</strong>）だけです。</li>
+<li><strong>キャンセルは待機を実際に止めます。</strong>流れの Task をキャンセルし、要求の収集と 3 秒ごとの確認ループが終わります（すでに出た <code>sessionInfo</code> 呼び出しは 5 秒のタイムアウト内に終わります）。押すとシートは停止中と表示し、続いてキャンセル済みの状態を表示します。キャンセルしてもステップ 3 の状態は変わりません。</li>
+<li><strong>キャンセルで元に戻らないこと。</strong>すでに車両へ送った要求は取り消せません。車が承認の画面を表示し続けることがあり、その後にキーカードをかざすとキーが登録されることもあります。キャンセル済みのシートはそれを伝え、<strong>登録状態の確認</strong>を案内します。</li>
+<li><strong>アプリが次の状態に進んだら閉じる。</strong>接続（リンク切れ、再接続）またはキーが変わるとシートがすぐ閉じ、流れが止まり、結果行（「登録の待機を中断しました」）が残ります。その後に届いた通知は捨てます。終わったシート（完了、未確認、失敗、キャンセル済み）もこの場合は消えます。</li>
+<li>段階と状態のロジックは純粋なコードです: <code>EnrollmentPopup</code>（段階、行、文言、ボタンの規則、残り時間）、<code>EnrollmentUpdate</code>（流れが知らせること）、<code>EnrollmentWaiter.wait(onAttempt:)</code>。テストは <code>Tests/EnrollmentPopupTests.swift</code>。<code>Views/KeyControlTab.swift</code> のシートは描くだけです。</li>
 </ul>
 
 <h2 id="sec-replace">キーの削除と再作成</h2>
@@ -139,7 +162,7 @@
 <table>
 <thead><tr><th>部分</th><th>Android</th><th>iOS</th></tr></thead>
 <tbody>
-<tr><td>純粋なロジックとテスト</td><td><code>KeyControl.kt</code>、<code>src/test/.../KeyControlTest.kt</code></td><td><code>KeyControl.swift</code>、<code>Tests/KeyControlTests.swift</code>、<code>KeyReplacement.swift</code>、<code>Tests/KeyReplacementTests.swift</code>（SFR-020）</td></tr>
+<tr><td>純粋なロジックとテスト</td><td><code>KeyControl.kt</code>、<code>src/test/.../KeyControlTest.kt</code></td><td><code>KeyControl.swift</code>、<code>Tests/KeyControlTests.swift</code>、<code>KeyReplacement.swift</code>、<code>Tests/KeyReplacementTests.swift</code>（SFR-020）、<code>EnrollmentProgress.swift</code>、<code>Tests/EnrollmentPopupTests.swift</code>（SFR-021）</td></tr>
 <tr><td>状態</td><td><code>KeyControlState.kt</code>（<code>MainViewModel</code> で生成）</td><td><code>KeyControlModel.swift</code>（<code>MonitorModel</code> で生成）</td></tr>
 <tr><td>画面</td><td><code>ui/KeyControlTab.kt</code></td><td><code>Views/KeyControlTab.swift</code></td></tr>
 </tbody>
@@ -164,6 +187,15 @@
 <li>新しいキーを登録します（ステップ 3）。古いキー ID に付けたニックネームは新しいキーには出ません。</li>
 <li>再起動後、最初のロック解除の前: ボタンが無効か、結果がキーストアのロックと何も変わっていないことを伝えます（キーは削除されず、接続もそのまま）。</li>
 <li>VIN は保存済みだが切断した状態（切断を押した）: 新しいキーが作られ、接続は始まりません。</li>
+</ol>
+<p>SFR-021、登録の進行ポップアップ（iOS の手順は <code>samples/ios/README.md</code>）:</p>
+<ol start="13">
+<li><strong>キー登録の要求</strong>を押します: シートがすぐ開き、要求を送ったのでセンターコンソールにキーカードをかざして車の画面で承認するよう伝えます。</li>
+<li>カードをかざして承認します: シートが確認中に変わり、試行番号と経過・残り時間を表示し、続いて「完了」と<strong>閉じる</strong>が出ます。ステップ 3 が完了し、ステップ 4 のボタンが使えます。</li>
+<li>2 分間承認しません: 案内とともに「2 分以内に確認できませんでした」、<strong>閉じる</strong>、<strong>登録状態の確認</strong>が使えます。</li>
+<li>待機中に<strong>キャンセル</strong>を押します: シートが停止中と表示した後、要求は取り消せないという注意とともにキャンセル済みを示し、以降 <code>sessionInfo</code> の要求はありません（Log タブ）。その後カードをかざして<strong>登録状態の確認</strong>を押すと <code>enrolled</code> になることがあります。</li>
+<li>シートを開いたまま Bluetooth を切るか離れます: シートがすぐ閉じ、結果行が待機を中断したと伝えます。</li>
+<li>流れが動いている間にシートを下に引きます: そのまま残ります。</li>
 </ol>
 
 <footer class="page-nav">

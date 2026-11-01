@@ -49,6 +49,37 @@ Enrollment state:
   `startSession` sent nothing), fails with `KeyNotPaired`.
 - Goes back to `unknown` when the connection is lost or the key changes.
 
+## Enrollment progress popup (SFR-021)
+
+Pressing **Request enrollment** (step 3) opens a blocking sheet at once and keeps it until the flow ends. It shows the
+existing flow (`addKeyRequest`, then the confirmation of `13-lib-pairing.md` §Enrolling a key) as three rows and one
+message. iOS built; Android: planned, same spec. The Control tab's **Request enrollment** keeps its result lines and has
+no popup.
+
+| Phase | When | What the sheet says | Buttons |
+|---|---|---|---|
+| Sending | the button was pressed | "sending the request" | Cancel |
+| Waiting for the card | `Sent` / `WaitingForTap` | request sent: put the key card on the centre console and approve on the car's screen | Cancel |
+| Checking | `Accepted`, or the request ended with `TimedOut` | `sessionInfo(publicKey, INFOTAINMENT)` every 3 s: attempt number, elapsed and remaining time out of 2:00 and a progress bar (refreshed at each attempt, so up to 3 s old). After `TimedOut` the text says the request timed out and the check is running | Cancel |
+| Done | the confirmation succeeded | the key is enrolled, the step 4 buttons work | Close |
+| Not confirmed | no confirmation within 2 minutes | not confirmed in 2 minutes; check that the approval was given on the car, then press **Check enrollment** | Close |
+| Failed | `Rejected`, `Failed`, a `Failure` of the check other than `KeyNotPaired` (for example `NotConnected`), or the request could not start (no connection or key) | "failed: " and the message | Close |
+| Cancelled | the user pressed Cancel | see below | Close |
+
+- **Blocking.** The sheet cannot be swiped away while the flow runs; only **Cancel** (and **Close** once it has ended).
+- **Cancel really stops the waiting.** It cancels the task of the flow: the request collection and the 3-second check
+  loop end (a `sessionInfo` call already in flight ends within its 5 s timeout). After pressing it the sheet says it is
+  stopping, then shows the cancelled state. The step 3 state is not changed by cancelling.
+- **What cancelling does not undo.** The request already sent to the car cannot be recalled. The car may still show its
+  approval prompt, and a key card tap afterwards can still enroll the key. The cancelled sheet says so and points to
+  **Check enrollment**.
+- **Dismissed when the app has moved on.** Any change of the connection (link loss, reconnect) or of the key closes the
+  sheet at once, stops the flow, and adds a result line ("enrollment waiting was stopped"); updates that arrive afterwards
+  are dropped. A finished sheet (done, not confirmed, failed, cancelled) also goes away in that case.
+- Step and state logic is pure: `EnrollmentPopup` (phases, rows, texts, button rules, remaining time),
+  `EnrollmentUpdate` (what the flow reports), `EnrollmentWaiter.wait(onAttempt:)`; tests in
+  `Tests/EnrollmentPopupTests.swift`. The sheet in `Views/KeyControlTab.swift` only draws it.
+
 ## Delete and recreate the key (SFR-020)
 
 Step 1 has a second button, **Delete and recreate the key**, that replaces the monitor key `teslable-monitor` with a new one
@@ -116,7 +147,7 @@ cannot interleave on the wire.
 
 | | Android | iOS |
 |---|---|---|
-| Pure logic + tests | `KeyControl.kt` (`KeyControlSteps`, `KeyControlRunner`, `Enrollment`), `src/test/.../KeyControlTest.kt` | `KeyControl.swift`, `Tests/KeyControlTests.swift`; `KeyReplacement.swift`, `Tests/KeyReplacementTests.swift` (SFR-020) |
+| Pure logic + tests | `KeyControl.kt` (`KeyControlSteps`, `KeyControlRunner`, `Enrollment`), `src/test/.../KeyControlTest.kt` | `KeyControl.swift`, `Tests/KeyControlTests.swift`; `KeyReplacement.swift`, `Tests/KeyReplacementTests.swift` (SFR-020); `EnrollmentProgress.swift`, `Tests/EnrollmentPopupTests.swift` (SFR-021) |
 | State | `KeyControlState.kt` (made in `MainViewModel`) | `KeyControlModel.swift` (made in `MonitorModel`) |
 | Screen | `ui/KeyControlTab.kt` | `Views/KeyControlTab.swift` |
 
@@ -145,3 +176,17 @@ SFR-020 (delete and recreate the key; iOS runbook in `samples/ios/README.md`):
 11. After a restart, before the first unlock: the button is off, or the result says the key store is locked and nothing
     changed (no key deleted, connection unchanged).
 12. With the VIN saved but disconnected (Disconnect pressed): a new key is created and no connection is started.
+
+SFR-021 (enrollment progress popup; iOS runbook in `samples/ios/README.md`):
+
+13. Press **Request enrollment**: the sheet opens at once, then says the request was sent and to put the key card on the
+    centre console and approve on the car's screen.
+14. Tap the card and approve: the sheet moves to checking with attempt number, elapsed and remaining time; then "done" and
+    **Close**; step 3 is done and the step 4 buttons work.
+15. Do not approve for 2 minutes: "not confirmed in 2 minutes" with the advice; **Close**; **Check enrollment** works.
+16. Press **Cancel** while waiting: the sheet says it is stopping, then cancelled with the note that the request cannot be
+    recalled; no further `sessionInfo` requests (Log tab). Tap the card afterwards, then **Check enrollment**: it may show
+    `enrolled`.
+17. Turn Bluetooth off or walk away while the sheet is open: the sheet closes at once and a result line says the waiting
+    was stopped.
+18. While the flow runs, swipe the sheet down: it stays.

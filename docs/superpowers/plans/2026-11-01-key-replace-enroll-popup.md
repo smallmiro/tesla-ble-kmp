@@ -23,7 +23,11 @@
 
 ### Task B: SFR-021 키 등록 진행 팝업 (iOS, 빌드 15)
 
-(아래 Task B는 SFR-021 문서 커밋에서 채운다.)
+- [x] **Step 1:** 구조 변경 먼저(`struct:`): `BleClient.pair` 가 줄 대신 `EnrollmentUpdate` 단계를 보낸다(Control 탭 결과 줄은 그대로).
+- [x] **Step 2: 실패 테스트** — `Tests/EnrollmentPopupTests.swift`: 단계(요청 → 카드 → 확인 → 성공/미확인/실패/취소), 3초 간격 확인의 시도 번호·경과·남은 시간(`m:ss`, 0 아래로 내려가지 않음), 끝난 뒤의 늦은 알림 무시, 취소 요청과 취소 결과의 문구("되돌릴 수 없"), 취소가 실제로 2분 대기를 멈춤(`EnrollmentWaiter`).
+- [x] **Step 3:** 구현: `EnrollmentProgress.swift`(`EnrollmentUpdate`, `EnrollmentPopup`), `EnrollmentWaiter.wait(onAttempt:)`, `BleClient.pair` 의 취소 처리, `KeyControlModel`(`startEnroll`, `cancelEnroll`, 연결·키가 바뀌면 팝업 정리), 시트 화면.
+- [x] **Step 4:** 문서: `01-requirements.md`(SFR-021), `05-key-control-tab.md` §Enrollment progress popup, HTML en/ko/ja, `samples/ios/README.md` 실기기 체크리스트(P1~P8).
+- [ ] **Step 5:** 실기기 확인(P1~P8). 특히 P4: 취소가 `addKeyRequest` 수집을 실제로 끝내는지(SKIE 취소 전파)는 기기에서만 확인할 수 있다. AI 리뷰, PR (Refs: SFR-021).
 
 ### Task C: Android (예정, 같은 스펙)
 
