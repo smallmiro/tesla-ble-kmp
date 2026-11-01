@@ -55,15 +55,15 @@
 </nav>
 <main class="content">
 <h1>14. 車両状態の取得</h1>
-<p class="lead">ライブラリが BLE で車両から読み取れるすべての情報を 2 部構成でまとめます。A 部は要求して受け取るデータ（セキュリティコントローラーへの 4 つのクエリ）、B 部は車両が自分から送ってくるデータ（ブロードキャスト）です。クエリは、インフォテインメントコンピューターがスリープしていても VCSEC が応答するため、キー、セッション、ウェイクアップのいずれも不要です。</p>
+<p class="lead">ライブラリが BLE で車両から読み取れるすべての情報を 2 部構成でまとめます。A 部は要求して受け取るデータ（セキュリティコントローラーへの 4 つのクエリと、インフォテインメントのクエリ <code>getState()</code>）、B 部は車両が自分から送ってくるデータ（ブロードキャスト）です。セキュリティコントローラーへの 4 つのクエリは、インフォテインメントコンピューターがスリープしていても VCSEC が応答するため、キー、セッション、ウェイクアップのいずれも不要です。<code>getState()</code> には、登録済みのキー、セッション、起きている車両が必要です。</p>
 
 <div class="callout warn">
 <strong>現在の実装範囲</strong>
-<p>A 部の 4 つのクエリは実装済みです。車両のブロードキャスト（B 部）は <code>vehicle.events</code> でアプリに届き（B2）、観察ログでも引き続き見られます。<code>getState()</code>（インフォテインメント）は M5 の予定で、まだ存在しません。</p>
+<p>A 部のクエリは、<code>getState()</code>（A8）を含めて実装済みです。これは M5 の残りより先に入りました。FakeVehicle のテストで確認しており、まだ実車では確認していません。車両のブロードキャスト（B 部）は <code>vehicle.events</code> でアプリに届き（B2）、観察ログでも引き続き見られます。</p>
 </div>
 
 <div class="toc"><strong>このページの内容</strong><ol>
-<li><a href="#sec-calls">4 つのクエリ</a></li>
+<li><a href="#sec-calls">クエリ一覧</a></li>
 <li><a href="#sec-a-transport">A1. 要求の届き方</a></li>
 <li><a href="#sec-a-status">A2. vehicleStatus()</a></li>
 <li><a href="#sec-a-summary">A3. keySummary()</a></li>
@@ -71,6 +71,7 @@
 <li><a href="#sec-a-session">A5. sessionInfo()</a></li>
 <li><a href="#sec-a-enums">A6. enum 値の表</a></li>
 <li><a href="#sec-a-other">A7. スキーマにあるその他の要求種別</a></li>
+<li><a href="#sec-a-getstate">A8. getState()</a></li>
 <li><a href="#sec-status">結果の型</a></li>
 <li><a href="#sec-flows">接続とセッションの状態</a></li>
 <li><a href="#sec-wake">スリープとウェイクアップ</a></li>
@@ -82,7 +83,7 @@
 <li><a href="#sec-b-provenance">B6. 出典</a></li>
 </ol></div>
 
-<h2 id="sec-calls">4 つのクエリ</h2>
+<h2 id="sec-calls">クエリ一覧</h2>
 <table>
 <thead><tr><th>呼び出し</th><th>戻り値</th><th>Go 原本</th><th>FR</th></tr></thead>
 <tbody>
@@ -90,12 +91,13 @@
 <tr><td><code>keySummary(timeout = null)</code></td><td><code>VehicleResult&lt;WhitelistSummary&gt;</code></td><td><code>KeySummary</code> (<code>GET_WHITELIST_INFO</code>)</td><td>FR-032</td></tr>
 <tr><td><code>listKeys(timeout = null)</code></td><td><code>VehicleResult&lt;List&lt;WhitelistEntry&gt;&gt;</code></td><td><code>KeySummary</code> + 使用中のスロットごとに <code>KeyInfoBySlot</code></td><td>FR-025</td></tr>
 <tr><td><code>sessionInfo(publicKey, domain, timeout = null)</code></td><td><code>VehicleResult&lt;SessionInfoSummary&gt;</code></td><td><code>SessionInfo</code> (<code>session_info_request</code>)</td><td>FR-024</td></tr>
+<tr><td><code>getState(category, timeout = null)</code></td><td><code>VehicleResult&lt;VehicleData&gt;</code></td><td><code>GetState</code> (<code>getVehicleData</code>)</td><td>FR-033</td></tr>
 </tbody>
 </table>
 <ul>
 <li>各クエリは省略可能な <code>timeout</code> を受け取ります。指定しなければ既定のコマンドタイムアウト（5 秒）が適用されます。<code>listKeys()</code> のタイムアウトは内部のリクエスト全体に共通です。</li>
-<li>車両は接続ごとに VCSEC リクエストを 1 つずつ処理します。別のクエリを待つ必要があるクエリは、タイムアウトの一部を待機に使います。</li>
-<li>これらはクエリなので、<code>Uncertain</code> の結果はそのまま再度問い合わせて構いません。</li>
+<li>車両は接続ごとに VCSEC リクエストを 1 つずつ処理します。別のクエリを待つ必要があるクエリは、タイムアウトの一部を待機に使います。<code>getState()</code> はインフォテインメントに送られ、そのキューでは待ちません。</li>
+<li>これらはクエリです。<code>Uncertain</code> の結果は、コマンドが実行された可能性があるという意味ではなく、確認できたデータがないという意味なので、再度問い合わせても安全です。ただし、短い間隔で繰り返してはいけません (<a href="16-lib-errors.html#sec-getstate">16. エラー処理</a> を参照)。</li>
 <li>制御ペイロード（ロック、トランク、ウェイクアップ）は <a href="15-lib-commands.html">15. コマンド</a> にあります。</li>
 </ul>
 
@@ -289,7 +291,219 @@
 <p><code>KeyFormFactor</code>: 公開モデルには <code>UNKNOWN</code>、<code>NFC_CARD</code>、<code>IOS_DEVICE</code>、<code>ANDROID_DEVICE</code>、<code>CLOUD_KEY</code> しかありません。ワイヤ値 0、1、6、7、9 がこれらに対応します。<strong>Teslemetry スナップショットの値は <code>UNKNOWN</code> になります:</strong> 2 <code>3_BUTTON_BLE_CAR_KEYFOB</code>、3 <code>BLE_DEVICE</code>、4 <code>NFC_DEVICE</code>、5 <code>BLE_AND_NFC_DEVICE</code>、8 <code>3_BUTTON_BLE_CAR_KEYFOB_P60</code>、10 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60</code>、11 <code>5_BUTTON_GEN2_CAR_KEYFOB_P60</code>、12 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60_V2</code>、13 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60_V3</code>、14 <code>NFC_CARD_P71</code>、15 <code>NFC_CARD_METAL_CARD</code>、16 <code>NFC_CARD_PLASTIC_CARD</code>、17 <code>APPLE_WATCH</code>、18 <code>NFC_CARD_WD_PLASTIC_CARD</code>、19 <code>HARMONY_OS_NEXT_DEVICE</code>（すべて接頭辞 <code>KEY_FORM_FACTOR_</code> 付き）。</p>
 
 <h2 id="sec-a-other">A7. スキーマにあるその他の要求種別</h2>
-<p><code>InformationRequestType</code> には <code>GET_TOKEN</code> 1、<code>GET_COUNTER</code> 2、<code>GET_EPHEMERAL_PUBLIC_KEY</code> 3、<code>GET_SESSION_DATA</code> 4、<code>GET_PERSONALIZATION_INFO</code> 7、<code>GET_KEYSTATUS_INFO</code> 8、<code>GET_ACTIVE_KEY</code> 9、<code>GET_CAPABILITIES</code> 16（Teslemetry のみ）も定義されています。ライブラリはどれも送らず、API もありません。<code>getState(category)</code>（インフォテインメント）は M5 の予定で、API はまだありません。</p>
+<p><code>InformationRequestType</code> には <code>GET_TOKEN</code> 1、<code>GET_COUNTER</code> 2、<code>GET_EPHEMERAL_PUBLIC_KEY</code> 3、<code>GET_SESSION_DATA</code> 4、<code>GET_PERSONALIZATION_INFO</code> 7、<code>GET_KEYSTATUS_INFO</code> 8、<code>GET_ACTIVE_KEY</code> 9、<code>GET_CAPABILITIES</code> 16（Teslemetry のみ）も定義されています。ライブラリはどれも送らず、API もありません。<code>getState(category)</code> はこれらには含まれず、インフォテインメントに送られます（A8）。</p>
+
+<h2 id="sec-a-getstate">A8. getState(category)</h2>
+<p><code>getState</code> は、バッテリー、空調、速度、位置など、インフォテインメントの 12 カテゴリのうち 1 つを読みます。M5 の残りより先に入り、FakeVehicle のテストで確認しています。<strong>この節の内容は、まだ実車では何も確認されていません</strong> (<a href="#sec-a-unconfirmed">A8.5</a>)。</p>
+<pre><code class="language-kotlin"><span class="k">suspend</span> <span class="k">fun</span> <span class="f">getState</span>(category: <span class="t">StateCategory</span>, timeout: <span class="t">Duration</span>? = <span class="n">null</span>): <span class="t">VehicleResult</span>&lt;<span class="t">VehicleData</span>&gt;
+</code></pre>
+<table>
+<thead><tr><th>項目</th><th>値</th></tr></thead>
+<tbody>
+<tr><td>認証</td><td>インフォテインメントのセッション上の AES-GCM、<code>flags</code> = 2 (<code>FLAG_ENCRYPT_RESPONSE</code>)。登録済みのキーが必要です</td></tr>
+<tr><td>ドメイン</td><td><code>DOMAIN_INFOTAINMENT</code>。応答は <code>request_uuid</code> で対応付けます</td></tr>
+<tr><td>リクエストのペイロード</td><td><code>CarServer.Action{vehicleAction{getVehicleData{selector}}}</code>、セレクターはちょうど 1 つ (A8.1)。<code>CHARGE</code> は 16 進で <code>12040a021200</code></td></tr>
+<tr><td>リクエスト</td><td>1 回のリクエストにつき 1 カテゴリ。複数を一度に要求する方法はありません</td></tr>
+<tr><td>終了のタイミング</td><td>最初の応答</td></tr>
+<tr><td>応答</td><td><code>CarServer.Response.vehicleData</code> を、Wire が生成した型 <code>com.tesla.generated.carserver.vehicle.VehicleData</code> としてそのまま返します</td></tr>
+<tr><td>タイムアウト</td><td><code>timeout</code> がなければ既定のコマンドタイムアウト (5 秒)</td></tr>
+<tr><td>リトライ</td><td>コマンドと同じです (<a href="16-lib-errors.html#sec-retry">16. エラー処理</a>)。一時的なエラーはタイムアウトの範囲内で、新しいカウンター、ノンス、有効期限を使って再試行し、<code>Uncertain</code> は再送しません</td></tr>
+<tr><td>結果</td><td><a href="16-lib-errors.html#sec-getstate">16. エラー処理</a></td></tr>
+</tbody>
+</table>
+
+<h3 id="sec-a-categories">A8.1 カテゴリ</h3>
+<p><code>StateCategory</code> (<code>dev.mirolab.teslable.model</code>) には、Go の 12 個の定数が Go と同じ順序で入っています。12 個の応答メッセージにはすべて <code>timestamp</code> フィールドがあります。フィールドの完全な一覧は <code>vehicle-command</code> の公式 <code>pkg/protocol/protobuf/vehicle.proto</code> にあります。</p>
+<table>
+<thead><tr><th><code>StateCategory</code></th><th>Swift</th><th>セレクター (<code>GetVehicleData</code> のフィールド)</th><th><code>VehicleData</code> のフィールド (番号)、応答メッセージ</th><th>公式フィールドの例</th></tr></thead>
+<tbody>
+<tr><td><code>CHARGE</code></td><td><code>.charge</code></td><td><code>getChargeState</code> (2)</td><td><code>charge_state</code> (3), <code>ChargeState</code></td><td><code>battery_level</code>, <code>charging_state</code>, <code>charge_limit_soc</code>, <code>charger_power</code>, <code>minutes_to_full_charge</code>, <code>charge_port_door_open</code></td></tr>
+<tr><td><code>CLIMATE</code></td><td><code>.climate</code></td><td><code>getClimateState</code> (3)</td><td><code>climate_state</code> (4), <code>ClimateState</code></td><td><code>inside_temp_celsius</code>, <code>outside_temp_celsius</code>, <code>is_climate_on</code>, <code>driver_temp_setting</code>, <code>seat_heater_left</code></td></tr>
+<tr><td><code>DRIVE</code></td><td><code>.drive</code></td><td><code>getDriveState</code> (4)</td><td><code>drive_state</code> (5), <code>DriveState</code></td><td><code>shift_state</code>, <code>speed</code>, <code>speed_float</code>, <code>power</code>, <code>odometer_in_hundredths_of_a_mile</code>, <code>active_route_destination</code>, <code>active_route_minutes_to_arrival</code></td></tr>
+<tr><td><code>LOCATION</code></td><td><code>.location</code></td><td><code>getLocationState</code> (7)</td><td><code>location_state</code> (8), <code>LocationState</code></td><td><a href="#sec-a-location">A8.4</a> を参照</td></tr>
+<tr><td><code>CLOSURES</code></td><td><code>.closures</code></td><td><code>getClosuresState</code> (8)</td><td><code>closures_state</code> (9), <code>ClosuresState</code></td><td><code>door_open_driver_front</code>, <code>window_open_driver_front</code>, <code>locked</code>, <code>sun_roof_state</code>, <code>sentry_mode_state</code>, <code>is_user_present</code></td></tr>
+<tr><td><code>CHARGE_SCHEDULE</code></td><td><code>.chargeSchedule</code></td><td><code>getChargeScheduleState</code> (10)</td><td><code>charge_schedule_state</code> (15), <code>ChargeScheduleState</code></td><td><code>charge_schedules</code>, <code>charge_schedule_window</code>, <code>next_schedule</code></td></tr>
+<tr><td><code>PRECONDITIONING_SCHEDULE</code></td><td><code>.preconditioningSchedule</code></td><td><code>getPreconditioningScheduleState</code> (11)</td><td><code>preconditioning_schedule_state</code> (16), <code>PreconditioningScheduleState</code></td><td><code>precondition_schedules</code>, <code>preconditioning_schedule_window</code>, <code>next_schedule</code></td></tr>
+<tr><td><code>TIRE_PRESSURE</code></td><td><code>.tirePressure</code></td><td><code>getTirePressureState</code> (14)</td><td><code>tire_pressure_state</code> (19), <code>TirePressureState</code></td><td><code>tpms_pressure_fl</code> (also <code>fr</code>, <code>rl</code>, <code>rr</code>), <code>tpms_hard_warning_fl</code>, <code>tpms_soft_warning_fl</code>, <code>tpms_last_seen_pressure_time_fl</code></td></tr>
+<tr><td><code>MEDIA</code></td><td><code>.media</code></td><td><code>getMediaState</code> (15)</td><td><code>media_state</code> (20), <code>MediaState</code></td><td><code>now_playing_title</code>, <code>now_playing_artist</code>, <code>audio_volume</code>, <code>media_playback_status</code></td></tr>
+<tr><td><code>MEDIA_DETAIL</code></td><td><code>.mediaDetail</code></td><td><code>getMediaDetailState</code> (16)</td><td><code>media_detail_state</code> (21), <code>MediaDetailState</code></td><td><code>now_playing_duration</code>, <code>now_playing_elapsed</code>, <code>now_playing_album</code></td></tr>
+<tr><td><code>SOFTWARE_UPDATE</code></td><td><code>.softwareUpdate</code></td><td><code>getSoftwareUpdateState</code> (17)</td><td><code>software_update_state</code> (23), <code>SoftwareUpdateState</code></td><td><code>status</code>, <code>version</code>, <code>download_perc</code>, <code>install_perc</code>, <code>scheduled_time_ms</code></td></tr>
+<tr><td><code>PARENTAL_CONTROLS</code></td><td><code>.parentalControls</code></td><td><code>getParentalControlsState</code> (19)</td><td><code>parental_controls_state</code> (24), <code>ParentalControlsState</code></td><td><code>parental_controls_active</code>, <code>parental_controls_pin_set</code>, <code>parental_controls_settings</code></td></tr>
+</tbody>
+</table>
+<div class="callout warn">
+<strong>サポートするのは公式 proto のフィールドだけです</strong>
+<p><code>VehicleData</code> は Teslemetry のスナップショットから生成されるため、<code>TESLEMETRY-EXT</code> のフィールドもあります。例: <code>gui_settings</code>、<code>vehicle_config</code>、<code>LocationState</code> の <code>native_latitude_d</code>。ライブラリはこれらを要求せず、これらのフィールドに値が届いても意味は保証されません。これらを前提に作らないでください。このリポジトリの <code>domain/src/commonMain/proto/vehicle.proto</code> では、これらに <code>TESLEMETRY-EXT</code> のコメントが付いています (ADR-0002、2026-11-01 の修正)。</p>
+</div>
+
+<h3 id="sec-a-order">A8.2 呼び出しの順序</h3>
+<p><code>getState</code> は<strong>セッションを開始せず、車両も起こしません</strong>。どちらもアプリがこの順序で行います。</p>
+<table>
+<thead><tr><th>状況</th><th><code>getState</code> の動作</th><th>アプリの対応</th></tr></thead>
+<tbody>
+<tr><td>インフォテインメントのセッションがない</td><td>何も送らず <code>Failure(NoSession)</code> を返します</td><td>先に <code>startSession(setOf(VehicleDomain.INFOTAINMENT))</code></td></tr>
+<tr><td>キャッシュから復元したセッションを車両がもう受け付けない</td><td><code>Failure(NoSession)</code> を返し、その後 <code>sessions</code> では <code>INFOTAINMENT</code> が <code>None</code> と表示されます</td><td><code>startSession(setOf(VehicleDomain.INFOTAINMENT))</code> を呼んでから、もう一度問い合わせる</td></tr>
+<tr><td>インフォテインメントがスリープしている</td><td>リクエストを 1 回送り、応答がなく <code>Uncertain(Timeout(afterSend = true))</code> を返します</td><td>下記のように、先に起こします</td></tr>
+</tbody>
+</table>
+<pre><code>Awake:    connect → startSession(setOf(INFOTAINMENT)) → getState(category)
+Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)) → wakeUp()
+            → vehicleStatus() shows AWAKE → startSession(setOf(INFOTAINMENT)) → getState(category)
+</code></pre>
+<ul>
+<li><code>vehicleStatus()</code> で判断します。セッションは不要で、車両も起こしません。</li>
+<li>スリープ中の車両では、VCSEC だけでハンドシェイクします。Go のツール <code>tesla-control</code> は、インフォテインメントがスリープしているとみなして、BLE でのウェイクアップをこの方法で行います。Go のレシピは、このとき両方のドメインでハンドシェイクすると長くかかることがあると警告しています。</li>
+<li><code>wakeUp()</code> が <code>Success</code> を返したのは VCSEC がコマンドを受け付けたという意味で、インフォテインメントが起動したという意味ではありません。<code>AWAKE</code> になるのを待ってから、インフォテインメントのセッションを開始します。起こした直後でも車両が busy を返すことがあり、ライブラリはこれをタイムアウトの範囲内で再試行するため、起こした後の最初のクエリには長めの <code>timeout</code> が必要なことがあります。</li>
+<li><strong>保存済みのセッションはスリープ状態とは無関係です。</strong>インフォテインメントがスリープしていても、<code>startSession</code> は車両に尋ねずに成功し、<code>sessions</code> には <code>Ready(fromCache = true)</code> と表示されます。その場合、最初のクエリはタイムアウトすることがあります。代わりに <code>sleepStatus</code> を読んでください。</li>
+<li>起こすかどうかはアプリが決めます。ライブラリが代わりに起こすことはありません。</li>
+</ul>
+<pre><code class="language-kotlin"><span class="k">import</span> dev.mirolab.teslable.<span class="t">Vehicle</span>
+<span class="k">import</span> dev.mirolab.teslable.model.*
+<span class="k">import</span> kotlinx.coroutines.delay
+<span class="k">import</span> kotlin.time.<span class="t">Duration</span>.<span class="t">Companion</span>.seconds
+
+<span class="c">// vehicle was connected with an enrolled key (12-lib-getting-started.md). True when getState can be called.</span>
+<span class="k">suspend</span> <span class="k">fun</span> <span class="f">prepareInfotainment</span>(vehicle: <span class="t">Vehicle</span>): <span class="t">Boolean</span> {
+    <span class="k">val</span> status = vehicle.<span class="f">vehicleStatus</span>()                                  <span class="c">// no session needed, never wakes the car</span>
+    <span class="k">if</span> (status <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">&amp;&amp;</span> status.value.sleepStatus <span class="o">==</span> <span class="t">SleepStatus</span>.<span class="t">ASLEEP</span>) {
+        <span class="k">if</span> (vehicle.<span class="f">startSession</span>(<span class="f">setOf</span>(<span class="t">VehicleDomain</span>.<span class="t">VCSEC</span>)) !<span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span>) <span class="k">return</span> <span class="n">false</span>
+        <span class="k">if</span> (vehicle.<span class="f">wakeUp</span>() <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span>) <span class="k">return</span> <span class="n">false</span>       <span class="c">// Uncertain: do not resend, the loop reads the state</span>
+        <span class="k">for</span> (attempt <span class="k">in</span> <span class="n">1</span>..<span class="n">30</span>) {                                          <span class="c">// about 30 s; the real wake time is not confirmed (#118)</span>
+            <span class="f">delay</span>(<span class="n">1</span>.seconds)
+            <span class="k">val</span> now = vehicle.<span class="f">vehicleStatus</span>()
+            <span class="k">if</span> (now <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">&amp;&amp;</span> now.value.sleepStatus <span class="o">==</span> <span class="t">SleepStatus</span>.<span class="t">AWAKE</span>) <span class="k">break</span>
+        }
+    }
+    <span class="k">return</span> vehicle.<span class="f">startSession</span>(<span class="f">setOf</span>(<span class="t">VehicleDomain</span>.<span class="t">INFOTAINMENT</span>)) <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span>
+}
+</code></pre>
+<pre><code class="language-swift"><span class="k">func</span> <span class="f">prepareInfotainment</span>(vehicle: <span class="t">Vehicle</span>) <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="t">Bool</span> {
+    <span class="k">let</span> status = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">vehicleStatus</span>(timeout: <span class="n">nil</span>)                 <span class="c">// no session needed, never wakes the car</span>
+    <span class="k">if</span> <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s) = <span class="f">onEnum</span>(of: status), (s.value <span class="k">as</span>? <span class="t">VehicleStatus_</span>)?.sleepStatus <span class="o">==</span> .asleep {
+        <span class="k">let</span> vcsec = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">startSession</span>(domains: [.vcsec], timeout: <span class="n">nil</span>)
+        <span class="k">guard</span> <span class="k">case</span> .success = <span class="f">onEnum</span>(of: vcsec) <span class="k">else</span> { <span class="k">return</span> <span class="n">false</span> }
+        <span class="k">let</span> woke = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">wakeUp</span>(timeout: <span class="n">nil</span>)
+        <span class="k">if</span> <span class="k">case</span> .failure = <span class="f">onEnum</span>(of: woke) { <span class="k">return</span> <span class="n">false</span> }                   <span class="c">// uncertain: do not resend, the loop reads the state</span>
+        <span class="k">for</span> _ <span class="k">in</span> <span class="n">1</span>...<span class="n">30</span> {                                                      <span class="c">// about 30 s; the real wake time is not confirmed (#118)</span>
+            <span class="k">try</span> <span class="k">await</span> <span class="t">Task</span>.<span class="f">sleep</span>(nanoseconds: <span class="n">1_000_000_000</span>)
+            <span class="k">let</span> now = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">vehicleStatus</span>(timeout: <span class="n">nil</span>)
+            <span class="k">if</span> <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> n) = <span class="f">onEnum</span>(of: now), (n.value <span class="k">as</span>? <span class="t">VehicleStatus_</span>)?.sleepStatus <span class="o">==</span> .awake { <span class="k">break</span> }
+        }
+    }
+    <span class="k">let</span> session = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">startSession</span>(domains: [.infotainment], timeout: <span class="n">nil</span>)
+    <span class="k">if</span> <span class="k">case</span> .success = <span class="f">onEnum</span>(of: session) { <span class="k">return</span> <span class="n">true</span> }
+    <span class="k">return</span> <span class="n">false</span>
+}
+</code></pre>
+<p>30 秒は Go の BLE の例から取ったもので、測定値ではありません。ポーリングする代わりに、アプリは <code>vehicle.events</code> の <code>sleepStatus</code> を監視することもできます (<a href="#sec-b-library">B2</a>)。</p>
+
+<h3 id="sec-a-reading">A8.3 応答の読み方</h3>
+<ul>
+<li><strong>ないことは 0 ではありません。</strong>12 個の応答メッセージに直接ある、すべてのスカラーフィールドとメッセージフィールドは null を許容します。車両が送らなかったフィールドは <code>null</code> で、<code>speed = 0</code> は 0 のままです。<code>null</code> を 0 に置き換えないでください。繰り返しフィールド (<code>charge_schedules</code>、<code>precondition_schedules</code>) は、ない場合は空のリストです。<code>ChargeSchedule</code> などの入れ子のメッセージの中のフィールドは通常の proto3 の値なので、ない場合は 0、空、または false として読まれます。</li>
+<li><strong>使うすべてのフィールドを確認してください。</strong><code>vehicleData</code> がない応答は、空の <code>vehicleData</code> と同じ <code>Success(VehicleData())</code> になり、両者は区別できません。Go はこの場合 <code>(nil, nil)</code> を返しますが、ライブラリは、アプリがどのみちフィールドごとに確認するため、null でない結果を保ちます。<code>Ping</code> など別の種類の応答も、同じ空の結果になります。</li>
+<li><strong>応答は <code>category</code> と照合されません</strong> (Go と同じ)。要求したカテゴリのフィールドを読んでください。別のフィールドが届いた場合は、そのまま渡されます。</li>
+<li><strong><code>Success</code> は新しい測定値の証拠ではありません。</strong><code>timestamp</code> を前回の応答と比較してください。動いていなければ、値を最新のものとして表示しないでください。<code>null</code> の場合は判断できません。<code>timestamp</code> は Wire の <code>Instant</code> で、<code>getEpochSecond()</code> は共通の Kotlin と Swift のどちらでも使えます。</li>
+<li>速度、出力、オドメーターは <code>DRIVE</code> にしかなく、この応答は車両のサイズ上限を超えることがあります (<a href="16-lib-errors.html#sec-size-limit">16. エラー処理</a>)。リアルタイムの速度は保証されず、ほかの取得元もありません。</li>
+<li>Wire は proto の名前をそのまま保つため、フィールドは <code>drive_state</code>、<code>speed_float</code>、<code>charge_state</code> のようになり、手書きのモデルの camelCase とは異なります。生成された型は <code>com.tesla.generated.*</code> にあります。</li>
+<li><strong>結果をログに出さないでください</strong>。<code>toString()</code> も同様です。<code>VehicleData</code> には位置と目的地が入ることがあります。ライブラリはこれをログに出さないので、アプリも出すべきではありません。</li>
+</ul>
+<pre><code class="language-kotlin"><span class="k">import</span> com.tesla.generated.universalmessage.<span class="t">MessageFault_E</span>
+<span class="k">import</span> dev.mirolab.teslable.<span class="t">Vehicle</span>
+<span class="k">import</span> dev.mirolab.teslable.model.*
+<span class="k">import</span> kotlin.time.<span class="t">Duration</span>.<span class="t">Companion</span>.seconds
+
+<span class="k">suspend</span> <span class="k">fun</span> <span class="f">readSpeed</span>(vehicle: <span class="t">Vehicle</span>): <span class="t">Int</span>? {
+    <span class="k">when</span> (<span class="k">val</span> result = vehicle.<span class="f">getState</span>(<span class="t">StateCategory</span>.<span class="t">DRIVE</span>)) {
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span>
+            <span class="k">return</span> result.value.drive_state<span class="o">?.</span>speed               <span class="c">// null = the vehicle did not send it; 0 = it sent 0</span>
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Uncertain</span> <span class="o">-&gt;</span> {
+            <span class="k">val</span> e = result.error
+            <span class="k">if</span> (e <span class="k">is</span> <span class="t">VehicleError</span>.<span class="t">ProtocolFault</span> <span class="o">&amp;&amp;</span> e.fault <span class="o">==</span> <span class="t">MessageFault_E</span>.<span class="t">MESSAGEFAULT_ERROR_RESPONSE_MTU_EXCEEDED</span>) {
+                <span class="k">return</span> <span class="n">null</span>                                      <span class="c">// reply too large</span>
+            }
+            <span class="k">if</span> (e <span class="k">is</span> <span class="t">VehicleError</span>.<span class="t">Timeout</span>) <span class="k">return</span> <span class="n">null</span>           <span class="c">// no reply</span>
+            <span class="k">return</span> <span class="n">null</span>
+        }
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span> {
+            <span class="k">if</span> (result.error <span class="o">==</span> <span class="t">VehicleError</span>.<span class="t">NoSession</span>) <span class="k">return</span> <span class="n">null</span>
+            <span class="k">return</span> <span class="n">null</span>
+        }
+    }
+}
+
+<span class="c">// With an explicit timeout, and reading the reply's timestamp:</span>
+<span class="k">suspend</span> <span class="k">fun</span> <span class="f">readBattery</span>(vehicle: <span class="t">Vehicle</span>, lastSeconds: <span class="t">Long</span>?) {
+    <span class="k">val</span> result = vehicle.<span class="f">getState</span>(<span class="t">StateCategory</span>.<span class="t">CHARGE</span>, timeout = <span class="n">8</span>.seconds)
+    <span class="k">if</span> (result !<span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span>) <span class="k">return</span>
+    <span class="k">val</span> charge = result.value.charge_state <span class="o">?:</span> <span class="k">return</span>             <span class="c">// no charge data in this reply</span>
+    <span class="k">val</span> level: <span class="t">Int</span>? = charge.battery_level
+    <span class="k">val</span> seconds: <span class="t">Long</span>? = charge.timestamp<span class="o">?.</span><span class="f">getEpochSecond</span>()
+    <span class="k">val</span> fresh = seconds <span class="o">!=</span> <span class="n">null</span> <span class="o">&amp;&amp;</span> seconds <span class="o">!=</span> lastSeconds
+    <span class="f">render</span>(level, fresh)
+}
+</code></pre>
+<p>Swift ではすべての引数を渡します。<code>s.value</code> はキャストが必要で、数値は <code>KotlinInt?</code> としてブリッジされます。<a href="17-lib-platform-notes.html#sec-swift-generated">17. プラットフォームノート</a> を参照してください。この形はフレームワークに対する Swift の型チェックを通っていますが、Swift プログラムでは実行していません。</p>
+<pre><code class="language-swift"><span class="k">func</span> <span class="f">readSpeed</span>(vehicle: <span class="t">Vehicle</span>) <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="t">Int32</span>? {
+    <span class="k">let</span> result = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">getState</span>(category: .drive, timeout: <span class="n">nil</span>)
+    <span class="k">switch</span> <span class="f">onEnum</span>(of: result) {
+    <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s):
+        <span class="c">// VehicleResult's generic is erased in Swift: s.value is AnyObject?, so cast it.</span>
+        <span class="k">guard</span> <span class="k">let</span> data = s.value <span class="k">as</span>? <span class="t">VehicleData</span> <span class="k">else</span> { <span class="k">return</span> <span class="n">nil</span> }
+        <span class="c">// Nullable numerics bridge as KotlinInt? / KotlinFloat?, not Int32? / Float?.</span>
+        <span class="k">let</span> speed: <span class="t">KotlinInt</span>? = data.drive_state?.speed
+        <span class="k">let</span> speedFloat: <span class="t">KotlinFloat</span>? = data.drive_state?.speed_float
+        _ = speedFloat?.floatValue
+        <span class="k">return</span> speed?.int32Value <span class="c">// nil = the vehicle did not send it; 0 = it sent 0</span>
+    <span class="k">case</span> .<span class="f">uncertain</span>(<span class="k">let</span> u):
+        <span class="k">switch</span> <span class="f">onEnum</span>(of: u.error) {
+        <span class="k">case</span> .<span class="f">protocolFault</span>(<span class="k">let</span> p) <span class="k">where</span> p.fault <span class="o">==</span> .messagefaultErrorResponseMtuExceeded:
+            <span class="k">return</span> <span class="n">nil</span> <span class="c">// reply too large</span>
+        <span class="k">case</span> .<span class="f">timeout</span>(<span class="k">let</span> t):
+            _ = t.afterSend
+            <span class="k">return</span> <span class="n">nil</span> <span class="c">// no reply</span>
+        <span class="k">default</span>:
+            <span class="k">return</span> <span class="n">nil</span>
+        }
+    <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f):
+        <span class="k">if</span> <span class="k">case</span> .noSession = <span class="f">onEnum</span>(of: f.error) { <span class="k">return</span> <span class="n">nil</span> }
+        <span class="k">return</span> <span class="n">nil</span>
+    }
+}
+
+<span class="c">// With an explicit timeout, and reading the reply's timestamp:</span>
+<span class="k">func</span> <span class="f">readBattery</span>(vehicle: <span class="t">Vehicle</span>, lastSeconds: <span class="t">Int64</span>?) <span class="k">async</span> <span class="k">throws</span> {
+    <span class="k">let</span> result = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">getState</span>(category: .charge, timeout: <span class="t">Timeouts</span>.shared.<span class="f">seconds</span>(seconds: <span class="n">8</span>))
+    <span class="k">guard</span> <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s) = <span class="f">onEnum</span>(of: result), <span class="k">let</span> data = s.value <span class="k">as</span>? <span class="t">VehicleData</span> <span class="k">else</span> { <span class="k">return</span> }
+    <span class="k">guard</span> <span class="k">let</span> charge = data.charge_state <span class="k">else</span> { <span class="k">return</span> }   <span class="c">// no charge data in this reply</span>
+    <span class="k">let</span> level: <span class="t">KotlinInt</span>? = charge.battery_level
+    <span class="k">let</span> seconds: <span class="t">Int64</span>? = charge.timestamp?.<span class="f">getEpochSecond</span>()
+    <span class="k">let</span> fresh = seconds <span class="o">!=</span> <span class="n">nil</span> <span class="o">&amp;&amp;</span> seconds <span class="o">!=</span> lastSeconds
+    <span class="f">render</span>(level?.int32Value, fresh)
+}
+</code></pre>
+
+<h3 id="sec-a-location">A8.4 位置: どの座標を使うか</h3>
+<p><code>LOCATION</code> は複数の座標のペアを返すことがあります。規則は公式 <code>vehicle.proto</code> の <code>LocationState</code> のコメントで、Go の <code>GetState</code> がこれを指しています。</p>
+<table>
+<thead><tr><th>用途</th><th>フィールド</th><th>いつ</th></tr></thead>
+<tbody>
+<tr><td>第一候補</td><td><code>native_latitude</code>、<code>native_longitude</code></td><td>通常はこれです。車両の地域に応じて WGS (国際) または GCJ (中国) を使い、どちらかは <code>native_type</code> が示します</td></tr>
+<tr><td>代替、WGS のクライアント</td><td><code>latitude</code>、<code>longitude</code></td><td>native のフィールドが提供されないとき</td></tr>
+<tr><td>代替、GCJ のクライアント</td><td><code>corrected_latitude</code>、<code>corrected_longitude</code></td><td>native のフィールドが提供されないとき。proto はこれらを「中国の車両専用」としています</td></tr>
+<tr><td>例外</td><td><code>geo_latitude</code>、<code>geo_longitude</code></td><td>生の WGS の GPS で、通常は精度が低くなります。<code>estimated_to_raw_distance</code> (推定座標と生の座標の間の距離、メートル) が大きな差を示すときに使います。これは主に、車両が輸送またはけん引された後に起きます。proto はしきい値を示していません</td></tr>
+</tbody>
+</table>
+<p><code>native_latitude_d</code>、<code>geo_latitude_d</code> などの倍精度の変種は <code>TESLEMETRY-EXT</code> です。使わないでください。</p>
+
+<h3 id="sec-a-unconfirmed">A8.5 実車で確認されていないこと (#118)</h3>
+<ul>
+<li><code>getState</code> の全体: これまで FakeVehicle に対してしか実行されていません。</li>
+<li>各カテゴリが実際にどのフィールドを持つか、そしてどのくらいの頻度で更新されるか。</li>
+<li><code>speed</code> と <code>speed_float</code> の単位。km/h や mph と決めつけないでください。</li>
+<li><code>timestamp</code> が何を示すか: 測定の時刻か、応答の時刻か。それが分かるまでは、A8.3 の確認が最善です。</li>
+<li>起こすのにどのくらいかかるか、そしてスリープ中のインフォテインメントコンピューターがリクエストをどう扱うか。テストは応答がない場合としてモデル化しています。実車が代わりに busy を返す場合、ライブラリはタイムアウトまで再試行し、結果は <code>Failure(Timeout(afterSend = false))</code> になることがあります (<a href="16-lib-errors.html#sec-getstate">16. エラー処理</a>)。</li>
+<li>サイズ上限がファームウェアごとにどう動作するか、そしてエラーが暗号化されて届くか平文で届くか。</li>
+</ul>
 
 <h2 id="sec-status">結果の型</h2>
 <table>
@@ -337,9 +551,8 @@
 <h2 id="sec-wake">スリープとウェイクアップ</h2>
 <ul>
 <li>どのクエリも車両を起こしません。スリープ中かどうかを表示するには <code>sleepStatus</code> を使います。</li>
-<li>M5 で追加予定: <code>getState(category)</code> は、インフォテインメントの 12 カテゴリ（充電、空調、走行、位置、開口部、充電スケジュール、プレコンディショニングスケジュール、タイヤ空気圧、メディア、メディア詳細、ソフトウェア更新、ペアレンタルコントロール）を読みます。登録済みのキーと起きている車両が必要です。</li>
-<li><code>getState</code> の予定動作: 1 回のリクエストで 1 カテゴリだけを読みます。車両が送らなかった値は空のままにし、0 と表示しないでください。<code>Drive</code> の応答が車両のサイズ上限を超えることがあるため、リアルタイムの速度は保証されません（<a href="16-lib-errors.html#sec-size-limit">16. エラー</a> を参照）。</li>
-<li><code>wakeUp()</code>（M4）は VCSEC セッションだけで動きます。</li>
+<li><code>getState(category)</code> にはインフォテインメントのセッションと起きている車両が必要です（<a href="#sec-a-order">A8.2</a>）。スリープ中の車両では <code>Uncertain(Timeout(afterSend = true))</code> で終わります。</li>
+<li><code>wakeUp()</code>（M4）は VCSEC セッションだけで動きます。<code>getState</code> との呼び出しの順序は <a href="#sec-a-order">A8.2</a> にあります。</li>
 <li>ロックやトランクのコマンド（M4）が <code>Uncertain</code> で返ったら、コマンドを再送せず <code>vehicleStatus()</code> を読み直してください。</li>
 </ul>
 

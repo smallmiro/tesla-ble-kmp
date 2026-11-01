@@ -68,6 +68,7 @@
 <li><a href="#sec-clock">시계</a></li>
 <li><a href="#sec-slots">연결 슬롯과 끊긴 링크</a></li>
 <li><a href="#sec-swift-timeouts">Swift: 시간 제한</a></li>
+<li><a href="#sec-swift-generated">Swift: 생성된 타입(getState)</a></li>
 </ol></div>
 
 <h2 id="sec-support">지원 범위</h2>
@@ -180,6 +181,19 @@
 <li><code>Timeouts.shared.seconds(seconds:)</code>는 모든 <code>timeout:</code> 인자에 넘길 박싱된 값을 돌려줍니다. 0, 음수, NaN, 무한대를 넣으면 <code>IllegalArgumentException</code>이 발생합니다. <code>Timeouts.shared.millisecondsOf(timeout:)</code>는 박싱된 값의 밀리초를 돌려주며(<code>nil</code>이면 <code>-1</code>) 왕복 확인용입니다. iOS 샘플의 XCTest 타깃은 <code>tools/ci/verify.sh</code> (d) 단계에서 실행됩니다.</li>
 <li><code>TeslaBleConfig.companion.withSeconds(logger:commandTimeoutSeconds:handshakeTimeoutSeconds:connectTimeoutSeconds:pairingTimeoutSeconds:)</code>는 초 단위로 설정을 만듭니다. 모든 인자가 필수이고 <code>commandLifetime</code>은 기본값을 씁니다. <code>TeslaBleConfig.companion.default(logger:)</code>는 그대로입니다.</li>
 <li><code>timeout: nil</code>은 여전히 "설정 기본값 사용"입니다.</li>
+</ul>
+
+<h2 id="sec-swift-generated">Swift: 생성된 타입(getState)</h2>
+<p><code>getState</code>는 Wire가 생성한 <code>VehicleData</code>를 돌려주며, 이 타입은 Swift에서 직접 작성한 모델과 다르게 동작합니다. 전체 예제는 <a href="14-lib-reading-state.html#sec-a-reading">14. 차량 상태 조회</a>에 있습니다. 이 형태들은 프레임워크를 대상으로 한 Swift 타입 검사를 통과했으며, Swift 프로그램에서 실행해 보지는 않았습니다.</p>
+<ul>
+<li><code>vehicle</code>은 <code>Vehicle</code> 프로토콜입니다. 모든 인자를 넘기세요: <code>vehicle.getState(category: .drive, timeout: nil)</code> 또는 <code>timeout: Timeouts.shared.seconds(seconds: 8)</code>. <code>timeout:</code>이 없으면 컴파일러가 <code>missing argument for parameter 'timeout' in call</code>이라고 알려 줍니다.</li>
+<li><code>VehicleResult</code>의 제네릭은 지워지므로 <code>s.value</code>는 <code>AnyObject?</code>입니다. 캐스팅하세요: <code>s.value as? VehicleData</code>.</li>
+<li>null을 허용하는 숫자는 <code>Int32?</code>와 <code>Float?</code>가 아니라 <code>KotlinInt?</code>와 <code>KotlinFloat?</code>로 브리지됩니다. <code>.int32Value</code>와 <code>.floatValue</code>를 읽으세요. <code>let speed: Int32? = data.drive_state?.speed</code>는 거부되며, 컴파일러는 <code>failed to produce diagnostic for expression</code>이라고만 말하므로 이 메시지는 도움이 되지 않습니다.</li>
+<li>생성된 필드는 Swift에서도 proto 이름을 그대로 유지합니다(<code>drive_state</code>, <code>speed_float</code>, <code>charge_state</code>). 직접 작성한 모델의 camelCase와 다릅니다.</li>
+<li><code>timestamp</code>는 Wire <code>Instant</code>입니다. <code>charge.timestamp?.getEpochSecond()</code>는 <code>Int64?</code>를 줍니다.</li>
+<li>타입 이름은 그대로입니다: <code>VehicleData</code>, <code>DriveState</code>, <code>StateCategory</code>. 이름이 충돌하는 것은 <code>VehicleStatus_</code>뿐입니다.</li>
+<li><code>StateCategory</code>는 진짜 Swift enum이므로 12개 전부에 대한 <code>switch</code>에는 <code>default</code>가 필요 없습니다: <code>.charge</code>, <code>.climate</code>, <code>.drive</code>, <code>.location</code>, <code>.closures</code>, <code>.chargeSchedule</code>, <code>.preconditioningSchedule</code>, <code>.tirePressure</code>, <code>.media</code>, <code>.mediaDetail</code>, <code>.softwareUpdate</code>, <code>.parentalControls</code>.</li>
+<li><code>.protocolFault</code> 안의 enum은 <code>MessageFault_E</code>입니다. 크기 상한 경우는 <code>.messagefaultErrorResponseMtuExceeded</code>입니다: <code>case .protocolFault(let p) where p.fault == .messagefaultErrorResponseMtuExceeded:</code>.</li>
 </ul>
 
 <footer class="page-nav">

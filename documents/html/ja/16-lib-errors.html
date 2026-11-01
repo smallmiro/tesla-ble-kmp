@@ -60,6 +60,7 @@
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-outcomes">3 つの結果</a></li>
 <li><a href="#sec-hierarchy">エラーの種類</a></li>
+<li><a href="#sec-getstate">getState の結果</a></li>
 <li><a href="#sec-transport">Bluetooth とキーストアのエラー</a></li>
 <li><a href="#sec-events">ブロードキャストイベント</a></li>
 <li><a href="#sec-retry">リトライとタイムアウト</a></li>
@@ -71,7 +72,7 @@
 <thead><tr><th>結果</th><th>意味</th><th>アプリがすること</th></tr></thead>
 <tbody>
 <tr><td><span class="badge ok">成功</span></td><td>車両が確認した</td><td>値を使います</td></tr>
-<tr><td><span class="badge warn">不確実</span></td><td>車両が実行した可能性があるが、確認が届かなかった</td><td>再送 <strong>しないでください</strong>。代わりに状態を読み取ります (<code>vehicleStatus()</code>、M5 以降は <code>getState()</code>)</td></tr>
+<tr><td><span class="badge warn">不確実</span></td><td>コマンド: 車両が実行した可能性があるが、確認が届かなかった。クエリ: 確認できたデータはなく、何も実行されていない (<a href="#sec-getstate">getState の結果</a>)</td><td>コマンド: 再送 <strong>しないでください</strong>。代わりに状態を読み取ります (<code>vehicleStatus()</code>、インフォテインメントの状態は <code>getState()</code>)。クエリ: 最後の値を保持し、後でもう一度問い合わせます</td></tr>
 <tr><td><span class="badge vcsec">失敗</span></td><td>実行されなかった</td><td><code>error</code> を確認します</td></tr>
 </tbody>
 </table>
@@ -110,10 +111,33 @@
 </table>
 <p><code>message</code> ではなくエラー型で判断してください。メッセージには番号の代わりにコード名が入るようになりました。</p>
 
-<h3 id="sec-size-limit"><code>getState</code> の応答サイズ上限（M5 で追加予定）</h3>
-<p>応答がサイズ上限を超えると、車両はデータを送りません。実車で観測された最大の応答は約 453 バイトで、仕様ではなく観測値です。<code>getState()</code> は <code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code> を返す予定で、アプリが応答を小さくする方法はありません。</p>
+<h2 id="sec-getstate">getState の結果</h2>
+<p>クエリは車両の状態を何も変えません。したがって<strong>読み取りでの <code>Uncertain</code> は、確認できたデータがないという意味</strong>であり、コマンドが実行された可能性があるという意味ではありません。読み取りとコマンドは同じエラー型を共有するため、<code>mayHaveSucceeded</code> は引き続き true です。後から確認するものはありません。最後の値を保持し、後でもう一度問い合わせてください。再度の問い合わせは安全ですが、短い間隔で繰り返してはいけません。ライブラリは間隔を決めないので、アプリが選びます。</p>
+<table>
+<thead><tr><th>結果</th><th>意味</th><th>アプリの対応</th></tr></thead>
+<tbody>
+<tr><td><code>Success(data)</code></td><td>車両が応答した</td><td>使うすべてのフィールドが <code>null</code> でないか確認します。<code>data</code> が空のことがあり、成功は新しい測定値の証拠ではありません。<code>timestamp</code> を前回の応答と比較します (<a href="14-lib-reading-state.html#sec-a-reading">14、A8.3</a>)</td></tr>
+<tr><td><code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code></td><td>車両はリクエストを受け取ったが、応答が大きすぎた。車両とは通信できている</td><td>最後の値を経過時間とともに保持します。次の節を参照</td></tr>
+<tr><td><code>Uncertain(Timeout(afterSend = true))</code></td><td>時間内に何も返ってこなかった: インフォテインメントがスリープしている、応答が失われた、または待っている間に接続が切れた</td><td><code>vehicleStatus()</code> を読みます。<code>ASLEEP</code> ならアプリが車両を起こせます (<a href="14-lib-reading-state.html#sec-a-order">14、A8.2</a>)。そうでなければ最後の値を経過時間とともに保持します。<code>connection</code> も確認します</td></tr>
+<tr><td><code>Uncertain(BadResponse(detail))</code></td><td>応答は届いたが読み取れなかった</td><td>最後の値を保持します。繰り返す場合は <code>detail</code> を報告します</td></tr>
+<tr><td><code>Failure(Timeout(afterSend = false))</code></td><td>送信前、または再試行を待つ間に時間切れになった。例: 起こしている間、車両が busy を返し続ける場合</td><td>後でもう一度問い合わせます。起こした直後は長めの <code>timeout</code> を使います</td></tr>
+<tr><td><code>Failure(NoSession)</code></td><td>インフォテインメントのセッションがない (何も送っていない)、または車両が保存済みのセッションを受け付けなかった</td><td><code>startSession(setOf(VehicleDomain.INFOTAINMENT))</code> を呼んでから、もう一度だけ問い合わせます</td></tr>
+<tr><td><code>Failure(InfotainmentRejected(reason))</code></td><td>車両が拒否した。応答にデータがあってもこちらが優先される</td><td>一般的なメッセージを表示します。<code>reason</code> は車両自身の文言なので、ログに残さないでください</td></tr>
+<tr><td><code>Failure(NotConnected)</code>、<code>TransportError</code></td><td>接続が切れた、または書き込みに失敗した</td><td><code>disconnect()</code> を呼んでから、再接続します (<a href="#sec-transport">下記</a>)</td></tr>
+</tbody>
+</table>
+<p>それ以外のエラーは、上のエラー型の表のとおりの意味です。画面では、2 つの主な <code>Uncertain</code> をエラー型で区別できます。サイズのエラーは車両が応答したことを、タイムアウトは何も返ってこなかったことを意味します。どちらもセッションを消す理由にはなりません。</p>
+
+<h3 id="sec-size-limit"><code>getState</code> の応答サイズ上限</h3>
+<p>応答がサイズ上限を超えると、車両はデータを送りません。実車で観測された最大の応答は約 453 バイトで、仕様ではなく観測値です。<code>getState()</code> は <code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code> を返し、アプリが応答を小さくする方法はありません。</p>
 <p>最も起きやすいのは <code>Drive</code> です。目的地の名前が長いほど頻繁になり、数十秒間失敗したという報告や、Model S/X のあるビルド（<code>2026.27.6.15</code>、韓国）では経路がなくてもほぼ常に失敗するという報告があります。</p>
-<p>ライブラリは再送せず、セッション、接続、スリープの状態も変えないため、車両がいなくなった、またはスリープしたという意味ではありません。最後の値を経過時間とともに保持し、古くなりすぎたら取得不可と表示し、短い間隔で繰り返し再試行しないでください。</p>
+<p>ライブラリはリクエストを再送しません。このエラーのためにセッションを消したり、再接続したり、車両を起こしたりはしません。応答に付いてきたセッション情報は、いつもどおり適用されます。このエラーは、車両がいなくなった、またはスリープしたという意味ではありません。最後の値を経過時間とともに保持し、古くなりすぎたら取得不可と表示し、短い間隔で繰り返し再試行しないでください。リアルタイムの速度は保証されず、ファームウェアごとの動作は実車では確認されていません (#118)。</p>
+
+<h3 id="sec-authenticity">応答の真正性</h3>
+<div class="callout warn">
+<strong><code>getState</code> に基づいて安全に関わる判断をしないでください</strong>
+<p>Go 原本と同様に、ライブラリは平文のインフォテインメント応答を受け入れます。2024.38 より前のファームウェアは応答を暗号化しないためです (<code>vehicle-command/pkg/protocol/protocol.md:751</code>)。平文の応答には認証タグがないため、BLE 接続上の第三者が読み取りデータを偽造できます。<code>vehicleStatus()</code> と <code>vehicle.events</code> も設計上は認証のない平文で、同じ扱いです (<a href="14-lib-reading-state.html#sec-a-transport">14、A1</a>、<a href="14-lib-reading-state.html#sec-b-wire">B1</a>)。平文の応答を拒否するかどうかは未決定で、拒否すると 2024.38 より前のファームウェアは使えなくなります。</p>
+</div>
 
 <h2 id="sec-transport">Bluetooth とキーストアのエラー</h2>
 <p>接続は接続タイムアウトまで 1 秒ごとにすでにリトライされます。最後の列はアプリがすべきことです。</p>
