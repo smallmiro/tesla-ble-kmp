@@ -55,6 +55,9 @@ public interface Transport {
     /** 요청 전송 후 세션정보를 받아들이는 최대 지연(BLE 4초). Go `AllowedLatency()`. */
     public val allowedLatency: Duration
 
+    /** 이 링크를 연 광고에 대해 연결 호출이 스스로 본 값(FR-038). 그런 값이 없으면 null. 원본 Go에 없다. */
+    public val scanObservation: ConnectScanObservation? get() = null
+
     /** 메시지 하나를 보낸다(프레이밍·분할 포함). Go `Send`. */
     public suspend fun send(message: ByteArray): VehicleResult<Unit>
 

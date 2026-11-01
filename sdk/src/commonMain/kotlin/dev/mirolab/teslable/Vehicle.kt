@@ -14,6 +14,7 @@ import dev.mirolab.teslable.model.VehicleStatus
 import dev.mirolab.teslable.model.Vin
 import dev.mirolab.teslable.model.WhitelistEntry
 import dev.mirolab.teslable.model.WhitelistSummary
+import dev.mirolab.teslable.port.ConnectScanObservation
 import dev.mirolab.teslable.port.TransportState
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.StateFlow
@@ -30,6 +31,14 @@ public interface Vehicle {
 
     /** 개인키로 연결했는지(인증 명령·핸드셰이크 가능 여부). */
     public val hasKey: Boolean
+
+    /**
+     * 이 연결을 연 광고에 대해 `connect`가 스스로 본 값(FR-038, #134). 발견까지 걸린 시간, 신호 세기, 열기 시도 번호.
+     * `connect(target = null)`이면 항상 있다. `scan`에서 받은 광고를 `target`으로 넘겨 그 광고로 열었으면 null이다 — 이 호출이
+     * 본 것이 없고, 앱이 이미 그 광고를 가지고 있다. 연결 하나의 고정값이라 [disconnect] 뒤에도 그대로 읽을 수 있다.
+     * 실패한 연결에는 결과가 없다 — 그 경우의 발견은 관찰 로그(`[connect:scan-hit]`)에 남는다.
+     */
+    public val scanObservation: ConnectScanObservation? get() = null
 
     /** BLE 연결 상태. 링크가 끊겨도(`Disconnected`) 세션 키와 스코프를 풀려면 [disconnect]를 불러야 한다. */
     public val connection: StateFlow<TransportState>

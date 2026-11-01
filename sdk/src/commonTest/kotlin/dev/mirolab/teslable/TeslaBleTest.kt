@@ -18,6 +18,7 @@ import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.Vin
 import dev.mirolab.teslable.port.ConnectOptions
+import dev.mirolab.teslable.port.ConnectScanObservation
 import dev.mirolab.teslable.port.ScanEvent
 import dev.mirolab.teslable.port.SessionCache
 import dev.mirolab.teslable.port.TeslaLogger
@@ -55,6 +56,7 @@ import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -111,6 +113,78 @@ class TeslaBleTest {
                         .single(),
                 )
             assertEquals(LocalName.of(r.fake.vin, TestCrypto.primitives), found.advertisement.localName)
+        }
+
+    /** 스캔 관찰을 가진 전송을 돌려주는 팩토리로 파사드를 만든다. */
+    private fun TestScope.bleWithScanObservation(
+        fake: FakeVehicle,
+        observation: ConnectScanObservation,
+    ): TeslaBle {
+        val real = FakeTransportFactory(fake)
+        val factory =
+            object : TransportFactory by real {
+                override suspend fun connect(
+                    vin: Vin,
+                    target: VehicleAdvertisement?,
+                    options: ConnectOptions,
+                ): VehicleResult<Transport> =
+                    when (val r = real.connect(vin, target, options)) {
+                        is VehicleResult.Success -> {
+                            VehicleResult.Success(
+                                object : Transport by r.value {
+                                    override val scanObservation = observation
+                                },
+                            )
+                        }
+
+                        is VehicleResult.Failure -> {
+                            r
+                        }
+
+                        is VehicleResult.Uncertain -> {
+                            r
+                        }
+                    }
+            }
+        return TeslaBle(
+            transports = factory,
+            keys = FakeVehicleKeyStore(),
+            sessionCache = RecordingSessionCache(),
+            crypto = TestCrypto.primitives,
+            random = TestCrypto.random,
+            config = TeslaBleConfig(),
+            timeSource = testTimeSource,
+            vehicleScope = { CoroutineScope(backgroundScope.coroutineContext + SupervisorJob(backgroundScope.coroutineContext[Job])) },
+        )
+    }
+
+    @Test
+    fun scanObservationOfTheConnectIsOnTheVehicleAndOutlivesDisconnect() =
+        // #134: 연결 하나의 값이라 disconnect 뒤에도 읽을 수 있다(로그에 끊긴 뒤 적어도 된다). 키 없는 연결도 같다
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val observation = ConnectScanObservation(hitAfterMillis = 120, rssi = -61, openAttempt = 1)
+            val ble = bleWithScanObservation(fake, observation)
+            val vehicle = assertIs<VehicleResult.Success<Vehicle>>(ble.connect(fake.vin, key = null)).value
+            assertEquals(observation, vehicle.scanObservation)
+            vehicle.disconnect()
+            assertEquals(observation, vehicle.scanObservation)
+        }
+
+    @Test
+    fun noScanObservationWhenTheTransportHasNone() =
+        runTest {
+            assertNull(rig().connected().scanObservation)
+        }
+
+    @Test
+    fun scanObservationPrintsNoAdvertisementIdentity() =
+        // VIN 규칙: 앱이 그대로 로그에 남겨도 광고 이름과 기기 식별자가 나가지 않는다
+        runTest {
+            assertEquals(
+                "ConnectScanObservation(hitAfterMillis=120, rssi=-61, openAttempt=1)",
+                ConnectScanObservation(hitAfterMillis = 120, rssi = -61, openAttempt = 1).toString(),
+            )
         }
 
     @Test

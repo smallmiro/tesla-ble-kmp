@@ -4,7 +4,10 @@ import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.Vin
 import dev.mirolab.teslable.port.ConnectOptions
+import dev.mirolab.teslable.port.ConnectScanObservation
+import dev.mirolab.teslable.port.LogLevel
 import dev.mirolab.teslable.port.ScanEvent
+import dev.mirolab.teslable.port.Transport
 import dev.mirolab.teslable.port.VehicleAdvertisement
 import dev.mirolab.teslable.testing.RecordingLogger
 import dev.mirolab.teslable.testing.TestCrypto
@@ -22,7 +25,9 @@ import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
+import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
@@ -254,5 +259,194 @@ class BleTransportFactoryTest {
             runCurrent()
             assertIs<VehicleResult.Success<*>>(pending.await())
             assertEquals(2, connector.scans)
+        }
+
+    private fun VehicleResult<Transport>.scanObservation(): ConnectScanObservation? =
+        assertIs<VehicleResult.Success<Transport>>(this).value.scanObservation
+
+    private fun RecordingLogger.observeLines(): List<RecordingLogger.Entry> = entries.filter { it.tag == "observe" }
+
+    private fun retriableOpenFailure() = OpenResult.Failed(VehicleError.TransportError.ConnectFailed("discover"), retry = true)
+
+    @Test
+    fun scanHitTimeAndRssiReachTheTransport() =
+        // #134: 라이브러리가 스캔한 연결의 발견 시각과 신호 세기
+        runTest {
+            val connector = FakeGattConnector(ad).apply { hitDelay = 400.milliseconds }
+            val result = factory(connector).connect(vin, target = null, options = ConnectOptions())
+            assertEquals(ConnectScanObservation(hitAfterMillis = 400, rssi = -50, openAttempt = 1), result.scanObservation())
+        }
+
+    @Test
+    fun hitTimeIsTakenBeforeTheScanIsTornDown() =
+        // 스캔을 멈추는 시간은 발견까지 걸린 시간이 아니다
+        runTest {
+            val connector =
+                FakeGattConnector(ad).apply {
+                    hitDelay = 100.milliseconds
+                    scanTeardown = 300.milliseconds
+                }
+            val result = factory(connector).connect(vin, target = null, options = ConnectOptions())
+            assertEquals(ConnectScanObservation(hitAfterMillis = 100, rssi = -50, openAttempt = 1), result.scanObservation())
+        }
+
+    @Test
+    fun retryReportsTheHitTheLinkOpenedFrom() =
+        // target = null이면 재시도마다 다시 스캔한다: t=100 스캔 1 → 열기 실패 → 1초 → t=1200 스캔 2
+        runTest {
+            val connector = FakeGattConnector(ad).apply { hitDelay = 100.milliseconds }
+            connector.rssiByScan.addAll(listOf(-70, -55))
+            connector.openResults.addLast(retriableOpenFailure())
+            val result = factory(connector).connect(vin, target = null, options = ConnectOptions())
+            assertEquals(2, connector.scans)
+            assertEquals(ConnectScanObservation(hitAfterMillis = 1200, rssi = -55, openAttempt = 2), result.scanObservation())
+        }
+
+    @Test
+    fun knownTargetRunsNoScanAndHasNoObservation() =
+        // 스캔 없이 기억해 둔 광고로 연결했다: 이 호출이 본 것이 없으므로 앱이 가진 광고의 값을 다시 쓰지 않는다
+        runTest {
+            val connector = FakeGattConnector(ad)
+            val f = factory(connector)
+            val found =
+                assertIs<ScanEvent.Found>(
+                    f
+                        .scan(localName)
+                        .take(1)
+                        .toList()
+                        .single(),
+                ).advertisement
+            assertNull(f.connect(vin, found, ConnectOptions()).scanObservation())
+            assertEquals(1, connector.scans)
+        }
+
+    @Test
+    fun targetTheFactoryDoesNotRememberIsScannedAndObserved() =
+        // findHit: 기억에 없는 target은 connect가 직접 스캔한다
+        runTest {
+            val connector = FakeGattConnector(ad).apply { hitDelay = 250.milliseconds }
+            val result = factory(connector).connect(vin, target = ad, options = ConnectOptions())
+            assertEquals(1, connector.scans)
+            assertEquals(ConnectScanObservation(hitAfterMillis = 250, rssi = -50, openAttempt = 1), result.scanObservation())
+        }
+
+    @Test
+    fun hitReusedOnRetryKeepsItsOriginalTimeAndOpenAttemptMovesOn() =
+        // openAttempt > 1은 다시 스캔했다는 뜻이 아니다: 첫 시도의 스캔을 기억해 두었다가 그대로 쓴다
+        runTest {
+            val connector = FakeGattConnector(ad).apply { hitDelay = 100.milliseconds }
+            connector.openResults.addLast(retriableOpenFailure())
+            val result = factory(connector).connect(vin, target = ad, options = ConnectOptions())
+            assertEquals(1, connector.scans)
+            assertEquals(ConnectScanObservation(hitAfterMillis = 100, rssi = -50, openAttempt = 2), result.scanObservation())
+        }
+
+    @Test
+    fun hitReplacedByAnotherScanIsNotReportedAsThisConnectsHit() =
+        // 재시도 사이에 앱의 scan()이 같은 기기의 기억을 새 광고로 바꾸면 링크는 이 호출이 보지 않은 광고로 열린다
+        runTest {
+            val connector = FakeGattConnector(ad)
+            connector.rssiByScan.addAll(listOf(-70, -55))
+            connector.openResults.addLast(retriableOpenFailure())
+            val f = factory(connector)
+            val pending = async { f.connect(vin, target = ad, options = ConnectOptions()) }
+            runCurrent()
+            assertEquals(1, connector.opens)
+            f.scan(localName).take(1).toList()
+            advanceTimeBy(1.seconds)
+            runCurrent()
+            assertNull(pending.await().scanObservation())
+            assertEquals(2, connector.opens)
+        }
+
+    @Test
+    fun unavailableRssiSentinelsBecomeNull() =
+        // CoreBluetooth는 127, btleplug는 Int.MIN_VALUE로 "값 없음"을 알린다. VehicleAdvertisement.rssi는 그대로 둔다
+        runTest {
+            for (sentinel in listOf(127, Int.MIN_VALUE)) {
+                val logger = RecordingLogger()
+                val connector = FakeGattConnector(ad.copy(rssi = sentinel))
+                val result = factory(connector, logger = logger).connect(vin, target = null, options = ConnectOptions())
+                assertEquals(ConnectScanObservation(hitAfterMillis = 0, rssi = null, openAttempt = 1), result.scanObservation())
+                assertEquals(
+                    "[connect:scan-hit] after=0ms rssi=unavailable connectable=true attempt=1",
+                    logger.observeLines().single().message,
+                )
+            }
+        }
+
+    @Test
+    fun everyScanHitOfAConnectIsOneObserveLineWithoutNameOrIdentifier() =
+        // 실패하는 연결의 발견도 관찰 로그에는 남는다(공개 결과는 Success에만 있다). VIN에서 나온 광고 이름과 기기 식별자는 넣지 않는다
+        runTest {
+            val logger = RecordingLogger()
+            val connector = FakeGattConnector(ad).apply { hitDelay = 100.milliseconds }
+            connector.rssiByScan.addAll(listOf(-70, -55))
+            connector.openResults.addLast(retriableOpenFailure())
+            assertIs<VehicleResult.Success<*>>(factory(connector, logger = logger).connect(vin, null, ConnectOptions()))
+            val lines = logger.observeLines()
+            assertEquals(
+                listOf(
+                    "[connect:scan-hit] after=100ms rssi=-70 connectable=true attempt=1",
+                    "[connect:scan-hit] after=1200ms rssi=-55 connectable=true attempt=2",
+                ),
+                lines.map { it.message },
+            )
+            assertTrue(lines.all { it.level == LogLevel.DEBUG })
+            assertFalse(logger.observeLines().any { localName.value in it.message || ad.identifier in it.message })
+        }
+
+    @Test
+    fun aHitIsLoggedEvenWhenTheOpenNeverFinishes() =
+        // ScanTimeout이어도 앞선 관찰 줄이 "광고는 찾았다"를 알려 준다
+        runTest {
+            val logger = RecordingLogger()
+            val connector = FakeGattConnector(ad).apply { openGate = CompletableDeferred() }
+            val pending = async { factory(connector, logger = logger).connect(vin, null, ConnectOptions(timeout = 2.seconds)) }
+            advanceTimeBy(3.seconds)
+            assertEquals(VehicleResult.Failure(VehicleError.TransportError.ScanTimeout), pending.await())
+            assertEquals("[connect:scan-hit] after=0ms rssi=-50 connectable=true attempt=1", logger.observeLines().single().message)
+            connector.openGate?.complete(Unit)
+            runCurrent()
+        }
+
+    @Test
+    fun aNotConnectableHitIsLoggedBeforeTheRejection() =
+        runTest {
+            val logger = RecordingLogger()
+            val connector = FakeGattConnector(ad.copy(isConnectable = false))
+            assertEquals(
+                VehicleResult.Failure(VehicleError.TransportError.MaxConnectionsExceeded),
+                factory(connector, logger = logger).connect(vin, null, ConnectOptions()),
+            )
+            assertEquals("[connect:scan-hit] after=0ms rssi=-50 connectable=false attempt=1", logger.observeLines().single().message)
+        }
+
+    @Test
+    fun unknownConnectabilityIsPrintedAsUnknown() =
+        runTest {
+            val logger = RecordingLogger()
+            val connector = FakeGattConnector(ad.copy(isConnectable = null))
+            assertIs<VehicleResult.Success<*>>(factory(connector, logger = logger).connect(vin, null, ConnectOptions()))
+            assertEquals("[connect:scan-hit] after=0ms rssi=-50 connectable=unknown attempt=1", logger.observeLines().single().message)
+        }
+
+    @Test
+    fun theAppsOwnScanAndAReusedTargetWriteNoScanHitLine() =
+        // 이 줄은 connect가 직접 돌린 스캔의 발견만 적는다
+        runTest {
+            val logger = RecordingLogger()
+            val connector = FakeGattConnector(ad)
+            val f = factory(connector, logger = logger)
+            val found =
+                assertIs<ScanEvent.Found>(
+                    f
+                        .scan(localName)
+                        .take(1)
+                        .toList()
+                        .single(),
+                ).advertisement
+            assertIs<VehicleResult.Success<*>>(f.connect(vin, found, ConnectOptions()))
+            assertTrue(logger.observeLines().isEmpty())
         }
 }

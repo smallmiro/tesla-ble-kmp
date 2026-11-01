@@ -18,6 +18,7 @@ import dev.mirolab.teslable.model.VehicleStatus
 import dev.mirolab.teslable.model.Vin
 import dev.mirolab.teslable.model.WhitelistEntry
 import dev.mirolab.teslable.model.WhitelistSummary
+import dev.mirolab.teslable.port.ConnectScanObservation
 import dev.mirolab.teslable.port.Transport
 import dev.mirolab.teslable.port.TransportState
 import kotlinx.coroutines.CoroutineScope
@@ -56,6 +57,7 @@ internal class DefaultVehicle(
             VehicleDomain.ALL.associateWith { if (it in restored) SessionStatus.Ready(fromCache = true) else SessionStatus.None },
         )
 
+    override val scanObservation: ConnectScanObservation? = transport.scanObservation
     override val connection: StateFlow<TransportState> = transport.state
     override val sessions: StateFlow<Map<VehicleDomain, SessionStatus>> = states.asStateFlow()
 

@@ -6,6 +6,7 @@ import dev.mirolab.teslable.InternalTeslableApi
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.port.ConnectScanObservation
 import dev.mirolab.teslable.port.LogLevel
 import dev.mirolab.teslable.port.TeslaLogger
 import dev.mirolab.teslable.port.Transport
@@ -44,6 +45,7 @@ internal class BleTransport(
     scope: CoroutineScope,
     timeSource: TimeSource = TimeSource.Monotonic,
     private val logger: TeslaLogger = TeslaLogger.NoOp,
+    override val scanObservation: ConnectScanObservation? = null,
 ) : Transport {
     private val inbox = Channel<ByteArray>(INBOX_CAPACITY)
     private val stateFlow = MutableStateFlow<TransportState>(TransportState.Connected)
