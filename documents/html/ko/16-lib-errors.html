@@ -165,7 +165,7 @@
 <table>
 <thead><tr><th>상황</th><th>일어나는 일</th><th>할 일</th></tr></thead>
 <tbody>
-<tr><td>수집자가 프레임 64개보다 더 뒤처짐</td><td>그 연결의 모든 수집자에게서 새 프레임이 빠지고 버린 수를 셉니다. 첫 번째와 100번째마다 <code>WARN</code> 줄(태그 <code>Dispatcher</code>): <code>Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)</code>. <strong>오류가 아닙니다</strong>. <code>VehicleError</code>가 없고 흐름은 계속됩니다</td><td>수집 코드는 가볍게 하고 느린 작업은 다른 코루틴에 넘기세요. 차량은 상태를 다시 보내지만, 깨어 있고 사람이 있을 때 60초가 걸릴 수 있고 그 밖의 경우는 측정하지 않았습니다(<a href="14-lib-reading-state.html#sec-b-catalogue">14, B3.1</a>). 상태가 더 빨리 필요하면 <code>vehicleStatus()</code>로 읽으세요</td></tr>
+<tr><td>수집자가 프레임 64개보다 더 뒤처짐</td><td>그 연결의 모든 수집자에게서 새 프레임이 빠지고 버린 수를 셉니다. 첫 번째와 100번째마다 <code>WARN</code> 줄(태그 <code>Dispatcher</code>): <code>Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)</code>. <strong>오류가 아닙니다</strong>. <code>VehicleError</code>가 없고 흐름은 계속됩니다</td><td>수집 코드는 가볍게 하고 느린 작업은 다른 코루틴에 넘기세요. 차량은 상태를 다시 보내지만, 깨어 있고 사람이 있을 때 60초가 걸릴 수 있고 그 밖의 경우는 측정하지 않았습니다(유력, <a href="14-lib-reading-state.html#sec-b-catalogue">14, B3.1</a>). 상태가 더 빨리 필요하면 <code>vehicleStatus()</code>로 읽으세요</td></tr>
 <tr><td>라이브러리가 디코딩하지 못한 브로드캐스트</td><td><code>unknownFields</code>가 빈 <code>Unrecognized</code> 이벤트. 바이트는 <code>raw</code>에 있습니다</td><td>분석용으로 <code>raw</code>를 VIN을 가린 채 보관하세요</td></tr>
 </tbody>
 </table>
