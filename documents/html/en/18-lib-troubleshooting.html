@@ -225,7 +225,7 @@
 <tr><td><code>attempt=N</code></td><td>An opaque number for the request on this connection, starting at 1. Every request takes a new number, including a handshake request and each retry, so one command can use several. Compare numbers only within one connection: a new connection starts at 1 again</td></tr>
 <tr><td><code>auth=gcm-ok</code></td><td><code>AES_GCM_Response_data</code> is present, the tag verified and the counter passed the replay check of the request. Delivered</td></tr>
 <tr><td><code>auth=gcm-failed</code></td><td><code>AES_GCM_Response_data</code> is present and verification failed. Dropped</td></tr>
-<tr><td><code>auth=gcm-replay</code></td><td>The tag verified, but this request already saw that counter. Dropped</td></tr>
+<tr><td><code>auth=gcm-replay</code></td><td>The tag verified, but the replay window rejected the counter: already seen, or older than the window. Dropped</td></tr>
 <tr><td><code>auth=gcm-no-session</code></td><td><code>AES_GCM_Response_data</code> is present, but there is no session to check it with (no private key, or the session is not established). Dropped</td></tr>
 <tr><td><code>auth=none</code></td><td>No <code>AES_GCM_Response_data</code>, so nothing was checked. Delivered. A session info reply reads this too: its HMAC tag is verified separately and this line does not report that</td></tr>
 </tbody>
