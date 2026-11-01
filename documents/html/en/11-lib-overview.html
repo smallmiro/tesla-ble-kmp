@@ -66,7 +66,7 @@
 </ol></div>
 
 <h2 id="sec-status">What works today</h2>
-<p>The library is built milestone by milestone. These pages describe the code on <code>main</code>, which is at <strong>M4</strong>, plus the broadcast events and the key accessibility choice from issue #91.</p>
+<p>The library is built milestone by milestone. These pages describe the code on <code>main</code>, which is at <strong>M4</strong>, plus the broadcast events and the key accessibility choice from issue #91, and <code>getState()</code> ahead of the rest of M5.</p>
 <table>
 <thead><tr><th>Area</th><th>Milestone</th><th>State</th><th>Page</th></tr></thead>
 <tbody>
@@ -76,20 +76,21 @@
 <tr><td>Key enrollment (<code>addKeyRequest</code>, <code>sessionInfo</code>, <code>addKey</code>, <code>removeKey</code>), VCSEC control (lock, unlock, trunk…)</td><td>M4</td><td><span class="badge ok">Done</span> real-vehicle check pending</td><td><a href="13-lib-pairing.html">13</a>, <a href="15-lib-commands.html">15</a></td></tr>
 <tr><td>Broadcast events <code>vehicle.events</code> (<code>VehicleEvent</code>) and <code>VehicleStatus.gear</code></td><td>#91 (before M5)</td><td><span class="badge ok">Done</span> the broadcasts were seen on a real car; the <code>events</code> API itself is checked with FakeVehicle tests, real-vehicle check pending</td><td><a href="14-lib-reading-state.html#sec-b-library">14</a>, <a href="12-lib-getting-started.html#sec-events">12</a></td></tr>
 <tr><td>Key accessibility for a locked iPhone: <code>KeyAccessibility</code>, <code>VehicleKey.accessibility</code>, <code>KeyStoreError.Locked</code>; <code>startSession()</code> also returns <code>Locked</code>, without retrying, when the phone lock blocks a key read earlier, and the saved session is kept (#96)</td><td>#91 (before M5)</td><td><span class="badge ok">Done</span> checked with unit tests and fakes; the Keychain round trip, the Secure Enclave error on a locked iPhone and use on a locked iPhone are checked later on a device</td><td><a href="13-lib-pairing.html#sec-accessibility">13</a>, <a href="16-lib-errors.html">16</a>, <a href="17-lib-platform-notes.html#sec-keys">17</a></td></tr>
-<tr><td>Infotainment control and <code>getState()</code></td><td>M5</td><td><span class="badge warn">Planned</span></td><td><a href="14-lib-reading-state.html">14</a>, <a href="15-lib-commands.html">15</a></td></tr>
+<tr><td>Infotainment state query <code>getState(category)</code>, 12 categories</td><td>M5 (ahead of the rest)</td><td><span class="badge ok">Done</span> checked with FakeVehicle tests; real-vehicle check pending (#118)</td><td><a href="14-lib-reading-state.html#sec-a-getstate">14</a>, <a href="16-lib-errors.html#sec-getstate">16</a></td></tr>
+<tr><td>Infotainment control and <code>ping()</code></td><td>M5</td><td><span class="badge warn">Planned</span></td><td><a href="15-lib-commands.html">15</a></td></tr>
 <tr><td>Packages: GitHub Packages and Swift Package Manager</td><td>M6</td><td><span class="badge warn">Planned</span></td><td><a href="#sec-install">Installation</a></td></tr>
 </tbody>
 </table>
 <div class="callout warn">
 <strong>Planned APIs are not available yet</strong>
-<p>Names of planned methods come from the requirements document (<code>docs/prd/PRD.md</code>) and may change when the milestone lands. Until then an app can scan, connect, read state, receive the car's broadcasts, enroll a key, choose whether the key works while the phone is locked and send the VCSEC control commands, but cannot send infotainment commands. Pairing and the VCSEC commands have not been checked on a real car yet.</p>
+<p>Names of planned methods come from the requirements document (<code>docs/prd/PRD.md</code>) and may change when the milestone lands. Until then an app can scan, connect, read state, read infotainment state with <code>getState()</code>, receive the car's broadcasts, enroll a key, choose whether the key works while the phone is locked and send the VCSEC control commands, but cannot send infotainment commands. Pairing, the VCSEC commands and <code>getState()</code> have not been checked on a real car yet.</p>
 </div>
 
 <h2 id="sec-platforms">Platforms and packages</h2>
 <ul>
 <li>Android 12 (API 31) or later and iOS 16 or later. The app is expected to be in the foreground.</li>
 <li>A JVM target exists for tests and experiments. Its keys and session cache live in memory only.</li>
-<li>Package root <code>dev.mirolab.teslable</code>: the facade in <code>dev.mirolab.teslable</code>, values and results in <code>dev.mirolab.teslable.model</code>, the key store, scanning and logging in <code>dev.mirolab.teslable.port</code>.</li>
+<li>Package root <code>dev.mirolab.teslable</code>: the facade in <code>dev.mirolab.teslable</code>, values and results in <code>dev.mirolab.teslable.model</code>, the key store, scanning and logging in <code>dev.mirolab.teslable.port</code>. Wire generated protocol types are in <code>com.tesla.generated.*</code>, for example <code>com.tesla.generated.carserver.vehicle.VehicleData</code>.</li>
 <li>The iOS framework is <code>Teslable</code>. Swift sees Kotlin through SKIE (<code>async</code> functions, <code>AsyncSequence</code>, <code>onEnum(of:)</code>).</li>
 </ul>
 
@@ -110,6 +111,7 @@
 <tbody>
 <tr><td>Scan, connect and show the vehicle state in an app</td><td><a href="12-lib-getting-started.html">12. Getting Started</a>, <a href="14-lib-reading-state.html">14. Reading Vehicle State</a></td></tr>
 <tr><td>Show live state from the car's broadcasts</td><td><a href="12-lib-getting-started.html#sec-events">12. Getting Started</a>, <a href="14-lib-reading-state.html#sec-b-library">14. Reading Vehicle State</a></td></tr>
+<tr><td>Read infotainment state with <code>getState</code> (battery, climate, speed, location…)</td><td><a href="14-lib-reading-state.html#sec-a-getstate">14. Reading Vehicle State</a>, <a href="16-lib-errors.html#sec-getstate">16. Error Handling</a>, <a href="17-lib-platform-notes.html#sec-swift-generated">17. Platform Notes</a></td></tr>
 <tr><td>Create, find or delete the phone key, check whether it is enrolled</td><td><a href="13-lib-pairing.html">13. Keys and Pairing</a></td></tr>
 <tr><td>Use the phone key while the phone is locked</td><td><a href="13-lib-pairing.html#sec-accessibility">13. Keys and Pairing</a>, <a href="17-lib-platform-notes.html#sec-keys">17. Platform Notes</a></td></tr>
 <tr><td>Know which commands exist and which are coming</td><td><a href="15-lib-commands.html">15. Commands</a></td></tr>

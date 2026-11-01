@@ -55,7 +55,7 @@
 </nav>
 <main class="content">
 <h1>15. Commands</h1>
-<p class="lead">A <code>Vehicle</code> can start and end sessions and send the twelve security-controller commands (locks, trunks, wake-up). Infotainment commands (climate, charging, media and more) arrive with M5. This page lists both.</p>
+<p class="lead">A <code>Vehicle</code> can start and end sessions and send the twelve security-controller commands (locks, trunks, wake-up). Infotainment commands (climate, charging, media and more) arrive with M5. This page lists both. Reading infotainment state with <code>getState()</code> is already available, ahead of the rest of M5: see <a href="14-lib-reading-state.html#sec-a-getstate">14. Reading Vehicle State</a>.</p>
 
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#sec-now">Available today</a></li>
@@ -120,7 +120,7 @@
 <tr><td>Body</td><td><code>ventWindows()</code>, <code>closeWindows()</code>, <code>setSunroof(level)</code>, <code>openChargePort()</code>, <code>closeChargePort()</code>, <code>honkHorn()</code>, <code>flashLights()</code></td><td><span class="badge info">P1</span></td></tr>
 <tr><td>Security</td><td><code>setSentryMode(on)</code>, valet mode</td><td><span class="badge info">P1</span></td></tr>
 <tr><td>Media and updates</td><td>Volume, track and favourite controls, schedule or cancel a software update</td><td><span class="badge info">P1</span></td></tr>
-<tr><td>Status</td><td><code>ping()</code>, <code>getState(category)</code></td><td>See <a href="14-lib-reading-state.html#sec-wake">14. Reading Vehicle State</a></td></tr>
+<tr><td>Status</td><td><code>ping()</code></td><td><span class="badge info">P1</span></td></tr>
 </tbody>
 </table>
 

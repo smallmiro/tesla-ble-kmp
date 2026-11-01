@@ -1,13 +1,13 @@
 # Error Handling
 
-Scope: M1 error model, M2 retries and timeouts, M3 transport and key store errors, M4 `InsufficientPrivileges`, `UnknownVcsecError` and per-command re-query for VCSEC (Infotainment is added with M5), broadcast events (`Vehicle.events`, FR-035), `KeyStoreError.Locked` on a locked iPhone from the key store and the handshake (FR-037). Go original: `08-errors.md` (MessageFault meanings and remedies in §3.1).
+Scope: M1 error model, M2 retries and timeouts, M3 transport and key store errors, M4 `InsufficientPrivileges`, `UnknownVcsecError` and per-command re-query for VCSEC (Infotainment commands are added with M5), broadcast events (`Vehicle.events`, FR-035), `KeyStoreError.Locked` on a locked iPhone from the key store and the handshake (FR-037), `getState` results, the response size limit and reply authenticity (FR-033). Go original: `08-errors.md` (MessageFault meanings and remedies in §3.1).
 
 ## Three outcomes (`VehicleResult<T>`)
 
 | Outcome | Meaning | What the app does |
 |---|---|---|
 | `Success(value)` | The vehicle confirmed | Use the value |
-| `Uncertain(error)` | The vehicle may have executed it but it could not be confirmed (`error.mayHaveSucceeded == true`) | Do not resend. Query state again (`vehicleStatus()` for VCSEC; `getState()` for Infotainment once M5 lands) |
+| `Uncertain(error)` | A command: the vehicle may have executed it but it could not be confirmed (`error.mayHaveSucceeded == true`). A query: no data was confirmed; nothing was executed (§`getState` results) | Command: do not resend, query state again (`vehicleStatus()` for VCSEC; `getState()` for Infotainment state). Query: keep the last value and ask again later |
 | `Failure(error)` | Not executed | Branch on `error` |
 
 Swift: `switch onEnum(of: result) { case .success(let s): … case .uncertain(let u): … case .failure(let f): … }`.
@@ -117,14 +117,46 @@ After `Uncertain`, never resend. Read the state the command changes:
 
 Infotainment commands (M5) will be added to this table.
 
-## Response size limit on `getState` (planned, M5, FR-033, #116)
+## `getState` results (FR-033, #115, #116)
+
+A query changes nothing on the vehicle. So **`Uncertain` on a read means no data was confirmed**, not that a command may
+have run. `mayHaveSucceeded` is still true, because reads and commands share the error types. There is nothing to check
+afterwards: keep the last value and ask again later. Asking again is safe, but not in a tight loop: the library sets no
+interval, so it is the app's choice.
+
+| Result | Meaning | App action |
+|---|---|---|
+| `Success(data)` | The vehicle answered | Check every field you use for `null`. `data` can be empty, and a success is not proof of a new measurement: compare `timestamp` with the previous reply (`14-lib-reading-state.md` A8.3) |
+| `Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))` | The vehicle received the request but the reply was too large. The vehicle is reachable | Keep the last value with its age; see the next section |
+| `Uncertain(Timeout(afterSend = true))` | Nothing came back within `timeout`: Infotainment is asleep, the reply was lost, or the link dropped while waiting | Read `vehicleStatus()`. `ASLEEP`: the app may wake the vehicle (`14-lib-reading-state.md` A8.2). Otherwise keep the last value with its age. Check `connection` too |
+| `Uncertain(BadResponse(detail))` | A reply arrived but could not be parsed | Keep the last value. Report `detail` if it repeats |
+| `Failure(Timeout(afterSend = false))` | Time ran out before sending or while waiting to retry, for example when the vehicle keeps answering busy while it wakes | Ask again later, with a longer `timeout` right after a wake |
+| `Failure(NoSession)` | No `INFOTAINMENT` session (nothing was sent), or the vehicle did not accept the cached one | `startSession(setOf(VehicleDomain.INFOTAINMENT))`, then ask again once |
+| `Failure(InfotainmentRejected(reason))` | The vehicle refused (`actionStatus ERROR`). This wins over any data in the reply | Show a generic message. `reason` is the vehicle's own text; do not log it |
+| `Failure(NotConnected)`, `TransportError.*` | The link is gone or the write failed | `disconnect()`, then a new `connect` (§Transport and key store errors) |
+
+Any other error means what the `VehicleError` table above says. The UI tells the two main `Uncertain` cases apart by
+error type: a size fault means the vehicle answered, a timeout means nothing came back. Neither is a reason to clear the
+session.
+
+## Response size limit on `getState` (FR-033, #116)
 
 The vehicle returns no data when its reply exceeds a size limit. The largest reply seen on real vehicles is about
-453 bytes; this is an observed value, not a specified one. `getState()` will return
+453 bytes; this is an observed value, not a specified one. `getState()` returns
 `Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))`, and the client cannot make the reply smaller.
 
 - It is most likely on `Drive`: a long destination name raises the rate, with reports of failures lasting tens of
   seconds, and of one Model S/X build (`2026.27.6.15`, South Korea) failing almost always even with no route.
-- The library does not resend it and does not change the session, connection or sleep state. It does not mean the
-  vehicle is gone or asleep.
+- The library does not resend the request. It does not clear the session, reconnect or wake the vehicle because of this
+  fault; session info attached to the reply is still applied as usual. The fault does not mean the vehicle is gone or
+  asleep.
 - Apps keep the last value with its age, show "unavailable" when it is too old, and do not retry in a tight loop.
+- Real-time speed is not guaranteed. Behaviour per firmware is not confirmed on a real vehicle (#118).
+
+## Reply authenticity
+
+Like the Go original, the library accepts a plaintext Infotainment reply, because firmware before 2024.38 does not encrypt
+responses (`vehicle-command/pkg/protocol/protocol.md:751`). A plaintext reply carries no authentication tag, so a party on
+the BLE link could forge read data. **Do not base safety decisions on `getState`.** The same goes for `vehicleStatus()`
+and `vehicle.events`, which are unauthenticated plaintext by design (`14-lib-reading-state.md` A1, B1). Whether to reject
+plaintext replies is an open decision; rejecting them would drop firmware before 2024.38.

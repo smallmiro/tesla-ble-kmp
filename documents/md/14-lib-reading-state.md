@@ -3,14 +3,17 @@
 Scope: everything the library can read from the vehicle over BLE, in two parts.
 
 - **Part A, on demand:** data you request. The four VCSEC queries on `Vehicle` (`vehicleStatus()`, `keySummary()`,
-  `listKeys()`, `sessionInfo()`), with wire format, field tables and enum tables. None needs a key, a session or a
-  wake-up: VCSEC answers over BLE while Infotainment is asleep.
+  `listKeys()`, `sessionInfo()`), with wire format, field tables and enum tables. None of the four needs a key, a session
+  or a wake-up: VCSEC answers over BLE while Infotainment is asleep. A8 adds the Infotainment query `getState(category)`,
+  which does need an enrolled key, an Infotainment session and an awake vehicle.
 - **Part B, broadcast:** data the vehicle pushes without a request. What each message is, how often it came, and what is
   confirmed on a real car. The library delivers the plain VCSEC broadcasts through `Vehicle.events` (`Flow<VehicleEvent>`,
   FR-035, B2); they still never reach a pending request, and the observation log still shows them.
 
-**`getState()` (Infotainment, M5) is not implemented.** Go original: `05-command-catalog.md` §B, `03-protocol.md` §11–12,
-`02-ble-transport.md`. Control payloads (lock, trunk, wake) are in `15-lib-commands.md`.
+**`getState()` is available** (A8), ahead of the rest of M5. It is checked with FakeVehicle tests, not yet on a real
+vehicle (A8.5, #118). Go original: VCSEC queries in `05-command-catalog.md` §B and `03-protocol.md` §11–12; `getState` in
+`05-command-catalog.md` §I and `03-protocol.md` §10, §13; transport in `02-ble-transport.md`. Control payloads (lock, trunk,
+wake) are in `15-lib-commands.md`.
 
 Status labels used in Part B: **Confirmed** = seen on a real vehicle (results note, see Provenance);
 **Schema-only** = defined in the proto files, never seen by us; **Unknown** = seen on the wire, meaning not known.
@@ -23,11 +26,13 @@ Status labels used in Part B: **Confirmed** = seen on a real vehicle (results no
 | `keySummary(timeout = null)` | `VehicleResult<WhitelistSummary>` | `KeySummary` (`GET_WHITELIST_INFO`) | FR-032 |
 | `listKeys(timeout = null)` | `VehicleResult<List<WhitelistEntry>>` | `KeySummary` + `KeyInfoBySlot` per occupied slot | FR-025 |
 | `sessionInfo(publicKey, domain, timeout = null)` | `VehicleResult<SessionInfoSummary>` | `SessionInfo` (`session_info_request`) | FR-024 |
+| `getState(category, timeout = null)` | `VehicleResult<VehicleData>` | `GetState` (`getVehicleData`) | FR-033 |
 
 - `timeout = null` uses `TeslaBleConfig.commandTimeout` (5 s). For `listKeys` the timeout covers all requests together.
 - VCSEC requests are serialized per connection: a query waits behind any VCSEC request already in flight, and that
-  wait counts against its timeout.
-- These calls are queries, so an `Uncertain` result is safe to ask again.
+  wait counts against its timeout. `getState` goes to Infotainment and does not wait in that queue.
+- These calls are queries. An `Uncertain` result means no data was confirmed, not that a command may have run, so it is
+  safe to ask again. Do not do that in a tight loop (`16-lib-errors.md` §`getState` results).
 
 # Part A: On-demand data (you request it)
 
@@ -263,7 +268,254 @@ broadcast with the matching value; `GEAR_UNKNOWN` was not seen):
 `GET_PERSONALIZATION_INFO` 7, `GET_KEYSTATUS_INFO` 8, `GET_ACTIVE_KEY` 9, `GET_CAPABILITIES` 16 (Teslemetry-only). The
 library sends none of them and has no API for them.
 
-`getState(category)` (Infotainment) is planned for M5 and has no API; see Wake behaviour.
+`getState(category)` is not an `InformationRequest`: it goes to Infotainment (next section).
+
+## A8. `getState(category)` (Infotainment)
+
+Available (FR-033, #115, #116), ahead of the rest of M5. It is checked with FakeVehicle tests; **nothing in this section
+is confirmed on a real vehicle yet** (A8.5).
+
+```kotlin
+suspend fun getState(category: StateCategory, timeout: Duration? = null): VehicleResult<VehicleData>
+```
+
+| Item | Value |
+|---|---|
+| Auth | AES-GCM over the Infotainment session, with `flags` = 2 (`FLAG_ENCRYPT_RESPONSE`). Needs an enrolled key |
+| Domain | `DOMAIN_INFOTAINMENT`; the reply is matched by `request_uuid` |
+| Request payload | `CarServer.Action{vehicleAction{getVehicleData{selector}}}` with exactly one selector (A8.1). `CHARGE` is hex `12040a021200` |
+| Requests | One category per request. There is no combined query |
+| Terminal rule | The first reply |
+| Reply | `CarServer.Response.vehicleData`, returned unchanged as the Wire generated type `com.tesla.generated.carserver.vehicle.VehicleData` |
+| Timeout | `timeout = null` uses `commandTimeout` (5 s) |
+| Retries | As for commands (`16-lib-errors.md` §Retries and timeouts): temporary errors are retried inside `timeout` with a new counter, nonce and `expires_at`; `Uncertain` is never resent |
+| Results | `16-lib-errors.md` §`getState` results |
+
+### A8.1 Categories
+
+`StateCategory` (`dev.mirolab.teslable.model`) has the 12 Go constants in the Go order. All 12 reply messages have a
+`timestamp` field. Full field lists: the official `pkg/protocol/protobuf/vehicle.proto` of `vehicle-command`.
+
+| `StateCategory` | Swift | Selector (`GetVehicleData` field) | `VehicleData` field (number) | Reply message | Official fields, for example |
+|---|---|---|---|---|---|
+| `CHARGE` | `.charge` | `getChargeState` (2) | `charge_state` (3) | `ChargeState` | `battery_level`, `charging_state`, `charge_limit_soc`, `charger_power`, `minutes_to_full_charge`, `charge_port_door_open` |
+| `CLIMATE` | `.climate` | `getClimateState` (3) | `climate_state` (4) | `ClimateState` | `inside_temp_celsius`, `outside_temp_celsius`, `is_climate_on`, `driver_temp_setting`, `seat_heater_left` |
+| `DRIVE` | `.drive` | `getDriveState` (4) | `drive_state` (5) | `DriveState` | `shift_state`, `speed`, `speed_float`, `power`, `odometer_in_hundredths_of_a_mile`, `active_route_destination`, `active_route_minutes_to_arrival` |
+| `LOCATION` | `.location` | `getLocationState` (7) | `location_state` (8) | `LocationState` | A8.4 |
+| `CLOSURES` | `.closures` | `getClosuresState` (8) | `closures_state` (9) | `ClosuresState` | `door_open_driver_front`, `window_open_driver_front`, `locked`, `sun_roof_state`, `sentry_mode_state`, `is_user_present` |
+| `CHARGE_SCHEDULE` | `.chargeSchedule` | `getChargeScheduleState` (10) | `charge_schedule_state` (15) | `ChargeScheduleState` | `charge_schedules`, `charge_schedule_window`, `next_schedule` |
+| `PRECONDITIONING_SCHEDULE` | `.preconditioningSchedule` | `getPreconditioningScheduleState` (11) | `preconditioning_schedule_state` (16) | `PreconditioningScheduleState` | `precondition_schedules`, `preconditioning_schedule_window`, `next_schedule` |
+| `TIRE_PRESSURE` | `.tirePressure` | `getTirePressureState` (14) | `tire_pressure_state` (19) | `TirePressureState` | `tpms_pressure_fl` (also `fr`, `rl`, `rr`), `tpms_hard_warning_fl`, `tpms_soft_warning_fl`, `tpms_last_seen_pressure_time_fl` |
+| `MEDIA` | `.media` | `getMediaState` (15) | `media_state` (20) | `MediaState` | `now_playing_title`, `now_playing_artist`, `audio_volume`, `media_playback_status` |
+| `MEDIA_DETAIL` | `.mediaDetail` | `getMediaDetailState` (16) | `media_detail_state` (21) | `MediaDetailState` | `now_playing_duration`, `now_playing_elapsed`, `now_playing_album` |
+| `SOFTWARE_UPDATE` | `.softwareUpdate` | `getSoftwareUpdateState` (17) | `software_update_state` (23) | `SoftwareUpdateState` | `status`, `version`, `download_perc`, `install_perc`, `scheduled_time_ms` |
+| `PARENTAL_CONTROLS` | `.parentalControls` | `getParentalControlsState` (19) | `parental_controls_state` (24) | `ParentalControlsState` | `parental_controls_active`, `parental_controls_pin_set`, `parental_controls_settings` |
+
+**Only fields of the official proto are supported.** `VehicleData` is generated from the Teslemetry snapshot, so it also
+has `TESLEMETRY-EXT` fields, for example `gui_settings` and `vehicle_config`, and `native_latitude_d` on `LocationState`.
+The library never requests them, and a value that arrives in one has no guaranteed meaning. Do not build on them. In this
+repository's `domain/src/commonMain/proto/vehicle.proto` they carry a `TESLEMETRY-EXT` comment (ADR-0002, amendment
+2026-11-01).
+
+### A8.2 Call order
+
+`getState` **never starts a session and never wakes the vehicle**.
+
+| Situation | What `getState` does | What the app does |
+|---|---|---|
+| No `INFOTAINMENT` session | Sends nothing, returns `Failure(NoSession)` | `startSession(setOf(VehicleDomain.INFOTAINMENT))` first |
+| A session restored from the cache that the vehicle no longer accepts | Returns `Failure(NoSession)`; `sessions` then shows `None` for `INFOTAINMENT` | `startSession(setOf(VehicleDomain.INFOTAINMENT))`, then ask again |
+| Infotainment asleep | Sends one request, gets no reply, returns `Uncertain(Timeout(afterSend = true))` | Wake it first (below) |
+
+```
+Awake:    connect → startSession(setOf(INFOTAINMENT)) → getState(category)
+Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)) → wakeUp()
+            → vehicleStatus() shows AWAKE → startSession(setOf(INFOTAINMENT)) → getState(category)
+```
+
+- Decide with `vehicleStatus()`: it needs no session and never wakes the vehicle.
+- On a sleeping vehicle, handshake with VCSEC alone. Go `tesla-control` does this for a BLE wake because Infotainment is
+  presumably asleep (`cmd/tesla-control/commands.go:152-158`), and the Go recipes warn that a handshake with both domains
+  can then take a long time (`09-recipes.md`).
+- `wakeUp()` returning `Success` means VCSEC accepted the command, not that Infotainment is up. Wait for `AWAKE`, then
+  start the Infotainment session (`09-recipes.md`). The vehicle can still answer busy right after waking
+  (`08-errors.md` §3.1); the library retries that inside `timeout`, so a first query after a wake may need a longer
+  `timeout`.
+- **A cached session says nothing about sleep.** `startSession` succeeds without a request and `sessions` shows
+  `Ready(fromCache = true)` even while Infotainment sleeps; the first query can then time out (`09-recipes.md`). Read
+  `sleepStatus` instead.
+- Waking is the app's decision. The library never does it for you.
+
+```kotlin
+import dev.mirolab.teslable.Vehicle
+import dev.mirolab.teslable.model.*
+import kotlinx.coroutines.delay
+import kotlin.time.Duration.Companion.seconds
+
+// vehicle was connected with an enrolled key (12-lib-getting-started.md). True when getState can be called.
+suspend fun prepareInfotainment(vehicle: Vehicle): Boolean {
+    val status = vehicle.vehicleStatus()                                  // no session needed, never wakes the car
+    if (status is VehicleResult.Success && status.value.sleepStatus == SleepStatus.ASLEEP) {
+        if (vehicle.startSession(setOf(VehicleDomain.VCSEC)) !is VehicleResult.Success) return false
+        if (vehicle.wakeUp() is VehicleResult.Failure) return false       // Uncertain: do not resend, the loop reads the state
+        for (attempt in 1..30) {                                          // about 30 s; the real wake time is not confirmed (#118)
+            delay(1.seconds)
+            val now = vehicle.vehicleStatus()
+            if (now is VehicleResult.Success && now.value.sleepStatus == SleepStatus.AWAKE) break
+        }
+    }
+    return vehicle.startSession(setOf(VehicleDomain.INFOTAINMENT)) is VehicleResult.Success
+}
+```
+
+```swift
+func prepareInfotainment(vehicle: Vehicle) async throws -> Bool {
+    let status = try await vehicle.vehicleStatus(timeout: nil)                 // no session needed, never wakes the car
+    if case .success(let s) = onEnum(of: status), (s.value as? VehicleStatus_)?.sleepStatus == .asleep {
+        let vcsec = try await vehicle.startSession(domains: [.vcsec], timeout: nil)
+        guard case .success = onEnum(of: vcsec) else { return false }
+        let woke = try await vehicle.wakeUp(timeout: nil)
+        if case .failure = onEnum(of: woke) { return false }                   // uncertain: do not resend, the loop reads the state
+        for _ in 1...30 {                                                      // about 30 s; the real wake time is not confirmed (#118)
+            try await Task.sleep(nanoseconds: 1_000_000_000)
+            let now = try await vehicle.vehicleStatus(timeout: nil)
+            if case .success(let n) = onEnum(of: now), (n.value as? VehicleStatus_)?.sleepStatus == .awake { break }
+        }
+    }
+    let session = try await vehicle.startSession(domains: [.infotainment], timeout: nil)
+    if case .success = onEnum(of: session) { return true }
+    return false
+}
+```
+
+The 30 s comes from the Go BLE example (`examples/ble/main.go:95`) and is not a measurement. Instead of polling, the app
+can watch `sleepStatus` in `vehicle.events` (`VehicleEvent.Status`, B2).
+
+### A8.3 Reading the reply
+
+- **Absent is not 0.** Every scalar and message field directly on the 12 reply messages is nullable: a field the vehicle
+  did not send is `null`, and `speed = 0` stays 0. Never replace `null` with 0. Repeated fields (`charge_schedules`,
+  `precondition_schedules`) are empty lists when absent. Inside nested messages such as `ChargeSchedule`, fields are
+  plain proto3 values: absent reads as 0, empty or false.
+- **Check every field you use.** A reply with no `vehicleData` is `Success(VehicleData())`, the same as an empty
+  `vehicleData`, and the two cannot be told apart. Go returns `(nil, nil)` here; the library keeps a non-null result
+  because the app checks each field anyway. Another kind of reply, such as `Ping`, gives the same empty result.
+- **The reply is not checked against `category`** (same as Go). Read the field for the category you asked for; a different
+  field that arrives is passed through.
+- **`Success` is not proof of a new measurement.** Compare `timestamp` with the previous reply: if it did not move, do not
+  present the values as fresh. If it is `null`, you cannot tell. `timestamp` is a Wire `Instant`: `getEpochSecond()`
+  works in common Kotlin and in Swift.
+- Speed, power and odometer exist only in `DRIVE`, and that reply can exceed the vehicle's size limit
+  (`16-lib-errors.md` §Response size limit). Real-time speed is not guaranteed, and there is no other source for it.
+- Wire keeps proto names, so fields are `drive_state`, `speed_float`, `charge_state`, unlike the camelCase hand-written
+  models. Generated types are in `com.tesla.generated.*`.
+- **Do not log a result**, `toString()` included. A `VehicleData` can hold the location and the destination. The library
+  does not log it, and neither should the app (FR-112).
+
+```kotlin
+import com.tesla.generated.universalmessage.MessageFault_E
+import dev.mirolab.teslable.Vehicle
+import dev.mirolab.teslable.model.*
+import kotlin.time.Duration.Companion.seconds
+
+suspend fun readSpeed(vehicle: Vehicle): Int? {
+    when (val result = vehicle.getState(StateCategory.DRIVE)) {
+        is VehicleResult.Success ->
+            return result.value.drive_state?.speed               // null = the vehicle did not send it; 0 = it sent 0
+        is VehicleResult.Uncertain -> {
+            val e = result.error
+            if (e is VehicleError.ProtocolFault && e.fault == MessageFault_E.MESSAGEFAULT_ERROR_RESPONSE_MTU_EXCEEDED) {
+                return null                                      // reply too large
+            }
+            if (e is VehicleError.Timeout) return null           // no reply
+            return null
+        }
+        is VehicleResult.Failure -> {
+            if (result.error == VehicleError.NoSession) return null
+            return null
+        }
+    }
+}
+
+// With an explicit timeout, and reading the reply's timestamp:
+suspend fun readBattery(vehicle: Vehicle, lastSeconds: Long?) {
+    val result = vehicle.getState(StateCategory.CHARGE, timeout = 8.seconds)
+    if (result !is VehicleResult.Success) return
+    val charge = result.value.charge_state ?: return             // no charge data in this reply
+    val level: Int? = charge.battery_level
+    val seconds: Long? = charge.timestamp?.getEpochSecond()
+    val fresh = seconds != null && seconds != lastSeconds
+    render(level, fresh)
+}
+```
+
+Swift passes every argument. `s.value` needs a cast and numbers bridge as `KotlinInt?`: `17-lib-platform-notes.md`
+§Swift: generated types. This form passes a Swift typecheck against the framework; it has not run in a Swift program.
+
+```swift
+func readSpeed(vehicle: Vehicle) async throws -> Int32? {
+    let result = try await vehicle.getState(category: .drive, timeout: nil)
+    switch onEnum(of: result) {
+    case .success(let s):
+        // VehicleResult's generic is erased in Swift: s.value is AnyObject?, so cast it.
+        guard let data = s.value as? VehicleData else { return nil }
+        // Nullable numerics bridge as KotlinInt? / KotlinFloat?, not Int32? / Float?.
+        let speed: KotlinInt? = data.drive_state?.speed
+        let speedFloat: KotlinFloat? = data.drive_state?.speed_float
+        _ = speedFloat?.floatValue
+        return speed?.int32Value // nil = the vehicle did not send it; 0 = it sent 0
+    case .uncertain(let u):
+        switch onEnum(of: u.error) {
+        case .protocolFault(let p) where p.fault == .messagefaultErrorResponseMtuExceeded:
+            return nil // reply too large
+        case .timeout(let t):
+            _ = t.afterSend
+            return nil // no reply
+        default:
+            return nil
+        }
+    case .failure(let f):
+        if case .noSession = onEnum(of: f.error) { return nil }
+        return nil
+    }
+}
+
+// With an explicit timeout, and reading the reply's timestamp:
+func readBattery(vehicle: Vehicle, lastSeconds: Int64?) async throws {
+    let result = try await vehicle.getState(category: .charge, timeout: Timeouts.shared.seconds(seconds: 8))
+    guard case .success(let s) = onEnum(of: result), let data = s.value as? VehicleData else { return }
+    guard let charge = data.charge_state else { return }   // no charge data in this reply
+    let level: KotlinInt? = charge.battery_level
+    let seconds: Int64? = charge.timestamp?.getEpochSecond()
+    let fresh = seconds != nil && seconds != lastSeconds
+    render(level?.int32Value, fresh)
+}
+```
+
+### A8.4 Location: which coordinates to use
+
+`LOCATION` can return several coordinate pairs. The rule is the `LocationState` comment in the official `vehicle.proto`,
+which Go `GetState` points to (`state.go:66-67`):
+
+| Use | Fields | When |
+|---|---|---|
+| First choice | `native_latitude`, `native_longitude` | Normally. They use WGS (international) or GCJ (China) depending on the vehicle's region; `native_type` says which |
+| Fallback, WGS client | `latitude`, `longitude` | The native fields are not provided |
+| Fallback, GCJ client | `corrected_latitude`, `corrected_longitude` | The native fields are not provided. The proto marks these "only for China cars" |
+| Exception | `geo_latitude`, `geo_longitude` | Raw WGS GPS, usually less accurate. Use them when `estimated_to_raw_distance` (meters between the estimated and raw coordinates) shows a large gap, which mostly happens after the vehicle was transported or towed. The proto gives no threshold |
+
+`native_latitude_d`, `geo_latitude_d` and the other double-precision variants are `TESLEMETRY-EXT`: do not use them.
+
+### A8.5 Not confirmed on a real vehicle (#118)
+
+- The whole of `getState`: so far it has run only against FakeVehicle.
+- Which fields each category really carries, and how often they update.
+- The unit of `speed` and `speed_float`. Do not assume km/h or mph.
+- What `timestamp` marks: the measurement or the reply. Until that is known, the check in A8.3 is the best available.
+- How long a wake takes, and what a sleeping Infotainment does with a request. The tests model no reply. If a real
+  vehicle answers busy instead, the library retries until `timeout`, and the result can be
+  `Failure(Timeout(afterSend = false))` (`16-lib-errors.md` §`getState` results).
+- How the size limit behaves per firmware, and whether the fault arrives encrypted or in plaintext.
 
 ## `VehicleStatus` (public model)
 
@@ -313,14 +565,9 @@ These are `StateFlow`s on `Vehicle`, not vehicle queries:
 
 - `vehicleStatus()`, `keySummary()` and `listKeys()` never wake the vehicle. Use `sleepStatus` to show whether
   Infotainment is asleep.
-- Planned (M5, not implemented): `getState(category)` for the 12 Infotainment categories (charge, climate, drive,
-  location, closures, charge schedule, preconditioning schedule, tire pressure, media, media detail, software update,
-  parental controls) returning Wire generated types (FR-033). It needs an authenticated Infotainment session and an
-  awake vehicle. `wakeUp()` (FR-042, M4) uses only the VCSEC session.
-- Planned contract for `getState` (FR-033, #115, #116): one category per request, with no combined query. A field
-  the vehicle did not send stays absent; do not read it as 0. Speed, power and odometer exist only in `Drive`, whose
-  reply can exceed the vehicle's size limit: see "Response size limit" in `16-lib-errors.md`. Real-time speed is not
-  guaranteed. The speed unit is not confirmed yet (#118).
+- `getState(category)` never wakes the vehicle either, and it needs an authenticated Infotainment session and an awake
+  vehicle (A8.2). On a sleeping vehicle it ends with `Uncertain(Timeout(afterSend = true))`.
+- `wakeUp()` (FR-042, M4) uses only the VCSEC session. Call order with `getState`: A8.2.
 - After an `Uncertain` VCSEC command result (M4), re-read with `vehicleStatus()` instead of resending.
 
 # Part B: Broadcast data (the vehicle pushes it)
