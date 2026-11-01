@@ -178,8 +178,8 @@
 <table>
 <thead><tr><th></th><th>관찰 로그</th><th><code>vehicle.events</code></th></tr></thead>
 <tbody>
-<tr><td>무엇인가</td><td>버린 메시지나 보안 도메인 응답마다 <code>DEBUG</code> 텍스트 한 줄, 태그 <code>observe</code></td><td><code>Vehicle</code>의 공개 <code>Flow&lt;VehicleEvent&gt;</code>(FR-035)</td></tr>
-<tr><td>어떤 프레임</td><td>버린 모든 프레임(다른 폰 앞 응답, 읽을 수 없는 프레임, 브로드캐스트)과 모든 보안 도메인 응답</td><td>평문 브로드캐스트만(<a href="14-lib-reading-state.html#sec-b-library">14, B2</a>)</td></tr>
+<tr><td>무엇인가</td><td>버린 메시지나 자기 요청의 응답마다 <code>DEBUG</code> 텍스트 한 줄, 태그 <code>observe</code></td><td><code>Vehicle</code>의 공개 <code>Flow&lt;VehicleEvent&gt;</code>(FR-035)</td></tr>
+<tr><td>어떤 프레임</td><td>버린 모든 프레임(다른 폰 앞 응답, 읽을 수 없는 프레임, 브로드캐스트)과 양쪽 도메인에서 자기 요청에 온 모든 응답</td><td>평문 브로드캐스트만(<a href="14-lib-reading-state.html#sec-b-library">14, B2</a>)</td></tr>
 <tr><td>내용</td><td>사람이 읽는 요약. 모르는 필드의 값은 상세 형식에서만</td><td>타입이 있는 이벤트, <code>unknownFields</code> 경로, <code>raw</code>의 프레임 전체</td></tr>
 <tr><td>VIN</td><td>라이브러리가 가림</td><td><code>raw</code>에서는 <strong>가리지 않음</strong>. 저장하거나 공유하기 전에 앱이 가림</td></tr>
 <tr><td>필요한 것</td><td><code>DEBUG</code>를 남기는 로거(개발 빌드)</td><td>없음. 릴리스 빌드에서도 동작</td></tr>
@@ -192,10 +192,10 @@
 </ul>
 
 <h2 id="sec-observe">관찰 로그 (개발용)</h2>
-<p>개발하는 동안 라이브러리는 버리는 메시지마다, 그리고 차량 보안 도메인의 응답마다 요약 한 줄을 남길 수 있습니다. 차량이 요청 없이 보내는 것이 무엇인지 보여 줍니다. 동작은 바뀌지 않습니다. 브로드캐스트는 여전히 응답 짝짓기에서 빠지며, 그중 평문 브로드캐스트는 <code>vehicle.events</code>로도 앱에 전달됩니다(앞 절). 푸시된 각 메시지의 의미는 <a href="14-lib-reading-state.html">14. 차량 상태 조회</a>의 B부에 있습니다.</p>
+<p>개발하는 동안 라이브러리는 버리는 메시지마다, 그리고 양쪽 도메인에서 자기 요청에 온 응답마다 요약 한 줄을 남길 수 있습니다. 차량이 요청 없이 보내는 것이 무엇인지, 응답이 요청과 어떻게 이어지는지 보여 줍니다. 동작은 바뀌지 않습니다. 브로드캐스트는 여전히 응답 짝짓기에서 빠지며, 그중 평문 브로드캐스트는 <code>vehicle.events</code>로도 앱에 전달됩니다(앞 절). 푸시된 각 메시지의 의미는 <a href="14-lib-reading-state.html">14. 차량 상태 조회</a>의 B부에 있습니다.</p>
 <ul>
 <li>태그 <code>observe</code>, 레벨 <code>DEBUG</code>. <code>DEBUG</code>를 버리는 로거는 이 줄을 만들지도 않습니다. <code>DebugLogger()</code>나 직접 만든 <code>TeslaLogger</code>로 볼 수 있습니다. iOS 샘플의 관찰 모드는 이 줄만 모읍니다.</li>
-<li>형식: <code>[지점] NB from=… to=… request_uuid=… payload=…</code>. <code>NB</code>는 받은 프레임의 크기입니다.</li>
+<li>형식: <code>[지점] NB from=… to=… request_uuid=… payload=…</code>. <code>NB</code>는 받은 프레임의 크기입니다. 응답 줄은 <code>attempt=N auth=…</code>로 끝납니다.</li>
 </ul>
 <table>
 <thead><tr><th>항목</th><th>값</th></tr></thead>
@@ -205,10 +205,10 @@
 <tr><td><code>[drop:missing-destination]</code></td><td>목적지가 없습니다(실차에서는 보이지 않았습니다)</td></tr>
 <tr><td><code>[drop:to-domain]</code></td><td>클라이언트 주소가 아니라 도메인으로 보낸 메시지입니다(차량의 브로드캐스트는 <code>DOMAIN_BROADCAST</code>를 씁니다)</td></tr>
 <tr><td><code>[drop:malformed]</code></td><td>요청 UUID 길이 또는 주소 길이가 잘못되었습니다</td></tr>
-<tr><td><code>[drop:no-handler]</code></td><td>올바른 주소지만 그 주소의 열린 요청이 없습니다</td></tr>
-<tr><td><code>[drop:handler-closed]</code>, <code>[drop:queue-full]</code></td><td>짝이 되는 요청이 그사이 닫혔거나 응답 큐가 가득 찼습니다</td></tr>
-<tr><td><code>[reply:vcsec]</code></td><td>열린 요청에 전달된 보안 도메인 응답입니다</td></tr>
-<tr><td><code>from=</code>, <code>to=</code></td><td><code>domain(DOMAIN_X)</code>, <code>address(16B, self|open-request|other)</code>(<code>to=</code>만), <code>none</code>, <code>empty</code></td></tr>
+<tr><td><code>[drop:no-handler]</code></td><td>올바른 주소지만 그 주소의 열린 요청이 없습니다. 최근에 닫힌 요청으로 온 응답은 <code>to=address(16B, closed)</code>로 표시되고 줄이 <code>attempt=N</code>으로 끝납니다(아래 응답 줄 참고)</td></tr>
+<tr><td><code>[drop:handler-closed]</code>, <code>[drop:queue-full]</code></td><td>짝이 되는 요청이 그사이 닫혔거나 응답 큐가 가득 찼습니다. 같은 프레임의 응답 줄이 먼저 나옵니다</td></tr>
+<tr><td><code>[reply:vcsec]</code>, <code>[reply:infotainment]</code></td><td>열린 요청으로 온 보안 도메인 또는 인포테인먼트 도메인의 응답입니다. 받은 프레임마다 한 줄입니다(아래 응답 줄 참고)</td></tr>
+<tr><td><code>from=</code>, <code>to=</code></td><td><code>domain(DOMAIN_X)</code>, <code>address(16B, self|open-request|closed|other)</code>(<code>to=</code>만), <code>none</code>, <code>empty</code></td></tr>
 <tr><td><code>payload=</code></td><td><code>FromVCSECMessage{…}</code>, <code>Response{fields=[…]}</code>, <code>encrypted(NB)</code>, <code>NB</code>, <code>none</code></td></tr>
 <tr><td><code>unknownFields=[n]</code></td><td>전송 중에는 있었지만 생성된 프로토콜이 모르는 필드 번호입니다</td></tr>
 <tr><td><code>uiDesire=</code>, <code>gear=</code></td><td>차량 상태 필드 6·7이며, 확장된 프로토콜 정의가 붙인 이름입니다(<code>GEAR_UNKNOWN</code>, <code>GEAR_PARK</code>, <code>GEAR_DRIVE</code>, <code>GEAR_REVERSE</code>, <code>GEAR_NEUTRAL</code>). <code>gear</code>는 실차로 확정되었고(<a href="14-lib-reading-state.html">14. 차량 상태 조회</a> 참고) <code>uiDesire</code>의 의미는 확인되지 않았습니다. enum은 빠지면 0번 값으로 읽히므로 항상 적습니다</td></tr>
@@ -217,6 +217,26 @@
 <tr><td><code>key=sha1:xxxxxxxx</code></td><td>공개키: SHA-1의 앞 4바이트만 적습니다</td></tr>
 </tbody>
 </table>
+<h3>응답 줄</h3>
+<p>라이브러리는 받은 프레임마다 복호화 단계 뒤에 <code>[reply:vcsec]</code> 또는 <code>[reply:infotainment]</code> 한 줄을 남깁니다. 그래서 그 단계에서 버린 응답에도 줄이 있습니다. 줄은 <code>attempt=N auth=…</code>로 끝납니다. 그 프레임이 호출자에게 닿지 못하면 <code>[drop:handler-closed]</code> 또는 <code>[drop:queue-full]</code> 줄이 뒤따릅니다.</p>
+<table>
+<thead><tr><th>항목</th><th>뜻</th></tr></thead>
+<tbody>
+<tr><td><code>attempt=N</code></td><td>이 연결에서 요청에 매긴 불투명한 번호로, 1부터 시작합니다. 핸드셰이크 요청과 재시도를 포함해 요청마다 새 번호를 쓰므로 명령 하나가 여러 번호를 쓸 수 있습니다. 번호는 한 연결 안에서만 비교하세요. 새 연결은 다시 1부터 시작합니다</td></tr>
+<tr><td><code>auth=gcm-ok</code></td><td><code>AES_GCM_Response_data</code>가 있고, 태그가 검증되었고, 카운터가 그 요청의 재전송 검사를 통과했습니다. 전달됩니다</td></tr>
+<tr><td><code>auth=gcm-failed</code></td><td><code>AES_GCM_Response_data</code>가 있지만 검증에 실패했습니다. 버려집니다</td></tr>
+<tr><td><code>auth=gcm-replay</code></td><td>태그는 검증되었지만 이 요청에서 이미 본 카운터입니다. 버려집니다</td></tr>
+<tr><td><code>auth=gcm-no-session</code></td><td><code>AES_GCM_Response_data</code>가 있지만 검사할 세션이 없습니다(개인키가 없거나 세션이 맺어지지 않았습니다). 버려집니다</td></tr>
+<tr><td><code>auth=none</code></td><td><code>AES_GCM_Response_data</code>가 없어 아무것도 검사하지 않았습니다. 전달됩니다. 세션 정보 응답도 이렇게 표시됩니다. 그 HMAC 태그는 따로 검증하며 이 줄에 나오지 않습니다</td></tr>
+</tbody>
+</table>
+<ul>
+<li><code>auth=</code>는 페이로드 검사 결과이지 응답 전체에 대한 판정이 아닙니다. AES-GCM은 페이로드와 <code>signed_message_fault</code>를 덮습니다. 바깥 <code>operation_status</code>(<code>status=</code>의 앞부분)는 범위 밖이므로 <code>auth=gcm-ok</code>도 이를 보장하지 않습니다(ADR-0015).</li>
+<li>줄은 받은 그대로의 프레임으로 만들며 복호화한 메시지로 만들지 않습니다(FR-112). 암호화된 응답은 <code>auth=</code> 값과 상관없이 <code>payload=encrypted(NB)</code>로 표시되고, <code>encrypted(NB)</code>만으로는 서명 필드가 있다는 것밖에 알 수 없습니다.</li>
+<li><code>to=address(16B, closed)</code>는 대응 관계일 뿐입니다. 응답의 키(라우팅 주소, 인포테인먼트는 요청 UUID까지)가 이 연결에서 닫힌 요청과 맞고, <code>attempt=N</code>이 그 요청을 가리킨다는 뜻입니다. 응답이 진짜라거나 요청이 성공했다는 뜻이 아닙니다. 라이브러리는 이런 응답을 복호화하지 않아 요청의 재전송 검사를 건드리지 않고, 전달하지도 않습니다. 그래서 이 줄에는 <code>auth=</code>가 없습니다.</li>
+<li>이력은 연결에서 마지막으로 닫힌 요청 32개를 기억하며, 가장 오래된 것부터 밀려납니다. 그보다 오래된 요청의 늦은 응답은 보안 도메인에서 <code>other</code>, 모든 요청이 주소 하나를 공유하는 인포테인먼트 도메인에서 <code>self</code>로 표시됩니다.</li>
+<li>이력은 링크가 끊기거나 앱이 연결을 끊으면 비워집니다. 링크가 끊길 때 열려 있다가 나중에 닫힌 요청까지 포함해, 새 연결로 넘어가는 것은 없습니다.</li>
+</ul>
 <h3>상세 형식 (탐색용)</h3>
 <p>예: <code>unknownFields=[48:len(8){1:varint=3(0x3), 2:len(4)"ABCD"}, 9]</code>. 항목은 도착 순서를 지키고 반복 필드는 반복해서 적습니다. 필드 번호와 wire type은 그대로 두며 필드 이름은 지어내지 않습니다.</p>
 <table>

@@ -178,8 +178,8 @@
 <table>
 <thead><tr><th></th><th>観察ログ</th><th><code>vehicle.events</code></th></tr></thead>
 <tbody>
-<tr><td>何か</td><td>破棄したメッセージやセキュリティドメインの応答ごとに <code>DEBUG</code> のテキスト 1 行、タグ <code>observe</code></td><td><code>Vehicle</code> の公開 <code>Flow&lt;VehicleEvent&gt;</code> (FR-035)</td></tr>
-<tr><td>どのフレーム</td><td>破棄したすべてのフレーム (他のスマートフォン宛ての応答、読めないフレーム、ブロードキャスト) とすべてのセキュリティドメインの応答</td><td>平文のブロードキャストだけ (<a href="14-lib-reading-state.html#sec-b-library">14、B2</a>)</td></tr>
+<tr><td>何か</td><td>破棄したメッセージや自分のリクエストへの応答ごとに <code>DEBUG</code> のテキスト 1 行、タグ <code>observe</code></td><td><code>Vehicle</code> の公開 <code>Flow&lt;VehicleEvent&gt;</code> (FR-035)</td></tr>
+<tr><td>どのフレーム</td><td>破棄したすべてのフレーム (他のスマートフォン宛ての応答、読めないフレーム、ブロードキャスト) と、両方のドメインで自分のリクエストに来たすべての応答</td><td>平文のブロードキャストだけ (<a href="14-lib-reading-state.html#sec-b-library">14、B2</a>)</td></tr>
 <tr><td>内容</td><td>人が読む要約。未知のフィールドの値は詳細形式でのみ</td><td>型付きのイベント、<code>unknownFields</code> のパス、<code>raw</code> にフレーム全体</td></tr>
 <tr><td>VIN</td><td>ライブラリがマスクする</td><td><code>raw</code> では<strong>マスクしない</strong>。保存や共有の前にアプリがマスクする</td></tr>
 <tr><td>必要なもの</td><td><code>DEBUG</code> を残すロガー (開発ビルド)</td><td>なし。リリースビルドでも動く</td></tr>
@@ -192,10 +192,10 @@
 </ul>
 
 <h2 id="sec-observe">観察ログ（開発用）</h2>
-<p>開発中、ライブラリは破棄するメッセージごと、および車両セキュリティドメインの応答ごとに、要約を1行ログに出せます。車が要求なしに送ってくるものを確認できます。動作は変わりません。ブロードキャストは引き続き応答の対応付けから外れ、そのうち平文のものは <code>vehicle.events</code> でもアプリに届きます（前の節）。プッシュされた各メッセージの意味は <a href="14-lib-reading-state.html">14. 車両状態の取得</a> の B 部にあります。</p>
+<p>開発中、ライブラリは破棄するメッセージごと、および両方のドメインで自分のリクエストに来た応答ごとに、要約を1行ログに出せます。車が要求なしに送ってくるものや、応答がリクエストとどう対応するかを確認できます。動作は変わりません。ブロードキャストは引き続き応答の対応付けから外れ、そのうち平文のものは <code>vehicle.events</code> でもアプリに届きます（前の節）。プッシュされた各メッセージの意味は <a href="14-lib-reading-state.html">14. 車両状態の取得</a> の B 部にあります。</p>
 <ul>
 <li>タグ <code>observe</code>、レベル <code>DEBUG</code>。<code>DEBUG</code> を捨てるロガーはこの行を組み立てもしません。<code>DebugLogger()</code> または自作の <code>TeslaLogger</code> で見られます。iOS サンプルの観察モードはこの行だけを集めます。</li>
-<li>形式: <code>[地点] NB from=… to=… request_uuid=… payload=…</code>。<code>NB</code> は受信したフレームのサイズです。</li>
+<li>形式: <code>[地点] NB from=… to=… request_uuid=… payload=…</code>。<code>NB</code> は受信したフレームのサイズです。応答の行は <code>attempt=N auth=…</code> で終わります。</li>
 </ul>
 <table>
 <thead><tr><th>項目</th><th>値</th></tr></thead>
@@ -205,10 +205,10 @@
 <tr><td><code>[drop:missing-destination]</code></td><td>宛先がありません（実車では見られませんでした）</td></tr>
 <tr><td><code>[drop:to-domain]</code></td><td>クライアントのアドレスではなくドメイン宛てです（車両のブロードキャストは <code>DOMAIN_BROADCAST</code> を使います）</td></tr>
 <tr><td><code>[drop:malformed]</code></td><td>リクエスト UUID の長さまたはアドレスの長さが不正です</td></tr>
-<tr><td><code>[drop:no-handler]</code></td><td>正しいアドレスですが、そのアドレスの開いたリクエストがありません</td></tr>
-<tr><td><code>[drop:handler-closed]</code>, <code>[drop:queue-full]</code></td><td>対応するリクエストがその間に閉じた、または応答キューが満杯でした</td></tr>
-<tr><td><code>[reply:vcsec]</code></td><td>開いたリクエストに渡されたセキュリティドメインの応答です</td></tr>
-<tr><td><code>from=</code>, <code>to=</code></td><td><code>domain(DOMAIN_X)</code>, <code>address(16B, self|open-request|other)</code>（<code>to=</code> のみ）, <code>none</code>, <code>empty</code></td></tr>
+<tr><td><code>[drop:no-handler]</code></td><td>正しいアドレスですが、そのアドレスの開いたリクエストがありません。最近閉じたリクエストへの応答は <code>to=address(16B, closed)</code> と表示され、行は <code>attempt=N</code> で終わります（下の「応答の行」参照）</td></tr>
+<tr><td><code>[drop:handler-closed]</code>, <code>[drop:queue-full]</code></td><td>対応するリクエストがその間に閉じた、または応答キューが満杯でした。同じフレームの応答の行が先に出ます</td></tr>
+<tr><td><code>[reply:vcsec]</code>, <code>[reply:infotainment]</code></td><td>開いたリクエストに来たセキュリティドメインまたはインフォテインメントドメインの応答です。受信したフレームごとに 1 行です（下の「応答の行」参照）</td></tr>
+<tr><td><code>from=</code>, <code>to=</code></td><td><code>domain(DOMAIN_X)</code>, <code>address(16B, self|open-request|closed|other)</code>（<code>to=</code> のみ）, <code>none</code>, <code>empty</code></td></tr>
 <tr><td><code>payload=</code></td><td><code>FromVCSECMessage{…}</code>, <code>Response{fields=[…]}</code>, <code>encrypted(NB)</code>, <code>NB</code>, <code>none</code></td></tr>
 <tr><td><code>unknownFields=[n]</code></td><td>通信上にはあったが、生成されたプロトコルが知らないフィールド番号です</td></tr>
 <tr><td><code>uiDesire=</code>, <code>gear=</code></td><td>車両状態のフィールド 6・7 で、拡張されたプロトコル定義が付けた名前です（<code>GEAR_UNKNOWN</code>、<code>GEAR_PARK</code>、<code>GEAR_DRIVE</code>、<code>GEAR_REVERSE</code>、<code>GEAR_NEUTRAL</code>）。<code>gear</code> は実車で確認済みで（<a href="14-lib-reading-state.html">14. 車両状態の取得</a> 参照）、<code>uiDesire</code> の意味は確認されていません。enum は欠けると 0 の値として読まれるので、常に記します</td></tr>
@@ -217,6 +217,26 @@
 <tr><td><code>key=sha1:xxxxxxxx</code></td><td>公開鍵: SHA-1 の先頭4バイトだけを記します</td></tr>
 </tbody>
 </table>
+<h3>応答の行</h3>
+<p>ライブラリは受信したフレームごとに、復号の段階の後で <code>[reply:vcsec]</code> または <code>[reply:infotainment]</code> を1行出します。そのため、その段階で捨てた応答にも行があります。行は <code>attempt=N auth=…</code> で終わります。そのフレームが呼び出し側に届かなかったときは、続けて <code>[drop:handler-closed]</code> または <code>[drop:queue-full]</code> の行が出ます。</p>
+<table>
+<thead><tr><th>項目</th><th>意味</th></tr></thead>
+<tbody>
+<tr><td><code>attempt=N</code></td><td>この接続でリクエストに付けた不透明な番号で、1 から始まります。ハンドシェイクのリクエストと再試行を含め、リクエストごとに新しい番号を使うので、1 つのコマンドが複数の番号を使うことがあります。番号は 1 つの接続の中でだけ比べてください。新しい接続はまた 1 から始まります</td></tr>
+<tr><td><code>auth=gcm-ok</code></td><td><code>AES_GCM_Response_data</code> があり、タグを検証でき、カウンターがそのリクエストのリプレイ検査を通りました。渡されます</td></tr>
+<tr><td><code>auth=gcm-failed</code></td><td><code>AES_GCM_Response_data</code> はありますが、検証に失敗しました。捨てられます</td></tr>
+<tr><td><code>auth=gcm-replay</code></td><td>タグは検証できましたが、このリクエストですでに見たカウンターです。捨てられます</td></tr>
+<tr><td><code>auth=gcm-no-session</code></td><td><code>AES_GCM_Response_data</code> はありますが、検査するセッションがありません（秘密鍵がない、またはセッションが確立していません）。捨てられます</td></tr>
+<tr><td><code>auth=none</code></td><td><code>AES_GCM_Response_data</code> がないので何も検査していません。渡されます。セッション情報の応答もこの値です。その HMAC タグは別に検証し、この行には出ません</td></tr>
+</tbody>
+</table>
+<ul>
+<li><code>auth=</code> はペイロードの検査結果であり、応答全体への判定ではありません。AES-GCM が覆うのはペイロードと <code>signed_message_fault</code> です。外側の <code>operation_status</code>（<code>status=</code> の前半）は範囲外なので、<code>auth=gcm-ok</code> でもこれは保証されません（ADR-0015）。</li>
+<li>行は受信したままのフレームから作り、復号したメッセージからは作りません（FR-112）。暗号化された応答は <code>auth=</code> の値に関係なく <code>payload=encrypted(NB)</code> と表示され、<code>encrypted(NB)</code> だけでは署名フィールドがあることしか分かりません。</li>
+<li><code>to=address(16B, closed)</code> は対応関係にすぎません。応答のキー（ルーティングアドレス、インフォテインメントはリクエスト UUID も）がこの接続で閉じたリクエストと一致し、<code>attempt=N</code> がそのリクエストを指すという意味です。応答が本物であることやリクエストが成功したことは示しません。ライブラリはこのような応答を復号しないのでリクエストのリプレイ検査に触れず、渡すこともしません。そのためこの行には <code>auth=</code> がありません。</li>
+<li>履歴は接続で最後に閉じたリクエストを 32 個覚え、最も古いものから押し出します。それより古いリクエストへの遅れた応答は、セキュリティドメインでは <code>other</code>、すべてのリクエストが 1 つのアドレスを共有するインフォテインメントドメインでは <code>self</code> と表示されます。</li>
+<li>履歴はリンクが切れたとき、またはアプリが切断したときに空になります。リンクが切れたときに開いていて後で閉じたリクエストも含め、新しい接続に引き継がれるものはありません。</li>
+</ul>
 <h3>詳細形式（探索用）</h3>
 <p>例: <code>unknownFields=[48:len(8){1:varint=3(0x3), 2:len(4)"ABCD"}, 9]</code>。項目は到着順を保ち、繰り返しフィールドは繰り返して記します。フィールド番号と wire type はそのまま残し、フィールド名は作りません。</p>
 <table>

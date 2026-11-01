@@ -105,8 +105,8 @@ Both show the vehicle's broadcasts, for different readers:
 
 | | Observation log | `vehicle.events` |
 |---|---|---|
-| What it is | One `DEBUG` text line per dropped message or VCSEC reply, tag `observe` | Public `Flow<VehicleEvent>` on `Vehicle` (FR-035) |
-| Which frames | Every dropped frame (replies to other clients, unparseable frames, broadcasts) and every VCSEC reply | Only frames that pass the plain broadcast gate (`14-lib-reading-state.md` B2.1) |
+| What it is | One `DEBUG` text line per dropped message or reply to an own request, tag `observe` | Public `Flow<VehicleEvent>` on `Vehicle` (FR-035) |
+| Which frames | Every dropped frame (replies to other clients, unparseable frames, broadcasts) and every reply to an own request, in both domains | Only frames that pass the plain broadcast gate (`14-lib-reading-state.md` B2.1) |
 | Content | A summary for people; values of unknown fields only in the detailed decode | Typed model (`Status`, `AuthenticationRequest`, `Unrecognized`), `unknownFields` paths and the whole frame in `raw` |
 | VIN | Masked by the library | **Not masked** in `raw`: the app masks it before storing or sharing |
 | Needs | A logger that keeps `DEBUG` (development builds) | Nothing; it works in release builds |
@@ -119,15 +119,17 @@ Both show the vehicle's broadcasts, for different readers:
 
 ## Observation log (development)
 
-The dispatcher writes one summary line for every message it drops and for every VCSEC reply. It is for development, to
-see what the vehicle pushes without being asked. It changes no behaviour: broadcasts are still dropped from reply
-matching, and the ones that pass the plain broadcast gate are also delivered through `vehicle.events` (previous section).
-What each pushed message means (confirmed on a real car or not) is in `14-lib-reading-state.md` Part B.
+The dispatcher writes one summary line for every message it drops and for every reply to one of its own requests, in
+both domains. It is for development, to see what the vehicle pushes without being asked and how its replies line up with
+requests. It changes no behaviour: broadcasts are still dropped from reply matching, and the ones that pass the plain
+broadcast gate are also delivered through `vehicle.events` (previous section). What each pushed message means (confirmed
+on a real car or not) is in `14-lib-reading-state.md` Part B.
 
 - Tag `observe`, level `DEBUG` (a logger that discards `DEBUG` never evaluates the line). Visible through `DebugLogger()`
   or any custom `TeslaLogger`. The iOS sample's observation mode collects only these lines.
 - Line shape: `[<point>] <N>B from=<dest> to=<dest> request_uuid=<empty|16B> [status=<op>/<fault>] [session_info_request]
-  [session_info=<N>B] payload=<summary>`. `<N>B` is the received frame size.
+  [session_info=<N>B] payload=<summary> [attempt=<N>] [auth=<value>]`. `<N>B` is the received frame size. `attempt=` and
+  `auth=` close the line when present (§Reply lines).
 
 | Part | Values |
 |---|---|
@@ -136,10 +138,10 @@ What each pushed message means (confirmed on a real car or not) is in `14-lib-re
 | `[drop:missing-destination]` | No `to_destination` (not seen from the real vehicle) |
 | `[drop:to-domain]` | Addressed to a domain, not a routing address (the vehicle's broadcasts, `DOMAIN_BROADCAST`) |
 | `[drop:malformed]` | Bad request UUID length or bad routing address length |
-| `[drop:no-handler]` | Valid routing address with no open request |
-| `[drop:handler-closed]`, `[drop:queue-full]` | The matching request closed meanwhile, or its response queue was full |
-| `[reply:vcsec]` | A VCSEC reply routed to an open request |
-| `from=`, `to=` | `domain(DOMAIN_X)`, `address(16B, self\|open-request\|other)` (`to=` only), `none`, `empty` |
+| `[drop:no-handler]` | Valid routing address with no open request. A reply whose key is in the closed-request history reads `to=address(16B, closed)` and ends with ` attempt=<N>` (§Reply lines) |
+| `[drop:handler-closed]`, `[drop:queue-full]` | The matching request closed meanwhile, or its response queue was full. The `[reply:…]` line of the same frame comes first |
+| `[reply:vcsec]`, `[reply:infotainment]` | A reply routed to an open request, one line per received frame (§Reply lines) |
+| `from=`, `to=` | `domain(DOMAIN_X)`, `address(16B, self\|open-request\|closed\|other)` (`to=` only), `none`, `empty` |
 | `payload=` | `FromVCSECMessage{…}`, `Response{fields=[…]}`, `encrypted(NB)`, `NB`, `none` |
 | `unknownFields=[n]` | Field numbers present on the wire but unknown to the generated proto |
 | `uiDesire=`, `gear=` | `vehicleStatus` fields 6 and 7, named by the Teslemetry proto schema (`UI_DESIRE_*`, `GEAR_UNKNOWN\|PARK\|DRIVE\|REVERSE\|NEUTRAL`). `gear` is confirmed on a real car (see `14-lib-reading-state.md` Part B); `uiDesire` meaning is not. Always printed (proto3 enum: absent reads as the zero value) |
@@ -147,7 +149,37 @@ What each pushed message means (confirmed on a real car or not) is in `14-lib-re
 | `absent=[…]` | Message fields of `vehicleStatus` that were not sent (`closureStatuses`, `detailedClosureStatus`) |
 | `key=sha1:xxxxxxxx` | Public key: first 4 bytes of its SHA-1 only |
 
-Detail form (exploration only): `unknownFields=[48:len(8){1:varint=3(0x3), 2:len(4)"ABCD"}, 9]`. Entries are in arrival
+### Reply lines
+
+A `[reply:vcsec]` or `[reply:infotainment]` line is written once per received frame, after the decrypt step, so a reply
+that step dropped has its line too. It ends with ` attempt=<N> auth=<value>`. If the frame then does not reach the caller,
+a `[drop:handler-closed]` or `[drop:queue-full]` line follows.
+
+| Part | Meaning |
+|---|---|
+| `attempt=<N>` | Opaque number of the request on this connection, from 1. Every request takes a new one, including a handshake request and each retry, so one command can use several. Compare numbers only within one connection: a new connection starts at 1 again |
+| `auth=gcm-ok` | `AES_GCM_Response_data` is present, the tag verified and the counter passed the request's replay check. Delivered |
+| `auth=gcm-failed` | `AES_GCM_Response_data` is present and verification failed. Dropped |
+| `auth=gcm-replay` | The tag verified, but this request already saw that counter. Dropped |
+| `auth=gcm-no-session` | `AES_GCM_Response_data` is present, but there is no session to check it with (no private key, or the session is not established). Dropped |
+| `auth=none` | No `AES_GCM_Response_data`, so nothing was checked. Delivered. A `session_info` reply reads this too: its HMAC tag is verified separately and this line does not report that |
+
+- `auth=` reports the payload check, not a verdict on the reply. AES-GCM covers the payload and `signed_message_fault`.
+  The outer `operation_status`, the first half of `status=`, is outside it, so `auth=gcm-ok` does not cover it (ADR-0015).
+- The line is built from the frame as received, never from the decrypted message (FR-112). An encrypted reply reads
+  `payload=encrypted(NB)` whatever `auth=` says, and `encrypted(NB)` alone only means the signature field is there.
+- `to=address(16B, closed)` is a correspondence and nothing more. The reply's key (routing address, plus the request UUID
+  for Infotainment) matches a request this connection closed, and `attempt=<N>` names it. It does not show that the reply
+  is genuine or that the request succeeded: the library does not decrypt such a reply, which leaves the request's replay
+  check untouched, and does not deliver it. That is why the line has no `auth=`.
+- The history holds the last 32 closed requests of the connection, and the oldest falls out first. A late reply to an
+  older request reads `other` for VCSEC and `self` for Infotainment, whose requests all share one address.
+- The history empties when the connection ends, whether the link dropped or the app disconnected. Nothing carries over to
+  a new connection, not even a request that was still open when the link dropped and closed later.
+
+### Detail form (exploration only)
+
+Example: `unknownFields=[48:len(8){1:varint=3(0x3), 2:len(4)"ABCD"}, 9]`. Entries are in arrival
 order, repeated fields repeated. The path number and wire type are kept and no field name is invented.
 
 | Wire type | Shown as |
@@ -162,7 +194,7 @@ VINs (`[A-HJ-NPR-Z0-9]{17}`) are masked in text and in raw bytes before any hex 
 characters kept). Masking runs on the raw bytes before they are parsed, so masked bytes can change the value or structure that is shown (nothing leaks). This output is for exploration. It does not give the meaning of a field. On the real car a missing
 `closureStatuses` meant "all closed" for the driver doors, the rear trunk and the charge port, but a trunk operated by the interior button produced no broadcast at all, so a broadcast alone cannot prove the trunk is closed (see `14-lib-reading-state.md` Part B).
 
-Limits and rules:
+### Limits and rules
 
 - proto3 enums cannot tell "missing" from the zero value: an absent lock state reads `VEHICLELOCKSTATE_UNLOCKED`
   (sleep and presence read `UNKNOWN`). Only message fields can be reported as `absent`.
