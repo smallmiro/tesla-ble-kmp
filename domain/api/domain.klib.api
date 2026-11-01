@@ -1842,6 +1842,8 @@ abstract interface dev.mirolab.teslable.port/Transport { // dev.mirolab.teslable
         abstract fun <get-state>(): kotlinx.coroutines.flow/StateFlow<dev.mirolab.teslable.port/TransportState> // dev.mirolab.teslable.port/Transport.state.<get-state>|<get-state>(){}[0]
     abstract val vin // dev.mirolab.teslable.port/Transport.vin|{}vin[0]
         abstract fun <get-vin>(): dev.mirolab.teslable.model/Vin // dev.mirolab.teslable.port/Transport.vin.<get-vin>|<get-vin>(){}[0]
+    open val scanObservation // dev.mirolab.teslable.port/Transport.scanObservation|{}scanObservation[0]
+        open fun <get-scanObservation>(): dev.mirolab.teslable.port/ConnectScanObservation? // dev.mirolab.teslable.port/Transport.scanObservation.<get-scanObservation>|<get-scanObservation>(){}[0]
 
     abstract suspend fun close() // dev.mirolab.teslable.port/Transport.close|close(){}[0]
     abstract suspend fun send(kotlin/ByteArray): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.port/Transport.send|send(kotlin.ByteArray){}[0]
@@ -12630,6 +12632,25 @@ final class dev.mirolab.teslable.port/ConnectOptions { // dev.mirolab.teslable.p
     final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.port/ConnectOptions.equals|equals(kotlin.Any?){}[0]
     final fun hashCode(): kotlin/Int // dev.mirolab.teslable.port/ConnectOptions.hashCode|hashCode(){}[0]
     final fun toString(): kotlin/String // dev.mirolab.teslable.port/ConnectOptions.toString|toString(){}[0]
+}
+
+final class dev.mirolab.teslable.port/ConnectScanObservation { // dev.mirolab.teslable.port/ConnectScanObservation|null[0]
+    constructor <init>(kotlin/Long, kotlin/Int?, kotlin/Int) // dev.mirolab.teslable.port/ConnectScanObservation.<init>|<init>(kotlin.Long;kotlin.Int?;kotlin.Int){}[0]
+
+    final val hitAfterMillis // dev.mirolab.teslable.port/ConnectScanObservation.hitAfterMillis|{}hitAfterMillis[0]
+        final fun <get-hitAfterMillis>(): kotlin/Long // dev.mirolab.teslable.port/ConnectScanObservation.hitAfterMillis.<get-hitAfterMillis>|<get-hitAfterMillis>(){}[0]
+    final val openAttempt // dev.mirolab.teslable.port/ConnectScanObservation.openAttempt|{}openAttempt[0]
+        final fun <get-openAttempt>(): kotlin/Int // dev.mirolab.teslable.port/ConnectScanObservation.openAttempt.<get-openAttempt>|<get-openAttempt>(){}[0]
+    final val rssi // dev.mirolab.teslable.port/ConnectScanObservation.rssi|{}rssi[0]
+        final fun <get-rssi>(): kotlin/Int? // dev.mirolab.teslable.port/ConnectScanObservation.rssi.<get-rssi>|<get-rssi>(){}[0]
+
+    final fun component1(): kotlin/Long // dev.mirolab.teslable.port/ConnectScanObservation.component1|component1(){}[0]
+    final fun component2(): kotlin/Int? // dev.mirolab.teslable.port/ConnectScanObservation.component2|component2(){}[0]
+    final fun component3(): kotlin/Int // dev.mirolab.teslable.port/ConnectScanObservation.component3|component3(){}[0]
+    final fun copy(kotlin/Long = ..., kotlin/Int? = ..., kotlin/Int = ...): dev.mirolab.teslable.port/ConnectScanObservation // dev.mirolab.teslable.port/ConnectScanObservation.copy|copy(kotlin.Long;kotlin.Int?;kotlin.Int){}[0]
+    final fun equals(kotlin/Any?): kotlin/Boolean // dev.mirolab.teslable.port/ConnectScanObservation.equals|equals(kotlin.Any?){}[0]
+    final fun hashCode(): kotlin/Int // dev.mirolab.teslable.port/ConnectScanObservation.hashCode|hashCode(){}[0]
+    final fun toString(): kotlin/String // dev.mirolab.teslable.port/ConnectScanObservation.toString|toString(){}[0]
 }
 
 final class dev.mirolab.teslable.port/KeyLockedException : kotlin/Exception { // dev.mirolab.teslable.port/KeyLockedException|null[0]

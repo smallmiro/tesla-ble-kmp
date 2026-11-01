@@ -6,6 +6,7 @@ import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.Vin
 import dev.mirolab.teslable.port.ConnectOptions
+import dev.mirolab.teslable.port.ConnectScanObservation
 import dev.mirolab.teslable.port.CryptoPrimitives
 import dev.mirolab.teslable.port.LogLevel
 import dev.mirolab.teslable.port.ScanEvent
@@ -24,6 +25,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flow
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.flow.transformWhile
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -32,6 +34,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration
 import kotlin.time.Duration.Companion.seconds
+import kotlin.time.TimeMark
 import kotlin.time.TimeSource
 
 /**
@@ -86,12 +89,13 @@ internal class BleTransportFactory(
         target: VehicleAdvertisement?,
         options: ConnectOptions,
     ): VehicleResult<Transport> {
+        val startedAt = timeSource.markNow()
         availability.check()?.let { return VehicleResult.Failure(it) }
         val localName = LocalName.of(vin, crypto)
         if (target != null && target.localName != localName) {
             return VehicleResult.Failure(VehicleError.InvalidArgument("advertisement ${target.localName} is not for this VIN"))
         }
-        val attempts = Attempts()
+        val attempts = Attempts(startedAt)
         // withTimeoutOrNull은 블록이 값을 돌려준 직후에도 시간 초과로 null을 낼 수 있다(다른 스레드의 타이머) — 만든 전송을 밖에서 쥐고 잃으면 닫는다
         val result =
             try {
@@ -104,10 +108,20 @@ internal class BleTransportFactory(
         return result ?: VehicleResult.Failure(attempts.lastError ?: VehicleError.TransportError.ScanTimeout)
     }
 
-    private class Attempts {
+    private class Attempts(
+        val startedAt: TimeMark,
+    ) {
         var count = 0
         var lastError: VehicleError.TransportError? = null
         var created: Transport? = null
+
+        // 이 호출의 스캔이 찾은 광고와 그때까지 걸린 시간(FR-038). 호출 하나의 값이라 여러 호출이 공유하는 ScanHit에 붙이지 않는다
+        var scannedHit: ScanHit? = null
+        var scannedAfterMillis = 0L
+
+        /** [hit]이 이 호출의 스캔이 찾은 광고일 때만 값이 있다: 앱의 `scan`이 기억을 바꾼 광고로 열렸으면 이 호출이 본 것이 없다. */
+        fun observationOf(hit: ScanHit): ConnectScanObservation? =
+            if (hit === scannedHit) ConnectScanObservation(scannedAfterMillis, hit.advertisement.measuredRssi, count) else null
     }
 
     private suspend fun connectLoop(
@@ -118,7 +132,7 @@ internal class BleTransportFactory(
     ): VehicleResult<Transport> {
         while (true) {
             val hit =
-                when (val found = findHit(localName, target)) {
+                when (val found = findHit(localName, target, attempts)) {
                     null -> {
                         delay(retryInterval) // 광고 없이 끝난 스캔은 재시도 가능한 놓침
                         continue
@@ -138,7 +152,8 @@ internal class BleTransportFactory(
             attempts.count++
             when (val opened = openOwned(hit)) {
                 is OpenResult.Opened -> {
-                    return VehicleResult.Success(BleTransport(vin, opened.link, scope, timeSource, logger).also { attempts.created = it })
+                    val transport = BleTransport(vin, opened.link, scope, timeSource, logger, attempts.observationOf(hit))
+                    return VehicleResult.Success(transport.also { attempts.created = it })
                 }
 
                 is OpenResult.Failed -> {
@@ -154,16 +169,43 @@ internal class BleTransportFactory(
     private suspend fun findHit(
         localName: LocalName,
         target: VehicleAdvertisement?,
+        attempts: Attempts,
     ): ConnectorScan? {
         if (target != null) {
             val cached = hitsMutex.withLock { recentHits[target.identifier] }
             if (cached != null && cached.advertisement.localName == localName) return ConnectorScan.Hit(cached)
         }
-        return scanOnce(localName)
+        return scanOnce(localName, attempts)
     }
 
-    private suspend fun scanOnce(localName: LocalName): ConnectorScan? =
-        connector.scan(localName).firstOrNull()?.also { if (it is ConnectorScan.Hit) remember(it.hit) }
+    private suspend fun scanOnce(
+        localName: LocalName,
+        attempts: Attempts,
+    ): ConnectorScan? =
+        connector
+            .scan(localName)
+            .onEach { if (it is ConnectorScan.Hit) noteScanHit(it.hit, attempts) } // 스캔을 정리하는 시간이 들어가지 않게 받자마자 잰다
+            .firstOrNull()
+            ?.also { if (it is ConnectorScan.Hit) remember(it.hit) }
+
+    /**
+     * connect가 스스로 돌린 스캔의 발견을 기록한다(FR-038). 실패로 끝나는 연결에는 공개 결과가 없으므로 관찰 로그 한 줄로도 남긴다 — 앱 쪽 로그는
+     * 이 줄의 도착 시각으로 벽시계 시각을 얻는다. 광고 이름과 기기 식별자는 VIN 규칙 때문에 쓰지 않는다.
+     */
+    private fun noteScanHit(
+        hit: ScanHit,
+        attempts: Attempts,
+    ) {
+        val after = attempts.startedAt.elapsedNow().inWholeMilliseconds
+        attempts.scannedHit = hit
+        attempts.scannedAfterMillis = after
+        val rssi = hit.advertisement.measuredRssi ?: "unavailable"
+        val connectable = hit.advertisement.isConnectable ?: "unknown"
+        val attempt = attempts.count + 1
+        logger.log(LogLevel.DEBUG, OBSERVE_TAG) {
+            "[connect:scan-hit] after=${after}ms rssi=$rssi connectable=$connectable attempt=$attempt"
+        }
+    }
 
     /**
      * [GattConnector.open]을 팩토리 스코프에서 돌린다. 호출자가 사라진 뒤(타임아웃·취소) 열린 링크는 받을 사람이 없으므로
@@ -197,5 +239,14 @@ internal class BleTransportFactory(
     private companion object {
         const val MAX_REMEMBERED_HITS = 16
         const val TAG = "ble"
+
+        // :application의 ObservationLog.TAG와 같은 값이다. :adapter-ble은 :domain에만 의존하고, 앱은 이 문자열로 관찰 줄을 고른다(18-lib)
+        const val OBSERVE_TAG = "observe"
+        const val RSSI_UNAVAILABLE_COREBLUETOOTH = 127
+        const val RSSI_UNAVAILABLE_BTLEPLUG = Int.MIN_VALUE
+
+        /** 측정값이 없을 때 플랫폼이 넣는 숫자를 null로 바꾼다. */
+        private val VehicleAdvertisement.measuredRssi: Int?
+            get() = rssi.takeUnless { it == RSSI_UNAVAILABLE_COREBLUETOOTH || it == RSSI_UNAVAILABLE_BTLEPLUG }
     }
 }

@@ -36,6 +36,23 @@ public sealed interface ScanEvent {
     ) : ScanEvent
 }
 
+/**
+ * 연결이 스스로 돌린 스캔에서 본 값(FR-038, #134). 원본 Go에 없는 관찰 값이며 연결 동작을 바꾸지 않는다.
+ * 광고 이름(VIN에서 나온 값)과 기기 식별자는 일부러 담지 않는다 — 앱이 그대로 로그에 남겨도 VIN 규칙을 어기지 않게.
+ */
+public data class ConnectScanObservation(
+    /**
+     * 연결 호출을 시작하고 이 광고를 받을 때까지의 시간(밀리초, 라이브러리가 받은 시각이지 전파 수신 시각이 아니다). 앞선 시도와
+     * 그 사이 대기를 포함한다. 단조 시계라 기기가 잠들면 멈출 수 있어 벽시계 시각으로 되돌릴 수 없다. Swift에서 쓰려고 `Long`이다
+     * (non-null `Duration`은 Swift에 내부 표현 그대로 `Int64`로 간다).
+     */
+    public val hitAfterMillis: Long,
+    /** 수신 신호 세기(dBm). 플랫폼이 값을 주지 않았으면 null(iOS 127, JVM `Int.MIN_VALUE`. [VehicleAdvertisement.rssi]는 그대로 둔다). */
+    public val rssi: Int?,
+    /** 이 링크를 연 열기 시도 번호(1부터). 1보다 크면 앞선 열기가 실패했다는 뜻이지, 다시 스캔했다는 뜻은 아니다. */
+    public val openAttempt: Int,
+)
+
 /** 연결 옵션. */
 public data class ConnectOptions(
     /** 스캔·연결·구독 전체 시간. null이면 파사드 설정(`TeslaBleConfig.connectTimeout`). */

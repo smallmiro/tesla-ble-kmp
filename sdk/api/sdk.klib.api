@@ -17,6 +17,8 @@ abstract interface dev.mirolab.teslable/Vehicle { // dev.mirolab.teslable/Vehicl
         abstract fun <get-sessions>(): kotlinx.coroutines.flow/StateFlow<kotlin.collections/Map<dev.mirolab.teslable.model/VehicleDomain, dev.mirolab.teslable/SessionStatus>> // dev.mirolab.teslable/Vehicle.sessions.<get-sessions>|<get-sessions>(){}[0]
     abstract val vin // dev.mirolab.teslable/Vehicle.vin|{}vin[0]
         abstract fun <get-vin>(): dev.mirolab.teslable.model/Vin // dev.mirolab.teslable/Vehicle.vin.<get-vin>|<get-vin>(){}[0]
+    open val scanObservation // dev.mirolab.teslable/Vehicle.scanObservation|{}scanObservation[0]
+        open fun <get-scanObservation>(): dev.mirolab.teslable.port/ConnectScanObservation? // dev.mirolab.teslable/Vehicle.scanObservation.<get-scanObservation>|<get-scanObservation>(){}[0]
 
     abstract fun addKeyRequest(dev.mirolab.teslable.model/PublicKeyBytes, dev.mirolab.teslable.model/KeyRole = ..., dev.mirolab.teslable.model/KeyFormFactor = ..., kotlin.time/Duration? = ...): kotlinx.coroutines.flow/Flow<dev.mirolab.teslable.model/PairingEvent> // dev.mirolab.teslable/Vehicle.addKeyRequest|addKeyRequest(dev.mirolab.teslable.model.PublicKeyBytes;dev.mirolab.teslable.model.KeyRole;dev.mirolab.teslable.model.KeyFormFactor;kotlin.time.Duration?){}[0]
     abstract suspend fun actuateTrunk(kotlin.time/Duration? = ...): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable/Vehicle.actuateTrunk|actuateTrunk(kotlin.time.Duration?){}[0]
