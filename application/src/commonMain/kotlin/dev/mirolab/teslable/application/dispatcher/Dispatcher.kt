@@ -173,6 +173,11 @@ public class Dispatcher
 
         private val pending = HashMap<PendingKey, PendingRequest>()
         private val pendingMutex = Mutex()
+
+        // 원본에 없음(관찰 로그용). 둘 다 pendingMutex 안에서만 읽고 쓴다
+        private val closedRequests = ClosedRequestHistory()
+        private var lastAttempt = 0L
+
         private val observation = ObservationLog(crypto)
 
         /** 관찰 로그(DEBUG, 태그 `observe`). 로거가 DEBUG를 버리면 [line]은 평가되지 않는다. */
@@ -193,6 +198,35 @@ public class Dispatcher
                     AddressOwner.OTHER
                 }
             }
+        }
+
+        /** [key]가 이력에 남은 닫힌 요청이면 그 시도 번호(관찰 로그용). 전체 키로 찾는다: Infotainment 요청은 주소를 공유한다. */
+        private suspend fun closedAttemptOf(key: PendingKey): Long? =
+            pendingMutex.withLock {
+                reapClosed()
+                closedRequests.attemptOf(key)
+            }
+
+        /** 열린 요청이 없는 응답의 줄. 닫힌 요청의 키면 주소의 주인보다 먼저 본다: 아니면 Infotainment의 늦은 응답이 모두 `self`가 된다. */
+        private suspend fun observeNoHandler(
+            key: PendingKey,
+            message: RoutableMessage,
+            bytes: ByteArray,
+        ) {
+            val closedAttempt = closedAttemptOf(key)
+            val owner = if (closedAttempt != null) AddressOwner.CLOSED else ownerOf(key.address)
+            observe { observation.noHandler(message, bytes.size, owner, closedAttempt) }
+        }
+
+        /** 자기 요청의 응답 한 통의 줄(원본에 없음: 진단 로그다). [message]는 복호화 전 원래 봉투여야 한다(FR-112). */
+        private fun observeReply(
+            handler: PendingRequest,
+            message: RoutableMessage,
+            bytes: ByteArray,
+            auth: ReplyAuth,
+        ) {
+            val at = if (handler.key.domain == Domain.DOMAIN_VEHICLE_SECURITY) ObservedAt.VCSEC_REPLY else ObservedAt.INFOTAINMENT_REPLY
+            observe { observation.reply(at, message, bytes.size, handler.attempt, auth) }
         }
 
         private fun observeDrop(
@@ -299,6 +333,8 @@ public class Dispatcher
                             transport.incoming.collect { process(it) }
                         } finally {
                             if (activeJob === self) activeJob = null
+                            // 끊겨서 끝났든 취소됐든 지운다. 취소된 코루틴도 잠금을 기다려야 하므로 NonCancellable로 감싼다
+                            withContext(NonCancellable) { forgetClosedRequests() }
                         }
                     }
             } finally {
@@ -525,7 +561,7 @@ public class Dispatcher
             }
         }
 
-        /** Go `createHandler`. 닫힌 요청은 이때 정리한다. */
+        /** Go `createHandler`. 닫힌 요청은 이때 정리한다. 시도 번호는 원본에 없다(관찰 로그용). */
         private suspend fun register(
             key: PendingKey,
             requestHash: ByteArray?,
@@ -533,7 +569,8 @@ public class Dispatcher
         ): PendingRequest =
             pendingMutex.withLock {
                 reapClosed()
-                PendingRequest(key, requestHash, timeSource.markNow(), acceptsSessionInfo).also { pending[key] = it }
+                lastAttempt++
+                PendingRequest(key, requestHash, timeSource.markNow(), acceptsSessionInfo, lastAttempt).also { pending[key] = it }
             }
 
         private suspend fun lookup(key: PendingKey): PendingRequest? =
@@ -547,9 +584,20 @@ public class Dispatcher
                 }
             }
 
-        /** 닫힌 요청을 맵에서 뺀다(`PendingRequest.close`가 suspend하지 않으므로 지연 제거). [pendingMutex] 안에서만 부른다. */
+        /**
+         * 닫힌 요청을 맵에서 빼서 이력에 남긴다(`PendingRequest.close`가 suspend하지 않으므로 지연 처리). 맵의 순서에는 뜻이 없으므로 오래된 시도부터
+         * 넣는다. [pendingMutex] 안에서만 부른다.
+         */
         private fun reapClosed() {
-            pending.values.removeAll { it.isClosed }
+            for (request in pending.values.filter { it.isClosed }.sortedBy { it.attempt }) {
+                pending.remove(request.key)
+                closedRequests.add(request.key, request.attempt)
+            }
+        }
+
+        /** 연결이 끝났다: 닫힌 요청의 이력을 잊는다(새 연결에 옛 이력을 남기지 않는다). 시도 번호는 되돌리지 않고, 열린 요청의 등록과 전달도 그대로다. */
+        private suspend fun forgetClosedRequests() {
+            pendingMutex.withLock { closedRequests.forget(lastAttempt) }
         }
 
         /** Go `listen` 본문 + `process`: 수신 코루틴에서만 호출된다. */
@@ -581,16 +629,15 @@ public class Dispatcher
             val handler = lookup(key)
             if (handler == null) {
                 logger.log(LogLevel.WARN, TAG) { "[$id] Dropping message without registered handler $key" }
-                val owner = ownerOf(key.address)
-                observe { observation.routable(ObservedAt.NO_HANDLER, message, bytes.size, owner) }
+                observeNoHandler(key, message, bytes)
                 return
-            }
-            if (key.domain == Domain.DOMAIN_VEHICLE_SECURITY) {
-                observe { observation.routable(ObservedAt.VCSEC_REPLY, message, bytes.size, AddressOwner.OPEN_REQUEST) }
             }
             // 차량은 desync가 의심되면 오류 응답에 세션정보를 동봉한다. 반영한 뒤에도 응답은 핸들러로 전달한다.
             checkForSessionUpdate(message, handler)
-            val deliverable = decryptIfNeeded(message, handler).deliverable ?: return
+            val decryption = decryptIfNeeded(message, handler)
+            // 복호화가 버린 응답도 한 줄 남긴다. 복호화 결과가 아니라 받은 그대로의 message로 만든다(FR-112)
+            observeReply(handler, message, bytes, decryption.auth)
+            val deliverable = decryption.deliverable ?: return
             // checkForSessionUpdate/decryptIfNeeded가 실행되는 동안
             // 호출자가 이 핸들러를 닫았을 수 있다(둘 다 suspend). deliver() 시도 전에 isClosed를 먼저 검사해도
             // 그 검사와 deliver() 사이에 또 닫힐 수 있으므로, 실패 원인은 deliver()가 실패한 **뒤에** 판단한다

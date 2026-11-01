@@ -32,6 +32,8 @@ public class PendingRequest internal constructor(
     private val sentAt: TimeMark,
     /** false면 응답의 세션정보로 세션을 갱신하지 않는다 — 다른 공개키로 물은 `sessionInfo`(설계 구체화 3). */
     internal val acceptsSessionInfo: Boolean = true,
+    /** 원본에 없음 — 디스패처가 요청마다 매기는 불투명한 시도 번호(관찰 로그 `attempt=`, 재시도는 새 번호). 다른 뜻은 없다. */
+    internal val attempt: Long = 0,
 ) : AutoCloseable {
     private val channel = Channel<RoutableMessage>(BUFFER_SIZE)
     private val requestHashBytes: ByteArray? = requestHash?.copyOf()
@@ -95,5 +97,41 @@ public class PendingRequest internal constructor(
     public companion object {
         /** Go `receiverBufferSize`: 요청당 응답 버퍼. */
         public const val BUFFER_SIZE: Int = 10
+    }
+}
+
+/**
+ * 원본에 없음 — 관찰 로그 전용(Go에는 이런 진단 로그가 없다, ADR-0015, #118). 이 연결에서 닫힌 요청의 `(PendingKey, attempt)`를 FIFO로 [LIMIT]개까지
+ * 기억해 늦게 온 응답을 보낸 시도와 잇는다. 요청 객체는 쥐지 않는다: 버퍼에 남은 복호화한 응답을 더 오래 살려 두지 않는다. 스레드 안전하지 않다 — 호출자가 잠근다.
+ */
+internal class ClosedRequestHistory {
+    private val attempts = LinkedHashMap<PendingKey, Long>()
+    private var forgottenThrough = 0L
+
+    /** 넣고, 상한을 넘으면 가장 오래된 항목을 밀어낸다. [forget]으로 잊은 시도는 넣지 않는다. */
+    fun add(
+        key: PendingKey,
+        attempt: Long,
+    ) {
+        if (attempt <= forgottenThrough) return
+        attempts[key] = attempt
+        if (attempts.size > LIMIT) attempts.remove(attempts.keys.first())
+    }
+
+    /** [key]의 시도 번호. 이력에 없으면 null. 찾아도 항목은 남긴다: 늦은 응답은 또 올 수 있다. */
+    fun attemptOf(key: PendingKey): Long? = attempts[key]
+
+    /**
+     * 연결이 끝났다: [lastAttempt]까지의 시도를 잊는다. 이력만 비우면 모자란다 — 끊길 때 열려 있던 요청은 호출자가 시간 초과로 그 뒤에 닫으므로 다음 연결의
+     * 이력으로 들어온다.
+     */
+    fun forget(lastAttempt: Long) {
+        forgottenThrough = lastAttempt
+        attempts.clear()
+    }
+
+    private companion object {
+        /** 이력 상한. */
+        const val LIMIT = 32
     }
 }
