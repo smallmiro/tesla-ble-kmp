@@ -34,6 +34,10 @@ enum KeyReplaceOutcome: Sendable, Equatable {
     case notDeleted(String)
     /// 옛 키는 지워졌는데 새 키를 만들지 못했다. 1단계에서 다시 만든다(조용히 다시 만들지 않는다).
     case notCreated(String)
+    /// 지우기는 실패했다고 했는데 키 저장소에 키가 없다. 새 키를 만들지 않았고 다시 연결하지 않았다(연결하면 키가 조용히 만들어진다).
+    case lost(String)
+    /// 지우기가 실패했고 지금 키 상태도 읽지 못했다. 다시 연결하지 않았다.
+    case unverified(String)
 
     var line: String {
         switch self {
@@ -45,6 +49,10 @@ enum KeyReplaceOutcome: Sendable, Equatable {
             return "키를 지우지 못했습니다(\(why)). 옛 키는 그대로이고 새 키를 만들지 않았습니다"
         case .notCreated(let why):
             return "옛 키는 지웠지만 새 키를 만들지 못했습니다(\(why)). 1단계에서 키를 만드세요"
+        case .lost(let why):
+            return "키를 지우지 못했다고 했지만(\(why)) 키 저장소에 키가 없습니다. 연결을 다시 만들지 않았습니다. 1단계에서 키를 만드세요"
+        case .unverified(let why):
+            return "키를 지우지 못했고(\(why)) 지금 키 상태도 읽지 못했습니다. 연결을 다시 만들지 않았습니다. 1단계의 '다시 불러오기'로 확인하세요"
         }
     }
 
@@ -52,7 +60,7 @@ enum KeyReplaceOutcome: Sendable, Equatable {
         switch self {
         case .replaced: return .ok
         case .locked: return .warn
-        case .notDeleted, .notCreated: return .fail
+        case .notDeleted, .notCreated, .lost, .unverified: return .fail
         }
     }
 
@@ -65,7 +73,7 @@ enum KeyReplaceOutcome: Sendable, Equatable {
     /// 옛 키로 만든 연결 상태(상태 카드, 진행 줄)를 버려야 한다: 키를 한 번이라도 지웠다.
     var dropsConnectionState: Bool {
         switch self {
-        case .replaced, .notCreated: return true
+        case .replaced, .notCreated, .lost, .unverified: return true
         case .locked, .notDeleted: return false
         }
     }
@@ -81,7 +89,7 @@ enum KeyReplacer {
         forgetHandle: () -> (),
         delete: () async -> KeyDeleteResult,
         create: () async -> KeyCreateResult,
-        restore: () async -> (),
+        restore: () async -> KeyProbe,
         reconnect: () -> ()
     ) async -> KeyReplaceOutcome {
         // 1) 잠겨 있거나 읽지 못하면 아무것도 건드리지 않는다(연결도 끊지 않는다).
@@ -94,17 +102,29 @@ enum KeyReplacer {
         if wasActive { await disconnect() }
         forgetHandle()
         // 3) 지운다. 실패하면 새 키를 만들지 않고 옛 키를 다시 읽어 상태를 되돌린다.
+        let deleteFailure: (outcome: KeyReplaceOutcome, why: String)
         switch await delete() {
         case .deleted:
-            break
+            deleteFailure = (.replaced, "")
         case .locked:
-            await restore()
-            if wasActive { reconnect() }
-            return .locked
+            deleteFailure = (.locked, "폰이 잠겨 있습니다")
         case .failed(let why):
-            await restore()
-            if wasActive { reconnect() }
-            return .notDeleted(why)
+            deleteFailure = (.notDeleted(why), why)
+        }
+        if deleteFailure.outcome != .replaced {
+            // 실제로 키가 어떻게 됐는지 다시 읽고 그대로 알린다. 키가 없으면 다시 연결하지 않는다(`getOrCreate` 가 조용히 새 키를 만든다).
+            switch await restore() {
+            case .present:
+                if wasActive { reconnect() }
+                return deleteFailure.outcome
+            case .locked:
+                if wasActive { reconnect() }
+                return .locked
+            case .absent:
+                return .lost(deleteFailure.why)
+            case .failed:
+                return .unverified(deleteFailure.why)
+            }
         }
         // 4) 새 키를 한 번만 만든다. 실패해도 다시 시도하지 않는다.
         switch await create() {

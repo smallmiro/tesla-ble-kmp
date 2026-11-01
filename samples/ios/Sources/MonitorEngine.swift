@@ -386,8 +386,8 @@ final class MonitorEngine: @unchecked Sendable {
         }
     }
 
-    /// 지우기가 실패한 뒤 옛 키를 다시 읽어 화면 상태를 되돌린다. 읽기만 하고 새로 만들지 않는다.
-    private func restoreStoredKey() async {
+    /// 지우기가 실패한 뒤 옛 키를 다시 읽어 화면 상태를 되돌리고, 읽은 결과를 돌려준다. 읽기만 하고 새로 만들지 않는다.
+    private func restoreStoredKey() async -> KeyProbe {
         let read = await readStoredKey()
         switch read.probe {
         case .present:
@@ -402,6 +402,7 @@ final class MonitorEngine: @unchecked Sendable {
         case .failed(let why):
             emit.yield(.key(KeyStatus(text: "키 오류: \(why)", state: .error)))
         }
+        return read.probe
     }
 
     private func describe(_ k: VehicleKey) -> KeyStatus {
