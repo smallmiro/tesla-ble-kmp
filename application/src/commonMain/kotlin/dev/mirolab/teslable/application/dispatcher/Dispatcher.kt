@@ -586,7 +586,8 @@ public class Dispatcher
 
         /**
          * 닫힌 요청을 맵에서 빼서 이력에 남긴다(`PendingRequest.close`가 suspend하지 않으므로 지연 처리). 맵의 순서에는 뜻이 없으므로 오래된 시도부터
-         * 넣는다. [pendingMutex] 안에서만 부른다.
+         * 넣는다. 한 번에 정리되는 요청끼리는 닫힌 순서를 알 수 없다: 상한에서 밀려나는 항목이 바뀔 수 있지만 관찰 표시만 달라진다.
+         * [pendingMutex] 안에서만 부른다.
          */
         private fun reapClosed() {
             for (request in pending.values.filter { it.isClosed }.sortedBy { it.attempt }) {
@@ -635,7 +636,8 @@ public class Dispatcher
             // 차량은 desync가 의심되면 오류 응답에 세션정보를 동봉한다. 반영한 뒤에도 응답은 핸들러로 전달한다.
             checkForSessionUpdate(message, handler)
             val decryption = decryptIfNeeded(message, handler)
-            // 복호화가 버린 응답도 한 줄 남긴다. 복호화 결과가 아니라 받은 그대로의 message로 만든다(FR-112)
+            // 복호화가 버린 응답도 한 줄 남긴다. 복호화 결과가 아니라 받은 그대로의 message로 만든다(FR-112).
+            // 위 두 호출 중에 취소되면(stop) 이 응답은 auth를 알 수 없으므로 줄도 전달도 없다
             observeReply(handler, message, bytes, decryption.auth)
             val deliverable = decryption.deliverable ?: return
             // checkForSessionUpdate/decryptIfNeeded가 실행되는 동안
