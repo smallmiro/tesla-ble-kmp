@@ -155,8 +155,10 @@ The vehicle returns no data when its reply exceeds a size limit. The largest rep
 
 ## Reply authenticity
 
-Like the Go original, the library accepts a plaintext Infotainment reply, because firmware before 2024.38 does not encrypt
+Like the Go original, the library accepts a plaintext reply, because firmware before 2024.38 does not encrypt
 responses (`vehicle-command/pkg/protocol/protocol.md:751`). A plaintext reply carries no authentication tag, so a party on
 the BLE link could forge read data. **Do not base safety decisions on `getState`.** The same goes for `vehicleStatus()`
-and `vehicle.events`, which are unauthenticated plaintext by design (`14-lib-reading-state.md` A1, B1). Whether to reject
-plaintext replies is an open decision; rejecting them would drop firmware before 2024.38.
+and `vehicle.events`, which are unauthenticated plaintext by design (`14-lib-reading-state.md` A1, B1). Command replies
+are not exempt: the plaintext path has no domain check, so a forged plaintext VCSEC reply can make a command such as
+`lock()` return `Success` even if the vehicle never ran it. Whether to reject plaintext replies is an open decision;
+rejecting them would drop firmware before 2024.38.

@@ -213,7 +213,7 @@
 <li>enum の値が欠けている場合と 0 番の値は区別できません。ロック状態がなければ <code>VEHICLELOCKSTATE_UNLOCKED</code> と読めます（sleep と presence は <code>UNKNOWN</code>）。<code>absent</code> として分かるのはメッセージの部分だけです。</li>
 <li>暗号化された内容とセッション情報は長さだけ、公開鍵は SHA-1 の先頭だけを記します。VIN と復号した内容は出力されません。行を追加するときもこのルールを守ってください。</li>
 <li>BLE トランスポートは接続ごとに受信バッファの溢れを数えます。破棄したメッセージごとに <code>ERROR</code> で <code>Dropping received message because inbox is full (dropped N since connect)</code> を出し、リンクが終わると <code>WARN</code> で <code>BLE inbox overflowed N time(s) during this connection</code> を1行出します（N が 0 より大きいときだけ）。</li>
-<li><code>DebugLogger</code> は <code>DEBUG</code> で BLE の生バイト（<code>TX:</code>、<code>RX:</code>）も出力します。このようなプラットフォームのログは共有しないでください。そこでは応答は暗号化されていますが、平文のインフォテインメント応答 (2024.38 より前のファームウェア、<a href="16-lib-errors.html#sec-authenticity">16. エラー処理</a> を参照) は、位置も含めて車両が送ったままの形で表示されます。</li>
+<li><code>DebugLogger</code> は <code>DEBUG</code> で BLE の生バイト（<code>TX:</code>、<code>RX:</code>）も出力します。このようなプラットフォームのログは共有しないでください。そこで暗号化されているのは、車両が暗号化した内容だけです。それ以外は車両が送ったままの形で表示され、VCSEC クエリの応答、ブロードキャスト、位置を含むことがある平文のインフォテインメント応答 (2024.38 より前のファームウェア、<a href="16-lib-errors.html#sec-authenticity">16. エラー処理</a> を参照) もこれに含まれます。</li>
 </ul>
 
 <footer class="page-nav">

@@ -141,6 +141,7 @@ Limits and rules:
 - The BLE transport counts inbox overflows per connection. Each dropped message logs
   `Dropping received message because inbox is full (dropped N since connect)` at `ERROR`; when the link ends, one line
   `BLE inbox overflowed N time(s) during this connection` is logged at `WARN` (only if N > 0).
-- `DebugLogger` also prints the BLE `TX:`/`RX:` raw hex at `DEBUG`. Do not share such platform logs. Replies are ciphertext
-  there, except a plaintext Infotainment reply (firmware before 2024.38, `16-lib-errors.md` §Reply authenticity), which
-  appears as the vehicle sent it, location included.
+- `DebugLogger` also prints the BLE `TX:`/`RX:` raw hex at `DEBUG`. Do not share such platform logs. Only what the
+  vehicle encrypted is ciphertext there. Everything else appears as the vehicle sent it, including VCSEC query replies,
+  broadcasts and a plaintext Infotainment reply (firmware before 2024.38, `16-lib-errors.md` §Reply authenticity), which
+  can hold the location.
