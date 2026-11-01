@@ -1,4 +1,4 @@
-# iOS 샘플 (모니터 앱, 빌드 19)
+# iOS 샘플 (모니터 앱, 빌드 20)
 
 > 샘플 스펙과 제약: `samples/documents/md/`(에이전트용) · `samples/documents/html/`(사람용). 에이전트 지침: `samples/ios/AGENTS.md`.
 > 이 README는 빌드 절차와 실차 확인 절차(runbook)를 담습니다.
@@ -92,9 +92,9 @@ VIN은 가려지고 키·서명처럼 보이는 값은 `redacted(NB)`로만 남�
 
 참고: 제어 결과가 `불확실`이면 샘플이 다시 보내지 않고 `vehicleStatus`로 재조회해 `→ 재조회: 잠금 …, 트렁크 …`를 덧붙인다(FR-102). 이 기기의 키를 삭제하려 하면 확인 창에 "이 기기의 키를 지웁니다"가 뜬다.
 
-## 키·제어 탭 실기기 확인 (SFR-018, 빌드 19)
+## 키·제어 탭 실기기 확인 (SFR-018, 빌드 20)
 
-빌드 19(`TeslableSampleDevice`, 버전 0.5.0)를 설치한다. 새 탭 **키·제어**(다섯 번째): 키 → 연결 → 등록 → 제어 네 단계와 버튼 격자.
+빌드 20(`TeslableSampleDevice`, 버전 0.5.0)를 설치한다. 새 탭 **키·제어**(다섯 번째): 키 → 연결 → 등록 → 제어 네 단계와 버튼 격자.
 규칙과 버튼 표는 `samples/documents/md/05-key-control-tab.md`. 모든 명령은 먼저 VCSEC 세션을 보장하고(`startSession(setOf(VCSEC))`), 명령을 한 번만 보내고, 그 뒤에 `vehicleStatus()`로 재조회한다(`Uncertain`도 다시 보내지 않는다).
 결과에는 VIN·공개키 전문을 적지 않는다. 시뮬레이터에는 블루투스가 없으므로 아래는 모두 실기기에서만 확인한다. 기록은 화면 "결과" 목록(최신이 위)과 Log 탭 `observe` 줄로 한다.
 
@@ -115,9 +115,9 @@ VIN은 가려지고 키·서명처럼 보이는 값은 `redacted(NB)`로만 남�
 | C13 | 다른 탭에서 등록·삭제 | Control 탭에서 이 기기 키를 등록하거나 삭제한 뒤 키·제어 탭으로 돌아오기 | 탭이 보일 때 등록 확인이 다시 돌아 3·4단계가 실제 상태를 따름 |
 | C14 | 확인 창 도중 변화 | 프렁크 확인 창을 띄운 채 연결이 끊기게 한 뒤 "열기" | 명령을 보내지 않고 결과 줄에 보내지 않은 이유가 남음 |
 
-## 키 별명 실기기 확인 (SFR-019, 빌드 19)
+## 키 별명 실기기 확인 (SFR-019, 빌드 20)
 
-빌드 19(`TeslableSampleDevice`, 버전 0.5.0)를 설치한다. Control 탭의 키 목록 각 행에 **이 폰에만 저장되는** 별명을 붙인다.
+빌드 20(`TeslableSampleDevice`, 버전 0.5.0)를 설치한다. Control 탭의 키 목록 각 행에 **이 폰에만 저장되는** 별명을 붙인다.
 차량에는 키 이름 칸이 없다(VCSEC `KeyMetadata`는 `keyFormFactor`뿐이다). 그래서 별명은 차 화면에 나타나지 않고 차량으로 가지도 않는다.
 규칙은 `samples/documents/md/04-monitor-app.md` §Key nickname. 저장소 규칙(자르기, 32자, 빈 입력 삭제)은 `Tests/KeyNicknameTests.swift`가 시험한다.
 결과·화면에 공개키 전문과 VIN을 적지 않는다. 키 목록을 읽으려면 차에 연결돼 있어야 하므로 아래는 실기기에서만 확인한다.
@@ -136,9 +136,9 @@ VIN은 가려지고 키·서명처럼 보이는 값은 `redacted(NB)`로만 남�
 | N10 | 삭제 확인 창 | 별명이 있는 행의 **삭제** | 확인 창에 별명과 라벨이 함께 보인다(공개키 전문은 없다) |
 | N11 | 복사본 | **결과 전체 복사** 후 붙여 넣기 | 별명 글, 공개키 전문, VIN이 없다 |
 
-## 키 삭제 후 다시 만들기 실기기 확인 (SFR-020, 빌드 19)
+## 키 삭제 후 다시 만들기 실기기 확인 (SFR-020, 빌드 20)
 
-빌드 19(`TeslableSampleDevice`, 버전 0.5.0)를 설치한다. **키·제어** 탭 1단계의 **키 삭제 후 다시 만들기** 버튼이 모니터 키 `teslable-monitor`를 지우고 새로 만든다(같은 Secure Enclave·`afterFirstUnlock` 설정).
+빌드 20(`TeslableSampleDevice`, 버전 0.5.0)를 설치한다. **키·제어** 탭 1단계의 **키 삭제 후 다시 만들기** 버튼이 모니터 키 `teslable-monitor`를 지우고 새로 만든다(같은 Secure Enclave·`afterFirstUnlock` 설정).
 규칙은 `samples/documents/md/05-key-control-tab.md` §Delete and recreate the key. 순서·실패 처리는 `Tests/KeyReplacementTests.swift`가 시험한다.
 **되돌릴 수 없다.** 실제로 쓰는 차량이면 새 키를 키카드로 다시 등록할 수 있을 때만 확인한다. 차량의 옛 공개키는 차 화면에서 지울 때까지 남는다. 결과·화면에 공개키 전문과 VIN을 적지 않는다.
 
@@ -156,9 +156,9 @@ VIN은 가려지고 키·서명처럼 보이는 값은 `redacted(NB)`로만 남�
 | R10 | 다른 탭과 겹침 | Control 탭에서 **키 등록 요청**을 시작한 채 키·제어 탭에서 교체 누르기. 또 교체가 도는 동안 Live 탭 **연결** 누르기 | 앞은 결과에 `다른 호출이 진행 중이거나 키를 바꾸는 중이라 …`, 아무것도 바뀌지 않는다. 뒤는 교체가 끝날 때까지 연결이 시작되지 않고, 누른 연결을 기억했다가 끝나면 새 키로 연결한다(그 전에 연결이 없었어도). 교체 중에 Live 탭 **연결 끊기**(또는 VIN 지우기)를 누르면 끝난 뒤에도 연결하지 않는다. 마지막에 누른 것이 이긴다(SFR-012). Control 탭 버튼도 교체 중에는 `키를 바꾸는 중이라 지금은 할 수 없습니다` |
 | R11 | 지우기가 실패한 뒤 | (재현되면) 지우기 실패 뒤 키 상태 | 키가 있으면 `옛 키는 그대로`, 키가 없으면 `키 저장소에 키가 없습니다 … 연결을 다시 만들지 않았습니다`, 읽지 못하면 `키 상태도 읽지 못했습니다 …`, 폰이 잠겨 읽지 못하면 `폰이 잠겨 있어 키가 지금 어떤 상태인지 알 수 없습니다 …`(연결도 다시 만들지 않는다). 어느 경우에도 새 키가 조용히 생기지 않는다 |
 
-## 등록 진행 팝업 실기기 확인 (SFR-021, 빌드 19)
+## 등록 진행 팝업 실기기 확인 (SFR-021, 빌드 20)
 
-빌드 19(`TeslableSampleDevice`, 버전 0.5.0)를 설치한다. **키·제어** 탭 3단계의 **키 등록 요청**을 누르면 화면을 막는 시트(팝업)가 열려 진행을 보여 준다.
+빌드 20(`TeslableSampleDevice`, 버전 0.5.0)를 설치한다. **키·제어** 탭 3단계의 **키 등록 요청**을 누르면 화면을 막는 시트(팝업)가 열려 진행을 보여 준다.
 규칙은 `samples/documents/md/05-key-control-tab.md` §Enrollment progress popup. 단계·문구·버튼 규칙은 `Tests/EnrollmentPopupTests.swift`가 시험한다.
 **취소는 기다리기를 멈출 뿐, 이미 차량에 보낸 요청은 되돌리지 못한다**(차 화면의 승인 창이 남을 수 있고, 그 뒤에 카드를 대면 등록될 수 있다).
 Control 탭의 **키 등록 요청**은 예전처럼 결과 줄만 남기고 팝업이 없다. 아직 등록하지 않은 키(예: 위 R-시나리오 뒤의 새 키)로 확인한다.
@@ -174,7 +174,7 @@ Control 탭의 **키 등록 요청**은 예전처럼 결과 줄만 남기고 팝
 | P7 | 막힘 | 진행 중 시트를 아래로 끌기 | 닫히지 않는다(취소 버튼으로만 멈춘다) |
 | P8 | 거부·실패(가능하면) | 차 화면에서 거부하거나 요청 중 연결 끊기 | `등록 실패`와 메시지, **닫기** |
 
-## Live 탭 클러스터 실기기 확인 (SFR-022, 빌드 19)
+## Live 탭 클러스터 실기기 확인 (SFR-022, 빌드 20)
 
 첫 번째 탭은 기어, 속도, 잠금, 위에서 본 차량 그림으로 된 클러스터다. VIN과 연결 버튼은 오른쪽 위 톱니 시트, 항목별 시각과 이벤트는 차 그림이나 맨 아래 줄을 누르면 나오는 상세 시트에 있다. **속도는 공개 API가 없어 언제나 `—`다.** 숫자가 나오면 결함이다.
 
@@ -191,9 +191,9 @@ Control 탭의 **키 등록 요청**은 예전처럼 결과 줄만 남기고 팝
 | C7 | 링크 끊김 | 앱에서 연결 끊기 | 화면이 어두워지고 맨 위에 `마지막 수신 HH:mm:ss`. 값을 현재 상태처럼 보이지 않음 |
 | C8 | 시트 | 톱니, 차 그림, 맨 아래 줄 누르기 | VIN과 연결 시트, 항목별 시각과 트렁크 안내, 최근 이벤트가 그대로 있음 |
 
-## 모니터 앱 실기기 확인 (SFR-010~017, 빌드 19)
+## 모니터 앱 실기기 확인 (SFR-010~017, 빌드 20)
 
-빌드 19(`TeslableSampleDevice`, 버전 0.5.0)를 설치한다(빌드 11에서 시작한 확인을 이어서 한다). 탭은 Live / Query / Log / Control / 키·제어. 화면 설명과 로그 형식은 `samples/documents/md/04-monitor-app.md`.
+빌드 20(`TeslableSampleDevice`, 버전 0.5.0)를 설치한다(빌드 11에서 시작한 확인을 이어서 한다). 탭은 Live / Query / Log / Control / 키·제어. 화면 설명과 로그 형식은 `samples/documents/md/04-monitor-app.md`.
 결과에는 VIN·공개키 전문을 적지 않는다. 시뮬레이터에는 블루투스가 없으므로 아래는 모두 실기기에서만 확인한다.
 
 사전 준비: 실기기 실행 절차(위)로 설치 → Live 탭에서 VIN 저장(화면에는 가린 VIN만 보인다). 모니터 키는 별칭 `teslable-monitor`, 접근성 `afterFirstUnlock`으로 만들어진다.
@@ -210,7 +210,7 @@ Control 탭의 **키 등록 요청**은 예전처럼 결과 줄만 남기고 팝
 | 7 | 끊기 | Live 탭 "연결 끊기" | 배너 `연결 끊음 (자동 재연결 중지)`, 2분 동안 연결 시도 없음(`link` 줄 `stopped` 뒤 `connecting` 없음). "연결"을 누르면 바로 다시 시작 |
 | 8 | 화면 유지 | 앱을 보는 동안 자동 잠금 시간(예: 30초)이 지나도록 두기, 그다음 홈 화면으로 나가기 | 보는 동안 화면이 꺼지지 않음. 앱을 나가면 평소처럼 꺼짐 |
 | 9 | Mark | Log 탭 메모에 `before: open driver door` → Mark | 줄 수에 `mark`가 늘고 마지막 줄에 보임. VIN 모양 글자를 넣으면 `*`로 가려짐 |
-| 10 | 로그 가져오기 | `tools/samples/pull-monitor-logs.sh ios` (USB 연결, 폰 잠금 해제) | `samples/logs/ios/<날짜>/logs/`에 `monitor-*.jsonl`. 첫 줄은 `session`(`platform: ios`, 앱 `0.5.0(19)`). `grep -rE '[A-HJ-NPR-Z0-9]{17}' samples/logs/ios/<날짜>/`에 아무것도 안 나옴. Finder(기기 → 파일)와 파일 앱에서도 `Documents/logs`가 보임 |
+| 10 | 로그 가져오기 | `tools/samples/pull-monitor-logs.sh ios` (USB 연결, 폰 잠금 해제) | `samples/logs/ios/<날짜>/logs/`에 `monitor-*.jsonl`. 첫 줄은 `session`(`platform: ios`, 앱 `0.5.0(20)`). `grep -rE '[A-HJ-NPR-Z0-9]{17}' samples/logs/ios/<날짜>/`에 아무것도 안 나옴. Finder(기기 → 파일)와 파일 앱에서도 `Documents/logs`가 보임 |
 | 11 | 앱·잠금 줄 (#128) | 앱을 홈 화면으로 내렸다가 다시 열기, 폰을 잠갔다가 풀기 | 로그에 `kind: app` 줄: `scenePhase`(`inactive` → `background` → `inactive` → `active`), `protectedData`(`unavailable` 잠글 때, `available` 풀 때). `session` 줄 뒤 시작 때의 `scenePhase`(첫 줄은 아님) |
 | 12 | 시작 이유 (#128) | 앱 시작 자동 연결, 연결 끊기 뒤 연결 버튼, 재연결 대기 중 연결 버튼, 재연결 대기 중 폰 잠금 해제 | `app`/`start` 줄이 `connecting`보다 앞에: `launch`/`started`, `connect-button`/`started`, `connect-button`/`woke`, `protected-data`/`woke`. 연결된 뒤 연결 버튼은 `ignored`. 앞에 `start`가 없는 `connecting`은 백오프 타이머 |
 | 13 | 조회 시작 시각 (#128) | 연결 뒤 첫 조회 라운드 | 모든 `query` 줄에 `startedAt`(`ts`보다 앞이거나 같음). 연결 직후 `listKeys` `query` 줄의 `startedAt`~`ts` 구간이 키·제어 탭의 자동 등록 확인(통합 로그 `TX:`)과 겹치지 않음: 등록 확인은 첫 라운드의 마지막 `query` 줄 `ts` 뒤에 시작. 스캔 발견 시각·RSSI는 라이브러리 요청 전까지 기록되지 않음 |

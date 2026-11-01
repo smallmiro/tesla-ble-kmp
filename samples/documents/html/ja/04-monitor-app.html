@@ -43,7 +43,7 @@
 
 <div class="callout warn">
 <strong>Android と iOS は実装済み、実機確認待ち</strong>
-<p>Android アプリ（ビルド <code>0.3.0 (3)</code>）と iOS アプリ（ビルド <code>0.5.0 (19)</code>）は実装済みで、単体テストは通過しています。どちらも実車での確認を待っています。iOS がバックグラウンドで再接続するかどうかは、計画の Task 2 のスパイクまで未確認です。必要なライブラリ API はすべて使えます: <code>Vehicle.events</code>（ライブラリマニュアル 12 章「ブロードキャストイベント」、14 章 B2）と iOS のキーアクセシビリティの選択（13 章「スマートフォンのロック中にキーを使う」、FR-037）。</p>
+<p>Android アプリ（ビルド <code>0.3.0 (3)</code>）と iOS アプリ（ビルド <code>0.5.0 (20)</code>）は実装済みで、単体テストは通過しています。どちらも実車での確認を待っています。iOS がバックグラウンドで再接続するかどうかは、計画の Task 2 のスパイクまで未確認です。必要なライブラリ API はすべて使えます: <code>Vehicle.events</code>（ライブラリマニュアル 12 章「ブロードキャストイベント」、14 章 B2）と iOS のキーアクセシビリティの選択（13 章「スマートフォンのロック中にキーを使う」、FR-037）。</p>
 </div>
 
 <div class="toc"><strong>このページの内容</strong><ol>
@@ -88,7 +88,7 @@
 </tbody>
 </table>
 <p>ルールは小さな純粋な型です（<code>KeyNickname</code>: 削る、長さの確認、切り詰め。<code>KeyNicknameStore</code>: 注入した <code>UserDefaults</code> への保存、取得、削除）。車両なしで単体テストします（<code>Tests/KeyNicknameTests.swift</code>）。画面は <code>samples/ios/README.md</code> の実機確認リストで確認します（SFR-019）。</p>
-<p><strong>状態:</strong> iOS ビルド済み（<code>0.5.0 (19)</code>）、単体テストは通過、実機確認待ち。Android: 予定、同じ仕様。</p>
+<p><strong>状態:</strong> iOS ビルド済み（<code>0.5.0 (20)</code>）、単体テストは通過、実機確認待ち。Android: 予定、同じ仕様。</p>
 
 <h2 id="sec-bg">バックグラウンドでの動作</h2>
 <table>
