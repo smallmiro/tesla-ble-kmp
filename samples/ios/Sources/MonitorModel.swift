@@ -25,6 +25,7 @@ final class MonitorModel: ObservableObject {
 
     private var started = false
     private var unlockObserver: NSObjectProtocol?
+    private var lockObserver: NSObjectProtocol?
 
     /// 단위 테스트가 앱을 띄울 때는 자동 연결과 키 읽기를 하지 않는다.
     private static var runningTests: Bool { ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil }
@@ -53,6 +54,10 @@ final class MonitorModel: ObservableObject {
         unlockObserver = NotificationCenter.default.addObserver(
             forName: UIApplication.protectedDataDidBecomeAvailableNotification, object: nil, queue: .main
         ) { _ in engine.protectedDataBecameAvailable() }
+        // 잠기는 때도 남긴다: 잠금 중에 재연결이 멈추는지 읽으려면 잠금 시각이 필요하다.
+        lockObserver = NotificationCenter.default.addObserver(
+            forName: UIApplication.protectedDataWillBecomeUnavailableNotification, object: nil, queue: .main
+        ) { _ in engine.noteProtectedData(available: false) }
         engine.autoConnectIfSaved()
     }
 
@@ -76,6 +81,12 @@ final class MonitorModel: ObservableObject {
         case .pollSeconds(let seconds): pollSeconds = seconds
         case .log(let stats): logStats = stats
         }
+    }
+
+    /// 앱 화면 상태가 바뀌었다(`ContentView` 가 부른다). 시험 중에는 기록하지 않는다.
+    func scenePhaseChanged(_ phase: String) {
+        if Self.runningTests { return }
+        engine.noteScenePhase(phase)
     }
 
     // MARK: - 사용자 동작

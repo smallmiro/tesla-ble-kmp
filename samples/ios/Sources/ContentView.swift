@@ -21,9 +21,23 @@ struct ContentView: View {
         }
         .onAppear {
             monitor.start()
+            monitor.scenePhaseChanged(Self.name(of: scenePhase)) // 처음 화면 상태도 남긴다
             keepScreenOn(scenePhase == .active)
         }
-        .onChange(of: scenePhase) { keepScreenOn($0 == .active) }
+        .onChange(of: scenePhase) {
+            monitor.scenePhaseChanged(Self.name(of: $0))
+            keepScreenOn($0 == .active)
+        }
+    }
+
+    /// 로그 `app` 줄(`scenePhase`)에 쓰는 이름.
+    private static func name(of phase: ScenePhase) -> String {
+        switch phase {
+        case .active: return "active"
+        case .inactive: return "inactive"
+        case .background: return "background"
+        @unknown default: return "unknown"
+        }
     }
 
     /// SFR-013: 앱이 보일 때만 화면이 꺼지지 않게 한다. 백그라운드와 비활성에서는 시스템 기본으로 돌아간다.

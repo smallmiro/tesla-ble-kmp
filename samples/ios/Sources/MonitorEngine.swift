@@ -226,7 +226,7 @@ final class MonitorEngine: @unchecked Sendable {
 
     /// 저장된 VIN 이 있으면 연결을 시작한다. 이 프로세스에서 아직 아무것도 시작하지 않았을 때만(앱 시작 자동 연결, SFR-011).
     func autoConnectIfSaved() {
-        if loop.state == .idle, !keyGate.isReplacing, parsedVin() != nil { startLoop() }
+        if loop.state == .idle, !keyGate.isReplacing, parsedVin() != nil { startLoop(.launch) }
     }
 
     /// 연결 버튼. 기다리지 않고 바로 시도한다. VIN 이 없거나 형식이 틀리면 `false`.
@@ -235,7 +235,7 @@ final class MonitorEngine: @unchecked Sendable {
         guard parsedVin() != nil else { return false }
         // 키를 바꾸는 중에는 연결을 시작하지 않는다(옛 키 핸들로 연결되면 안 된다). 누른 것을 기억해 두었다가 교체가 끝나면 따른다.
         if keyGate.note(.connect) { return true }
-        startLoop()
+        startLoop(.connectButton)
         return true
     }
 
@@ -247,7 +247,8 @@ final class MonitorEngine: @unchecked Sendable {
 
     /// 폰이 잠금 해제되면 기다리던 재연결을 바로 시도한다(키 저장소가 `Locked` 였을 때). 멈춘 상태는 건드리지 않는다.
     func protectedDataBecameAvailable() {
-        if case .backoff = loop.state, !keyGate.isReplacing { startLoop() }
+        noteProtectedData(available: true)
+        if case .backoff = loop.state, !keyGate.isReplacing { startLoop(.protectedData) }
     }
 
     /// VIN 을 저장한다. 형식이 틀리면 `false`.
@@ -273,9 +274,19 @@ final class MonitorEngine: @unchecked Sendable {
         }))
     }
 
-    /// 연결 루프를 시작하는 곳은 여기 하나다(왜 시작했는지를 한 곳에서 다룬다).
-    private func startLoop() {
-        loop.start()
+    /// 연결 루프를 시작하는 곳은 여기 하나다. 왜 불렀는지와 그 결과를 `app` 줄(`start`)로 남긴다(루프가 `connecting` 을 알리기 전에 쓴다).
+    private func startLoop(_ reason: StartReason) {
+        loop.start { [log] effect in log.write(LogLine.start(ts: log.stamp(), reason: reason, effect: effect)) }
+    }
+
+    /// 앱 화면 상태(`active`, `inactive`, `background`)가 바뀌었다. 백그라운드에서 재연결이 멈추는 일(F3)을 읽을 때 쓴다.
+    func noteScenePhase(_ phase: String) {
+        log.write(LogLine.scenePhase(ts: log.stamp(), phase: phase))
+    }
+
+    /// 보호된 데이터(= 폰 잠금)가 열렸거나 닫힐 예정이다.
+    func noteProtectedData(available: Bool) {
+        log.write(LogLine.protectedData(ts: log.stamp(), available: available))
     }
 
     func parsedVin() -> Vin? { savedVin.flatMap { Vin.companion.parseOrNull(value: $0) } }
@@ -389,7 +400,7 @@ final class MonitorEngine: @unchecked Sendable {
             wantsReconnect: { self.keyGate.shouldReconnect(wasActive: wasActive) },
             reconnect: {
                 // 새 키가 캐시에 있다. 문을 풀면서 다시 연결할지 한 번에 정하고(교체 중에 끊기를 눌렀으면 연결하지 않는다) 연결한다.
-                if self.keyGate.finishReplace(wasActive: wasActive), self.parsedVin() != nil { self.startLoop() }
+                if self.keyGate.finishReplace(wasActive: wasActive), self.parsedVin() != nil { self.startLoop(.keyReplaced) }
             }
         )
     }
@@ -623,6 +634,7 @@ final class MonitorEngine: @unchecked Sendable {
     /// 성공했을 때만 값을 돌려준다(`Uncertain`, `Failure`, 취소는 nil).
     @discardableResult
     private func record(_ call: String, _ query: () async throws -> VehicleResult, summarize: (Any?) -> String) async -> Any? {
+        let startedAt = log.stamp() // 요청을 보내는 시각(결과 줄의 `ts` 는 끝난 시각이다)
         let outcome: String
         let summary: String
         var success: Any?
@@ -645,7 +657,7 @@ final class MonitorEngine: @unchecked Sendable {
             return queries
         }
         emit.yield(.queries(next))
-        log.write(LogLine.query(ts: log.stamp(), call: call, result: outcome, summary: summary))
+        log.write(LogLine.query(ts: log.stamp(), call: call, result: outcome, summary: summary, startedAt: startedAt))
         return success
     }
 

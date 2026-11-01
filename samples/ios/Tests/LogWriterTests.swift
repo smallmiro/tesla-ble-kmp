@@ -187,6 +187,54 @@ final class LogWriterTests: XCTestCase {
         XCTAssertEqual(all[4]["state"] as? String, "stopped")
     }
 
+    func testQueryLineCarriesTheRequestStartTimeAfterTheOldFields() async throws {
+        let dir = tempDir()
+        let w = writer(dir)
+        w.write(LogLine.query(ts: "2026-10-24T10:00:05.000+09:00", call: "vehicleStatus", result: "Success", summary: "lock=LOCKED", startedAt: "2026-10-24T10:00:00.250+09:00"))
+        w.write(LogLine.query(ts: "t", call: "listKeys", result: "Failure", summary: "x")) // 시작 시각 없이도 만들 수 있다(옛 호출)
+        await w.flush()
+
+        let all = try lines(try XCTUnwrap(files(dir).first))
+        XCTAssertEqual(Set(all[1].keys), ["ts", "kind", "call", "result", "summary", "startedAt"])
+        XCTAssertEqual(all[1]["startedAt"] as? String, "2026-10-24T10:00:00.250+09:00")
+        XCTAssertEqual(Set(all[2].keys), ["ts", "kind", "call", "result", "summary"])
+        // 새 필드는 맨 끝: 앞의 필드 순서는 그대로다
+        XCTAssertTrue(LogLine.query(ts: "a", call: "c", result: "r", summary: "s", startedAt: "b").toJSON()
+            .hasSuffix(#""summary":"s","startedAt":"b"}"#))
+    }
+
+    func testAppLinesCarryScenePhaseProtectedDataAndTheStartReason() async throws {
+        let dir = tempDir()
+        let w = writer(dir)
+        let ts = w.stamp()
+        w.write(LogLine.scenePhase(ts: ts, phase: "background"))
+        w.write(LogLine.protectedData(ts: ts, available: true))
+        w.write(LogLine.protectedData(ts: ts, available: false))
+        w.write(LogLine.start(ts: ts, reason: .connectButton, effect: .woke))
+        await w.flush()
+
+        let all = try lines(try XCTUnwrap(files(dir).first))
+        XCTAssertEqual(all[1]["kind"] as? String, "app")
+        XCTAssertEqual(Set(all[1].keys), ["ts", "kind", "event", "phase"])
+        XCTAssertEqual(all[1]["event"] as? String, "scenePhase")
+        XCTAssertEqual(all[1]["phase"] as? String, "background")
+        XCTAssertEqual(Set(all[2].keys), ["ts", "kind", "event", "state"])
+        XCTAssertEqual(all[2]["event"] as? String, "protectedData")
+        XCTAssertEqual(all[2]["state"] as? String, "available")
+        XCTAssertEqual(all[3]["state"] as? String, "unavailable")
+        XCTAssertEqual(Set(all[4].keys), ["ts", "kind", "event", "reason", "effect"])
+        XCTAssertEqual(all[4]["event"] as? String, "start")
+        XCTAssertEqual(all[4]["reason"] as? String, "connect-button")
+        XCTAssertEqual(all[4]["effect"] as? String, "woke")
+    }
+
+    func testStartReasonNames() {
+        XCTAssertEqual(StartReason.launch.rawValue, "launch")
+        XCTAssertEqual(StartReason.connectButton.rawValue, "connect-button")
+        XCTAssertEqual(StartReason.protectedData.rawValue, "protected-data")
+        XCTAssertEqual(StartReason.keyReplaced.rawValue, "key-replaced")
+    }
+
     func testUnrecognizedFlag() async throws {
         let dir = tempDir()
         let w = writer(dir)

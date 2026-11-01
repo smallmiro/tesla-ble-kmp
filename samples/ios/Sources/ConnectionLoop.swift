@@ -19,6 +19,16 @@ enum LinkState<V: Sendable & Equatable>: Sendable, Equatable {
     case stopped
 }
 
+/// `ConnectionLoop.start()` 가 한 일(로그 `app` 줄 `start` 의 `effect`).
+enum StartEffect: String, Sendable, Equatable {
+    /// 쉬던 루프가 없어서 새 루프를 띄웠다.
+    case started
+    /// 쉬는 중(`Backoff`)이어서 기다리지 않고 바로 시도하게 했다.
+    case woke
+    /// 연결 중이거나 연결돼 있어서 아무 일도 없었다.
+    case ignored
+}
+
 /// 2초에서 시작해 두 배씩 늘어 최대 30초(SFR-012).
 struct BackoffPolicy: Sendable {
     var initial: TimeInterval = 2
@@ -120,15 +130,21 @@ final class ConnectionLoop<V: Sendable & Equatable>: @unchecked Sendable {
         return current
     }
 
-    func start() {
+    /// `decided` 는 무엇을 할지 정해진 직후, 실제로 하기 전에 불린다(로그에서 `start` 줄이 `connecting` 줄보다 앞서게 한다).
+    /// 콜백은 짧고 이 객체를 다시 부르지 않는다.
+    @discardableResult
+    func start(decided: (StartEffect) -> Void = { _ in }) -> StartEffect {
         lock.lock()
         if job != nil {
             // 쉬기 문이 놓여 있으면(Backoff 를 알리기 직전 포함) 기다리지 않고 바로 시도한다.
             let waiting = gate
+            let effect: StartEffect = waiting == nil ? .ignored : .woke
+            decided(effect)
             lock.unlock()
             waiting?.fire()
-            return
+            return effect
         }
+        decided(.started)
         let previous = teardown
         job = Task { [self] in
             // 이전 차량의 disconnect() 가 끝나기 전에 새로 연결하지 않는다.
@@ -137,6 +153,7 @@ final class ConnectionLoop<V: Sendable & Equatable>: @unchecked Sendable {
             await run()
         }
         lock.unlock()
+        return .started
     }
 
     func stop() async {

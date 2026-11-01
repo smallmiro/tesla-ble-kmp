@@ -37,6 +37,18 @@ struct MonitorEvent: Sendable, Equatable {
     let unknownFields: [String]
 }
 
+/// 연결 루프 `start()` 를 부른 이유(로그 `app` 줄 `start` 의 `reason`).
+enum StartReason: String, Sendable {
+    /// 앱 시작 때 저장된 VIN 으로 하는 자동 연결.
+    case launch
+    /// 연결 버튼(Live·Control·키·제어 탭).
+    case connectButton = "connect-button"
+    /// 폰 잠금 해제(`protectedDataDidBecomeAvailable`)로 쉬던 재연결을 깨움.
+    case protectedData = "protected-data"
+    /// 키 삭제 후 다시 만들기가 끝나서 다시 연결.
+    case keyReplaced = "key-replaced"
+}
+
 /// 로그 한 줄(JSON Lines). 줄 형식의 정본은 `samples/documents/md/04-monitor-app.md` §Log format 이고 Android 앱과 같은 이름·순서를 쓴다.
 /// 만들 때 VIN 모양 텍스트와 원본 바이트의 VIN 은 이미 가려진다(`VinMask`).
 struct LogLine: Sendable {
@@ -108,8 +120,28 @@ struct LogLine: Sendable {
         make(ts, "observe", [("line", .string(VinMask.maskText(text)))])
     }
 
-    static func query(ts: String, call: String, result: String, summary: String) -> LogLine {
-        make(ts, "query", [("call", .string(call)), ("result", .string(result)), ("summary", .string(VinMask.maskText(summary)))])
+    /// `ts` 는 결과가 나온 시각이고, `startedAt` 은 요청을 보낸 시각(같은 형식)이다. 둘의 차이가 걸린 시간이다. 없으면 뺀다.
+    static func query(ts: String, call: String, result: String, summary: String, startedAt: String? = nil) -> LogLine {
+        make(ts, "query", [
+            ("call", .string(call)),
+            ("result", .string(result)),
+            ("summary", .string(VinMask.maskText(summary))),
+            ("startedAt", startedAt.map { .string($0) }),
+        ])
+    }
+
+    /// 앱 상태 줄(`kind: app`). `event` 로 가른다: `scenePhase`(`phase`: active, inactive, background),
+    /// `protectedData`(`state`: available, unavailable), `start`(연결 루프 `start()` 가 불린 이유와 그 결과).
+    static func scenePhase(ts: String, phase: String) -> LogLine {
+        make(ts, "app", [("event", .string("scenePhase")), ("phase", .string(phase))])
+    }
+
+    static func protectedData(ts: String, available: Bool) -> LogLine {
+        make(ts, "app", [("event", .string("protectedData")), ("state", .string(available ? "available" : "unavailable"))])
+    }
+
+    static func start(ts: String, reason: StartReason, effect: StartEffect) -> LogLine {
+        make(ts, "app", [("event", .string("start")), ("reason", .string(reason.rawValue)), ("effect", .string(effect.rawValue))])
     }
 
     /// `state`: connecting, connected, disconnected, backoff, stopped. `reason`·`attempt`·`delayMs` 는 해당 없으면 뺀다.
