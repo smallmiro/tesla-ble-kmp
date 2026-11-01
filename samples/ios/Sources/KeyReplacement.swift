@@ -50,6 +50,8 @@ enum KeyReplaceOutcome: Sendable, Equatable {
     case lost(String)
     /// 지우기가 실패했고 지금 키 상태도 읽지 못했다. 다시 연결하지 않았다.
     case unverified(String)
+    /// 다른 호출(Control 탭의 등록·명령 등)이 진행 중이거나 이미 키를 바꾸는 중이라 시작하지 않았다. 아무것도 바꾸지 않았다.
+    case busy
 
     var line: String {
         switch self {
@@ -61,6 +63,8 @@ enum KeyReplaceOutcome: Sendable, Equatable {
             return "키를 지우지 못했습니다(\(why)). 옛 키는 그대로이고 새 키를 만들지 않았습니다"
         case .notCreated(let why):
             return "옛 키는 지웠지만 새 키를 만들지 못했습니다(\(why)). 1단계에서 키를 만드세요"
+        case .busy:
+            return "다른 호출이 진행 중이거나 키를 바꾸는 중이라 지금은 할 수 없습니다. 끝난 뒤 다시 누르세요"
         case .lost(let why):
             return "키를 지우지 못했다고 했지만(\(why)) 키 저장소에 키가 없습니다. 연결을 다시 만들지 않았습니다. 1단계에서 키를 만드세요"
         case .unverified(let why):
@@ -71,7 +75,7 @@ enum KeyReplaceOutcome: Sendable, Equatable {
     var tone: KeyControlModel.ResultLine.Tone {
         switch self {
         case .replaced: return .ok
-        case .locked: return .warn
+        case .locked, .busy: return .warn
         case .notDeleted, .notCreated, .lost, .unverified: return .fail
         }
     }
@@ -86,7 +90,7 @@ enum KeyReplaceOutcome: Sendable, Equatable {
     var dropsConnectionState: Bool {
         switch self {
         case .replaced, .notCreated, .lost, .unverified: return true
-        case .locked, .notDeleted: return false
+        case .locked, .notDeleted, .busy: return false
         }
     }
 }
@@ -94,10 +98,18 @@ enum KeyReplaceOutcome: Sendable, Equatable {
 /// 순서 규칙. 연결과 세션 캐시는 옛 키의 것이라 먼저 끊고(`13-lib-pairing.md`: 키를 지우거나 바꾸면 다음 `connect` 가 옛 캐시를 버리고
 /// 다시 핸드셰이크한다), 키 핸들을 버린 뒤 지우고 만든다. 지우기에 실패하면 새 키를 만들지 않고 옛 키를 다시 읽는다.
 enum KeyReplacer {
+    /// 모니터 연결이 동작 중인가(연결 중, 연결됨, 재시도 대기). 사용자가 멈춘 연결(`stopped`)과 시작 전(`idle`)은 아니다.
+    static func isActive<V: Sendable & Equatable>(_ state: LinkState<V>) -> Bool {
+        switch state {
+        case .idle, .stopped: return false
+        case .connecting, .connected, .backoff: return true
+        }
+    }
+
     static func run(
         wasActive: Bool,
         probe: () async -> KeyProbe,
-        disconnect: () async -> (),
+        disconnect: () async -> Bool,
         forgetHandle: () -> (),
         delete: () async -> KeyDeleteResult,
         create: () async -> KeyCreateResult,
@@ -111,7 +123,10 @@ enum KeyReplacer {
         case .present, .absent, .corrupted: break // 손상된 키도 지우고 다시 만들 수 있다(읽을 수 없어도 된다)
         }
         // 2) 연결(과 그 세션)이 옛 키 것이라 먼저 끊는다. 쓰던 연결이 없으면 건드리지 않는다.
-        if wasActive { await disconnect() }
+        if wasActive, !(await disconnect()) {
+            // 끊는 사이에 다른 탭이 연결을 시작했다: 옛 키로 만든 연결이 남아 있다. 아무것도 지우지 않는다.
+            return .notDeleted("연결을 끊지 못했습니다")
+        }
         forgetHandle()
         // 3) 지운다. 실패하면 새 키를 만들지 않고 옛 키를 다시 읽어 상태를 되돌린다.
         let deleteFailure: (outcome: KeyReplaceOutcome, why: String)
@@ -180,4 +195,64 @@ enum KeyReplacement {
         """,
         action: "삭제 후 다시 만들기"
     )
+}
+
+/// 키를 바꾸는 동안 다른 탭이 키를 쓰는 동작을 시작하지 못하게 하고, 키를 쓰는 동작이 도는 동안은 교체를 시작하지 못하게 한다(엔진 수준, 스레드 안전).
+final class KeyOperationGate: @unchecked Sendable {
+    private let lock = NSLock()
+    private var operations = 0
+    private var replacing = false
+
+    var isReplacing: Bool { lock.withLock { replacing } }
+    var activeOperations: Int { lock.withLock { operations } }
+
+    /// 키를 쓰는 동작(등록·명령·조회)이 시작한다. 키를 바꾸는 중이면 `false`.
+    func beginOperation() -> Bool {
+        lock.withLock {
+            if replacing { return false }
+            operations += 1
+            return true
+        }
+    }
+
+    func endOperation() { lock.withLock { operations = max(0, operations - 1) } }
+
+    /// 키 교체가 시작한다. 키를 쓰는 동작이 돌거나 이미 바꾸는 중이면 `false`.
+    func beginReplace() -> Bool {
+        lock.withLock {
+            if replacing || operations > 0 { return false }
+            replacing = true
+            return true
+        }
+    }
+
+    /// 여러 번 불러도 된다(다시 연결하기 직전에 풀고, 끝에서 한 번 더 부른다).
+    func endReplace() { lock.withLock { replacing = false } }
+}
+
+/// 엔진이 들고 있는 키 핸들. `forget()` 은 세대를 올려서, 그 전에 시작한 읽기가 늦게 끝나도 지워질 옛 키를 캐시에 올리지 못한다.
+final class KeyHandleCache<K>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value: K?
+    private var generation = 0
+
+    var epoch: Int { lock.withLock { generation } }
+
+    func get() -> K? { lock.withLock { value } }
+
+    /// 읽기를 시작할 때의 `epoch` 가 그대로일 때만 저장한다. 저장했으면 `true`.
+    func set(_ new: K, ifEpoch epoch: Int) -> Bool {
+        lock.withLock {
+            guard generation == epoch else { return false }
+            value = new
+            return true
+        }
+    }
+
+    func forget() {
+        lock.withLock {
+            value = nil
+            generation += 1
+        }
+    }
 }

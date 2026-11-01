@@ -11,12 +11,14 @@ final class KeyReplacerTests: XCTestCase {
         var delete = KeyDeleteResult.deleted
         var create = KeyCreateResult.created
         var restore = KeyProbe.present
+        /// 연결을 끊은 뒤 연결이 정말 없는가.
+        var disconnected = true
 
         func run(wasActive: Bool) async -> KeyReplaceOutcome {
             await KeyReplacer.run(
                 wasActive: wasActive,
                 probe: { self.calls.append("probe"); return self.probe },
-                disconnect: { self.calls.append("disconnect") },
+                disconnect: { self.calls.append("disconnect"); return self.disconnected },
                 forgetHandle: { self.calls.append("forget") },
                 delete: { self.calls.append("delete"); return self.delete },
                 create: { self.calls.append("create"); return self.create },
@@ -49,6 +51,31 @@ final class KeyReplacerTests: XCTestCase {
         let outcome = await r.run(wasActive: false)
         XCTAssertEqual(outcome, .replaced)
         XCTAssertEqual(r.calls, ["probe", "forget", "delete", "create"])
+    }
+
+    // MARK: 연결이 정말 끊겼는지 확인한다
+
+    func testStopsBeforeDeletingWhenAConnectionRemains() async {
+        let r = Rig()
+        r.disconnected = false // 끊는 사이에 다른 탭이 연결을 시작했다
+        let outcome = await r.run(wasActive: true)
+        XCTAssertEqual(outcome, .notDeleted("연결을 끊지 못했습니다"))
+        XCTAssertEqual(r.calls, ["probe", "disconnect"]) // 지우지도, 핸들을 버리지도, 연결을 다시 만들지도 않는다
+    }
+
+    func testWasActiveFollowsTheLinkState() {
+        XCTAssertFalse(KeyReplacer.isActive(LinkState<Int>.idle))
+        XCTAssertFalse(KeyReplacer.isActive(LinkState<Int>.stopped))
+        XCTAssertTrue(KeyReplacer.isActive(LinkState<Int>.connecting(1)))
+        XCTAssertTrue(KeyReplacer.isActive(LinkState<Int>.connected(7)))
+        XCTAssertTrue(KeyReplacer.isActive(LinkState<Int>.backoff(attempt: 2, delay: 4, reason: nil)))
+    }
+
+    func testBusyOutcomeChangesNothing() {
+        XCTAssertEqual(KeyReplaceOutcome.busy.tone, .warn)
+        XCTAssertNil(KeyReplaceOutcome.busy.enrollmentAfter)
+        XCTAssertFalse(KeyReplaceOutcome.busy.dropsConnectionState)
+        XCTAssertTrue(KeyReplaceOutcome.busy.line.contains("다시 누르세요"))
     }
 
     // MARK: 손상된 키 — 읽을 수 없어도 지우고 다시 만들 수 있다

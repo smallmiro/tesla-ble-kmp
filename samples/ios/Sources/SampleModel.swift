@@ -441,9 +441,15 @@ final class SampleModel: ObservableObject {
 
     private func exclusive(_ body: @MainActor () async -> ()) async {
         guard !busy else { return }
+        // 키·제어 탭이 모니터 키를 바꾸는 중이면 시작하지 않는다. 이 탭의 동작이 도는 동안은 키 교체가 시작하지 못한다(`KeyOperationGate`).
+        guard engine.keyGate.beginOperation() else {
+            log("키를 바꾸는 중이라 지금은 할 수 없습니다. 끝난 뒤 다시 누르세요")
+            return
+        }
         busy = true
         await body()
         busy = false
+        engine.keyGate.endOperation()
     }
 
     func createKey() async {
