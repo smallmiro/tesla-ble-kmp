@@ -85,6 +85,16 @@ final class EnrollmentPopupTests: XCTestCase {
         XCTAssertEqual(p.progressText, "확인 41번째 · 경과 2:05 / 2:00 · 남은 시간 0:00")
     }
 
+    func testAfterATimedOutRequestTheTextSaysSoAndKeepsShowingTheCheckProgress() {
+        let p = popup(.sent, .timedOut, .confirming(attempt: 2, elapsed: 3))
+        XCTAssertTrue(p.message.contains("시간 초과"), "the request timed out")
+        XCTAssertTrue(p.message.contains(p.progressText), "and the check progress stays visible")
+        // 승인 뒤의 확인에는 시간 초과 문구가 없다.
+        let accepted = popup(.sent, .accepted, .confirming(attempt: 2, elapsed: 3))
+        XCTAssertFalse(accepted.message.contains("시간 초과"))
+        XCTAssertEqual(accepted.message, accepted.progressText)
+    }
+
     func testConfirmingWithoutAnAcceptedReplyStillCountsAsConfirming() {
         // 요청이 시간 초과로 끝난 뒤 확인으로 넘어가는 길.
         let p = popup(.timedOut, .confirming(attempt: 1, elapsed: 0))
@@ -121,7 +131,7 @@ final class EnrollmentPopupTests: XCTestCase {
     }
 
     func testConfirmFailedShowsTheMessage() {
-        let p = popup(.sent, .accepted, .confirmFailed("NotConnected"))
+        let p = popup(.sent, .accepted, .confirmFailed("NotConnected", line: "등록 확인 실패: NotConnected"))
         XCTAssertEqual(p.phase, .failed("NotConnected"))
         XCTAssertTrue(p.message.contains("NotConnected"))
         XCTAssertEqual(marks(p), [.done, .done, .failed])
@@ -187,17 +197,49 @@ final class EnrollmentPopupTests: XCTestCase {
     func testFinishedPicksTheRightUpdate() {
         XCTAssertEqual(EnrollmentUpdate.finished(enrolled: true, line: "ok", failure: nil, cancelled: true), .confirmed("ok"))
         XCTAssertEqual(EnrollmentUpdate.finished(enrolled: false, line: "x", failure: nil, cancelled: true), .cancelled)
-        XCTAssertEqual(EnrollmentUpdate.finished(enrolled: false, line: "x", failure: "NotConnected", cancelled: false), .confirmFailed("NotConnected"))
+        XCTAssertEqual(EnrollmentUpdate.finished(enrolled: false, line: "x", failure: "NotConnected", cancelled: false), .confirmFailed("NotConnected", line: "x"))
         XCTAssertEqual(EnrollmentUpdate.finished(enrolled: false, line: "x", failure: nil, cancelled: false), .notConfirmed("x"))
         // 취소가 실패보다 먼저다(취소하면서 호출이 오류로 끝났을 수 있다).
         XCTAssertEqual(EnrollmentUpdate.finished(enrolled: false, line: "x", failure: "e", cancelled: true), .cancelled)
+    }
+
+    /// 실제 경로(`EnrollmentWaiter` → `finished` → 줄·팝업)에서 접두어가 살아 있다. 문자열을 손으로 넣어 접두어를 가리지 않는다.
+    func testFailedCheckKeepsItsPrefixThroughTheRealPath() async {
+        var now: TimeInterval = 0
+        let result = await EnrollmentWaiter.wait(
+            probe: { .failed("NotConnected") }, sleep: { now += $0 }, now: { now }
+        )
+        XCTAssertFalse(result.enrolled)
+        XCTAssertEqual(result.failure, "NotConnected")
+        let update = EnrollmentUpdate.finished(enrolled: result.enrolled, line: result.line, failure: result.failure, cancelled: false)
+        XCTAssertEqual(update.line, "등록 확인 실패: NotConnected")
+        var p = EnrollmentPopup()
+        p.apply(update)
+        XCTAssertEqual(p.phase, .failed("NotConnected"))
+        XCTAssertEqual(p.message, "실패: NotConnected")
+    }
+
+    func testTwoMinutesWithoutConfirmationIsNotAFailure() async {
+        var now: TimeInterval = 0
+        let result = await EnrollmentWaiter.wait(probe: { .notYet }, sleep: { now += $0 }, now: { now })
+        XCTAssertNil(result.failure)
+        let update = EnrollmentUpdate.finished(enrolled: result.enrolled, line: result.line, failure: result.failure, cancelled: false)
+        XCTAssertEqual(update, .notConfirmed(result.line))
+        XCTAssertTrue(result.line.contains("2분 안에 확인되지 않음"))
+    }
+
+    func testBlockedConfirmationKeepsItsPrefixToo() {
+        let blocked = EnrollmentWaiter.blocked("먼저 연결하세요")
+        XCTAssertEqual(blocked.line, "등록 확인: 먼저 연결하세요")
+        XCTAssertEqual(blocked.failure, "먼저 연결하세요")
+        let update = EnrollmentUpdate.finished(enrolled: blocked.enrolled, line: blocked.line, failure: blocked.failure, cancelled: false)
+        XCTAssertEqual(update.line, "등록 확인: 먼저 연결하세요")
     }
 
     func testControlTabLinesStayTheSameAndSkipProgressTicks() {
         XCTAssertEqual(EnrollmentUpdate.sent.line, "요청 보냄 — 중앙 콘솔에 키카드를 대고 화면에서 승인하세요")
         XCTAssertEqual(EnrollmentUpdate.waitingForTap.line, "카드 태그 대기 중")
         XCTAssertEqual(EnrollmentUpdate.timedOut.line, "시간 초과 — 등록 여부를 확인합니다")
-        XCTAssertEqual(EnrollmentUpdate.confirmFailed("등록 확인 실패: x").line, "등록 확인 실패: x")
         XCTAssertNil(EnrollmentUpdate.confirming(attempt: 1, elapsed: 0).line)
         XCTAssertNotNil(EnrollmentUpdate.cancelled.line)
     }
