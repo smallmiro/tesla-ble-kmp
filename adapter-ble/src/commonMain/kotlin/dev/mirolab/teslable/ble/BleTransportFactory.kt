@@ -159,8 +159,11 @@ internal class BleTransportFactory(
             val cached = hitsMutex.withLock { recentHits[target.identifier] }
             if (cached != null && cached.advertisement.localName == localName) return ConnectorScan.Hit(cached)
         }
-        return connector.scan(localName).firstOrNull()?.also { if (it is ConnectorScan.Hit) remember(it.hit) }
+        return scanOnce(localName)
     }
+
+    private suspend fun scanOnce(localName: LocalName): ConnectorScan? =
+        connector.scan(localName).firstOrNull()?.also { if (it is ConnectorScan.Hit) remember(it.hit) }
 
     /**
      * [GattConnector.open]을 팩토리 스코프에서 돌린다. 호출자가 사라진 뒤(타임아웃·취소) 열린 링크는 받을 사람이 없으므로
