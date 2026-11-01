@@ -49,6 +49,14 @@ enum StartReason: String, Sendable {
     case keyReplaced = "key-replaced"
 }
 
+/// `connect` 가 스스로 스캔했을 때 링크를 연 광고에 대한 기록(`Vehicle.scanObservation`, 12-lib-getting-started.md §Connect scan observation).
+/// `rssi` 는 플랫폼이 값을 주지 않으면 `nil`. 라이브러리 타입을 로그 코드에서 떼어 두려고 숫자만 옮긴다.
+struct ScanHit: Sendable, Equatable {
+    let hitAfterMs: Int
+    let rssi: Int?
+    let openAttempt: Int
+}
+
 /// 로그 한 줄(JSON Lines). 줄 형식의 정본은 `samples/documents/md/04-monitor-app.md` §Log format 이고 Android 앱과 같은 이름·순서를 쓴다.
 /// 만들 때 VIN 모양 텍스트와 원본 바이트의 VIN 은 이미 가려진다(`VinMask`).
 struct LogLine: Sendable {
@@ -145,12 +153,16 @@ struct LogLine: Sendable {
     }
 
     /// `state`: connecting, connected, disconnected, backoff, stopped. `reason`·`attempt`·`delayMs` 는 해당 없으면 뺀다.
-    static func link(ts: String, state: String, reason: String? = nil, attempt: Int? = nil, delayMs: Int? = nil) -> LogLine {
+    /// `scan`(connected 줄에만): `scanHitMs`(connect 시작부터 광고를 받기까지), `rssi`(값이 없으면 뺌), `openAttempt`. 기억하던 target 으로 연결했으면 셋 다 뺀다.
+    static func link(ts: String, state: String, reason: String? = nil, attempt: Int? = nil, delayMs: Int? = nil, scan: ScanHit? = nil) -> LogLine {
         make(ts, "link", [
             ("state", .string(state)),
             ("reason", reason.map { .string(VinMask.maskText($0)) }),
             ("attempt", attempt.map { .int($0) }),
             ("delayMs", delayMs.map { .int($0) }),
+            ("scanHitMs", scan.map { .int($0.hitAfterMs) }),
+            ("rssi", scan?.rssi.map { .int($0) }),
+            ("openAttempt", scan.map { .int($0.openAttempt) }),
         ])
     }
 
