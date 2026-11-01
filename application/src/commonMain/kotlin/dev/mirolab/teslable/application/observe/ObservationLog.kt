@@ -46,6 +46,29 @@ internal enum class AddressOwner(
 }
 
 /**
+ * 원본에 없음(Go에는 이런 진단 로그가 없다) — 자기 요청의 응답이 복호화 단계를 어떻게 지났는지. 페이로드 검사 결과일 뿐 응답 전체에 대한 말이 아니다:
+ * 바깥 `operation_status`는 AES-GCM 범위 밖이다(ADR-0015).
+ */
+internal enum class ReplyAuth(
+    val label: String,
+) {
+    /** `AES_GCM_Response_data`가 있고 검증과 재전송 검사를 통과했다. */
+    GCM_OK("gcm-ok"),
+
+    /** 검증에 실패해 버렸다. */
+    GCM_FAILED("gcm-failed"),
+
+    /** 검증은 통과했지만 재전송 검사에서 버렸다. */
+    GCM_REPLAY("gcm-replay"),
+
+    /** 검사할 세션이 없어 버렸다. */
+    GCM_NO_SESSION("gcm-no-session"),
+
+    /** `AES_GCM_Response_data`가 없어 아무것도 검사하지 않았다. 세션정보의 HMAC은 따로 검증하며 여기에 반영되지 않는다. */
+    NONE("none"),
+}
+
+/**
  * 원본에 없음 — 차량 푸시 관찰 로그 한 줄(M4 Task 1, 설계 구체화 1). M5 `vehicle.events` 설계의 근거를 모은다.
  * 바이트 필드는 길이만, 공개키는 SHA-1 앞 4바이트만, 암호문은 길이만 쓴다(절대 규칙 8, FR-112). VIN은 메시지에 없다.
  */
