@@ -1,5 +1,6 @@
 package dev.mirolab.teslable
 
+import com.tesla.generated.carserver.vehicle.VehicleData
 import dev.mirolab.teslable.application.dispatcher.SessionEvent
 import dev.mirolab.teslable.application.vcsec.VcsecBroadcasts
 import dev.mirolab.teslable.application.vehicle.VehicleSession
@@ -8,6 +9,7 @@ import dev.mirolab.teslable.model.KeyRole
 import dev.mirolab.teslable.model.PairingEvent
 import dev.mirolab.teslable.model.PublicKeyBytes
 import dev.mirolab.teslable.model.SessionInfoSummary
+import dev.mirolab.teslable.model.StateCategory
 import dev.mirolab.teslable.model.VehicleDomain
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleEvent
@@ -158,6 +160,12 @@ internal class DefaultVehicle(
 
     override suspend fun vehicleStatus(timeout: Duration?): VehicleResult<VehicleStatus> =
         session.info.vehicleStatus(timeout ?: config.commandTimeout)
+
+    override suspend fun getState(
+        category: StateCategory,
+        timeout: Duration?,
+    ): VehicleResult<VehicleData> =
+        session.infotainment.getState(category, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
 
     override suspend fun keySummary(timeout: Duration?): VehicleResult<WhitelistSummary> =
         session.info.keySummary(timeout ?: config.commandTimeout)
