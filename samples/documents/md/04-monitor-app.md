@@ -76,9 +76,12 @@ is a `session` line with `platform`, `app` (version and build), `os`, `phone` mo
 {"ts":"2026-10-24T10:00:00.123+09:00","kind":"session","platform":"ios","app":"0.4.0(11)","os":"27.0.1","phone":"iPhone"}
 {"ts":"…","kind":"event","type":"Status","summary":"lock=LOCKED gear=PARK presence=NOT_PRESENT","unknownFields":["1.8"],"unrecognized":true,"raw":"<hex>"}
 {"ts":"…","kind":"observe","line":"[drop:no-handler] 83B from=domain(DOMAIN_VEHICLE_SECURITY) …"}
-{"ts":"…","kind":"query","call":"vehicleStatus","result":"Success","summary":"…"}
+{"ts":"…","kind":"query","call":"vehicleStatus","result":"Success","summary":"…","startedAt":"…"}
 {"ts":"…","kind":"link","state":"backoff","reason":"…","attempt":3,"delayMs":8000}
 {"ts":"…","kind":"mark","memo":"before: open driver door"}
+{"ts":"…","kind":"app","event":"scenePhase","phase":"background"}
+{"ts":"…","kind":"app","event":"protectedData","state":"unavailable"}
+{"ts":"…","kind":"app","event":"start","reason":"connect-button","effect":"woke"}
 ```
 
 - `type`: `Status`, `AuthenticationRequest`, `Unrecognized`. `unrecognized` is true when `unknownFields` is not empty or
@@ -86,8 +89,9 @@ is a `session` line with `platform`, `app` (version and build), `os`, `phone` mo
 - `raw`: the event's raw frame as lowercase hex, after VIN masking.
 - `observe`: library lines with tag `observe` (already VIN-masked by the library). BLE `TX:`/`RX:` lines are never written.
 - `link.state`: `connecting`, `connected`, `disconnected`, `backoff`, `stopped`.
+- `app` (iOS only so far, see "Additions since build 18" below): app and device state around the link, told apart by `event`.
 
-Field notes (both apps write the same names and order):
+Field notes (both apps write the same names and order, except the iOS-only additions below):
 
 - `event.summary` starts with `lock=<LockState> gear=<Gear> presence=<UserPresence>`, then `sleep=…`, `doors=<FD>/<FP>/<RD>/<RP>`,
   `frunk=…`, `trunk=…`, `chargePort=…` for `Status`; `level=… reasons=[…]` for `AuthenticationRequest`; `unknownFields=[…]` for
@@ -98,6 +102,27 @@ Field notes (both apps write the same names and order):
   `disconnected` line is written when the link drops (with the library's reason when it gave one), followed by a `backoff` line.
   A connection that stayed up for 10 seconds or more restarts the wait at 2 seconds.
 - `query.summary` for `vehicleStatus` uses the same form as `event.summary` of a `Status`. It has no public keys or VINs.
+
+Additions since build 18 (iOS only; #128, from the build 18 link-health analysis). New fields are added at the end of a line and
+new lines use a new `kind`, so a parser that ignores unknown keys and kinds keeps working. Android does not write them yet; the
+Android app has a gap here until it is brought level.
+
+- `query.startedAt`: the time the request was sent (same format as `ts`). `ts` stays the time the result arrived, so
+  `ts - startedAt` is how long the call took. Written for `vehicleStatus`, `keySummary` and `listKeys`.
+- `app` / `event: "scenePhase"`: `phase` is `active`, `inactive` or `background` (SwiftUI scene phase). The first line of a run gives the
+  phase at start.
+- `app` / `event: "protectedData"`: `state` is `available` (the phone was unlocked; `protectedDataDidBecomeAvailable`) or
+  `unavailable` (`protectedDataWillBecomeUnavailable`, the phone is about to lock).
+- `app` / `event: "start"`: written each time the connection loop's `start()` is called, **before** the `connecting` line it may
+  cause. `reason`: `launch` (auto connect at app start), `connect-button`, `protected-data` (unlock woke a waiting retry),
+  `key-replaced` (reconnect after "delete and recreate the key"). `effect`: `started` (a new loop began), `woke` (it was waiting in
+  `backoff` and was told to try at once) or `ignored` (already connecting or connected, nothing happened). A `connecting` line
+  with no `start` line before it came from the backoff timer.
+- **Not logged: scan hit time and RSSI on connect.** The monitor connects with `connect(vin, key, target = null, options)`, which scans
+  inside the library, and the documented result of `connect` (`12-lib-getting-started.md`) does not return the advertisement that was
+  used. Scanning in the app first (`scan(vin).first()`, then `connect(..., target)`) would change the connection path being
+  measured, so the sample does not do it. This is a library request: `Vehicle` (or the `connect` result) should expose the
+  advertisement it connected through (time seen, RSSI, `isConnectable`).
 
 Rules:
 
@@ -170,7 +195,8 @@ Files in `samples/ios/Sources/` (tests in `samples/ios/Tests/`, names as in the 
 |---|---|
 | `MonitorModel.swift` | The one object for the app's lifetime (`@StateObject` in `TeslableSampleApp`). Holds what the screens read, starts the engine once (auto-connect when a VIN is saved, not under XCTest), and creates the Control tab's `SampleModel` and the Key & Control tab's `KeyControlModel` |
 | `MonitorEngine.swift` | Owns `TeslaBle`, `ConnectionLoop`, the `Vehicle.events` Task, the query poll Task, the saved VIN (`UserDefaults`), the monitor key and the `LogWriter`. Sends changes to the model through one `AsyncStream` so their order is kept. `observe` lines come through `ObserveLogger`, a `TeslaLogger` that passes everything to `DebugLogger` |
-| `ConnectionLoop.swift` | State machine `idle`, `connecting(n)`, `connected(V)`, `backoff(attempt:delay:reason:)`, `stopped`; knows nothing about the library; the clock and the sleeper can be replaced (tests use a manual clock) |
+| `ConnectionLoop.swift` | State machine `idle`, `connecting(n)`, `connected(V)`, `backoff(attempt:delay:reason:)`, `stopped`; knows nothing about the library; the clock and the sleeper can be replaced (tests use a manual clock). `start()` returns what it did (`started`, `woke`, `ignored`) and takes a callback that runs before it acts (the `app` / `start` log line) |
+| `InitialQueryGate.swift`, `Tests/InitialQueryGateTests.swift` | A gate per connection, closed when the link becomes `connected` and opened when the monitor's first query round ends (or the connection ends). The Key & Control tab's automatic `listKeys()` waits on it, so it never overlaps the monitor's own first `listKeys()` (`05-key-control-tab.md`) |
 | `LogLine.swift`, `LogWriter.swift`, `VinMask.swift` | Log line format, file writer on its own serial queue behind the `LogSink` protocol, VIN masking |
 | `LiveState.swift` | Reduces events into the Live tab state (last-changed time per item). A successful `vehicleStatus()` counts as heard on the current link like a broadcast; a per-connection `linkEpoch` drops results that finish after their connection ended (SFR-022) |
 | `ClusterState.swift`, `Tests/ClusterStateTests.swift` | Reduces `LiveState` and the link into the cluster values of SFR-022: gear, closure of each `ClusterPart` (only `CLOSED` is closed), texts, dimming, headline. `Views/LiveTab.swift` overlays the `ClusterCar*` image set: eight SVGs on one 400×760 canvas |

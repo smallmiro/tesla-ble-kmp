@@ -105,9 +105,12 @@
 <pre><code class="language-json">{<span class="p">"ts"</span>:<span class="s">"2026-10-24T10:00:00.123+09:00"</span>,<span class="p">"kind"</span>:<span class="s">"session"</span>,<span class="p">"platform"</span>:<span class="s">"ios"</span>,<span class="p">"app"</span>:<span class="s">"0.4.0(11)"</span>,<span class="p">"os"</span>:<span class="s">"27.0.1"</span>,<span class="p">"phone"</span>:<span class="s">"iPhone"</span>}
 {<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"event"</span>,<span class="p">"type"</span>:<span class="s">"Status"</span>,<span class="p">"summary"</span>:<span class="s">"lock=LOCKED gear=PARK presence=NOT_PRESENT"</span>,<span class="p">"unknownFields"</span>:[<span class="s">"1.8"</span>],<span class="p">"unrecognized"</span>:<span class="n">true</span>,<span class="p">"raw"</span>:<span class="s">"&lt;hex&gt;"</span>}
 {<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"observe"</span>,<span class="p">"line"</span>:<span class="s">"[drop:no-handler] 83B from=domain(DOMAIN_VEHICLE_SECURITY) …"</span>}
-{<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"query"</span>,<span class="p">"call"</span>:<span class="s">"vehicleStatus"</span>,<span class="p">"result"</span>:<span class="s">"Success"</span>,<span class="p">"summary"</span>:<span class="s">"…"</span>}
+{<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"query"</span>,<span class="p">"call"</span>:<span class="s">"vehicleStatus"</span>,<span class="p">"result"</span>:<span class="s">"Success"</span>,<span class="p">"summary"</span>:<span class="s">"…"</span>,<span class="p">"startedAt"</span>:<span class="s">"…"</span>}
 {<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"link"</span>,<span class="p">"state"</span>:<span class="s">"backoff"</span>,<span class="p">"reason"</span>:<span class="s">"…"</span>,<span class="p">"attempt"</span>:<span class="n">3</span>,<span class="p">"delayMs"</span>:<span class="n">8000</span>}
-{<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"mark"</span>,<span class="p">"memo"</span>:<span class="s">"before: open driver door"</span>}</code></pre>
+{<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"mark"</span>,<span class="p">"memo"</span>:<span class="s">"before: open driver door"</span>}
+{<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"app"</span>,<span class="p">"event"</span>:<span class="s">"scenePhase"</span>,<span class="p">"phase"</span>:<span class="s">"background"</span>}
+{<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"app"</span>,<span class="p">"event"</span>:<span class="s">"protectedData"</span>,<span class="p">"state"</span>:<span class="s">"unavailable"</span>}
+{<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"app"</span>,<span class="p">"event"</span>:<span class="s">"start"</span>,<span class="p">"reason"</span>:<span class="s">"connect-button"</span>,<span class="p">"effect"</span>:<span class="s">"woke"</span>}</code></pre>
 <table>
 <thead><tr><th>Kind</th><th>内容</th></tr></thead>
 <tbody>
@@ -116,13 +119,23 @@
 <tr><td><code>query</code></td><td>Query タブの結果</td></tr>
 <tr><td><code>link</code></td><td>接続中、接続済み、切断、再試行待ち、停止</td></tr>
 <tr><td><code>mark</code></td><td>Mark ボタンで残したメモ</td></tr>
+<tr><td><code>app</code></td><td>今のところ iOS のみ: リンク周りのアプリと端末の状態（画面の状態、端末のロック、接続の試行を始めた理由）</td></tr>
 </tbody>
 </table>
-<p>フィールドの補足（両アプリは同じ名前と順序で書きます）:</p>
+<p>フィールドの補足（両アプリは同じ名前と順序で書きますが、下の iOS 限定の追加は例外です）:</p>
 <ul>
 <li><code>event.summary</code> は <code>lock=… gear=… presence=…</code> で始まり、<code>Status</code> ではその後に <code>sleep=…</code>、<code>doors=FD/FP/RD/RP</code>、<code>frunk=…</code>、<code>trunk=…</code>、<code>chargePort=…</code> が続きます。<code>AuthenticationRequest</code> は <code>level=… reasons=[…]</code>、<code>Unrecognized</code> は <code>unknownFields=[…]</code> です。</li>
 <li><code>link</code>: 該当しない <code>reason</code>、<code>attempt</code>、<code>delayMs</code> は書きません。<code>connecting.attempt</code> は開始、またはリンクが切れてからの試行回数です。<code>backoff.attempt</code> は連続失敗の回数（リンクが切れたこともその 1 回目として数えます）で、<code>delayMs</code> は次の試行までの待ち時間なので、待ち時間は 2000、4000、8000、16000、30000、30000 と並びます。リンクが切れると <code>disconnected</code> の行（ライブラリが理由を返したときはその理由つき）を書き、続けて <code>backoff</code> の行を書きます。10 秒以上続いた接続は、待ち時間を再び 2 秒から始めます。</li>
 <li><code>vehicleStatus</code> の <code>query.summary</code> は <code>Status</code> イベントの要約と同じ形式です。公開鍵も VIN も含みません。</li>
+</ul>
+<h3>ビルド 18 以降の追加（iOS のみ）</h3>
+<p>issue #128 とビルド 18 のリンク状態分析からの変更です。新しいフィールドは行末に足し、新しい行は新しい <code>kind</code> を使うので、未知のキーと kind を無視するパーサーはそのまま動きます。Android はまだ書きません。Android アプリを揃えるまで、ここに差があります。</p>
+<ul>
+<li><code>query.startedAt</code>: リクエストを送った時刻（<code>ts</code> と同じ形式）。<code>ts</code> は結果が届いた時刻のままなので、<code>ts - startedAt</code> が呼び出しにかかった時間です。<code>vehicleStatus</code>、<code>keySummary</code>、<code>listKeys</code> に書きます。</li>
+<li><code>app</code> / <code>event: "scenePhase"</code>: <code>phase</code> は <code>active</code>、<code>inactive</code>、<code>background</code>（SwiftUI の scene phase）です。実行の最初の行は開始時の状態です。</li>
+<li><code>app</code> / <code>event: "protectedData"</code>: <code>state</code> は <code>available</code>（端末のロックが解除された）または <code>unavailable</code>（端末がまもなくロックされる）です。</li>
+<li><code>app</code> / <code>event: "start"</code>: 接続ループの <code>start()</code> が呼ばれるたびに、それによって生じうる <code>connecting</code> 行の<strong>前に</strong>書きます。<code>reason</code>: <code>launch</code>（アプリ起動時の自動接続）、<code>connect-button</code>、<code>protected-data</code>（ロック解除が待機中の再試行を起こした）、<code>key-replaced</code>（「キーを削除して作り直す」後の再接続）。<code>effect</code>: <code>started</code>（新しいループを開始）、<code>woke</code>（<code>backoff</code> で待っていたのをすぐ試すようにした）、<code>ignored</code>（すでに接続中または接続済みで何も起きなかった）。前に <code>start</code> 行がない <code>connecting</code> 行は、バックオフのタイマーによるものです。</li>
+<li><strong>記録しない: connect のスキャン検出時刻と RSSI。</strong> モニターは <code>connect(vin, key, target = null, options)</code> で接続し、スキャンはライブラリの中で行われます。文書にある <code>connect</code> の結果（マニュアル 12 章）は、使ったアドバタイズ（advertisement）を返しません。アプリが先にスキャンすると（<code>scan(vin).first()</code> の後に <code>connect(..., target)</code>）、測ろうとしている接続経路が変わるので、サンプルはそうしません。ライブラリへの要望です: <code>Vehicle</code>（または <code>connect</code> の結果）が、接続に使ったアドバタイズ（検出時刻、RSSI、<code>isConnectable</code>）を公開する必要があります。</li>
 </ul>
 <ul>
 <li><strong>VIN のマスク：</strong>書き込む前に、生のバイト列やテキストに含まれる VIN の文字が 17 文字以上続く部分は、その部分の先頭 3 文字と末尾 4 文字を残し、残りを <code>*</code> に置き換えます。そのため長さは変わりません。前後にそのような文字が付いている VIN は、より長い 1 つの連なりとしてマスクされます。</li>
@@ -178,7 +191,8 @@
 <tbody>
 <tr><td><code>MonitorModel.swift</code></td><td>アプリの存続期間中ずっと存在する 1 つのオブジェクト（<code>TeslableSampleApp</code> 内の <code>@StateObject</code>）。画面が読む内容を保持し、エンジンを 1 回だけ開始し（VIN が保存されていれば自動で接続します。XCTest の下では接続しません）、Control タブの <code>SampleModel</code> を作ります。キー＆コントロールタブの <code>KeyControlModel</code> も作ります。</td></tr>
 <tr><td><code>MonitorEngine.swift</code></td><td>ライブラリのインスタンス、<code>ConnectionLoop</code>、<code>Vehicle.events</code> の Task、問い合わせのポーリング Task、保存した VIN（<code>UserDefaults</code>）、モニターのキー、<code>LogWriter</code> を持ちます。変更は 1 つの <code>AsyncStream</code> を通してモデルに送り、順序を保ちます。<code>observe</code> の行は、すべてを <code>DebugLogger</code> に渡す <code>TeslaLogger</code> である <code>ObserveLogger</code> を通して入ってきます。</td></tr>
-<tr><td><code>ConnectionLoop.swift</code></td><td>状態機械 <code>idle</code>、<code>connecting(n)</code>、<code>connected(V)</code>、<code>backoff(attempt:delay:reason:)</code>、<code>stopped</code>。ライブラリのことは何も知らず、時計とスリープは差し替えられます（テストは手動の時計を使います）。</td></tr>
+<tr><td><code>ConnectionLoop.swift</code></td><td>状態機械 <code>idle</code>、<code>connecting(n)</code>、<code>connected(V)</code>、<code>backoff(attempt:delay:reason:)</code>、<code>stopped</code>。ライブラリのことは何も知らず、時計とスリープは差し替えられます（テストは手動の時計を使います）。<code>start()</code> は行ったこと（<code>started</code>、<code>woke</code>、<code>ignored</code>）を返し、動作の前に呼ばれるコールバック（<code>app</code> / <code>start</code> のログ行）を受け取ります。</td></tr>
+<tr><td><code>InitialQueryGate.swift</code>, <code>Tests/InitialQueryGateTests.swift</code></td><td>接続ごとに 1 つのゲート: リンクが <code>connected</code> になると閉じ、モニターの最初の問い合わせラウンドが終わる（または接続が終わる）と開きます。キー・制御タブの自動 <code>listKeys()</code> がこのゲートを待つので、モニター自身の最初の <code>listKeys()</code> と重なりません。</td></tr>
 <tr><td><code>LogLine.swift</code>、<code>LogWriter.swift</code>、<code>VinMask.swift</code></td><td>ログ行の形式、<code>LogSink</code> プロトコルの後ろにある専用シリアルキュー上のファイル書き込み、VIN のマスク。</td></tr>
 <tr><td><code>LiveState.swift</code></td><td>イベントを Live タブの状態（項目ごとの最後に変わった時刻）に変えます。成功した <code>vehicleStatus()</code> もブロードキャストと同様に現在のリンクで受信したものとみなし、接続ごとに増える <code>linkEpoch</code> が接続終了後に届いた結果を除外します（SFR-022）。</td></tr>
 <tr><td><code>ClusterState.swift</code>, <code>Tests/ClusterStateTests.swift</code></td><td><code>LiveState</code> と接続状態を SFR-022 のクラスターの値に変えます: ギア、<code>ClusterPart</code> ごとの閉状態（<code>CLOSED</code> のみ閉）、文言、暗い表示、見出し。<code>Views/LiveTab.swift</code> は <code>ClusterCar*</code> 画像（400×760 キャンバスの SVG 8 個）を重ねて描きます。</td></tr>

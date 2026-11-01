@@ -38,8 +38,8 @@ Enrollment state:
 - Becomes `checking` and then `enrolled` / `notEnrolled` / back to `unknown` when the tab checks with `listKeys()`:
   the vehicle entry whose public key equals the local key (`13-lib-pairing.md` §Checking whether a key is enrolled).
   `Uncertain` or `Failure` gives `unknown`. The check runs automatically once each time the tab sees a new connection
-  with a ready key (retried once after about 5 s when it ends `unknown`, because it can lose the race with the monitor's
-  first queries), each time the tab becomes visible, and on the **Check enrollment** button. An automatic check never
+  with a ready key (on iOS it first waits for the monitor's first query round to end, so the two `listKeys()` do not run at
+  the same time and share one time budget on a slow connect; retried once after about 5 s when it ends `unknown`), each time the tab becomes visible, and on the **Check enrollment** button. An automatic check never
   writes a "connect first" line.
 - Becomes `enrolled` when the pairing confirmation (`sessionInfo(publicKey, INFOTAINMENT)` polling, every 3 s for up to
   2 min, `13-lib-pairing.md` §Enrolling a key) succeeds. As in the manual's `waitUntilEnrolled`, polling continues on
