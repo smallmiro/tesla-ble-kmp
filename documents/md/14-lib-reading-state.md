@@ -16,6 +16,7 @@ vehicle (A8.5, #118). Go original: VCSEC queries in `05-command-catalog.md` §B 
 wake) are in `15-lib-commands.md`.
 
 Status labels used in Part B: **Confirmed** = seen on a real vehicle (results note, see Provenance);
+**Likely** = consistent and repeated in real-car logs, but not reproduced in a controlled scenario;
 **Schema-only** = defined in the proto files, never seen by us; **Unknown** = seen on the wire, meaning not known.
 
 ## Calls
@@ -33,6 +34,8 @@ Status labels used in Part B: **Confirmed** = seen on a real vehicle (results no
   wait counts against its timeout. `getState` goes to Infotainment and does not wait in that queue.
 - These calls are queries. An `Uncertain` result means no data was confirmed, not that a command may have run, so it is
   safe to ask again. Do not do that in a tight loop (`16-lib-errors.md` §`getState` results).
+- While another BLE client is active, a query can get no reply at all, `listKeys` most often (`16-lib-errors.md`
+  §Queries while another BLE client is active).
 
 # Part A: On-demand data (you request it)
 
@@ -105,7 +108,7 @@ suspend fun vehicleStatus(timeout: Duration? = null): VehicleResult<VehicleStatu
 | 5 | `detailedClosureStatus` | `DetailedClosureStatus` | `tonneauPercentOpen` (1, uint32), Cybertruck | `tonneauPercentOpen` (`null` if absent) |
 | 6 | `uiDesire` | `UIDesire_E` (TESLEMETRY-EXT) | In schema only | **Not surfaced** (planned M5) |
 | 7 | `gear` | `Gear_E` (TESLEMETRY-EXT; confirmed in broadcasts only, not yet checked in query replies) | Current gear | `gear`; absent or outside the schema becomes `UNKNOWN` |
-| 8 | (unknown, not in schema) | message | Seen on a real car: `{1: 1\|2, 2: 1\|2, 3: 1}`; meaning unknown | Not surfaced |
+| 8 | (unknown, not in schema) | message | Seen on a real car: `{1: 1\|2, 2: 1\|2, 3: 1\|2}`; meaning unknown (B3.1) | Not surfaced |
 
 `ClosureStatuses` has eight `ClosureState_E` fields, numbered 1 to 8: `frontDriverDoor`, `frontPassengerDoor`,
 `rearDriverDoor`, `rearPassengerDoor`, `rearTrunk`, `frontTrunk`, `chargePort`, `tonneau`.
@@ -228,7 +231,8 @@ library does not know maps to `UNKNOWN`.
 | 6 | `CLOSURESTATE_CLOSING` | `CLOSING` |
 
 `Gear_E` (`VehicleStatus.gear`, field 7, TESLEMETRY-EXT, **Confirmed on a real car in broadcasts**: each of P, R, N, D produced a
-broadcast with the matching value; `GEAR_UNKNOWN` was not seen):
+broadcast with the matching value; `GEAR_UNKNOWN` is the zero value and is never encoded, but frames with no gear field do
+occur and read as `UNKNOWN`, B2.4):
 
 | Value | Name | Public `Gear` |
 |---|---|---|
@@ -515,7 +519,8 @@ which Go `GetState` points to (`state.go:66-67`):
 - How long a wake takes, and what a sleeping Infotainment does with a request. The tests model no reply. If a real
   vehicle answers busy instead, the library retries until `timeout`, and the result can be
   `Failure(Timeout(afterSend = false))` (`16-lib-errors.md` §`getState` results).
-- How the size limit behaves per firmware, and whether the fault arrives encrypted or in plaintext.
+- How the size limit behaves per firmware, and how the fault arrives on our own `getState`. In replies to another client it
+  came in plaintext `signedMessageStatus` (Likely, `16-lib-errors.md` §Response size limit).
 
 ## `VehicleStatus` (public model)
 
@@ -594,7 +599,7 @@ A broadcast arrives on the same `00000213-...` subscription as replies. It is a 
 | 16 | `whitelistInfo` | `WhitelistInfo` | Query reply |
 | 17 | `whitelistEntryInfo` | `WhitelistEntryInfo` | Query reply |
 | 46 | `nominalError` | `Errors.NominalError` | Error reply |
-| 48, 53 | unknown | | Seen on a real car, not in any schema (B3) |
+| 44, 48, 53 | unknown | | Seen on a real car, not in any schema (B3) |
 
 ## B2. What the library does with broadcasts: `Vehicle.events`
 
@@ -634,7 +639,8 @@ condition: the payload does not have to decode (an undecodable one gives `Unreco
 
 Everything else is not an event and stays an observation log line only: replies to other clients (`no-handler`),
 signed or encrypted frames, frames that do not parse as `RoutableMessage` (`unparseable`), frames without a source
-(`missing-source`). The library never decrypts a broadcast, and nothing it decrypted ever reaches an event (FR-112).
+(`missing-source`, which includes unwrapped frames, B3.2). The library never decrypts a broadcast, and nothing it decrypted
+ever reaches an event (FR-112).
 
 ### B2.2 Event types
 
@@ -642,7 +648,7 @@ signed or encrypted frames, frames that do not parse as `RoutableMessage` (`unpa
 |---|---|---|
 | `VehicleEvent.Status` | The payload has `vehicleStatus` (field 1) | `status: VehicleStatus`, built with the same rules as `vehicleStatus()` (A2): absent `closureStatuses` = all `CLOSED`, values outside the schema = `UNKNOWN`, `gear` included |
 | `VehicleEvent.AuthenticationRequest` | The payload has `authenticationRequest` (field 3) | `requestedLevel: AuthenticationLevel`, `reasons: List<AuthenticationReason>` (B3.2). The 20-byte token is not a field; it is in `raw` |
-| `VehicleEvent.Unrecognized` | Neither field 1 nor field 3: only unknown fields (48, 53 on the real car), another `FromVCSECMessage` field, no payload, or a payload that does not decode as `FromVCSECMessage` (then `unknownFields` is empty) | none beyond `raw` and `unknownFields` |
+| `VehicleEvent.Unrecognized` | Neither field 1 nor field 3: only unknown fields (44, 48, 53 on the real car), another `FromVCSECMessage` field, no payload, or a payload that does not decode as `FromVCSECMessage` (then `unknownFields` is empty) | none beyond `raw` and `unknownFields` |
 
 - One frame can give two events. With both fields 1 and 3, `Status` comes first, then `AuthenticationRequest`; both have
   the same `raw` and the same `unknownFields`. The schema puts the two fields in one `oneof`, so a plain Wire decode keeps
@@ -673,8 +679,13 @@ Each entry is a dot path from `FromVCSECMessage` to a field the schema does not 
 
 ### B2.4 Rules for apps
 
-- **A repeat is not a change.** The vehicle resends `vehicleStatus` every 1 to 25 s without a change, sometimes several
-  times within one second (B3.1). The library does not filter duplicates; compare with the previous value yourself.
+- **A repeat is not a change.** With nothing changing, the vehicle resends `vehicleStatus` 60.0 s after the previous
+  `Status` (Likely; measured only on an awake vehicle with a person present, B3.1), and several frames can come within one
+  second around a change, some of them identical. A frame can also differ only in field 8, which the model does not show,
+  so it reads as an unchanged `VehicleStatus`. The library does not filter duplicates; compare with the previous value
+  yourself.
+- **A quiet minute is normal.** `Status` frames can be 60 s apart, so up to 60 s without one says nothing about the link.
+  Judge the link from `connection`, not from the time since the last event.
 - **Trunk:** opening and closing the trunk by hand from outside produced broadcasts (`rearTrunk = OPEN`, then
   `closureStatuses` absent). Opening or closing it with the interior button produced **no** broadcast, so an app that
   tracks the trunk from `events` keeps seeing it `CLOSED`. When the trunk state matters, confirm it with
@@ -683,6 +694,8 @@ Each entry is a dot path from `FromVCSECMessage` to a field the schema does not 
   become real values within about 0.5 s (B3.1). Do not treat those `UNKNOWN` values as a change. The lock state
   reads `UNLOCKED` in them too, and since `UNLOCKED` is never encoded you cannot tell whether the vehicle was still
   locked; confirm with `vehicleStatus()` if it matters.
+- **`gear = UNKNOWN` on an awake vehicle (Likely):** twice a parked, awake vehicle with a person present sent a 24-byte
+  frame with no gear field, and a normal `PARK` frame followed within 0.1 s. Do not treat that `UNKNOWN` as a change.
 - **Subscription:** each collection subscribes when it starts. There is no replay: a broadcast that arrived earlier is
   not delivered. Several collectors each get every event.
 - **Completion:** the flow completes normally (no exception) when `connection` becomes `Disconnected`, whatever the
@@ -704,7 +717,8 @@ Each entry is a dot path from `FromVCSECMessage` to a field the schema does not 
 | `authenticationRequest` (field 3) | Confirmed (field names unverified) | `VehicleEvent.AuthenticationRequest` | B3.2 |
 | Field 53 | Unknown | `"53"` in `unknownFields`; alone it is a `VehicleEvent.Unrecognized` | B3.3 |
 | Field 48 | Unknown | `"48"` in `unknownFields`; alone it is a `VehicleEvent.Unrecognized` | B3.4 |
-| Replies for other clients | Confirmed (not a broadcast) | Not an event (fails the gate) | B3.5 |
+| Field 44 | Unknown | `"44"` in `unknownFields`; alone it is a `VehicleEvent.Unrecognized` | B3.6 |
+| Replies for other clients | Confirmed for the signed VCSEC reply, Likely for the others (not a broadcast) | Not an event (fails the gate) | B3.5 |
 
 ### B3.1 `vehicleStatus` broadcast
 
@@ -713,22 +727,45 @@ Same fields as A2. What the real-car observation showed (iPhone, Model Y; 1st ro
 
 | Field | Status | Observed |
 |---|---|---|
-| `vehicleLockState` (2) | Confirmed | `UNLOCKED` right after connect; `INTERNAL_LOCKED` repeated while seated with doors closed; `LOCKED` after getting out; `UNLOCKED` to `LOCKED` when walking away with the connection still up (link lost about 30 s later) |
+| `vehicleLockState` (2) | Confirmed | `UNLOCKED` right after connect; `INTERNAL_LOCKED` repeated while seated with doors closed; `LOCKED` after getting out; `UNLOCKED` to `LOCKED` when walking away with the connection still up (link lost about 30 s later). Around driving, no scenario given (Likely, B5): `INTERNAL_LOCKED` became `UNLOCKED` in the same frame as `PARK` (3 of 3). It is not simply "in gear": after a shift to `DRIVE` it took 16.9 to 130.4 s to appear (3 cases), it did not appear in one 44 s stretch of `REVERSE` and `DRIVE`, and it ended once in `DRIVE` just as a door opened |
 | `vehicleSleepStatus` (3) | Confirmed | Rounds 1 and 2: `AWAKE` in all lines. Round 3: the first two frames were `ASLEEP` when the exterior handle of the sleeping vehicle was pulled, then `AWAKE` about 0.1 s later |
 | `userPresence` (4) | Confirmed | `PRESENT` while seated, `NOT_PRESENT` after getting out. Also `PRESENT` while a person stood outside with a door open (about 2.6 s after the rear door opened; about 0.1 s after the driver door opened from outside), `NOT_PRESENT` again about 0.2 s after the rear door closed. So `PRESENT` does not mean "seated" |
 | `gear` (7) | **Confirmed** | Each P/R/N/D change produced exactly one broadcast whose `gear` matched the operation order (`GEAR_REVERSE`, `GEAR_NEUTRAL`, `GEAR_DRIVE`, `GEAR_PARK`, twice in a row), about 10 s apart as operated. Works without an Infotainment session and with an unenrolled key |
-| `closureStatuses` (1) | Confirmed for front driver door, rear driver door, rear trunk and charge port | **Present only while some field is not `CLOSED`**, absent when all are `CLOSED` (frame sizes match proto3, which never encodes a zero value). Driver door opened with the interior handle (round 2) or the exterior handle (round 3): `frontDriverDoor = OPEN`; absent again after closing. Rear driver door opened from outside: `rearDriverDoor = OPEN`. Rear trunk opened and closed by hand from outside: `rearTrunk = OPEN`, then absent. Charge port: `chargePort = OPEN` when opened (round 2) and when the latch was released by holding a door handle with a charger plugged in (round 3); absent again after unplugging and the port door closing. With the charger plugged in and latched, `chargePort` read `CLOSED`, so `CLOSED` does not mean "no cable". Trunk operated by the interior button: **no broadcast at all**. Waking vehicle: the first frames had `UNKNOWN` (value 3) for the four doors and both trunks; `frontTrunk` stayed `UNKNOWN` for one more frame. Not tested: passenger doors, front trunk, trunk by key card, phone key or app |
+| `closureStatuses` (1) | Confirmed for front driver door, rear driver door, rear trunk and charge port; Likely for front passenger door, rear passenger door and front trunk | **Present only while some field is not `CLOSED`**, absent when all are `CLOSED` (frame sizes match proto3, which never encodes a zero value). Driver door opened with the interior handle (round 2) or the exterior handle (round 3): `frontDriverDoor = OPEN`; absent again after closing. Rear driver door opened from outside: `rearDriverDoor = OPEN`. Rear trunk opened and closed by hand from outside: `rearTrunk = OPEN`, then absent. Charge port: `chargePort = OPEN` when opened (round 2) and when the latch was released by holding a door handle with a charger plugged in (round 3); absent again after unplugging and the port door closing. With the charger plugged in and latched, `chargePort` read `CLOSED`, so `CLOSED` does not mean "no cable". Trunk operated by the interior button: **no broadcast at all**. Waking vehicle: the first frames had `UNKNOWN` (value 3) for the four doors and both trunks; `frontTrunk` stayed `UNKNOWN` for one more frame. With no scenario given (Likely, B5): `frontPassengerDoor`, `rearPassengerDoor` and `frontTrunk` each read `OPEN` and were absent again later; how they were opened was not recorded. Not tested: trunk by key card, phone key or app |
 | `uiDesire` (6) | Schema-only | Meaning not established |
 | `detailedClosureStatus` (5) | Schema-only | Cybertruck tonneau; no data (Model Y) |
-| field 8 (unknown) | Unknown | `{1: 1\|2, 2: 1\|2, 3: 1}`. Sub-field 1 alternates 1 and 2 periodically. Sub-field 2 changed 2 to 1 when the charge port opened and charging started (round 2), was 1 while a charger was plugged in and changed 1 to 2 when the charge port closed after unplugging (round 3); it may be a charging-cable or charging state (1 = in use, 2 = idle), **unconfirmed** (the change came with the port door closing, more than 5 s after the cable was pulled out). Sub-field 3 was always 1. Not related to lights or turn signals |
+| field 8 (unknown) | Unknown | `{1: 1\|2, 2: 1\|2, 3: 1\|2}`, in all 176 `Status` frames of the later recordings (B5). Meaning unknown. **It is not a charging state:** sub-field 2 was 1 in all 75 frames in `DRIVE`, `REVERSE` or `NEUTRAL`, where no cable can be in use, so the charge port changes of rounds 2 and 3 (B4) do not define it. Sub-field 1 changes at irregular gaps, once 7 times in about 8 s. Of the 111 frames with sub-field 1 = 2, 108 were `PRESENT`, yet 17 frames with sub-field 1 = 1 were `PRESENT` too, so presence does not define it either. Sub-field 3 is not always 1: it was 2 in 7 frames, parked with nobody present, flipping every 8 to 16 s. A change of field 8 alone produces a broadcast (29 of 32 changes). Not related to lights or turn signals |
+
+Field 8 values in the later recordings (176 frames, 32 value changes; the 2 frames with no gear field are in no column):
+
+| `{1, 2, 3}` | `DRIVE`, `REVERSE`, `NEUTRAL` | `PARK`, `PRESENT` | `PARK`, `NOT_PRESENT` |
+|---|---:|---:|---:|
+| 2, 1, 1 | 75 | 28 | 2 |
+| 1, 1, 1 | 0 | 16 | 33 |
+| 1, 2, 1 | 0 | 1 | 8 |
+| 2, 2, 1 | 0 | 3 | 1 |
+| 1, 1, 2 | 0 | 0 | 7 |
 
 Triggers seen: gear change, lock change (interior lock while seated, walk-away lock), door open/close via interior and
 exterior handles (front and rear driver doors), trunk open/close by hand from outside, charge port open, latch release
-and close, charging start, user presence change, waking up.
+and close, charging start, user presence change, waking up, a change of field 8 alone (Likely).
 
-Frequency: also repeated with no change. 1st round: every 1 to 25 s while awake (26 B UNLOCKED, 28 B otherwise). 2nd
-round: sometimes several within 1 s. 3rd round: nine frames within 0.5 s while waking, then one every 0.1 to 8 s while
-things changed. Do not treat a repeat as a change.
+Frequency: a frame comes at each change, and it is also repeated with no change.
+
+- **Repeat (Likely):** on an awake vehicle with a person present and nothing changing, the next `Status` came 60.0 s after
+  the previous one: 47 gaps of 59.9 to 60.15 s (44 in `DRIVE`, 3 in `PARK`). No gap between two `Status` frames on one
+  connection was longer (167 gaps, later recordings, B5).
+- **What restarts the wait (Likely):** a frame with a change. 6 of the 47 gaps started at one. Frames other than `Status`
+  did not restart it (3 gaps, with field 53, `whitelistInfo` or `commandStatus` in between).
+- **Counterexample:** one gap between identical frames was 55.7 s, unexplained.
+- **Not measured:** a sleeping vehicle, and an awake vehicle with nobody present. With `NOT_PRESENT` something kept changing
+  (the largest of 42 gaps was 25.3 s), so no repeat was seen in that state.
+- **Earlier rounds:** round 1 reported every 1 to 25 s while awake (26 B `UNLOCKED`, 28 B otherwise). Those frames are not
+  available to check. Field 8 changes may explain it: in the later recordings 37 of the 38 gaps of 5 to 59 s ended at a frame
+  that changed something. Round 2: sometimes several within 1 s. Round 3: nine frames within 0.5 s while waking, then one
+  every 0.1 to 8 s while things changed.
+
+Do not treat a repeat as a change.
 
 Library rule: a missing `closureStatuses` in a `vehicleStatus` means "all closed" (A2), confirmed for both driver doors,
 the rear trunk and the charge port. It is wrong only for a trunk operated with the interior button, which sends no
@@ -761,35 +798,85 @@ lost; the exact order is in `raw`).
 
 Observed: `requestedLevel = DRIVE`, `reasons = [PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL]` when the interior handle was pulled;
 `ENTERED_HIGHER_AUTH_ZONE` was added when the charge port was opened and charging started. It came together with a
-`vehicleStatus` (and field 53) in the same instant. Other reasons were not observed. In round 3 (exterior handles on a
-sleeping, then awake vehicle; charge port latch release; trunk by hand) **no** `authenticationRequest` and no field 53
-arrived; `PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL` was never seen.
+`vehicleStatus` (and field 53) in the same instant. In the later recordings (B5) all 6 wrapped frames had
+`requestedLevel = DRIVE`, `reasons = [ENTERED_HIGHER_AUTH_ZONE]`, and one unwrapped frame had `IDENTIFICATION` (below).
+Other reasons were not observed. In round 3 (exterior handles on a sleeping, then awake vehicle; charge port latch
+release; trunk by hand) **no** `authenticationRequest` and no field 53 arrived; `PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL` was
+never seen.
 
-**Wrapping:** this vehicle sent it inside a `RoutableMessage` (broadcast form above), unlike reports elsewhere
-(Teslemetry PR #179) of an unwrapped `FromVCSECMessage{authenticationRequest}` about every 1.1 s. No unwrapped frame
-was seen on this vehicle (`drop:missing-source` and `drop:unparseable`: 0 lines).
+**Wrapping:** this vehicle normally sends it inside a `RoutableMessage` (broadcast form above). Unwrapped frames do occur
+(Likely): 2 in the 12 connections of the later recordings (B5), both without `from_destination` and read as an unwrapped
+`FromVCSECMessage`:
+
+- 31 B, `authenticationRequest{requestedLevel = DRIVE, reasons = [IDENTIFICATION], token = 20 B}`, as a slow connect
+  completed (B3.6).
+- 12 B, `commandStatus{OPERATIONSTATUS_OK}`.
+
+That is far from the "about every 1.1 s" reported elsewhere (Teslemetry PR #179). These frames fail the gate (B2.1), so
+`Vehicle.events` does not deliver them and an app cannot see this `AuthenticationRequest`. Only the observation log shows
+them, as `[drop:missing-source]` with `reinterpreted=` (`18-lib-troubleshooting.md`). `drop:unparseable`: 0 lines.
 
 ### B3.3 Field 53 (unknown)
 
-Status: **Unknown**. `FromVCSECMessage` field 53: repeated `{1: small int, 2: 35 bytes}`.
+Status: **Unknown**. `FromVCSECMessage` field 53: one message with repeated sub-field 1, each entry
+`{1: small int, 2: 35 bytes}`.
 
-- 54 bytes total (1 entry, id 4) right after connect and at the charge port event; 205 to 220 bytes (5 entries, ids
-  1, 3, 4, 6, 7 in some order) at door and lock events. The 35-byte blobs of one message differ only in the last
-  2 bytes.
-- It arrives with authentication events. The ids 1, 3, 4, 6, 7 overlap with enrolled key slot numbers (7 keys seen in M3),
-  so it is probably a per-key authentication challenge. **Unconfirmed.**
+- Size by entries: 54 bytes for 1 entry (ids 3, 4 and 7 seen), 95 bytes for 2 entries (ids 3 and 6), 205 to 220 bytes for
+  5 entries (ids 1, 3, 4, 6, 7). The later recordings (B5) have 11 frames, four of them with 5 entries, all 220 bytes and
+  all in the order 1, 3, 6, 7, 4, which is the field 48 value byte for byte (B3.4).
+- **The ids are not key slots (Likely).** They overlap with slot numbers, but `keySummary` reported only slots 0 to 6 in all
+  37 polls of a session in which id 7 appeared.
+- **The 35-byte blob:** the first 33 bytes were identical in all 28 entries of those 11 frames, on two dates and while the
+  number of enrolled keys changed. Only the last 2 bytes vary, per entry, even for the same id (28 values in 28 entries).
+- **When it comes:** rounds 1 and 2 saw it with authentication events. In the later recordings only 1 of the 11 frames came
+  within 3 s of an `authenticationRequest`. Three of the four 5-entry frames came within 0.7 s of field 8 sub-field 1
+  changing from 2 to 1, and the fourth 0.4 s after a slow connect.
+- The earlier guess of a per-key authentication challenge is weaker now: at most 16 bits differ between entries. Its
+  meaning is unknown.
 
 ### B3.4 Field 48 (unknown)
 
-Status: **Unknown**. `FromVCSECMessage` field 48, 20 bytes, about every 5.0 s while the vehicle is awake and a person is
-present (gaps exist). Seen only in the 1st round; it did not appear in the 2nd. Likely a heartbeat; the condition is
-unknown.
+Status: **Unknown**. `FromVCSECMessage` field 48: `{1: 5 bytes}`, in a 20-byte frame. All 3 frames of the later recordings
+(B5) carry `01 03 06 07 04`, the id order of the 5-entry field 53 frames (B3.3).
+
+Rate: round 1 saw it about every 5.0 s while the vehicle was awake and a person was present (gaps exist), and round 2 did
+not see it. The later recordings have 3 frames in about 68 minutes connected, with no visible trigger. That does not fit a
+steady heartbeat, the earlier guess. The condition is unknown.
 
 ### B3.5 Replies addressed to other clients
 
-Not broadcasts. A signed 83-byte reply (`to_destination.routing_address` = another client's 16-byte address, 16-byte
-`request_uuid`, empty body) answers another phone's VCSEC request. It reaches our link too, about every 1 to 2 minutes and
-right after a door event. The dispatcher drops it as `no-handler` (owner `other`).
+Not broadcasts. Replies to another BLE client reach our link too: `to_destination.routing_address` is that client's 16-byte
+address, and the dispatcher drops them as `no-handler` (owner `other`). They fail the gate (B2.1), so they are never events.
+Counts are from the later recordings (B5).
+
+| Reply | Domain | Frame | Status | Seen |
+|---|---|---|---|---|
+| Signed, empty body, 16-byte `request_uuid` | VCSEC | 83 B | Confirmed | About every 1 to 2 minutes and right after a door event; 41 frames |
+| Other VCSEC replies: encrypted with empty `request_uuid`, plaintext `whitelistInfo` and `whitelistEntryInfo`, `session_info` | VCSEC | 80 to 177 B | Likely | 178 frames |
+| Encrypted reply, 16-byte `request_uuid` | Infotainment | 150 to 453 B; ciphertext up to 350 B | Likely | 1685 frames |
+| `session_info` | Infotainment | 179 and 180 B | Likely | 66 frames |
+| `MESSAGEFAULT_ERROR_RESPONSE_MTU_EXCEEDED` in `signedMessageStatus`, no payload | Infotainment | 106 B | Likely | 132 frames (`16-lib-errors.md` §Response size limit) |
+
+- The Infotainment frames came at about one per second while that client was active (median gap 0.94 s). They appeared on 7
+  of the 12 connections. One 17-minute connection, mostly in `DRIVE`, carried none, so driving alone does not produce them.
+- The logs do not identify the client.
+- Queries can stall while this traffic runs (`16-lib-errors.md` §Queries while another BLE client is active).
+
+### B3.6 Field 44 (unknown)
+
+Status: **Unknown** for the meaning, **Likely** for the link with slow connects. `FromVCSECMessage` field 44: a varint, value
+2 in all 4 frames seen, in a 13-byte frame. Alone it is a `VehicleEvent.Unrecognized` with `"44"` in `unknownFields`.
+
+All 12 connections of the later recordings (B5) split cleanly by how long `connect` took:
+
+| Connections | `connecting` to `connected` | With a field 44 frame | With another client's Infotainment frames |
+|---|---:|---:|---:|
+| 8 fast | 0.10 to 0.21 s | 0 of 8 | 7 of 8 |
+| 4 slow | 1.52 to 13.58 s | 4 of 4, 1.1 to 3.4 s after `connected` | 0 of 4 |
+
+- The shortest fast connection lasted 26.7 s, so a frame at that delay would have been seen.
+- It is not simply "vehicle locked": one fast connect to a locked vehicle with nobody present had no field 44.
+- Why a connect is slow or fast, and what the value means, are unknown.
 
 ## B4. What is not available by broadcast
 
@@ -798,7 +885,7 @@ right after a door event. The dispatcher drops it as `no-handler` (owner `other`
 | Turn signals (left, right), hazards, headlights, high beams | **No message at all** when operated, and no BLE schema field for them (`vcsec.proto`, `vehicle.proto`, `car_server.proto`). The only known source is Tesla Fleet Telemetry (`LightsTurnSignal` 240, `LightsHazardsActive` 239, `LightsHighBeams` 241), an internet server path outside this library's no-server scope |
 | Trunk opened with the interior button | No broadcast. Opened and closed by hand from outside: broadcast (B3.1). Key card, phone key and app not tested |
 | Sleeping vehicle | Only its first frames while waking (round 3, `ASLEEP` for about 0.1 s). A vehicle that stays asleep was not observed |
-| Charging cable | Round 2 (charge port open, charger connected, charging start): `chargePort = OPEN`, field 8 sub-field 2 changed 2 to 1, `authenticationRequest` with `ENTERED_HIGHER_AUTH_ZONE`, field 53 with one entry. Round 3 (latch release, unplug, port door closes): `chargePort` `CLOSED` while plugged in, `OPEN` after the latch release, absent after the port door closed; field 8 sub-field 2 changed 1 to 2. No separate broadcast for the cable itself was identified |
+| Charging cable | Round 2 (charge port open, charger connected, charging start): `chargePort = OPEN`, field 8 sub-field 2 changed 2 to 1, `authenticationRequest` with `ENTERED_HIGHER_AUTH_ZONE`, field 53 with one entry. Round 3 (latch release, unplug, port door closes): `chargePort` `CLOSED` while plugged in, `OPEN` after the latch release, absent after the port door closed; field 8 sub-field 2 changed 1 to 2. No separate broadcast for the cable itself was identified, and field 8 is not one (B3.1) |
 | Another phone key approaching | Not recorded |
 
 ## B5. Observation method and environment
@@ -810,6 +897,9 @@ right after a door event. The dispatcher drops it as `no-handler` (owner `other`
   vehicle, rear driver door opened from outside, charge port latch released while holding the handle, charger unplugged,
   rear door closed, charge port door closed, trunk opened and closed by hand from outside, driver door opened and closed
   from outside).
+- Later recordings: six recordings of the Monitor app on 2026-10-31 and 2026-11-01 (builds 13, 14 and 18), 12 connections,
+  about 68 minutes connected, on the phone and vehicle above. No scenario was given, so what a person did is inferred from
+  the frames and these findings stay Likely or Unknown.
 - Reproduce: turn on the sample's observation mode, perform the scenario, then press the "show" button (and "copy whole
   result"). Details and log syntax: `18-lib-troubleshooting.md`.
 
@@ -819,5 +909,6 @@ right after a door event. The dispatcher drops it as `no-handler` (owner `other`
 - Teslemetry `tesla-protocol` at `e6f7afb1` (Apache-2.0): proto snapshot with TESLEMETRY-EXT fields (`gear`, `uiDesire`,
   `authenticationRequest`, extra enum values); ADR-0002 (revised 2026-10-18).
 - Teslemetry `python-tesla-fleet-api` PRs #178 and #179: facts only.
-- Our own captures: the real-car results note (`docs/handoff/2026-10-18-m4-push-observation-results.md`).
+- Our own captures: the real-car results note (`docs/handoff/2026-10-18-m4-push-observation-results.md`) and the log
+  analysis (`docs/analysis/2026-11-01-build18-link-health.md`), rechecked against the raw logs for this page.
 - AGPL repositories were not used.

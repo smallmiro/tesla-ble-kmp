@@ -98,6 +98,7 @@
 <li>各クエリは省略可能な <code>timeout</code> を受け取ります。指定しなければ既定のコマンドタイムアウト（5 秒）が適用されます。<code>listKeys()</code> のタイムアウトは内部のリクエスト全体に共通です。</li>
 <li>車両は接続ごとに VCSEC リクエストを 1 つずつ処理します。別のクエリを待つ必要があるクエリは、タイムアウトの一部を待機に使います。<code>getState()</code> はインフォテインメントに送られ、そのキューでは待ちません。</li>
 <li>これらはクエリです。<code>Uncertain</code> の結果は、コマンドが実行された可能性があるという意味ではなく、確認できたデータがないという意味なので、再度問い合わせても安全です。ただし、短い間隔で繰り返してはいけません (<a href="16-lib-errors.html#sec-getstate">16. エラー処理</a> を参照)。</li>
+<li>他の Bluetooth クライアントが動作している間は、クエリに応答がまったく返らないことがあり、最も多いのは <code>listKeys()</code> です (<a href="16-lib-errors.html#sec-other-client">16. エラー処理</a>)。</li>
 <li>制御ペイロード（ロック、トランク、ウェイクアップ）は <a href="15-lib-commands.html">15. コマンド</a> にあります。</li>
 </ul>
 
@@ -163,7 +164,7 @@
 <tr><td>5</td><td><code>detailedClosureStatus</code></td><td><code>DetailedClosureStatus</code></td><td><code>tonneauPercentOpen</code>（1、uint32）、Cybertruck</td><td><code>tonneauPercentOpen</code>（なければ <code>null</code>）</td></tr>
 <tr><td>6</td><td><code>uiDesire</code></td><td><code>UIDesire_E</code>（Teslemetry）</td><td>スキーマにのみ存在</td><td><strong>公開しない</strong>（M5 予定）</td></tr>
 <tr><td>7</td><td><code>gear</code></td><td><code>Gear_E</code>（Teslemetry、ブロードキャストでのみ実車確認、問い合わせ応答は未確認）</td><td>現在のギア</td><td><code>gear</code>。欠けているかスキーマ外の値なら <code>UNKNOWN</code></td></tr>
-<tr><td>8</td><td>（不明、スキーマになし）</td><td>message</td><td>実車で観測: <code>{1: 1|2, 2: 1|2, 3: 1}</code>。意味は不明</td><td>公開しない</td></tr>
+<tr><td>8</td><td>（不明、スキーマになし）</td><td>message</td><td>実車で観測: <code>{1: 1|2, 2: 1|2, 3: 1|2}</code>。意味は不明 (B3.1)</td><td>公開しない</td></tr>
 </tbody>
 </table>
 <p><code>ClosureStatuses</code> には 1〜8 番の <code>ClosureState_E</code> フィールドが 8 つあります: <code>frontDriverDoor</code>、<code>frontPassengerDoor</code>、<code>rearDriverDoor</code>、<code>rearPassengerDoor</code>、<code>rearTrunk</code>、<code>frontTrunk</code>、<code>chargePort</code>、<code>tonneau</code>。</p>
@@ -287,7 +288,7 @@
 <tr><td>7、9、10、11</td><td><code>ROLE_SERVICE_TECH</code>、<code>ROLE_RIDER</code>、<code>ROLE_PREDELIVERY</code>、<code>ROLE_INFOTAINMENT</code>（Teslemetry、未確認）</td><td><code>UNKNOWN</code></td></tr>
 </tbody>
 </table>
-<p><code>Gear_E</code> は実車で確認しました。P、R、N、D のそれぞれが、対応する値のブロードキャストを 1 回ずつ生成し、<code>GEAR_UNKNOWN</code> は見ていません。<code>UIDesire_E</code> は実車での意味が確立していません。</p>
+<p><code>Gear_E</code> は実車で確認しました。P、R、N、D のそれぞれが、対応する値のブロードキャストを 1 回ずつ生成しました。<code>GEAR_UNKNOWN</code> は 0 番の値でエンコードされませんが、ギアフィールドのないフレームは実際に届き、<code>UNKNOWN</code> と読まれます (B2)。<code>UIDesire_E</code> は実車での意味が確立していません。</p>
 <p><code>KeyFormFactor</code>: 公開モデルには <code>UNKNOWN</code>、<code>NFC_CARD</code>、<code>IOS_DEVICE</code>、<code>ANDROID_DEVICE</code>、<code>CLOUD_KEY</code> しかありません。ワイヤ値 0、1、6、7、9 がこれらに対応します。<strong>Teslemetry スナップショットの値は <code>UNKNOWN</code> になります:</strong> 2 <code>3_BUTTON_BLE_CAR_KEYFOB</code>、3 <code>BLE_DEVICE</code>、4 <code>NFC_DEVICE</code>、5 <code>BLE_AND_NFC_DEVICE</code>、8 <code>3_BUTTON_BLE_CAR_KEYFOB_P60</code>、10 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60</code>、11 <code>5_BUTTON_GEN2_CAR_KEYFOB_P60</code>、12 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60_V2</code>、13 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60_V3</code>、14 <code>NFC_CARD_P71</code>、15 <code>NFC_CARD_METAL_CARD</code>、16 <code>NFC_CARD_PLASTIC_CARD</code>、17 <code>APPLE_WATCH</code>、18 <code>NFC_CARD_WD_PLASTIC_CARD</code>、19 <code>HARMONY_OS_NEXT_DEVICE</code>（すべて接頭辞 <code>KEY_FORM_FACTOR_</code> 付き）。</p>
 
 <h2 id="sec-a-other">A7. スキーマにあるその他の要求種別</h2>
@@ -502,7 +503,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <li><code>speed</code> と <code>speed_float</code> の単位。km/h や mph と決めつけないでください。</li>
 <li><code>timestamp</code> が何を示すか: 測定の時刻か、応答の時刻か。それが分かるまでは、A8.3 の確認が最善です。</li>
 <li>起こすのにどのくらいかかるか、そしてスリープ中のインフォテインメントコンピューターがリクエストをどう扱うか。テストは応答がない場合としてモデル化しています。実車が代わりに busy を返す場合、ライブラリはタイムアウトまで再試行し、結果は <code>Failure(Timeout(afterSend = false))</code> になることがあります (<a href="16-lib-errors.html#sec-getstate">16. エラー処理</a>)。</li>
-<li>サイズ上限がファームウェアごとにどう動作するか、そしてエラーが暗号化されて届くか平文で届くか。</li>
+<li>サイズ上限がファームウェアごとにどう動作するか、そして自分の <code>getState</code> でエラーがどう届くか。他のクライアント宛ての応答では平文の <code>signedMessageStatus</code> で届きました (有力、<a href="16-lib-errors.html#sec-size-limit">16、応答サイズ上限</a>)。</li>
 </ul>
 
 <h2 id="sec-status">結果の型</h2>
@@ -577,7 +578,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <tr><td>16</td><td><code>whitelistInfo</code></td><td><code>WhitelistInfo</code></td><td>クエリ応答</td></tr>
 <tr><td>17</td><td><code>whitelistEntryInfo</code></td><td><code>WhitelistEntryInfo</code></td><td>クエリ応答</td></tr>
 <tr><td>46</td><td><code>nominalError</code></td><td><code>Errors.NominalError</code></td><td>エラー応答</td></tr>
-<tr><td>48、53</td><td>不明</td><td></td><td>実車で観測したが、どのスキーマにもない（B3）</td></tr>
+<tr><td>44、48、53</td><td>不明</td><td></td><td>実車で観測したが、どのスキーマにもない（B3）</td></tr>
 </tbody>
 </table>
 
@@ -605,14 +606,14 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <tr><td><code>session_info</code></td><td>なし</td></tr>
 </tbody>
 </table>
-<p>それ以外のフレームは観察ログの 1 行として残るだけです。他のスマートフォン宛ての応答、署名または暗号化されたフレーム、解析できないフレーム、送信元のないフレームがこれに当たります。ライブラリはブロードキャストを復号せず、復号したデータがイベントに入ることもありません (FR-112)。</p>
+<p>それ以外のフレームは観察ログの 1 行として残るだけです。他のスマートフォン宛ての応答、署名または暗号化されたフレーム、解析できないフレーム、送信元のないフレーム (包まれていないフレームを含む、B3.2) がこれに当たります。ライブラリはブロードキャストを復号せず、復号したデータがイベントに入ることもありません (FR-112)。</p>
 <h3>イベントの種類</h3>
 <table>
 <thead><tr><th>イベント</th><th>いつ</th><th>持つ内容</th></tr></thead>
 <tbody>
 <tr><td><code>VehicleEvent.Status</code></td><td>フレームに <code>vehicleStatus</code> (フィールド 1) がある</td><td><code>status</code>: <code>vehicleStatus()</code> (A2) と同じ規則で作った <code>VehicleStatus</code>。開いている箇所の報告がなければすべて閉、未知の値は <code>UNKNOWN</code>、<code>gear</code> を含む</td></tr>
 <tr><td><code>VehicleEvent.AuthenticationRequest</code></td><td>フレームに <code>authenticationRequest</code> (フィールド 3) がある</td><td><code>requestedLevel</code> と <code>reasons</code> (B3.2)。20 バイトのトークンはフィールドにせず、<code>raw</code> にある</td></tr>
-<tr><td><code>VehicleEvent.Unrecognized</code></td><td>どちらもない: 未知のフィールドだけ (実車では 48 と 53)、他のフィールド、ペイロードなし、デコードできないペイロード (このとき <code>unknownFields</code> は空)</td><td><code>raw</code> と <code>unknownFields</code> のみ</td></tr>
+<tr><td><code>VehicleEvent.Unrecognized</code></td><td>どちらもない: 未知のフィールドだけ (実車では 44、48、53)、他のフィールド、ペイロードなし、デコードできないペイロード (このとき <code>unknownFields</code> は空)</td><td><code>raw</code> と <code>unknownFields</code> のみ</td></tr>
 </tbody>
 </table>
 <ul>
@@ -634,9 +635,11 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <p>スキーマ外の enum の値もそのフィールド番号で載ります (モデルでは <code>UNKNOWN</code>)。新しいギアの値なら <code>"1.7"</code> です。サブメッセージ内では、そのメッセージ自身のフィールドが、その中のメッセージのフィールドより先に来ます。2 回出た番号は 2 回載ります。リストが空でなければフレームの一部を解釈できなかったという意味で、バイトは <code>raw</code> にあります。</p>
 <h3>アプリが守るルール</h3>
 <ul>
-<li><strong>繰り返しは変化ではありません。</strong>車両は何も変わらなくても 1〜25 秒ごとに、ときには 1 秒以内に何度も状態を送り直します。ライブラリは繰り返しを除かないので、前の値と自分で比べてください。</li>
+<li><strong>繰り返しは変化ではありません。</strong>何も変わらないとき、車両は前の <code>Status</code> の 60.0 秒後に状態を送り直します (有力。起きていて人がいる車両でのみ測定、B3.1)。変化の前後では 1 秒以内に複数のフレームが届くことがあり、その一部は同一です。モデルに現れないフィールド 8 だけが違うフレームもあり、その場合 <code>VehicleStatus</code> は変わっていないように読めます。ライブラリは繰り返しを除かないので、前の値と自分で比べてください。</li>
+<li><strong>1 分間静かなのは正常です。</strong><code>Status</code> フレームの間隔は 60 秒になることがあるので、60 秒まで届かなくてもリンクの状態は分かりません。リンクは最後のイベントからの経過時間ではなく <code>connection</code> で判断してください。</li>
 <li><strong>トランク:</strong> 外側から手でトランクを開け閉めしたときはブロードキャストが来ました (<code>rearTrunk = OPEN</code>、その後 <code>closureStatuses</code> なし)。室内ボタンでは<strong>来なかった</strong>ため、<code>events</code> でトランクを追跡するアプリには <code>CLOSED</code> のまま見えます。トランクの状態が重要なときは <code>vehicleStatus()</code> で確認してください。</li>
 <li><strong>起動中の車両:</strong> スリープ中の車両の最初のフレームでは、開閉状態が <code>UNKNOWN</code>、<code>gear = UNKNOWN</code> になることがあります。実際の値は約 0.5 秒以内に続きます (B3.1)。これらの <code>UNKNOWN</code> を変化として扱わないでください。これらのフレームではロック状態も <code>UNLOCKED</code> と読まれますが、<code>UNLOCKED</code> はエンコードされない値なので、車両がまだロックされていたかは分かりません。重要な場合は <code>vehicleStatus()</code> で確認してください。</li>
+<li><strong>起きている車両の <code>gear = UNKNOWN</code> (有力):</strong> 駐車中で起きていて人がいる車両が、ギアフィールドのない 24 バイトのフレームを 2 回送り、0.1 秒以内に通常の <code>PARK</code> フレームが続きました。その <code>UNKNOWN</code> を変化として扱わないでください。</li>
 <li><strong>購読:</strong> 収集は始めた瞬間から受け取ります。それより前のブロードキャストは再送されません。複数の場所で収集すると、それぞれがすべてのイベントを受け取ります。</li>
 <li><strong>終わり:</strong> <code>connection</code> が理由を問わず <code>Disconnected</code> になるか <code>disconnect()</code> を呼ぶと、先に起きたほうでフローは例外なく正常に終わります。その後に始めた収集はすぐに終わります。その瞬間に受け渡し中だったフレームは失われることがあります。再接続の判断は <code>connection</code> で行い、リンクが切れた後も <code>disconnect()</code> は呼んでください。新しい接続は、自分の <code>events</code> を持つ新しい <code>Vehicle</code> です。</li>
 <li><strong>遅い収集側:</strong> ライブラリは遅れた収集側のためにフレームを 64 個まで保持します。それを超えると、その接続のすべての収集側から新しいフレームが抜け、破棄数を数え、最初と 100 回ごとに <code>WARN</code> の行を出します。エラーではありません (<a href="16-lib-errors.html">16. エラー処理</a>)。収集処理は軽く保ってください。</li>
@@ -644,7 +647,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 </ul>
 
 <h2 id="sec-b-catalogue">B3. メッセージ一覧</h2>
-<p>状態ラベル: <span class="badge ok">確認済み</span> 実車で確認、<span class="badge info">スキーマのみ</span> proto ファイルに定義されているが自分では見ていない、<span class="badge warn">不明</span> ワイヤ上で見たが意味は不明。</p>
+<p>状態ラベル: <span class="badge ok">確認済み</span> 実車で確認、<span class="badge info">有力</span> 実車のログで一貫して繰り返し見られたが、統制したシナリオでは再現していない、<span class="badge info">スキーマのみ</span> proto ファイルに定義されているが自分では見ていない、<span class="badge warn">不明</span> ワイヤ上で見たが意味は不明。</p>
 <table>
 <thead><tr><th>メッセージ</th><th>状態</th><th><code>vehicle.events</code> では</th></tr></thead>
 <tbody>
@@ -652,7 +655,8 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <tr><td><code>authenticationRequest</code>（フィールド 3）</td><td><span class="badge ok">確認済み</span>（フィールド名は未検証）</td><td><code>VehicleEvent.AuthenticationRequest</code></td></tr>
 <tr><td>フィールド 53</td><td><span class="badge warn">不明</span></td><td><code>unknownFields</code> の <code>"53"</code>。これだけなら <code>Unrecognized</code> イベント</td></tr>
 <tr><td>フィールド 48</td><td><span class="badge warn">不明</span></td><td><code>unknownFields</code> の <code>"48"</code>。これだけなら <code>Unrecognized</code> イベント</td></tr>
-<tr><td>他のクライアント宛ての応答（ブロードキャストではない）</td><td><span class="badge ok">確認済み</span></td><td>イベントではない</td></tr>
+<tr><td>フィールド 44</td><td><span class="badge warn">不明</span></td><td><code>unknownFields</code> の <code>"44"</code>。これだけなら <code>Unrecognized</code> イベント</td></tr>
+<tr><td>他のクライアント宛ての応答（ブロードキャストではない）</td><td>署名された VCSEC の応答は <span class="badge ok">確認済み</span>、それ以外は <span class="badge info">有力</span></td><td>イベントではない</td></tr>
 </tbody>
 </table>
 
@@ -661,18 +665,37 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <table>
 <thead><tr><th>フィールド</th><th>状態</th><th>観察内容</th></tr></thead>
 <tbody>
-<tr><td><code>vehicleLockState</code> (2)</td><td><span class="badge ok">確認済み</span></td><td>接続直後は <code>UNLOCKED</code>、ドアを閉めて着席している間は <code>INTERNAL_LOCKED</code> が繰り返され、降りた後は <code>LOCKED</code>、接続を保ったまま歩いて離れると <code>UNLOCKED</code> から <code>LOCKED</code> へ（約 30 秒後にリンク切断）</td></tr>
+<tr><td><code>vehicleLockState</code> (2)</td><td><span class="badge ok">確認済み</span></td><td>接続直後は <code>UNLOCKED</code>、ドアを閉めて着席している間は <code>INTERNAL_LOCKED</code> が繰り返され、降りた後は <code>LOCKED</code>、接続を保ったまま歩いて離れると <code>UNLOCKED</code> から <code>LOCKED</code> へ（約 30 秒後にリンク切断）。走行の前後、シナリオなし (有力、B5): <code>INTERNAL_LOCKED</code> は <code>PARK</code> と同じフレームで <code>UNLOCKED</code> になりました (3 回中 3 回)。単に「ギアが入っている」という意味ではありません。<code>DRIVE</code> に入れてから現れるまで 16.9〜130.4 秒かかり (3 件)、<code>REVERSE</code> と <code>DRIVE</code> を行き来した 44 秒間の区間では現れず、<code>DRIVE</code> のままドアが開く瞬間に終わったことも 1 回あります</td></tr>
 <tr><td><code>vehicleSleepStatus</code> (3)</td><td><span class="badge ok">確認済み</span></td><td>1 回目と 2 回目: すべての行が <code>AWAKE</code>。3 回目: スリープ中の車両の外側ハンドルを引いたとき、最初の 2 フレームは <code>ASLEEP</code>、約 0.1 秒後に <code>AWAKE</code></td></tr>
 <tr><td><code>userPresence</code> (4)</td><td><span class="badge ok">確認済み</span></td><td>着席中は <code>PRESENT</code>、降りた後は <code>NOT_PRESENT</code>。人がドアを開けて外に立っているときも <code>PRESENT</code>（後席ドアを開けてから約 2.6 秒後、運転席ドアを外から開けてから約 0.1 秒後）、後席ドアを閉めて約 0.2 秒後にまた <code>NOT_PRESENT</code>。つまり <code>PRESENT</code> は「着席」を意味しません</td></tr>
 <tr><td><code>gear</code> (7)</td><td><span class="badge ok">確認済み</span></td><td>P/R/N/D を変えるたびにブロードキャストがちょうど 1 つ届き、<code>gear</code> が操作順と一致しました（<code>GEAR_REVERSE</code>、<code>GEAR_NEUTRAL</code>、<code>GEAR_DRIVE</code>、<code>GEAR_PARK</code>、2 回続けて）。操作どおり約 10 秒間隔でした。インフォテインメントのセッションなしで、未登録のキーでも届きます</td></tr>
-<tr><td><code>closureStatuses</code> (1)</td><td>運転席ドア、運転席側の後席ドア、リアトランク、充電ポートで <span class="badge ok">確認済み</span></td><td><strong>いずれかのフィールドが <code>CLOSED</code> でないときだけ存在</strong>し、すべて <code>CLOSED</code> のときはなくなります（フレームサイズは、0 番の値を決してエンコードしない proto3 と一致します）。運転席ドアを室内ハンドル（2 回目）または外側ハンドル（3 回目）で開けると <code>frontDriverDoor = OPEN</code>、閉めるとまた消えます。運転席側の後席ドアを外から開けると <code>rearDriverDoor = OPEN</code>。リアトランクを外から手で開け閉めすると <code>rearTrunk = OPEN</code>、その後なくなります。充電ポート: 開けると <code>chargePort = OPEN</code>（2 回目）、充電器を挿したままドアハンドルを握ってラッチを解除したとき（3 回目）も同じで、プラグを抜いてポートドアが閉まるとまた消えます。充電器を挿してラッチされた状態では <code>CLOSED</code> と読めたため、<code>CLOSED</code> は「ケーブルなし」を意味しません。トランクを室内ボタンで操作したときは<strong>ブロードキャストがまったくありませんでした</strong>。起動中の車両: 最初のフレームでは 4 つのドアと 2 つのトランクが <code>UNKNOWN</code>（値 3）で、<code>frontTrunk</code> は 1 フレーム長く <code>UNKNOWN</code> のままでした。未検証: 助手席側ドア、フロントトランク、カードキー・スマートフォンキー・アプリによるトランク操作</td></tr>
+<tr><td><code>closureStatuses</code> (1)</td><td>運転席ドア、運転席側の後席ドア、リアトランク、充電ポートで <span class="badge ok">確認済み</span>。助手席ドア、助手席側の後席ドア、フロントトランクで <span class="badge info">有力</span></td><td><strong>いずれかのフィールドが <code>CLOSED</code> でないときだけ存在</strong>し、すべて <code>CLOSED</code> のときはなくなります（フレームサイズは、0 番の値を決してエンコードしない proto3 と一致します）。運転席ドアを室内ハンドル（2 回目）または外側ハンドル（3 回目）で開けると <code>frontDriverDoor = OPEN</code>、閉めるとまた消えます。運転席側の後席ドアを外から開けると <code>rearDriverDoor = OPEN</code>。リアトランクを外から手で開け閉めすると <code>rearTrunk = OPEN</code>、その後なくなります。充電ポート: 開けると <code>chargePort = OPEN</code>（2 回目）、充電器を挿したままドアハンドルを握ってラッチを解除したとき（3 回目）も同じで、プラグを抜いてポートドアが閉まるとまた消えます。充電器を挿してラッチされた状態では <code>CLOSED</code> と読めたため、<code>CLOSED</code> は「ケーブルなし」を意味しません。トランクを室内ボタンで操作したときは<strong>ブロードキャストがまったくありませんでした</strong>。起動中の車両: 最初のフレームでは 4 つのドアと 2 つのトランクが <code>UNKNOWN</code>（値 3）で、<code>frontTrunk</code> は 1 フレーム長く <code>UNKNOWN</code> のままでした。シナリオなし (有力、B5): <code>frontPassengerDoor</code>、<code>rearPassengerDoor</code>、<code>frontTrunk</code> がそれぞれ <code>OPEN</code> と読まれ、後でまたなくなりました。どう開けたかは記録されていません。未検証: カードキー・スマートフォンキー・アプリによるトランク操作</td></tr>
 <tr><td><code>uiDesire</code> (6)</td><td><span class="badge info">スキーマのみ</span></td><td>意味は未確立</td></tr>
 <tr><td><code>detailedClosureStatus</code> (5)</td><td><span class="badge info">スキーマのみ</span></td><td>Cybertruck のトノカバー。Model Y ではデータなし</td></tr>
-<tr><td>フィールド 8（スキーマになし）</td><td><span class="badge warn">不明</span></td><td><code>{1: 1|2, 2: 1|2, 3: 1}</code>。下位 1 は周期的に 1 と 2 を行き来します。下位 2 は充電ポートを開けて充電が始まったときに 2 から 1 に変わり（2 回目）、充電器を挿している間は 1 で、プラグを抜いた後に充電ポートが閉じたとき 1 から 2 に変わりました（3 回目）。充電ケーブルまたは充電の状態（1 = 使用中、2 = アイドル）かもしれませんが、<strong>未確認</strong>です（変化はケーブルを抜いてから 5 秒以上後のポートドアの閉鎖と同時でした）。下位 3 は常に 1 でした。ウインカーやライトとは無関係です</td></tr>
+<tr><td>フィールド 8（スキーマになし）</td><td><span class="badge warn">不明</span></td><td><code>{1: 1|2, 2: 1|2, 3: 1|2}</code>。以降の記録 (B5) の <code>Status</code> フレーム 176 個すべてにあります。意味は不明。<strong>充電状態ではありません。</strong><code>DRIVE</code>、<code>REVERSE</code>、<code>NEUTRAL</code> のフレーム 75 個すべてで下位 2 は 1 で、このときケーブルは使えないので、2 回目と 3 回目の充電ポートの変化 (B4) では意味を決められません。下位 1 は不規則な間隔で変わり、約 8 秒で 7 回変わったこともあります。下位 1 = 2 のフレーム 111 個のうち 108 個が <code>PRESENT</code> でしたが、下位 1 = 1 のフレーム 17 個も <code>PRESENT</code> だったので、在車状態でも意味を決められません。下位 3 は常に 1 とは限りません。駐車中で人がいないときのフレーム 7 個で 2 になり、8〜16 秒ごとに変わりました。フィールド 8 の変化だけでブロードキャストが届きます (変化 32 回のうち 29 回)。ウインカーやライトとは無関係です</td></tr>
 </tbody>
 </table>
-<p>確認した発生契機: ギア変更、ロック変更（着席中の室内ロック、離れるときのロック）、室内ハンドルと外側ハンドルでのドアの開閉（運転席側と運転席側の後席ドア）、外から手でのトランクの開閉、充電ポートの開放・ラッチ解除・閉鎖、充電開始、在車状態の変化、起動。</p>
-<p>頻度: 変化がなくても繰り返し届きます。1 回目は起きている間 1〜25 秒ごと（<code>UNLOCKED</code> は 26 バイト、それ以外は 28 バイト）、2 回目は 1 秒以内に複数届くこともありました。3 回目は起動中の 0.5 秒以内に 9 フレーム、その後は変化があるあいだ 0.1〜8 秒に 1 回でした。繰り返しを変化として扱わないでください。</p>
+<p>以降の記録のフィールド 8 の値 (フレーム 176 個、値の変化 32 回。ギアフィールドのないフレーム 2 個はどの列にも入れていません):</p>
+<table>
+<thead><tr><th><code>{1, 2, 3}</code></th><th><code>DRIVE</code>, <code>REVERSE</code>, <code>NEUTRAL</code></th><th><code>PARK</code>, <code>PRESENT</code></th><th><code>PARK</code>, <code>NOT_PRESENT</code></th></tr></thead>
+<tbody>
+<tr><td>2, 1, 1</td><td>75</td><td>28</td><td>2</td></tr>
+<tr><td>1, 1, 1</td><td>0</td><td>16</td><td>33</td></tr>
+<tr><td>1, 2, 1</td><td>0</td><td>1</td><td>8</td></tr>
+<tr><td>2, 2, 1</td><td>0</td><td>3</td><td>1</td></tr>
+<tr><td>1, 1, 2</td><td>0</td><td>0</td><td>7</td></tr>
+</tbody>
+</table>
+<p>確認した発生契機: ギア変更、ロック変更（着席中の室内ロック、離れるときのロック）、室内ハンドルと外側ハンドルでのドアの開閉（運転席側と運転席側の後席ドア）、外から手でのトランクの開閉、充電ポートの開放・ラッチ解除・閉鎖、充電開始、在車状態の変化、起動、フィールド 8 だけの変化 (有力)。</p>
+<p>頻度: 変化のたびにフレームが届き、変化がなくても繰り返し届きます。</p>
+<ul>
+<li><strong>繰り返し (有力):</strong> 起きていて人がいて何も変わらない車両では、次の <code>Status</code> は前のフレームの 60.0 秒後に届きました。59.9〜60.15 秒の間隔が 47 回です (<code>DRIVE</code> で 44 回、<code>PARK</code> で 3 回)。1 つの接続内で 2 つの <code>Status</code> フレームの間隔がこれより長くなったことはありません (以降の記録の間隔 167 個、B5)。</li>
+<li><strong>待ち時間をやり直すもの (有力):</strong> 変化のあるフレームです。47 個の間隔のうち 6 個はそのフレームから始まりました。<code>Status</code> 以外のフレームではやり直されませんでした (間にフィールド 53、<code>whitelistInfo</code>、<code>commandStatus</code> が届いた間隔 3 個)。</li>
+<li><strong>反例:</strong> 同一フレームの間隔が 55.7 秒だったことが 1 回あり、理由は不明です。</li>
+<li><strong>未測定:</strong> スリープ中の車両と、起きていて人がいない車両。<code>NOT_PRESENT</code> では何かが変わり続けた (間隔 42 個のうち最大 25.3 秒) ため、繰り返しは見えませんでした。</li>
+<li><strong>以前の回:</strong> 1 回目は起きている間 1〜25 秒ごとと報告しました (<code>UNLOCKED</code> は 26 バイト、それ以外は 28 バイト)。そのフレームは残っておらず確認できません。フィールド 8 の変化で説明できるかもしれません。以降の記録では、5〜59 秒の間隔 38 個のうち 37 個が、何かが変わったフレームで終わっています。2 回目は 1 秒以内に複数届くこともありました。3 回目は起動中の 0.5 秒以内に 9 フレーム、その後は変化があるあいだ 0.1〜8 秒に 1 回でした。</li>
+</ul>
+<p>繰り返しを変化として扱わないでください。</p>
 <p>ライブラリの規則: <code>closureStatuses</code> がなければすべて閉と見なします (A2)。両方の運転席側ドア、リアトランク、充電ポートで確認済みです。間違いになるのは、ブロードキャストを送らない室内ボタン操作のトランクだけです。<code>UNLOCKED</code> はロック状態の 0 番の値で、エンコードされないため、ブロードキャストではロック状態が欠けている場合と区別できません（車両がまだ <code>ASLEEP</code> の間に確認）。</p>
 
 <h3>B3.2 authenticationRequest（フィールド 3）</h3>
@@ -687,24 +710,59 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 </table>
 <p><code>AuthenticationReason_E</code>（接頭辞 <code>AUTHENTICATIONREASON_</code>）: 0 <code>NOT_DOCUMENTED</code>、1 <code>IDENTIFICATION</code>、2 <code>POWER_ON_VEHICLE_REQUEST</code>、3 <code>GTW_REQUEST</code>、4 <code>UI_UNLOCK_PASSIVE_AUTH</code>、5 <code>PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL</code>、6 <code>PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL</code>、7 <code>PASSIVE_UNLOCK_AUTOPRESENT_DOOR</code>、8 <code>ENTERED_HIGHER_AUTH_ZONE</code>、9 <code>WALK_UP_UNLOCK</code>、10 <code>IMMOBILIZER</code>。関連する <code>AuthenticationResponse</code>（<code>UnsignedMessage</code> のフィールド 3、スマートフォンキーが送る）と <code>AuthenticationRejection_E</code> はスキーマにあり、ライブラリは送りません。</p>
 <p>公開モデル (<code>VehicleEvent.AuthenticationRequest</code>、B2) では、<code>requestedLevel</code> は <code>NONE</code>、<code>UNLOCK</code>、<code>DRIVE</code> で、スキーマ外の値は <code>UNKNOWN</code> です。レベルがないことと <code>NONE</code> は区別できません。<code>reasons</code> は車両が送った値ごとに 1 つずつで、名前は上の接頭辞を除いたものです。スキーマ外の値は <code>UNKNOWN</code> になり、既知の値の後に並びます (正確な順序は <code>raw</code> にあります)。</p>
-<p>観察: 室内ハンドルを引くと <code>requestedLevel = DRIVE</code>、<code>reasons = [PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL]</code>。充電ポートを開けて充電が始まるときは <code>ENTERED_HIGHER_AUTH_ZONE</code> が加わりました。同じ瞬間に <code>vehicleStatus</code>（とフィールド 53）が一緒に届きました。他の理由は観察できていません。3 回目（スリープ中、続いて起きている車両の外側ハンドル、充電ポートのラッチ解除、手でのトランク操作）では <code>authenticationRequest</code> もフィールド 53 も<strong>届かず</strong>、<code>PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL</code> は一度も見られませんでした。</p>
+<p>観察: 室内ハンドルを引くと <code>requestedLevel = DRIVE</code>、<code>reasons = [PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL]</code>。充電ポートを開けて充電が始まるときは <code>ENTERED_HIGHER_AUTH_ZONE</code> が加わりました。同じ瞬間に <code>vehicleStatus</code>（とフィールド 53）が一緒に届きました。以降の記録 (B5) の包まれたフレーム 6 個はすべて <code>requestedLevel = DRIVE</code>、<code>reasons = [ENTERED_HIGHER_AUTH_ZONE]</code> で、包まれていないフレーム 1 個には <code>IDENTIFICATION</code> がありました (下記)。他の理由は観察できていません。3 回目（スリープ中、続いて起きている車両の外側ハンドル、充電ポートのラッチ解除、手でのトランク操作）では <code>authenticationRequest</code> もフィールド 53 も<strong>届かず</strong>、<code>PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL</code> は一度も見られませんでした。</p>
 <div class="callout">
-<strong>包まれており、裸ではない</strong>
-<p>この車両はこれを <code>RoutableMessage</code> に包んで（上記のブロードキャスト形式）送ってきました。約 1.1 秒ごとに包まれていない <code>FromVCSECMessage{authenticationRequest}</code> が届くという他の報告（Teslemetry PR #179）とは異なります。この車両では包まれていないフレームは見えませんでした（<code>drop:missing-source</code>、<code>drop:unparseable</code>: 0 行）。</p>
+<strong>通常は包まれており、裸のこともある</strong>
+<p>この車両は通常これを <code>RoutableMessage</code> に包んで（上記のブロードキャスト形式）送ります。包まれていないフレームも実際に届きます (有力)。以降の記録 (B5) の 12 接続で 2 個あり、どちらも <code>from_destination</code> がなく、包まれていない <code>FromVCSECMessage</code> として読みました。1 つは遅い接続が完了するとき (B3.6) の 31 バイトの <code>authenticationRequest{requestedLevel = DRIVE, reasons = [IDENTIFICATION], token = 20 B}</code>、もう 1 つは 12 バイトの <code>commandStatus{OPERATIONSTATUS_OK}</code> です。他の報告（Teslemetry PR #179）の「約 1.1 秒ごと」とはかけ離れています。これらのフレームはイベントの条件 (B2) を満たさないので <code>vehicle.events</code> には届かず、アプリはこの <code>AuthenticationRequest</code> を見られません。観察ログにだけ、<code>reinterpreted=</code> 付きの <code>[drop:missing-source]</code> として現れます (<a href="18-lib-troubleshooting.html">18. トラブルシューティング</a>)。<code>drop:unparseable</code>: 0 行。</p>
 </div>
 
 <h3>B3.3 フィールド 53（不明）</h3>
-<p>状態: <span class="badge warn">不明</span>。<code>FromVCSECMessage</code> のフィールド 53: <code>{1: small int, 2: 35 bytes}</code> の繰り返し。</p>
+<p>状態: <span class="badge warn">不明</span>。<code>FromVCSECMessage</code> のフィールド 53: 下位フィールド 1 を繰り返す 1 つのメッセージで、各項目は <code>{1: small int, 2: 35 bytes}</code>。</p>
 <ul>
-<li>接続直後と充電ポートのイベントでは合計 54 バイト（項目 1 つ、id 4）、ドアとロックのイベントでは 205〜220 バイト（項目 5 つ、id 1、3、4、6、7）。1 つのメッセージ内の 35 バイトのブロブは最後の 2 バイトだけが異なります。</li>
-<li>認証イベントと一緒に届きます。id 1、3、4、6、7 は登録済みキーのスロット番号（M3 で 7 本確認）と重なるため、キーごとの認証チャレンジと推測しています。<strong>未確定。</strong></li>
+<li>項目数ごとのサイズ: 1 項目で 54 バイト (id 3、4、7 を確認)、2 項目で 95 バイト (id 3 と 6)、5 項目で 205〜220 バイト (id 1、3、4、6、7)。以降の記録 (B5) には 11 フレームあり、そのうち 4 フレームが 5 項目で、すべて 220 バイト、すべて 1、3、6、7、4 の順でした。これはフィールド 48 の値とバイト単位で同じです (B3.4)。</li>
+<li><strong>id はキースロットではありません (有力)。</strong>スロット番号と重なりますが、id 7 が現れたセッションの 37 回の問い合わせすべてで <code>keySummary</code> が報告したのはスロット 0〜6 だけでした。</li>
+<li><strong>35 バイトのブロブ:</strong> 先頭 33 バイトは、この 11 フレームの全 28 項目で同一でした。日付は 2 日にわたり、登録キーの数が変わる間も同じです。変わるのは項目ごとの最後の 2 バイトだけで、同じ id でも異なります (28 項目で 28 通り)。</li>
+<li><strong>届くとき:</strong> 1 回目と 2 回目では認証イベントと一緒に見えました。以降の記録で <code>authenticationRequest</code> の前後 3 秒以内に届いたのは 11 フレームのうち 1 フレームだけです。5 項目のフレーム 4 個のうち 3 個はフィールド 8 の下位 1 が 2 から 1 に変わる前後 0.7 秒以内に、残り 1 個は遅い接続の 0.4 秒後に届きました。</li>
+<li>キーごとの認証チャレンジという以前の推測は弱まりました。項目間で異なるのは最大 16 ビットだけです。意味は不明です。</li>
 </ul>
 
 <h3>B3.4 フィールド 48（不明）</h3>
-<p>状態: <span class="badge warn">不明</span>。<code>FromVCSECMessage</code> のフィールド 48、20 バイト。車両が起きていて人がいるとき、約 5.0 秒ごと（途切れる区間あり）。1 回目にだけ見え、2 回目には現れませんでした。ハートビートと推測しますが、条件は不明です。</p>
+<p>状態: <span class="badge warn">不明</span>。<code>FromVCSECMessage</code> のフィールド 48: <code>{1: 5 bytes}</code>、20 バイトのフレーム。以降の記録 (B5) の 3 フレームはすべて <code>01 03 06 07 04</code> で、5 項目のフィールド 53 の id の順と同じです (B3.3)。</p>
+<p>頻度: 1 回目は車両が起きていて人がいるとき約 5.0 秒ごと（途切れる区間あり）に見え、2 回目には現れませんでした。以降の記録では接続時間の合計約 68 分で 3 フレームで、きっかけは見えません。以前の推測である一定間隔のハートビートには合いません。条件は不明です。</p>
 
 <h3>B3.5 他のクライアント宛ての応答</h3>
-<p>ブロードキャストではありません。署名された 83 バイトの応答（<code>to_destination.routing_address</code> が別のクライアントの 16 バイトのアドレス、16 バイトの <code>request_uuid</code>、本文は空）は、別のスマートフォンの VCSEC 要求への応答です。こちらのリンクにも約 1〜2 分ごとに、またドアのイベント直後に届きます。ライブラリはこれを <code>no-handler</code>（持ち主 <code>other</code>）として破棄します。</p>
+<p>ブロードキャストではありません。別の Bluetooth クライアントへの応答はこちらのリンクにも届きます。<code>to_destination.routing_address</code> はそのクライアントの 16 バイトのアドレスで、ライブラリはこれを <code>no-handler</code>（持ち主 <code>other</code>）として破棄します。イベントの条件 (B2) を満たさないので、イベントにはなりません。数は以降の記録 (B5) のものです。</p>
+<table>
+<thead><tr><th>応答</th><th>ドメイン</th><th>フレーム</th><th>状態</th><th>観察</th></tr></thead>
+<tbody>
+<tr><td>署名あり、本文は空、16 バイトの <code>request_uuid</code></td><td>VCSEC</td><td>83 バイト</td><td><span class="badge ok">確認済み</span></td><td>約 1〜2 分ごと、およびドアのイベント直後。41 個</td></tr>
+<tr><td>その他の VCSEC 応答: 空の <code>request_uuid</code> の暗号化応答、平文の <code>whitelistInfo</code> と <code>whitelistEntryInfo</code>、<code>session_info</code></td><td>VCSEC</td><td>80〜177 バイト</td><td><span class="badge info">有力</span></td><td>178 個</td></tr>
+<tr><td>暗号化応答、16 バイトの <code>request_uuid</code></td><td>インフォテインメント</td><td>150〜453 バイト。暗号文は最大 350 バイト</td><td><span class="badge info">有力</span></td><td>1685 個</td></tr>
+<tr><td><code>session_info</code></td><td>インフォテインメント</td><td>179、180 バイト</td><td><span class="badge info">有力</span></td><td>66 個</td></tr>
+<tr><td><code>signedMessageStatus</code> の <code>MESSAGEFAULT_ERROR_RESPONSE_MTU_EXCEEDED</code>、ペイロードなし</td><td>インフォテインメント</td><td>106 バイト</td><td><span class="badge info">有力</span></td><td>132 個 (<a href="16-lib-errors.html#sec-size-limit">16、応答サイズ上限</a>)</td></tr>
+</tbody>
+</table>
+<ul>
+<li>インフォテインメントのフレームは、そのクライアントが動作している間、約 1 秒に 1 個届きました (間隔の中央値 0.94 秒)。12 接続のうち 7 接続に現れました。ほぼ <code>DRIVE</code> だった 17 分間の接続には 1 個もなかったので、走行だけで現れるわけではありません。</li>
+<li>ログからはクライアントを特定できません。</li>
+<li>この通信が続いている間はクエリが止まることがあります (<a href="16-lib-errors.html#sec-other-client">16. エラー処理</a>)。</li>
+</ul>
+
+<h3>B3.6 フィールド 44（不明）</h3>
+<p>状態: 意味は <span class="badge warn">不明</span>、遅い接続との関係は <span class="badge info">有力</span>。<code>FromVCSECMessage</code> のフィールド 44: varint で、確認した 4 フレームすべて値は 2、フレームは 13 バイト。これだけなら <code>unknownFields</code> に <code>"44"</code> が入った <code>Unrecognized</code> イベントです。</p>
+<p>以降の記録 (B5) の 12 接続は、接続にかかった時間できれいに分かれました。</p>
+<table>
+<thead><tr><th>接続</th><th><code>connecting</code> から <code>connected</code> まで</th><th>フィールド 44 のフレームあり</th><th>他のクライアントのインフォテインメントフレームあり</th></tr></thead>
+<tbody>
+<tr><td>速い接続 8 回</td><td>0.10〜0.21 秒</td><td>8 回中 0 回</td><td>8 回中 7 回</td></tr>
+<tr><td>遅い接続 4 回</td><td>1.52〜13.58 秒</td><td>4 回中 4 回、<code>connected</code> の 1.1〜3.4 秒後</td><td>4 回中 0 回</td></tr>
+</tbody>
+</table>
+<ul>
+<li>速い接続で最も短いものも 26.7 秒続いたので、その遅れのフレームなら見えたはずです。</li>
+<li>単に「車両がロックされている」という意味ではありません。ロックされ人がいない車両への速い接続でもフィールド 44 はありませんでした。</li>
+<li>接続が速いか遅いかの理由と、値の意味は不明です。</li>
+</ul>
 
 <h2 id="sec-b-absent">B4. ブロードキャストでは受け取れないもの</h2>
 <table>
@@ -713,7 +771,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <tr><td>ウインカー（左、右）、ハザード、ヘッドライト、ハイビーム</td><td>操作しても<strong>メッセージがまったくなく</strong>、BLE スキーマにも該当フィールドがありません（<code>vcsec.proto</code>、<code>vehicle.proto</code>、<code>car_server.proto</code>）。知られている経路は Tesla Fleet Telemetry（<code>LightsTurnSignal</code> 240、<code>LightsHazardsActive</code> 239、<code>LightsHighBeams</code> 241）だけで、これはインターネット上のサーバー経由なので、このライブラリのサーバーなしという範囲の外です</td></tr>
 <tr><td>室内ボタンで開けたトランク</td><td>ブロードキャストなし。外から手で開け閉めした場合はブロードキャストあり (B3.1)。カードキー、スマートフォンキー、アプリは未検証</td></tr>
 <tr><td>スリープ中の車両</td><td>起動中の最初のフレームのみ（3 回目、<code>ASLEEP</code> が約 0.1 秒）。スリープしたままの車両は観察できていません</td></tr>
-<tr><td>充電ケーブル</td><td>2 回目（充電ポートを開ける、充電器を接続、充電開始）: <code>chargePort = OPEN</code>、フィールド 8 の下位 2 が 2 から 1 に変化、<code>ENTERED_HIGHER_AUTH_ZONE</code> を含む <code>authenticationRequest</code>、項目 1 つのフィールド 53。3 回目（ラッチ解除、プラグを抜く、ポートドアが閉まる）: 挿している間は <code>chargePort</code> が <code>CLOSED</code>、ラッチ解除後は <code>OPEN</code>、ポートドアが閉まるとなくなる。フィールド 8 の下位 2 は 1 から 2 に変化。ケーブル自体に対する個別のブロードキャストは見つかっていません</td></tr>
+<tr><td>充電ケーブル</td><td>2 回目（充電ポートを開ける、充電器を接続、充電開始）: <code>chargePort = OPEN</code>、フィールド 8 の下位 2 が 2 から 1 に変化、<code>ENTERED_HIGHER_AUTH_ZONE</code> を含む <code>authenticationRequest</code>、項目 1 つのフィールド 53。3 回目（ラッチ解除、プラグを抜く、ポートドアが閉まる）: 挿している間は <code>chargePort</code> が <code>CLOSED</code>、ラッチ解除後は <code>OPEN</code>、ポートドアが閉まるとなくなる。フィールド 8 の下位 2 は 1 から 2 に変化。ケーブル自体に対する個別のブロードキャストは見つかっておらず、フィールド 8 もそれではありません (B3.1)</td></tr>
 <tr><td>他のスマートフォンキーが近づくとき</td><td>記録していない</td></tr>
 </tbody>
 </table>
@@ -722,6 +780,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <ul>
 <li>iPhone 16 Pro、iOS 27、Model Y（ファームウェアは未記録）。サンプル <code>dev.mirolab.TeslableSampleDevice</code> ビルド 7 と 8、キー <code>SECURE_ENCLAVE</code>。観察にキーの登録は不要です。</li>
 <li>1 回目 2026-10-18（ビルド 7、連続した記録 1 本、71 行）。2 回目 2026-10-24（ビルド 8、未知フィールドの詳細デコード、シナリオごとの記録）。3 回目 2026-10-24（ビルド 8、40 秒・25 行の記録 1 本: スリープ中でロックされた車両、運転席側の後席ドアを外から開ける、ハンドルを握ったまま充電ポートのラッチを解除、充電器のプラグを抜く、後席ドアを閉める、充電ポートのドアを閉める、トランクを外から手で開け閉めする、運転席ドアを外から開け閉めする）。</li>
+<li>以降の記録: Monitor アプリの 6 本の記録、2026-10-31 と 2026-11-01（ビルド 13、14、18）、12 接続、接続時間の合計約 68 分、上記のスマートフォンと車両。シナリオがないので人の動作はフレームからの推定で、これらの結果は有力または不明のままです。</li>
 <li>再現手順: サンプルの観察モードをオンにし、シナリオを実行してから、表示ボタン（と「結果全体をコピー」）を押します。詳細とログの書式は <a href="18-lib-troubleshooting.html">18. トラブルシューティング</a> を参照してください。</li>
 </ul>
 
@@ -730,7 +789,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <li>公式 <code>vehicle-command</code> <code>a4b43c1</code>（Apache-2.0）: ルーティング、フレーミング、VCSEC クエリ。</li>
 <li>Teslemetry <code>tesla-protocol</code> <code>e6f7afb1</code>（Apache-2.0）: 拡張フィールド（<code>gear</code>、<code>uiDesire</code>、<code>authenticationRequest</code>、追加の enum 値）を含む proto スナップショット。ADR-0002（2026-10-18 改訂）。</li>
 <li>Teslemetry <code>python-tesla-fleet-api</code> PR #178、#179: 事実のみ参照。</li>
-<li>自前の収集: 実車の結果ノート <code>docs/handoff/2026-10-18-m4-push-observation-results.md</code>。</li>
+<li>自前の収集: 実車の結果ノート <code>docs/handoff/2026-10-18-m4-push-observation-results.md</code> とログ分析 <code>docs/analysis/2026-11-01-build18-link-health.md</code>。このページのために生ログと照合し直しました。</li>
 <li>AGPL のリポジトリは使用していません。</li>
 </ul>
 

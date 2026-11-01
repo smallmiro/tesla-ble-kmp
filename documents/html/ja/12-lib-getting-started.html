@@ -204,7 +204,7 @@ _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class=
 <p>車両は要求しなくても平文のブロードキャストを送ってきます。車両の状態 (ロック、ドアなどの開閉部、ギア、乗車、スリープ) と認証要求です。<code>vehicle.events</code> はこれを <code>Flow&lt;VehicleEvent&gt;</code> として届け、キーもセッションも必要ありません。どのフレームがイベントになるか、イベントの種類、<code>unknownFields</code>、バッファは <a href="14-lib-reading-state.html#sec-b-library">14. 車両状態の取得、B2</a> で説明しています。</p>
 <ul>
 <li><strong>専用に収集します。</strong>別のコルーチン (Swift では別の <code>Task</code>) を使います。フローはリンクが切れるか <code>disconnect()</code> が呼ばれると<strong>自分で終わり</strong>、その後に始めた収集はすぐに終わります。そのあと <code>connection</code> を確認し、<code>disconnect()</code> を呼んでください。新しく接続すると、新しい <code>Vehicle</code> と新しい <code>events</code> が得られます。</li>
-<li><strong>聞いている間に届いたものだけです。</strong>それより前のブロードキャストは再送されません。<strong>繰り返しは変化ではありません</strong>。車両は同じ状態を数秒ごとに送り直すので、前の値と比べてください。</li>
+<li><strong>聞いている間に届いたものだけです。</strong>それより前のブロードキャストは再送されません。<strong>繰り返しは変化ではありません</strong>。車両は変わっていない状態も送り直す (起きていて人がいるときは前のフレームの 60 秒後、<a href="14-lib-reading-state.html#sec-b-catalogue">14、B3.1</a>) ので、前の値と比べてください。</li>
 <li><strong>トランク:</strong> 外側から手で開け閉めしたトランクはブロードキャストされますが、室内ボタンの場合は送られません。トランクの状態が重要なときは <code>vehicleStatus()</code> で読んでください。</li>
 <li><strong><code>raw</code> はフレーム全体です。</strong>VIN はマスクされておらず、アクセスのたびに新しいコピーを作ります。一度だけ読み、保存や共有の前に VIN をマスクしてください。</li>
 </ul>

@@ -98,6 +98,7 @@
 <li>Each takes an optional <code>timeout</code>; without it the default command timeout (5 seconds) applies. For <code>listKeys()</code> the timeout covers all of its requests together.</li>
 <li>The car handles one VCSEC request at a time per connection. A query that has to wait for another one spends part of its timeout waiting. <code>getState()</code> goes to infotainment and does not wait in that queue.</li>
 <li>These are queries. An <code>Uncertain</code> result means no data was confirmed, not that a command may have run, so it is safe to ask again, just not in a tight loop (see <a href="16-lib-errors.html#sec-getstate">16. Error Handling</a>).</li>
+<li>While another Bluetooth client is active, a query can get no reply at all, <code>listKeys()</code> most often (<a href="16-lib-errors.html#sec-other-client">16. Error Handling</a>).</li>
 <li>Control payloads (lock, trunk, wake-up) are in <a href="15-lib-commands.html">15. Commands</a>.</li>
 </ul>
 
@@ -163,7 +164,7 @@
 <tr><td>5</td><td><code>detailedClosureStatus</code></td><td><code>DetailedClosureStatus</code></td><td><code>tonneauPercentOpen</code> (1, uint32), Cybertruck</td><td><code>tonneauPercentOpen</code> (<code>null</code> if absent)</td></tr>
 <tr><td>6</td><td><code>uiDesire</code></td><td><code>UIDesire_E</code> (Teslemetry)</td><td>In the schema only</td><td><strong>Not surfaced</strong> (planned M5)</td></tr>
 <tr><td>7</td><td><code>gear</code></td><td><code>Gear_E</code> (Teslemetry; confirmed in broadcasts only, query reply unchecked)</td><td>Current gear</td><td><code>gear</code>; absent or outside the schema becomes <code>UNKNOWN</code></td></tr>
-<tr><td>8</td><td>(unknown, not in the schema)</td><td>message</td><td>Seen on a real car: <code>{1: 1|2, 2: 1|2, 3: 1}</code>; meaning unknown</td><td>Not surfaced</td></tr>
+<tr><td>8</td><td>(unknown, not in the schema)</td><td>message</td><td>Seen on a real car: <code>{1: 1|2, 2: 1|2, 3: 1|2}</code>; meaning unknown (B3.1)</td><td>Not surfaced</td></tr>
 </tbody>
 </table>
 <p><code>ClosureStatuses</code> has eight <code>ClosureState_E</code> fields, numbered 1 to 8: <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code>, <code>tonneau</code>.</p>
@@ -287,7 +288,7 @@
 <tr><td>7, 9, 10, 11</td><td><code>ROLE_SERVICE_TECH</code>, <code>ROLE_RIDER</code>, <code>ROLE_PREDELIVERY</code>, <code>ROLE_INFOTAINMENT</code> (Teslemetry, unconfirmed)</td><td><code>UNKNOWN</code></td></tr>
 </tbody>
 </table>
-<p><code>Gear_E</code> was confirmed on a real car: each of P, R, N and D produced one broadcast with the matching value; <code>GEAR_UNKNOWN</code> was not seen. <code>UIDesire_E</code> has no established meaning on a real car.</p>
+<p><code>Gear_E</code> was confirmed on a real car: each of P, R, N and D produced one broadcast with the matching value. <code>GEAR_UNKNOWN</code> is the zero value and is never encoded, but frames with no gear field do occur and read as <code>UNKNOWN</code> (B2). <code>UIDesire_E</code> has no established meaning on a real car.</p>
 <p><code>KeyFormFactor</code>: the public model has only <code>UNKNOWN</code>, <code>NFC_CARD</code>, <code>IOS_DEVICE</code>, <code>ANDROID_DEVICE</code> and <code>CLOUD_KEY</code>. Wire values 0, 1, 6, 7 and 9 map to them. <strong>The Teslemetry snapshot values map to <code>UNKNOWN</code>:</strong> 2 <code>3_BUTTON_BLE_CAR_KEYFOB</code>, 3 <code>BLE_DEVICE</code>, 4 <code>NFC_DEVICE</code>, 5 <code>BLE_AND_NFC_DEVICE</code>, 8 <code>3_BUTTON_BLE_CAR_KEYFOB_P60</code>, 10 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60</code>, 11 <code>5_BUTTON_GEN2_CAR_KEYFOB_P60</code>, 12 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60_V2</code>, 13 <code>3_BUTTON_GEN2_CAR_KEYFOB_P60_V3</code>, 14 <code>NFC_CARD_P71</code>, 15 <code>NFC_CARD_METAL_CARD</code>, 16 <code>NFC_CARD_PLASTIC_CARD</code>, 17 <code>APPLE_WATCH</code>, 18 <code>NFC_CARD_WD_PLASTIC_CARD</code>, 19 <code>HARMONY_OS_NEXT_DEVICE</code> (each with the prefix <code>KEY_FORM_FACTOR_</code>).</p>
 
 <h2 id="sec-a-other">A7. Other request types in the schema</h2>
@@ -502,7 +503,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <li>The unit of <code>speed</code> and <code>speed_float</code>. Do not assume km/h or mph.</li>
 <li>What <code>timestamp</code> marks: the measurement or the reply. Until that is known, the check in A8.3 is the best available.</li>
 <li>How long a wake takes, and what a sleeping infotainment computer does with a request. The tests model no reply. If a real car answers busy instead, the library retries until the timeout, and the result can be <code>Failure(Timeout(afterSend = false))</code> (<a href="16-lib-errors.html#sec-getstate">16. Error Handling</a>).</li>
-<li>How the size limit behaves per firmware, and whether the fault arrives encrypted or in plaintext.</li>
+<li>How the size limit behaves per firmware, and how the fault arrives on our own <code>getState</code>. In replies to another client it came in plaintext <code>signedMessageStatus</code> (Likely, <a href="16-lib-errors.html#sec-size-limit">16, Response size limit</a>).</li>
 </ul>
 
 <h2 id="sec-status">Result types</h2>
@@ -577,7 +578,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <tr><td>16</td><td><code>whitelistInfo</code></td><td><code>WhitelistInfo</code></td><td>Query reply</td></tr>
 <tr><td>17</td><td><code>whitelistEntryInfo</code></td><td><code>WhitelistEntryInfo</code></td><td>Query reply</td></tr>
 <tr><td>46</td><td><code>nominalError</code></td><td><code>Errors.NominalError</code></td><td>Error reply</td></tr>
-<tr><td>48, 53</td><td>unknown</td><td></td><td>Seen on a real car, in no schema (B3)</td></tr>
+<tr><td>44, 48, 53</td><td>unknown</td><td></td><td>Seen on a real car, in no schema (B3)</td></tr>
 </tbody>
 </table>
 
@@ -605,14 +606,14 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <tr><td><code>session_info</code></td><td>Absent</td></tr>
 </tbody>
 </table>
-<p>Everything else stays an observation log line only: replies to other phones, signed or encrypted frames, frames that do not parse, frames without a source. The library never decrypts a broadcast, and nothing it decrypted ever reaches an event (FR-112).</p>
+<p>Everything else stays an observation log line only: replies to other phones, signed or encrypted frames, frames that do not parse, frames without a source (including bare frames, B3.2). The library never decrypts a broadcast, and nothing it decrypted ever reaches an event (FR-112).</p>
 <h3>Event types</h3>
 <table>
 <thead><tr><th>Event</th><th>When</th><th>What it carries</th></tr></thead>
 <tbody>
 <tr><td><code>VehicleEvent.Status</code></td><td>The frame has <code>vehicleStatus</code> (field 1)</td><td><code>status</code>: a <code>VehicleStatus</code> built with the same rules as <code>vehicleStatus()</code> (A2): no opening reported means all closed, unknown values become <code>UNKNOWN</code>, <code>gear</code> included</td></tr>
 <tr><td><code>VehicleEvent.AuthenticationRequest</code></td><td>The frame has <code>authenticationRequest</code> (field 3)</td><td><code>requestedLevel</code> and <code>reasons</code> (B3.2). The 20-byte token is not a field; it is in <code>raw</code></td></tr>
-<tr><td><code>VehicleEvent.Unrecognized</code></td><td>Neither: only unknown fields (48 and 53 on the real car), another field, no payload, or a payload that does not decode (then <code>unknownFields</code> is empty)</td><td>Only <code>raw</code> and <code>unknownFields</code></td></tr>
+<tr><td><code>VehicleEvent.Unrecognized</code></td><td>Neither: only unknown fields (44, 48 and 53 on the real car), another field, no payload, or a payload that does not decode (then <code>unknownFields</code> is empty)</td><td>Only <code>raw</code> and <code>unknownFields</code></td></tr>
 </tbody>
 </table>
 <ul>
@@ -634,9 +635,11 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <p>An enum value outside the schema is listed under its field number too (the model shows <code>UNKNOWN</code>); a new gear value gives <code>"1.7"</code>. Inside a sub-message its own fields come before those of its nested messages. A number that occurs twice is listed twice. A non-empty list means part of the frame was not understood; the bytes are in <code>raw</code>.</p>
 <h3>Rules for your app</h3>
 <ul>
-<li><strong>A repeat is not a change.</strong> The car resends its status every 1 to 25 seconds without any change, sometimes several times within one second. The library does not filter repeats; compare with the previous value yourself.</li>
+<li><strong>A repeat is not a change.</strong> With nothing changing, the car resends its status 60.0 seconds after the previous <code>Status</code> (Likely; measured only on an awake car with a person present, B3.1), and several frames can come within one second around a change, some of them identical. A frame can also differ only in field 8, which the model does not show, so it reads as an unchanged <code>VehicleStatus</code>. The library does not filter repeats; compare with the previous value yourself.</li>
+<li><strong>A quiet minute is normal.</strong> <code>Status</code> frames can be 60 seconds apart, so up to 60 seconds without one says nothing about the link. Judge the link from <code>connection</code>, not from the time since the last event.</li>
 <li><strong>Trunk:</strong> opening and closing the trunk by hand from outside sent broadcasts (<code>rearTrunk = OPEN</code>, then no <code>closureStatuses</code>). With the interior button it sent <strong>none</strong>, so an app that tracks the trunk from <code>events</code> keeps seeing it <code>CLOSED</code>. When the trunk state matters, confirm it with <code>vehicleStatus()</code>.</li>
 <li><strong>Waking car:</strong> the first frames of a sleeping car can show <code>UNKNOWN</code> closures and <code>gear = UNKNOWN</code>; real values follow within about 0.5 s (B3.1). Do not treat those <code>UNKNOWN</code> values as a change. The lock state reads <code>UNLOCKED</code> in them too, and since <code>UNLOCKED</code> is never encoded you cannot tell whether the car was still locked; confirm with <code>vehicleStatus()</code> if it matters.</li>
+<li><strong><code>gear = UNKNOWN</code> on an awake car (Likely):</strong> twice a parked, awake car with a person present sent a 24-byte frame with no gear field, and a normal <code>PARK</code> frame followed within 0.1 s. Do not treat that <code>UNKNOWN</code> as a change.</li>
 <li><strong>Subscribing:</strong> a collection receives from the moment it starts; earlier broadcasts are not replayed. Several collectors each receive every event.</li>
 <li><strong>The end:</strong> the flow ends normally, without an exception, when <code>connection</code> becomes <code>Disconnected</code> for any reason or when you call <code>disconnect()</code>, whichever comes first. A collection started later ends at once. A frame that was still on its way at that moment can be lost. Decide about reconnecting from <code>connection</code>, and still call <code>disconnect()</code> after a link loss. A new connection is a new <code>Vehicle</code> with its own <code>events</code>.</li>
 <li><strong>Slow collector:</strong> the library keeps up to 64 frames for collectors that fall behind. Beyond that, new frames are dropped for every collector of the connection, counted, and logged as a <code>WARN</code> line on the first drop and every 100th. This is not an error (<a href="16-lib-errors.html">16. Error Handling</a>). Keep the collector light.</li>
@@ -644,7 +647,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 </ul>
 
 <h2 id="sec-b-catalogue">B3. Message catalogue</h2>
-<p>Status labels: <span class="badge ok">Confirmed</span> seen on a real car; <span class="badge info">Schema-only</span> defined in the proto files, never seen by us; <span class="badge warn">Unknown</span> seen on the wire, meaning not known.</p>
+<p>Status labels: <span class="badge ok">Confirmed</span> seen on a real car; <span class="badge info">Likely</span> consistent and repeated in real-car logs, but not reproduced in a controlled scenario; <span class="badge info">Schema-only</span> defined in the proto files, never seen by us; <span class="badge warn">Unknown</span> seen on the wire, meaning not known.</p>
 <table>
 <thead><tr><th>Message</th><th>Status</th><th>In <code>vehicle.events</code></th></tr></thead>
 <tbody>
@@ -652,7 +655,8 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <tr><td><code>authenticationRequest</code> (field 3)</td><td><span class="badge ok">Confirmed</span> (field names unverified)</td><td><code>VehicleEvent.AuthenticationRequest</code></td></tr>
 <tr><td>Field 53</td><td><span class="badge warn">Unknown</span></td><td><code>"53"</code> in <code>unknownFields</code>; alone, an <code>Unrecognized</code> event</td></tr>
 <tr><td>Field 48</td><td><span class="badge warn">Unknown</span></td><td><code>"48"</code> in <code>unknownFields</code>; alone, an <code>Unrecognized</code> event</td></tr>
-<tr><td>Replies for other clients (not broadcasts)</td><td><span class="badge ok">Confirmed</span></td><td>Not an event</td></tr>
+<tr><td>Field 44</td><td><span class="badge warn">Unknown</span></td><td><code>"44"</code> in <code>unknownFields</code>; alone, an <code>Unrecognized</code> event</td></tr>
+<tr><td>Replies for other clients (not broadcasts)</td><td><span class="badge ok">Confirmed</span> for the signed VCSEC reply, <span class="badge info">Likely</span> for the others</td><td>Not an event</td></tr>
 </tbody>
 </table>
 
@@ -661,18 +665,37 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <table>
 <thead><tr><th>Field</th><th>Status</th><th>Observed</th></tr></thead>
 <tbody>
-<tr><td><code>vehicleLockState</code> (2)</td><td><span class="badge ok">Confirmed</span></td><td><code>UNLOCKED</code> right after connecting; <code>INTERNAL_LOCKED</code> repeated while seated with doors closed; <code>LOCKED</code> after getting out; <code>UNLOCKED</code> to <code>LOCKED</code> when walking away with the connection still up (link lost about 30 s later)</td></tr>
+<tr><td><code>vehicleLockState</code> (2)</td><td><span class="badge ok">Confirmed</span></td><td><code>UNLOCKED</code> right after connecting; <code>INTERNAL_LOCKED</code> repeated while seated with doors closed; <code>LOCKED</code> after getting out; <code>UNLOCKED</code> to <code>LOCKED</code> when walking away with the connection still up (link lost about 30 s later). Around driving, no scenario given (Likely, B5): <code>INTERNAL_LOCKED</code> became <code>UNLOCKED</code> in the same frame as <code>PARK</code> (3 of 3). It is not simply "in gear": after a shift to <code>DRIVE</code> it took 16.9 to 130.4 s to appear (3 cases), it did not appear in one 44-second stretch of <code>REVERSE</code> and <code>DRIVE</code>, and it ended once in <code>DRIVE</code> just as a door opened</td></tr>
 <tr><td><code>vehicleSleepStatus</code> (3)</td><td><span class="badge ok">Confirmed</span></td><td>Rounds 1 and 2: <code>AWAKE</code> in all lines. Round 3: the first two frames were <code>ASLEEP</code> when the exterior handle of the sleeping car was pulled, then <code>AWAKE</code> about 0.1 s later</td></tr>
 <tr><td><code>userPresence</code> (4)</td><td><span class="badge ok">Confirmed</span></td><td><code>PRESENT</code> while seated, <code>NOT_PRESENT</code> after getting out. Also <code>PRESENT</code> while a person stood outside with a door open (about 2.6 s after the rear door opened; about 0.1 s after the driver door opened from outside), <code>NOT_PRESENT</code> again about 0.2 s after the rear door closed. So <code>PRESENT</code> does not mean "seated"</td></tr>
 <tr><td><code>gear</code> (7)</td><td><span class="badge ok">Confirmed</span></td><td>Each P/R/N/D change produced exactly one broadcast whose <code>gear</code> matched the order of operation (<code>GEAR_REVERSE</code>, <code>GEAR_NEUTRAL</code>, <code>GEAR_DRIVE</code>, <code>GEAR_PARK</code>, twice in a row), about 10 s apart as operated. It works without an infotainment session and with an unenrolled key</td></tr>
-<tr><td><code>closureStatuses</code> (1)</td><td><span class="badge ok">Confirmed</span> for front driver door, rear driver door, rear trunk and charge port</td><td><strong>Present only while some field is not <code>CLOSED</code></strong>, absent when all are <code>CLOSED</code> (the frame sizes match proto3, which never encodes a zero value). Driver door opened with the interior handle (round 2) or the exterior handle (round 3): <code>frontDriverDoor = OPEN</code>; absent again after closing. Rear driver door opened from outside: <code>rearDriverDoor = OPEN</code>. Rear trunk opened and closed by hand from outside: <code>rearTrunk = OPEN</code>, then absent. Charge port: <code>chargePort = OPEN</code> when opened (round 2) and when the latch was released by holding a door handle with a charger plugged in (round 3); absent again after unplugging and the port door closing. With the charger plugged in and latched it read <code>CLOSED</code>, so <code>CLOSED</code> does not mean "no cable". Trunk operated by the interior button: <strong>no broadcast at all</strong>. Waking car: the first frames had <code>UNKNOWN</code> (value 3) for the four doors and both trunks; <code>frontTrunk</code> stayed <code>UNKNOWN</code> for one more frame. Not tested: passenger doors, front trunk, trunk by key card, phone key or app</td></tr>
+<tr><td><code>closureStatuses</code> (1)</td><td><span class="badge ok">Confirmed</span> for front driver door, rear driver door, rear trunk and charge port; <span class="badge info">Likely</span> for front passenger door, rear passenger door and front trunk</td><td><strong>Present only while some field is not <code>CLOSED</code></strong>, absent when all are <code>CLOSED</code> (the frame sizes match proto3, which never encodes a zero value). Driver door opened with the interior handle (round 2) or the exterior handle (round 3): <code>frontDriverDoor = OPEN</code>; absent again after closing. Rear driver door opened from outside: <code>rearDriverDoor = OPEN</code>. Rear trunk opened and closed by hand from outside: <code>rearTrunk = OPEN</code>, then absent. Charge port: <code>chargePort = OPEN</code> when opened (round 2) and when the latch was released by holding a door handle with a charger plugged in (round 3); absent again after unplugging and the port door closing. With the charger plugged in and latched it read <code>CLOSED</code>, so <code>CLOSED</code> does not mean "no cable". Trunk operated by the interior button: <strong>no broadcast at all</strong>. Waking car: the first frames had <code>UNKNOWN</code> (value 3) for the four doors and both trunks; <code>frontTrunk</code> stayed <code>UNKNOWN</code> for one more frame. With no scenario given (Likely, B5): <code>frontPassengerDoor</code>, <code>rearPassengerDoor</code> and <code>frontTrunk</code> each read <code>OPEN</code> and were absent again later; how they were opened was not recorded. Not tested: trunk by key card, phone key or app</td></tr>
 <tr><td><code>uiDesire</code> (6)</td><td><span class="badge info">Schema-only</span></td><td>Meaning not established</td></tr>
 <tr><td><code>detailedClosureStatus</code> (5)</td><td><span class="badge info">Schema-only</span></td><td>Cybertruck tonneau; no data from a Model Y</td></tr>
-<tr><td>field 8 (not in the schema)</td><td><span class="badge warn">Unknown</span></td><td><code>{1: 1|2, 2: 1|2, 3: 1}</code>. Sub-field 1 alternates between 1 and 2 periodically. Sub-field 2 changed from 2 to 1 when the charge port was opened and charging started (round 2), was 1 while a charger was plugged in and changed from 1 to 2 when the charge port closed after unplugging (round 3); it may be a charging-cable or charging state (1 = in use, 2 = idle), <strong>unconfirmed</strong> (the change came with the port door closing, more than 5 s after the cable was pulled out). Sub-field 3 was always 1. Not related to lights or turn signals</td></tr>
+<tr><td>field 8 (not in the schema)</td><td><span class="badge warn">Unknown</span></td><td><code>{1: 1|2, 2: 1|2, 3: 1|2}</code>, in all 176 <code>Status</code> frames of the later recordings (B5). Meaning unknown. <strong>It is not a charging state:</strong> sub-field 2 was 1 in all 75 frames in <code>DRIVE</code>, <code>REVERSE</code> or <code>NEUTRAL</code>, where no cable can be in use, so the charge port changes of rounds 2 and 3 (B4) do not define it. Sub-field 1 changes at irregular gaps, once 7 times in about 8 s. Of the 111 frames with sub-field 1 = 2, 108 were <code>PRESENT</code>, yet 17 frames with sub-field 1 = 1 were <code>PRESENT</code> too, so presence does not define it either. Sub-field 3 is not always 1: it was 2 in 7 frames, parked with nobody present, flipping every 8 to 16 s. A change of field 8 alone produces a broadcast (29 of 32 changes). Not related to lights or turn signals</td></tr>
 </tbody>
 </table>
-<p>Triggers seen: gear change, lock change (interior lock while seated, walk-away lock), door open and close with the interior and exterior handles (front and rear driver doors), trunk open and close by hand from outside, charge port open, latch release and close, charging start, change of user presence, waking up.</p>
-<p>Frequency: it is also repeated with no change. First round: every 1 to 25 s while awake (26 bytes when <code>UNLOCKED</code>, 28 bytes otherwise). Second round: sometimes several within 1 s. Third round: nine frames within 0.5 s while waking, then one every 0.1 to 8 s while things changed. Do not treat a repeat as a change.</p>
+<p>Field 8 values in the later recordings (176 frames, 32 value changes; the 2 frames with no gear field are in no column):</p>
+<table>
+<thead><tr><th><code>{1, 2, 3}</code></th><th><code>DRIVE</code>, <code>REVERSE</code>, <code>NEUTRAL</code></th><th><code>PARK</code>, <code>PRESENT</code></th><th><code>PARK</code>, <code>NOT_PRESENT</code></th></tr></thead>
+<tbody>
+<tr><td>2, 1, 1</td><td>75</td><td>28</td><td>2</td></tr>
+<tr><td>1, 1, 1</td><td>0</td><td>16</td><td>33</td></tr>
+<tr><td>1, 2, 1</td><td>0</td><td>1</td><td>8</td></tr>
+<tr><td>2, 2, 1</td><td>0</td><td>3</td><td>1</td></tr>
+<tr><td>1, 1, 2</td><td>0</td><td>0</td><td>7</td></tr>
+</tbody>
+</table>
+<p>Triggers seen: gear change, lock change (interior lock while seated, walk-away lock), door open and close with the interior and exterior handles (front and rear driver doors), trunk open and close by hand from outside, charge port open, latch release and close, charging start, change of user presence, waking up, a change of field 8 alone (Likely).</p>
+<p>Frequency: a frame comes at each change, and it is also repeated with no change.</p>
+<ul>
+<li><strong>Repeat (Likely):</strong> on an awake car with a person present and nothing changing, the next <code>Status</code> came 60.0 s after the previous one: 47 gaps of 59.9 to 60.15 s (44 in <code>DRIVE</code>, 3 in <code>PARK</code>). No gap between two <code>Status</code> frames on one connection was longer (167 gaps, later recordings, B5).</li>
+<li><strong>What restarts the wait (Likely):</strong> a frame with a change. 6 of the 47 gaps started at one. Frames other than <code>Status</code> did not restart it (3 gaps, with field 53, <code>whitelistInfo</code> or <code>commandStatus</code> in between).</li>
+<li><strong>Counterexample:</strong> one gap between identical frames was 55.7 s, unexplained.</li>
+<li><strong>Not measured:</strong> a sleeping car, and an awake car with nobody present. With <code>NOT_PRESENT</code> something kept changing (the largest of 42 gaps was 25.3 s), so no repeat was seen in that state.</li>
+<li><strong>Earlier rounds:</strong> round 1 reported every 1 to 25 s while awake (26 bytes when <code>UNLOCKED</code>, 28 bytes otherwise). Those frames are not available to check. Field 8 changes may explain it: in the later recordings 37 of the 38 gaps of 5 to 59 s ended at a frame that changed something. Round 2: sometimes several within 1 s. Round 3: nine frames within 0.5 s while waking, then one every 0.1 to 8 s while things changed.</li>
+</ul>
+<p>Do not treat a repeat as a change.</p>
 <p>Library rule: a missing <code>closureStatuses</code> means all closed (A2), confirmed for both driver doors, the rear trunk and the charge port. It is wrong only for a trunk operated with the interior button, which sends no broadcast. <code>UNLOCKED</code> is the zero value of the lock state and is never encoded, so in a broadcast it cannot be told apart from a missing lock state (seen while the car was still <code>ASLEEP</code>).</p>
 
 <h3>B3.2 authenticationRequest (field 3)</h3>
@@ -687,24 +710,59 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 </table>
 <p><code>AuthenticationReason_E</code> (prefix <code>AUTHENTICATIONREASON_</code>): 0 <code>NOT_DOCUMENTED</code>, 1 <code>IDENTIFICATION</code>, 2 <code>POWER_ON_VEHICLE_REQUEST</code>, 3 <code>GTW_REQUEST</code>, 4 <code>UI_UNLOCK_PASSIVE_AUTH</code>, 5 <code>PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL</code>, 6 <code>PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL</code>, 7 <code>PASSIVE_UNLOCK_AUTOPRESENT_DOOR</code>, 8 <code>ENTERED_HIGHER_AUTH_ZONE</code>, 9 <code>WALK_UP_UNLOCK</code>, 10 <code>IMMOBILIZER</code>. The related <code>AuthenticationResponse</code> (<code>UnsignedMessage</code> field 3, sent by a phone key) and <code>AuthenticationRejection_E</code> exist in the schema; the library does not send them.</p>
 <p>In the public model (<code>VehicleEvent.AuthenticationRequest</code>, B2), <code>requestedLevel</code> is <code>NONE</code>, <code>UNLOCK</code>, <code>DRIVE</code>, or <code>UNKNOWN</code> for a value outside the schema; an absent level cannot be told from <code>NONE</code>. <code>reasons</code> has one entry per value sent, named as above without the prefix; a value outside the schema becomes <code>UNKNOWN</code> and is listed after the known ones (the exact order is in <code>raw</code>).</p>
-<p>Observed: <code>requestedLevel = DRIVE</code> with <code>reasons = [PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL]</code> when the interior handle was pulled; <code>ENTERED_HIGHER_AUTH_ZONE</code> was added when the charge port was opened and charging started. It came together with a <code>vehicleStatus</code> (and field 53) at the same moment. Other reasons were not observed. In round 3 (exterior handles on a sleeping, then awake car; charge port latch release; trunk by hand) <strong>no</strong> <code>authenticationRequest</code> and no field 53 arrived; <code>PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL</code> was never seen.</p>
+<p>Observed: <code>requestedLevel = DRIVE</code> with <code>reasons = [PASSIVE_UNLOCK_INTERIOR_HANDLE_PULL]</code> when the interior handle was pulled; <code>ENTERED_HIGHER_AUTH_ZONE</code> was added when the charge port was opened and charging started. It came together with a <code>vehicleStatus</code> (and field 53) at the same moment. In the later recordings (B5) all 6 wrapped frames had <code>requestedLevel = DRIVE</code>, <code>reasons = [ENTERED_HIGHER_AUTH_ZONE]</code>, and one bare frame had <code>IDENTIFICATION</code> (below). Other reasons were not observed. In round 3 (exterior handles on a sleeping, then awake car; charge port latch release; trunk by hand) <strong>no</strong> <code>authenticationRequest</code> and no field 53 arrived; <code>PASSIVE_UNLOCK_EXTERIOR_HANDLE_PULL</code> was never seen.</p>
 <div class="callout">
-<strong>Wrapped, not bare</strong>
-<p>This car sent it inside a <code>RoutableMessage</code> (the broadcast form above), unlike reports elsewhere (Teslemetry PR #179) of a bare <code>FromVCSECMessage{authenticationRequest}</code> about every 1.1 s. No bare frame was seen on this car (<code>drop:missing-source</code> and <code>drop:unparseable</code>: 0 lines).</p>
+<strong>Usually wrapped, sometimes bare</strong>
+<p>This car normally sends it inside a <code>RoutableMessage</code> (the broadcast form above). Bare frames do occur (Likely): 2 in the 12 connections of the later recordings (B5), both without <code>from_destination</code> and read as a bare <code>FromVCSECMessage</code>. One is a 31-byte <code>authenticationRequest{requestedLevel = DRIVE, reasons = [IDENTIFICATION], token = 20 B}</code>, as a slow connect completed (B3.6). The other is a 12-byte <code>commandStatus{OPERATIONSTATUS_OK}</code>. That is far from the "about every 1.1 s" reported elsewhere (Teslemetry PR #179). These frames do not meet the conditions for an event (B2), so <code>vehicle.events</code> does not deliver them and an app cannot see this <code>AuthenticationRequest</code>. Only the observation log shows them, as <code>[drop:missing-source]</code> with <code>reinterpreted=</code> (<a href="18-lib-troubleshooting.html">18. Troubleshooting</a>). <code>drop:unparseable</code>: 0 lines.</p>
 </div>
 
 <h3>B3.3 Field 53 (unknown)</h3>
-<p>Status: <span class="badge warn">Unknown</span>. <code>FromVCSECMessage</code> field 53: repeated <code>{1: small int, 2: 35 bytes}</code>.</p>
+<p>Status: <span class="badge warn">Unknown</span>. <code>FromVCSECMessage</code> field 53: one message with repeated sub-field 1, each entry <code>{1: small int, 2: 35 bytes}</code>.</p>
 <ul>
-<li>54 bytes in total (1 entry, id 4) right after connecting and at the charge port event; 205 to 220 bytes (5 entries, ids 1, 3, 4, 6, 7) at door and lock events. The 35-byte blobs of one message differ only in their last 2 bytes.</li>
-<li>It arrives with authentication events. The ids 1, 3, 4, 6, 7 overlap with enrolled key slot numbers (7 keys seen in M3), so it is probably a per-key authentication challenge. <strong>Unconfirmed.</strong></li>
+<li>Size by entries: 54 bytes for 1 entry (ids 3, 4 and 7 seen), 95 bytes for 2 entries (ids 3 and 6), 205 to 220 bytes for 5 entries (ids 1, 3, 4, 6, 7). The later recordings (B5) have 11 frames, four of them with 5 entries, all 220 bytes and all in the order 1, 3, 6, 7, 4, which is the field 48 value byte for byte (B3.4).</li>
+<li><strong>The ids are not key slots (Likely).</strong> They overlap with slot numbers, but <code>keySummary</code> reported only slots 0 to 6 in all 37 polls of a session in which id 7 appeared.</li>
+<li><strong>The 35-byte blob:</strong> the first 33 bytes were identical in all 28 entries of those 11 frames, on two dates and while the number of enrolled keys changed. Only the last 2 bytes vary, per entry, even for the same id (28 values in 28 entries).</li>
+<li><strong>When it comes:</strong> rounds 1 and 2 saw it with authentication events. In the later recordings only 1 of the 11 frames came within 3 s of an <code>authenticationRequest</code>. Three of the four 5-entry frames came within 0.7 s of field 8 sub-field 1 changing from 2 to 1, and the fourth 0.4 s after a slow connect.</li>
+<li>The earlier guess of a per-key authentication challenge is weaker now: at most 16 bits differ between entries. Its meaning is unknown.</li>
 </ul>
 
 <h3>B3.4 Field 48 (unknown)</h3>
-<p>Status: <span class="badge warn">Unknown</span>. <code>FromVCSECMessage</code> field 48, 20 bytes, about every 5.0 s while the car is awake and a person is present (with gaps). Seen only in the first round, not in the second. Probably a heartbeat; the condition is unknown.</p>
+<p>Status: <span class="badge warn">Unknown</span>. <code>FromVCSECMessage</code> field 48: <code>{1: 5 bytes}</code>, in a 20-byte frame. All 3 frames of the later recordings (B5) carry <code>01 03 06 07 04</code>, the id order of the 5-entry field 53 frames (B3.3).</p>
+<p>Rate: round 1 saw it about every 5.0 s while the car was awake and a person was present (with gaps), and round 2 did not see it. The later recordings have 3 frames in about 68 minutes connected, with no visible trigger. That does not fit a steady heartbeat, the earlier guess. The condition is unknown.</p>
 
 <h3>B3.5 Replies addressed to other clients</h3>
-<p>These are not broadcasts. A signed 83-byte reply (<code>to_destination.routing_address</code> is another client's 16-byte address, 16-byte <code>request_uuid</code>, empty body) answers another phone's VCSEC request. It reaches our link too, about every 1 to 2 minutes and right after a door event. The library drops it as <code>no-handler</code> (owner <code>other</code>).</p>
+<p>These are not broadcasts. Replies to another Bluetooth client reach our link too: <code>to_destination.routing_address</code> is that client's 16-byte address, and the library drops them as <code>no-handler</code> (owner <code>other</code>). They do not meet the conditions for an event (B2), so they are never events. Counts are from the later recordings (B5).</p>
+<table>
+<thead><tr><th>Reply</th><th>Domain</th><th>Frame</th><th>Status</th><th>Seen</th></tr></thead>
+<tbody>
+<tr><td>Signed, empty body, 16-byte <code>request_uuid</code></td><td>VCSEC</td><td>83 B</td><td><span class="badge ok">Confirmed</span></td><td>About every 1 to 2 minutes and right after a door event; 41 frames</td></tr>
+<tr><td>Other VCSEC replies: encrypted with empty <code>request_uuid</code>, plaintext <code>whitelistInfo</code> and <code>whitelistEntryInfo</code>, <code>session_info</code></td><td>VCSEC</td><td>80 to 177 B</td><td><span class="badge info">Likely</span></td><td>178 frames</td></tr>
+<tr><td>Encrypted reply, 16-byte <code>request_uuid</code></td><td>Infotainment</td><td>150 to 453 B; ciphertext up to 350 B</td><td><span class="badge info">Likely</span></td><td>1685 frames</td></tr>
+<tr><td><code>session_info</code></td><td>Infotainment</td><td>179 and 180 B</td><td><span class="badge info">Likely</span></td><td>66 frames</td></tr>
+<tr><td><code>MESSAGEFAULT_ERROR_RESPONSE_MTU_EXCEEDED</code> in <code>signedMessageStatus</code>, no payload</td><td>Infotainment</td><td>106 B</td><td><span class="badge info">Likely</span></td><td>132 frames (<a href="16-lib-errors.html#sec-size-limit">16, Response size limit</a>)</td></tr>
+</tbody>
+</table>
+<ul>
+<li>The infotainment frames came at about one per second while that client was active (median gap 0.94 s). They appeared on 7 of the 12 connections. One 17-minute connection, mostly in <code>DRIVE</code>, carried none, so driving alone does not produce them.</li>
+<li>The logs do not identify the client.</li>
+<li>Queries can stall while this traffic runs (<a href="16-lib-errors.html#sec-other-client">16. Error Handling</a>).</li>
+</ul>
+
+<h3>B3.6 Field 44 (unknown)</h3>
+<p>Status: <span class="badge warn">Unknown</span> for the meaning, <span class="badge info">Likely</span> for the link with slow connects. <code>FromVCSECMessage</code> field 44: a varint, value 2 in all 4 frames seen, in a 13-byte frame. Alone it is an <code>Unrecognized</code> event with <code>"44"</code> in <code>unknownFields</code>.</p>
+<p>All 12 connections of the later recordings (B5) split cleanly by how long connecting took:</p>
+<table>
+<thead><tr><th>Connections</th><th><code>connecting</code> to <code>connected</code></th><th>With a field 44 frame</th><th>With another client's infotainment frames</th></tr></thead>
+<tbody>
+<tr><td>8 fast</td><td>0.10 to 0.21 s</td><td>0 of 8</td><td>7 of 8</td></tr>
+<tr><td>4 slow</td><td>1.52 to 13.58 s</td><td>4 of 4, 1.1 to 3.4 s after <code>connected</code></td><td>0 of 4</td></tr>
+</tbody>
+</table>
+<ul>
+<li>The shortest fast connection lasted 26.7 s, so a frame at that delay would have been seen.</li>
+<li>It is not simply "car locked": one fast connect to a locked car with nobody present had no field 44.</li>
+<li>Why a connect is slow or fast, and what the value means, are unknown.</li>
+</ul>
 
 <h2 id="sec-b-absent">B4. What is not available by broadcast</h2>
 <table>
@@ -713,7 +771,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <tr><td>Turn signals (left, right), hazards, headlights, high beams</td><td><strong>No message at all</strong> when operated, and no BLE schema field for them (<code>vcsec.proto</code>, <code>vehicle.proto</code>, <code>car_server.proto</code>). The only known source is Tesla Fleet Telemetry (<code>LightsTurnSignal</code> 240, <code>LightsHazardsActive</code> 239, <code>LightsHighBeams</code> 241), an internet server path outside this library's no-server scope</td></tr>
 <tr><td>Trunk opened with the interior button</td><td>No broadcast. Opened and closed by hand from outside: broadcast (B3.1). Key card, phone key and app not tested</td></tr>
 <tr><td>Sleeping car</td><td>Only its first frames while waking (round 3, <code>ASLEEP</code> for about 0.1 s). A car that stays asleep was not observed</td></tr>
-<tr><td>Charging cable</td><td>Round 2 (charge port open, charger connected, charging start): <code>chargePort = OPEN</code>, field 8 sub-field 2 changed 2 to 1, <code>authenticationRequest</code> with <code>ENTERED_HIGHER_AUTH_ZONE</code>, field 53 with one entry. Round 3 (latch release, unplug, port door closes): <code>chargePort</code> <code>CLOSED</code> while plugged in, <code>OPEN</code> after the latch release, absent after the port door closed; field 8 sub-field 2 changed 1 to 2. No separate broadcast for the cable itself was identified</td></tr>
+<tr><td>Charging cable</td><td>Round 2 (charge port open, charger connected, charging start): <code>chargePort = OPEN</code>, field 8 sub-field 2 changed 2 to 1, <code>authenticationRequest</code> with <code>ENTERED_HIGHER_AUTH_ZONE</code>, field 53 with one entry. Round 3 (latch release, unplug, port door closes): <code>chargePort</code> <code>CLOSED</code> while plugged in, <code>OPEN</code> after the latch release, absent after the port door closed; field 8 sub-field 2 changed 1 to 2. No separate broadcast for the cable itself was identified, and field 8 is not one (B3.1)</td></tr>
 <tr><td>Another phone key approaching</td><td>Not recorded</td></tr>
 </tbody>
 </table>
@@ -722,6 +780,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <ul>
 <li>iPhone 16 Pro, iOS 27, Model Y (firmware not recorded). Sample <code>dev.mirolab.TeslableSampleDevice</code> builds 7 and 8, key <code>SECURE_ENCLAVE</code>. The key does not need to be enrolled to observe.</li>
 <li>First round 2026-10-18 (build 7, one continuous recording, 71 lines). Second round 2026-10-24 (build 8, detailed unknown-field decoding, one recording per scenario). Third round 2026-10-24 (build 8, one 40-second recording of 25 lines: sleeping, locked car; rear driver door opened from outside; charge port latch released while holding the handle; charger unplugged; rear door closed; charge port door closed; trunk opened and closed by hand from outside; driver door opened and closed from outside).</li>
+<li>Later recordings: six recordings of the Monitor app on 2026-10-31 and 2026-11-01 (builds 13, 14 and 18), 12 connections, about 68 minutes connected, on the phone and car above. No scenario was given, so what a person did is inferred from the frames and these findings stay Likely or Unknown.</li>
 <li>To reproduce: turn on the sample's observation mode, perform the scenario, then press the show button (and "copy whole result"). Details and log syntax: <a href="18-lib-troubleshooting.html">18. Troubleshooting</a>.</li>
 </ul>
 
@@ -730,7 +789,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <li>Official <code>vehicle-command</code> at <code>a4b43c1</code> (Apache-2.0): routing, framing, VCSEC queries.</li>
 <li>Teslemetry <code>tesla-protocol</code> at <code>e6f7afb1</code> (Apache-2.0): proto snapshot with the extension fields (<code>gear</code>, <code>uiDesire</code>, <code>authenticationRequest</code>, extra enum values); ADR-0002 (revised 2026-10-18).</li>
 <li>Teslemetry <code>python-tesla-fleet-api</code> PRs #178 and #179: facts only.</li>
-<li>Our own captures: the real-car results note <code>docs/handoff/2026-10-18-m4-push-observation-results.md</code>.</li>
+<li>Our own captures: the real-car results note <code>docs/handoff/2026-10-18-m4-push-observation-results.md</code> and the log analysis <code>docs/analysis/2026-11-01-build18-link-health.md</code>, rechecked against the raw logs for this page.</li>
 <li>AGPL repositories were not used.</li>
 </ul>
 

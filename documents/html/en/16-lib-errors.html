@@ -65,6 +65,7 @@
 <li><a href="#sec-events">Broadcast events</a></li>
 <li><a href="#sec-retry">Retries and timeouts</a></li>
 <li><a href="#sec-requery">What to read after Uncertain</a></li>
+<li><a href="#sec-other-client">Queries while another Bluetooth client is active</a></li>
 </ol></div>
 
 <h2 id="sec-outcomes">Three outcomes</h2>
@@ -132,6 +133,7 @@
 <p>The car sends no data when its reply goes over a size limit. The largest reply seen on real cars is about 453 bytes; this is an observed value, not a specification. <code>getState()</code> returns <code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code>, and the app cannot make the reply smaller.</p>
 <p>It is most likely on <code>Drive</code>. A long destination name makes it more frequent, with reports of failures lasting tens of seconds, and of one Model S/X build (<code>2026.27.6.15</code>, South Korea) failing almost always even with no route.</p>
 <p>The library does not resend the request. It does not clear the session, reconnect or wake the car because of this fault; session information that came with the reply is still applied as usual. The fault does not mean the car is gone or asleep. Keep the last value with its age, show it as unavailable when it is too old, and do not retry in a tight loop. Live speed is not guaranteed, and how this behaves per firmware is not confirmed on a real car (#118).</p>
+<p><strong>Real-car evidence (Likely, not from our own <code>getState</code>):</strong> in one session replies to another Bluetooth client reached our link (<a href="14-lib-reading-state.html#sec-b-catalogue">14, B3.5</a>), and 132 of its 1690 infotainment frames carried <code>MESSAGEFAULT_ERROR_RESPONSE_MTU_EXCEEDED</code>. They were 106-byte frames with no payload and the fault in plaintext <code>signedMessageStatus</code>. All 132 fell within about 11 minutes of one connection, in runs of one or two, and most runs were followed at once by a <code>session_info</code> reply; the next connection had none. The largest frame in that session was 453 bytes (350 bytes of ciphertext). What the client asked for is unknown: its requests are not visible and the payloads are encrypted.</p>
 
 <h3 id="sec-authenticity">Reply authenticity</h3>
 <div class="callout warn">
@@ -163,7 +165,7 @@
 <table>
 <thead><tr><th>Situation</th><th>What happens</th><th>What to do</th></tr></thead>
 <tbody>
-<tr><td>A collector falls more than 64 frames behind</td><td>New frames are dropped for every collector of the connection and counted. A <code>WARN</code> line (tag <code>Dispatcher</code>) on the first drop and every 100th: <code>Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)</code>. <strong>Not an error</strong>: no <code>VehicleError</code>, and the flow keeps running</td><td>Keep the collector light and hand slow work to another coroutine. The car repeats its status every few seconds, so the latest state comes again; or read <code>vehicleStatus()</code></td></tr>
+<tr><td>A collector falls more than 64 frames behind</td><td>New frames are dropped for every collector of the connection and counted. A <code>WARN</code> line (tag <code>Dispatcher</code>) on the first drop and every 100th: <code>Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)</code>. <strong>Not an error</strong>: no <code>VehicleError</code>, and the flow keeps running</td><td>Keep the collector light and hand slow work to another coroutine. The car resends its status, but that can take 60 s while awake with a person present and was not measured otherwise (<a href="14-lib-reading-state.html#sec-b-catalogue">14, B3.1</a>). To get the state sooner, read <code>vehicleStatus()</code></td></tr>
 <tr><td>A broadcast the library cannot decode</td><td>An <code>Unrecognized</code> event with an empty <code>unknownFields</code>; the bytes are in <code>raw</code></td><td>Keep <code>raw</code> (with the VIN masked) for analysis</td></tr>
 </tbody>
 </table>
@@ -203,6 +205,33 @@
 </tbody>
 </table>
 <p>Infotainment commands will be added to this table with M5.</p>
+
+<h2 id="sec-other-client">Queries while another Bluetooth client is active</h2>
+<p>Status: <span class="badge info">Likely</span>, from real-car logs of one car (<a href="14-lib-reading-state.html#sec-b-catalogue">14, B3.5</a>). It was not reproduced in a controlled scenario, and the mechanism is unknown.</p>
+<p>While another Bluetooth client was using the car, its infotainment replies reached our link at about one frame per second and queries could get no reply at all:</p>
+<table>
+<thead><tr><th>Session</th><th>Other client's infotainment frames</th><th><code>listKeys()</code></th><th><code>vehicleStatus()</code>, <code>keySummary()</code></th></tr></thead>
+<tbody>
+<tr><td>With that traffic, 53 polls</td><td>1690</td><td>6 <code>Success</code>, 47 <code>Uncertain(Timeout(afterSend = true))</code></td><td>106 of 106 <code>Success</code></td></tr>
+<tr><td>Without it, 37 polls</td><td>0</td><td>37 of 37 <code>Success</code></td><td>74 of 74 <code>Success</code></td></tr>
+</tbody>
+</table>
+<ul>
+<li>This is the ordinary lost-reply result: the request was sent and nothing came back. No late reply arrived after the timeout either, so a longer <code>timeout</code> is not expected to help.</li>
+<li><code>listKeys()</code> is the most exposed because it sends requests one after another, the summary plus one per occupied slot (eight requests in about 0.8 s with seven keys). Requests sent under 0.55 s after the other client's latest frame were all answered, and 45 of the 47 lost ones were sent 0.55 to 0.85 s after it. Send times are inferred from the previous reply, because the log has no transmit lines.</li>
+<li><code>vehicleStatus()</code> and <code>keySummary()</code> are not immune: earlier recordings with such traffic have 4 <code>Uncertain(Timeout)</code> results on them. Their causes are not established; one came 1.6 s before a link loss.</li>
+<li>The link stayed up: the next poll's <code>vehicleStatus()</code> succeeded every time.</li>
+<li>No command was sent during this traffic, so whether a command stalls the same way is unknown.</li>
+</ul>
+<table>
+<thead><tr><th>What your app does</th><th>Why</th></tr></thead>
+<tbody>
+<tr><td>Keep the last value with its age and ask again later</td><td>The same rule as any <code>Uncertain</code> on a query. It can keep failing while the other client stays active (only 6 of 53 succeeded above), so do not retry in a tight loop</td></tr>
+<tr><td>Do not read a timed-out <code>listKeys()</code> as a key change</td><td>No data was confirmed. Only a <code>Success</code> shows the key list</td></tr>
+<tr><td>Do not reconnect or clear the session because of it</td><td>The link is up. Check <code>connection</code> as usual</td></tr>
+<tr><td>After <code>Uncertain</code> on a command, read the state and do not resend</td><td><a href="#sec-requery">What to read after Uncertain</a>. That rule does not change here</td></tr>
+</tbody>
+</table>
 
 <footer class="page-nav">
   <a href="15-lib-commands.html"><span>Previous</span>15. Commands</a>

@@ -65,6 +65,7 @@
 <li><a href="#sec-events">ブロードキャストイベント</a></li>
 <li><a href="#sec-retry">リトライとタイムアウト</a></li>
 <li><a href="#sec-requery">Uncertain の後に読むもの</a></li>
+<li><a href="#sec-other-client">他の Bluetooth クライアントが動作している間のクエリ</a></li>
 </ol></div>
 
 <h2 id="sec-outcomes">3 つの結果</h2>
@@ -132,6 +133,7 @@
 <p>応答がサイズ上限を超えると、車両はデータを送りません。実車で観測された最大の応答は約 453 バイトで、仕様ではなく観測値です。<code>getState()</code> は <code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code> を返し、アプリが応答を小さくする方法はありません。</p>
 <p>最も起きやすいのは <code>Drive</code> です。目的地の名前が長いほど頻繁になり、数十秒間失敗したという報告や、Model S/X のあるビルド（<code>2026.27.6.15</code>、韓国）では経路がなくてもほぼ常に失敗するという報告があります。</p>
 <p>ライブラリはリクエストを再送しません。このエラーのためにセッションを消したり、再接続したり、車両を起こしたりはしません。応答に付いてきたセッション情報は、いつもどおり適用されます。このエラーは、車両がいなくなった、またはスリープしたという意味ではありません。最後の値を経過時間とともに保持し、古くなりすぎたら取得不可と表示し、短い間隔で繰り返し再試行しないでください。リアルタイムの速度は保証されず、ファームウェアごとの動作は実車では確認されていません (#118)。</p>
+<p><strong>実車の証拠 (有力、自分の <code>getState</code> ではありません):</strong> あるセッションで、別の Bluetooth クライアントへの応答がこちらのリンクに届き (<a href="14-lib-reading-state.html#sec-b-catalogue">14、B3.5</a>)、インフォテインメントのフレーム 1690 個のうち 132 個が <code>MESSAGEFAULT_ERROR_RESPONSE_MTU_EXCEEDED</code> でした。ペイロードのない 106 バイトのフレームで、エラーは平文の <code>signedMessageStatus</code> にありました。132 個すべてが 1 つの接続の約 11 分間に集中し、1 個か 2 個ずつ続き、その多くの直後に <code>session_info</code> の応答が届きました。次の接続には 1 個もありません。そのセッションの最大フレームは 453 バイト (暗号文 350 バイト) でした。クライアントの要求は見えず、ペイロードも暗号化されているので、何を問い合わせたかは不明です。</p>
 
 <h3 id="sec-authenticity">応答の真正性</h3>
 <div class="callout warn">
@@ -163,7 +165,7 @@
 <table>
 <thead><tr><th>状況</th><th>起きること</th><th>すること</th></tr></thead>
 <tbody>
-<tr><td>収集側がフレーム 64 個より多く遅れた</td><td>その接続のすべての収集側から新しいフレームが抜け、破棄数を数えます。最初と 100 回ごとに <code>WARN</code> の行 (タグ <code>Dispatcher</code>): <code>Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)</code>。<strong>エラーではありません</strong>。<code>VehicleError</code> はなく、フローは続きます</td><td>収集処理は軽くし、遅い処理は別のコルーチンに渡してください。車両は数秒ごとに状態を送り直すので最新の状態はまた届きます。または <code>vehicleStatus()</code> で読んでください</td></tr>
+<tr><td>収集側がフレーム 64 個より多く遅れた</td><td>その接続のすべての収集側から新しいフレームが抜け、破棄数を数えます。最初と 100 回ごとに <code>WARN</code> の行 (タグ <code>Dispatcher</code>): <code>Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)</code>。<strong>エラーではありません</strong>。<code>VehicleError</code> はなく、フローは続きます</td><td>収集処理は軽くし、遅い処理は別のコルーチンに渡してください。車両は状態を送り直しますが、起きていて人がいるときは 60 秒かかることがあり、それ以外の場合は測定していません (<a href="14-lib-reading-state.html#sec-b-catalogue">14、B3.1</a>)。すぐに状態が必要なら <code>vehicleStatus()</code> で読んでください</td></tr>
 <tr><td>ライブラリがデコードできなかったブロードキャスト</td><td><code>unknownFields</code> が空の <code>Unrecognized</code> イベント。バイトは <code>raw</code> にあります</td><td>分析用に <code>raw</code> を VIN をマスクして保存してください</td></tr>
 </tbody>
 </table>
@@ -203,6 +205,33 @@
 </tbody>
 </table>
 <p>インフォテインメントのコマンドは M5 でこの表に追加されます。</p>
+
+<h2 id="sec-other-client">他の Bluetooth クライアントが動作している間のクエリ</h2>
+<p>状態: <span class="badge info">有力</span>。1 台の車両の実車ログによるものです (<a href="14-lib-reading-state.html#sec-b-catalogue">14、B3.5</a>)。統制したシナリオでは再現しておらず、仕組みは不明です。</p>
+<p>別の Bluetooth クライアントが車両を使っている間、そのインフォテインメントの応答が約 1 秒に 1 個こちらのリンクに届き、クエリに応答がまったく返らないことがありました。</p>
+<table>
+<thead><tr><th>セッション</th><th>他のクライアントのインフォテインメントフレーム</th><th><code>listKeys()</code></th><th><code>vehicleStatus()</code>、<code>keySummary()</code></th></tr></thead>
+<tbody>
+<tr><td>その通信があったセッション、ポーリング 53 回</td><td>1690</td><td><code>Success</code> 6 回、<code>Uncertain(Timeout(afterSend = true))</code> 47 回</td><td>106 回中 106 回 <code>Success</code></td></tr>
+<tr><td>なかったセッション、ポーリング 37 回</td><td>0</td><td>37 回中 37 回 <code>Success</code></td><td>74 回中 74 回 <code>Success</code></td></tr>
+</tbody>
+</table>
+<ul>
+<li>これは通常の応答喪失と同じ結果です。要求は送られ、何も返ってきませんでした。タイムアウト後に遅れて届いた応答もないので、<code>timeout</code> を長くしても効果は見込めません。</li>
+<li><code>listKeys()</code> が最も影響を受けやすいのは、要求を次々に送るからです。サマリーと使用中のスロットごとに 1 回ずつで、キーが 7 本なら約 0.8 秒で 8 回です。他のクライアントの直近のフレームから 0.55 秒未満に送った要求にはすべて応答があり、失われた 47 回のうち 45 回はその 0.55〜0.85 秒後に送ったものでした。ログに送信行がないので、送信時刻は直前の応答から推定しています。</li>
+<li><code>vehicleStatus()</code> と <code>keySummary()</code> も無縁ではありません。同じ通信があった以前の記録には、これらの <code>Uncertain(Timeout)</code> が 4 回あります。原因は分かっておらず、1 回はリンク切断の 1.6 秒前でした。</li>
+<li>リンクは保たれていました。次のポーリングの <code>vehicleStatus()</code> は毎回成功しました。</li>
+<li>この通信の間にコマンドは送っていないので、コマンドが同じように止まるかは不明です。</li>
+</ul>
+<table>
+<thead><tr><th>アプリがすること</th><th>理由</th></tr></thead>
+<tbody>
+<tr><td>最後の値を経過時間とともに保持し、後でもう一度問い合わせる</td><td>クエリの <code>Uncertain</code> に共通の規則です。他のクライアントが動作している間は失敗が続くことがあるので (上の表では 53 回中 6 回だけ成功)、短い間隔で繰り返さないでください</td></tr>
+<tr><td>タイムアウトした <code>listKeys()</code> をキーの変更と読まない</td><td>確認できたデータはありません。キーの一覧を示すのは <code>Success</code> だけです</td></tr>
+<tr><td>これを理由に再接続したりセッションを消したりしない</td><td>リンクは保たれています。<code>connection</code> はいつもどおり確認してください</td></tr>
+<tr><td>コマンドの <code>Uncertain</code> の後は状態を読み、再送しない</td><td><a href="#sec-requery">Uncertain の後に読むもの</a>。この規則はここでも変わりません</td></tr>
+</tbody>
+</table>
 
 <footer class="page-nav">
   <a href="15-lib-commands.html"><span>前へ</span>15. コマンド</a>
