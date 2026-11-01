@@ -227,7 +227,7 @@
 <tr><td><code>attempt=N</code></td><td>この接続でリクエストに付けた不透明な番号で、1 から始まります。ハンドシェイクのリクエストと再試行を含め、リクエストごとに新しい番号を使うので、1 つのコマンドが複数の番号を使うことがあります。番号は 1 つの接続の中でだけ比べてください。新しい接続はまた 1 から始まります</td></tr>
 <tr><td><code>auth=gcm-ok</code></td><td><code>AES_GCM_Response_data</code> があり、タグを検証でき、カウンターがそのリクエストのリプレイ検査を通りました。渡されます</td></tr>
 <tr><td><code>auth=gcm-failed</code></td><td><code>AES_GCM_Response_data</code> はありますが、検証に失敗しました。捨てられます</td></tr>
-<tr><td><code>auth=gcm-replay</code></td><td>タグは検証できましたが、このリクエストですでに見たカウンターです。捨てられます</td></tr>
+<tr><td><code>auth=gcm-replay</code></td><td>タグは検証できましたが、リプレイウィンドウがカウンターを拒否しました。すでに見た値か、ウィンドウより古い値です。捨てられます</td></tr>
 <tr><td><code>auth=gcm-no-session</code></td><td><code>AES_GCM_Response_data</code> はありますが、検査するセッションがありません（秘密鍵がない、またはセッションが確立していません）。捨てられます</td></tr>
 <tr><td><code>auth=none</code></td><td><code>AES_GCM_Response_data</code> がないので何も検査していません。渡されます。セッション情報の応答もこの値です。その HMAC タグは別に検証し、この行には出ません</td></tr>
 </tbody>

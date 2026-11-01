@@ -173,7 +173,7 @@ disconnecting gets no line and is not delivered, so a missing line does not prov
 | `attempt=<N>` | Opaque number of the request on this connection, from 1. Every request takes a new one, including a handshake request and each retry, so one command can use several. Compare numbers only within one connection: a new connection starts at 1 again |
 | `auth=gcm-ok` | `AES_GCM_Response_data` is present, the tag verified and the counter passed the request's replay check. Delivered |
 | `auth=gcm-failed` | `AES_GCM_Response_data` is present and verification failed. Dropped |
-| `auth=gcm-replay` | The tag verified, but this request already saw that counter. Dropped |
+| `auth=gcm-replay` | The tag verified, but the replay window rejected the counter: already seen, or older than the window. Dropped |
 | `auth=gcm-no-session` | `AES_GCM_Response_data` is present, but there is no session to check it with (no private key, or the session is not established). Dropped |
 | `auth=none` | No `AES_GCM_Response_data`, so nothing was checked. Delivered. A `session_info` reply reads this too: its HMAC tag is verified separately and this line does not report that |
 
