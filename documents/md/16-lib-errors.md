@@ -1,6 +1,6 @@
 # Error Handling
 
-Scope: M1 error model, M2 retries and timeouts, M3 transport and key store errors, M4 `InsufficientPrivileges`, `UnknownVcsecError` and per-command re-query for VCSEC (Infotainment commands are added with M5), broadcast events (`Vehicle.events`, FR-035), `KeyStoreError.Locked` on a locked iPhone from the key store and the handshake (FR-037), `getState` results, the response size limit and reply authenticity (FR-033). Go original: `08-errors.md` (MessageFault meanings and remedies in §3.1).
+Scope: M1 error model, M2 retries and timeouts, M3 transport and key store errors, M4 `InsufficientPrivileges`, `UnknownVcsecError` and per-command re-query for VCSEC (Infotainment commands are added with M5), broadcast events (`Vehicle.events`, FR-035), `KeyStoreError.Locked` on a locked iPhone from the key store and the handshake (FR-037), queries while another BLE client is active, `getState` results, the response size limit and reply authenticity (FR-033). Go original: `08-errors.md` (MessageFault meanings and remedies in §3.1).
 
 ## Three outcomes (`VehicleResult<T>`)
 
@@ -84,7 +84,7 @@ Call `Vehicle.disconnect()` even after the link dropped so session keys and the 
 
 | Situation | What happens | App action |
 |---|---|---|
-| A collector falls more than 64 frames behind | New frames are dropped for every collector of that connection and counted per connection. `WARN` (tag `Dispatcher`) on the first drop and every 100th: `Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)`. **Not an error:** no `VehicleError`, and the flow keeps running | Keep the collector light and hand slow work to another coroutine. The vehicle repeats its status every few seconds, so the latest state comes again; or read `vehicleStatus()` |
+| A collector falls more than 64 frames behind | New frames are dropped for every collector of that connection and counted per connection. `WARN` (tag `Dispatcher`) on the first drop and every 100th: `Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)`. **Not an error:** no `VehicleError`, and the flow keeps running | Keep the collector light and hand slow work to another coroutine. The vehicle resends its status, but that can take 60 s while awake with a person present and was not measured otherwise (`14-lib-reading-state.md` B3.1). To get the state sooner, read `vehicleStatus()` |
 | A broadcast the library cannot decode | `VehicleEvent.Unrecognized` with an empty `unknownFields`; the bytes are in `raw` | Keep `raw` (VIN-masked) for analysis |
 
 ## Retries and timeouts (M2)
@@ -116,6 +116,37 @@ After `Uncertain`, never resend. Read the state the command changes:
 | `addKeyRequest` (`TimedOut`, or a `Flow` that ended without a terminal reply) | `sessionInfo(publicKey, VehicleDomain.INFOTAINMENT)` | `Success` = enrolled; `Failure(KeyNotPaired)` = not (yet) |
 
 Infotainment commands (M5) will be added to this table.
+
+## Queries while another BLE client is active
+
+Status: **Likely**, from real-car logs of one vehicle (`14-lib-reading-state.md` B3.5, B5). It was not reproduced in a
+controlled scenario, and the mechanism is unknown.
+
+While another BLE client was using the vehicle, its Infotainment replies reached our link at about one frame per second and
+queries could get no reply at all:
+
+| Session | Other client's Infotainment frames | `listKeys()` | `vehicleStatus()`, `keySummary()` |
+|---|---:|---:|---:|
+| With that traffic, 53 polls | 1690 | 6 `Success`, 47 `Uncertain(Timeout(afterSend = true))` | 106 of 106 `Success` |
+| Without it, 37 polls | 0 | 37 of 37 `Success` | 74 of 74 `Success` |
+
+- This is the ordinary lost-reply result: the request was sent and nothing came back. No late reply arrived after the
+  timeout either, so a longer `timeout` is not expected to help.
+- `listKeys()` is the most exposed because it sends requests one after another, the summary plus one per occupied slot
+  (eight requests in about 0.8 s with seven keys). Requests sent under 0.55 s after the other client's latest frame were all
+  answered, and 45 of the 47 lost ones were sent 0.55 to 0.85 s after it. Send times are inferred from the previous reply,
+  because the log has no transmit lines.
+- `vehicleStatus()` and `keySummary()` are not immune: earlier recordings with such traffic have 4 `Uncertain(Timeout)`
+  results on them. Their causes are not established; one came 1.6 s before a link loss.
+- The link stayed up: the next poll's `vehicleStatus()` succeeded every time.
+- No command was sent during this traffic, so whether a command stalls the same way is unknown.
+
+| App action | Why |
+|---|---|
+| Keep the last value with its age and ask again later | The same rule as any `Uncertain` on a query. It can keep failing while the other client stays active (only 6 of 53 succeeded above), so do not retry in a tight loop |
+| Do not read a timed-out `listKeys()` as a key change | No data was confirmed. Only a `Success` shows the key list |
+| Do not reconnect or clear the session because of it | The link is up. Check `connection` as usual |
+| After `Uncertain` on a command, read the state and do not resend | §Per-command re-query. That rule does not change here |
 
 ## `getState` results (FR-033, #115, #116)
 
@@ -152,6 +183,12 @@ The vehicle returns no data when its reply exceeds a size limit. The largest rep
   asleep.
 - Apps keep the last value with its age, show "unavailable" when it is too old, and do not retry in a tight loop.
 - Real-time speed is not guaranteed. Behaviour per firmware is not confirmed on a real vehicle (#118).
+- **Real-car evidence (Likely, not from our own `getState`):** in one session replies to another BLE client reached our link
+  (`14-lib-reading-state.md` B3.5), and 132 of its 1690 Infotainment frames carried `MESSAGEFAULT_ERROR_RESPONSE_MTU_EXCEEDED`.
+  They were 106-byte frames with no payload and the fault in plaintext `signedMessageStatus`. All 132 fell within about 11
+  minutes of one connection, in runs of one or two, and most runs were followed at once by a `session_info` reply; the next
+  connection had none. The largest frame in that session was 453 bytes (350 bytes of ciphertext). What the client asked for
+  is unknown: its requests are not visible and the payloads are encrypted.
 
 ## Reply authenticity
 

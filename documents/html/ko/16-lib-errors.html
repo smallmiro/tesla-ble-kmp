@@ -65,6 +65,7 @@
 <li><a href="#sec-events">브로드캐스트 이벤트</a></li>
 <li><a href="#sec-retry">재시도와 시간 제한</a></li>
 <li><a href="#sec-requery">Uncertain 뒤에 읽을 것</a></li>
+<li><a href="#sec-other-client">다른 블루투스 클라이언트가 동작하는 동안의 조회</a></li>
 </ol></div>
 
 <h2 id="sec-outcomes">세 가지 결과</h2>
@@ -132,6 +133,7 @@
 <p>응답이 크기 상한을 넘으면 차량은 데이터를 보내지 않습니다. 실차에서 관측된 최대 응답은 약 453바이트이며, 규격이 아니라 관측값입니다. <code>getState()</code>는 <code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code>을 돌려주고, 앱이 응답을 줄일 방법은 없습니다.</p>
 <p><code>Drive</code>에서 가장 잘 일어납니다. 목적지 이름이 길수록 잦아지며, 수십 초간 실패했다는 보고와 Model S/X의 한 빌드(<code>2026.27.6.15</code>, 한국)에서 경로가 없어도 거의 항상 실패한다는 보고가 있습니다.</p>
 <p>라이브러리는 요청을 다시 보내지 않습니다. 이 오류 때문에 세션을 지우거나, 다시 연결하거나, 차량을 깨우지 않습니다. 응답에 함께 온 세션 정보는 평소처럼 적용됩니다. 이 오류는 차량이 사라졌거나 잠들었다는 뜻이 아닙니다. 마지막 값을 경과 시간과 함께 유지하고, 너무 오래되면 조회 불가로 표시하며, 짧은 간격으로 반복해서 재시도하지 마세요. 실시간 속도는 보장되지 않으며, 펌웨어별 동작은 실차에서 확인되지 않았습니다(#118).</p>
+<p><strong>실차 증거(유력, 우리 <code>getState</code>가 아님):</strong> 한 세션에서 다른 블루투스 클라이언트 앞 응답이 우리 링크로 들어왔고(<a href="14-lib-reading-state.html#sec-b-catalogue">14, B3.5</a>), 인포테인먼트 프레임 1690개 중 132개가 <code>MESSAGEFAULT_ERROR_RESPONSE_MTU_EXCEEDED</code>였습니다. 페이로드가 없는 106바이트 프레임이고 오류는 평문 <code>signedMessageStatus</code>에 있었습니다. 132개 모두 한 연결의 약 11분 안에 몰려 있었고, 한두 개씩 이어졌으며, 그 대부분의 바로 뒤에 <code>session_info</code> 응답이 왔습니다. 다음 연결에는 하나도 없었습니다. 그 세션의 가장 큰 프레임은 453바이트(암호문 350바이트)였습니다. 그 클라이언트의 요청은 보이지 않고 페이로드도 암호화되어 있어 무엇을 물었는지는 모릅니다.</p>
 
 <h3 id="sec-authenticity">응답의 진위</h3>
 <div class="callout warn">
@@ -163,7 +165,7 @@
 <table>
 <thead><tr><th>상황</th><th>일어나는 일</th><th>할 일</th></tr></thead>
 <tbody>
-<tr><td>수집자가 프레임 64개보다 더 뒤처짐</td><td>그 연결의 모든 수집자에게서 새 프레임이 빠지고 버린 수를 셉니다. 첫 번째와 100번째마다 <code>WARN</code> 줄(태그 <code>Dispatcher</code>): <code>Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)</code>. <strong>오류가 아닙니다</strong>. <code>VehicleError</code>가 없고 흐름은 계속됩니다</td><td>수집 코드는 가볍게 하고 느린 작업은 다른 코루틴에 넘기세요. 차량은 몇 초마다 상태를 다시 보내므로 최신 상태는 다시 옵니다. 또는 <code>vehicleStatus()</code>로 읽으세요</td></tr>
+<tr><td>수집자가 프레임 64개보다 더 뒤처짐</td><td>그 연결의 모든 수집자에게서 새 프레임이 빠지고 버린 수를 셉니다. 첫 번째와 100번째마다 <code>WARN</code> 줄(태그 <code>Dispatcher</code>): <code>Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)</code>. <strong>오류가 아닙니다</strong>. <code>VehicleError</code>가 없고 흐름은 계속됩니다</td><td>수집 코드는 가볍게 하고 느린 작업은 다른 코루틴에 넘기세요. 차량은 상태를 다시 보내지만, 깨어 있고 사람이 있을 때 60초가 걸릴 수 있고 그 밖의 경우는 측정하지 않았습니다(<a href="14-lib-reading-state.html#sec-b-catalogue">14, B3.1</a>). 상태가 더 빨리 필요하면 <code>vehicleStatus()</code>로 읽으세요</td></tr>
 <tr><td>라이브러리가 디코딩하지 못한 브로드캐스트</td><td><code>unknownFields</code>가 빈 <code>Unrecognized</code> 이벤트. 바이트는 <code>raw</code>에 있습니다</td><td>분석용으로 <code>raw</code>를 VIN을 가린 채 보관하세요</td></tr>
 </tbody>
 </table>
@@ -203,6 +205,33 @@
 </tbody>
 </table>
 <p>인포테인먼트 명령은 M5에서 이 표에 추가됩니다.</p>
+
+<h2 id="sec-other-client">다른 블루투스 클라이언트가 동작하는 동안의 조회</h2>
+<p>상태: <span class="badge info">유력</span>. 차량 한 대의 실차 로그에서 나온 내용입니다(<a href="14-lib-reading-state.html#sec-b-catalogue">14, B3.5</a>). 통제된 시나리오로 재현하지는 않았고 원리는 모릅니다.</p>
+<p>다른 블루투스 클라이언트가 차량을 쓰는 동안 그 인포테인먼트 응답이 약 1초에 1개씩 우리 링크로 들어왔고, 조회에 응답이 아예 오지 않을 수 있었습니다.</p>
+<table>
+<thead><tr><th>세션</th><th>다른 클라이언트의 인포테인먼트 프레임</th><th><code>listKeys()</code></th><th><code>vehicleStatus()</code>, <code>keySummary()</code></th></tr></thead>
+<tbody>
+<tr><td>그 통신이 있던 세션, 폴링 53번</td><td>1690</td><td><code>Success</code> 6번, <code>Uncertain(Timeout(afterSend = true))</code> 47번</td><td>106번 중 106번 <code>Success</code></td></tr>
+<tr><td>없던 세션, 폴링 37번</td><td>0</td><td>37번 중 37번 <code>Success</code></td><td>74번 중 74번 <code>Success</code></td></tr>
+</tbody>
+</table>
+<ul>
+<li>이것은 응답이 유실될 때의 평범한 결과입니다. 요청은 보내졌고 아무것도 돌아오지 않았습니다. 시간 제한이 지난 뒤에 늦게 온 응답도 없었으므로 <code>timeout</code>을 늘려도 도움이 되지 않을 것으로 봅니다.</li>
+<li><code>listKeys()</code>가 가장 취약한 이유는 요청을 잇달아 보내기 때문입니다. 요약 하나에 사용 중인 슬롯마다 하나씩이며, 키가 7개이면 약 0.8초에 요청 8개입니다. 다른 클라이언트의 최근 프레임으로부터 0.55초 안에 보낸 요청은 모두 응답을 받았고, 유실된 47개 중 45개는 그 0.55~0.85초 뒤에 보낸 것입니다. 로그에 송신 줄이 없어 송신 시각은 직전 응답으로 추정했습니다.</li>
+<li><code>vehicleStatus()</code>와 <code>keySummary()</code>도 안전하지는 않습니다. 같은 통신이 있던 이전 기록에 이들의 <code>Uncertain(Timeout)</code>이 4번 있습니다. 원인은 밝혀지지 않았고, 그중 하나는 링크 손실 1.6초 전이었습니다.</li>
+<li>링크는 유지되었습니다. 다음 폴링의 <code>vehicleStatus()</code>는 매번 성공했습니다.</li>
+<li>이 통신 중에 명령은 보내지 않았으므로 명령도 같은 식으로 멈추는지는 모릅니다.</li>
+</ul>
+<table>
+<thead><tr><th>앱이 할 일</th><th>이유</th></tr></thead>
+<tbody>
+<tr><td>마지막 값을 경과 시간과 함께 유지하고 나중에 다시 조회하기</td><td>조회의 <code>Uncertain</code>에 공통인 규칙입니다. 다른 클라이언트가 동작하는 동안 계속 실패할 수 있으므로(위 표에서 53번 중 6번만 성공) 짧은 간격으로 반복하지 마세요</td></tr>
+<tr><td>시간이 초과된 <code>listKeys()</code>를 키 변경으로 읽지 않기</td><td>확인된 데이터가 없습니다. 키 목록을 보여 주는 것은 <code>Success</code>뿐입니다</td></tr>
+<tr><td>이것 때문에 다시 연결하거나 세션을 지우지 않기</td><td>링크는 살아 있습니다. <code>connection</code>은 평소처럼 확인하세요</td></tr>
+<tr><td>명령의 <code>Uncertain</code> 뒤에는 상태를 읽고 다시 보내지 않기</td><td><a href="#sec-requery">Uncertain 뒤에 읽을 것</a>. 이 규칙은 여기서도 그대로입니다</td></tr>
+</tbody>
+</table>
 
 <footer class="page-nav">
   <a href="15-lib-commands.html"><span>이전</span>15. 명령</a>

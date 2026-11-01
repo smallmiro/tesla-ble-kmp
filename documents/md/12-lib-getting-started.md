@@ -168,8 +168,9 @@ without being asked. `vehicle.events` (`Flow<VehicleEvent>`) delivers them; no k
 - Collect in its own coroutine (Swift: its own `Task`). The flow **completes by itself** when the link drops or
   `disconnect()` is called; a collection started after that ends at once. Then look at `connection` and call
   `disconnect()`. A new connection gives a new `Vehicle` with new `events`.
-- Only broadcasts that arrive while you collect are delivered (no replay). **A repeat is not a change**: the vehicle
-  resends the same status every few seconds, so compare with the last value.
+- Only broadcasts that arrive while you collect are delivered (no replay). **A repeat is not a change**: the vehicle also
+  resends an unchanged status, 60 s after the previous one while awake with a person present
+  (`14-lib-reading-state.md` B3.1), so compare with the last value.
 - The trunk opened or closed by hand from outside is broadcast, but with the interior button it is not; when the trunk
   state matters, read it with `vehicleStatus()`.
 - `raw` is the whole received frame, **not VIN-masked**, and every access returns a new copy: read it once and mask the
