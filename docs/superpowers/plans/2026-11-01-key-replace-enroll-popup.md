@@ -19,7 +19,8 @@
 - [x] **Step 1: 실패 테스트** — `Tests/KeyReplacementTests.swift`: `KeyReplacer` 순서(읽기 → 연결 끊기 → 핸들 버리기 → 지우기 → 만들기 → 다시 연결), 잠금이면 아무것도 바꾸지 않음, 지우기 실패면 새 키를 만들지 않고 옛 키를 복원, 만들기 실패면 재시도·재연결 없음, 확인 문구의 네 가지 말, 버튼 활성 규칙.
 - [x] **Step 2:** 구현: `KeyReplacement.swift`, `MonitorEngine.replaceKey()`(연결 처리 결정: 쓰던 연결만 먼저 끊고 새 키로 다시 연결), `KeyControlModel.replaceKey()`, 1단계 버튼과 확인 대화상자. `CURRENT_PROJECT_VERSION` 15.
 - [x] **Step 3:** 문서: `01-requirements.md`(SFR-020), `05-key-control-tab.md`, HTML en/ko/ja, `samples/ios/README.md` 실기기 체크리스트(R1~R8).
-- [ ] **Step 4:** 실기기 확인(R1~R8), AI 리뷰, PR (Refs: SFR-020).
+- [x] **Step 4 (리뷰 반영):** 손상된 키(`stored key is corrupted`, 문서에 적힌 경우만) 복구 경로, 엔진 수준의 문(`KeyOperationGate`: 다른 탭의 동작·연결과 교체가 서로 막음, 핸들 캐시 세대), 지우기 실패 뒤 복원 결과를 따름(`lost`/`unverified`), `KeyControlBackend` 이음매와 `KeyControlModel` 시험.
+- [ ] **Step 5:** 실기기 확인(R1~R11), AI 리뷰, PR (Refs: SFR-020).
 
 ### Task B: SFR-021 키 등록 진행 팝업 (iOS, 빌드 15)
 
