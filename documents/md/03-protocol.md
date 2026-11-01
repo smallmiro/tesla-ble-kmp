@@ -496,7 +496,7 @@ If none of the above apply, the client **MUST update**. When updating, it **MUST
 
 ## 10. Infotainment responses
 
-Parse `protobuf_message_as_bytes` as `CarServer.Response`. If `Response.actionStatus.result` is `OPERATIONSTATUS_ERROR`, `result_reason.plain_text` is the reason. Go: `getCarServerResponse` → `NominalError{NewError("car could not execute command: <text>", false, false)}` (`unspecified error` if there is no text). `Response` oneof: `vehicleData` (GetState), `getNearbyChargingSites`, `ping`.
+Parse `protobuf_message_as_bytes` as `CarServer.Response`. If `Response.actionStatus.result` is `OPERATIONSTATUS_ERROR`, `result_reason.plain_text` is the reason. Go: `getCarServerResponse` → `NominalError{NewError("car could not execute command: <text>", false, false)}` (`unspecified error` if there is no text). `Response` oneof: `vehicleData` (GetState), `getSessionInfoResponse`, `getNearbyChargingSites`, `ping`.
 
 ---
 

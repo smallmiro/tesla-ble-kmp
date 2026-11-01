@@ -120,7 +120,7 @@ on_rx(chunk):
 ```
 
 - Multiple messages may arrive concatenated in one indication, or one message may be split across multiple indications. The loop above handles both.
-- Maximum message size is 1024 bytes (`maxBLEMessageSize`). If a response would be larger, the vehicle returns `RESPONSE_MTU_EXCEEDED`.
+- Maximum message size is 1024 bytes (`maxBLEMessageSize`). This is a client-side limit: a longer length prefix clears the receive buffer without an error. It is unrelated to `RESPONSE_MTU_EXCEEDED`, a vehicle fault whose threshold Go does not define.
 
 ## 4. RoutableMessage assembly
 
@@ -273,7 +273,7 @@ on_message(rsp):
 
 ## 8. Retry and session recovery
 
-Retriable faults (Go `retriableErrors`): `BUSY(1)`, `TIMEOUT(2)`, `INVALID_SIGNATURE(5)`, `INVALID_TOKEN_OR_COUNTER(6)`, `INTERNAL(11)`, `INCORRECT_EPOCH(15)`, `TIME_EXPIRED(17)`, `TIME_TO_LIVE_TOO_LONG(20)`, plus `operation_status == WAIT`. On retry, redo §6 from the start (new counter, new nonce, new expires_at). Interval 1s. `RESPONSE_MTU_EXCEEDED(25)` means "executed", so do not retry.
+Retriable faults (Go `retriableErrors`): `BUSY(1)`, `TIMEOUT(2)`, `INVALID_SIGNATURE(5)`, `INVALID_TOKEN_OR_COUNTER(6)`, `INTERNAL(11)`, `INCORRECT_EPOCH(15)`, `TIME_EXPIRED(17)`, `TIME_TO_LIVE_TOO_LONG(20)`, plus `operation_status == WAIT`. On retry, redo §6 from the start (new counter, new nonce, new expires_at). Interval 1s. `RESPONSE_MTU_EXCEEDED(25)` means the command may have been executed (`MayHaveSucceeded`), so do not retry.
 
 Session update rules (`protocol.md` "Recovering from synchronization errors" + Go `Signer.UpdateSessionInfo`):
 
