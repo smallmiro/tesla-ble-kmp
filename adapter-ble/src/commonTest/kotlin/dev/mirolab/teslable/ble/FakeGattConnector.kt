@@ -28,7 +28,7 @@ internal class FakeGattConnector(
     /** 스캔이 시작되고 광고가 나올 때까지 걸리는 시간. */
     var hitDelay: Duration = Duration.ZERO
 
-    /** 스캔을 멈추는 데 걸리는 시간(수집자가 광고를 받은 뒤 흐름이 끝날 때까지). */
+    /** 스캔을 멈추는 데 걸리는 시간(수집자가 광고를 받은 뒤 흐름이 끝날 때까지). 이 동안 시간 초과나 취소를 받으면 멈추기가 끊긴다. */
     var scanTeardown: Duration = Duration.ZERO
 
     /** 비어 있지 않으면 스캔마다 앞에서 하나씩 꺼내 광고의 RSSI로 쓴다. */
@@ -58,7 +58,7 @@ internal class FakeGattConnector(
                 }
                 awaitCancellation() // 실제 스캔처럼 수집자가 멈출 때까지 계속된다
             } finally {
-                withContext(NonCancellable) { delay(scanTeardown) }
+                delay(scanTeardown)
             }
         }
 

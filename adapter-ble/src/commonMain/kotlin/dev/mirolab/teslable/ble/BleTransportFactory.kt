@@ -40,7 +40,8 @@ import kotlin.time.TimeSource
 /**
  * BLE [TransportFactory]. Go `NewConnectionFromScanResult`의 재시도 루프를 옮기되 시도 사이에 [retryInterval]을 둔다(FR-004,
  * 설계 구체화 3). 재시도하지 않는 실패: [BleAvailability] 검사 실패, 스캔 실패(권한·블루투스 꺼짐), 다른 VIN의 광고,
- * connectable=false(`MaxConnectionsExceeded`), `OpenResult.Failed(retry = false)`. 시간이 다 되면 마지막 오류(없으면 `ScanTimeout`).
+ * connectable=false(`MaxConnectionsExceeded`), `OpenResult.Failed(retry = false)`. 시간이 다 되면 마지막 오류, 없으면 차량을 찾았는지에 따라
+ * `ConnectFailed` 또는 `ScanTimeout`([Attempts.deadlineError]).
  *
  * 시간이 다 되면 진행 중인 시도의 정리를 기다리지 않고 바로 돌아온다([openOwned]). 시간을 넘겨 기다리는 곳은 시간이 다 된 바로 그 순간 만들어진
  * 전송을 닫을 때뿐이고 그 대기는 [DISCONNECT_TIMEOUT]으로 제한된다. 프로세스가 돌지 않는 동안에는 타이머도 울리지 않는다(#130, 18-lib).
@@ -105,7 +106,7 @@ internal class BleTransportFactory(
                 throw e
             }
         if (result == null) attempts.created?.let { withContext(NonCancellable) { it.close() } }
-        return result ?: VehicleResult.Failure(attempts.lastError ?: VehicleError.TransportError.ScanTimeout)
+        return result ?: VehicleResult.Failure(attempts.deadlineError())
     }
 
     private class Attempts(
@@ -122,6 +123,18 @@ internal class BleTransportFactory(
         /** [hit]이 이 호출의 스캔이 찾은 광고일 때만 값이 있다: 앱의 `scan`이 기억을 바꾼 광고로 열렸으면 이 호출이 본 것이 없다. */
         fun observationOf(hit: ScanHit): ConnectScanObservation? =
             if (hit === scannedHit) ConnectScanObservation(scannedAfterMillis, hit.advertisement.measuredRssi, count) else null
+
+        /**
+         * 시간이 다 됐을 때의 오류. 실패한 시도의 오류가 먼저다(Go `lastError`, `ble.go:270-275`). 없으면 Go는 스캔과 dial을 나누지 않고
+         * `ctx.Err()`를 돌려주지만, 여기서는 나눈다(#140): 이 호출의 스캔이 광고를 찾았거나 앱의 `scan`이 찾은 `target`으로 열기를 시작했으면
+         * 원인은 스캔이 아니므로 `ScanTimeout`은 광고를 찾지 못했을 때만 쓴다. 둘 다 재시도 가능한 오류다.
+         */
+        fun deadlineError(): VehicleError.TransportError =
+            lastError ?: if (scannedHit != null || count > 0) {
+                VehicleError.TransportError.ConnectFailed(FOUND_BUT_NOT_CONNECTED)
+            } else {
+                VehicleError.TransportError.ScanTimeout
+            }
     }
 
     private suspend fun connectLoop(
@@ -239,6 +252,7 @@ internal class BleTransportFactory(
     private companion object {
         const val MAX_REMEMBERED_HITS = 16
         const val TAG = "ble"
+        const val FOUND_BUT_NOT_CONNECTED = "vehicle found but the connection did not complete before the deadline"
 
         // :application의 ObservationLog.TAG와 같은 값이다. :adapter-ble은 :domain에만 의존하고, 앱은 이 문자열로 관찰 줄을 고른다(18-lib)
         const val OBSERVE_TAG = "observe"

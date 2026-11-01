@@ -3,6 +3,7 @@ package dev.mirolab.teslable.ble
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.Vin
+import dev.mirolab.teslable.model.shouldRetry
 import dev.mirolab.teslable.port.ConnectOptions
 import dev.mirolab.teslable.port.ConnectScanObservation
 import dev.mirolab.teslable.port.LogLevel
@@ -37,6 +38,12 @@ class BleTransportFactoryTest {
     private val vin = Vin("5YJ30123456789ABC")
     private val localName = LocalName.of(vin, TestCrypto.primitives)
     private val ad = VehicleAdvertisement(localName, "AA:BB", rssi = -50, isConnectable = true)
+
+    // 차는 찾았지만 시간 안에 연결을 끝내지 못했고 실패한 시도도 없는 연결의 결과(#140)
+    private val foundButNotConnected =
+        VehicleResult.Failure(
+            VehicleError.TransportError.ConnectFailed("vehicle found but the connection did not complete before the deadline"),
+        )
 
     private fun TestScope.factory(
         connector: FakeGattConnector,
@@ -144,6 +151,58 @@ class BleTransportFactoryTest {
         }
 
     @Test
+    fun anOpenThatNeverFinishesIsConnectFailedBecauseTheCarWasFound() =
+        // #140: 광고를 찾았으니 원인은 스캔이 아니다. Go는 둘을 나누지 않고 ctx.Err()를 돌려준다(ble.go:270-275). 재시도 가능한 것은 ScanTimeout과 같다
+        runTest {
+            val connector = FakeGattConnector(ad).apply { openGate = CompletableDeferred() }
+            val pending = async { factory(connector).connect(vin, null, ConnectOptions(timeout = 2.seconds)) }
+            advanceTimeBy(3.seconds)
+            val failure = assertIs<VehicleResult.Failure>(pending.await())
+            assertEquals(foundButNotConnected, failure)
+            assertTrue(failure.error.shouldRetry())
+            connector.openGate?.complete(Unit)
+            runCurrent()
+        }
+
+    @Test
+    fun aReusedTargetWhoseOpenNeverFinishesIsConnectFailedToo() =
+        // #140: 이 호출은 스캔하지 않았지만(scan-hit 줄이 없다) 앱의 scan이 찾은 광고로 열기를 시작했다
+        runTest {
+            val connector = FakeGattConnector(ad)
+            val f = factory(connector)
+            val found =
+                assertIs<ScanEvent.Found>(
+                    f
+                        .scan(localName)
+                        .take(1)
+                        .toList()
+                        .single(),
+                ).advertisement
+            connector.openGate = CompletableDeferred()
+            val pending = async { f.connect(vin, found, ConnectOptions(timeout = 2.seconds)) }
+            advanceTimeBy(3.seconds)
+            assertEquals(foundButNotConnected, pending.await())
+            assertEquals(1, connector.scans)
+            connector.openGate?.complete(Unit)
+            runCurrent()
+        }
+
+    @Test
+    fun aHitBeforeTheDeadlineIsNotScanTimeoutEvenIfNoOpenStarted() =
+        // #140: ScanTimeout은 광고가 없을 때만이다. 스캔을 멈추는 동안 시간이 다 되어 열기를 시작하지 못해도 차는 찾았다
+        runTest {
+            val connector =
+                FakeGattConnector(ad).apply {
+                    hitDelay = 1.seconds
+                    scanTeardown = 5.seconds
+                }
+            val pending = async { factory(connector).connect(vin, null, ConnectOptions(timeout = 2.seconds)) }
+            advanceTimeBy(3.seconds)
+            assertEquals(foundButNotConnected, pending.await())
+            assertEquals(0, connector.opens)
+        }
+
+    @Test
     fun targetForAnotherVinIsInvalidArgument() =
         // ble.go:298-300: 이름 불일치는 재시도 없음
         runTest {
@@ -201,12 +260,12 @@ class BleTransportFactoryTest {
 
     @Test
     fun linkOpenedAfterTimeoutIsDisconnectedOnce() =
-        // 타임아웃이 먼저 터진 뒤 open이 Opened로 끝나도 슬롯이 새지 않는다
+        // 타임아웃이 먼저 터진 뒤 open이 Opened로 끝나도 슬롯이 새지 않는다. 결과가 ScanTimeout이던 것은 #140에서 고쳤다: open이 멈춘 것이지 광고가 없던 것이 아니다
         runTest {
             val connector = FakeGattConnector(ad).apply { openGate = CompletableDeferred() }
             val pending = async { factory(connector).connect(vin, null, ConnectOptions(timeout = 2.seconds)) }
             advanceTimeBy(3.seconds)
-            assertEquals(VehicleResult.Failure(VehicleError.TransportError.ScanTimeout), pending.await())
+            assertEquals(foundButNotConnected, pending.await())
             connector.openGate?.complete(Unit)
             runCurrent()
             assertEquals(1, connector.links.size)
@@ -398,13 +457,13 @@ class BleTransportFactoryTest {
 
     @Test
     fun aHitIsLoggedEvenWhenTheOpenNeverFinishes() =
-        // ScanTimeout이어도 앞선 관찰 줄이 "광고는 찾았다"를 알려 준다
+        // 실패한 연결에는 공개 결과가 없어도 앞선 관찰 줄이 발견 시각을 알려 준다. 결과는 #140부터 ScanTimeout이 아니다: 광고를 찾았다
         runTest {
             val logger = RecordingLogger()
             val connector = FakeGattConnector(ad).apply { openGate = CompletableDeferred() }
             val pending = async { factory(connector, logger = logger).connect(vin, null, ConnectOptions(timeout = 2.seconds)) }
             advanceTimeBy(3.seconds)
-            assertEquals(VehicleResult.Failure(VehicleError.TransportError.ScanTimeout), pending.await())
+            assertEquals(foundButNotConnected, pending.await())
             assertEquals("[connect:scan-hit] after=0ms rssi=-50 connectable=true attempt=1", logger.observeLines().single().message)
             connector.openGate?.complete(Unit)
             runCurrent()
