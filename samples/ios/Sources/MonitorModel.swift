@@ -18,6 +18,8 @@ final class MonitorModel: ObservableObject {
     @Published var sessions = "세션: 연결 안 됨"
     @Published var keyStatus = KeyStatus()
     @Published var savedVin: String?
+    /// 엔진이 저장된 VIN 을 알려 주었는지. 그 전의 `savedVin == nil` 은 "VIN 없음"이 아니라 "아직 모름"이다.
+    @Published var vinKnown = false
     @Published var pollSeconds = MonitorEngine.defaultPollSeconds
     @Published var logStats = LogStats()
 
@@ -69,6 +71,7 @@ final class MonitorModel: ObservableObject {
             keyControl.keyChanged(status.state)
         case .vin(let vin):
             savedVin = vin
+            if !vinKnown { vinKnown = true }
             keyControl.vinChanged(saved: vin != nil)
         case .pollSeconds(let seconds): pollSeconds = seconds
         case .log(let stats): logStats = stats
