@@ -44,6 +44,59 @@ final class KeyOperationGateTests: XCTestCase {
     }
 }
 
+/// 교체 중에 사용자가 누른 연결·끊기: 마지막 의도가 이긴다(SFR-012: 끊기는 자동 재연결도 멈춘다).
+final class KeyOperationGateIntentTests: XCTestCase {
+    func testWithoutAnyPressTheReconnectFollowsWhetherTheLinkWasActive() {
+        let gate = KeyOperationGate()
+        XCTAssertTrue(gate.beginReplace())
+        XCTAssertTrue(gate.shouldReconnect(wasActive: true))
+        XCTAssertFalse(gate.shouldReconnect(wasActive: false))
+    }
+
+    func testAConnectPressRecordedDuringTheReplacementReconnectsEvenIfIdle() {
+        let gate = KeyOperationGate()
+        XCTAssertTrue(gate.beginReplace())
+        XCTAssertTrue(gate.note(.connect), "recorded because the key is being replaced")
+        XCTAssertTrue(gate.shouldReconnect(wasActive: false))
+    }
+
+    func testAStopPressRecordedDuringTheReplacementWinsOverAnActiveLink() {
+        let gate = KeyOperationGate()
+        XCTAssertTrue(gate.beginReplace())
+        XCTAssertTrue(gate.note(.stop))
+        XCTAssertFalse(gate.shouldReconnect(wasActive: true))
+    }
+
+    func testTheLastPressWins() {
+        let gate = KeyOperationGate()
+        XCTAssertTrue(gate.beginReplace())
+        _ = gate.note(.stop)
+        _ = gate.note(.connect)
+        XCTAssertTrue(gate.shouldReconnect(wasActive: false))
+        _ = gate.note(.stop)
+        XCTAssertFalse(gate.shouldReconnect(wasActive: true))
+    }
+
+    func testPressesOutsideAReplacementAreNotRecorded() {
+        let gate = KeyOperationGate()
+        XCTAssertFalse(gate.note(.stop))
+        XCTAssertTrue(gate.beginReplace())
+        XCTAssertTrue(gate.shouldReconnect(wasActive: true), "a stop pressed before the replacement does not count")
+    }
+
+    func testFinishDecidesAndEndsTheReplacementInOneStep() {
+        let gate = KeyOperationGate()
+        XCTAssertTrue(gate.beginReplace())
+        _ = gate.note(.stop)
+        XCTAssertFalse(gate.finishReplace(wasActive: true))
+        XCTAssertFalse(gate.isReplacing)
+        // 다음 교체는 처음부터 다시: 지난 의도가 남지 않는다.
+        XCTAssertTrue(gate.beginReplace())
+        XCTAssertTrue(gate.shouldReconnect(wasActive: true))
+        XCTAssertTrue(gate.finishReplace(wasActive: true))
+    }
+}
+
 final class KeyHandleCacheTests: XCTestCase {
     func testStoresAndReturnsTheHandle() {
         let cache = KeyHandleCache<Int>()
@@ -102,11 +155,28 @@ final class MonitorEngineKeyGuardTests: XCTestCase {
         engine.keyGate.endOperation()
     }
 
-    func testConnectIsRefusedWhileTheKeyIsBeingReplaced() {
+    func testConnectDuringTheReplacementIsRememberedNotStarted() {
         let engine = makeEngine()
         XCTAssertTrue(engine.keyGate.beginReplace())
-        XCTAssertFalse(engine.connectNow(), "교체 중에 Live/Control 탭에서 누른 연결이 옛 핸들을 잡으면 안 된다")
-        XCTAssertEqual(engine.link, .idle)
+        XCTAssertTrue(engine.connectNow(), "the press is accepted and remembered")
+        XCTAssertEqual(engine.link, .idle, "but nothing starts: the old handle must not be taken")
+        XCTAssertTrue(engine.keyGate.shouldReconnect(wasActive: false), "it is honoured when the replacement ends")
+        engine.keyGate.endReplace()
+    }
+
+    func testConnectWithoutAValidVinIsStillRefusedDuringTheReplacement() {
+        let engine = MonitorEngine(defaults: UserDefaults(suiteName: suite)!, logFolder: folder) // VIN 없음
+        XCTAssertTrue(engine.keyGate.beginReplace())
+        XCTAssertFalse(engine.connectNow())
+        XCTAssertFalse(engine.keyGate.shouldReconnect(wasActive: false))
+        engine.keyGate.endReplace()
+    }
+
+    func testDisconnectDuringTheReplacementCancelsTheReconnect() async {
+        let engine = makeEngine()
+        XCTAssertTrue(engine.keyGate.beginReplace())
+        await engine.disconnect()
+        XCTAssertFalse(engine.keyGate.shouldReconnect(wasActive: true), "SFR-012: a user stop wins over the reconnect")
         engine.keyGate.endReplace()
     }
 

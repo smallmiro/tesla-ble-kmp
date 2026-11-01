@@ -232,14 +232,18 @@ final class MonitorEngine: @unchecked Sendable {
     /// 연결 버튼. 기다리지 않고 바로 시도한다. VIN 이 없거나 형식이 틀리면 `false`.
     @discardableResult
     func connectNow() -> Bool {
-        // 키를 바꾸는 중에는 연결을 시작하지 않는다(옛 키 핸들로 연결되면 안 된다). 교체가 끝나면 스스로 다시 연결한다.
-        guard !keyGate.isReplacing, parsedVin() != nil else { return false }
+        guard parsedVin() != nil else { return false }
+        // 키를 바꾸는 중에는 연결을 시작하지 않는다(옛 키 핸들로 연결되면 안 된다). 누른 것을 기억해 두었다가 교체가 끝나면 따른다.
+        if keyGate.note(.connect) { return true }
         loop.start()
         return true
     }
 
     /// 연결 끊기 버튼. 자동 재연결도 멈춘다(SFR-012).
-    func disconnect() async { await loop.stop() }
+    func disconnect() async {
+        keyGate.note(.stop) // 키를 바꾸는 중이었다면 교체가 끝난 뒤의 다시 연결을 취소한다(마지막 의도가 이긴다)
+        await loop.stop()
+    }
 
     /// 폰이 잠금 해제되면 기다리던 재연결을 바로 시도한다(키 저장소가 `Locked` 였을 때). 멈춘 상태는 건드리지 않는다.
     func protectedDataBecameAvailable() {
@@ -258,6 +262,7 @@ final class MonitorEngine: @unchecked Sendable {
 
     /// 저장된 VIN 을 지운다. 먼저 연결을 끊는다.
     func clearVin() async {
+        keyGate.note(.stop)
         await loop.stop()
         defaults.removeObject(forKey: Self.vinKey)
         emit.yield(.vin(nil))
@@ -349,8 +354,9 @@ final class MonitorEngine: @unchecked Sendable {
         // 다른 탭의 등록·명령이 도는 동안, 또는 이미 바꾸는 중이면 시작하지 않는다.
         guard keyGate.beginReplace() else { return .busy }
         defer { keyGate.endReplace() }
+        let wasActive = KeyReplacer.isActive(loop.state)
         return await KeyReplacer.run(
-            wasActive: KeyReplacer.isActive(loop.state),
+            wasActive: wasActive,
             probe: { await self.readStoredKey().probe },
             disconnect: {
                 await self.loop.stop()
@@ -370,10 +376,10 @@ final class MonitorEngine: @unchecked Sendable {
                 }
             },
             restore: { await self.restoreStoredKey() },
+            wantsReconnect: { self.keyGate.shouldReconnect(wasActive: wasActive) },
             reconnect: {
-                // 새 키가 캐시에 있다. 문을 풀고 연결한다(연결 루프의 `ensureKey()` 가 이제 통과한다).
-                self.keyGate.endReplace()
-                if self.parsedVin() != nil { self.loop.start() }
+                // 새 키가 캐시에 있다. 문을 풀면서 다시 연결할지 한 번에 정하고(교체 중에 끊기를 눌렀으면 연결하지 않는다) 연결한다.
+                if self.keyGate.finishReplace(wasActive: wasActive), self.parsedVin() != nil { self.loop.start() }
             }
         )
     }
