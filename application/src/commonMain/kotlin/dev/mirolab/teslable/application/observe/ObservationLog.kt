@@ -29,6 +29,7 @@ internal enum class ObservedAt(
     HANDLER_CLOSED("drop:handler-closed"),
     QUEUE_FULL("drop:queue-full"),
     VCSEC_REPLY("reply:vcsec"),
+    INFOTAINMENT_REPLY("reply:infotainment"),
 }
 
 /** 라우팅 주소의 주인. */
@@ -41,7 +42,10 @@ internal enum class AddressOwner(
     /** 닫히지 않은 요청의 주소. */
     OPEN_REQUEST("open-request"),
 
-    /** 그 밖(다른 클라이언트, 이미 닫힌 요청). */
+    /** 이력에 남은 닫힌 요청의 키. 대응 관계일 뿐이다: 이런 응답은 복호화하지 않으므로 검증되지 않았다(ADR-0015). */
+    CLOSED("closed"),
+
+    /** 그 밖(다른 클라이언트, 이력에서 밀려난 닫힌 요청). */
     OTHER("other"),
 }
 
@@ -102,6 +106,26 @@ internal class ObservationLog(
             message.session_info?.let { append(" session_info=").append(it.size).append('B') }
             append(" payload=").append(payload(message))
         }
+
+    /**
+     * 자기 요청의 응답 한 통(#118, ADR-0015). [message]는 반드시 복호화 전 원래 봉투다: 복호화한 메시지는 서명이 지워져 있어 [routable]이 평문으로
+     * 요약한다(FR-112). [auth]는 페이로드 검사 결과일 뿐 응답 전체에 대한 말이 아니다.
+     */
+    fun reply(
+        at: ObservedAt,
+        message: RoutableMessage,
+        size: Int,
+        attempt: Long,
+        auth: ReplyAuth,
+    ): String = routable(at, message, size, AddressOwner.OPEN_REQUEST) + " attempt=$attempt auth=${auth.label}"
+
+    /** 열린 요청이 없는 응답. [closedAttempt]는 이력에 남은 닫힌 요청의 시도 번호이고, 대응 관계만 말한다. */
+    fun noHandler(
+        message: RoutableMessage,
+        size: Int,
+        owner: AddressOwner,
+        closedAttempt: Long?,
+    ): String = routable(ObservedAt.NO_HANDLER, message, size, owner) + closedAttempt?.let { " attempt=$it" }.orEmpty()
 
     /** 같은 바이트를 감싸지 않은 `FromVCSECMessage`로 다시 해석한 결과(처리는 하지 않는다). */
     fun reinterpret(bytes: ByteArray): String = FromVCSECMessage.ADAPTER.decodeOrNull(bytes)?.let(::vcsec) ?: "undecodable"
