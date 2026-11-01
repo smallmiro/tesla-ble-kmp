@@ -63,9 +63,9 @@ should do.
 
 | Error | Meaning | temporary | App action |
 |---|---|---|---|
-| `TransportError.ScanTimeout` | The connection did not complete within its deadline, with no failed attempt. `ScanTimeout` does not prove that no advertisement was found: a `[connect:scan-hit]` observation line confirms discovery (`18-lib-troubleshooting.md`) | true | Check the vehicle is in range, try again |
+| `TransportError.ScanTimeout` | No advertisement of the vehicle was found before the `connect` deadline. A `connect` that found the vehicle never ends with this error | true | Check the vehicle is in range, try again |
 | `TransportError.MaxConnectionsExceeded` | The vehicle already has 3 BLE connections | false | Disconnect another device, try again |
-| `TransportError.ConnectFailed(cause)` | Connect, service discovery or subscription failed | true | Retry after a moment |
+| `TransportError.ConnectFailed(cause)` | Connect, service discovery or subscription failed, or the vehicle was found but the connection did not complete before the `connect` deadline | true | Retry after a moment |
 | `TransportError.Disconnected` | BLE link dropped | false | `Vehicle.disconnect()`, then a new `connect` |
 | `TransportError.BluetoothOff` | Bluetooth is off | false | Ask the user to turn it on |
 | `TransportError.PermissionDenied` | No Bluetooth permission | false | Request permission or open Settings |
@@ -76,6 +76,19 @@ should do.
 | `KeyStoreError.Locked` | iOS: the phone is locked and the key is `WHEN_UNLOCKED`, or the phone was not unlocked since restart (`errSecInteractionNotAllowed`, -25308). Returned by `getOrCreate`, `get`, `delete`; creation does not fall back to a software key. Also returned by `startSession()` when the lock blocks a Secure Enclave key object read before the phone locked (issue #96) | true | **Do not delete or re-create the key.** Call again after the phone is unlocked. For use while locked, create a key with `KeyAccessibility.AFTER_FIRST_UNLOCK` under a new alias and enroll it (`13-lib-pairing.md` §Key accessibility). The library retries neither key store calls nor the handshake |
 
 Call `Vehicle.disconnect()` even after the link dropped so session keys and the scope are released.
+
+**Which error a `connect` deadline gives (#140).** The error of the last failed attempt comes first. With no failed attempt:
+
+| Before the deadline | Error |
+|---|---|
+| The vehicle was found: a scan run by `connect` delivered its advertisement (a `[connect:scan-hit]` observation line, `18-lib-troubleshooting.md`), or an open started from a `target` the app got from `scan` | `ConnectFailed("vehicle found but the connection did not complete before the deadline")` |
+| No advertisement was found and no open started | `ScanTimeout` |
+
+Before #140 the first row was also `ScanTimeout`, so this changes the error type an app sees for that case. `temporary`,
+`mayHaveSucceeded` and `shouldRetry()` are the same for both, so a retry or backoff that does not look at the type behaves
+as before. Code that matches `ScanTimeout` no longer sees a vehicle that was found; code that matches `ConnectFailed` now
+also sees that case. `cause` is text for people and logs: match on the type, not on `cause`. The Go original does not
+separate these cases: it returns the last error, otherwise one generic deadline error (`ctx.Err()`, `ble.go:270-275`).
 
 ## Broadcast events (`Vehicle.events`)
 

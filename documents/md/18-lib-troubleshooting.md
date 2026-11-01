@@ -10,7 +10,7 @@ Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 | `ScanEvent.Failed(PermissionDenied)` or `Failure(PermissionDenied)` | Bluetooth permission missing or denied | Android: request `BLUETOOTH_SCAN` / `BLUETOOTH_CONNECT` at runtime. iOS: add `NSBluetoothAlwaysUsageDescription`; if denied, send the user to Settings |
 | `ScanEvent.Failed(BluetoothOff)` | Bluetooth is off | Ask the user to turn it on |
 | `scan(vin)` emits nothing, `connect` ends with `ScanTimeout` | Out of range, wrong VIN, or iOS simulator (no Bluetooth) | Move closer, check the VIN (the filter is an exact match on the advertised name `S<hash of VIN>C`), use a real device |
-| `connect` ends with `ScanTimeout`, and the observation log has a `[connect:scan-hit]` line for that call | `ScanTimeout` does not prove that no advertisement was found. The line confirms discovery; the connection did not complete within its deadline | Try again. If it repeats while the car is in range, report the log lines |
+| `connect` ends with `ConnectFailed("vehicle found but the connection did not complete before the deadline")` | The vehicle was found, but the link did not open before the deadline. A `[connect:scan-hit]` line for that call shows the discovery; a `target` reused without a scan writes no line. `ScanTimeout` always means no advertisement was found (`16-lib-errors.md` §Transport and key store errors) | Try again. If it repeats while the car is in range, report the log lines |
 | `Failure(MaxConnectionsExceeded)`, advertisement has `isConnectable == false` | The vehicle already has 3 BLE connections (phone keys, other apps) | Disconnect another device; always call `disconnect()` in your own app |
 | `ConnectFailed` repeats | Link unstable or the vehicle is busy | The library already retries inside `connectTimeout` (30 s); try again later |
 | `connect` returns some seconds after `connectTimeout`, for example at 32.6 s with the default 30 s | Most likely a late timer: the process was probably not running when it was due (iOS suspends a background app). `connect` does not wait for a failed attempt's cleanup | Nothing to repair. See §`connect` time budget |
@@ -50,7 +50,9 @@ Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 `connectTimeout` (default 30 s) or `ConnectOptions.timeout` covers scanning, opening the link and the retries between
 attempts. When `connect` fails on it:
 
-- It returns at once, with the error of the last failed attempt, or `ScanTimeout` if no attempt failed (Go: `ble.go:270-275`).
+- It returns at once, with the error of the last failed attempt. With no failed attempt it returns `ConnectFailed` if the
+  vehicle was found and `ScanTimeout` if no advertisement was found (`16-lib-errors.md` §Transport and key store errors).
+  Go returns the last error too, otherwise one generic deadline error for both cases (`ble.go:270-275`).
 - It does not wait for an attempt still running. That attempt runs in the library's own scope: it is cancelled and cleans up
   after `connect` has returned, waiting at most 5 s for the platform disconnect (`DISCONNECT_TIMEOUT`). If it still opens a
   link, the library disconnects that link.
@@ -62,8 +64,8 @@ attempts. When `connect` fails on it:
 
 Seen once on a real iPhone: `ConnectFailed` after 32.63 s, with the reason `NotConnectedException: Disconnect detected`.
 The likely cause is a late timer (status **Likely**, not confirmed: the log records no process state). `ScanTimeout`
-returns, where no attempt had failed, overran the same way (at 31.35, 32.40 and 33.19 s), and the app's next 4 s wait took
-9.03 s. The log cannot exclude the one library wait above, which would need a link to open at the instant the budget ran
+returns, where no attempt had failed, overran the same way (at 31.35, 32.40 and 33.19 s; that build, before #140, also
+returned `ScanTimeout` after finding the vehicle), and the app's next 4 s wait took 9.03 s. The log cannot exclude the one library wait above, which would need a link to open at the instant the budget ran
 out. No harm was seen (#130).
 
 ## Frames without a source
