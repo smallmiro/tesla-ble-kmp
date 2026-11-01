@@ -1681,6 +1681,27 @@ final enum class dev.mirolab.teslable.model/SleepStatus : kotlin/Enum<dev.mirola
     final fun values(): kotlin/Array<dev.mirolab.teslable.model/SleepStatus> // dev.mirolab.teslable.model/SleepStatus.values|values#static(){}[0]
 }
 
+final enum class dev.mirolab.teslable.model/StateCategory : kotlin/Enum<dev.mirolab.teslable.model/StateCategory> { // dev.mirolab.teslable.model/StateCategory|null[0]
+    enum entry CHARGE // dev.mirolab.teslable.model/StateCategory.CHARGE|null[0]
+    enum entry CHARGE_SCHEDULE // dev.mirolab.teslable.model/StateCategory.CHARGE_SCHEDULE|null[0]
+    enum entry CLIMATE // dev.mirolab.teslable.model/StateCategory.CLIMATE|null[0]
+    enum entry CLOSURES // dev.mirolab.teslable.model/StateCategory.CLOSURES|null[0]
+    enum entry DRIVE // dev.mirolab.teslable.model/StateCategory.DRIVE|null[0]
+    enum entry LOCATION // dev.mirolab.teslable.model/StateCategory.LOCATION|null[0]
+    enum entry MEDIA // dev.mirolab.teslable.model/StateCategory.MEDIA|null[0]
+    enum entry MEDIA_DETAIL // dev.mirolab.teslable.model/StateCategory.MEDIA_DETAIL|null[0]
+    enum entry PARENTAL_CONTROLS // dev.mirolab.teslable.model/StateCategory.PARENTAL_CONTROLS|null[0]
+    enum entry PRECONDITIONING_SCHEDULE // dev.mirolab.teslable.model/StateCategory.PRECONDITIONING_SCHEDULE|null[0]
+    enum entry SOFTWARE_UPDATE // dev.mirolab.teslable.model/StateCategory.SOFTWARE_UPDATE|null[0]
+    enum entry TIRE_PRESSURE // dev.mirolab.teslable.model/StateCategory.TIRE_PRESSURE|null[0]
+
+    final val entries // dev.mirolab.teslable.model/StateCategory.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.mirolab.teslable.model/StateCategory> // dev.mirolab.teslable.model/StateCategory.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.mirolab.teslable.model/StateCategory // dev.mirolab.teslable.model/StateCategory.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.mirolab.teslable.model/StateCategory> // dev.mirolab.teslable.model/StateCategory.values|values#static(){}[0]
+}
+
 final enum class dev.mirolab.teslable.model/UserPresence : kotlin/Enum<dev.mirolab.teslable.model/UserPresence> { // dev.mirolab.teslable.model/UserPresence|null[0]
     enum entry NOT_PRESENT // dev.mirolab.teslable.model/UserPresence.NOT_PRESENT|null[0]
     enum entry PRESENT // dev.mirolab.teslable.model/UserPresence.PRESENT|null[0]
