@@ -1,4 +1,5 @@
 import XCTest
+import Teslable
 @testable import TeslableSample
 
 /// SFR-020: 키를 바꾸는 동안 다른 탭의 동작·연결이 옛 키를 잡지 못하게 하는 엔진 수준의 문(`KeyOperationGate`)과 키 핸들 캐시.
@@ -144,6 +145,16 @@ final class MonitorEngineKeyGuardTests: XCTestCase {
         let engine = MonitorEngine(defaults: UserDefaults(suiteName: suite)!, logFolder: folder)
         _ = engine.saveVin("5YJS0000000000000") // 가짜 VIN(형식만 같다)
         return engine
+    }
+
+    /// 라이브러리의 실제 오류 객체로 본다: 종류(`PlatformFailure`)와 `cause` 가 둘 다 맞을 때만 손상이다.
+    func testCorruptedNeedsThePlatformFailureTypeAndTheExactCause() {
+        XCTAssertTrue(MonitorEngine.isCorrupted(VehicleErrorKeyStoreErrorPlatformFailure(cause: "stored key is corrupted")))
+        // message 는 "key store failure: <cause>" 라 cause 가 같아도 message 로 맞추지 않는다. 더 긴 cause 는 손상이 아니다.
+        XCTAssertFalse(MonitorEngine.isCorrupted(VehicleErrorKeyStoreErrorPlatformFailure(cause: "key store failure: stored key is corrupted")))
+        XCTAssertFalse(MonitorEngine.isCorrupted(VehicleErrorKeyStoreErrorPlatformFailure(cause: "errSecInteractionNotAllowed while the stored key is corrupted")))
+        XCTAssertFalse(MonitorEngine.isCorrupted(VehicleErrorKeyStoreErrorPlatformFailure(cause: "errSecItemNotFound")))
+        XCTAssertFalse(MonitorEngine.isCorrupted(VehicleErrorKeyStoreErrorLocked.shared), "Locked is not damage")
     }
 
     func testReplaceIsBusyWhileAnotherTabRunsAnOperation() async {

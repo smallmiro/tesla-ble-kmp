@@ -108,11 +108,28 @@ final class KeyReplacerTests: XCTestCase {
         XCTAssertEqual(r.calls, ["probe"])
     }
 
-    func testCorruptedIsRecognisedOnlyFromTheDocumentedPlatformFailureText() {
-        XCTAssertTrue(KeyStoreFailure.isCorrupted("stored key is corrupted"))
-        XCTAssertTrue(KeyStoreFailure.isCorrupted("key store failure: stored key is corrupted", "x"))
-        XCTAssertFalse(KeyStoreFailure.isCorrupted("errSecItemNotFound"))
-        XCTAssertFalse(KeyStoreFailure.isCorrupted("", ""))
+    /// 오탐은 건강한 등록 키를 확인 뒤 영구히 지우게 한다. 문서에 적힌 `cause` 와 정확히 같을 때만 손상이다.
+    func testCorruptedIsRecognisedOnlyFromTheExactDocumentedCause() {
+        XCTAssertTrue(KeyStoreFailure.isCorrupted(cause: "stored key is corrupted"))
+    }
+
+    func testALongerTextThatMerelyContainsTheDocumentedTextIsNotCorrupted() {
+        let looksLike = [
+            "key store failure: stored key is corrupted", // 라이브러리가 message 에 붙이는 접두어가 붙은 꼴(cause 가 아니다)
+            "stored key is corrupted: errSecInteractionNotAllowed",
+            "backup of the stored key is corrupted and the stored key is corrupted",
+            "the stored key is corrupted",
+            "stored key is corrupted ",
+            " stored key is corrupted",
+            "Stored key is corrupted",
+            "stored key is corrupted\n",
+            "stored key is corrupted-ish",
+            "",
+            "errSecItemNotFound",
+        ]
+        for text in looksLike {
+            XCTAssertFalse(KeyStoreFailure.isCorrupted(cause: text), "must not match: \(text)")
+        }
     }
 
     // MARK: 잠금 — 아무것도 바꾸지 않는다
