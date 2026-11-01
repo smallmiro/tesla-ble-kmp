@@ -39,6 +39,8 @@ struct LiveState: Sendable, Equatable {
     var items: [LiveItemKey: LiveItem] = [:]
     /// 마지막 `Status` 가 온 시각(같은 값이어도 갱신).
     var lastStatusAt: Date?
+    /// 지금 연결에서 `Status` 를 받았는지. false 이면 `items` 는 이전 연결의 값이라 현재 상태가 아닐 수 있다.
+    var heardOnThisLink = false
     /// 최근 이벤트, 최신이 앞. 상태는 바뀐 것만 올라간다.
     var recent: [RecentEvent] = []
 }
@@ -46,6 +48,13 @@ struct LiveState: Sendable, Equatable {
 /// `Vehicle.events` 의 이벤트를 `LiveState` 로 줄인다. 차량 없이 시험한다.
 enum LiveReducer {
     static let maxRecent = 100
+
+    /// 새 연결이 시작됐다. 값은 남기되, 이 연결에서 방송을 받기 전에는 현재 값으로 보지 않게 한다.
+    static func linkStarted(_ state: LiveState) -> LiveState {
+        var next = state
+        next.heardOnThisLink = false
+        return next
+    }
 
     static func reduce(_ state: LiveState, _ event: MonitorEvent, now: Date) -> LiveState {
         switch event.kind {
@@ -76,6 +85,7 @@ enum LiveReducer {
         var next = state
         next.items = items
         next.lastStatusAt = now
+        next.heardOnThisLink = true
         return seen && !changes.isEmpty ? withRecent(next, now, changes.joined(separator: ", ")) : next
     }
 
