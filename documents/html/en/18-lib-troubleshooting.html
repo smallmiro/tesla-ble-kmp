@@ -179,8 +179,8 @@
 <table>
 <thead><tr><th></th><th>Observation log</th><th><code>vehicle.events</code></th></tr></thead>
 <tbody>
-<tr><td>What it is</td><td>One <code>DEBUG</code> text line per dropped message or security-domain reply, tag <code>observe</code> (it also has <code>connect</code> scan hits, see the next section)</td><td>A public <code>Flow&lt;VehicleEvent&gt;</code> on <code>Vehicle</code> (FR-035)</td></tr>
-<tr><td>Which frames</td><td>Every dropped frame (replies to other phones, unreadable frames, broadcasts) and every security-domain reply</td><td>Only plain broadcasts (<a href="14-lib-reading-state.html#sec-b-library">14, B2</a>)</td></tr>
+<tr><td>What it is</td><td>One <code>DEBUG</code> text line per dropped message or reply to your own request, tag <code>observe</code> (it also has <code>connect</code> scan hits, see the next section)</td><td>A public <code>Flow&lt;VehicleEvent&gt;</code> on <code>Vehicle</code> (FR-035)</td></tr>
+<tr><td>Which frames</td><td>Every dropped frame (replies to other phones, unreadable frames, broadcasts) and every reply to your own requests, in both domains</td><td>Only plain broadcasts (<a href="14-lib-reading-state.html#sec-b-library">14, B2</a>)</td></tr>
 <tr><td>Content</td><td>A summary for people; values of unknown fields only in the detailed form</td><td>Typed events, <code>unknownFields</code> paths, and the whole frame in <code>raw</code></td></tr>
 <tr><td>VIN</td><td>Masked by the library</td><td><strong>Not masked</strong> in <code>raw</code>; the app masks it before storing or sharing</td></tr>
 <tr><td>Needs</td><td>A logger that keeps <code>DEBUG</code> (development builds)</td><td>Nothing; it works in release builds</td></tr>
@@ -193,10 +193,10 @@
 </ul>
 
 <h2 id="sec-observe">Observation log (development)</h2>
-<p>While you develop, the library can write one summary line for every message it drops and for every reply from the vehicle security domain. It shows what the car sends without being asked. It changes no behaviour: broadcasts are still kept out of reply matching, and the plain ones also reach apps through <code>vehicle.events</code> (previous section). What each pushed message means is in <a href="14-lib-reading-state.html">14. Reading Vehicle State</a>, Part B. The Bluetooth transport adds one line for every scan hit of <code>connect</code>.</p>
+<p>While you develop, the library can write one summary line for every message it drops and for every reply to one of its own requests, in both domains. It shows what the car sends without being asked and how its replies line up with requests. It changes no behaviour: broadcasts are still kept out of reply matching, and the plain ones also reach apps through <code>vehicle.events</code> (previous section). What each pushed message means is in <a href="14-lib-reading-state.html">14. Reading Vehicle State</a>, Part B. The Bluetooth transport adds one line for every scan hit of <code>connect</code>.</p>
 <ul>
 <li>Tag <code>observe</code>, level <code>DEBUG</code>. A logger that discards <code>DEBUG</code> never builds the line. Visible through <code>DebugLogger()</code> or your own <code>TeslaLogger</code>. The iOS sample's observation mode collects only these lines.</li>
-<li>Shape: <code>[point] NB from=… to=… request_uuid=… payload=…</code>, where <code>NB</code> is the size of the received frame.</li>
+<li>Shape: <code>[point] NB from=… to=… request_uuid=… payload=…</code>, where <code>NB</code> is the size of the received frame. Reply lines end with <code>attempt=N auth=…</code>.</li>
 <li>Scan hit line (FR-038): <code>[connect:scan-hit] after=&lt;ms&gt;ms rssi=&lt;dBm|unavailable&gt; connectable=&lt;true|false|unknown&gt; attempt=&lt;n&gt;</code>. One line for every advertisement found by a scan that <code>connect</code> runs itself, written before the connectable check and before opening, so it also appears for a <code>connect</code> that fails and for each retry. <code>after</code> is the time since <code>connect</code> started (the same measure as <code>hitAfterMillis</code>, <a href="12-lib-getting-started.html#sec-scan-observation">12. Getting Started</a>), <code>attempt</code> is the open attempt the hit was found for. The time your logger receives the line is the wall-clock time of the hit. <code>ble.scan(vin)</code> and a <code>target</code> reused without a scan write no line. It has no advertised name and no device identifier.</li>
 </ul>
 <table>
@@ -207,10 +207,10 @@
 <tr><td><code>[drop:missing-destination]</code></td><td>No destination (not seen from the real car)</td></tr>
 <tr><td><code>[drop:to-domain]</code></td><td>Addressed to a domain, not to a client address (the car's broadcasts use <code>DOMAIN_BROADCAST</code>)</td></tr>
 <tr><td><code>[drop:malformed]</code></td><td>Wrong request UUID length or wrong address length</td></tr>
-<tr><td><code>[drop:no-handler]</code></td><td>A valid address, but no open request owns it</td></tr>
-<tr><td><code>[drop:handler-closed]</code>, <code>[drop:queue-full]</code></td><td>The matching request closed meanwhile, or its answer queue was full</td></tr>
-<tr><td><code>[reply:vcsec]</code></td><td>A security-domain reply delivered to an open request</td></tr>
-<tr><td><code>from=</code>, <code>to=</code></td><td><code>domain(DOMAIN_X)</code>, <code>address(16B, self|open-request|other)</code> (<code>to=</code> only), <code>none</code>, <code>empty</code></td></tr>
+<tr><td><code>[drop:no-handler]</code></td><td>A valid address, but no open request owns it. A reply to a recently closed request reads <code>to=address(16B, closed)</code> and ends with <code>attempt=N</code> (see Reply lines below)</td></tr>
+<tr><td><code>[drop:handler-closed]</code>, <code>[drop:queue-full]</code></td><td>The matching request closed meanwhile, or its answer queue was full. The reply line of the same frame comes first</td></tr>
+<tr><td><code>[reply:vcsec]</code>, <code>[reply:infotainment]</code></td><td>A security-domain or infotainment-domain reply to an open request, one line per received frame (see Reply lines below)</td></tr>
+<tr><td><code>from=</code>, <code>to=</code></td><td><code>domain(DOMAIN_X)</code>, <code>address(16B, self|open-request|closed|other)</code> (<code>to=</code> only), <code>none</code>, <code>empty</code></td></tr>
 <tr><td><code>payload=</code></td><td><code>FromVCSECMessage{…}</code>, <code>Response{fields=[…]}</code>, <code>encrypted(NB)</code>, <code>NB</code>, <code>none</code></td></tr>
 <tr><td><code>unknownFields=[n]</code></td><td>Field numbers on the wire that the generated protocol does not know</td></tr>
 <tr><td><code>uiDesire=</code>, <code>gear=</code></td><td>Vehicle status fields 6 and 7, named by the extended protocol definitions (<code>GEAR_UNKNOWN</code>, <code>GEAR_PARK</code>, <code>GEAR_DRIVE</code>, <code>GEAR_REVERSE</code>, <code>GEAR_NEUTRAL</code>). <code>gear</code> is confirmed on a real car (see <a href="14-lib-reading-state.html">14. Reading Vehicle State</a>); the meaning of <code>uiDesire</code> is not. Always printed, because a missing enum reads as its zero value</td></tr>
@@ -219,6 +219,26 @@
 <tr><td><code>key=sha1:xxxxxxxx</code></td><td>A public key: only the first 4 bytes of its SHA-1</td></tr>
 </tbody>
 </table>
+<h3>Reply lines</h3>
+<p>The library writes one <code>[reply:vcsec]</code> or <code>[reply:infotainment]</code> line per received frame, after the decrypt step, so a reply that step dropped has its line too. The line ends with <code>attempt=N auth=…</code>. If the frame then does not reach the caller, a <code>[drop:handler-closed]</code> or <code>[drop:queue-full]</code> line follows.</p>
+<table>
+<thead><tr><th>Part</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>attempt=N</code></td><td>An opaque number for the request on this connection, starting at 1. Every request takes a new number, including a handshake request and each retry, so one command can use several. Compare numbers only within one connection: a new connection starts at 1 again</td></tr>
+<tr><td><code>auth=gcm-ok</code></td><td><code>AES_GCM_Response_data</code> is present, the tag verified and the counter passed the replay check of the request. Delivered</td></tr>
+<tr><td><code>auth=gcm-failed</code></td><td><code>AES_GCM_Response_data</code> is present and verification failed. Dropped</td></tr>
+<tr><td><code>auth=gcm-replay</code></td><td>The tag verified, but this request already saw that counter. Dropped</td></tr>
+<tr><td><code>auth=gcm-no-session</code></td><td><code>AES_GCM_Response_data</code> is present, but there is no session to check it with (no private key, or the session is not established). Dropped</td></tr>
+<tr><td><code>auth=none</code></td><td>No <code>AES_GCM_Response_data</code>, so nothing was checked. Delivered. A session info reply reads this too: its HMAC tag is verified separately and this line does not report that</td></tr>
+</tbody>
+</table>
+<ul>
+<li><code>auth=</code> reports the payload check, not a verdict on the reply. AES-GCM covers the payload and <code>signed_message_fault</code>. The outer <code>operation_status</code>, the first half of <code>status=</code>, is outside it, so <code>auth=gcm-ok</code> does not cover it (ADR-0015).</li>
+<li>The line is built from the frame as received, never from the decrypted message (FR-112). An encrypted reply reads <code>payload=encrypted(NB)</code> whatever <code>auth=</code> says, and <code>encrypted(NB)</code> alone only means the signature field is there.</li>
+<li><code>to=address(16B, closed)</code> is a correspondence and nothing more. The reply's key (routing address, plus the request UUID for infotainment) matches a request this connection closed, and <code>attempt=N</code> names it. It does not show that the reply is genuine or that the request succeeded: the library does not decrypt such a reply, which leaves the replay check of the request untouched, and does not deliver it. That is why the line has no <code>auth=</code>.</li>
+<li>The history holds the last 32 closed requests of the connection, and the oldest falls out first. A late reply to an older request reads <code>other</code> in the security domain and <code>self</code> in the infotainment domain, where all requests share one address.</li>
+<li>The history empties when the connection ends, whether the link dropped or the app disconnected. Nothing carries over to a new connection, not even a request that was still open when the link dropped and closed later.</li>
+</ul>
 <h3>Detail form (exploration only)</h3>
 <p>Example: <code>unknownFields=[48:len(8){1:varint=3(0x3), 2:len(4)"ABCD"}, 9]</code>. Entries keep their arrival order and repeated fields repeat. The field number and wire type are kept; no field name is invented.</p>
 <table>
