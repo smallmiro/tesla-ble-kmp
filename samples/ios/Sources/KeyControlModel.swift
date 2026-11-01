@@ -32,8 +32,7 @@ final class KeyControlModel: ObservableObject {
 
     var steps: KeyControlSteps { KeyControlSteps(inputs) }
 
-    private let engine: MonitorEngine
-    private let client: BleClient
+    private let backend: KeyControlBackend
     /// 연결이 바뀔 때마다 올라간다. 늦게 끝난 호출이 새 연결의 상태를 덮지 않게 한다.
     private var generation = 0
     /// 새 연결에서 아직 등록 확인(자동)을 하지 않았다.
@@ -44,9 +43,12 @@ final class KeyControlModel: ObservableObject {
     private static let maxResults = 100
     private static let autoRetrySeconds = 5
 
-    init(engine: MonitorEngine) {
-        self.engine = engine
-        client = BleClient(engine: engine)
+    init(backend: KeyControlBackend) {
+        self.backend = backend
+    }
+
+    convenience init(engine: MonitorEngine) {
+        self.init(backend: LiveKeyControlBackend(engine: engine))
     }
 
     // MARK: - 입력 변화 (MonitorModel 이 부른다)
@@ -163,7 +165,7 @@ final class KeyControlModel: ObservableObject {
     func prepareKey() async {
         await exclusive { [self] in
             // 키 상태 입력은 엔진의 `.key` 갱신이 `MonitorModel.apply` 로 알려 준다.
-            switch await engine.ensureKey() {
+            switch await backend.ensureKey() {
             case .ready:
                 add("키", "준비됨", .ok)
             case .locked:
@@ -180,9 +182,9 @@ final class KeyControlModel: ObservableObject {
         await exclusive { [self] in
             if steps.reconnectNeeded {
                 add("연결", "키 없이 연결돼 있어 끊고 다시 연결합니다", .info)
-                await engine.disconnect()
+                await backend.disconnect()
             }
-            if engine.connectNow() {
+            if backend.connectNow() {
                 add("연결", "시작함 (상태는 위 배너)", .info)
             } else {
                 add("연결", "저장된 VIN이 없거나 형식이 틀립니다", .fail)
@@ -202,7 +204,7 @@ final class KeyControlModel: ObservableObject {
     private func runCheck(automatic: Bool) async {
         let gen = generation
         inputs.enrollment = .checking
-        let outcome = await client.checkEnrollment()
+        let outcome = await backend.checkEnrollment()
         guard gen == generation else { return } // 그 사이 연결이 바뀜: 상태는 이미 처음으로 돌아갔다
         let report = outcome.report(automatic: automatic)
         inputs.enrollment = report.enrollment
@@ -246,7 +248,7 @@ final class KeyControlModel: ObservableObject {
             ran = true
             progress = []
             let gen = generation
-            let enrolled = await client.pair { [weak self] update in
+            let enrolled = await backend.pair { [weak self] update in
                 await self?.received(update, generation: gen)
             }
             guard gen == generation else { return } // 연결이나 키가 바뀌어 팝업과 함께 이미 정리됐다
@@ -275,7 +277,7 @@ final class KeyControlModel: ObservableObject {
             return
         }
         await exclusive { [self] in
-            let outcome = await engine.replaceKey()
+            let outcome = await backend.replaceKey()
             if outcome.dropsConnectionState {
                 generation += 1
                 status = nil
@@ -311,11 +313,11 @@ final class KeyControlModel: ObservableObject {
     func run(_ button: ControlButton) async {
         await exclusive { [self] in
             let gen = generation
-            let client = client
+            let backend = backend
             let report = await KeyControlRunner.run(
-                ensureSession: { await client.ensureVcsecSession() },
-                command: { await client.send(button) },
-                requery: { await client.statusCard() }
+                ensureSession: { await backend.ensureVcsecSession() },
+                command: { await backend.send(button) },
+                requery: { await backend.statusCard() }
             )
             if gen == generation, let card = report.status { status = card }
             if gen == generation, let enrollment = report.enrollment { inputs.enrollment = enrollment }
@@ -333,7 +335,7 @@ final class KeyControlModel: ObservableObject {
     func refreshStatus() async {
         await exclusive { [self] in
             let gen = generation
-            let result = await client.statusCard()
+            let result = await backend.statusCard()
             if gen == generation, let card = result.card { status = card }
             add("상태 새로고침", result.text, result.card == nil ? .warn : .ok)
         }
