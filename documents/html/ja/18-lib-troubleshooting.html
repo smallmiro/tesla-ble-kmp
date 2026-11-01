@@ -77,7 +77,7 @@
 <tr><td><code>PermissionDenied</code></td><td>Bluetooth 権限がない、または拒否された</td><td>Android: 実行時に <code>BLUETOOTH_SCAN</code> と <code>BLUETOOTH_CONNECT</code> を要求します。iOS: <code>NSBluetoothAlwaysUsageDescription</code> を追加します。拒否された場合はユーザーを設定に誘導します</td></tr>
 <tr><td><code>BluetoothOff</code></td><td>Bluetooth がオフ</td><td>オンにするようユーザーに依頼します</td></tr>
 <tr><td>スキャンで何も見つからず、接続が <code>ScanTimeout</code> で終わる</td><td>範囲外、VIN の誤り、または iOS シミュレーター</td><td>車両に近づく、VIN を確認する (車両は VIN から導出した名前で照合されます)、実機を使う</td></tr>
-<tr><td>接続が <code>ConnectFailed</code> で終わり、理由に車両は見つかったが期限内に接続を完了できなかったとある</td><td>車両は見つかりましたが、リンクが期限内に開きませんでした。その呼び出しの <code>[connect:scan-hit]</code> 行が発見を示し、スキャンなしで再利用したアドバタイズではこの行は残りません。<code>ScanTimeout</code> は常にアドバタイズが見つからなかったことを意味します</td><td>もう一度試す。車両が範囲内にあるのに繰り返す場合はログ行を報告する</td></tr>
+<tr><td>接続が <code>ConnectFailed</code> で終わり、理由に期限内に接続を完了できなかったとある</td><td>理由に <code>vehicle found</code> とあれば、ライブラリのスキャンが車両を見つけましたが (その <code>[connect:scan-hit]</code> 行が発見を示します)、リンクが期限内に開きませんでした。理由に <code>remembered target</code> とあれば、スキャンを実行していないため、車両がまだそこにあるかはわかりません。範囲外にある記憶済みの <code>target</code> は <code>ConnectFailed</code> を返し、<code>ScanTimeout</code> にはなりません。<code>ScanTimeout</code> は常にアドバタイズが見つからなかったことを意味します</td><td>もう一度試す。記憶済みの <code>target</code> で失敗した場合は、スキャンが実行されるようにそれを渡さずに接続する。車両が範囲内にあるのに繰り返す場合はログ行を報告する</td></tr>
 <tr><td><code>MaxConnectionsExceeded</code></td><td>車両にすでに 3 つの Bluetooth 接続がある</td><td>別のスマートフォンやアプリを切断し、自分のアプリでは必ず <code>disconnect()</code> を呼びます</td></tr>
 <tr><td><code>ConnectFailed</code> が繰り返し返る</td><td>電波が弱い、または車両がビジー</td><td>ライブラリはすでに 30 秒間リトライしています。時間をおいてもう一度試します</td></tr>
 <tr><td><code>connect</code> が <code>connectTimeout</code> より数秒遅れて返る (例: 30 秒ではなく 32.6 秒)</td><td>タイマーが遅れた可能性が高い。その時点でアプリが動いていなかったと見られる (iOS はバックグラウンドのアプリを一時停止する)。<code>connect</code> は失敗した試行の後始末を待たない</td><td>対処は不要です。<a href="#sec-budget">connect の制限時間</a> を参照してください</td></tr>
@@ -145,7 +145,7 @@
 <h2 id="sec-budget">connect の制限時間</h2>
 <p><code>connectTimeout</code> (既定は 30 秒) または <code>ConnectOptions.timeout</code> は、スキャン、リンクのオープン、試行の間のリトライをすべて含みます。この時間が尽きて <code>connect</code> が失敗すると、次のようになります。</p>
 <ul>
-<li>すぐに返ります。最後に失敗した試行のエラーを返します。失敗した試行がなければ、車両を見つけた場合は <code>ConnectFailed</code>、アドバタイズが見つからなかった場合は <code>ScanTimeout</code> を返します。Go のオリジナルも最後のエラーを返し、それがなければどちらの場合も一般的な deadline エラーを 1 つ返します。</li>
+<li>すぐに返ります。最後に失敗した試行のエラーを返します。失敗した試行がなければ、スキャンが車両を見つけた場合や記憶している <code>target</code> を開いている間は <code>ConnectFailed</code>、アドバタイズが見つからなかった場合は <code>ScanTimeout</code> を返します。Go のオリジナルも最後のエラーを返し、それがなければこれらすべての場合に一般的な deadline エラーを 1 つ返します。</li>
 <li>実行中の試行を待ちません。その試行はキャンセルされ、<code>connect</code> が返った後で後始末をします。プラットフォームの切断は最大 5 秒しか待ちません。それでもリンクを開いた場合は、ライブラリがそのリンクを切断します。</li>
 <li>時間を超えて待つのは 1 つの場合だけです。時間が尽きたまさにその瞬間に作られた接続は <code>connect</code> が返る前に閉じ、これも最大 5 秒です。したがって、失敗した <code>connect</code> にライブラリが足す時間は最大 5 秒です。</li>
 <li>制限時間はタイマーであり、タイマーはアプリが動いていない間は発火できません。そのため、一時停止されたアプリはいくらでも遅れることがあります。実機の iPhone で 30 秒の制限時間が 36 分遅れて終わった例があります (<code>docs/analysis/2026-11-01-build18-link-health.md</code> F3、可能性は高いものの未確定)。どのタイムアウトでも防げません。</li>

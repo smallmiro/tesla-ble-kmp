@@ -146,9 +146,9 @@
 <table>
 <thead><tr><th>エラー</th><th>意味</th><th>対処</th></tr></thead>
 <tbody>
-<tr><td><code>ScanTimeout</code></td><td>接続の期限までに車両のアドバタイズが見つかりませんでした。車両を見つけた接続はこのエラーでは終わりません</td><td>車両が範囲内にあるか確認し、もう一度試します</td></tr>
+<tr><td><code>ScanTimeout</code></td><td>接続の期限までに車両のアドバタイズが見つかりませんでした。車両を見つけた接続や、ライブラリが記憶している <code>target</code> を開き始めた接続は、このエラーでは終わりません</td><td>車両が範囲内にあるか確認し、もう一度試します</td></tr>
 <tr><td><code>MaxConnectionsExceeded</code></td><td>車両にすでに 3 つの Bluetooth 接続がある</td><td>別のスマートフォンやアプリを切断し、もう一度試します</td></tr>
-<tr><td><code>ConnectFailed</code></td><td>接続、サービスの検出、または購読に失敗した、あるいは車両を見つけたが期限内に接続を完了できなかった</td><td>少し待ってからもう一度試します</td></tr>
+<tr><td><code>ConnectFailed</code></td><td>接続、サービスの検出、または購読に失敗した、あるいは車両を見つけた後や記憶している <code>target</code> を開いている間に接続の期限が切れた</td><td>少し待ってからもう一度試します</td></tr>
 <tr><td><code>Disconnected</code></td><td>リンクが切れた</td><td><code>disconnect()</code> を呼んでから再接続します</td></tr>
 <tr><td><code>BluetoothOff</code></td><td>Bluetooth がオフ</td><td>オンにするようユーザーに依頼します</td></tr>
 <tr><td><code>PermissionDenied</code></td><td>Bluetooth の権限がない</td><td>権限を要求するか、設定を開きます</td></tr>
@@ -159,7 +159,7 @@
 <tr><td><code>Locked</code></td><td>iOS: スマートフォンがロックされていて、キーがロック解除中にだけ使えるキーである、または再起動後にまだ一度もロックを解除していない。この理由で作成できなかったキーはソフトウェアキーで代用しない。スマートフォンがロックされる前に読み込んだ Secure Enclave のキーをロックが妨げると、<code>startSession()</code> も返す</td><td>キーを削除したり作り直したり<strong>しないでください</strong>。ロックを解除してから再試行します。ロック中もキーを使うには、新しいエイリアスで <code>AFTER_FIRST_UNLOCK</code> のキーを作成して登録します (<a href="13-lib-pairing.html#sec-accessibility">13. キーとペアリング</a>)。ライブラリはキーストアの呼び出しもハンドシェイクもリトライしません</td></tr>
 </tbody>
 </table>
-<p><strong>接続の期限が切れたときのエラー。</strong>最後に失敗した試行のエラーが優先されます。失敗した試行がなければ、車両を見つけたかどうかで分かれます。見つけていれば <code>ConnectFailed</code>、アドバタイズが見つからなかったときだけ <code>ScanTimeout</code> です。ライブラリのスキャンが車両を検出した場合 (<a href="18-lib-troubleshooting.html#sec-observe">観察ログ</a> に <code>[connect:scan-hit]</code> 行があります) と、アプリがスキャンで受け取ったアドバタイズでライブラリがリンクを開き始めた場合は、車両を見つけたものとして扱います。#140 より前はどちらの場合も <code>ScanTimeout</code> でした。どちらのエラーも一時的で、何も実行されていないため、リトライの動作は同じです。違いが見えるのはエラー型を見るコードだけです。<code>ConnectFailed.cause</code> の文は人とログのためのものなので、これで分岐しないでください。Go のオリジナルはこれらの場合を分けず、一般的な deadline エラーを 1 つ返します。</p>
+<p><strong>接続の期限が切れたときのエラー。</strong>最後に失敗した試行のエラーが優先されます。失敗した試行がなければ、3 つの場合に分かれます。ライブラリのスキャンが車両を検出していれば (<a href="18-lib-troubleshooting.html#sec-observe">観察ログ</a> に <code>[connect:scan-hit]</code> 行があります) <code>ConnectFailed</code> で、文は車両を見つけたと述べます。アプリのスキャンからライブラリが記憶している <code>target</code> を開いている間であれば、同じく <code>ConnectFailed</code> ですが、スキャンを実行しておらず、そのアドバタイズが古い可能性があるため、文は車両を見つけたとは述べません。範囲外にある記憶済みの <code>target</code> は <code>ConnectFailed</code> を返し、<code>ScanTimeout</code> にはなりません。アドバタイズが見つからなければ <code>ScanTimeout</code> です。#140 より前はすべて <code>ScanTimeout</code> でした。これらのエラーは一時的で、何も実行されていないため、リトライの動作は同じです。違いが見えるのはエラー型を見るコードだけです。<code>ConnectFailed.cause</code> の文は人とログのためのものなので、これで分岐しないでください。Go のオリジナルはこれらの場合を分けず、一般的な deadline エラーを 1 つ返します。</p>
 
 <h2 id="sec-events">ブロードキャストイベント</h2>
 <p><code>vehicle.events</code> にはエラー値がなく、例外も投げません。リンクが切れるか <code>disconnect()</code> を呼ぶと正常に終わります (<a href="14-lib-reading-state.html#sec-b-library">14. 車両状態の取得、B2</a>)。リンクが切れた理由は <code>connection</code> にあります。</p>

@@ -63,9 +63,9 @@ should do.
 
 | Error | Meaning | temporary | App action |
 |---|---|---|---|
-| `TransportError.ScanTimeout` | No advertisement of the vehicle was found before the `connect` deadline. A `connect` that found the vehicle never ends with this error | true | Check the vehicle is in range, try again |
+| `TransportError.ScanTimeout` | No advertisement of the vehicle was found before the `connect` deadline. A `connect` that found the vehicle, or started opening a `target` the library remembers, never ends with this error | true | Check the vehicle is in range, try again |
 | `TransportError.MaxConnectionsExceeded` | The vehicle already has 3 BLE connections | false | Disconnect another device, try again |
-| `TransportError.ConnectFailed(cause)` | Connect, service discovery or subscription failed, or the vehicle was found but the connection did not complete before the `connect` deadline | true | Retry after a moment |
+| `TransportError.ConnectFailed(cause)` | Connect, service discovery or subscription failed, or the `connect` deadline passed after the vehicle was found or while opening a remembered `target` | true | Retry after a moment |
 | `TransportError.Disconnected` | BLE link dropped | false | `Vehicle.disconnect()`, then a new `connect` |
 | `TransportError.BluetoothOff` | Bluetooth is off | false | Ask the user to turn it on |
 | `TransportError.PermissionDenied` | No Bluetooth permission | false | Request permission or open Settings |
@@ -81,14 +81,17 @@ Call `Vehicle.disconnect()` even after the link dropped so session keys and the 
 
 | Before the deadline | Error |
 |---|---|
-| The vehicle was found: a scan run by `connect` delivered its advertisement (a `[connect:scan-hit]` observation line, `18-lib-troubleshooting.md`), or an open started from a `target` the app got from `scan` | `ConnectFailed("vehicle found but the connection did not complete before the deadline")` |
+| A scan run by `connect` delivered the vehicle's advertisement (a `[connect:scan-hit]` observation line, `18-lib-troubleshooting.md`) | `ConnectFailed("vehicle found but the connection did not complete before the deadline")` |
+| No scan ran: an open started from a `target` the library remembers from `scan`. That advertisement can be stale, so the `cause` does not say the vehicle was found | `ConnectFailed("connection to the remembered target did not complete before the deadline (no scan ran)")` |
 | No advertisement was found and no open started | `ScanTimeout` |
 
-Before #140 the first row was also `ScanTimeout`, so this changes the error type an app sees for that case. `temporary`,
-`mayHaveSucceeded` and `shouldRetry()` are the same for both, so a retry or backoff that does not look at the type behaves
-as before. Code that matches `ScanTimeout` no longer sees a vehicle that was found; code that matches `ConnectFailed` now
-also sees that case. `cause` is text for people and logs: match on the type, not on `cause`. The Go original does not
-separate these cases: it returns the last error, otherwise one generic deadline error (`ctx.Err()`, `ble.go:270-275`).
+Before #140 the first two rows were also `ScanTimeout`, so this changes the error type an app sees for those cases. A
+remembered `target` that is out of range is one of them: it reports `ConnectFailed`, not `ScanTimeout`, because no scan ran
+to show the vehicle is gone. `temporary`, `mayHaveSucceeded` and `shouldRetry()` are the same for all three, so a retry or
+backoff that does not look at the type behaves as before. Code that matches `ScanTimeout` no longer sees those two cases;
+code that matches `ConnectFailed` now does. `cause` is text for people and logs: match on the type, not on `cause`. The Go
+original does not separate these cases: it returns the last error, otherwise one generic deadline error (`ctx.Err()`,
+`ble.go:270-275`).
 
 ## Broadcast events (`Vehicle.events`)
 

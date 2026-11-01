@@ -140,7 +140,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | FR-001 | VIN으로 광고 이름 `"S"+hex(SHA1(VIN)[:8])+"C"`를 계산해 스캔하고, 발견한 차량의 RSSI와 connectable 여부를 `Flow`로 알린다. connectable=false면 `MaxConnectionsExceeded`로 구분한다 | P0 | – | `VehicleLocalName`, `ScanVehicleBeacon` | `02-ble-transport §2~§3`, `10-porting-guide §1` |
 | FR-002 | GATT 연결: 서비스 `…0211`, TX `…0212`(write with response), RX `…0213`(indication 구독), MTU 협상. 블록 길이 = `min(MTU,1024)-3`, 실패 시 20 | P0 | – | `tryToConnect` | `02-ble-transport §4~§5`, `10-porting-guide §2` |
 | FR-003 | 프레이밍: 2바이트 BE 길이 + 메시지, 최대 1024바이트. 송신은 블록 길이로 분할해 순서대로 write. 수신은 재조립하고, 청크 간 1초 초과 시 버퍼 리셋, 길이>1024면 폐기 | P0 | – | `Send`, `rx`, `flush` | `02-ble-transport §6`, `10-porting-guide §3` |
-| FR-004 | 연결 재시도: 스캔·연결·구독 실패 시 1초 간격 재시도. 어댑터 오류, 이름 불일치, connectable=false는 재시도하지 않음. 시간이 다 되면 마지막 실패의 오류를 돌려주고, 실패가 없으면 차량을 찾은 경우 `ConnectFailed`, 광고를 찾지 못한 경우 `ScanTimeout`(#140) | P0 | – | `NewConnectionFromScanResult` | `02-ble-transport §4.1`, `08-errors §4` |
+| FR-004 | 연결 재시도: 스캔·연결·구독 실패 시 1초 간격 재시도. 어댑터 오류, 이름 불일치, connectable=false는 재시도하지 않음. 시간이 다 되면 마지막 실패의 오류를 돌려주고, 실패가 없으면 스캔이 차량을 찾았거나 기억한 `target`을 열던 중인 경우 `ConnectFailed`, 광고를 찾지 못한 경우 `ScanTimeout`(#140) | P0 | – | `NewConnectionFromScanResult` | `02-ble-transport §4.1`, `08-errors §4` |
 | FR-005 | 명시적 연결 해제. 해제는 멱등. 명령을 보내지 않을 때 연결을 끊어 슬롯(3개)을 비우는 방법을 문서화 | P0 | – | `Close`, `Disconnect` | `02-ble-transport §11`, `00-agent-guide §3.3-19,20` |
 | FR-006 | BLE 권한(Android 12+ `BLUETOOTH_SCAN/CONNECT`, iOS `NSBluetoothAlwaysUsageDescription`)이 없을 때 도메인 에러로 보고 | P0 | – | – | `10-porting-guide §12` |
 
