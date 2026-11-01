@@ -106,6 +106,8 @@ public final class dev/mirolab/teslable/application/infotainment/InfotainmentCom
 	public fun <init> (Ldev/mirolab/teslable/application/vehicle/SendWithRetry;)V
 	public final fun execute-8Mi8wO0 (Lcom/tesla/generated/carserver/server/Action;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun execute-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Lcom/tesla/generated/carserver/server/Action;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun getState-8Mi8wO0 (Ldev/mirolab/teslable/model/StateCategory;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun getState-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Ldev/mirolab/teslable/model/StateCategory;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public final class dev/mirolab/teslable/application/infotainment/InfotainmentResponses {

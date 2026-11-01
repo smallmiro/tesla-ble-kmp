@@ -136,6 +136,7 @@ final class dev.mirolab.teslable.application.infotainment/InfotainmentCommands {
     constructor <init>(dev.mirolab.teslable.application.vehicle/SendWithRetry) // dev.mirolab.teslable.application.infotainment/InfotainmentCommands.<init>|<init>(dev.mirolab.teslable.application.vehicle.SendWithRetry){}[0]
 
     final suspend fun execute(com.tesla.generated.carserver.server/Action, kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<com.tesla.generated.carserver.server/Response> // dev.mirolab.teslable.application.infotainment/InfotainmentCommands.execute|execute(com.tesla.generated.carserver.server.Action;kotlin.time.Duration){}[0]
+    final suspend fun getState(dev.mirolab.teslable.model/StateCategory, kotlin.time/Duration = ...): dev.mirolab.teslable.model/VehicleResult<com.tesla.generated.carserver.vehicle/VehicleData> // dev.mirolab.teslable.application.infotainment/InfotainmentCommands.getState|getState(dev.mirolab.teslable.model.StateCategory;kotlin.time.Duration){}[0]
 }
 
 final class dev.mirolab.teslable.application.logging/SafeLogger : dev.mirolab.teslable.port/TeslaLogger { // dev.mirolab.teslable.application.logging/SafeLogger|null[0]

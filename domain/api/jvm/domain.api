@@ -10379,6 +10379,24 @@ public final class dev/mirolab/teslable/model/SleepStatus : java/lang/Enum {
 	public static fun values ()[Ldev/mirolab/teslable/model/SleepStatus;
 }
 
+public final class dev/mirolab/teslable/model/StateCategory : java/lang/Enum {
+	public static final field CHARGE Ldev/mirolab/teslable/model/StateCategory;
+	public static final field CHARGE_SCHEDULE Ldev/mirolab/teslable/model/StateCategory;
+	public static final field CLIMATE Ldev/mirolab/teslable/model/StateCategory;
+	public static final field CLOSURES Ldev/mirolab/teslable/model/StateCategory;
+	public static final field DRIVE Ldev/mirolab/teslable/model/StateCategory;
+	public static final field LOCATION Ldev/mirolab/teslable/model/StateCategory;
+	public static final field MEDIA Ldev/mirolab/teslable/model/StateCategory;
+	public static final field MEDIA_DETAIL Ldev/mirolab/teslable/model/StateCategory;
+	public static final field PARENTAL_CONTROLS Ldev/mirolab/teslable/model/StateCategory;
+	public static final field PRECONDITIONING_SCHEDULE Ldev/mirolab/teslable/model/StateCategory;
+	public static final field SOFTWARE_UPDATE Ldev/mirolab/teslable/model/StateCategory;
+	public static final field TIRE_PRESSURE Ldev/mirolab/teslable/model/StateCategory;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/model/StateCategory;
+	public static fun values ()[Ldev/mirolab/teslable/model/StateCategory;
+}
+
 public final class dev/mirolab/teslable/model/UserPresence : java/lang/Enum {
 	public static final field NOT_PRESENT Ldev/mirolab/teslable/model/UserPresence;
 	public static final field PRESENT Ldev/mirolab/teslable/model/UserPresence;

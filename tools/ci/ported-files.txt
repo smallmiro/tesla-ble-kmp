@@ -54,3 +54,5 @@ adapter-ble/src/commonMain/kotlin/dev/mirolab/teslable/ble/KableGattConnector.kt
 application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/VcsecPayloads.kt
 application/src/commonMain/kotlin/dev/mirolab/teslable/application/vcsec/VcsecControl.kt
 application/src/commonMain/kotlin/dev/mirolab/teslable/application/pairing/Pairing.kt
+application/src/commonMain/kotlin/dev/mirolab/teslable/application/infotainment/StateQueries.kt
+domain/src/commonMain/kotlin/dev/mirolab/teslable/model/StateCategory.kt
