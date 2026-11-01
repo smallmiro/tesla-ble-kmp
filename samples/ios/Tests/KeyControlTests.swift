@@ -445,7 +445,7 @@ final class EnrollmentWaiterTests: XCTestCase {
 
         init(_ probes: [EnrollmentProbe]) { self.probes = probes }
 
-        func wait() async -> (enrolled: Bool, line: String) {
+        func wait() async -> (enrolled: Bool, line: String, failure: String?) {
             await EnrollmentWaiter.wait(
                 timeout: 120, interval: 3,
                 probe: { self.attempts += 1; return self.probes.isEmpty ? .notYet : self.probes.removeFirst() },

@@ -292,7 +292,13 @@ enum EnrollmentProbe: Sendable, Equatable {
 }
 
 enum EnrollmentWaiter {
+    /// 확인을 시작하지 못했다(연결이나 키가 없다). 줄은 "등록 확인: …", `failure` 는 이유.
+    static func blocked(_ why: String) -> (enrolled: Bool, line: String, failure: String?) {
+        (false, "등록 확인: \(why)", why)
+    }
+
     /// 3초 간격, 최대 2분. 성공하면 `true`, `KeyNotPaired`·`Uncertain` 이면 계속, 그 밖의 `Failure` 면 바로 멈춘다.
+    /// `failure` 는 그 `Failure` 로 멈췄을 때의 이유다(시간 안에 확인되지 않음과 구별한다).
     /// 시계와 잠자기를 받아서 실제 시간을 기다리지 않고 시험한다.
     static func wait(
         timeout: TimeInterval = 120,
@@ -301,7 +307,7 @@ enum EnrollmentWaiter {
         sleep: (TimeInterval) async throws -> (),
         now: () -> TimeInterval,
         onAttempt: ((_ attempt: Int, _ elapsed: TimeInterval) async -> ())? = nil
-    ) async -> (enrolled: Bool, line: String) {
+    ) async -> (enrolled: Bool, line: String, failure: String?) {
         var last = "등록 확인: 시도하지 못함"
         let start = now()
         let deadline = start + timeout
@@ -310,15 +316,15 @@ enum EnrollmentWaiter {
             attempt += 1
             await onAttempt?(attempt, now() - start)
             switch await probe() {
-            case .enrolled: return (true, "등록 확인됨(Infotainment)")
+            case .enrolled: return (true, "등록 확인됨(Infotainment)", nil)
             case .notYet: last = "아직 등록되지 않음(KeyNotPaired) — 2분까지 반복"
             case .uncertain(let why): last = "등록 확인 불확실: \(why)"
-            case .failed(let why): return (false, "등록 확인 실패: \(why)")
+            case .failed(let why): return (false, "등록 확인 실패: \(why)", why)
             }
             if Task.isCancelled { break }
             do { try await sleep(interval) } catch { break }
         }
-        return (false, "\(last) (2분 안에 확인되지 않음)")
+        return (false, "\(last) (2분 안에 확인되지 않음)", nil)
     }
 }
 

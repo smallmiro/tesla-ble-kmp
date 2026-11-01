@@ -20,8 +20,8 @@ enum EnrollmentUpdate: Sendable, Equatable {
     case confirmed(String)
     /// 확인 시간(2분) 안에 등록이 확인되지 않았다.
     case notConfirmed(String)
-    /// 등록 확인이 실패로 끝났다(예: 연결이 끊김). 그 밖의 `Failure` 라 더 묻지 않았다.
-    case confirmFailed(String)
+    /// 등록 확인이 실패로 끝났다(예: 연결이 끊김). 그 밖의 `Failure` 라 더 묻지 않았다. `why` 는 이유, `line` 은 결과 줄(접두어 포함).
+    case confirmFailed(String, line: String)
     /// 등록 확인의 `attempt` 번째 시도를 시작한다(`elapsed` 는 확인을 시작한 뒤 지난 시간, 초).
     case confirming(attempt: Int, elapsed: TimeInterval)
     /// 사용자가 기다리기를 멈췄다. 이미 보낸 요청은 되돌릴 수 없다.
@@ -31,7 +31,7 @@ enum EnrollmentUpdate: Sendable, Equatable {
     static func finished(enrolled: Bool, line: String, failure: String?, cancelled: Bool) -> EnrollmentUpdate {
         if enrolled { return .confirmed(line) }
         if cancelled { return .cancelled }
-        if let failure { return .confirmFailed(failure) }
+        if let failure { return .confirmFailed(failure, line: line) }
         return .notConfirmed(line)
     }
 
@@ -46,7 +46,7 @@ enum EnrollmentUpdate: Sendable, Equatable {
         case .unknown(let hex): return "모르는 응답 \(hex)"
         case .failed(let why): return "실패: \(why)"
         case .timedOut: return "시간 초과 — 등록 여부를 확인합니다"
-        case .confirmed(let line), .notConfirmed(let line), .confirmFailed(let line): return line
+        case .confirmed(let line), .notConfirmed(let line), .confirmFailed(_, let line): return line
         case .confirming: return nil
         case .cancelled: return "등록 기다리기를 멈췄습니다(이미 보낸 요청은 되돌릴 수 없음)"
         }
@@ -129,7 +129,7 @@ struct EnrollmentPopup: Equatable, Sendable {
         case .waitingForCard:
             return "요청을 보냈습니다. 차량 중앙 콘솔에 키카드를 대고, 차량 화면에서 승인하세요."
         case .confirming:
-            if attempt > 0 { return progressText }
+            if attempt > 0 { return requestTimedOut ? "요청이 시간 초과였습니다. 등록 여부를 확인하는 중입니다. " + progressText : progressText }
             return requestTimedOut ? "시간 초과 — 등록 여부를 확인하는 중입니다…" : "차량이 승인했습니다. 등록을 확인하는 중입니다…"
         case .succeeded:
             return "키가 차량에 등록되었습니다. 4단계 버튼을 쓸 수 있습니다."
@@ -167,7 +167,7 @@ struct EnrollmentPopup: Equatable, Sendable {
         case .accepted: phase = .confirming; reached = 2
         case .timedOut: phase = .confirming; reached = 2; requestTimedOut = true
         case .confirming(let n, let seconds): phase = .confirming; reached = 2; attempt = n; elapsed = seconds
-        case .rejected(let why), .failed(let why), .confirmFailed(let why): finish(.failed(why))
+        case .rejected(let why), .failed(let why), .confirmFailed(let why, _): finish(.failed(why))
         case .unknown: break
         case .confirmed: finish(.succeeded)
         case .notConfirmed: finish(.notConfirmed)

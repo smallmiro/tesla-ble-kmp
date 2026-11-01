@@ -164,10 +164,9 @@ actor BleClient {
     /// `failure` 는 `KeyNotPaired` 가 아닌 `Failure` 로 멈췄을 때의 이유(시간 초과와 구별한다). `onAttempt` 는 시도마다 진행을 알린다(SFR-021).
     func confirmEnrollment(onAttempt: (@Sendable (Int, TimeInterval) async -> ())? = nil) async -> (enrolled: Bool, line: String, failure: String?) {
         refresh()
-        guard let vehicle else { return (false, "등록 확인: 먼저 연결하세요", "먼저 연결하세요") }
-        guard let key else { return (false, "등록 확인: 먼저 키를 만드세요", "먼저 키를 만드세요") }
-        let failure = ResultBox<String>()
-        let result = await EnrollmentWaiter.wait(
+        guard let vehicle else { return EnrollmentWaiter.blocked("먼저 연결하세요") }
+        guard let key else { return EnrollmentWaiter.blocked("먼저 키를 만드세요") }
+        return await EnrollmentWaiter.wait(
             probe: {
                 do {
                     let result = try await vehicle.sessionInfo(
@@ -175,10 +174,7 @@ actor BleClient {
                     )
                     switch onEnum(of: result) {
                     case .success: return .enrolled
-                    case .failure(let f):
-                        if f.error is VehicleErrorKeyNotPaired { return .notYet }
-                        failure.set(f.error.message)
-                        return .failed(f.error.message)
+                    case .failure(let f): return f.error is VehicleErrorKeyNotPaired ? .notYet : .failed(f.error.message)
                     case .uncertain(let u): return .uncertain(u.error.message)
                     }
                 } catch { return .uncertain("\(error)") }
@@ -187,7 +183,6 @@ actor BleClient {
             now: { Date().timeIntervalSince1970 },
             onAttempt: onAttempt
         )
-        return (result.enrolled, result.line, result.enrolled ? nil : failure.get())
     }
 
     /// 제어 명령. 결과가 `Uncertain`이면 다시 보내지 않고 곧바로 `vehicleStatus()`로 재조회한다(FR-102).
