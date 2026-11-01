@@ -138,6 +138,12 @@ struct LogLine: Sendable {
         ])
     }
 
+    /// `getState` 진단 한 번(SFR-023). `kind` 는 `query` 이고 `call` 은 `getState(DRIVE)` 꼴이다.
+    /// 인자는 `StateLogEntry`(범주, 결과, 소요 시간, 오류 종류)뿐이다: 값과 곡 제목은 이 줄로 올 길이 없다(FR-112).
+    static func stateQuery(ts: String, entry: StateLogEntry, startedAt: String? = nil) -> LogLine {
+        query(ts: ts, call: "getState(\(entry.category.logName))", result: entry.outcome, summary: entry.summary, startedAt: startedAt)
+    }
+
     /// 앱 상태 줄(`kind: app`). `event` 로 가른다: `scenePhase`(`phase`: active, inactive, background),
     /// `protectedData`(`state`: available, unavailable), `start`(연결 루프 `start()` 가 불린 이유와 그 결과).
     static func scenePhase(ts: String, phase: String) -> LogLine {

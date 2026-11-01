@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftUI
 import Teslable
@@ -11,6 +12,8 @@ final class MonitorModel: ObservableObject {
     let control: SampleModel
     /// 키·제어 탭(SFR-018)의 상태. 연결·키·VIN 의 변화는 `apply` 가 알려 준다.
     let keyControl: KeyControlModel
+    /// Query 탭의 상태 진단(SFR-023). 연결·등록·수면 상태의 변화는 `apply` 와 `keyControl` 이 알려 준다.
+    let diagnostics: StateDiagnosticsModel
 
     @Published var link: LinkState<VehicleBox> = .idle
     @Published var live = LiveState()
@@ -26,6 +29,7 @@ final class MonitorModel: ObservableObject {
     private var started = false
     private var unlockObserver: NSObjectProtocol?
     private var lockObserver: NSObjectProtocol?
+    private var enrollmentSubscription: AnyCancellable?
 
     /// 단위 테스트가 앱을 띄울 때는 자동 연결과 키 읽기를 하지 않는다.
     private static var runningTests: Bool { ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil }
@@ -33,10 +37,19 @@ final class MonitorModel: ObservableObject {
     init() {
         let engine = MonitorEngine()
         self.engine = engine
-        control = SampleModel(engine: engine)
-        keyControl = KeyControlModel(engine: engine)
+        let control = SampleModel(engine: engine)
+        let keyControl = KeyControlModel(engine: engine)
+        self.control = control
+        self.keyControl = keyControl
+        // 다른 탭의 동작(Control 탭의 호출, 키·제어 탭의 호출)이 도는 동안은 진단 조회를 시작하지 않는다.
+        let diagnostics = StateDiagnosticsModel(engine: engine, otherOperationRunning: { [weak control, weak keyControl] in
+            (control?.busy ?? false) || (keyControl?.inputs.busy ?? false)
+        })
+        self.diagnostics = diagnostics
         control.onEnrollmentChange = { [weak keyControl] change in keyControl?.enrollmentChangedElsewhere(change) }
         keyControl.onKeyReplaced = { [weak control] in control?.keyReplaced() }
+        // 등록 상태는 키·제어 탭이 확인한다. 진단 버튼은 등록이 확인된 키가 있을 때만 켠다.
+        enrollmentSubscription = keyControl.$inputs.sink { diagnostics.enrollmentChanged($0.enrollment == .enrolled) }
         let updates = engine.updates
         Task { [weak self] in
             for await update in updates { self?.apply(update) }
@@ -68,6 +81,7 @@ final class MonitorModel: ObservableObject {
             var hasKey = false
             if case .connected(let box) = state { hasKey = box.vehicle.hasKey }
             keyControl.connectionChanged(connected: isConnected, hasKey: hasKey)
+            diagnostics.connectionChanged(connected: isConnected, hasKey: hasKey)
         case .live(let state): live = state
         case .queries(let results): queries = results
         case .sessions(let text): sessions = text
@@ -80,6 +94,7 @@ final class MonitorModel: ObservableObject {
             keyControl.vinChanged(saved: vin != nil)
         case .pollSeconds(let seconds): pollSeconds = seconds
         case .log(let stats): logStats = stats
+        case .sleep(let name): diagnostics.sleepQueried(name)
         }
     }
 

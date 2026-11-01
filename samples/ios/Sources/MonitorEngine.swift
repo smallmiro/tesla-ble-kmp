@@ -42,6 +42,8 @@ enum MonitorUpdate: Sendable {
     case vin(String?)
     case pollSeconds(Int)
     case log(LogStats)
+    /// 이 연결에서 성공한 `vehicleStatus()` 의 수면 상태(`AWAKE`, `ASLEEP`, `UNKNOWN`). Query 탭 상태 진단의 버튼 활성에 쓴다(SFR-023).
+    case sleep(String)
 }
 
 /// 라이브러리 로그를 DebugLogger(통합 로그)로 그대로 보내고, 관찰 로그(태그 `observe`)는 로그 파일에도 한 줄로 쓴다.
@@ -635,11 +637,13 @@ final class MonitorEngine: @unchecked Sendable {
         // 성공한 조회는 방송을 기다리지 않고 이 연결에서 들은 것으로 친다(SFR-022). 이전 연결의 늦은 결과는 세대가 달라 걸러진다.
         if let status = status as? VehicleStatus_ {
             let snapshot = StatusSnapshot(status)
-            let next = lock.withLock { () -> LiveState in
+            let (next, current) = lock.withLock { () -> (LiveState, Bool) in
                 live = LiveReducer.statusQueried(live, snapshot, epoch: epoch, now: Date())
-                return live
+                return (live, live.linkEpoch == epoch)
             }
             emit.yield(.live(next))
+            // 수면 상태도 이 연결의 것일 때만 알린다(이전 연결의 늦은 결과는 세대가 달라 걸러진다).
+            if current { emit.yield(.sleep(snapshot.sleep)) }
         }
         if Task.isCancelled { return }
         await record("keySummary", { try await vehicle.keySummary(timeout: nil) }) { value in
@@ -698,6 +702,74 @@ final class MonitorEngine: @unchecked Sendable {
             return "\(d.name)=\(text)"
         }
         return "세션: " + (parts.isEmpty ? "없음" : parts.joined(separator: ", "))
+    }
+}
+
+/// Query 탭 상태 진단(SFR-023)이 엔진에서 얻는 것: 지금 연결과 로그 파일. `getState` 의 값은 이 타입을 지나 로그로 가지 않는다
+/// (`record` 도 쓰지 않는다: 그 요약이 로그로 간다). 로그에는 `StateLogEntry`(범주, 결과, 소요 시간, 오류 종류)만 쓴다.
+struct LiveStateBackend: StateDiagnosticsBackend {
+    let engine: MonitorEngine
+
+    func open() -> StateLink? { engine.currentVehicle().map { LiveStateLink(box: VehicleBox(vehicle: $0)) } }
+    func stamp() -> String { engine.log.stamp() }
+
+    func writeLog(_ entry: StateLogEntry, startedAt: String) {
+        engine.log.write(LogLine.stateQuery(ts: engine.log.stamp(), entry: entry, startedAt: startedAt))
+    }
+}
+
+/// 한 연결의 `Vehicle` 에 하는 호출 셋: `vehicleStatus`, `startSession(INFOTAINMENT)`, `getState`. 모두 `timeout: nil`(문서의 기본값).
+/// `wakeUp()` 은 부르지 않는다. 결과는 오류 종류와 이름 붙은 필드로만 돌려주고 `VehicleData` 를 들고 다니지 않는다.
+final class LiveStateLink: StateLink, @unchecked Sendable {
+    private let box: VehicleBox
+
+    init(box: VehicleBox) { self.box = box }
+
+    /// `14-lib-reading-state.md` A8.2: `vehicleStatus()` 는 세션도 키도 필요 없고 차를 깨우지 않는다.
+    func readSleep() async -> SleepRead {
+        do {
+            let result = try await box.vehicle.vehicleStatus(timeout: nil)
+            switch onEnum(of: result) {
+            case .success(let s):
+                guard let status = s.value as? VehicleStatus_ else { return .failed(.other("UnexpectedResultType")) }
+                return SleepRead.from(name: status.sleepStatus.name)
+            case .uncertain(let u): return .failed(StateFault(u.error))
+            case .failure(let f): return .failed(StateFault(f.error))
+            }
+        } catch {
+            return .failed(.other("Exception"))
+        }
+    }
+
+    /// `startSession(setOf(INFOTAINMENT))`. 이미 `Ready` 이면 요청을 보내지 않는다(`15-lib-commands.md`).
+    func ensureInfotainmentSession() async -> StateSessionOutcome {
+        let domains: Set<VehicleDomain> = [VehicleDomain.infotainment]
+        do {
+            let result = try await box.vehicle.startSession(domains: domains, timeout: nil)
+            switch onEnum(of: result) {
+            case .success: return .ready
+            case .uncertain(let u): return .failed(StateFault(u.error))
+            case .failure(let f): return .failed(StateFault(f.error))
+            }
+        } catch {
+            return .failed(.other("Exception"))
+        }
+    }
+
+    /// `14-lib-reading-state.md` A8.3 의 Swift 형태: 값은 `s.value as? VehicleData` 로 꺼내고 숫자는 `KotlinInt?` 로 읽는다.
+    func getState(_ category: DiagnosticCategory) async -> StateFetch {
+        do {
+            let result = try await box.vehicle.getState(category: category.stateCategory, timeout: nil)
+            switch onEnum(of: result) {
+            case .success(let s):
+                guard let data = s.value as? VehicleData else { return .failure(.other("UnexpectedResultType")) }
+                return .success(StateFields.extract(category, from: data))
+            case .uncertain(let u): return .uncertain(StateFault(u.error))
+            case .failure(let f): return .failure(StateFault(f.error))
+            }
+        } catch {
+            return .failure(.other("Exception"))
+        }
     }
 }
 
