@@ -165,7 +165,7 @@
 <table>
 <thead><tr><th>状況</th><th>起きること</th><th>すること</th></tr></thead>
 <tbody>
-<tr><td>収集側がフレーム 64 個より多く遅れた</td><td>その接続のすべての収集側から新しいフレームが抜け、破棄数を数えます。最初と 100 回ごとに <code>WARN</code> の行 (タグ <code>Dispatcher</code>): <code>Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)</code>。<strong>エラーではありません</strong>。<code>VehicleError</code> はなく、フローは続きます</td><td>収集処理は軽くし、遅い処理は別のコルーチンに渡してください。車両は状態を送り直しますが、起きていて人がいるときは 60 秒かかることがあり、それ以外の場合は測定していません (<a href="14-lib-reading-state.html#sec-b-catalogue">14、B3.1</a>)。すぐに状態が必要なら <code>vehicleStatus()</code> で読んでください</td></tr>
+<tr><td>収集側がフレーム 64 個より多く遅れた</td><td>その接続のすべての収集側から新しいフレームが抜け、破棄数を数えます。最初と 100 回ごとに <code>WARN</code> の行 (タグ <code>Dispatcher</code>): <code>Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)</code>。<strong>エラーではありません</strong>。<code>VehicleError</code> はなく、フローは続きます</td><td>収集処理は軽くし、遅い処理は別のコルーチンに渡してください。車両は状態を送り直しますが、起きていて人がいるときは 60 秒かかることがあり、それ以外の場合は測定していません (有力、<a href="14-lib-reading-state.html#sec-b-catalogue">14、B3.1</a>)。すぐに状態が必要なら <code>vehicleStatus()</code> で読んでください</td></tr>
 <tr><td>ライブラリがデコードできなかったブロードキャスト</td><td><code>unknownFields</code> が空の <code>Unrecognized</code> イベント。バイトは <code>raw</code> にあります</td><td>分析用に <code>raw</code> を VIN をマスクして保存してください</td></tr>
 </tbody>
 </table>

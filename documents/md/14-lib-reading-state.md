@@ -107,7 +107,7 @@ suspend fun vehicleStatus(timeout: Duration? = null): VehicleResult<VehicleStatu
 | 4 | `userPresence` | `UserPresence_E` | Person in or at the vehicle (also `PRESENT` while standing outside with a door open, B3.1) | `userPresence` |
 | 5 | `detailedClosureStatus` | `DetailedClosureStatus` | `tonneauPercentOpen` (1, uint32), Cybertruck | `tonneauPercentOpen` (`null` if absent) |
 | 6 | `uiDesire` | `UIDesire_E` (TESLEMETRY-EXT) | In schema only | **Not surfaced** (planned M5) |
-| 7 | `gear` | `Gear_E` (TESLEMETRY-EXT; confirmed in broadcasts only, not yet checked in query replies) | Current gear | `gear`; absent or outside the schema becomes `UNKNOWN` |
+| 7 | `gear` | `Gear_E` (TESLEMETRY-EXT; confirmed in broadcasts; Likely in query replies) | Current gear | `gear`; absent or outside the schema becomes `UNKNOWN` |
 | 8 | (unknown, not in schema) | message | Seen on a real car: `{1: 1\|2, 2: 1\|2, 3: 1\|2}`; meaning unknown (B3.1) | Not surfaced |
 
 `ClosureStatuses` has eight `ClosureState_E` fields, numbered 1 to 8: `frontDriverDoor`, `frontPassengerDoor`,
@@ -117,7 +117,7 @@ Mapping rules (`VcsecInfoMapping`): a value outside the schema (found in `unknow
 zero value. proto3 cannot tell "missing" from the zero value for enums, so a missing `vehicleLockState` reads as
 `UNLOCKED`; the library keeps that Go behaviour for the query. `gear` has no Go counterpart (the official Go `vcsec.proto`
 ends at field 5); its zero value is `GEAR_UNKNOWN`, so a missing `gear` reads as `UNKNOWN`. Gear was confirmed in
-broadcasts (B3.1); whether the vehicle fills it in a query reply has not been checked on a real car. The real-car
+broadcasts (B3.1). Query replies also fill it (Likely, B5): 144 of 144 carried `gear`; `NEUTRAL` not seen. The real-car
 results show that the vehicle omits `closureStatuses` when every field is `CLOSED` (the zero value) and sends it while
 any field is not (front and rear driver doors, rear trunk, charge port seen), so "absent = all `CLOSED`" matches what we
 saw. The one exception is the trunk operated with the interior button, which sent no broadcast at all; this query
@@ -531,7 +531,7 @@ which Go `GetState` points to (`state.go:66-67`):
 | `sleepStatus` | `SleepStatus` | `UNKNOWN`, `AWAKE`, `ASLEEP` (Infotainment) |
 | `userPresence` | `UserPresence` | `UNKNOWN`, `NOT_PRESENT`, `PRESENT` |
 | `tonneauPercentOpen` | `Int?` | Cybertruck only; `null` if not reported |
-| `gear` | `Gear` | `UNKNOWN`, `PARK`, `DRIVE`, `REVERSE`, `NEUTRAL`. `UNKNOWN` if not sent (proto3 cannot tell that from `GEAR_UNKNOWN`) or outside the schema. Last constructor parameter. TESLEMETRY-EXT field 7, no Go counterpart (FR-036). Confirmed in broadcasts; not yet checked in query replies |
+| `gear` | `Gear` | `UNKNOWN`, `PARK`, `DRIVE`, `REVERSE`, `NEUTRAL`. `UNKNOWN` if not sent (proto3 cannot tell that from `GEAR_UNKNOWN`) or outside the schema. Last constructor parameter. TESLEMETRY-EXT field 7, no Go counterpart (FR-036). Confirmed in broadcasts; Likely in query replies |
 
 `Closures` has eight `ClosureState` fields: `frontDriverDoor`, `frontPassengerDoor`, `rearDriverDoor`,
 `rearPassengerDoor`, `rearTrunk`, `frontTrunk`, `chargePort`, `tonneau`. `ClosureState` values: `CLOSED`, `OPEN`, `AJAR`,

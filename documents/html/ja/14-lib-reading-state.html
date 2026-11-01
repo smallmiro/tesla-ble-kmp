@@ -163,14 +163,14 @@
 <tr><td>4</td><td><code>userPresence</code></td><td><code>UserPresence_E</code></td><td>車内または車のそばの人（ドアを開けて外に立っていても <code>PRESENT</code>、B3.1）</td><td><code>userPresence</code></td></tr>
 <tr><td>5</td><td><code>detailedClosureStatus</code></td><td><code>DetailedClosureStatus</code></td><td><code>tonneauPercentOpen</code>（1、uint32）、Cybertruck</td><td><code>tonneauPercentOpen</code>（なければ <code>null</code>）</td></tr>
 <tr><td>6</td><td><code>uiDesire</code></td><td><code>UIDesire_E</code>（Teslemetry）</td><td>スキーマにのみ存在</td><td><strong>公開しない</strong>（M5 予定）</td></tr>
-<tr><td>7</td><td><code>gear</code></td><td><code>Gear_E</code>（Teslemetry、ブロードキャストでのみ実車確認、問い合わせ応答は未確認）</td><td>現在のギア</td><td><code>gear</code>。欠けているかスキーマ外の値なら <code>UNKNOWN</code></td></tr>
+<tr><td>7</td><td><code>gear</code></td><td><code>Gear_E</code>（Teslemetry、ブロードキャストで実車確認、問い合わせ応答は有力）</td><td>現在のギア</td><td><code>gear</code>。欠けているかスキーマ外の値なら <code>UNKNOWN</code></td></tr>
 <tr><td>8</td><td>（不明、スキーマになし）</td><td>message</td><td>実車で観測: <code>{1: 1|2, 2: 1|2, 3: 1|2}</code>。意味は不明 (B3.1)</td><td>公開しない</td></tr>
 </tbody>
 </table>
 <p><code>ClosureStatuses</code> には 1〜8 番の <code>ClosureState_E</code> フィールドが 8 つあります: <code>frontDriverDoor</code>、<code>frontPassengerDoor</code>、<code>rearDriverDoor</code>、<code>rearPassengerDoor</code>、<code>rearTrunk</code>、<code>frontTrunk</code>、<code>chargePort</code>、<code>tonneau</code>。</p>
 <div class="callout">
 <strong>変換規則</strong>
-<p>スキーマ外の値は 0 番の値ではなく <code>UNKNOWN</code> に変換します。proto3 では欠けた enum と 0 番の値を区別できないため、ロック状態が欠けると <code>UNLOCKED</code> と読まれ、クエリでは Go の動作をそのまま踏襲しています。<code>gear</code> には Go 側の対応がありません（公式 Go のスキーマはフィールド 5 まで）。0 番の値が <code>GEAR_UNKNOWN</code> なので、ギアが欠けると <code>UNKNOWN</code> と読まれます。ギアはブロードキャストで確認しましたが、車両がクエリの応答にギアを入れるかは実車で確認していません。実車の結果では、車両はすべてのフィールドが <code>CLOSED</code>（0 番の値）のとき <code>closureStatuses</code> を省き、1 つでもそうでなければ送ってくるため（運転席と運転席側の後席ドア、リアトランク、充電ポートで確認）、「なければすべて閉」は観測と合っています。唯一の例外は室内ボタンで操作したトランクで、ブロードキャストがまったくありませんでしたが、このクエリでは報告されるはずです（実車ではまだ確認していません）。</p>
+<p>スキーマ外の値は 0 番の値ではなく <code>UNKNOWN</code> に変換します。proto3 では欠けた enum と 0 番の値を区別できないため、ロック状態が欠けると <code>UNLOCKED</code> と読まれ、クエリでは Go の動作をそのまま踏襲しています。<code>gear</code> には Go 側の対応がありません（公式 Go のスキーマはフィールド 5 まで）。0 番の値が <code>GEAR_UNKNOWN</code> なので、ギアが欠けると <code>UNKNOWN</code> と読まれます。ギアはブロードキャストで確認しました。クエリの応答にもギアが入ります (有力、B5)。144 個すべてに <code>gear</code> があり、<code>NEUTRAL</code> は見ていません。実車の結果では、車両はすべてのフィールドが <code>CLOSED</code>（0 番の値）のとき <code>closureStatuses</code> を省き、1 つでもそうでなければ送ってくるため（運転席と運転席側の後席ドア、リアトランク、充電ポートで確認）、「なければすべて閉」は観測と合っています。唯一の例外は室内ボタンで操作したトランクで、ブロードキャストがまったくありませんでしたが、このクエリでは報告されるはずです（実車ではまだ確認していません）。</p>
 </div>
 
 <h2 id="sec-a-summary">A3. keySummary()</h2>
@@ -515,7 +515,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <tr><td><code>sleepStatus</code></td><td><code>AWAKE</code>、<code>ASLEEP</code>、<code>UNKNOWN</code></td></tr>
 <tr><td><code>userPresence</code></td><td><code>PRESENT</code>、<code>NOT_PRESENT</code>、<code>UNKNOWN</code></td></tr>
 <tr><td><code>tonneauPercentOpen</code></td><td>Cybertruck のみ。それ以外は <code>null</code></td></tr>
-<tr><td><code>gear</code></td><td><code>PARK</code>、<code>REVERSE</code>、<code>NEUTRAL</code>、<code>DRIVE</code>、<code>UNKNOWN</code>。車両が送らなかった場合も <code>UNKNOWN</code>（proto3 では <code>GEAR_UNKNOWN</code> と区別できません）。Go 側に対応のない Teslemetry 拡張フィールドで、コンストラクタの最後の引数です。ブロードキャストでは確認済み、問い合わせ応答ではまだ確認していません</td></tr>
+<tr><td><code>gear</code></td><td><code>PARK</code>、<code>REVERSE</code>、<code>NEUTRAL</code>、<code>DRIVE</code>、<code>UNKNOWN</code>。車両が送らなかった場合も <code>UNKNOWN</code>（proto3 では <code>GEAR_UNKNOWN</code> と区別できません）。Go 側に対応のない Teslemetry 拡張フィールドで、コンストラクタの最後の引数です。ブロードキャストでは確認済み、問い合わせ応答では有力</td></tr>
 </tbody>
 </table>
 <p>8 つの開口部は <code>frontDriverDoor</code>、<code>frontPassengerDoor</code>、<code>rearDriverDoor</code>、<code>rearPassengerDoor</code>、<code>rearTrunk</code>、<code>frontTrunk</code>、<code>chargePort</code>、<code>tonneau</code> です。それぞれ <code>CLOSED</code>、<code>OPEN</code>、<code>AJAR</code>、<code>OPENING</code>、<code>CLOSING</code>、<code>FAILED_UNLATCH</code>、<code>UNKNOWN</code> のいずれかです。<code>uiDesire</code> はまだこのモデルにありません（M5 予定）。</p>

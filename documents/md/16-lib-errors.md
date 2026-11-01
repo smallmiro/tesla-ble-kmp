@@ -84,7 +84,7 @@ Call `Vehicle.disconnect()` even after the link dropped so session keys and the 
 
 | Situation | What happens | App action |
 |---|---|---|
-| A collector falls more than 64 frames behind | New frames are dropped for every collector of that connection and counted per connection. `WARN` (tag `Dispatcher`) on the first drop and every 100th: `Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)`. **Not an error:** no `VehicleError`, and the flow keeps running | Keep the collector light and hand slow work to another coroutine. The vehicle resends its status, but that can take 60 s while awake with a person present and was not measured otherwise (`14-lib-reading-state.md` B3.1). To get the state sooner, read `vehicleStatus()` |
+| A collector falls more than 64 frames behind | New frames are dropped for every collector of that connection and counted per connection. `WARN` (tag `Dispatcher`) on the first drop and every 100th: `Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)`. **Not an error:** no `VehicleError`, and the flow keeps running | Keep the collector light and hand slow work to another coroutine. The vehicle resends its status, but that can take 60 s while awake with a person present and was not measured otherwise (Likely, `14-lib-reading-state.md` B3.1). To get the state sooner, read `vehicleStatus()` |
 | A broadcast the library cannot decode | `VehicleEvent.Unrecognized` with an empty `unknownFields`; the bytes are in `raw` | Keep `raw` (VIN-masked) for analysis |
 
 ## Retries and timeouts (M2)
