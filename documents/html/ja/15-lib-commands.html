@@ -55,7 +55,7 @@
 </nav>
 <main class="content">
 <h1>15. コマンド</h1>
-<p class="lead"><code>Vehicle</code> はセッションの開始と終了、そして 12 個のセキュリティコントローラーコマンド (ロック、トランク、ウェイクアップ) を送れます。インフォテインメントのコマンド (空調、充電、メディアなど) は M5 で追加されます。このページでは両方を一覧にします。</p>
+<p class="lead"><code>Vehicle</code> はセッションの開始と終了、そして 12 個のセキュリティコントローラーコマンド (ロック、トランク、ウェイクアップ) を送れます。インフォテインメントのコマンド (空調、充電、メディアなど) は M5 で追加されます。このページでは両方を一覧にします。<code>getState()</code> によるインフォテインメント状態の読み取りは、M5 の残りより先にすでに使えます。<a href="14-lib-reading-state.html#sec-a-getstate">14. 車両状態の取得</a> を参照してください。</p>
 
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-now">現在使えるもの</a></li>
@@ -120,7 +120,7 @@
 <tr><td>ボディ</td><td><code>ventWindows()</code>, <code>closeWindows()</code>, <code>setSunroof(level)</code>, <code>openChargePort()</code>, <code>closeChargePort()</code>, <code>honkHorn()</code>, <code>flashLights()</code></td><td><span class="badge info">P1</span></td></tr>
 <tr><td>セキュリティ</td><td><code>setSentryMode(on)</code>、バレーモード</td><td><span class="badge info">P1</span></td></tr>
 <tr><td>メディアとアップデート</td><td>音量、トラック、お気に入りの操作、ソフトウェアアップデートの予約とキャンセル</td><td><span class="badge info">P1</span></td></tr>
-<tr><td>状態</td><td><code>ping()</code>, <code>getState(category)</code></td><td><a href="14-lib-reading-state.html#sec-wake">14. 車両状態の取得</a> を参照</td></tr>
+<tr><td>状態</td><td><code>ping()</code></td><td><span class="badge info">P1</span></td></tr>
 </tbody>
 </table>
 

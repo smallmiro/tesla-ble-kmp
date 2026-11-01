@@ -60,6 +60,7 @@
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
 <li><a href="#sec-outcomes">세 가지 결과</a></li>
 <li><a href="#sec-hierarchy">오류 타입</a></li>
+<li><a href="#sec-getstate">getState 결과</a></li>
 <li><a href="#sec-transport">블루투스와 키 보관소 오류</a></li>
 <li><a href="#sec-events">브로드캐스트 이벤트</a></li>
 <li><a href="#sec-retry">재시도와 시간 제한</a></li>
@@ -71,7 +72,7 @@
 <thead><tr><th>결과</th><th>의미</th><th>앱이 할 일</th></tr></thead>
 <tbody>
 <tr><td><span class="badge ok">성공</span></td><td>차량이 확인함</td><td>값을 사용</td></tr>
-<tr><td><span class="badge warn">불확실</span></td><td>차량이 실행했을 수 있지만 확인 응답이 오지 않음</td><td>다시 보내지 <strong>마세요</strong>. 대신 상태를 읽으세요(<code>vehicleStatus()</code>, M5 이후에는 <code>getState()</code>)</td></tr>
+<tr><td><span class="badge warn">불확실</span></td><td>명령: 차량이 실행했을 수 있지만 확인 응답이 오지 않음. 조회: 확인된 데이터가 없고, 실행된 것도 없음(<a href="#sec-getstate">getState 결과</a>)</td><td>명령: 다시 보내지 <strong>마세요</strong>. 대신 상태를 읽으세요(<code>vehicleStatus()</code>, 인포테인먼트 상태는 <code>getState()</code>). 조회: 마지막 값을 유지하고 나중에 다시 조회하세요</td></tr>
 <tr><td><span class="badge vcsec">실패</span></td><td>실행되지 않음</td><td><code>error</code> 확인</td></tr>
 </tbody>
 </table>
@@ -110,10 +111,33 @@
 </table>
 <p><code>message</code>가 아니라 오류 타입으로 판단하세요. 이제 메시지에는 숫자 대신 코드 이름이 들어갑니다.</p>
 
-<h3 id="sec-size-limit"><code>getState</code> 응답 크기 상한 (M5 예정)</h3>
-<p>응답이 크기 상한을 넘으면 차량은 데이터를 보내지 않습니다. 실차에서 관측된 최대 응답은 약 453바이트이며, 규격이 아니라 관측값입니다. <code>getState()</code>는 <code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code>을 돌려줄 예정이고, 앱이 응답을 줄일 방법은 없습니다.</p>
+<h2 id="sec-getstate">getState 결과</h2>
+<p>조회는 차량의 상태를 바꾸지 않습니다. 따라서 <strong>읽기에서 <code>Uncertain</code>은 확인된 데이터가 없다는 뜻</strong>이며, 명령이 실행되었을 수 있다는 뜻이 아닙니다. 읽기와 명령이 같은 오류 타입을 쓰므로 <code>mayHaveSucceeded</code>는 여전히 true입니다. 나중에 확인할 것은 없습니다. 마지막 값을 유지하고 나중에 다시 조회하세요. 다시 조회해도 안전하지만 짧은 간격으로 반복해서는 안 됩니다. 라이브러리는 간격을 정하지 않으므로 앱이 선택합니다.</p>
+<table>
+<thead><tr><th>결과</th><th>의미</th><th>앱이 할 일</th></tr></thead>
+<tbody>
+<tr><td><code>Success(data)</code></td><td>차량이 응답함</td><td>사용하는 모든 필드를 <code>null</code>인지 확인하세요. <code>data</code>가 비어 있을 수 있고, 성공이 새 측정값의 증거는 아닙니다. <code>timestamp</code>를 이전 응답과 비교하세요(<a href="14-lib-reading-state.html#sec-a-reading">14, A8.3</a>)</td></tr>
+<tr><td><code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code></td><td>차량이 요청을 받았지만 응답이 너무 컸음. 차량과는 통신 가능함</td><td>마지막 값을 경과 시간과 함께 유지하세요. 다음 절을 참고하세요</td></tr>
+<tr><td><code>Uncertain(Timeout(afterSend = true))</code></td><td>시간 안에 아무것도 오지 않음: 인포테인먼트가 잠들었거나, 응답이 유실되었거나, 기다리는 동안 연결이 끊어졌음</td><td><code>vehicleStatus()</code>를 읽으세요. <code>ASLEEP</code>이면 앱이 차량을 깨울 수 있습니다(<a href="14-lib-reading-state.html#sec-a-order">14, A8.2</a>). 그 외에는 마지막 값을 경과 시간과 함께 유지하세요. <code>connection</code>도 확인하세요</td></tr>
+<tr><td><code>Uncertain(BadResponse(detail))</code></td><td>응답은 왔지만 읽을 수 없었음</td><td>마지막 값을 유지하세요. 반복되면 <code>detail</code>을 보고하세요</td></tr>
+<tr><td><code>Failure(Timeout(afterSend = false))</code></td><td>보내기 전이나 재시도를 기다리는 동안 시간이 다 됨. 예: 깨우는 중에 차량이 계속 busy로 응답하는 경우</td><td>나중에 다시 조회하세요. 깨운 직후에는 더 긴 <code>timeout</code>을 쓰세요</td></tr>
+<tr><td><code>Failure(NoSession)</code></td><td>인포테인먼트 세션이 없거나(아무것도 보내지 않음), 차량이 저장된 세션을 받아들이지 않음</td><td><code>startSession(setOf(VehicleDomain.INFOTAINMENT))</code>를 호출한 뒤 한 번 다시 조회하세요</td></tr>
+<tr><td><code>Failure(InfotainmentRejected(reason))</code></td><td>차량이 거부함. 응답에 데이터가 있어도 이 결과가 우선함</td><td>일반적인 메시지를 보여 주세요. <code>reason</code>은 차량이 보낸 문구이므로 로그에 남기지 마세요</td></tr>
+<tr><td><code>Failure(NotConnected)</code>, <code>TransportError</code></td><td>연결이 끊겼거나 쓰기에 실패함</td><td><code>disconnect()</code>를 호출한 뒤 다시 연결하세요(<a href="#sec-transport">아래</a>)</td></tr>
+</tbody>
+</table>
+<p>그 밖의 오류는 위 오류 타입 표에 적힌 뜻 그대로입니다. 화면에서는 오류 타입으로 두 가지 주요 <code>Uncertain</code> 경우를 구분할 수 있습니다. 크기 오류는 차량이 응답했다는 뜻이고, 타임아웃은 아무것도 오지 않았다는 뜻입니다. 어느 쪽도 세션을 지울 이유가 아닙니다.</p>
+
+<h3 id="sec-size-limit"><code>getState</code> 응답 크기 상한</h3>
+<p>응답이 크기 상한을 넘으면 차량은 데이터를 보내지 않습니다. 실차에서 관측된 최대 응답은 약 453바이트이며, 규격이 아니라 관측값입니다. <code>getState()</code>는 <code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code>을 돌려주고, 앱이 응답을 줄일 방법은 없습니다.</p>
 <p><code>Drive</code>에서 가장 잘 일어납니다. 목적지 이름이 길수록 잦아지며, 수십 초간 실패했다는 보고와 Model S/X의 한 빌드(<code>2026.27.6.15</code>, 한국)에서 경로가 없어도 거의 항상 실패한다는 보고가 있습니다.</p>
-<p>라이브러리는 다시 보내지 않고 세션, 연결, 수면 상태도 바꾸지 않으므로 차량이 사라졌거나 잠들었다는 뜻이 아닙니다. 마지막 값을 경과 시간과 함께 유지하고, 너무 오래되면 조회 불가로 표시하며, 짧은 간격으로 반복해서 재시도하지 마세요.</p>
+<p>라이브러리는 요청을 다시 보내지 않습니다. 이 오류 때문에 세션을 지우거나, 다시 연결하거나, 차량을 깨우지 않습니다. 응답에 함께 온 세션 정보는 평소처럼 적용됩니다. 이 오류는 차량이 사라졌거나 잠들었다는 뜻이 아닙니다. 마지막 값을 경과 시간과 함께 유지하고, 너무 오래되면 조회 불가로 표시하며, 짧은 간격으로 반복해서 재시도하지 마세요. 실시간 속도는 보장되지 않으며, 펌웨어별 동작은 실차에서 확인되지 않았습니다(#118).</p>
+
+<h3 id="sec-authenticity">응답의 진위</h3>
+<div class="callout warn">
+<strong><code>getState</code>로 안전과 관련된 판단을 하지 마세요</strong>
+<p>Go 원본과 마찬가지로 라이브러리는 평문 인포테인먼트 응답을 받아들입니다. 2024.38 이전 펌웨어는 응답을 암호화하지 않기 때문입니다(<code>vehicle-command/pkg/protocol/protocol.md:751</code>). 평문 응답에는 인증 태그가 없으므로 BLE 연결 위의 제3자가 읽기 데이터를 위조할 수 있습니다. <code>vehicleStatus()</code>와 <code>vehicle.events</code>도 설계상 인증되지 않은 평문이라 마찬가지입니다(<a href="14-lib-reading-state.html#sec-a-transport">14, A1</a>, <a href="14-lib-reading-state.html#sec-b-wire">B1</a>). 평문 응답을 거부할지는 아직 정해지지 않은 결정이며, 거부하면 2024.38 이전 펌웨어는 지원하지 못합니다.</p>
+</div>
 
 <h2 id="sec-transport">블루투스와 키 보관소 오류</h2>
 <p>연결은 연결 시간 제한까지 1초마다 이미 재시도됩니다. 마지막 열은 앱이 할 일입니다.</p>

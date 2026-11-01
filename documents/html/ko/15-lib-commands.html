@@ -55,7 +55,7 @@
 </nav>
 <main class="content">
 <h1>15. 명령</h1>
-<p class="lead"><code>Vehicle</code>은 세션을 시작하고 끝낼 수 있으며, 보안 컨트롤러 명령 12가지(잠금, 트렁크, 깨우기)를 보낼 수 있습니다. 인포테인먼트 명령(공조, 충전, 미디어 등)은 M5에서 추가됩니다. 이 페이지에 둘 다 정리합니다.</p>
+<p class="lead"><code>Vehicle</code>은 세션을 시작하고 끝낼 수 있으며, 보안 컨트롤러 명령 12가지(잠금, 트렁크, 깨우기)를 보낼 수 있습니다. 인포테인먼트 명령(공조, 충전, 미디어 등)은 M5에서 추가됩니다. 이 페이지에 둘 다 정리합니다. <code>getState()</code>로 인포테인먼트 상태를 읽는 기능은 M5의 나머지보다 먼저 이미 사용할 수 있습니다. <a href="14-lib-reading-state.html#sec-a-getstate">14. 차량 상태 조회</a>를 참고하세요.</p>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
 <li><a href="#sec-now">현재 사용 가능</a></li>
@@ -120,7 +120,7 @@
 <tr><td>차체</td><td><code>ventWindows()</code>, <code>closeWindows()</code>, <code>setSunroof(level)</code>, <code>openChargePort()</code>, <code>closeChargePort()</code>, <code>honkHorn()</code>, <code>flashLights()</code></td><td><span class="badge info">P1</span></td></tr>
 <tr><td>보안</td><td><code>setSentryMode(on)</code>, 발레 모드</td><td><span class="badge info">P1</span></td></tr>
 <tr><td>미디어와 업데이트</td><td>볼륨, 트랙, 즐겨찾기 제어, 소프트웨어 업데이트 예약 또는 취소</td><td><span class="badge info">P1</span></td></tr>
-<tr><td>상태</td><td><code>ping()</code>, <code>getState(category)</code></td><td><a href="14-lib-reading-state.html#sec-wake">14. 차량 상태 조회</a> 참고</td></tr>
+<tr><td>상태</td><td><code>ping()</code></td><td><span class="badge info">P1</span></td></tr>
 </tbody>
 </table>
 

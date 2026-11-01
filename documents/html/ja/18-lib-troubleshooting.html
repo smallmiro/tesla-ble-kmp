@@ -55,12 +55,13 @@
 </nav>
 <main class="content">
 <h1>18. トラブルシューティング</h1>
-<p class="lead">スキャン、接続、キー、ペアリング、コマンドで起きやすい問題と、その原因および対処法です。最後に開発用の観察ログを説明します。</p>
+<p class="lead">スキャン、接続、キー、ペアリング、コマンド、<code>getState</code> で起きやすい問題と、その原因および対処法です。最後に開発用の観察ログを説明します。</p>
 
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-scan">スキャンと接続</a></li>
 <li><a href="#sec-keys">キーとセッション</a></li>
 <li><a href="#sec-pairing">ペアリングとコマンド</a></li>
+<li><a href="#sec-getstate">getState での状態の読み取り</a></li>
 <li><a href="#sec-other">その他のメッセージ</a></li>
 <li><a href="#sec-logs">デバッグログ</a></li>
 <li><a href="#sec-events">観察ログと vehicle.events</a></li>
@@ -110,6 +111,19 @@
 </tbody>
 </table>
 
+<h2 id="sec-getstate">getState での状態の読み取り</h2>
+<table>
+<thead><tr><th>症状</th><th>考えられる原因</th><th>対処</th></tr></thead>
+<tbody>
+<tr><td><code>getState()</code> が <code>NoSession</code> を返す</td><td>インフォテインメントのセッションがまだない、または保存済みのセッションが古くなっています</td><td><code>startSession(setOf(VehicleDomain.INFOTAINMENT))</code> を呼んでから、もう一度問い合わせてください。<code>sessions</code> が <code>Ready(fromCache = true)</code> だった場合、この失敗の後に <code>None</code> に変わります</td></tr>
+<tr><td><code>startSession</code> は成功したのに <code>getState()</code> が <code>Uncertain(Timeout(afterSend = true))</code> を返す</td><td>インフォテインメントがスリープしています (保存済みのセッションはスリープ状態とは無関係で、<code>getState</code> は車両を起こしません)。または応答が失われました</td><td><code>vehicleStatus()</code> を読んでください。<code>ASLEEP</code> なら <a href="14-lib-reading-state.html#sec-a-order">14、A8.2</a> のウェイクアップの順序に従います。そうでなければ最後の値を保持し、後でもう一度問い合わせます</td></tr>
+<tr><td><code>getState()</code> が <code>Failure(Timeout(afterSend = false))</code> を返す</td><td>送信前、または再試行の間に時間切れになりました。例: 起こしている間に車両が busy を返す場合</td><td>後でもう一度問い合わせます。起こした直後は長めの <code>timeout</code> を渡してください</td></tr>
+<tr><td><code>getState(DRIVE)</code> が <code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code> を返す</td><td>応答が車両のサイズ上限を超えています。目的地の名前が長いほど起きやすくなります。車両がいなくなったりスリープしたりしたわけではありません</td><td>最後の値を経過時間とともに保持し、短い間隔で繰り返さず、後でもう一度問い合わせます。より小さいクエリはありません (<a href="16-lib-errors.html#sec-size-limit">16. エラー処理</a>)</td></tr>
+<tr><td><code>getState()</code> が <code>Success</code> を返すが、フィールドが <code>null</code></td><td>車両がそのフィールドを送らなかった、または応答に <code>vehicleData</code> がありませんでした</td><td>0 ではなく「値なし」と表示してください (<a href="14-lib-reading-state.html#sec-a-reading">14、A8.3</a>)。実車がどのフィールドを送るかはまだ確認されていません (#118)</td></tr>
+<tr><td><code>getState()</code> が <code>Success</code> で同じ値をまた返す</td><td><code>Success</code> は新しい測定値の証拠ではありません</td><td><code>timestamp</code> を前回の応答と比較してください (<a href="14-lib-reading-state.html#sec-a-reading">14、A8.3</a>)</td></tr>
+</tbody>
+</table>
+
 <h2 id="sec-other">その他のメッセージ</h2>
 <table>
 <thead><tr><th>症状</th><th>考えられる原因</th><th>対処</th></tr></thead>
@@ -132,7 +146,7 @@
 </ul>
 <div class="callout">
 <strong>ログに決して出ないもの</strong>
-<p>ライブラリは VIN をマスクし、秘密鍵、セッションキー、ノンス、復号した内容を決してログに出しません。自分のログでもこれを守ってください。<code>vin.value</code> を出力せず、ログを共有する前に VIN をマスクしてください。</p>
+<p>ライブラリは VIN をマスクし、秘密鍵、セッションキー、ノンス、復号した内容を決してログに出しません。自分のログでもこれを守ってください。<code>vin.value</code> を出力せず、ログを共有する前に VIN をマスクしてください。<code>getState</code> の結果も、<code>toString()</code> を含めてログに出さないでください。<code>VehicleData</code> には位置と目的地が入ることがあり、<code>InfotainmentRejected.message</code> には車両自身の文言が入ります。</p>
 </div>
 <p>問題を報告するときは、iOS サンプルの「結果全体をコピー」ボタンで得たログと <code>DebugLogger</code> を使ってください。プローブや診断用のエントリポイントはありません。</p>
 
@@ -199,7 +213,7 @@
 <li>enum の値が欠けている場合と 0 番の値は区別できません。ロック状態がなければ <code>VEHICLELOCKSTATE_UNLOCKED</code> と読めます（sleep と presence は <code>UNKNOWN</code>）。<code>absent</code> として分かるのはメッセージの部分だけです。</li>
 <li>暗号化された内容とセッション情報は長さだけ、公開鍵は SHA-1 の先頭だけを記します。VIN と復号した内容は出力されません。行を追加するときもこのルールを守ってください。</li>
 <li>BLE トランスポートは接続ごとに受信バッファの溢れを数えます。破棄したメッセージごとに <code>ERROR</code> で <code>Dropping received message because inbox is full (dropped N since connect)</code> を出し、リンクが終わると <code>WARN</code> で <code>BLE inbox overflowed N time(s) during this connection</code> を1行出します（N が 0 より大きいときだけ）。</li>
-<li><code>DebugLogger</code> は <code>DEBUG</code> で BLE の生バイト（<code>TX:</code>、<code>RX:</code>）も出力します。このようなプラットフォームのログは共有しないでください。</li>
+<li><code>DebugLogger</code> は <code>DEBUG</code> で BLE の生バイト（<code>TX:</code>、<code>RX:</code>）も出力します。このようなプラットフォームのログは共有しないでください。そこでは応答は暗号化されていますが、平文のインフォテインメント応答 (2024.38 より前のファームウェア、<a href="16-lib-errors.html#sec-authenticity">16. エラー処理</a> を参照) は、位置も含めて車両が送ったままの形で表示されます。</li>
 </ul>
 
 <footer class="page-nav">
