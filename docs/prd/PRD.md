@@ -88,7 +88,7 @@ Tesla 공식 Go SDK `vehicle-command`는 BLE로 차량과 직접 통신하는 �
 - 에러 메시지 현지화(D19)
 - **목적지 설정**(`navigation*` 명령): 공식 Go에 없고 `pkg/proxy/command.go`의 `navigation_request`는 REST로 넘긴다. `car_server.proto`의 관련 항목은 `TESLEMETRY-EXT`라 ADR-0002 결정 3에 따라 공개 API에 연결하지 않는다. BLE 가능 여부는 PoC(#119)로 확인하고, 지원으로 올리려면 ADR·PRD 개정과 사용자 승인이 필요하다. 현재 목적지 **조회**는 `getState(Drive)`로 범위 안이다(FR-033)
 - 미디어의 곡 검색·선택, 재생과 정지를 따로 지정하는 명령: 공식 Go에 없다. `toggleMediaPlayback()`만 제공(FR-091)
-- 차량 속도 제어: 해당 명령이 없다. 속도 제한 모드만 있다(FR-087)
+- 차량 속도 제어: 공식 Go에 없다. 속도 제한만 있다(FR-087, FR-088). 스키마의 `drivingSetCruiseSpeedLimitAction`은 `TESLEMETRY-EXT UNCONFIRMED`라 ADR-0002 결정 3에 따라 연결하지 않는다
 
 ---
 
