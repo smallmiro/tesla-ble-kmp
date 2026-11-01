@@ -10,7 +10,19 @@ enum KeyProbe: Sendable, Equatable {
     case absent
     /// 폰 잠금 때문에 읽지 못했다(키는 멀쩡하다).
     case locked
+    /// `KeyStoreError.PlatformFailure` 의 `stored key is corrupted`: 저장된 키가 손상됐다(`13-lib-pairing.md`, `16-lib-errors.md`).
+    case corrupted
     case failed(String)
+}
+
+/// 손상된 키를 알아보는 규칙(문서에 적힌 `PlatformFailure` 의 `stored key is corrupted` 문구).
+enum KeyStoreFailure {
+    static let corruptedText = "stored key is corrupted"
+
+    /// `PlatformFailure` 의 `cause` 와 `message` 중 하나라도 문서의 문구를 담으면 손상이다.
+    static func isCorrupted(_ texts: String...) -> Bool {
+        texts.contains { $0.contains(corruptedText) }
+    }
 }
 
 enum KeyDeleteResult: Sendable, Equatable {
@@ -96,7 +108,7 @@ enum KeyReplacer {
         switch await probe() {
         case .locked: return .locked
         case .failed(let why): return .notDeleted(why)
-        case .present, .absent: break
+        case .present, .absent, .corrupted: break // 손상된 키도 지우고 다시 만들 수 있다(읽을 수 없어도 된다)
         }
         // 2) 연결(과 그 세션)이 옛 키 것이라 먼저 끊는다. 쓰던 연결이 없으면 건드리지 않는다.
         if wasActive { await disconnect() }
@@ -122,7 +134,7 @@ enum KeyReplacer {
                 return .locked
             case .absent:
                 return .lost(deleteFailure.why)
-            case .failed:
+            case .failed, .corrupted:
                 return .unverified(deleteFailure.why)
             }
         }
@@ -142,6 +154,21 @@ enum KeyReplacer {
 }
 
 enum KeyReplacement {
+    /// 손상된 키용 확인 문구: 옛 키를 읽을 수 없고 지우면 복구할 수 없다.
+    static func confirmation(corrupted: Bool) -> ControlButton.Confirmation {
+        guard corrupted else { return confirmation }
+        return ControlButton.Confirmation(
+            title: "손상된 키를 삭제하고 다시 만들까요?",
+            message: """
+            이 폰에 저장된 모니터 키가 손상되어 읽을 수 없습니다. 지우면 옛 키는 복구할 수 없습니다(영구 삭제).
+            차량에는 옛 공개키가 그대로 남아 있습니다. 차량에서 지우기 전까지 목록에 보입니다.
+            새 키는 차량에 등록되어 있지 않아, 키카드로 다시 등록해야 합니다(3단계).
+            쓰던 차량 연결은 끊고 새 키로 다시 연결합니다.
+            """,
+            action: "삭제 후 다시 만들기"
+        )
+    }
+
     /// 누르기 전에 보여 주는 확인 문구.
     static let confirmation = ControlButton.Confirmation(
         title: "키를 삭제하고 다시 만들까요?",

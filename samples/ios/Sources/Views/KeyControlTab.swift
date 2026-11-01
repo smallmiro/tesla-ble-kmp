@@ -30,14 +30,14 @@ struct KeyControlTab: View {
             }
         }
         .confirmationDialog(
-            KeyReplacement.confirmation.title,
+            model.replaceConfirmation.title,
             isPresented: $model.pendingReplaceConfirm,
             titleVisibility: .visible
         ) {
-            Button(KeyReplacement.confirmation.action, role: .destructive) { Task { await model.replaceKey() } }
+            Button(model.replaceConfirmation.action, role: .destructive) { Task { await model.replaceKey() } }
             Button("취소", role: .cancel) {}
         } message: {
-            Text(KeyReplacement.confirmation.message)
+            Text(model.replaceConfirmation.message)
         }
         .confirmationDialog(
             model.pendingConfirm?.confirmation?.title ?? "",

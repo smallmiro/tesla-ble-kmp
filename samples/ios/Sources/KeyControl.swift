@@ -25,6 +25,8 @@ struct KeyControlInputs: Sendable, Equatable {
     var keyReady = false
     /// 폰 잠금 때문에 키를 읽을 수 없다.
     var keyLocked = false
+    /// 저장된 키가 손상됐다(`stored key is corrupted`, 문서에 적힌 경우만). 그 밖의 읽기 오류는 여기에 들어오지 않는다.
+    var keyCorrupted = false
     var vinSaved = false
     var connected = false
     /// 연결이 개인키를 가지고 맺어졌다(`Vehicle.hasKey`). 키 없이 연결되면 세션·명령이 안 된다.
@@ -46,6 +48,7 @@ struct KeyControlSteps: Sendable, Equatable {
     static let noVinHint = "Live 탭에서 VIN을 저장하세요"
     static let finishFirstHint = "1·2단계를 먼저 끝내세요"
     static let notEnrolledHint = "키를 차량에 등록하면 버튼이 켜집니다"
+    static let keyCorruptedHint = "저장된 키가 손상되었습니다. '키 삭제 후 다시 만들기'로 복구하세요(옛 키는 복구할 수 없음)"
     static let noKeyConnectedHint = "키 없이 연결됨 — 연결 끊기 후 다시 연결하세요"
 
     let key: StepInfo
@@ -58,7 +61,7 @@ struct KeyControlSteps: Sendable, Equatable {
     let refreshStatusEnabled: Bool
     /// 키 없이 연결되어 있다: 2단계 버튼이 "연결 끊고 다시 연결"이 된다(Android와 같다).
     let reconnectNeeded: Bool
-    /// "키 삭제 후 다시 만들기" 버튼(SFR-020). 읽을 수 있는 키가 있고 다른 호출이 없을 때만. 연결은 필요 없다. 잠금이면 끈다.
+    /// "키 삭제 후 다시 만들기" 버튼(SFR-020). 읽을 수 있는 키가 있거나 문서에 적힌 손상된 키이고 다른 호출이 없을 때만. 연결은 필요 없다. 잠금이면 끈다. 그 밖의 오류는 끈다.
     let replaceKeyEnabled: Bool
 
     init(_ i: KeyControlInputs) {
@@ -70,6 +73,8 @@ struct KeyControlSteps: Sendable, Equatable {
             key = StepInfo(state: .done, hint: "모니터 키가 준비되었습니다", buttonEnabled: idle)
         } else if i.keyLocked {
             key = StepInfo(state: .blocked, hint: Self.keyLockedHint, buttonEnabled: idle)
+        } else if i.keyCorrupted {
+            key = StepInfo(state: .blocked, hint: Self.keyCorruptedHint, buttonEnabled: idle)
         } else {
             key = StepInfo(state: .todo, hint: "키를 만들거나 불러옵니다", buttonEnabled: idle)
         }
@@ -111,7 +116,7 @@ struct KeyControlSteps: Sendable, Equatable {
         checkEnrollmentEnabled = idle && ready && i.enrollment != .checking
         refreshStatusEnabled = idle && i.connected
         reconnectNeeded = i.connected && !i.hasKey
-        replaceKeyEnabled = idle && i.keyReady && !i.keyLocked
+        replaceKeyEnabled = idle && !i.keyLocked && (i.keyReady || i.keyCorrupted)
     }
 
     /// 4단계 버튼이 지금 꺼져 있는 이유(켜져 있으면 `nil`). 확인 대화상자를 누른 뒤처럼, 보낼 때 규칙을 다시 따질 때 쓴다.
