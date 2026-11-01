@@ -226,7 +226,7 @@ final class MonitorEngine: @unchecked Sendable {
 
     /// 저장된 VIN 이 있으면 연결을 시작한다. 이 프로세스에서 아직 아무것도 시작하지 않았을 때만(앱 시작 자동 연결, SFR-011).
     func autoConnectIfSaved() {
-        if loop.state == .idle, !keyGate.isReplacing, parsedVin() != nil { loop.start() }
+        if loop.state == .idle, !keyGate.isReplacing, parsedVin() != nil { startLoop() }
     }
 
     /// 연결 버튼. 기다리지 않고 바로 시도한다. VIN 이 없거나 형식이 틀리면 `false`.
@@ -235,7 +235,7 @@ final class MonitorEngine: @unchecked Sendable {
         guard parsedVin() != nil else { return false }
         // 키를 바꾸는 중에는 연결을 시작하지 않는다(옛 키 핸들로 연결되면 안 된다). 누른 것을 기억해 두었다가 교체가 끝나면 따른다.
         if keyGate.note(.connect) { return true }
-        loop.start()
+        startLoop()
         return true
     }
 
@@ -247,7 +247,7 @@ final class MonitorEngine: @unchecked Sendable {
 
     /// 폰이 잠금 해제되면 기다리던 재연결을 바로 시도한다(키 저장소가 `Locked` 였을 때). 멈춘 상태는 건드리지 않는다.
     func protectedDataBecameAvailable() {
-        if case .backoff = loop.state, !keyGate.isReplacing { loop.start() }
+        if case .backoff = loop.state, !keyGate.isReplacing { startLoop() }
     }
 
     /// VIN 을 저장한다. 형식이 틀리면 `false`.
@@ -271,6 +271,11 @@ final class MonitorEngine: @unchecked Sendable {
             live = LiveReducer.cleared(live)
             return live
         }))
+    }
+
+    /// 연결 루프를 시작하는 곳은 여기 하나다(왜 시작했는지를 한 곳에서 다룬다).
+    private func startLoop() {
+        loop.start()
     }
 
     func parsedVin() -> Vin? { savedVin.flatMap { Vin.companion.parseOrNull(value: $0) } }
@@ -384,7 +389,7 @@ final class MonitorEngine: @unchecked Sendable {
             wantsReconnect: { self.keyGate.shouldReconnect(wasActive: wasActive) },
             reconnect: {
                 // 새 키가 캐시에 있다. 문을 풀면서 다시 연결할지 한 번에 정하고(교체 중에 끊기를 눌렀으면 연결하지 않는다) 연결한다.
-                if self.keyGate.finishReplace(wasActive: wasActive), self.parsedVin() != nil { self.loop.start() }
+                if self.keyGate.finishReplace(wasActive: wasActive), self.parsedVin() != nil { self.startLoop() }
             }
         )
     }
