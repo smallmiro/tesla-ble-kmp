@@ -16,7 +16,11 @@ Owner: `protocol-analyst`. Output: a report in `{{ANALYSIS_DIR}}`. Never edits c
    attempts, gaps in reception. Read whole files only after this summary tells you where to look.
    Newer iOS logs add `query.startedAt` (request start; `ts` is when the result arrived), `app` lines for the scene phase, the phone
    lock and why the connection loop's `start()` fired (`reason`, `effect`; written before the `connecting` line). Older logs and Android
-   have none of these: treat missing fields as unknown, not as zero. Format: `{{SAMPLES_DOCS_DIR}}04-monitor-app.md` §Log format.
+   have none of these: treat missing fields as unknown, not as zero. Build 21 and later iOS logs also add `scanHitMs`, `rssi` and
+   `openAttempt` to the `link` line with `state: "connected"` (from `Vehicle.scanObservation`; #134): `scanHitMs` is time from the start
+   of `connect` to the advertisement (monotonic, includes earlier attempts and waits), `openAttempt` above 1 means earlier opens failed.
+   They are absent for a remembered target, and `rssi` alone is absent when the platform gave none. Scan hits of failed connects are only in
+   `observe` lines `[connect:scan-hit]`; use that line's `ts` for wall-clock time. Format: `{{SAMPLES_DOCS_DIR}}04-monitor-app.md` §Log format.
 3. **Decode raw bytes** with `tools/analysis/pbwire.py` (`python3 -I tools/analysis/pbwire.py <hex>`). Compare the field
    tree with the schema (`domain` module protos) and with `14-lib-reading-state.md` Part B.
 4. **Line up in time.** Put marks, link events, query results and decoded fields on one timeline. For each unknown field,
