@@ -213,7 +213,8 @@ Control 탭의 **키 등록 요청**은 예전처럼 결과 줄만 남기고 팝
 | 10 | 로그 가져오기 | `tools/samples/pull-monitor-logs.sh ios` (USB 연결, 폰 잠금 해제) | `samples/logs/ios/<날짜>/logs/`에 `monitor-*.jsonl`. 첫 줄은 `session`(`platform: ios`, 앱 `0.5.0(20)`). `grep -rE '[A-HJ-NPR-Z0-9]{17}' samples/logs/ios/<날짜>/`에 아무것도 안 나옴. Finder(기기 → 파일)와 파일 앱에서도 `Documents/logs`가 보임 |
 | 11 | 앱·잠금 줄 (#128) | 앱을 홈 화면으로 내렸다가 다시 열기, 폰을 잠갔다가 풀기 | 로그에 `kind: app` 줄: `scenePhase`(`inactive` → `background` → `inactive` → `active`), `protectedData`(`unavailable` 잠글 때, `available` 풀 때). `session` 줄 뒤 시작 때의 `scenePhase`(첫 줄은 아님) |
 | 12 | 시작 이유 (#128) | 앱 시작 자동 연결, 연결 끊기 뒤 연결 버튼, 재연결 대기 중 연결 버튼, 재연결 대기 중 폰 잠금 해제 | `app`/`start` 줄이 `connecting`보다 앞에: `launch`/`started`, `connect-button`/`started`, `connect-button`/`woke`, `protected-data`/`woke`. 연결된 뒤 연결 버튼은 `ignored`. 앞에 `start`가 없는 `connecting`은 백오프 타이머 |
-| 13 | 조회 시작 시각 (#128) | 연결 뒤 첫 조회 라운드 | 모든 `query` 줄에 `startedAt`(`ts`보다 앞이거나 같음). 연결 직후 `listKeys` `query` 줄의 `startedAt`~`ts` 구간이 키·제어 탭의 자동 등록 확인(통합 로그 `TX:`)과 겹치지 않음: 등록 확인은 첫 라운드의 마지막 `query` 줄 `ts` 뒤에 시작. 스캔 발견 시각·RSSI는 라이브러리 요청 전까지 기록되지 않음 |
+| 13 | 조회 시작 시각 (#128) | 연결 뒤 첫 조회 라운드 | 모든 `query` 줄에 `startedAt`(`ts`보다 앞이거나 같음). 연결 직후 `listKeys` `query` 줄의 `startedAt`~`ts` 구간이 키·제어 탭의 자동 등록 확인(통합 로그 `TX:`)과 겹치지 않음: 등록 확인은 첫 라운드의 마지막 `query` 줄 `ts` 뒤에 시작. |
+| 14 | 스캔 발견 시각·RSSI (#134) | 앱 시작 자동 연결(`connect(target: nil)`)이 성공할 때까지 기다리기, 차에서 멀어졌다 돌아와 재연결 | `link`/`connected` 줄 끝에 `scanHitMs`(connect 시작부터 광고를 받기까지 ms, 앞선 시도와 대기 포함), `rssi`(dBm, 음수), `openAttempt`(1 이상, 1보다 크면 앞선 열기가 실패). 플랫폼이 RSSI를 주지 않으면 `rssi`만 빠짐. 실패한 연결의 스캔 발견은 `link` 줄이 아니라 `observe` 줄 `[connect:scan-hit]`에만 있음. `scanHitMs`가 벽시계 시각은 아니므로 시각은 그 `observe` 줄 `ts`로 읽음 |
 
 ### 잠긴 폰과 키 (계획 Task 11)
 

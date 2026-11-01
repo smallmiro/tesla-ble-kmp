@@ -118,11 +118,14 @@ Android app has a gap here until it is brought level.
   `key-replaced` (reconnect after "delete and recreate the key"). `effect`: `started` (a new loop began), `woke` (it was waiting in
   `backoff` and was told to try at once) or `ignored` (already connecting or connected, nothing happened). A `connecting` line
   with no `start` line of `effect` `started` or `woke` right before it came from the backoff timer (an `ignored` line causes no attempt).
-- **Not logged: scan hit time and RSSI on connect.** The monitor connects with `connect(vin, key, target = null, options)`, which scans
-  inside the library, and the documented result of `connect` (`12-lib-getting-started.md`) does not return the advertisement that was
-  used. Scanning in the app first (`scan(vin).first()`, then `connect(..., target)`) would change the connection path being
-  measured, so the sample does not do it. This is a library request: `Vehicle` (or the `connect` result) should expose the
-  advertisement it connected through (time seen, RSSI, `isConnectable`).
+- `link` / `state: "connected"`: `scanHitMs`, `rssi` and `openAttempt` (#134), taken from `Vehicle.scanObservation`
+  (`12-lib-getting-started.md` §Connect scan observation). `scanHitMs` is the time from the start of `connect` until the library
+  received the advertisement the link opened through (it includes earlier attempts and the waits between them); `rssi` is the
+  signal strength in dBm and is left out when the platform gave no value; `openAttempt` is which open attempt made the link
+  (above 1 means earlier opens failed, not that the car was scanned again). All three are left out when `connect` used a
+  remembered target (no scan ran). `scanHitMs` is a monotonic-clock reading, so for a wall-clock time use the `ts` of the
+  `[connect:scan-hit]` `observe` line. A failed `connect` returns no `Vehicle`, so its scan hits are only in the `observe`
+  lines (`18-lib-troubleshooting.md`). The monitor does not scan before `connect`, so the measured connection path is unchanged.
 
 Rules:
 
