@@ -149,16 +149,16 @@ struct ClusterState: Sendable, Equatable {
         switch (live.lastStatusAt, isStale) {
         case (let last?, false): freshness = Formatting.ago(since: last, now: now)
         case (let last?, true): freshness = "마지막 수신 \(Formatting.clockText(last))"
-        case (nil, _): freshness = isConnected ? "받은 방송 없음" : nil
+        case (nil, _): freshness = isConnected ? "받은 상태 없음" : nil
         }
     }
 
     func closure(_ part: ClusterPart) -> ClusterClosure { closures[part] ?? .unknown }
 
-    /// 열린 곳을 색만이 아니라 글자로도 알린다. 모르는 부위가 있으면 모두 닫혔다고 말하지 않고, 트렁크처럼 방송이 안 올 수 있어 방송 기준임을 밝힌다.
+    /// 열린 곳을 색만이 아니라 글자로도 알린다. 모르는 부위가 있으면 모두 닫혔다고 말하지 않고, 트렁크처럼 방송이 안 올 수 있어 받은 상태(방송 또는 조회) 기준임을 밝힌다.
     var closureSummary: String {
         let open = ClusterPart.allCases.filter { closure($0) == .open }
         if !open.isEmpty { return open.map(\.liveKey.label).joined(separator: ", ") + " 열림" }
-        return ClusterPart.allCases.allSatisfy { closure($0) == .closed } ? "방송 기준 모두 닫힘" : ClusterText.none
+        return ClusterPart.allCases.allSatisfy { closure($0) == .closed } ? "받은 상태 기준 모두 닫힘" : ClusterText.none
     }
 }

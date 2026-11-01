@@ -170,11 +170,11 @@ private struct ClusterDetailSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("차량 상태 (브로드캐스트)") {
+                Section("차량 상태 (방송 또는 조회)") {
                     if let last = monitor.live.lastStatusAt {
-                        Text("마지막 방송 \(Formatting.clockText(last)) (\(Formatting.ago(since: last, now: now)))").font(.footnote)
+                        Text("마지막 수신 \(Formatting.clockText(last)) (\(Formatting.ago(since: last, now: now)))").font(.footnote)
                     } else {
-                        Text("아직 받은 상태 방송이 없습니다").font(.footnote)
+                        Text("아직 받은 상태가 없습니다").font(.footnote)
                     }
                     ForEach(LiveItemKey.allCases, id: \.self) { key in
                         LabeledContent(key.label) {
@@ -186,7 +186,7 @@ private struct ClusterDetailSheet: View {
                             }
                         }
                     }
-                    Text("참고: 실내 버튼으로 트렁크를 열고 닫으면 방송이 오지 않을 수 있습니다. 트렁크는 Query 탭의 vehicleStatus() 로 확인하세요.")
+                    Text("참고: 실내 버튼으로 트렁크를 열고 닫으면 방송이 오지 않을 수 있습니다. 그때는 다음 주기 조회(vehicleStatus)에서 반영되며, Query 탭에서도 확인할 수 있습니다.")
                         .font(.footnote)
                 }
                 Section("최근 이벤트 (바뀐 것, 인증 요청, 알 수 없는 방송)") {

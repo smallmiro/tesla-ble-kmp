@@ -266,8 +266,11 @@ final class MonitorEngine: @unchecked Sendable {
         await loop.stop()
         defaults.removeObject(forKey: Self.vinKey)
         emit.yield(.vin(nil))
-        lock.withLock { live = LiveState() } // 다음 VIN 이 다른 차일 수 있다
-        emit.yield(.live(LiveState()))
+        // 다음 VIN 이 다른 차일 수 있다
+        emit.yield(.live(lock.withLock { () -> LiveState in
+            live = LiveReducer.cleared(live)
+            return live
+        }))
     }
 
     func parsedVin() -> Vin? { savedVin.flatMap { Vin.companion.parseOrNull(value: $0) } }
@@ -533,8 +536,15 @@ final class MonitorEngine: @unchecked Sendable {
     private func startConnectionJobs(_ box: VehicleBox) {
         stopConnectionJobs()
         queryNow.clear()
+        // 새 연결의 세대를 여기서 먼저 올린다. 조회가 이벤트 구독보다 먼저 끝나도 새 연결의 것으로 센다.
+        let started = lock.withLock { () -> LiveState in
+            live = LiveReducer.linkStarted(live)
+            return live
+        }
+        emit.yield(.live(started))
+        let epoch = started.linkEpoch
         let events = Task { [self] in await collectEvents(box) }
-        let poll = Task { [self] in await pollLoop(box) }
+        let poll = Task { [self] in await pollLoop(box, epoch: epoch) }
         lock.withLock {
             eventsTask = events
             pollTask = poll
@@ -555,10 +565,6 @@ final class MonitorEngine: @unchecked Sendable {
     /// 이벤트 흐름은 링크가 끊기거나 `disconnect()` 가 불리면 저절로 끝난다. 재연결 판단은 `connection` 으로 한다(루프가 한다).
     private func collectEvents(_ box: VehicleBox) async {
         nonisolated(unsafe) let events = box.vehicle.events
-        emit.yield(.live(lock.withLock { () -> LiveState in
-            live = LiveReducer.linkStarted(live)
-            return live
-        }))
         for await event in events {
             if Task.isCancelled { break } // 끊긴 연결의 늦은 이벤트가 새 연결의 로그와 Live 를 덮지 않게
             let mapped = MonitorEvent(event) // raw 는 여기서 한 번만 읽고 VIN 을 가려 쓴다
@@ -571,20 +577,29 @@ final class MonitorEngine: @unchecked Sendable {
         }
     }
 
-    private func pollLoop(_ box: VehicleBox) async {
+    private func pollLoop(_ box: VehicleBox, epoch: Int) async {
         while !Task.isCancelled {
-            await runQueries(box)
+            await runQueries(box, epoch: epoch)
             if Task.isCancelled { return }
             await queryNow.wait(seconds: TimeInterval(pollSeconds))
         }
     }
 
     /// 세 조회를 차례로. `Uncertain`/`Failure` 도 그대로 기록하고 다음 주기에 다시 조회한다(조회는 다시 보내도 안전하다, `16-lib-errors.md`).
-    private func runQueries(_ box: VehicleBox) async {
+    private func runQueries(_ box: VehicleBox, epoch: Int) async {
         let vehicle = box.vehicle
         if Task.isCancelled { return }
-        await record("vehicleStatus", { try await vehicle.vehicleStatus(timeout: nil) }) { value in
+        let status = await record("vehicleStatus", { try await vehicle.vehicleStatus(timeout: nil) }) { value in
             (value as? VehicleStatus_).map { LogLine.statusSummary(StatusSnapshot($0)) } ?? "형식 오류"
+        }
+        // 성공한 조회는 방송을 기다리지 않고 이 연결에서 들은 것으로 친다(SFR-022). 이전 연결의 늦은 결과는 세대가 달라 걸러진다.
+        if let status = status as? VehicleStatus_ {
+            let snapshot = StatusSnapshot(status)
+            let next = lock.withLock { () -> LiveState in
+                live = LiveReducer.statusQueried(live, snapshot, epoch: epoch, now: Date())
+                return live
+            }
+            emit.yield(.live(next))
         }
         if Task.isCancelled { return }
         await record("keySummary", { try await vehicle.keySummary(timeout: nil) }) { value in

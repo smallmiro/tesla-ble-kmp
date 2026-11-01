@@ -68,7 +68,7 @@ final class ClusterStateTests: XCTestCase {
             frontDriverDoor: "CLOSED", frontPassengerDoor: "CLOSED", rearDriverDoor: "CLOSED", rearPassengerDoor: "CLOSED",
             frunk: "CLOSED", trunk: "CLOSED", chargePort: "CLOSED"
         )
-        XCTAssertEqual(cluster(live(allClosed)).closureSummary, "방송 기준 모두 닫힘")
+        XCTAssertEqual(cluster(live(allClosed)).closureSummary, "받은 상태 기준 모두 닫힘")
 
         var partial = allClosed
         partial.chargePort = "UNKNOWN"
@@ -96,7 +96,7 @@ final class ClusterStateTests: XCTestCase {
         let c = cluster(LiveState())
 
         XCTAssertTrue(c.isStale)
-        XCTAssertEqual(c.freshness, "받은 방송 없음")
+        XCTAssertEqual(c.freshness, "받은 상태 없음")
     }
 
     func testAReconnectStaysDimUntilThatConnectionHearsABroadcast() {
@@ -108,6 +108,40 @@ final class ClusterStateTests: XCTestCase {
 
         let heard = LiveReducer.reduce(reconnected, MonitorEvent(kind: .status(StatusSnapshot()), raw: [1], unknownFields: []), now: t0)
         XCTAssertFalse(cluster(heard).isStale)
+    }
+
+    func testASuccessfulStatusQueryOnTheCurrentLinkClearsTheDimming() {
+        let started = LiveReducer.linkStarted(live(StatusSnapshot(frontDriverDoor: "OPEN")))
+        XCTAssertTrue(cluster(started).isStale)
+
+        let queried = LiveReducer.statusQueried(started, StatusSnapshot(frontDriverDoor: "CLOSED"), epoch: started.linkEpoch, now: t0.addingTimeInterval(1))
+        let c = cluster(queried, now: t0.addingTimeInterval(3))
+
+        XCTAssertFalse(c.isStale)
+        XCTAssertEqual(c.closure(.doorFrontLeft), .closed)
+        XCTAssertEqual(c.freshness, "2초 전")
+    }
+
+    func testAQueryResultFromAnEarlierConnectionDoesNotUndimTheNewOne() {
+        let first = LiveReducer.linkStarted(LiveState())
+        let second = LiveReducer.linkStarted(first)
+
+        let late = LiveReducer.statusQueried(second, StatusSnapshot(frontDriverDoor: "OPEN"), epoch: first.linkEpoch, now: t0)
+
+        XCTAssertEqual(late, second)
+        XCTAssertTrue(cluster(late).isStale)
+    }
+
+    func testAQueryResultFromBeforeTheVinWasClearedDoesNotUndimTheNextCar() {
+        let before = LiveReducer.linkStarted(LiveState())
+        let cleared = LiveReducer.cleared(before)
+        let next = LiveReducer.linkStarted(cleared)
+
+        let late = LiveReducer.statusQueried(next, StatusSnapshot(), epoch: before.linkEpoch, now: t0)
+
+        XCTAssertTrue(cleared.items.isEmpty)
+        XCTAssertNotEqual(next.linkEpoch, before.linkEpoch)
+        XCTAssertTrue(cluster(late).isStale)
     }
 
     func testAnyOtherLinkStateDimsTheValuesAndNamesTheLastReceivedTime() {
