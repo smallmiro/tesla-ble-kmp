@@ -217,6 +217,31 @@ final class ConnectionLoopTests: XCTestCase {
         await f.loop.stop()
     }
 
+    func testStartReportsWhatItDid() async {
+        let f = Fixture([.connected("car1")])
+        XCTAssertEqual(f.loop.start(), .started)
+        await f.waitForState("car1 connected") { $0 == .connected("car1") }
+        XCTAssertEqual(f.loop.start(), .ignored, "이미 연결돼 있으면 아무 일도 없다")
+        f.losses.send("lost")
+        await f.waitForBackoffCount(1)
+        XCTAssertEqual(f.loop.start(), .woke, "쉬는 중이면 기다리지 않고 바로 시도한다")
+        await f.loop.stop()
+    }
+
+    func testDecidedCallbackComesBeforeTheConnectingTransition() async {
+        let order = Locked<[String]>([])
+        let loop = ConnectionLoop<String>(
+            connect: { .failed("no car") },
+            awaitLoss: { _ in nil },
+            release: { _ in },
+            onTransition: { state in if case .connecting = state { order.mutate { $0.append("connecting") } } }
+        )
+        loop.start { effect in order.mutate { $0.append("decided:\(effect.rawValue)") } }
+        await waitUntil("connecting") { order.value.contains("connecting") }
+        XCTAssertEqual(Array(order.value.prefix(2)), ["decided:started", "connecting"], "로그에서 이유가 connecting 줄보다 앞선다")
+        await loop.stop()
+    }
+
     func testConnectAfterStopStartsFreshWithShortBackoff() async {
         let f = Fixture([])
         f.loop.start()
