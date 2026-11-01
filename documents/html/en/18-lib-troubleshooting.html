@@ -79,7 +79,7 @@
 <tr><td>The scan finds nothing, connecting ends with <code>ScanTimeout</code></td><td>Out of range, wrong VIN, or the iOS simulator</td><td>Move closer, check the VIN (the car is matched by a name derived from it), use a real device</td></tr>
 <tr><td><code>MaxConnectionsExceeded</code></td><td>The car already has three Bluetooth connections</td><td>Disconnect another phone or app, and always call <code>disconnect()</code> in yours</td></tr>
 <tr><td><code>ConnectFailed</code> keeps coming back</td><td>Weak signal or a busy car</td><td>The library already retries for 30 seconds; try again later</td></tr>
-<tr><td><code>connect</code> returns some seconds after <code>connectTimeout</code>, for example at 32.6 seconds instead of 30</td><td>The timer fired late because the app was not running (iOS suspends a background app). It is not the cleanup of a failed attempt</td><td>Nothing to repair; see <a href="#sec-budget">The connect time budget</a></td></tr>
+<tr><td><code>connect</code> returns some seconds after <code>connectTimeout</code>, for example at 32.6 seconds instead of 30</td><td>Most likely a late timer: the app was probably not running when it was due (iOS suspends a background app). <code>connect</code> does not wait for a failed attempt's cleanup</td><td>Nothing to repair; see <a href="#sec-budget">The connect time budget</a></td></tr>
 <tr><td><code>connection</code> turns <code>Disconnected</code></td><td>The link was lost</td><td>Call <code>disconnect()</code>, then connect again</td></tr>
 </tbody>
 </table>
@@ -147,9 +147,9 @@
 <li>It returns at once, with the error of the last failed attempt, or <code>ScanTimeout</code> if no attempt failed. The Go original does the same.</li>
 <li>It does not wait for an attempt still running. That attempt is cancelled and cleans up after <code>connect</code> has returned, waiting at most 5 seconds for the platform disconnect. If it still opens a link, the library disconnects that link.</li>
 <li>The only wait past the budget: a connection created at the very moment the budget ran out is closed before <code>connect</code> returns, which also takes at most 5 seconds. So the library itself adds at most 5 seconds to a failed <code>connect</code>.</li>
-<li>The budget is a timer, and a timer cannot fire while the app is not running, so a suspended app can overrun by any amount. A 30-second timer has fired 36 minutes late on a real iPhone (<a href="17-lib-platform-notes.html#sec-ios-bg">Platform Notes</a>). No timeout can prevent this.</li>
+<li>The budget is a timer, and a timer cannot fire while the app is not running, so a suspended app can overrun by any amount. On a real iPhone a 30-second budget ended 36 minutes late (<code>docs/analysis/2026-11-01-build18-link-health.md</code> F3, likely, not confirmed). No timeout can prevent this.</li>
 </ul>
-<p>Seen once on a real iPhone (likely, not confirmed: the log records no process state): <code>ConnectFailed</code> after 32.63 seconds. This was a late timer, not cleanup: <code>ScanTimeout</code> returns, where no attempt had failed, overran just the same (at 31.35, 32.40 and 33.19 seconds), and the app's next 4-second wait took 9.03 seconds. No harm was seen (#130).</p>
+<p>Seen once on a real iPhone: <code>ConnectFailed</code> after 32.63 seconds. The likely cause is a late timer, not confirmed because the log records no process state. <code>ScanTimeout</code> returns, where no attempt had failed, overran the same way (at 31.35, 32.40 and 33.19 seconds), and the app's next 4-second wait took 9.03 seconds. The log cannot exclude the one library wait above, which would need a link to open at the instant the budget ran out. No harm was seen (#130).</p>
 
 <h2 id="sec-no-source">Frames without a source</h2>
 <p>Decision (#130): a frame without a source stays out of <code>vehicle.events</code> and remains a <code>[drop:missing-source]</code> line in the observation log.</p>

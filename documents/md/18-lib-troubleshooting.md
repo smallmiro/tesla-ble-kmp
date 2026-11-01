@@ -12,7 +12,7 @@ Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 | `scan(vin)` emits nothing, `connect` ends with `ScanTimeout` | Out of range, wrong VIN, or iOS simulator (no Bluetooth) | Move closer, check the VIN (the filter is an exact match on the advertised name `S<hash of VIN>C`), use a real device |
 | `Failure(MaxConnectionsExceeded)`, advertisement has `isConnectable == false` | The vehicle already has 3 BLE connections (phone keys, other apps) | Disconnect another device; always call `disconnect()` in your own app |
 | `ConnectFailed` repeats | Link unstable or the vehicle is busy | The library already retries inside `connectTimeout` (30 s); try again later |
-| `connect` returns some seconds after `connectTimeout`, for example at 32.6 s with the default 30 s | The timer fired late because the process was not running (iOS suspends a background app). It is not the cleanup of a failed attempt | Nothing to repair. See §`connect` time budget |
+| `connect` returns some seconds after `connectTimeout`, for example at 32.6 s with the default 30 s | Most likely a late timer: the process was probably not running when it was due (iOS suspends a background app). `connect` does not wait for a failed attempt's cleanup | Nothing to repair. See §`connect` time budget |
 | `connection` turns `Disconnected` | Link lost (range, vehicle side) | Call `vehicle.disconnect()`, then `connect` again |
 | `startSession()` → `RequiresKey` | Connected with `key = null` | Connect with a `VehicleKey` |
 | `startSession()` → `KeyNotPaired` | The public key is not enrolled on the vehicle | Enroll it with `addKeyRequest` (`13-lib-pairing.md`). Check with `listKeys()` or `sessionInfo` |
@@ -56,13 +56,14 @@ attempts. When `connect` fails on it:
 - The only wait past the budget: a transport created at the very moment the budget ran out is closed before `connect`
   returns, which also takes at most 5 s. So the library itself adds at most 5 s to a failed `connect`.
 - The budget is a coroutine timer and cannot fire while the process is not running, so a suspended app can overrun by any
-  amount. A 30 s timer has fired 36 minutes late on a real iPhone (`17-lib-platform-notes.md` §iOS background use by the
-  sample). No timeout can prevent this.
+  amount. On a real iPhone a 30 s budget ended 36 minutes late (`docs/analysis/2026-11-01-build18-link-health.md` F3, status Likely).
+  No timeout can prevent this.
 
-Seen once on a real iPhone (status **Likely**: the log records no process state): `ConnectFailed` after 32.63 s, with the
-reason `NotConnectedException: Disconnect detected`. This was a late timer, not cleanup: `ScanTimeout` returns, where no
-attempt had failed, overran just the same (at 31.35, 32.40 and 33.19 s), and the app's next 4 s wait took 9.03 s. No harm
-was seen (#130).
+Seen once on a real iPhone: `ConnectFailed` after 32.63 s, with the reason `NotConnectedException: Disconnect detected`.
+The likely cause is a late timer (status **Likely**, not confirmed: the log records no process state). `ScanTimeout`
+returns, where no attempt had failed, overran the same way (at 31.35, 32.40 and 33.19 s), and the app's next 4 s wait took
+9.03 s. The log cannot exclude the one library wait above, which would need a link to open at the instant the budget ran
+out. No harm was seen (#130).
 
 ## Frames without a source
 
