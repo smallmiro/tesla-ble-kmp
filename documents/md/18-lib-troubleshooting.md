@@ -165,7 +165,8 @@ on a real car or not) is in `14-lib-reading-state.md` Part B. The BLE transport 
 
 A `[reply:vcsec]` or `[reply:infotainment]` line is written once per received frame, after the decrypt step, so a reply
 that step dropped has its line too. It ends with ` attempt=<N> auth=<value>`. If the frame then does not reach the caller,
-a `[drop:handler-closed]` or `[drop:queue-full]` line follows.
+a `[drop:handler-closed]` or `[drop:queue-full]` line follows. A frame whose processing is interrupted by the app
+disconnecting gets no line and is not delivered, so a missing line does not prove that no reply came.
 
 | Part | Meaning |
 |---|---|
@@ -184,8 +185,10 @@ a `[drop:handler-closed]` or `[drop:queue-full]` line follows.
   for Infotainment) matches a request this connection closed, and `attempt=<N>` names it. It does not show that the reply
   is genuine or that the request succeeded: the library does not decrypt such a reply, which leaves the request's replay
   check untouched, and does not deliver it. That is why the line has no `auth=`.
-- The history holds the last 32 closed requests of the connection, and the oldest falls out first. A late reply to an
-  older request reads `other` for VCSEC and `self` for Infotainment, whose requests all share one address.
+- The history holds 32 closed requests of the connection, and the entry that went in first falls out first. A closed
+  request enters at the library's next cleanup, oldest attempt first within one cleanup, so the order follows closing
+  closely but not exactly. A late reply to a request no longer in the history reads `other` for VCSEC and `self` for
+  Infotainment, whose requests all share one address.
 - The history empties when the connection ends, whether the link dropped or the app disconnected. Nothing carries over to
   a new connection, not even a request that was still open when the link dropped and closed later.
 
