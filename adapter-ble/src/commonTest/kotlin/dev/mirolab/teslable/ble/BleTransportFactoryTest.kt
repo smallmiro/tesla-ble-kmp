@@ -16,6 +16,7 @@ import kotlinx.coroutines.flow.take
 import kotlinx.coroutines.flow.toList
 import kotlinx.coroutines.test.TestScope
 import kotlinx.coroutines.test.advanceTimeBy
+import kotlinx.coroutines.test.currentTime
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
@@ -205,6 +206,27 @@ class BleTransportFactoryTest {
             runCurrent()
             assertEquals(1, connector.links.size)
             assertEquals(1, connector.links.single().disconnects)
+        }
+
+    @Test
+    fun budgetExpiryDoesNotWaitForAnAttemptStillCleaningUp() =
+        // #130 H5: 열기는 팩토리 스코프에서 돈다 — 정리(끊김 대기 최대 5초)를 기다리지 않고 마지막 오류를 돌려준다(ble.go:270-275)
+        runTest {
+            val lastError = VehicleError.TransportError.ConnectFailed("NotConnectedException: Disconnect detected")
+            val connector = FakeGattConnector(ad)
+            connector.openResults.addLast(OpenResult.Failed(lastError, retry = true))
+            val pending = async { factory(connector).connect(vin, null, ConnectOptions(timeout = 30.seconds)) }
+            runCurrent()
+            connector.openGate = CompletableDeferred() // 두 번째 시도는 취소를 무시하고 정리 중인 것처럼 멈춘다
+            advanceTimeBy(30.seconds)
+            runCurrent()
+            assertEquals(2, connector.opens)
+            assertTrue(pending.isCompleted)
+            assertEquals(30_000, currentTime)
+            assertEquals(VehicleResult.Failure(lastError), pending.await())
+            connector.openGate?.complete(Unit)
+            runCurrent()
+            assertEquals(1, connector.links.single().disconnects) // 정리는 connect가 돌아간 뒤에 끝난다
         }
 
     @Test
