@@ -21,6 +21,14 @@ struct KeyControlTab: View {
         }
         .background(Color(.systemGroupedBackground))
         .onAppear { model.tabAppeared() }
+        // SFR-021: 등록 진행 팝업. 진행 중에는 끌어내려 닫을 수 없고(취소 버튼으로 멈춘다), 끝나면 닫기 버튼으로 닫는다.
+        .sheet(isPresented: Binding(get: { model.enrollmentPopup != nil }, set: { _ in })) {
+            if let popup = model.enrollmentPopup {
+                EnrollmentPopupView(popup: popup, onCancel: { model.cancelEnroll() }, onClose: { model.closeEnrollmentPopup() })
+                    .interactiveDismissDisabled(true)
+                    .presentationDetents([.medium, .large])
+            }
+        }
         .confirmationDialog(
             KeyReplacement.confirmation.title,
             isPresented: $model.pendingReplaceConfirm,
@@ -65,7 +73,7 @@ struct KeyControlTab: View {
             Divider()
             StepRow(number: 3, title: "등록", info: steps.enroll) {
                 HStack {
-                    Button("키 등록 요청") { Task { await model.enroll() } }
+                    Button("키 등록 요청") { model.startEnroll() }
                         .disabled(!steps.enroll.buttonEnabled)
                     Button("등록 상태 확인") { Task { await model.checkEnrollment() } }
                         .disabled(!steps.checkEnrollmentEnabled)
@@ -237,6 +245,66 @@ private struct StepRow<Actions: View>: View {
         case .done: return .green
         case .todo: return .accentColor
         case .blocked: return .orange
+        }
+    }
+}
+
+/// 키 등록 진행 팝업(SFR-021). 모양만 그린다: 단계·문구·버튼 규칙은 `EnrollmentPopup`(순수)이 정한다.
+private struct EnrollmentPopupView: View {
+    let popup: EnrollmentPopup
+    let onCancel: () -> ()
+    let onClose: () -> ()
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text(popup.title).font(.title3.bold())
+            VStack(alignment: .leading, spacing: 10) {
+                ForEach(Array(popup.rows.enumerated()), id: \.offset) { _, row in
+                    HStack(alignment: .firstTextBaseline, spacing: 10) {
+                        Image(systemName: symbol(row.mark)).foregroundStyle(color(row.mark)).frame(width: 24)
+                        Text(row.title).font(.subheadline)
+                    }
+                }
+            }
+            if popup.phase == .confirming, popup.attempt > 0 {
+                ProgressView(value: popup.progressFraction)
+            } else if popup.isActive {
+                ProgressView()
+            }
+            Text(popup.message)
+                .font(.footnote)
+                .foregroundStyle(popup.isActive ? Color.secondary : Color.primary)
+                .fixedSize(horizontal: false, vertical: true)
+            Spacer(minLength: 0)
+            if popup.isActive {
+                Button("취소", role: .cancel, action: onCancel)
+                    .buttonStyle(.bordered)
+                    .disabled(!popup.canCancel)
+                Text("취소하면 기다리기를 멈춥니다. 이미 보낸 요청은 차량에서 되돌릴 수 없습니다.")
+                    .font(.caption).foregroundStyle(.secondary)
+            } else {
+                Button("닫기", action: onClose).buttonStyle(.borderedProminent)
+            }
+        }
+        .padding(20)
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func symbol(_ mark: EnrollmentPopup.Mark) -> String {
+        switch mark {
+        case .done: return "checkmark.circle.fill"
+        case .current: return "circle.dotted"
+        case .pending: return "circle"
+        case .failed: return "xmark.circle.fill"
+        }
+    }
+
+    private func color(_ mark: EnrollmentPopup.Mark) -> Color {
+        switch mark {
+        case .done: return .green
+        case .current: return .accentColor
+        case .pending: return .secondary
+        case .failed: return .red
         }
     }
 }
