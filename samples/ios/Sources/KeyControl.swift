@@ -299,11 +299,16 @@ enum EnrollmentWaiter {
         interval: TimeInterval = 3,
         probe: () async -> EnrollmentProbe,
         sleep: (TimeInterval) async throws -> (),
-        now: () -> TimeInterval
+        now: () -> TimeInterval,
+        onAttempt: ((_ attempt: Int, _ elapsed: TimeInterval) async -> ())? = nil
     ) async -> (enrolled: Bool, line: String) {
         var last = "등록 확인: 시도하지 못함"
-        let deadline = now() + timeout
+        let start = now()
+        let deadline = start + timeout
+        var attempt = 0
         while now() < deadline {
+            attempt += 1
+            await onAttempt?(attempt, now() - start)
             switch await probe() {
             case .enrolled: return (true, "등록 확인됨(Infotainment)")
             case .notYet: last = "아직 등록되지 않음(KeyNotPaired) — 2분까지 반복"

@@ -23,6 +23,8 @@ final class KeyControlModel: ObservableObject {
     @Published private(set) var status: StatusCard?
     /// 확인 대화상자를 기다리는 버튼(프렁크 열기, 원격 주행 허용).
     @Published var pendingConfirm: ControlButton?
+    /// 키 등록 진행 팝업(SFR-021). `nil` 이면 보이지 않는다. 진행 중에는 닫을 수 없고(취소로 멈춘다), 끝나면 사용자가 닫는다.
+    @Published private(set) var enrollmentPopup: EnrollmentPopup?
     /// "키 삭제 후 다시 만들기" 확인 대화상자(SFR-020).
     @Published var pendingReplaceConfirm = false
     /// 옛 키로 만든 상태를 버려야 하는 결과 뒤에 Control 탭에 알린다(키 목록의 "이 기기" 표시 등이 낡았다). `MonitorModel` 이 연결한다.
@@ -36,6 +38,8 @@ final class KeyControlModel: ObservableObject {
     private var generation = 0
     /// 새 연결에서 아직 등록 확인(자동)을 하지 않았다.
     private var needsCheck = false
+    /// 진행 중인 키 등록 흐름(취소 버튼이 이 Task 를 취소한다).
+    private var enrollTask: Task<(), Never>?
 
     private static let maxResults = 100
     private static let autoRetrySeconds = 5
@@ -51,6 +55,7 @@ final class KeyControlModel: ObservableObject {
         let keyed = connected && hasKey
         guard connected != inputs.connected || keyed != inputs.hasKey else { return }
         generation += 1
+        dismissEnrollmentPopup(because: "연결이 바뀌어")
         inputs.connected = connected
         inputs.hasKey = keyed
         status = nil // 상태 카드는 그 연결에서 읽은 것만 보여 준다
@@ -75,6 +80,7 @@ final class KeyControlModel: ObservableObject {
             inputs.enrollment = .unknown // 키가 바뀌었다
             status = nil // 옛 키로 읽은 상태 카드와 등록 진행 줄은 새 키의 것이 아니다
             progress = []
+            dismissEnrollmentPopup(because: "키가 바뀌어")
         }
         checkIfNeeded()
     }
@@ -203,15 +209,62 @@ final class KeyControlModel: ObservableObject {
         if let line = report.line { add("등록 확인", line, report.tone) }
     }
 
-    /// 3단계: 키 등록 요청. 이벤트 줄은 `progress` 에, 끝나면 등록 확인까지 한다(자동 확인, 3초 간격 최대 2분).
+    /// 3단계 "키 등록 요청" 버튼: 진행 팝업을 띄우고 등록 흐름을 시작한다. 이미 진행 중이거나 버튼이 꺼져 있으면 아무것도 하지 않는다.
+    func startEnroll() {
+        guard enrollTask == nil, enrollmentPopup == nil, steps.enroll.buttonEnabled else { return }
+        enrollmentPopup = EnrollmentPopup()
+        enrollTask = Task { [self] in
+            await enroll()
+            enrollTask = nil
+        }
+    }
+
+    /// 팝업의 "취소": 기다리기를 실제로 멈춘다(요청 수집과 3초 확인 반복 둘 다 Task 취소로 끝난다). 이미 차량에 보낸 요청은 되돌릴 수 없다.
+    func cancelEnroll() {
+        enrollmentPopup?.requestCancel()
+        enrollTask?.cancel()
+    }
+
+    /// 팝업의 "닫기"(끝난 뒤에만).
+    func closeEnrollmentPopup() {
+        guard let popup = enrollmentPopup, popup.canClose else { return }
+        enrollmentPopup = nil
+    }
+
+    /// 연결이나 키가 바뀌면 팝업을 치우고 흐름을 멈춘다(앱이 이미 다음 상태로 넘어갔다). 진행 중이었으면 결과 줄을 남긴다.
+    private func dismissEnrollmentPopup(because reason: String) {
+        guard let popup = enrollmentPopup else { return }
+        enrollTask?.cancel()
+        enrollmentPopup = nil
+        if popup.isActive { add("키 등록", "\(reason) 등록 기다리기를 중단했습니다(이미 보낸 요청은 되돌릴 수 없음)", .warn) }
+    }
+
+    /// 3단계: 키 등록 요청. 단계는 `progress` 줄과 팝업에, 끝나면 등록 확인까지 한다(자동 확인, 3초 간격 최대 2분).
     func enroll() async {
+        var ran = false
         await exclusive { [self] in
+            ran = true
             progress = []
             let gen = generation
-            let enrolled = await client.pair { [weak self] update in await self?.addProgress(update.line) }
-            if enrolled, gen == generation { inputs.enrollment = .enrolled }
-            add("키 등록", enrolled ? "등록 확인됨" : "등록이 확인되지 않았습니다(진행 줄 참고)", enrolled ? .ok : .warn)
+            let enrolled = await client.pair { [weak self] update in
+                await self?.received(update, generation: gen)
+            }
+            guard gen == generation else { return } // 연결이나 키가 바뀌어 팝업과 함께 이미 정리됐다
+            if enrolled { inputs.enrollment = .enrolled }
+            if enrollmentPopup?.phase == .cancelled {
+                add("키 등록", "기다리기를 멈췄습니다(이미 보낸 요청은 되돌릴 수 없음)", .warn)
+            } else {
+                add("키 등록", enrolled ? "등록 확인됨" : "등록이 확인되지 않았습니다(진행 줄 참고)", enrolled ? .ok : .warn)
+            }
         }
+        if !ran { enrollmentPopup = nil } // 다른 호출 때문에 시작하지 못했다
+    }
+
+    /// 등록 흐름이 알린 단계를 줄과 팝업에 반영한다. 연결이나 키가 바뀐 뒤의 알림은 버린다.
+    private func received(_ update: EnrollmentUpdate, generation gen: Int) {
+        guard gen == generation else { return }
+        if let line = update.line { addProgress(line) }
+        enrollmentPopup?.apply(update)
     }
 
     /// 1단계: 모니터 키를 지우고 새로 만든다(SFR-020). 확인 대화상자 뒤에 부른다. 그 사이 조건이 바뀌었으면 보내지 않고 이유를 남긴다.

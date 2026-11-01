@@ -142,9 +142,15 @@ actor BleClient {
             case .timedOut: await onEvent(.timedOut); confirm = true
             }
         }
+        // 사용자가 취소했으면 확인으로 넘어가지 않는다(이미 보낸 요청은 되돌릴 수 없다).
+        if Task.isCancelled { await onEvent(.cancelled); return false }
         guard confirm else { return false }
-        let confirmed = await confirmEnrollment()
-        await onEvent(confirmed.enrolled ? .confirmed(confirmed.line) : .notConfirmed(confirmed.line))
+        let confirmed = await confirmEnrollment(onAttempt: { attempt, elapsed in
+            await onEvent(.confirming(attempt: attempt, elapsed: elapsed))
+        })
+        await onEvent(EnrollmentUpdate.finished(
+            enrolled: confirmed.enrolled, line: confirmed.line, failure: confirmed.failure, cancelled: Task.isCancelled
+        ))
         return confirmed.enrolled
     }
 
@@ -155,11 +161,13 @@ actor BleClient {
     /// 3초 간격, 최대 2분 동안 Infotainment `sessionInfo`로 등록을 확인한다(`13-lib-pairing.md` 의 `waitUntilEnrolled`).
     /// `KeyNotPaired`·`Uncertain` 이면 계속 묻고, 그 밖의 `Failure`(예: 링크가 끊긴 `NotConnected`)면 바로 멈춘다.
     /// 등록이 확인됐는지와 화면용 한 줄을 돌려준다.
-    func confirmEnrollment() async -> (enrolled: Bool, line: String) {
+    /// `failure` 는 `KeyNotPaired` 가 아닌 `Failure` 로 멈췄을 때의 이유(시간 초과와 구별한다). `onAttempt` 는 시도마다 진행을 알린다(SFR-021).
+    func confirmEnrollment(onAttempt: (@Sendable (Int, TimeInterval) async -> ())? = nil) async -> (enrolled: Bool, line: String, failure: String?) {
         refresh()
-        guard let vehicle else { return (false, "등록 확인: 먼저 연결하세요") }
-        guard let key else { return (false, "등록 확인: 먼저 키를 만드세요") }
-        return await EnrollmentWaiter.wait(
+        guard let vehicle else { return (false, "등록 확인: 먼저 연결하세요", "먼저 연결하세요") }
+        guard let key else { return (false, "등록 확인: 먼저 키를 만드세요", "먼저 키를 만드세요") }
+        let failure = ResultBox<String>()
+        let result = await EnrollmentWaiter.wait(
             probe: {
                 do {
                     let result = try await vehicle.sessionInfo(
@@ -167,14 +175,19 @@ actor BleClient {
                     )
                     switch onEnum(of: result) {
                     case .success: return .enrolled
-                    case .failure(let f): return f.error is VehicleErrorKeyNotPaired ? .notYet : .failed(f.error.message)
+                    case .failure(let f):
+                        if f.error is VehicleErrorKeyNotPaired { return .notYet }
+                        failure.set(f.error.message)
+                        return .failed(f.error.message)
                     case .uncertain(let u): return .uncertain(u.error.message)
                     }
                 } catch { return .uncertain("\(error)") }
             },
             sleep: { try await Task.sleep(for: .seconds($0)) },
-            now: { Date().timeIntervalSince1970 }
+            now: { Date().timeIntervalSince1970 },
+            onAttempt: onAttempt
         )
+        return (result.enrolled, result.line, result.enrolled ? nil : failure.get())
     }
 
     /// 제어 명령. 결과가 `Uncertain`이면 다시 보내지 않고 곧바로 `vehicleStatus()`로 재조회한다(FR-102).
@@ -489,7 +502,7 @@ final class SampleModel: ObservableObject {
 
     func pair() async {
         await exclusive { [self] in
-            let enrolled = await client.pair { [weak self] update in await self?.log(update.line) }
+            let enrolled = await client.pair { [weak self] update in if let line = update.line { await self?.log(line) } }
             if enrolled { onEnrollmentChange?(.enrolled) }
         }
     }
