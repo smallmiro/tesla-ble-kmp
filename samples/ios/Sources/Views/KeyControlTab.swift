@@ -22,6 +22,16 @@ struct KeyControlTab: View {
         .background(Color(.systemGroupedBackground))
         .onAppear { model.tabAppeared() }
         .confirmationDialog(
+            KeyReplacement.confirmation.title,
+            isPresented: $model.pendingReplaceConfirm,
+            titleVisibility: .visible
+        ) {
+            Button(KeyReplacement.confirmation.action, role: .destructive) { Task { await model.replaceKey() } }
+            Button("취소", role: .cancel) {}
+        } message: {
+            Text(KeyReplacement.confirmation.message)
+        }
+        .confirmationDialog(
             model.pendingConfirm?.confirmation?.title ?? "",
             isPresented: Binding(get: { model.pendingConfirm != nil }, set: { if !$0 { model.pendingConfirm = nil } }),
             titleVisibility: .visible,
@@ -43,6 +53,9 @@ struct KeyControlTab: View {
             StepRow(number: 1, title: "키", info: steps.key) {
                 Button(steps.key.state == .done ? "다시 불러오기" : "키 만들기/불러오기") { Task { await model.prepareKey() } }
                     .disabled(!steps.key.buttonEnabled)
+                // SFR-020: 되돌릴 수 없다. 확인 대화상자 뒤에만 지운다.
+                Button("키 삭제 후 다시 만들기", role: .destructive) { model.pendingReplaceConfirm = true }
+                    .disabled(!steps.replaceKeyEnabled)
             }
             Divider()
             StepRow(number: 2, title: "연결", info: steps.connect) {

@@ -23,6 +23,10 @@ final class KeyControlModel: ObservableObject {
     @Published private(set) var status: StatusCard?
     /// 확인 대화상자를 기다리는 버튼(프렁크 열기, 원격 주행 허용).
     @Published var pendingConfirm: ControlButton?
+    /// "키 삭제 후 다시 만들기" 확인 대화상자(SFR-020).
+    @Published var pendingReplaceConfirm = false
+    /// 옛 키로 만든 상태를 버려야 하는 결과 뒤에 Control 탭에 알린다(키 목록의 "이 기기" 표시 등이 낡았다). `MonitorModel` 이 연결한다.
+    var onKeyReplaced: (() -> ())?
 
     var steps: KeyControlSteps { KeyControlSteps(inputs) }
 
@@ -69,6 +73,8 @@ final class KeyControlModel: ObservableObject {
         if wasReady, !ready {
             generation += 1
             inputs.enrollment = .unknown // 키가 바뀌었다
+            status = nil // 옛 키로 읽은 상태 카드와 등록 진행 줄은 새 키의 것이 아니다
+            progress = []
         }
         checkIfNeeded()
     }
@@ -205,6 +211,26 @@ final class KeyControlModel: ObservableObject {
             let enrolled = await client.pair { [weak self] update in await self?.addProgress(update.line) }
             if enrolled, gen == generation { inputs.enrollment = .enrolled }
             add("키 등록", enrolled ? "등록 확인됨" : "등록이 확인되지 않았습니다(진행 줄 참고)", enrolled ? .ok : .warn)
+        }
+    }
+
+    /// 1단계: 모니터 키를 지우고 새로 만든다(SFR-020). 확인 대화상자 뒤에 부른다. 그 사이 조건이 바뀌었으면 보내지 않고 이유를 남긴다.
+    /// 연결·세션 캐시 처리와 실패 때 규칙은 `KeyReplacer`(순수) 와 `MonitorEngine.replaceKey()` 에 있다. 옛 키 ID 에 붙은 별명은 옮기지 않는다.
+    func replaceKey() async {
+        guard steps.replaceKeyEnabled else {
+            add("키 삭제 후 다시 만들기", "보내지 않음: 지금은 할 수 없습니다(키가 준비되지 않았거나 다른 호출이 진행 중)", .warn)
+            return
+        }
+        await exclusive { [self] in
+            let outcome = await engine.replaceKey()
+            if outcome.dropsConnectionState {
+                generation += 1
+                status = nil
+                progress = []
+            }
+            if let enrollment = outcome.enrollmentAfter { inputs.enrollment = enrollment }
+            add("키 삭제 후 다시 만들기", outcome.line, outcome.tone)
+            if outcome.dropsConnectionState { onKeyReplaced?() }
         }
     }
 

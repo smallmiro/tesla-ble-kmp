@@ -516,6 +516,15 @@ final class SampleModel: ObservableObject {
         }
     }
 
+    /// 모니터 키가 바뀌었다(SFR-020, 키·제어 탭): 옛 키로 만든 목록 행과 키 정보를 버린다. 별명은 키 ID 에 붙어 있어 그대로 둔다.
+    func keyReplaced() {
+        keyRows = []
+        nicknameEditing = nil
+        pendingRemoval = nil
+        keyInfo = "모니터 키가 바뀌었습니다 — 키 만들기/불러오기로 확인하세요"
+        Task { await client.resetEntries() }
+    }
+
     /// 자동 재연결도 멈춘다(SFR-012). 다시 연결 버튼을 누를 때까지 재연결하지 않는다.
     func disconnect() async {
         await exclusive { [self] in
