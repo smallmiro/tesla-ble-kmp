@@ -32,6 +32,9 @@ final class KeyControlModel: ObservableObject {
 
     var steps: KeyControlSteps { KeyControlSteps(inputs) }
 
+    /// "키 삭제 후 다시 만들기" 확인 문구. 손상된 키면 복구할 수 없다는 말이 들어간다.
+    var replaceConfirmation: ControlButton.Confirmation { KeyReplacement.confirmation(corrupted: inputs.keyCorrupted) }
+
     private let backend: KeyControlBackend
     /// 연결이 바뀔 때마다 올라간다. 늦게 끝난 호출이 새 연결의 상태를 덮지 않게 한다.
     private var generation = 0
@@ -73,10 +76,12 @@ final class KeyControlModel: ObservableObject {
     func keyChanged(_ state: KeyState) {
         let ready = state == .ready
         let locked = state == .locked
-        guard ready != inputs.keyReady || locked != inputs.keyLocked else { return }
+        let corrupted = state == .corrupted
+        guard ready != inputs.keyReady || locked != inputs.keyLocked || corrupted != inputs.keyCorrupted else { return }
         let wasReady = inputs.keyReady
         inputs.keyReady = ready
         inputs.keyLocked = locked
+        inputs.keyCorrupted = corrupted
         if wasReady, !ready {
             generation += 1
             inputs.enrollment = .unknown // 키가 바뀌었다

@@ -20,6 +20,8 @@ enum KeyState: Sendable, Equatable {
     case locked
     /// 읽거나 만들지 못했다.
     case error
+    /// 저장된 키가 손상됐다(`PlatformFailure` 의 `stored key is corrupted`). "키 삭제 후 다시 만들기"로만 고친다.
+    case corrupted
 }
 
 /// 모니터 키의 상태(Control 탭).
@@ -309,6 +311,10 @@ final class MonitorEngine: @unchecked Sendable {
                     emit.yield(.key(KeyStatus(text: "키 잠김: 폰을 잠금 해제하면 다시 읽습니다(키는 지우지 않음)", state: .locked)))
                     return .locked
                 }
+                if Self.isCorrupted(f.error) {
+                    emit.yield(.key(KeyStatus(text: Self.corruptedKeyText, state: .corrupted)))
+                    return .failed(f.error.message)
+                }
                 emit.yield(.key(KeyStatus(text: "키 오류: \(f.error.message)", state: .error)))
                 return .failed(f.error.message)
             case .uncertain(let u): // 키 저장소는 돌려주지 않는다
@@ -353,6 +359,14 @@ final class MonitorEngine: @unchecked Sendable {
         )
     }
 
+    private static let corruptedKeyText = "키 손상: 저장된 키를 읽을 수 없습니다. 키·제어 탭의 '키 삭제 후 다시 만들기'로 복구하세요(옛 키는 복구할 수 없음)"
+
+    /// 문서에 적힌 손상(`KeyStoreError.PlatformFailure`, `stored key is corrupted`)인지.
+    private static func isCorrupted(_ error: VehicleError) -> Bool {
+        guard let failure = error as? VehicleErrorKeyStoreErrorPlatformFailure else { return false }
+        return KeyStoreFailure.isCorrupted(failure.cause, failure.message)
+    }
+
     /// 키 저장소에서 키를 읽기만 한다(만들지 않는다).
     private func readStoredKey() async -> (probe: KeyProbe, key: VehicleKey?) {
         do {
@@ -363,6 +377,7 @@ final class MonitorEngine: @unchecked Sendable {
                 return (.absent, nil)
             case .failure(let f):
                 if f.error is VehicleErrorKeyStoreErrorLocked { return (.locked, nil) }
+                if Self.isCorrupted(f.error) { return (.corrupted, nil) }
                 return (.failed(f.error.message), nil)
             case .uncertain(let u): return (.failed(u.error.message), nil)
             }
@@ -399,6 +414,8 @@ final class MonitorEngine: @unchecked Sendable {
             emit.yield(.key(KeyStatus(text: "키 없음", state: .none)))
         case .locked:
             emit.yield(.key(KeyStatus(text: "키 잠김: 폰을 잠금 해제하면 다시 읽습니다(키는 지우지 않음)", state: .locked)))
+        case .corrupted:
+            emit.yield(.key(KeyStatus(text: Self.corruptedKeyText, state: .corrupted)))
         case .failed(let why):
             emit.yield(.key(KeyStatus(text: "키 오류: \(why)", state: .error)))
         }

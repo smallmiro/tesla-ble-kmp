@@ -51,6 +51,40 @@ final class KeyReplacerTests: XCTestCase {
         XCTAssertEqual(r.calls, ["probe", "forget", "delete", "create"])
     }
 
+    // MARK: 손상된 키 — 읽을 수 없어도 지우고 다시 만들 수 있다
+
+    func testCorruptedKeyIsReplacedWithoutNeedingAReadableKey() async {
+        let r = Rig()
+        r.probe = .corrupted
+        let outcome = await r.run(wasActive: true)
+        XCTAssertEqual(outcome, .replaced)
+        XCTAssertEqual(r.calls, ["probe", "disconnect", "forget", "delete", "create", "reconnect"])
+    }
+
+    func testRestoreThatReadsACorruptedKeyIsUnverified() async {
+        let r = Rig()
+        r.delete = .failed("boom")
+        r.restore = .corrupted
+        let outcome = await r.run(wasActive: true)
+        XCTAssertEqual(outcome, .unverified("boom"))
+        XCTAssertFalse(r.calls.contains("reconnect"))
+    }
+
+    func testOtherReadFailuresStillStopBeforeAnythingChanges() async {
+        let r = Rig()
+        r.probe = .failed("some other keychain error")
+        let outcome = await r.run(wasActive: false)
+        XCTAssertEqual(outcome, .notDeleted("some other keychain error"))
+        XCTAssertEqual(r.calls, ["probe"])
+    }
+
+    func testCorruptedIsRecognisedOnlyFromTheDocumentedPlatformFailureText() {
+        XCTAssertTrue(KeyStoreFailure.isCorrupted("stored key is corrupted"))
+        XCTAssertTrue(KeyStoreFailure.isCorrupted("key store failure: stored key is corrupted", "x"))
+        XCTAssertFalse(KeyStoreFailure.isCorrupted("errSecItemNotFound"))
+        XCTAssertFalse(KeyStoreFailure.isCorrupted("", ""))
+    }
+
     // MARK: 잠금 — 아무것도 바꾸지 않는다
 
     func testLockedKeyStoreStopsBeforeAnythingChanges() async {
@@ -190,6 +224,17 @@ final class KeyReplacerTests: XCTestCase {
 }
 
 final class KeyReplacementUITextTests: XCTestCase {
+    func testCorruptedConfirmationSaysTheOldKeyCannotBeRecovered() {
+        let c = KeyReplacement.confirmation(corrupted: true)
+        XCTAssertTrue(c.message.contains("손상"))
+        XCTAssertTrue(c.message.contains("복구할 수 없"))
+        for needle in ["영구", "공개키", "차량에서", "키카드", "다시 등록", "연결"] {
+            XCTAssertTrue(c.message.contains(needle), "missing: \(needle)")
+        }
+        XCTAssertEqual(c.action, "삭제 후 다시 만들기")
+        XCTAssertEqual(KeyReplacement.confirmation(corrupted: false), KeyReplacement.confirmation)
+    }
+
     func testConfirmationSaysEverythingTheUserMustKnow() {
         let c = KeyReplacement.confirmation
         XCTAssertTrue(c.message.contains("영구"), "removed from this phone permanently")
@@ -221,6 +266,16 @@ final class KeyReplacementStepsTests: XCTestCase {
 
     func testReplaceIsOffWhenTheKeyIsLockedOrNotReady() {
         XCTAssertFalse(steps(keyReady: false, keyLocked: true).replaceKeyEnabled)
-        XCTAssertFalse(steps(keyReady: false).replaceKeyEnabled)
+        XCTAssertFalse(steps(keyReady: false).replaceKeyEnabled) // 그 밖의 오류·아직 읽지 않음은 계속 꺼 둔다
+    }
+
+    func testReplaceIsOnForADocumentedCorruptedKeyEvenThoughTheKeyIsNotReady() {
+        let s = KeyControlSteps(KeyControlInputs(keyReady: false, keyLocked: false, keyCorrupted: true, vinSaved: true))
+        XCTAssertTrue(s.replaceKeyEnabled)
+        XCTAssertEqual(s.key.state, .blocked)
+        XCTAssertTrue(s.key.hint.contains("손상"))
+        XCTAssertFalse(KeyControlSteps(KeyControlInputs(keyCorrupted: true, busy: true)).replaceKeyEnabled)
+        // 잠금이 손상보다 먼저다(잠금은 키가 멀쩡하다).
+        XCTAssertFalse(KeyControlSteps(KeyControlInputs(keyLocked: true, keyCorrupted: true)).replaceKeyEnabled)
     }
 }
