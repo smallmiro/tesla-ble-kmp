@@ -109,15 +109,15 @@ Android app has a gap here until it is brought level.
 
 - `query.startedAt`: the time the request was sent (same format as `ts`). `ts` stays the time the result arrived, so
   `ts - startedAt` is how long the call took. Written for `vehicleStatus`, `keySummary` and `listKeys`.
-- `app` / `event: "scenePhase"`: `phase` is `active`, `inactive` or `background` (SwiftUI scene phase). The first line of a run gives the
-  phase at start.
+- `app` / `event: "scenePhase"`: `phase` is `active`, `inactive` or `background` (SwiftUI scene phase). The first `scenePhase` line of a run gives the
+  phase at start; the `session` line and a `start` line (auto connect) can come before it.
 - `app` / `event: "protectedData"`: `state` is `available` (the phone was unlocked; `protectedDataDidBecomeAvailable`) or
   `unavailable` (`protectedDataWillBecomeUnavailable`, the phone is about to lock).
 - `app` / `event: "start"`: written each time the connection loop's `start()` is called, **before** the `connecting` line it may
   cause. `reason`: `launch` (auto connect at app start), `connect-button`, `protected-data` (unlock woke a waiting retry),
   `key-replaced` (reconnect after "delete and recreate the key"). `effect`: `started` (a new loop began), `woke` (it was waiting in
   `backoff` and was told to try at once) or `ignored` (already connecting or connected, nothing happened). A `connecting` line
-  with no `start` line before it came from the backoff timer.
+  with no `start` line of `effect` `started` or `woke` right before it came from the backoff timer (an `ignored` line causes no attempt).
 - **Not logged: scan hit time and RSSI on connect.** The monitor connects with `connect(vin, key, target = null, options)`, which scans
   inside the library, and the documented result of `connect` (`12-lib-getting-started.md`) does not return the advertisement that was
   used. Scanning in the app first (`scan(vin).first()`, then `connect(..., target)`) would change the connection path being
@@ -196,7 +196,7 @@ Files in `samples/ios/Sources/` (tests in `samples/ios/Tests/`, names as in the 
 | `MonitorModel.swift` | The one object for the app's lifetime (`@StateObject` in `TeslableSampleApp`). Holds what the screens read, starts the engine once (auto-connect when a VIN is saved, not under XCTest), and creates the Control tab's `SampleModel` and the Key & Control tab's `KeyControlModel` |
 | `MonitorEngine.swift` | Owns `TeslaBle`, `ConnectionLoop`, the `Vehicle.events` Task, the query poll Task, the saved VIN (`UserDefaults`), the monitor key and the `LogWriter`. Sends changes to the model through one `AsyncStream` so their order is kept. `observe` lines come through `ObserveLogger`, a `TeslaLogger` that passes everything to `DebugLogger` |
 | `ConnectionLoop.swift` | State machine `idle`, `connecting(n)`, `connected(V)`, `backoff(attempt:delay:reason:)`, `stopped`; knows nothing about the library; the clock and the sleeper can be replaced (tests use a manual clock). `start()` returns what it did (`started`, `woke`, `ignored`) and takes a callback that runs before it acts (the `app` / `start` log line) |
-| `InitialQueryGate.swift`, `Tests/InitialQueryGateTests.swift` | A gate per connection, closed when the link becomes `connected` and opened when the monitor's first query round ends (or the connection ends). The Key & Control tab's automatic `listKeys()` waits on it, so it never overlaps the monitor's own first `listKeys()` (`05-key-control-tab.md`) |
+| `InitialQueryGate.swift`, `Tests/InitialQueryGateTests.swift` | A gate per connection, closed when the link becomes `connected` and opened when the monitor's first query round ends (or the connection ends). The Key & Control tab's enrollment checks (`listKeys()`) wait on it, so they never overlap the monitor's own first `listKeys()` (`05-key-control-tab.md`). The Control tab's manual **List keys** button does not wait and can still overlap a poll |
 | `LogLine.swift`, `LogWriter.swift`, `VinMask.swift` | Log line format, file writer on its own serial queue behind the `LogSink` protocol, VIN masking |
 | `LiveState.swift` | Reduces events into the Live tab state (last-changed time per item). A successful `vehicleStatus()` counts as heard on the current link like a broadcast; a per-connection `linkEpoch` drops results that finish after their connection ended (SFR-022) |
 | `ClusterState.swift`, `Tests/ClusterStateTests.swift` | Reduces `LiveState` and the link into the cluster values of SFR-022: gear, closure of each `ClusterPart` (only `CLOSED` is closed), texts, dimming, headline. `Views/LiveTab.swift` overlays the `ClusterCar*` image set: eight SVGs on one 400×760 canvas |
