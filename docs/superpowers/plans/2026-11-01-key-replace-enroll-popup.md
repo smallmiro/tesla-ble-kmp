@@ -14,7 +14,7 @@
 - TDD(순수 로직은 실패 테스트부터), Tidy First(구조 변경 `struct:` 커밋을 먼저), 샘플 스펙 MD + HTML ko/en/ja 같은 PR, `tools/ci/check-manual-i18n.sh`.
 - 역할: iOS `ios-developer`(sonnet/high), Android `android-developer`, HTML ko/ja `docs-translator`.
 
-### Task A: SFR-020 키 삭제 후 다시 만들기 (iOS, 빌드 15)
+### Task A: SFR-020 키 삭제 후 다시 만들기 (iOS, 빌드 16)
 
 - [x] **Step 1: 실패 테스트** — `Tests/KeyReplacementTests.swift`: `KeyReplacer` 순서(읽기 → 연결 끊기 → 핸들 버리기 → 지우기 → 만들기 → 다시 연결), 잠금이면 아무것도 바꾸지 않음, 지우기 실패면 새 키를 만들지 않고 옛 키를 복원, 만들기 실패면 재시도·재연결 없음, 확인 문구의 네 가지 말, 버튼 활성 규칙.
 - [x] **Step 2:** 구현: `KeyReplacement.swift`, `MonitorEngine.replaceKey()`(연결 처리 결정: 쓰던 연결만 먼저 끊고 새 키로 다시 연결), `KeyControlModel.replaceKey()`, 1단계 버튼과 확인 대화상자. `CURRENT_PROJECT_VERSION` 15.
@@ -22,7 +22,7 @@
 - [x] **Step 4 (리뷰 반영):** 손상된 키(`stored key is corrupted`, 문서에 적힌 경우만) 복구 경로, 엔진 수준의 문(`KeyOperationGate`: 다른 탭의 동작·연결과 교체가 서로 막음, 핸들 캐시 세대), 지우기 실패 뒤 복원 결과를 따름(`lost`/`unverified`), `KeyControlBackend` 이음매와 `KeyControlModel` 시험.
 - [ ] **Step 5:** 실기기 확인(R1~R11), AI 리뷰, PR (Refs: SFR-020).
 
-### Task B: SFR-021 키 등록 진행 팝업 (iOS, 빌드 15)
+### Task B: SFR-021 키 등록 진행 팝업 (iOS, 빌드 16)
 
 - [x] **Step 1:** 구조 변경 먼저(`struct:`): `BleClient.pair` 가 줄 대신 `EnrollmentUpdate` 단계를 보낸다(Control 탭 결과 줄은 그대로).
 - [x] **Step 2: 실패 테스트** — `Tests/EnrollmentPopupTests.swift`: 단계(요청 → 카드 → 확인 → 성공/미확인/실패/취소), 3초 간격 확인의 시도 번호·경과·남은 시간(`m:ss`, 0 아래로 내려가지 않음), 끝난 뒤의 늦은 알림 무시, 취소 요청과 취소 결과의 문구("되돌릴 수 없"), 취소가 실제로 2분 대기를 멈춤(`EnrollmentWaiter`).
