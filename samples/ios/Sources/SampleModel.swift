@@ -121,30 +121,30 @@ actor BleClient {
         return engine.sessionsText(vehicle)
     }
 
-    /// 키 등록 요청. 이벤트마다 한국어 한 줄을 `onEvent`로 보내고, 끝이 `Accepted`/`TimedOut`이면 등록 확인을 잇는다.
+    /// 키 등록 요청. 단계마다 `EnrollmentUpdate` 를 `onEvent` 로 보내고, 끝이 `Accepted`/`TimedOut` 이면 등록 확인을 잇는다.
     /// 등록 확인까지 끝나 등록이 확인되면 `true`(키·제어 탭이 등록 상태를 바꾸는 데 쓴다).
     @discardableResult
-    func pair(onEvent: @escaping @Sendable (String) async -> ()) async -> Bool {
+    func pair(onEvent: @escaping @Sendable (EnrollmentUpdate) async -> ()) async -> Bool {
         refresh()
-        guard let vehicle else { await onEvent("키 등록: 먼저 연결하세요"); return false }
-        guard let key else { await onEvent("키 등록: 먼저 키를 만드세요"); return false }
+        guard let vehicle else { await onEvent(.blocked("키 등록: 먼저 연결하세요")); return false }
+        guard let key else { await onEvent(.blocked("키 등록: 먼저 키를 만드세요")); return false }
         var confirm = false
         for await event in vehicle.addKeyRequest(
             publicKey: key.publicKey, role: .owner, formFactor: KeyFormFactors_iosKt.platformKeyFormFactor(), timeout: nil
         ) {
             switch onEnum(of: event) {
-            case .sent: await onEvent("요청 보냄 — 중앙 콘솔에 키카드를 대고 화면에서 승인하세요")
-            case .waitingForTap: await onEvent("카드 태그 대기 중")
-            case .accepted: await onEvent("차량이 승인함 — Infotainment 동기화 확인 중"); confirm = true
-            case .rejected(let r): await onEvent("거부: \(r.error.message)")
-            case .unknown(let u): await onEvent("모르는 응답 \(hex(u.raw))")
-            case .failed(let f): await onEvent("실패: \(f.error.message)")
-            case .timedOut: await onEvent("시간 초과 — 등록 여부를 확인합니다"); confirm = true
+            case .sent: await onEvent(.sent)
+            case .waitingForTap: await onEvent(.waitingForTap)
+            case .accepted: await onEvent(.accepted); confirm = true
+            case .rejected(let r): await onEvent(.rejected(r.error.message))
+            case .unknown(let u): await onEvent(.unknown(hex(u.raw)))
+            case .failed(let f): await onEvent(.failed(f.error.message))
+            case .timedOut: await onEvent(.timedOut); confirm = true
             }
         }
         guard confirm else { return false }
         let confirmed = await confirmEnrollment()
-        await onEvent(confirmed.line)
+        await onEvent(confirmed.enrolled ? .confirmed(confirmed.line) : .notConfirmed(confirmed.line))
         return confirmed.enrolled
     }
 
@@ -489,7 +489,7 @@ final class SampleModel: ObservableObject {
 
     func pair() async {
         await exclusive { [self] in
-            let enrolled = await client.pair { [weak self] line in await self?.log(line) }
+            let enrolled = await client.pair { [weak self] update in await self?.log(update.line) }
             if enrolled { onEnrollmentChange?(.enrolled) }
         }
     }

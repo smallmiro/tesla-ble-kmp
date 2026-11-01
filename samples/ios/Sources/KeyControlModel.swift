@@ -202,7 +202,7 @@ final class KeyControlModel: ObservableObject {
         await exclusive { [self] in
             progress = []
             let gen = generation
-            let enrolled = await client.pair { [weak self] line in await self?.addProgress(line) }
+            let enrolled = await client.pair { [weak self] update in await self?.addProgress(update.line) }
             if enrolled, gen == generation { inputs.enrollment = .enrolled }
             add("키 등록", enrolled ? "등록 확인됨" : "등록이 확인되지 않았습니다(진행 줄 참고)", enrolled ? .ok : .warn)
         }
