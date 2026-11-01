@@ -60,7 +60,7 @@ no popup.
 |---|---|---|---|
 | Sending | the button was pressed | "sending the request" | Cancel |
 | Waiting for the card | `Sent` / `WaitingForTap` | request sent: put the key card on the centre console and approve on the car's screen | Cancel |
-| Checking | `Accepted`, or the request ended with `TimedOut` | `sessionInfo(publicKey, INFOTAINMENT)` every 3 s: attempt number, elapsed and remaining time out of 2:00 and a progress bar (refreshed at each attempt, so up to 3 s old). After `TimedOut` the text says the request timed out and the check is running | Cancel |
+| Checking | `Accepted`, or the request ended with `TimedOut` | `sessionInfo(publicKey, INFOTAINMENT)` every 3 s: attempt number, elapsed and remaining time out of 2:00 and a progress bar (refreshed at each attempt, so up to 3 s old). After `TimedOut` the text begins with the request timed out and the check is running, then keeps the progress line | Cancel |
 | Done | the confirmation succeeded | the key is enrolled, the step 4 buttons work | Close |
 | Not confirmed | no confirmation within 2 minutes | not confirmed in 2 minutes; check that the approval was given on the car, then press **Check enrollment** | Close |
 | Failed | `Rejected`, `Failed`, a `Failure` of the check other than `KeyNotPaired` (for example `NotConnected`), or the request could not start (no connection or key) | "failed: " and the message | Close |
@@ -83,24 +83,31 @@ no popup.
 ## Delete and recreate the key (SFR-020)
 
 Step 1 has a second button, **Delete and recreate the key**, that replaces the monitor key `teslable-monitor` with a new one
-(for example after the key was removed from the car for good, or the key store is damaged). iOS built; Android: planned,
+(for example after the key was removed from the car for good, or the stored key is corrupted). iOS built; Android: planned,
 same spec. Library: `13-lib-pairing.md` §Deleting or replacing a key locally and §Key accessibility,
 `17-lib-platform-notes.md` §Session cache.
 
 | Rule | Detail |
 |---|---|
-| Enabled | The key is ready, the key is not locked, and no other call of this tab runs. A connection is **not** needed |
+| Enabled | No other call runs (this tab's, or the Control tab's pairing and commands: otherwise the result says "busy, press again later" and nothing changes), **and** either the key is ready and not locked, or the stored key is **corrupted** (next rows). Any other key error (not read yet, another `keys.get` failure) keeps it off. A connection is **not** needed |
 | Confirmation | Always, before anything changes. It says: the old key is removed from this phone **permanently** and cannot be restored; the car **still lists the old public key** until it is removed on the car (its screen, or `removeKey` from another enrolled key); the new key is not enrolled, so it must be **enrolled again with the key card** (step 3); the connection is dropped and made again |
 | Locked | The key store is read first (`keys.get(alias)`). `KeyStoreError.Locked` changes nothing, not even the connection, and the result says to unlock the phone (`13-lib-pairing.md`: never delete or re-create on `Locked`). A `Locked` during the delete restores the old key and reconnects; a `Locked` during the create counts as a failed create (no retry) |
+| Corrupted key | `KeyStoreError.PlatformFailure` whose `cause` or message is `stored key is corrupted` (`13-lib-pairing.md` §Deleting or replacing a key locally, `16-lib-errors.md`, `17-lib-platform-notes.md` §Key storage) is the one documented damage case. The key state becomes `corrupted`, step 1 says so, the button is on, and the read gate accepts it (the key cannot be read, that is the point): delete, then create. The confirmation then also says the damaged old key **cannot be recovered**. The library never replaces a corrupted key by itself; the app only does it after this confirmation |
+| Other tabs and racing connects | An engine-level gate (`KeyOperationGate`) covers every tab. Replace is refused (`busy`) while a Control-tab call runs; Control-tab calls are refused while the key is replaced; `connectNow`, the automatic connect, the unlock retry and `ensureKey()` do nothing during the replacement, so a connect pressed on Live or Control cannot take the old handle. The key handle cache has a generation: a read that finishes after the handle was dropped is not cached, so the deleted key never stays cached. After the disconnect the replacer checks that no connection remains; if one does, nothing is deleted. `replaced` is therefore never reported with an old-key connection |
 | Order (`KeyReplacer`, pure) | read the key store → disconnect (only if the monitor connection was running: connecting, connected or waiting to retry; a connection the user stopped stays stopped) → drop the key handle → `keys.delete(alias)` → `keys.getOrCreate(alias, PREFER_HARDWARE, AFTER_FIRST_UNLOCK)`, the same settings as step 1 → reconnect with the new key |
 | Why the connection goes first | The live `Vehicle`, its sessions and the session cache belong to the old key (the cache is keyed by the SHA-1 of the public key). After a key change the next `connect` discards the old cache and handshakes again, so the old connection is not kept |
-| Failed delete | The new key is **not** created. The old key is read again (`keys.get`, never `getOrCreate`), so the screen shows what is really there; the connection is made again if it was running; the result says the old key is unchanged |
+| Failed delete | The new key is **not** created. The old key is read again (`keys.get`, never `getOrCreate`) and the result follows what was read: the key is there, so the old key is unchanged and the connection is made again if it was running; the key is gone anyway (`lost`), so nothing is created and there is no reconnect (a connect would create a key silently); the state cannot be read (`unverified`), so there is no reconnect either and the result says to press step 1 "Reload"; the key is locked, so the result says to unlock |
 | Failed create | The old key is gone and there is no new key. No silent retry and no reconnect; the result says to press step 1 |
 | After success | Step 3 goes back to "not enrolled" (a new key is not on the car; the check after reconnecting confirms it). The status card and the enrollment progress lines are cleared, because they came from the old key's connection. The Control tab key list and key info are cleared |
 | Nickname | A key nickname (SFR-019) belongs to the old key id and stays with it; it is **not** moved to the new key |
 
 Implementation (iOS): `KeyReplacement.swift` (`KeyReplacer`, `KeyReplaceOutcome`, the confirmation text),
-`MonitorEngine.replaceKey()`, `KeyControlModel.replaceKey()`, `Tests/KeyReplacementTests.swift`.
+`MonitorEngine.replaceKey()`, `KeyControlModel.replaceKey()`, `KeyOperationGate` and `KeyHandleCache`
+(`KeyReplacement.swift`), `Tests/KeyReplacementTests.swift`, `Tests/KeyOperationGateTests.swift` (gate, handle cache and the
+engine branches that end before any library call). The tab state is tested with a fake `KeyControlBackend`
+(`KeyControlBackend.swift`, `Tests/KeyControlModelTests.swift`): popup lifecycle, cancel, dismissal, dropped late updates,
+replacement results. What needs a real car or phone (the Kotlin flow actually ending on cancel, a real corrupted key,
+the racing connects) is on the device checklist.
 
 ## Running a command
 
@@ -176,17 +183,23 @@ SFR-020 (delete and recreate the key; iOS runbook in `samples/ios/README.md`):
 11. After a restart, before the first unlock: the button is off, or the result says the key store is locked and nothing
     changed (no key deleted, connection unchanged).
 12. With the VIN saved but disconnected (Disconnect pressed): a new key is created and no connection is started.
+13. Corrupted key (only if you can reproduce it, for example an Android restore without its wrapping key; hard on iOS):
+    step 1 says the key is damaged and the button is on; the dialog adds that the old key cannot be recovered;
+    after confirming, a new key exists. A key error that is not `stored key is corrupted` leaves the button off.
+14. Racing taps: start **Request enrollment** on the Control tab and press the replace button: the result says busy.
+    Press replace and, while it runs, **Connect** on Live: no connection starts until the new key exists; afterwards the
+    app reconnects with the new key.
 
 SFR-021 (enrollment progress popup; iOS runbook in `samples/ios/README.md`):
 
-13. Press **Request enrollment**: the sheet opens at once, then says the request was sent and to put the key card on the
+15. Press **Request enrollment**: the sheet opens at once, then says the request was sent and to put the key card on the
     centre console and approve on the car's screen.
-14. Tap the card and approve: the sheet moves to checking with attempt number, elapsed and remaining time; then "done" and
+16. Tap the card and approve: the sheet moves to checking with attempt number, elapsed and remaining time; then "done" and
     **Close**; step 3 is done and the step 4 buttons work.
-15. Do not approve for 2 minutes: "not confirmed in 2 minutes" with the advice; **Close**; **Check enrollment** works.
-16. Press **Cancel** while waiting: the sheet says it is stopping, then cancelled with the note that the request cannot be
+17. Do not approve for 2 minutes: "not confirmed in 2 minutes" with the advice; **Close**; **Check enrollment** works.
+18. Press **Cancel** while waiting: the sheet says it is stopping, then cancelled with the note that the request cannot be
     recalled; no further `sessionInfo` requests (Log tab). Tap the card afterwards, then **Check enrollment**: it may show
     `enrolled`.
-17. Turn Bluetooth off or walk away while the sheet is open: the sheet closes at once and a result line says the waiting
+19. Turn Bluetooth off or walk away while the sheet is open: the sheet closes at once and a result line says the waiting
     was stopped.
-18. While the flow runs, swipe the sheet down: it stays.
+20. While the flow runs, swipe the sheet down: it stays.

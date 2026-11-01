@@ -99,7 +99,7 @@
 <tbody>
 <tr><td>送信中</td><td>ボタンを押したとき</td><td>要求を送信中</td><td>キャンセル</td></tr>
 <tr><td>カード待ち</td><td><code>Sent</code> / <code>WaitingForTap</code></td><td>要求を送りました: センターコンソールにキーカードをかざし、車の画面で承認してください</td><td>キャンセル</td></tr>
-<tr><td>確認中</td><td><code>Accepted</code>、または要求が <code>TimedOut</code> で終わったとき</td><td><code>sessionInfo(publicKey, INFOTAINMENT)</code> を 3 秒ごとに: 試行番号、2:00 のうちの経過・残り時間、進行バー（試行ごとに更新されるため最大 3 秒前の値）。<code>TimedOut</code> の後は、要求がタイムアウトし確認を実行中であると表示します</td><td>キャンセル</td></tr>
+<tr><td>確認中</td><td><code>Accepted</code>、または要求が <code>TimedOut</code> で終わったとき</td><td><code>sessionInfo(publicKey, INFOTAINMENT)</code> を 3 秒ごとに: 試行番号、2:00 のうちの経過・残り時間、進行バー（試行ごとに更新されるため最大 3 秒前の値）。<code>TimedOut</code> の後の文言は、要求がタイムアウトし確認を実行中であることから始まり、続けて進行の行を表示し続けます</td><td>キャンセル</td></tr>
 <tr><td>完了</td><td>確認に成功</td><td>キーが登録され、ステップ 4 のボタンが使えます</td><td>閉じる</td></tr>
 <tr><td>未確認</td><td>2 分以内に確認できない</td><td>2 分以内に確認できませんでした。車で承認したか確かめてから<strong>登録状態の確認</strong>を押してください</td><td>閉じる</td></tr>
 <tr><td>失敗</td><td><code>Rejected</code>、<code>Failed</code>、<code>KeyNotPaired</code> 以外の確認の <code>Failure</code>（例: <code>NotConnected</code>）、または要求を開始できない（接続やキーがない）</td><td>「失敗: 」とメッセージ</td><td>閉じる</td></tr>
@@ -115,16 +115,18 @@
 </ul>
 
 <h2 id="sec-replace">キーの削除と再作成</h2>
-<p>ステップ 1 には 2 つ目のボタン <strong>キーを削除して作り直す</strong>があり、モニターキー <code>teslable-monitor</code> を新しいものに置き換えます（例: 車からキーを完全に削除した後、またはキーストアが壊れた場合）。iOS はビルド済み、Android: 予定、同じ仕様。ライブラリマニュアル: 13 章「Deleting or replacing a key locally」と「Key accessibility」、17 章「Session cache」。</p>
+<p>ステップ 1 には 2 つ目のボタン <strong>キーを削除して作り直す</strong>があり、モニターキー <code>teslable-monitor</code> を新しいものに置き換えます（例: 車からキーを完全に削除した後、または保存されたキーが壊れた場合）。iOS はビルド済み、Android: 予定、同じ仕様。ライブラリマニュアル: 13 章「Deleting or replacing a key locally」と「Key accessibility」、17 章「Session cache」。</p>
 <table>
 <thead><tr><th>ルール</th><th>内容</th></tr></thead>
 <tbody>
-<tr><td>有効になる条件</td><td>キーが準備できていて、キーがロックされておらず、このタブの他の呼び出しが動いていないとき。接続は<strong>不要</strong>です。</td></tr>
+<tr><td>有効になる条件</td><td>他の呼び出しが動いていない（このタブの呼び出し、またはコントロールタブのペアリング・コマンド。動いていれば結果が「使用中、後でもう一度」と伝え、何も変わらない）<strong>うえで</strong>、キーが準備できていてロックされていないか、保存されたキーが<strong>破損</strong>しているとき（次の行）。それ以外のキーのエラー（まだ読んでいない、他の <code>keys.get</code> の失敗）では無効のままです。接続は<strong>不要</strong>です。</td></tr>
 <tr><td>確認</td><td>何かを変える前に必ず確認します。文言: 古いキーはこのスマートフォンから<strong>完全に</strong>削除され復元できない、車両には車両側で削除するまで（車の画面、または登録済みの別のキーからの <code>removeKey</code>）<strong>古い公開鍵が残る</strong>、新しいキーは登録されていないので<strong>キーカードで改めて登録</strong>する必要がある（ステップ 3）、接続を切って接続し直す。</td></tr>
 <tr><td>ロック</td><td>最初にキーストアを読みます（<code>keys.get(alias)</code>）。<code>KeyStoreError.Locked</code> なら接続も含めて何も変えず、スマートフォンのロック解除を促します（マニュアル: <code>Locked</code> では削除も再作成もしない）。削除中の <code>Locked</code> は古いキーを戻して再接続し、作成中の <code>Locked</code> は作成の失敗として扱います（再試行しない）。</td></tr>
+<tr><td>破損したキー</td><td><code>cause</code> またはメッセージが <code>stored key is corrupted</code> の <code>KeyStoreError.PlatformFailure</code>（マニュアル 13 章「Deleting or replacing a key locally」、16 章、17 章「Key storage」）が、文書に書かれた唯一の破損のケースです。キーの状態が <code>corrupted</code> になり、ステップ 1 がそう伝え、ボタンが有効になり、読み取りの関門もそれを通します（キーを読めないのが要点）: 削除してから作成します。確認ダイアログは、破損した古いキーは<strong>復元できない</strong>とも伝えます。ライブラリは破損したキーを自動では置き換えず、アプリはこの確認の後にだけ置き換えます。</td></tr>
+<tr><td>他のタブと競合する接続</td><td>エンジン水準の関門（<code>KeyOperationGate</code>）がすべてのタブを覆います。コントロールタブの呼び出しが動いている間は置き換えを拒否し（<code>busy</code>）、置き換え中はコントロールタブの呼び出しを拒否し、<code>connectNow</code>、自動接続、ロック解除後の再試行、<code>ensureKey()</code> は置き換え中は何もしないので、Live やコントロールで押した接続が古いハンドルを掴むことはありません。キーハンドルのキャッシュには世代があり、ハンドルを捨てた後に終わった読み取りはキャッシュされないので、削除されたキーがキャッシュに残りません。切断の後、置き換え処理は接続が残っていないか確認し、残っていれば何も削除しません。したがって <code>replaced</code> が古いキーの接続とともに報告されることはありません。</td></tr>
 <tr><td>順序（<code>KeyReplacer</code>、純粋）</td><td>キーストアを読む、切断（モニターの接続が動いていたときだけ: 接続中、接続済み、再試行待ち。ユーザーが止めた接続は止めたまま）、キーハンドルを捨てる、<code>keys.delete(alias)</code>、ステップ 1 と同じ設定の <code>keys.getOrCreate(alias, PREFER_HARDWARE, AFTER_FIRST_UNLOCK)</code>、新しいキーで再接続。</td></tr>
 <tr><td>先に切断する理由</td><td>生きている <code>Vehicle</code> とそのセッション、セッションキャッシュは古いキーのものです（キャッシュは公開鍵の SHA-1 で区別されます）。キーが変わると次の <code>connect</code> が古いキャッシュを捨ててハンドシェイクをやり直すので、古い接続は残しません。</td></tr>
-<tr><td>削除の失敗</td><td>新しいキーは作り<strong>ません</strong>。古いキーを読み直し（<code>keys.get</code>、<code>getOrCreate</code> は使わない）、画面が実際の状態を示すようにし、接続が動いていたなら再接続し、結果に古いキーは変わっていないと書きます。</td></tr>
+<tr><td>削除の失敗</td><td>新しいキーは作り<strong>ません</strong>。古いキーを読み直し（<code>keys.get</code>、<code>getOrCreate</code> は使わない）、結果は読んだ内容に従います: キーがあれば古いキーは変わっておらず、接続が動いていたなら再接続します。それでもキーがなければ（<code>lost</code>）何も作らず再接続もしません（接続するとキーが黙って作られる）。状態を読めなければ（<code>unverified</code>）同様に再接続せず、ステップ 1 の「再読み込み」を押すよう伝えます。キーがロックされていればロック解除を促します。</td></tr>
 <tr><td>作成の失敗</td><td>古いキーはなくなり、新しいキーもありません。黙って再試行することも再接続することもなく、結果はステップ 1 を押すよう伝えます。</td></tr>
 <tr><td>成功した後</td><td>ステップ 3 は「未登録」に戻ります（新しいキーは車両になく、再接続後の確認がそれを確かめます）。ステータスカードと登録の進行行は古いキーの接続から来たものなので消します。コントロールタブのキー一覧とキー情報も消します。</td></tr>
 <tr><td>ニックネーム</td><td>キーのニックネーム（SFR-019）は古いキー ID に属し、そこに残ります。新しいキーには<strong>移しません</strong>。</td></tr>
@@ -168,7 +170,7 @@
 </tbody>
 </table>
 <p>どちらのアプリも <code>MonitorEngine</code> を通じて、モニターの接続とモニターキー（<code>teslable-monitor</code>）を使います: <code>ensureKey()</code>、<code>currentVehicle()</code>、<code>currentKey()</code>、<code>connectNow()</code>。</p>
-<p>iOS の SFR-020: <code>KeyReplacement.swift</code>（<code>KeyReplacer</code>、<code>KeyReplaceOutcome</code>、確認の文言）、<code>MonitorEngine.replaceKey()</code>、<code>KeyControlModel.replaceKey()</code>。</p>
+<p>iOS の SFR-020: <code>KeyReplacement.swift</code>（<code>KeyReplacer</code>、<code>KeyReplaceOutcome</code>、確認の文言）、<code>MonitorEngine.replaceKey()</code>、<code>KeyControlModel.replaceKey()</code>、<code>KeyOperationGate</code> と <code>KeyHandleCache</code>（<code>KeyReplacement.swift</code>）、<code>Tests/KeyReplacementTests.swift</code>、<code>Tests/KeyOperationGateTests.swift</code>（関門、ハンドルキャッシュ、ライブラリ呼び出しの前に終わるエンジンの枝）。タブの状態は偽の <code>KeyControlBackend</code>（<code>KeyControlBackend.swift</code>、<code>Tests/KeyControlModelTests.swift</code>）でテストします: ポップアップの寿命、キャンセル、片付け、捨てられる遅い通知、置き換えの結果。実際の車やスマートフォンが必要なもの（Kotlin の流れがキャンセルで実際に終わるか、本物の破損キー、競合する接続）は実機確認リストにあります。</p>
 
 <h2 id="sec-check">実車チェックリスト</h2>
 <ol>
@@ -188,8 +190,13 @@
 <li>再起動後、最初のロック解除の前: ボタンが無効か、結果がキーストアのロックと何も変わっていないことを伝えます（キーは削除されず、接続もそのまま）。</li>
 <li>VIN は保存済みだが切断した状態（切断を押した）: 新しいキーが作られ、接続は始まりません。</li>
 </ol>
-<p>SFR-021、登録の進行ポップアップ（iOS の手順は <code>samples/ios/README.md</code>）:</p>
+<p>SFR-020、破損したキーと他のタブ（iOS の手順: <code>samples/ios/README.md</code>）:</p>
 <ol start="13">
+<li>破損したキー（再現できるときだけ。例: ラッピングキーなしで復元した Android、iOS では難しい）: ステップ 1 がキーの破損を伝えてボタンが有効になり、ダイアログに古いキーは復元できないという文が加わり、確定すると新しいキーができます。<code>stored key is corrupted</code> 以外のキーのエラーではボタンは無効のままです。</li>
+<li>競合する操作: コントロールタブで<strong>キー登録の要求</strong>を始めて置き換えボタンを押します: 結果は使用中と伝えます。置き換えを押し、動いている間に Live の<strong>接続</strong>を押します: 新しいキーができるまで接続は始まらず、その後アプリが新しいキーで再接続します。</li>
+</ol>
+<p>SFR-021、登録の進行ポップアップ（iOS の手順は <code>samples/ios/README.md</code>）:</p>
+<ol start="15">
 <li><strong>キー登録の要求</strong>を押します: シートがすぐ開き、要求を送ったのでセンターコンソールにキーカードをかざして車の画面で承認するよう伝えます。</li>
 <li>カードをかざして承認します: シートが確認中に変わり、試行番号と経過・残り時間を表示し、続いて「完了」と<strong>閉じる</strong>が出ます。ステップ 3 が完了し、ステップ 4 のボタンが使えます。</li>
 <li>2 分間承認しません: 案内とともに「2 分以内に確認できませんでした」、<strong>閉じる</strong>、<strong>登録状態の確認</strong>が使えます。</li>
