@@ -59,6 +59,46 @@ with the real-device checklist in `samples/ios/README.md` (SFR-019).
 
 Status: iOS built (`0.5.0 (21)`), unit tests pass, real-device check pending. Android: planned, same spec.
 
+## State diagnostics (SFR-023)
+
+The Query tab has a manual area where a person calls `getState()` and reads what the car returns. It exists to collect real-car
+facts that `14-lib-reading-state.md` A8.5 lists as unconfirmed (which fields a category carries, the unit of `speed`, whether a
+reply is too large, what a sleeping car does). It is not a product feature: there is no periodic `getState`, no automatic retry
+and no button for `Location`.
+
+| Rule | Detail |
+|---|---|
+| Where | Query tab, under the periodic-query section: three buttons **Drive**, **Media**, **MediaDetail**, the last result, and a separate **send to a sleeping car (experiment)** section |
+| Enabling | A connection made with a key (`Vehicle.hasKey`), a key the Key & Control tab has confirmed as enrolled, and `sleepStatus == AWAKE` from the latest successful `vehicleStatus()` (the monitor's poll, or the re-read of the last tap). `ASLEEP`, `UNKNOWN` and "not read yet" keep the buttons off, and the reason is shown under them. Buttons are also off while a query runs |
+| Order of one tap | (1) `vehicleStatus(timeout: null)`: anything but `AWAKE` ends the tap with **NotSent**. (2) `startSession(setOf(INFOTAINMENT), timeout: null)`: the library sends nothing when the session is already `Ready` (`14-lib-reading-state.md` A8.2: `getState` never starts a session). (3) one `getState(category, timeout: null)`. The default timeout is used (`16-lib-errors.md` §Retries and timeouts) |
+| Results | `Success`, `Uncertain` and `Failure` as the library returns them, plus **NotSent** when the app stops before sending (asleep, sleep unknown, `vehicleStatus()` failed, session failed). Each has its own sentence: a size fault says the car answered, a timeout says nothing came back, `NoSession` says nothing was sent. No automatic retry. After `Failure(NoSession)` (a cached session the car no longer accepts, A8.2) the next tap starts a new session; the sample does not do it by itself |
+| Waking | The screen **never calls `wakeUp()`** and says "does not call `wakeUp()`", not "does not wake the car": what the Infotainment handshake does to a sleeping car is unconfirmed |
+| Sleeping-car experiment | A button with its own category choice and a confirmation dialog that says the car may wake. After the confirmation it skips **only the sleep check**; it still needs a connection and an enrolled key, runs the same session step and sends one `getState`. It never calls `wakeUp()`. Intended for one recorded try |
+| Overlap | The tab refuses to start while the key is being replaced or while another tab (Control, Key & Control) runs a call, and while a query runs the key cannot be replaced (`KeyOperationGate`). A second tap while a query runs does nothing |
+| Connection change | The result and the sleep state belong to the connection that read them. When the connection changes the result is cleared, the sleep state goes back to `UNKNOWN`, and a result that arrives late from the old connection is dropped (not shown, not logged) |
+
+Fields shown. Only these named fields are read; `DriveState` also has route and destination fields and the app never reads
+them, and `Location` has no button. Absent is `—` and `0` stays `0` (`14-lib-reading-state.md` A8.3).
+
+| Category | Fields |
+|---|---|
+| Drive | `speed` and `speed_float` as the raw number followed by "(unit unconfirmed)", never converted to km/h or mph (A8.5); `shift_state` (the member of the `ShiftState` oneof that is set: `P`, `R`, `N`, `D`, `SNA`); `power`; `odometer_in_hundredths_of_a_mile` (raw); `timestamp` (epoch seconds, to tell a fresh reading from a repeated one, A8.3) |
+| Media | `media_playback_status`, `audio_volume`, `now_playing_title` (the track title is on screen only), `timestamp` |
+| MediaDetail | `now_playing_duration`, `now_playing_elapsed`, `timestamp`. The title is in `MediaState`, not here |
+
+Log. One `query` line per finished tap, nothing else: `call` is `getState(DRIVE)`, `getState(MEDIA)` or `getState(MEDIA_DETAIL)`,
+`result` is `Success`, `Uncertain`, `Failure` or `NotSent`, `summary` is `durationMs=<n>` plus `error=<type>` or `reason=<why>`, and
+`startedAt` is the time the first library call of the tap started. **No value, no track title, no field name** reaches the log (FR-112, `14-lib-reading-state.md`
+A8.3 "Do not log a result"): the log line is built from a small value (`StateLogEntry`) that has no place for them, and the sample's `record` helper (whose summary
+goes to the log) is not used for `getState`. Error types are the library's type names (`ResponseTooLarge`, `Timeout(afterSend=true)`, `NoSession`, or the class name), never `message` or the vehicle's own text.
+
+Library calls and manual pages: `vehicleStatus(timeout: nil)` (14 A2), `startSession(domains:timeout:)` (14 A8.2, 15), `getState(category:timeout:)` and
+`s.value as? VehicleData`, `KotlinInt?` numbers, `getEpochSecond()` (14 A8.3, 17 §Swift: generated types), result handling and the size fault (16 §`getState` results,
+§Response size limit on `getState`). The pure rules (`StateDiagnostics`) and the screen state (`StateDiagnosticsModel`, with a fake link) are unit tested
+without a vehicle (`Tests/StateDiagnosticsTests.swift`); the real-device checklist is in `samples/ios/README.md` (SFR-023).
+
+Status: iOS built (`0.5.0 (21)`), unit tests pass, real-device check pending. Android: planned, same spec.
+
 ## Background
 
 | | Android | iOS |
@@ -77,6 +117,7 @@ is a `session` line with `platform`, `app` (version and build), `os`, `phone` mo
 {"ts":"…","kind":"event","type":"Status","summary":"lock=LOCKED gear=PARK presence=NOT_PRESENT","unknownFields":["1.8"],"unrecognized":true,"raw":"<hex>"}
 {"ts":"…","kind":"observe","line":"[drop:no-handler] 83B from=domain(DOMAIN_VEHICLE_SECURITY) …"}
 {"ts":"…","kind":"query","call":"vehicleStatus","result":"Success","summary":"…","startedAt":"…"}
+{"ts":"…","kind":"query","call":"getState(DRIVE)","result":"Uncertain","summary":"durationMs=5012 error=Timeout(afterSend=true)","startedAt":"…"}
 {"ts":"…","kind":"link","state":"backoff","reason":"…","attempt":3,"delayMs":8000}
 {"ts":"…","kind":"mark","memo":"before: open driver door"}
 {"ts":"…","kind":"app","event":"scenePhase","phase":"background"}
@@ -102,6 +143,8 @@ Field notes (both apps write the same names and order, except the iOS-only addit
   `disconnected` line is written when the link drops (with the library's reason when it gave one), followed by a `backoff` line.
   A connection that stayed up for 10 seconds or more restarts the wait at 2 seconds.
 - `query.summary` for `vehicleStatus` uses the same form as `event.summary` of a `Status`. It has no public keys or VINs.
+- `query` lines with `call` `getState(<CATEGORY>)` (iOS only, SFR-023, §State diagnostics) come from a manual tap, not from the poll. `result` is
+  `Success`, `Uncertain`, `Failure` or `NotSent`; `summary` is `durationMs=<n>` and, unless `Success`, `error=<type>` or `reason=<why>`. They never carry values.
 
 Additions since build 18 (iOS only; #128, from the build 18 link-health analysis). New fields are added at the end of a line and
 new lines use a new `kind`, so a parser that ignores unknown keys and kinds keeps working. Android does not write them yet; the
@@ -209,6 +252,7 @@ Files in `samples/ios/Sources/` (tests in `samples/ios/Tests/`, names as in the 
 | `KeyNickname.swift`, `Tests/KeyNicknameTests.swift` | Local key nickname (SFR-019, §Key nickname): `KeyNickname` (trim, 32-character check, input clamp) and `KeyNicknameStore` (set / get / remove over an injected `UserDefaults`), pure and unit tested; the Control tab key list (`SampleModel.swift`, `Views/ControlTab.swift`) shows and edits it |
 | `KeyReplacement.swift`, `Tests/KeyReplacementTests.swift` | Delete and recreate the monitor key (SFR-020, `05-key-control-tab.md`): `KeyReplacer` (order, locked and failure rules), `KeyReplaceOutcome`, the confirmation text; pure and unit tested. `MonitorEngine.replaceKey()` runs it against `ble.keys` |
 | `EnrollmentProgress.swift`, `Tests/EnrollmentPopupTests.swift` | Enrollment progress popup (SFR-021, `05-key-control-tab.md`): `EnrollmentUpdate` (what `BleClient.pair` reports) and `EnrollmentPopup` (phases, rows, texts, buttons, remaining time); pure and unit tested |
+| `StateDiagnostics.swift`, `Tests/StateDiagnosticsTests.swift` | State diagnostics (SFR-023, §State diagnostics): pure rules (`StateDiagnostics`: button enabling, value texts, `StateOutcome` sentences, `StateLogEntry`), the `StateLink` / `StateDiagnosticsBackend` seam to the library, and `StateDiagnosticsModel` (one query at a time, drops late results, refuses while a key operation runs). `MonitorEngine.swift` has the live `StateLink` (`vehicleStatus`, `startSession`, `getState`); `VehicleMapping.swift` turns a `VehicleData` into the named fields; `Views/QueryTab.swift` draws it |
 | `KeyControlBackend.swift`, `Tests/KeyControlModelTests.swift`, `Tests/KeyOperationGateTests.swift` | `KeyControlBackend`: everything `KeyControlModel` asks of the library and the engine (a fake in tests); `KeyOperationGate` and `KeyHandleCache` guard the key replacement across tabs (`KeyReplacement.swift`) |
 | `ContentView.swift`, `Views/` | `TabView` Live / Query / Log / Control / Key & Control; `isIdleTimerDisabled` follows `scenePhase == .active` |
 
@@ -220,6 +264,7 @@ Library calls used (Swift form) and the manual page and section:
 | `vehicle.connection` (`for await`, wait for `.disconnected`) | `MonitorEngine.awaitLoss` | 12 §Next steps, 14 §Connection and session state |
 | `vehicle.events` (`for await`, `onEnum(of:)`) in its own Task; `raw` read once and masked before it is stored | `MonitorEngine.collectEvents`, `MonitorEvent.init` | 12 §Broadcast events, 14 B2, B2.4 |
 | `vehicleStatus(timeout: nil)`, `keySummary(timeout: nil)`, `listKeys(timeout: nil)`, `sessions` every 30 s; `Uncertain` and `Failure` shown as they are | `MonitorEngine.runQueries` | 14 Calls, 16 §Three outcomes |
+| `vehicleStatus(timeout: nil)`, `startSession(domains: [.infotainment], timeout: nil)`, `getState(category:timeout:)` on a button tap, in that order, once, no retry, no `wakeUp()` | `LiveStateLink` (`MonitorEngine.swift`) | 14 A2, A8.1 to A8.3, A8.5, 16 §`getState` results, 17 §Swift: generated types |
 | `keys.getOrCreate(alias:policy:accessibility:)` with `"teslable-monitor"`, `.preferHardware`, `.afterFirstUnlock`; `VehicleErrorKeyStoreErrorLocked` waits and retries, never deletes | `MonitorEngine.ensureKey` | 13 §Key accessibility, 16 §Transport and key store errors |
 | `TeslaLogger` (tag `observe`) | `ObserveLogger` | 18 §Observation log |
 | `Vin.companion.parseOrNull`, `scan`, `addKeyRequest`, `sessionInfo`, `startSession`, VCSEC commands, `removeKey` | Control and Key & Control tabs (`BleClient`) | 12, 13, 15, 16 |

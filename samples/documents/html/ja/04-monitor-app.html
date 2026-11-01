@@ -50,6 +50,7 @@
 <li><a href="#sec-req">要件</a></li>
 <li><a href="#sec-key">ロック中のスマートフォンでのキー</a></li>
 <li><a href="#sec-nickname">キーのニックネーム（ローカル専用）</a></li>
+<li><a href="#sec-state">状態診断（SFR-023）</a></li>
 <li><a href="#sec-bg">バックグラウンドでの動作</a></li>
 <li><a href="#sec-log">ログファイル</a></li>
 <li><a href="#sec-android">Android の実装</a></li>
@@ -90,6 +91,34 @@
 <p>ルールは小さな純粋な型です（<code>KeyNickname</code>: 削る、長さの確認、切り詰め。<code>KeyNicknameStore</code>: 注入した <code>UserDefaults</code> への保存、取得、削除）。車両なしで単体テストします（<code>Tests/KeyNicknameTests.swift</code>）。画面は <code>samples/ios/README.md</code> の実機確認リストで確認します（SFR-019）。</p>
 <p><strong>状態:</strong> iOS ビルド済み（<code>0.5.0 (21)</code>）、単体テストは通過、実機確認待ち。Android: 予定、同じ仕様。</p>
 
+<h2 id="sec-state">状態診断（SFR-023）</h2>
+<p>Query タブには、人が <code>getState()</code> を呼んで車両が返す値を読む手動の領域があります。ライブラリマニュアルが未確認として挙げている実車の事実（14 章 A8.5）を集めるためのものです: カテゴリごとにどのフィールドが来るか、<code>speed</code> の単位、応答が大きすぎないか、眠っている車がどう振る舞うか。製品機能ではありません。定期的な <code>getState</code> も、自動の再試行も、<code>Location</code> のボタンもありません。</p>
+<table>
+<thead><tr><th>ルール</th><th>内容</th></tr></thead>
+<tbody>
+<tr><td>場所</td><td>Query タブの定期問い合わせの下: ボタン 3 つ <strong>Drive</strong>、<strong>Media</strong>、<strong>MediaDetail</strong>、直近の結果、そして別枠の<strong>眠っている車に送る（実験）</strong>。</td></tr>
+<tr><td>オンになる条件</td><td>キー付きで張った接続（<code>Vehicle.hasKey</code>）、キー・制御タブが登録済みと確認したキー、そして直近に成功した <code>vehicleStatus()</code> の <code>sleepStatus == AWAKE</code>（モニターのポーリング、または直前のタップの読み直し）。<code>ASLEEP</code>、<code>UNKNOWN</code>、「まだ読んでいない」ならボタンはオフで、理由がボタンの下に出ます。問い合わせが動いている間もオフです。</td></tr>
+<tr><td>1 回のタップの順序</td><td>(1) <code>vehicleStatus(timeout: null)</code>: <code>AWAKE</code> 以外なら <strong>NotSent</strong> で終わります。(2) <code>startSession(setOf(INFOTAINMENT), timeout: null)</code>: セッションがすでに <code>Ready</code> ならライブラリは何も送りません（14 章 A8.2: <code>getState</code> はセッションを開始しません）。(3) <code>getState(category, timeout: null)</code> を 1 回。既定のタイムアウトを使います（16 章「リトライとタイムアウト」）。</td></tr>
+<tr><td>結果</td><td>ライブラリが返す <code>Success</code>、<code>Uncertain</code>、<code>Failure</code>、そしてアプリが送る前に止まった場合（スリープ中、スリープ状態不明、<code>vehicleStatus()</code> 失敗、セッション失敗）の <strong>NotSent</strong>。それぞれ文が違います: サイズエラーは車が応答したと、タイムアウトは何も返らなかったと、<code>NoSession</code> は何も送っていないと伝えます。自動の再試行はありません。<code>Failure(NoSession)</code>（車がもう受け付けないキャッシュ済みセッション、A8.2）の後は、次のタップが新しいセッションを開始します。サンプルが自分で行うことはありません。</td></tr>
+<tr><td>起こすこと</td><td>この画面は <strong><code>wakeUp()</code> を決して呼ばず</strong>、「車を起こしません」ではなく「<code>wakeUp()</code> を呼びません」と書きます。Infotainment のハンドシェイクが眠っている車に何をするかは未確認だからです。</td></tr>
+<tr><td>眠っている車の実験</td><td>カテゴリを別に選べるボタンと、車が起きる可能性があると伝える確認ダイアログがあります。確認すると<strong>スリープ確認だけ</strong>を省きます: 接続と登録済みのキーは引き続き必要で、同じセッション手順を踏んで <code>getState</code> を 1 回送ります。<code>wakeUp()</code> は決して呼びません。記録を取りながら 1 回試す用途です。</td></tr>
+<tr><td>重なり</td><td>キーの入れ替え中や、他のタブ（Control、キー・制御）が呼び出しを行っている間は開始せず、問い合わせが動いている間はキーを入れ替えられません（<code>KeyOperationGate</code>）。問い合わせ中の 2 回目のタップは何もしません。</td></tr>
+<tr><td>接続の変更</td><td>結果とスリープ状態は、それを読んだ接続のものです。接続が変わると結果は消え、スリープ状態は <code>UNKNOWN</code> に戻り、古い接続から遅れて届いた結果は捨てます（表示も記録もしません）。</td></tr>
+</tbody>
+</table>
+<p>表示するフィールド。次の名前を付けたフィールドだけを読みます。<code>DriveState</code> にはルートや目的地のフィールドもありますが、アプリは読まず、<code>Location</code> のボタンもありません。ない値は <code>—</code>、<code>0</code> は <code>0</code> のままです（14 章 A8.3）。</p>
+<table>
+<thead><tr><th>カテゴリ</th><th>フィールド</th></tr></thead>
+<tbody>
+<tr><td>Drive</td><td><code>speed</code> と <code>speed_float</code>: 生の数値のあとに「（単位未確認）」を付け、km/h や mph には換算しません（A8.5）。<code>shift_state</code>（<code>ShiftState</code> の oneof で値のあるメンバー: <code>P</code>、<code>R</code>、<code>N</code>、<code>D</code>、<code>SNA</code>）。<code>power</code>。<code>odometer_in_hundredths_of_a_mile</code>（生の値）。<code>timestamp</code>（epoch 秒。新しい測定か繰り返しかを見分けるため、A8.3）。</td></tr>
+<tr><td>Media</td><td><code>media_playback_status</code>、<code>audio_volume</code>、<code>now_playing_title</code>（曲名は画面だけ）、<code>timestamp</code>。</td></tr>
+<tr><td>MediaDetail</td><td><code>now_playing_duration</code>、<code>now_playing_elapsed</code>、<code>timestamp</code>。曲名はここではなく <code>MediaState</code> にあります。</td></tr>
+</tbody>
+</table>
+<p>ログ。終わったタップごとに <code>query</code> 行を 1 本だけ残し、ほかは残しません: <code>call</code> は <code>getState(DRIVE)</code>、<code>getState(MEDIA)</code>、<code>getState(MEDIA_DETAIL)</code>、<code>result</code> は <code>Success</code>、<code>Uncertain</code>、<code>Failure</code>、<code>NotSent</code>、<code>summary</code> は <code>durationMs=&lt;n&gt;</code> に <code>error=&lt;種類&gt;</code> または <code>reason=&lt;理由&gt;</code> を付けたもの、<code>startedAt</code> はそのタップの最初のライブラリ呼び出しを始めた時刻です。<strong>値も、曲名も、フィールド名も</strong>ログには届きません（FR-112、14 章 A8.3「結果をログに残さない」）: ログ行はそれらを入れる場所のない小さな値（<code>StateLogEntry</code>）から作り、要約がログに行くサンプルの <code>record</code> ヘルパーは <code>getState</code> には使いません。エラーの種類はライブラリの型名（<code>ResponseTooLarge</code>、<code>Timeout(afterSend=true)</code>、<code>NoSession</code>、またはクラス名）で、<code>message</code> や車両が送った文は使いません。</p>
+<p>使うライブラリ呼び出しとマニュアルの章: <code>vehicleStatus(timeout: nil)</code>（14 章 A2）、<code>startSession(domains:timeout:)</code>（14 章 A8.2、15 章）、<code>getState(category:timeout:)</code> と <code>s.value as? VehicleData</code>、<code>KotlinInt?</code> の数値、<code>getEpochSecond()</code>（14 章 A8.3、17 章「Swift: 生成された型」）、結果の扱いとサイズエラー（16 章「<code>getState</code> の結果」「<code>getState</code> の応答サイズ制限」）。純粋なルール（<code>StateDiagnostics</code>）と画面状態（偽のリンクを使う <code>StateDiagnosticsModel</code>）は車両なしで単体テストします（<code>Tests/StateDiagnosticsTests.swift</code>）。実機確認リストは <code>samples/ios/README.md</code>（SFR-023）にあります。</p>
+<p><strong>状態:</strong> iOS ビルド済み（<code>0.5.0 (21)</code>）、単体テストは通過、実機確認待ち。Android: 予定、同じ仕様。</p>
+
 <h2 id="sec-bg">バックグラウンドでの動作</h2>
 <table>
 <thead><tr><th></th><th>Android</th><th>iOS</th></tr></thead>
@@ -106,6 +135,7 @@
 {<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"event"</span>,<span class="p">"type"</span>:<span class="s">"Status"</span>,<span class="p">"summary"</span>:<span class="s">"lock=LOCKED gear=PARK presence=NOT_PRESENT"</span>,<span class="p">"unknownFields"</span>:[<span class="s">"1.8"</span>],<span class="p">"unrecognized"</span>:<span class="n">true</span>,<span class="p">"raw"</span>:<span class="s">"&lt;hex&gt;"</span>}
 {<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"observe"</span>,<span class="p">"line"</span>:<span class="s">"[drop:no-handler] 83B from=domain(DOMAIN_VEHICLE_SECURITY) …"</span>}
 {<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"query"</span>,<span class="p">"call"</span>:<span class="s">"vehicleStatus"</span>,<span class="p">"result"</span>:<span class="s">"Success"</span>,<span class="p">"summary"</span>:<span class="s">"…"</span>,<span class="p">"startedAt"</span>:<span class="s">"…"</span>}
+{<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"query"</span>,<span class="p">"call"</span>:<span class="s">"getState(DRIVE)"</span>,<span class="p">"result"</span>:<span class="s">"Uncertain"</span>,<span class="p">"summary"</span>:<span class="s">"durationMs=5012 error=Timeout(afterSend=true)"</span>,<span class="p">"startedAt"</span>:<span class="s">"…"</span>}
 {<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"link"</span>,<span class="p">"state"</span>:<span class="s">"backoff"</span>,<span class="p">"reason"</span>:<span class="s">"…"</span>,<span class="p">"attempt"</span>:<span class="n">3</span>,<span class="p">"delayMs"</span>:<span class="n">8000</span>}
 {<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"mark"</span>,<span class="p">"memo"</span>:<span class="s">"before: open driver door"</span>}
 {<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"app"</span>,<span class="p">"event"</span>:<span class="s">"scenePhase"</span>,<span class="p">"phase"</span>:<span class="s">"background"</span>}
@@ -116,7 +146,7 @@
 <tbody>
 <tr><td><code>event</code></td><td>車からのブロードキャスト：その種類（<code>Status</code>、<code>AuthenticationRequest</code>、<code>Unrecognized</code>）、要約、ライブラリが認識しなかったフィールド番号、未認識の内容を示すフラグ、16 進数の生のバイト列</td></tr>
 <tr><td><code>observe</code></td><td>ライブラリの観察行（ライブラリがすでにマスク済み）。生の BLE の <code>TX:</code>/<code>RX:</code> 行は書き込まれません</td></tr>
-<tr><td><code>query</code></td><td>Query タブの結果</td></tr>
+<tr><td><code>query</code></td><td>Query タブの結果（ポーリング、iOS は状態診断のタップも）</td></tr>
 <tr><td><code>link</code></td><td>接続中、接続済み、切断、再試行待ち、停止</td></tr>
 <tr><td><code>mark</code></td><td>Mark ボタンで残したメモ</td></tr>
 <tr><td><code>app</code></td><td>今のところ iOS のみ: リンク周りのアプリと端末の状態（画面の状態、端末のロック、接続の試行を始めた理由）</td></tr>
@@ -127,6 +157,7 @@
 <li><code>event.summary</code> は <code>lock=… gear=… presence=…</code> で始まり、<code>Status</code> ではその後に <code>sleep=…</code>、<code>doors=FD/FP/RD/RP</code>、<code>frunk=…</code>、<code>trunk=…</code>、<code>chargePort=…</code> が続きます。<code>AuthenticationRequest</code> は <code>level=… reasons=[…]</code>、<code>Unrecognized</code> は <code>unknownFields=[…]</code> です。</li>
 <li><code>link</code>: 該当しない <code>reason</code>、<code>attempt</code>、<code>delayMs</code> は書きません。<code>connecting.attempt</code> は開始、またはリンクが切れてからの試行回数です。<code>backoff.attempt</code> は連続失敗の回数（リンクが切れたこともその 1 回目として数えます）で、<code>delayMs</code> は次の試行までの待ち時間なので、待ち時間は 2000、4000、8000、16000、30000、30000 と並びます。リンクが切れると <code>disconnected</code> の行（ライブラリが理由を返したときはその理由つき）を書き、続けて <code>backoff</code> の行を書きます。10 秒以上続いた接続は、待ち時間を再び 2 秒から始めます。</li>
 <li><code>vehicleStatus</code> の <code>query.summary</code> は <code>Status</code> イベントの要約と同じ形式です。公開鍵も VIN も含みません。</li>
+<li><code>call</code> が <code>getState(&lt;CATEGORY&gt;)</code> の <code>query</code> 行（iOS のみ、SFR-023、<a href="#sec-state">状態診断</a>）は、ポーリングではなく手動のタップから出ます。<code>result</code> は <code>Success</code>、<code>Uncertain</code>、<code>Failure</code>、<code>NotSent</code> で、<code>summary</code> は <code>durationMs=&lt;n&gt;</code>、<code>Success</code> 以外では <code>error=&lt;種類&gt;</code> または <code>reason=&lt;理由&gt;</code> です。値は決して載せません。</li>
 </ul>
 <h3>ビルド 18 以降の追加（iOS のみ）</h3>
 <p>issue #128 とビルド 18 のリンク状態分析からの変更です。新しいフィールドは行末に足し、新しい行は新しい <code>kind</code> を使うので、未知のキーと kind を無視するパーサーはそのまま動きます。Android はまだ書きません。Android アプリを揃えるまで、ここに差があります。</p>
@@ -201,6 +232,7 @@
 <tr><td><code>KeyNickname.swift</code>、<code>Tests/KeyNicknameTests.swift</code></td><td>ローカルのキーニックネーム（SFR-019、<a href="#sec-nickname">キーのニックネーム</a>）: <code>KeyNickname</code>（削る、32 文字の確認、入力の切り詰め）と <code>KeyNicknameStore</code>（注入した <code>UserDefaults</code> への保存、取得、削除）。純粋なロジックで、単体テストします。コントロールタブのキー一覧（<code>SampleModel.swift</code>、<code>Views/ControlTab.swift</code>）が表示と編集を行います。</td></tr>
 <tr><td><code>KeyReplacement.swift</code>、<code>Tests/KeyReplacementTests.swift</code></td><td>モニターキーの削除と再作成（SFR-020、<a href="05-key-control-tab.html#sec-replace">5. キー＆コントロールタブ</a>）: <code>KeyReplacer</code>（順序、ロックと失敗の規則）、<code>KeyReplaceOutcome</code>、確認の文言。純粋なロジックで、単体テストします。<code>MonitorEngine.replaceKey()</code> が <code>ble.keys</code> に対して実行します。</td></tr>
 <tr><td><code>EnrollmentProgress.swift</code>、<code>Tests/EnrollmentPopupTests.swift</code></td><td>登録の進行ポップアップ（SFR-021、<a href="05-key-control-tab.html#sec-popup">5. キー＆コントロールタブ</a>）: <code>EnrollmentUpdate</code>（<code>BleClient.pair</code> が知らせること）と <code>EnrollmentPopup</code>（段階、行、文言、ボタン、残り時間）。純粋なロジックで、単体テストします。</td></tr>
+<tr><td><code>StateDiagnostics.swift</code>、<code>Tests/StateDiagnosticsTests.swift</code></td><td>状態診断（SFR-023、<a href="#sec-state">状態診断</a>）: 純粋なルール（<code>StateDiagnostics</code>: ボタンのオン条件、値の文言、<code>StateOutcome</code> の文、<code>StateLogEntry</code>）、ライブラリとの継ぎ目 <code>StateLink</code> / <code>StateDiagnosticsBackend</code>、そして <code>StateDiagnosticsModel</code>（問い合わせは一度に 1 つ、遅れた結果は捨てる、キー操作中は拒否）。<code>MonitorEngine.swift</code> に実物の <code>StateLink</code>（<code>vehicleStatus</code>、<code>startSession</code>、<code>getState</code>）があり、<code>VehicleMapping.swift</code> が <code>VehicleData</code> を名前付きのフィールドに変え、<code>Views/QueryTab.swift</code> が描画します。</td></tr>
 <tr><td><code>KeyControlBackend.swift</code>、<code>Tests/KeyControlModelTests.swift</code>、<code>Tests/KeyOperationGateTests.swift</code></td><td><code>KeyControlBackend</code>: <code>KeyControlModel</code> がライブラリとエンジンに頼むすべて（テストでは偽物）。<code>KeyOperationGate</code> と <code>KeyHandleCache</code> がタブをまたいでキーの置き換えを守ります（<code>KeyReplacement.swift</code>）。</td></tr>
 <tr><td><code>KeyControl.swift</code>、<code>KeyControlModel.swift</code>、<code>Views/KeyControlTab.swift</code></td><td>キー＆コントロールタブ（<a href="05-key-control-tab.html">5. キー＆コントロールタブ</a>）。純粋なステップ規則とコマンド実行部、タブの状態と画面。ライブラリの呼び出しは <code>BleClient</code> を通ります。</td></tr>
 <tr><td><code>ContentView.swift</code>、<code>Views/</code></td><td>Live、Query、Log、Control、キー＆コントロールを持つ <code>TabView</code>。<code>isIdleTimerDisabled</code> は <code>scenePhase == .active</code> に従います。</td></tr>
@@ -214,6 +246,7 @@
 <tr><td><code>vehicle.connection</code>（<code>for await</code>、<code>.disconnected</code> になるまで待つ）</td><td><code>MonitorEngine.awaitLoss</code></td><td>12 章「次のステップ」、14 章「接続とセッションの状態」</td></tr>
 <tr><td>専用の Task で収集する <code>vehicle.events</code>（<code>for await</code>、<code>onEnum(of:)</code>）。<code>raw</code> は一度だけ読み、保存する前にマスクします</td><td><code>MonitorEngine.collectEvents</code>、<code>MonitorEvent.init</code></td><td>12 章「ブロードキャストイベント」、14 章 B2、B2.4</td></tr>
 <tr><td>30 秒ごとに <code>vehicleStatus(timeout: nil)</code>、<code>keySummary(timeout: nil)</code>、<code>listKeys(timeout: nil)</code>、<code>sessions</code>。<code>Uncertain</code> と <code>Failure</code> はそのまま表示します</td><td><code>MonitorEngine.runQueries</code></td><td>14 章「4 つのクエリ」、16 章「3 つの結果」</td></tr>
+<tr><td>ボタンのタップ時に <code>vehicleStatus(timeout: nil)</code>、<code>startSession(domains: [.infotainment], timeout: nil)</code>、<code>getState(category:timeout:)</code> をこの順に 1 回ずつ、再試行なし、<code>wakeUp()</code> なし</td><td><code>LiveStateLink</code>（<code>MonitorEngine.swift</code>）</td><td>14 章 A2、A8.1〜A8.3、A8.5、16 章「getState の結果」、17 章「Swift: 生成された型」</td></tr>
 <tr><td><code>"teslable-monitor"</code>、<code>.preferHardware</code>、<code>.afterFirstUnlock</code> を指定した <code>keys.getOrCreate(alias:policy:accessibility:)</code>。<code>VehicleErrorKeyStoreErrorLocked</code> なら待って再試行し、キーは消しません</td><td><code>MonitorEngine.ensureKey</code></td><td>13 章「スマートフォンのロック中にキーを使う」、16 章「Bluetooth とキーストアのエラー」</td></tr>
 <tr><td><code>TeslaLogger</code>（タグ <code>observe</code>）</td><td><code>ObserveLogger</code></td><td>18 章「観察ログ（開発用）」</td></tr>
 <tr><td><code>Vin.companion.parseOrNull</code>、<code>scan</code>、<code>addKeyRequest</code>、<code>sessionInfo</code>、<code>startSession</code>、VCSEC コマンド、<code>removeKey</code></td><td>Control タブとキー＆コントロールタブ（<code>BleClient</code>）</td><td>12、13、15、16 章</td></tr>
