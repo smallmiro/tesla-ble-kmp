@@ -600,27 +600,33 @@ final class MonitorEngine: @unchecked Sendable {
         emit.yield(.sessions(sessionsText(vehicle)))
     }
 
-    private func record(_ call: String, _ query: () async throws -> VehicleResult, summarize: (Any?) -> String) async {
+    /// 성공했을 때만 값을 돌려준다(`Uncertain`, `Failure`, 취소는 nil).
+    @discardableResult
+    private func record(_ call: String, _ query: () async throws -> VehicleResult, summarize: (Any?) -> String) async -> Any? {
         let outcome: String
         let summary: String
+        var success: Any?
         do {
             let result = try await query()
             switch onEnum(of: result) {
-            case .success(let s): (outcome, summary) = ("Success", summarize(s.value))
+            case .success(let s):
+                (outcome, summary) = ("Success", summarize(s.value))
+                success = s.value
             case .uncertain(let u): (outcome, summary) = ("Uncertain", u.error.message)
             case .failure(let f): (outcome, summary) = ("Failure", f.error.message)
             }
         } catch {
-            if Task.isCancelled { return } // 연결이 끝나서 취소된 조회는 기록하지 않는다
+            if Task.isCancelled { return nil } // 연결이 끝나서 취소된 조회는 기록하지 않는다
             (outcome, summary) = ("Failure", "\(error)")
         }
-        if Task.isCancelled { return } // 연결이 끝나는 중에 끝난 조회는 새 연결의 기록과 섞지 않는다
+        if Task.isCancelled { return nil } // 연결이 끝나는 중에 끝난 조회는 새 연결의 기록과 섞지 않는다
         let next = lock.withLock { () -> [String: QueryResult] in
             queries[call] = QueryResult(call: call, outcome: outcome, at: Date(), summary: summary)
             return queries
         }
         emit.yield(.queries(next))
         log.write(LogLine.query(ts: log.stamp(), call: call, result: outcome, summary: summary))
+        return success
     }
 
     /// 도메인별 세션 상태 한 줄.
