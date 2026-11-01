@@ -162,7 +162,10 @@ final class MonitorEngine: @unchecked Sendable {
 
     private let defaults: UserDefaults
     private let lock = NSLock()
-    private var key: VehicleKey?
+    /// 모니터 키 핸들. 키를 바꾸는 중에는 문(`keyGate`)과 세대(`KeyHandleCache.epoch`)가 지워질 옛 키를 막는다.
+    private let keyCache = KeyHandleCache<VehicleKey>()
+    /// 키를 쓰는 동작과 키 교체를 서로 막는다(Control 탭의 동작, Live/Control 탭의 연결 포함).
+    let keyGate = KeyOperationGate()
     private var live = LiveState()
     private var queries: [String: QueryResult] = [:]
     private var eventsTask: Task<(), Never>?
@@ -223,13 +226,14 @@ final class MonitorEngine: @unchecked Sendable {
 
     /// 저장된 VIN 이 있으면 연결을 시작한다. 이 프로세스에서 아직 아무것도 시작하지 않았을 때만(앱 시작 자동 연결, SFR-011).
     func autoConnectIfSaved() {
-        if loop.state == .idle, parsedVin() != nil { loop.start() }
+        if loop.state == .idle, !keyGate.isReplacing, parsedVin() != nil { loop.start() }
     }
 
     /// 연결 버튼. 기다리지 않고 바로 시도한다. VIN 이 없거나 형식이 틀리면 `false`.
     @discardableResult
     func connectNow() -> Bool {
-        guard parsedVin() != nil else { return false }
+        // 키를 바꾸는 중에는 연결을 시작하지 않는다(옛 키 핸들로 연결되면 안 된다). 교체가 끝나면 스스로 다시 연결한다.
+        guard !keyGate.isReplacing, parsedVin() != nil else { return false }
         loop.start()
         return true
     }
@@ -239,7 +243,7 @@ final class MonitorEngine: @unchecked Sendable {
 
     /// 폰이 잠금 해제되면 기다리던 재연결을 바로 시도한다(키 저장소가 `Locked` 였을 때). 멈춘 상태는 건드리지 않는다.
     func protectedDataBecameAvailable() {
-        if case .backoff = loop.state { loop.start() }
+        if case .backoff = loop.state, !keyGate.isReplacing { loop.start() }
     }
 
     /// VIN 을 저장한다. 형식이 틀리면 `false`.
@@ -284,7 +288,7 @@ final class MonitorEngine: @unchecked Sendable {
         return nil
     }
 
-    func currentKey() -> VehicleKey? { lock.withLock { key } }
+    func currentKey() -> VehicleKey? { keyCache.get() }
 
     enum KeyOutcome {
         case ready(VehicleKey)
@@ -294,7 +298,15 @@ final class MonitorEngine: @unchecked Sendable {
 
     /// 모니터 키를 읽거나 만든다. 접근성은 만들 때 정해진다(`13-lib-pairing.md` §Key accessibility). `Locked` 이면 키를 지우거나 다시 만들지 않는다.
     func ensureKey() async -> KeyOutcome {
+        // 키를 바꾸는 중에는 읽지도 만들지도 않는다: 지워질 키가 캐시에 오르거나 지운 자리에 키가 만들어지면 안 된다.
+        if keyGate.isReplacing { return .failed("키를 바꾸는 중입니다. 끝난 뒤 다시 하세요") }
+        return await readOrCreateKey()
+    }
+
+    /// `ensureKey()` 본체. 키 교체가 자기 안에서 새 키를 만들 때도 쓴다.
+    private func readOrCreateKey() async -> KeyOutcome {
         if let existing = currentKey() { return .ready(existing) }
+        let epoch = keyCache.epoch
         do {
             let result = try await ble.keys.getOrCreate(alias: Self.monitorKeyAlias, policy: .preferHardware, accessibility: .afterFirstUnlock)
             switch onEnum(of: result) {
@@ -303,7 +315,8 @@ final class MonitorEngine: @unchecked Sendable {
                     emit.yield(.key(KeyStatus(text: "키 오류: 예상하지 못한 결과 형식", state: .error)))
                     return .failed("예상하지 못한 결과 형식")
                 }
-                lock.withLock { key = k }
+                // 읽는 사이에 키 교체가 핸들을 버렸으면(세대가 바뀜) 이 키는 지워질 것이라 캐시에 올리지 않는다.
+                guard keyCache.set(k, ifEpoch: epoch) else { return .failed("키가 바뀌는 중이라 읽은 키를 쓰지 않았습니다") }
                 emit.yield(.key(describe(k)))
                 return .ready(k)
             case .failure(let f):
@@ -333,31 +346,38 @@ final class MonitorEngine: @unchecked Sendable {
     /// 잠겨 있으면 아무것도 하지 않고, 쓰던 연결은 먼저 끊고(세션 캐시가 옛 키 것이다), 지우기가 실패하면 새 키를 만들지 않는다.
     /// 접근성(`afterFirstUnlock`)·보호(`preferHardware`)는 `ensureKey()` 가 만들 때 쓰는 값 그대로다. 연결을 쓰던 중이었으면 새 키로 다시 연결한다.
     func replaceKey() async -> KeyReplaceOutcome {
-        let wasActive: Bool
-        switch loop.state {
-        case .idle, .stopped: wasActive = false
-        case .connecting, .connected, .backoff: wasActive = true
-        }
+        // 다른 탭의 등록·명령이 도는 동안, 또는 이미 바꾸는 중이면 시작하지 않는다.
+        guard keyGate.beginReplace() else { return .busy }
+        defer { keyGate.endReplace() }
         return await KeyReplacer.run(
-            wasActive: wasActive,
+            wasActive: KeyReplacer.isActive(loop.state),
             probe: { await self.readStoredKey().probe },
-            disconnect: { await self.loop.stop() },
+            disconnect: {
+                await self.loop.stop()
+                // 끊는 사이에 (문이 닫히기 전에 눌린) 연결이 남았는지 본다.
+                return !KeyReplacer.isActive(self.loop.state)
+            },
             forgetHandle: {
-                self.lock.withLock { self.key = nil }
+                self.keyCache.forget()
                 self.emit.yield(.key(KeyStatus(text: "키 삭제 중", state: .none)))
             },
             delete: { await self.deleteStoredKey() },
             create: {
-                switch await self.ensureKey() {
+                switch await self.readOrCreateKey() {
                 case .ready: return .created
                 case .locked: return .locked
                 case .failed(let why): return .failed(why)
                 }
             },
             restore: { await self.restoreStoredKey() },
-            reconnect: { _ = self.connectNow() }
+            reconnect: {
+                // 새 키가 캐시에 있다. 문을 풀고 연결한다(연결 루프의 `ensureKey()` 가 이제 통과한다).
+                self.keyGate.endReplace()
+                if self.parsedVin() != nil { self.loop.start() }
+            }
         )
     }
+
 
     private static let corruptedKeyText = "키 손상: 저장된 키를 읽을 수 없습니다. 키·제어 탭의 '키 삭제 후 다시 만들기'로 복구하세요(옛 키는 복구할 수 없음)"
 
@@ -407,7 +427,7 @@ final class MonitorEngine: @unchecked Sendable {
         switch read.probe {
         case .present:
             if let k = read.key {
-                lock.withLock { key = k }
+                _ = keyCache.set(k, ifEpoch: keyCache.epoch)
                 emit.yield(.key(describe(k)))
             }
         case .absent:
@@ -434,6 +454,7 @@ final class MonitorEngine: @unchecked Sendable {
 
     private func attemptConnect() async -> ConnectOutcome<VehicleBox> {
         guard let vin = parsedVin() else { return .failed("저장된 VIN이 없거나 형식이 틀립니다") }
+        if keyGate.isReplacing { return .failed("키를 바꾸는 중입니다") }
         let outcome = await ensureKey()
         // Locked 면 기다렸다가 다시 읽는다(백오프). 그 밖의 키 오류는 키 없이 연결한다: 방송과 조회는 키가 필요 없다(14 B2.4).
         if case .locked = outcome { return .failed("키 저장소가 잠겨 있습니다(폰 잠금 해제 대기)") }
