@@ -43,7 +43,7 @@
 
 <div class="callout warn">
 <strong>Android와 iOS 구현 완료, 실기기 확인 대기</strong>
-<p>Android 앱(빌드 <code>0.3.0 (3)</code>)과 iOS 앱(빌드 <code>0.5.0 (16)</code>)은 구현되어 있고 단위 테스트를 통과했으며, 둘 다 실차 확인을 기다립니다. iOS의 백그라운드 재연결은 계획 Task 2 스파이크 전까지 확인되지 않았습니다. 필요한 라이브러리 API를 모두 쓸 수 있습니다: <code>Vehicle.events</code>(라이브러리 매뉴얼 12장 "브로드캐스트 이벤트", 14장 B2)와 iOS의 키 접근성 선택(13장 "휴대폰이 잠겨 있을 때 키 쓰기", FR-037).</p>
+<p>Android 앱(빌드 <code>0.3.0 (3)</code>)과 iOS 앱(빌드 <code>0.5.0 (17)</code>)은 구현되어 있고 단위 테스트를 통과했으며, 둘 다 실차 확인을 기다립니다. iOS의 백그라운드 재연결은 계획 Task 2 스파이크 전까지 확인되지 않았습니다. 필요한 라이브러리 API를 모두 쓸 수 있습니다: <code>Vehicle.events</code>(라이브러리 매뉴얼 12장 "브로드캐스트 이벤트", 14장 B2)와 iOS의 키 접근성 선택(13장 "휴대폰이 잠겨 있을 때 키 쓰기", FR-037).</p>
 </div>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
@@ -65,7 +65,7 @@
 <tr><td>SFR-011</td><td>VIN은 한 번 입력하면 저장되며, 지우는 버튼이 있습니다. 저장된 VIN이 있는 상태로 앱을 시작하면 스스로 스캔하고 연결합니다. <strong>Connect</strong> 버튼은 항상 즉시 시도합니다.</td></tr>
 <tr><td>SFR-012</td><td>연결이 끊어지면 앱은 이전 연결을 해제하고 다시 연결합니다. 처음에는 2초를 기다리고 30초까지 두 배씩 늘리며, 백그라운드에서도 동작합니다. <strong>Disconnect</strong>는 Connect를 누를 때까지 자동 재연결을 멈춥니다.</td></tr>
 <tr><td>SFR-013</td><td>앱이 화면에 보이는 동안 화면이 꺼지지 않습니다.</td></tr>
-<tr><td>SFR-014</td><td>Live 탭: 가장 최근 상태 브로드캐스트의 잠금, 기어, 탑승 여부, 절전, 네 개의 문, 프렁크, 트렁크, 충전 포트를 각각 마지막으로 <em>변경된</em> 시각과 함께 표시합니다(같은 값을 다시 받은 것은 변경이 아닙니다). 인증 요청을 포함한 최근 이벤트 목록. 연결 배너. 트렁크는 브로드캐스트를 보내지 않을 수 있다는 안내.</td></tr>
+<tr><td>SFR-014</td><td>Live 탭: 가장 최근 상태 브로드캐스트의 잠금, 기어, 탑승 여부, 절전, 네 개의 문, 프렁크, 트렁크, 충전 포트를 각각 마지막으로 <em>변경된</em> 시각과 함께 표시합니다(같은 값을 다시 받은 것은 변경이 아닙니다). 인증 요청을 포함한 최근 이벤트 목록. 연결 배너. 트렁크는 브로드캐스트를 보내지 않을 수 있다는 안내. iOS의 Live 탭은 클러스터로 그리고(SFR-022), 이 항목들은 상세 시트에 있습니다.</td></tr>
 <tr><td>SFR-015</td><td>Query 탭: <code>vehicleStatus()</code>, <code>keySummary()</code>, <code>listKeys()</code>를 30초마다(조정 가능) 읽고 세션 상태를 표시합니다. 각 결과는 성공, 불확실, 실패 여부와 시각을 보여 줍니다. "지금 조회" 버튼.</td></tr>
 <tr><td>SFR-016</td><td>Log 탭과 로그 파일: 모든 기록을 JSON Lines 파일에 씁니다. 메모 입력란과 <strong>Mark</strong> 버튼으로 곧 하려는 동작을 기록합니다. 탭에는 개수, 인식하지 못한 이벤트 수, 마지막 줄들, 파일 위치가 표시되고, 새 파일을 시작할 수 있습니다.</td></tr>
 <tr><td>SFR-017</td><td><code>tools/samples/pull-monitor-logs.sh android|ios</code>는 케이블로 연결한 휴대폰에서 로그를 git이 무시하는 <code>samples/logs/&lt;platform&gt;/&lt;date&gt;/</code>로 복사합니다.</td></tr>
@@ -88,7 +88,7 @@
 </tbody>
 </table>
 <p>규칙은 작은 순수 타입입니다(<code>KeyNickname</code>: 자르기, 길이 확인, 제한. <code>KeyNicknameStore</code>: 주입한 <code>UserDefaults</code>에 저장, 조회, 삭제). 차량 없이 단위 테스트합니다(<code>Tests/KeyNicknameTests.swift</code>). 화면은 <code>samples/ios/README.md</code>의 실기기 확인 목록으로 확인합니다(SFR-019).</p>
-<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (16)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 예정, 같은 스펙.</p>
+<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (17)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 예정, 같은 스펙.</p>
 
 <h2 id="sec-bg">백그라운드 실행</h2>
 <table>
@@ -181,6 +181,7 @@
 <tr><td><code>ConnectionLoop.swift</code></td><td>상태 기계 <code>idle</code>, <code>connecting(n)</code>, <code>connected(V)</code>, <code>backoff(attempt:delay:reason:)</code>, <code>stopped</code>. 라이브러리를 전혀 모르며, 시계와 sleeper를 바꿔 끼울 수 있습니다(테스트는 수동 시계를 씁니다).</td></tr>
 <tr><td><code>LogLine.swift</code>, <code>LogWriter.swift</code>, <code>VinMask.swift</code></td><td>로그 줄 형식, 자체 직렬 큐에서 <code>LogSink</code> 프로토콜 뒤에 있는 파일 쓰기, VIN 가리기.</td></tr>
 <tr><td><code>LiveState.swift</code></td><td>이벤트를 Live 탭 상태(항목별 마지막으로 바뀐 시각)로 바꿉니다.</td></tr>
+<tr><td><code>ClusterState.swift</code>, <code>Tests/ClusterStateTests.swift</code></td><td><code>LiveState</code>와 연결 상태를 SFR-022의 클러스터 값으로 바꿉니다: 기어, <code>ClusterPart</code>별 닫힘 상태(<code>CLOSED</code>만 닫힘), 문구, 어둡게 표시, 머리글. <code>Views/LiveTab.swift</code>는 <code>ClusterCar*</code> 이미지(400×760 캔버스의 SVG 8개)를 겹쳐 그립니다.</td></tr>
 <tr><td><code>VehicleMapping.swift</code></td><td><code>VehicleEvent</code>와 <code>VehicleStatus_</code>를 Swift 값(<code>MonitorEvent</code>, <code>StatusSnapshot</code>)으로 바꾸는 유일한 곳입니다. <code>VehicleBox</code>는 <code>Vehicle</code>을 Task 사이에서 전달합니다.</td></tr>
 <tr><td><code>SampleModel.swift</code>, <code>Views/ControlTab.swift</code></td><td>모니터의 연결과 키를 쓰는 Control 탭(예전의 단일 화면).</td></tr>
 <tr><td><code>KeyNickname.swift</code>, <code>Tests/KeyNicknameTests.swift</code></td><td>로컬 키 별명(SFR-019, <a href="#sec-nickname">키 별명</a>): <code>KeyNickname</code>(자르기, 32자 확인, 입력 제한)과 <code>KeyNicknameStore</code>(주입한 <code>UserDefaults</code>에 저장, 조회, 삭제). 순수 로직이며 단위 테스트합니다. Control 탭 키 목록(<code>SampleModel.swift</code>, <code>Views/ControlTab.swift</code>)이 이를 보여 주고 편집합니다.</td></tr>

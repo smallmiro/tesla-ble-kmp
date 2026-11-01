@@ -38,8 +38,8 @@ Control tab (the former single screen):
 
 ## iOS (`samples/ios`)
 
-The monitor app (`04-monitor-app.md`, SFR-010 to SFR-021): five tabs, one monitor object for the app's lifetime. Build
-`0.5.0 (16)`; unit tests pass, real-device check pending.
+The monitor app (`04-monitor-app.md`, SFR-010 to SFR-022): five tabs, one monitor object for the app's lifetime. Build
+`0.5.0 (17)`; unit tests pass, real-device check pending.
 
 - XcodeGen project (`project.yml`), schemes `TeslableSample` (simulator) and `TeslableSampleDevice` (device).
   `Info.plist` gets `UIBackgroundModes: [bluetooth-central]`, `UIFileSharingEnabled` and
