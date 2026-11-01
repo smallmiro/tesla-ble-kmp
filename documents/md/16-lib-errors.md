@@ -63,7 +63,7 @@ should do.
 
 | Error | Meaning | temporary | App action |
 |---|---|---|---|
-| `TransportError.ScanTimeout` | No advertisement found in time | true | Check the vehicle is in range, try again |
+| `TransportError.ScanTimeout` | The connection did not complete within its deadline, with no failed attempt. `ScanTimeout` does not prove that no advertisement was found: a `[connect:scan-hit]` observation line confirms discovery (`18-lib-troubleshooting.md`) | true | Check the vehicle is in range, try again |
 | `TransportError.MaxConnectionsExceeded` | The vehicle already has 3 BLE connections | false | Disconnect another device, try again |
 | `TransportError.ConnectFailed(cause)` | Connect, service discovery or subscription failed | true | Retry after a moment |
 | `TransportError.Disconnected` | BLE link dropped | false | `Vehicle.disconnect()`, then a new `connect` |

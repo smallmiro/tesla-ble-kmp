@@ -20,6 +20,7 @@ and `ja/` in the same PR (AGENTS.md §3 rule 13).
 | Broadcast events `vehicle.events` (`Flow<VehicleEvent>`) and `VehicleStatus.gear` (FR-035, FR-036; issue #91, ahead of M5) | Done (the broadcasts were observed on a real car; the `events` API itself is checked with FakeVehicle tests, real-vehicle check pending) | `14-lib-reading-state.md` B2, `12-lib-getting-started.md` |
 | Key accessibility for a locked iPhone: `KeyAccessibility`, `VehicleKey.accessibility`, `getOrCreate(alias, policy, accessibility)`, `KeyStoreError.Locked` (FR-037, ADR-0014; issue #91). `startSession()` also returns `Locked`, without retrying, when the phone lock blocks a key read earlier, and that cache restore keeps the cache (issue #96) | Done (unit tests with fakes; the Keychain round trip, the Secure Enclave error on a locked iPhone and use on a locked iPhone are checked later on a device) | `13-lib-pairing.md` §Key accessibility, `16-lib-errors.md`, `17-lib-platform-notes.md` §Key storage |
 | Infotainment state query `getState(category)`, 12 categories (FR-033, #115, #116; ahead of the rest of M5) | Done (checked with FakeVehicle tests; real-vehicle check pending, #118) | `14-lib-reading-state.md` A8, `16-lib-errors.md` §`getState` results |
+| Connect scan observation `Vehicle.scanObservation` (`ConnectScanObservation`: time to the scan hit, RSSI, open attempt) and the `[connect:scan-hit]` observation log line (FR-038, #134, not part of M5) | Done (checked with fake connector tests; real-vehicle check pending) | `12-lib-getting-started.md` §Connect scan observation, `18-lib-troubleshooting.md` §Observation log (development) |
 | Infotainment control and `ping()` (M5) | **Not implemented** | `15-lib-commands.md` |
 | Packaging: GitHub Packages + Swift Package Manager (M6) | **Not implemented** | this page, "Installation" |
 
@@ -58,6 +59,7 @@ Not published yet (M6 adds GitHub Packages + SPM). Build from source:
 | Map a `VehicleError` to app behaviour, understand retries | `16-lib-errors.md` |
 | Android permissions, iOS `Info.plist`, backup rules, session cache location | `17-lib-platform-notes.md` |
 | Diagnose scan, connect, pairing or session problems | `18-lib-troubleshooting.md` |
+| Find out when `connect` found the car and how strong the signal was | `12-lib-getting-started.md` §Connect scan observation, `18-lib-troubleshooting.md` §Observation log (development) |
 | Change library internals (modules, dispatcher, cache) | `19-lib-architecture.md`, then `docs/sdd/SDD.md` |
 
 ## File list

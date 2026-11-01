@@ -77,6 +77,7 @@
 <tr><td>Broadcast events <code>vehicle.events</code> (<code>VehicleEvent</code>) and <code>VehicleStatus.gear</code></td><td>#91 (before M5)</td><td><span class="badge ok">Done</span> the broadcasts were seen on a real car; the <code>events</code> API itself is checked with FakeVehicle tests, real-vehicle check pending</td><td><a href="14-lib-reading-state.html#sec-b-library">14</a>, <a href="12-lib-getting-started.html#sec-events">12</a></td></tr>
 <tr><td>Key accessibility for a locked iPhone: <code>KeyAccessibility</code>, <code>VehicleKey.accessibility</code>, <code>KeyStoreError.Locked</code>; <code>startSession()</code> also returns <code>Locked</code>, without retrying, when the phone lock blocks a key read earlier, and the saved session is kept (#96)</td><td>#91 (before M5)</td><td><span class="badge ok">Done</span> checked with unit tests and fakes; the Keychain round trip, the Secure Enclave error on a locked iPhone and use on a locked iPhone are checked later on a device</td><td><a href="13-lib-pairing.html#sec-accessibility">13</a>, <a href="16-lib-errors.html">16</a>, <a href="17-lib-platform-notes.html#sec-keys">17</a></td></tr>
 <tr><td>Infotainment state query <code>getState(category)</code>, 12 categories</td><td>M5 (ahead of the rest)</td><td><span class="badge ok">Done</span> checked with FakeVehicle tests; real-vehicle check pending (#118)</td><td><a href="14-lib-reading-state.html#sec-a-getstate">14</a>, <a href="16-lib-errors.html#sec-getstate">16</a></td></tr>
+<tr><td>Connect scan observation <code>Vehicle.scanObservation</code> (time to the scan hit, signal strength, open attempt) and the <code>[connect:scan-hit]</code> observation log line (FR-038)</td><td>#134 (not part of M5)</td><td><span class="badge ok">Done</span> checked with fake connector tests; real-vehicle check pending</td><td><a href="12-lib-getting-started.html#sec-scan-observation">12</a>, <a href="18-lib-troubleshooting.html#sec-observe">18</a></td></tr>
 <tr><td>Infotainment control and <code>ping()</code></td><td>M5</td><td><span class="badge warn">Planned</span></td><td><a href="15-lib-commands.html">15</a></td></tr>
 <tr><td>Packages: GitHub Packages and Swift Package Manager</td><td>M6</td><td><span class="badge warn">Planned</span></td><td><a href="#sec-install">Installation</a></td></tr>
 </tbody>
@@ -118,6 +119,7 @@
 <tr><td>Decide what to do with an error</td><td><a href="16-lib-errors.html">16. Error Handling</a></td></tr>
 <tr><td>Set up permissions, <code>Info.plist</code> and backup rules</td><td><a href="17-lib-platform-notes.html">17. Platform Notes</a></td></tr>
 <tr><td>Find out why scanning, connecting or a key fails</td><td><a href="18-lib-troubleshooting.html">18. Troubleshooting</a></td></tr>
+<tr><td>Find out when <code>connect</code> found the car and how strong the signal was</td><td><a href="12-lib-getting-started.html#sec-scan-observation">12. Getting Started</a>, <a href="18-lib-troubleshooting.html#sec-observe">18. Troubleshooting</a></td></tr>
 <tr><td>Change the library itself</td><td><a href="19-lib-architecture.html">19. Architecture</a></td></tr>
 </tbody>
 </table>

@@ -177,9 +177,11 @@ public interface Transport {                              // connector.Connector
     public val state: StateFlow<TransportState>           // Connected / Disconnected(reason)
     public val retryInterval: Duration                    // BLE 1s
     public val allowedLatency: Duration                   // BLE 4s
+    public val scanObservation: ConnectScanObservation? get() = null  // FR-038. 이 링크를 연 광고에 대해 연결 호출이 본 값. 원본에 없음
     public suspend fun send(message: ByteArray): VehicleResult<Unit>  // 값으로(ADR-0006). Uncertain = 차량이 받았을 수 있음
     public suspend fun close()                            // 멱등
 }
+public data class ConnectScanObservation(val hitAfterMillis: Long, val rssi: Int?, val openAttempt: Int)   // FR-038. 광고 이름·기기 식별자 없음(FR-112). Long은 Swift용(non-null Duration은 내부 표현 그대로 Int64)
 public interface TransportFactory {
     public fun scan(localName: LocalName): Flow<ScanEvent>   // Found(VehicleAdvertisement(localName, identifier, rssi, isConnectable?)) | Failed(TransportError) — 오류도 값(설계 구체화 1)
     public suspend fun connect(vin: Vin, target: VehicleAdvertisement?, options: ConnectOptions): VehicleResult<Transport>
@@ -281,6 +283,7 @@ public interface Vehicle {
     public val connection: StateFlow<TransportState>                                // Connected / Disconnected(reason). 링크 손실 뒤에도 disconnect()를 불러야 세션 키·스코프가 풀린다
     public val sessions: StateFlow<Map<VehicleDomain, SessionStatus>>               // None / Handshaking / Ready(fromCache)
     public val events: Flow<VehicleEvent>                                           // FR-035. 평문 VCSEC 브로드캐스트. 연결마다 hot, replay 0, 링크 손실·disconnect()에서 정상 완료
+    public val scanObservation: ConnectScanObservation? get() = null                // FR-038. 연결 하나의 고정값, disconnect() 뒤에도 읽는다. null = 이 호출에 그 광고의 관찰값이 없음
 
     public suspend fun startSession(domains: Set<VehicleDomain> = VehicleDomain.ALL, timeout: Duration? = null): VehicleResult<Unit>   // FR-012
     public suspend fun sessionInfo(publicKey: PublicKeyBytes, domain: VehicleDomain, timeout: Duration? = null): VehicleResult<SessionInfoSummary>  // FR-024
@@ -325,6 +328,7 @@ public interface Vehicle {
 - 스캔: `Scanner { filters { match { name = Filter.Name.Exact(localName.value) } } }.advertisements` → `VehicleAdvertisement(localName, identifier, rssi, isConnectable)`. iOS의 `isConnectable`은 `CBAdvertisementDataIsConnectable`, Android는 `ScanResult.isConnectable`(API 26+).
 - 열기: `Peripheral(advertisement)` → `connect()` → 서비스 `…0211` 특성 `…0212`/`…0213` 확인 → 블록 길이 결정. 구독 방식은 ADR-0003 스파이크 결과(`DEFAULT_SUBSCRIPTION`; `ANDROID_FORCE_INDICATION`이면 구독 직후 CCCD에 `0x0200`). 블록 길이: Android `requestMtu(517)` → `min(mtu, 1024) - 3`(실패 시 20), iOS `maximumWriteValueLength(.withResponse)` → `min(len, 1021)`, JVM 20. `open`은 취소 외에는 던지지 않고 모든 실패를 `OpenResult.Failed`로 돌려준다.
 - 재시도 규칙은 Go `tryToConnect`/`NewConnectionFromScanResult`와 같다: 스캔·연결·탐색·구독 실패는 재시도, 이름 불일치·connectable=false·권한 없음은 즉시 실패.
+- 연결 스캔 관찰(FR-038, 원본에 없음): `BleTransportFactory.connect`가 시작 시각을 잡고, 스스로 돌린 스캔의 흐름이 광고를 내는 순간(스캔을 정리하기 전) 경과 시간을 호출별 상태에 적는다. `recentHits`의 `ScanHit`은 호출 사이에 공유되므로 시간을 붙이지 않는다. 링크가 열리면 그 `ScanHit`이 이 호출의 스캔이 찾은 객체일 때만(동일성 비교) `Transport.scanObservation`을 채운다 — 기억해 둔 `target`을 스캔 없이 쓴 경우와, 재시도 사이에 앱의 `scan`이 기억을 바꾼 경우는 null이다. RSSI의 "값 없음"(CoreBluetooth 127, btleplug `Int.MIN_VALUE`)은 여기서 null로 바꾸고 `VehicleAdvertisement.rssi`는 그대로 둔다. 발견마다 `observe` 태그 DEBUG 줄 `[connect:scan-hit]`을 남겨 실패한 연결의 발견도 로그로 볼 수 있게 한다(`:adapter-ble`은 `:application`에 의존하지 않으므로 태그 문자열을 따로 둔다). 공개 형태의 논의는 #134 커밋 본문.
 - `send`: `Framer.frame` → `write(txChar, chunk, WriteType.WithResponse)` 순차. 전송 중 `Mutex`.
 - `incoming`: `observe(rxChar)` → `Reassembler.push` → 메시지 단위 `Flow`. 버퍼는 `Channel(BUFFERED=64)`; Go의 5보다 크게 잡아 드롭 가능성을 줄인다(매뉴얼 `10-porting-guide §3` 권고).
 

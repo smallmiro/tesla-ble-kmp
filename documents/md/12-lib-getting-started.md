@@ -1,7 +1,8 @@
 # Getting Started with tesla-ble-kmp
 
-Scope: M3 (scan, connect, key list, vehicle status), M4 (pairing, VCSEC commands: see "Pair, then lock") and broadcast
-events (`Vehicle.events`, FR-035: see "Broadcast events"). The main examples below use only the unauthenticated queries.
+Scope: M3 (scan, connect, key list, vehicle status), M4 (pairing, VCSEC commands: see "Pair, then lock"), what `connect`
+saw when it scanned (`Vehicle.scanObservation`, FR-038: see "Connect scan observation") and broadcast events
+(`Vehicle.events`, FR-035: see "Broadcast events"). The main examples below use only the unauthenticated queries.
 Installation: `11-lib-overview.md` §Installation. Permissions: `17-lib-platform-notes.md`. Errors: `16-lib-errors.md`.
 
 ## Flow
@@ -124,8 +125,8 @@ func run(vinText: String) async {
 }
 ```
 
-With `target: nil`, `connect` scans by itself. `Info.plist` needs `NSBluetoothAlwaysUsageDescription`
-(`17-lib-platform-notes.md` §iOS).
+With `target: nil`, `connect` scans by itself ("Connect scan observation" below tells when it found the car). `Info.plist`
+needs `NSBluetoothAlwaysUsageDescription` (`17-lib-platform-notes.md` §iOS).
 
 To pass a time limit from Swift, use the boxed helper and the seconds-based config factory (every argument is required;
 Swift gets no default-argument overloads):
@@ -135,6 +136,54 @@ let status = try await vehicle.vehicleStatus(timeout: Timeouts.shared.seconds(se
 let config = TeslaBleConfig.companion.withSeconds(logger: DebugLogger(), commandTimeoutSeconds: 10,
     handshakeTimeoutSeconds: 20, connectTimeoutSeconds: 30, pairingTimeoutSeconds: 90)
 ```
+
+## Connect scan observation
+
+When `connect` scans by itself, `vehicle.scanObservation` (`ConnectScanObservation?`, FR-038) tells what it saw of the
+advertisement the link opened through. Use it to read slow connects and reconnects, instead of scanning first in the app,
+which would change the connection you are measuring. It is a reading only: it changes nothing in how the link is opened.
+The Go original has no such API.
+
+| Field | Kotlin / Swift | Meaning |
+|---|---|---|
+| `hitAfterMillis` | `Long` / `Int64` | Milliseconds from the start of `connect` until the library received that advertisement. Includes earlier attempts and the waits between them |
+| `rssi` | `Int?` / `KotlinInt?` | Signal strength of that advertisement in dBm. `null` when the platform gave no value (iOS reserves 127, the JVM stack gives `Int.MIN_VALUE`). `VehicleAdvertisement.rssi` keeps those raw numbers |
+| `openAttempt` | `Int` / `Int32` | Which open attempt made this link, from 1. Above 1 means earlier opens failed, **not** that the car was scanned again |
+
+Rules:
+
+- `connect` with `target = null`: always has a value (the BLE transport; a test fake has none). Each retry scans again, and
+  the value describes the last scan, the one the link opened from.
+- `connect` with a `target` from `ble.scan(vin)`: no scan runs, so the value is `null`. The app already holds that
+  advertisement.
+- A `target` the library no longer remembers (it keeps the last 16 it saw, per `TeslaBle`): `connect` scans by itself, so
+  there is a value, and retries reuse that hit. So `null` means "this call has no observation of the advertisement it
+  used", not "no scan ran".
+- It is fixed for the connection and still readable after `disconnect()`.
+- It exists only on `Success`: a failed `connect` returns no `Vehicle`. Scan hits of failed attempts are in the observation
+  log (`18-lib-troubleshooting.md` §Observation log (development)).
+- `hitAfterMillis` is the time the library received the advertisement on the monotonic clock, not a radio timestamp. That
+  clock can stop while the device sleeps (`17-lib-platform-notes.md` §Clocks), so the start time plus `hitAfterMillis` is
+  not a reliable wall-clock time. For a wall-clock time, use the arrival time of the `[connect:scan-hit]` log line.
+- There is no advertised name and no device identifier in it, and `toString()` prints only the three fields, so the value
+  can be logged as it is. The advertised name comes from the VIN and a VIN mask does not catch it.
+
+```kotlin
+val vehicle = (ble.connect(vin, key) as VehicleResult.Success).value           // target = null: connect scans
+vehicle.scanObservation?.let { scan ->
+    log("scan hit after ${scan.hitAfterMillis} ms, rssi ${scan.rssi}, open attempt ${scan.openAttempt}")
+}
+```
+
+```swift
+// vehicle from ble.connect(vin: vin, key: key, target: nil, options: ConnectOptions(timeout: nil))
+if let scan = vehicle.scanObservation {
+    let rssi = scan.rssi.map { String($0.int32Value) } ?? "unavailable"
+    print("scan hit after \(scan.hitAfterMillis) ms, rssi \(rssi), open attempt \(scan.openAttempt)")
+}
+```
+
+`hitAfterMillis` is a plain number because a non-null `Duration` does not reach Swift as a usable value.
 
 ## Pair, then lock
 
@@ -218,4 +267,5 @@ for await event in vehicle.events {
   `vehicleStatus()`, `keySummary()` and `listKeys()`.
 - Observe the link with `vehicle.connection` (`StateFlow<TransportState>`) and sessions with `vehicle.sessions`
   (`StateFlow<Map<VehicleDomain, SessionStatus>>`). Call `disconnect()` yourself when `Disconnected` arrives.
+- When `connect` found the car and how strong the signal was: `vehicle.scanObservation` ("Connect scan observation" above).
 - Live state from broadcasts: `vehicle.events` ("Broadcast events" above, `14-lib-reading-state.md` B2).

@@ -62,6 +62,7 @@
 <li><a href="#sec-rules">Five rules</a></li>
 <li><a href="#sec-kotlin">Kotlin (Android)</a></li>
 <li><a href="#sec-swift">Swift (iOS)</a></li>
+<li><a href="#sec-scan-observation">Connect scan observation</a></li>
 <li><a href="#sec-pair">Pair, then lock</a></li>
 <li><a href="#sec-events">Broadcast events</a></li>
 <li><a href="#sec-next">Next steps</a></li>
@@ -176,11 +177,43 @@
         }
     } <span class="k">catch</span> { <span class="f">print</span>(<span class="s">"error: \(error)"</span>) }
 }</code></pre>
-<p>With <code>target: nil</code>, <code>connect</code> scans by itself. Add <code>NSBluetoothAlwaysUsageDescription</code> to <code>Info.plist</code>; see <a href="17-lib-platform-notes.html#sec-ios">Platform Notes</a>.</p>
+<p>With <code>target: nil</code>, <code>connect</code> scans by itself; <a href="#sec-scan-observation">Connect scan observation</a> below tells when it found the car. Add <code>NSBluetoothAlwaysUsageDescription</code> to <code>Info.plist</code>; see <a href="17-lib-platform-notes.html#sec-ios">Platform Notes</a>.</p>
 <p>To pass a time limit from Swift, use the boxed helper and the seconds-based config factory. Every argument is required, because Swift gets no default-argument overloads.</p>
 <pre><code><span class="k">let</span> status = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">vehicleStatus</span>(timeout: <span class="t">Timeouts</span>.shared.<span class="f">seconds</span>(seconds: <span class="n">10</span>))
 <span class="k">let</span> config = <span class="t">TeslaBleConfig</span>.companion.<span class="f">withSeconds</span>(logger: <span class="t">DebugLogger</span>(), commandTimeoutSeconds: <span class="n">10</span>,
     handshakeTimeoutSeconds: <span class="n">20</span>, connectTimeoutSeconds: <span class="n">30</span>, pairingTimeoutSeconds: <span class="n">90</span>)</code></pre>
+
+<h2 id="sec-scan-observation">Connect scan observation</h2>
+<p>When <code>connect</code> scans by itself, <code>vehicle.scanObservation</code> (FR-038) tells what it saw of the advertisement the link opened through: when it arrived and how strong the signal was. Use it to read slow connects and reconnects, instead of scanning first in your app, which would change the connection you are measuring. It is a reading only and changes nothing in how the link is opened. The Go original has no such API.</p>
+<table>
+<thead><tr><th>Field</th><th>Kotlin / Swift</th><th>Meaning</th></tr></thead>
+<tbody>
+<tr><td><code>hitAfterMillis</code></td><td><code>Long</code> / <code>Int64</code></td><td>Milliseconds from the start of <code>connect</code> until the library received that advertisement, earlier attempts and the waits between them included</td></tr>
+<tr><td><code>rssi</code></td><td><code>Int?</code> / <code>KotlinInt?</code></td><td>Signal strength of that advertisement in dBm. <code>null</code> when the platform gave no value (iOS reserves 127, the JVM stack gives <code>Int.MIN_VALUE</code>). <code>VehicleAdvertisement.rssi</code> keeps those raw numbers</td></tr>
+<tr><td><code>openAttempt</code></td><td><code>Int</code> / <code>Int32</code></td><td>Which open attempt made this link, from 1. Above 1 means earlier opens failed, not that the car was scanned again</td></tr>
+</tbody>
+</table>
+<ul>
+<li><strong>With <code>target = null</code></strong> there is always a value (a test fake has none). Each retry scans again, and the value describes the last scan, the one the link opened from.</li>
+<li><strong>With a <code>target</code> from <code>ble.scan(vin)</code></strong> no scan runs, so the value is <code>null</code>. Your app already holds that advertisement.</li>
+<li><strong>With a <code>target</code> the library no longer remembers</strong> (it keeps the last 16 it saw, per <code>TeslaBle</code>), <code>connect</code> scans by itself, so there is a value and retries reuse that hit. So <code>null</code> means "this call has no observation of the advertisement it used", not "no scan ran".</li>
+<li><strong>It belongs to the connection.</strong> The value never changes and can still be read after <code>disconnect()</code>.</li>
+<li><strong>Only on success.</strong> A failed <code>connect</code> returns no <code>Vehicle</code>. Scan hits of failed attempts are in the <a href="18-lib-troubleshooting.html#sec-observe">observation log</a>.</li>
+<li><strong>It is not a wall-clock time.</strong> It is the time the library received the advertisement on the monotonic clock, not a radio timestamp, and that clock can stop while the device sleeps (<a href="17-lib-platform-notes.html#sec-clock">Platform Notes</a>). The start time plus <code>hitAfterMillis</code> is therefore not reliable. For a wall-clock time, use the arrival time of the <code>[connect:scan-hit]</code> log line.</li>
+<li><strong>Safe to log.</strong> It has no advertised name and no device identifier, and <code>toString()</code> prints only the three fields. The advertised name comes from the VIN, and a VIN mask does not catch it.</li>
+</ul>
+<h3>Kotlin</h3>
+<pre><code class="language-kotlin"><span class="k">val</span> vehicle = (ble.<span class="f">connect</span>(vin, key) <span class="k">as</span> <span class="t">VehicleResult</span>.<span class="t">Success</span>).value           <span class="c">// target = null: connect scans</span>
+vehicle.scanObservation<span class="o">?.</span><span class="f">let</span> { scan <span class="o">-&gt;</span>
+    <span class="f">log</span>(<span class="s">"scan hit after ${scan.hitAfterMillis} ms, rssi ${scan.rssi}, open attempt ${scan.openAttempt}"</span>)
+}</code></pre>
+<h3>Swift</h3>
+<pre><code class="language-swift"><span class="c">// vehicle from ble.connect(vin: vin, key: key, target: nil, options: ConnectOptions(timeout: nil))</span>
+<span class="k">if</span> <span class="k">let</span> scan = vehicle.scanObservation {
+    <span class="k">let</span> rssi = scan.rssi.map { <span class="t">String</span>($<span class="n">0</span>.int32Value) } <span class="o">??</span> <span class="s">"unavailable"</span>
+    <span class="f">print</span>(<span class="s">"scan hit after \(scan.hitAfterMillis) ms, rssi \(rssi), open attempt \(scan.openAttempt)"</span>)
+}</code></pre>
+<p><code>hitAfterMillis</code> is a plain number because a non-null <code>Duration</code> does not reach Swift as a usable value.</p>
 
 <h2 id="sec-pair">Pair, then lock</h2>
 <p>The first time with a new phone key: enroll it with the key card, wait until the car lists it, start the VCSEC session and send a command. Event handling is explained in <a href="13-lib-pairing.html#sec-flow">13. Keys and Pairing</a>, the commands in <a href="15-lib-commands.html">15. Commands</a>.</p>
@@ -242,6 +275,7 @@ scope.<span class="f">launch</span> {
 <ul>
 <li>Key enrollment and the pairing events: <a href="13-lib-pairing.html">13. Keys and Pairing</a>. <code>connect(vin, key = null)</code> is still enough for <code>vehicleStatus()</code>, <code>keySummary()</code> and <code>listKeys()</code>.</li>
 <li>Watch the link with <code>vehicle.connection</code> and the sessions with <code>vehicle.sessions</code>, both <code>StateFlow</code>s. When the link reports <code>Disconnected</code>, still call <code>disconnect()</code> yourself.</li>
+<li>When <code>connect</code> found the car and how strong the signal was: <code>vehicle.scanObservation</code> (<a href="#sec-scan-observation">Connect scan observation</a> above).</li>
 <li>Live state from the car's broadcasts: <code>vehicle.events</code> (<a href="#sec-events">Broadcast events</a> above, <a href="14-lib-reading-state.html#sec-b-library">14. Reading Vehicle State, B2</a>).</li>
 </ul>
 

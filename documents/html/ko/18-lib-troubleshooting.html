@@ -77,6 +77,7 @@
 <tr><td><code>PermissionDenied</code></td><td>블루투스 권한이 없거나 거부됨</td><td>Android: 런타임에 <code>BLUETOOTH_SCAN</code>과 <code>BLUETOOTH_CONNECT</code>를 요청. iOS: <code>NSBluetoothAlwaysUsageDescription</code>을 추가하고, 거부되었으면 사용자를 설정으로 안내</td></tr>
 <tr><td><code>BluetoothOff</code></td><td>블루투스가 꺼져 있음</td><td>사용자에게 켜 달라고 요청</td></tr>
 <tr><td>스캔에서 아무것도 찾지 못하고, 연결이 <code>ScanTimeout</code>으로 끝남</td><td>범위 밖, 잘못된 VIN, 또는 iOS 시뮬레이터</td><td>가까이 가고, VIN을 확인하고(차량은 VIN에서 만든 이름으로 찾음), 실기기를 사용</td></tr>
+<tr><td>연결이 <code>ScanTimeout</code>으로 끝났는데 관찰 로그에 그 호출의 <code>[connect:scan-hit]</code> 줄이 있음</td><td><code>ScanTimeout</code>은 광고를 찾지 못했다는 증거가 아닙니다. 이 줄은 발견을 확인해 주고, 연결이 제한 시간 안에 끝나지 않은 것입니다</td><td>다시 시도. 차량이 범위 안에 있는데 반복되면 로그 줄을 보고</td></tr>
 <tr><td><code>MaxConnectionsExceeded</code></td><td>차량에 이미 블루투스 연결이 세 개 있음</td><td>다른 휴대폰이나 앱의 연결을 끊고, 내 앱에서는 항상 <code>disconnect()</code>를 호출</td></tr>
 <tr><td><code>ConnectFailed</code>가 계속 발생</td><td>약한 신호 또는 바쁜 차량</td><td>라이브러리가 이미 30초 동안 재시도함. 나중에 다시 시도</td></tr>
 <tr><td><code>connect</code>가 <code>connectTimeout</code>보다 몇 초 늦게 돌아옴(예: 30초가 아니라 32.6초)</td><td>타이머가 늦게 울렸을 가능성이 높음. 그때 앱이 돌고 있지 않았던 것으로 보임(iOS는 백그라운드 앱을 일시 중단함). <code>connect</code>는 실패한 시도의 정리를 기다리지 않음</td><td>고칠 것 없음. <a href="#sec-budget">connect 시간 예산</a> 참고</td></tr>
@@ -178,7 +179,7 @@
 <table>
 <thead><tr><th></th><th>관찰 로그</th><th><code>vehicle.events</code></th></tr></thead>
 <tbody>
-<tr><td>무엇인가</td><td>버린 메시지나 보안 도메인 응답마다 <code>DEBUG</code> 텍스트 한 줄, 태그 <code>observe</code></td><td><code>Vehicle</code>의 공개 <code>Flow&lt;VehicleEvent&gt;</code>(FR-035)</td></tr>
+<tr><td>무엇인가</td><td>버린 메시지나 보안 도메인 응답마다 <code>DEBUG</code> 텍스트 한 줄, 태그 <code>observe</code>(<code>connect</code>의 스캔 발견도 있습니다. 다음 절 참고)</td><td><code>Vehicle</code>의 공개 <code>Flow&lt;VehicleEvent&gt;</code>(FR-035)</td></tr>
 <tr><td>어떤 프레임</td><td>버린 모든 프레임(다른 폰 앞 응답, 읽을 수 없는 프레임, 브로드캐스트)과 모든 보안 도메인 응답</td><td>평문 브로드캐스트만(<a href="14-lib-reading-state.html#sec-b-library">14, B2</a>)</td></tr>
 <tr><td>내용</td><td>사람이 읽는 요약. 모르는 필드의 값은 상세 형식에서만</td><td>타입이 있는 이벤트, <code>unknownFields</code> 경로, <code>raw</code>의 프레임 전체</td></tr>
 <tr><td>VIN</td><td>라이브러리가 가림</td><td><code>raw</code>에서는 <strong>가리지 않음</strong>. 저장하거나 공유하기 전에 앱이 가림</td></tr>
@@ -192,10 +193,11 @@
 </ul>
 
 <h2 id="sec-observe">관찰 로그 (개발용)</h2>
-<p>개발하는 동안 라이브러리는 버리는 메시지마다, 그리고 차량 보안 도메인의 응답마다 요약 한 줄을 남길 수 있습니다. 차량이 요청 없이 보내는 것이 무엇인지 보여 줍니다. 동작은 바뀌지 않습니다. 브로드캐스트는 여전히 응답 짝짓기에서 빠지며, 그중 평문 브로드캐스트는 <code>vehicle.events</code>로도 앱에 전달됩니다(앞 절). 푸시된 각 메시지의 의미는 <a href="14-lib-reading-state.html">14. 차량 상태 조회</a>의 B부에 있습니다.</p>
+<p>개발하는 동안 라이브러리는 버리는 메시지마다, 그리고 차량 보안 도메인의 응답마다 요약 한 줄을 남길 수 있습니다. 차량이 요청 없이 보내는 것이 무엇인지 보여 줍니다. 동작은 바뀌지 않습니다. 브로드캐스트는 여전히 응답 짝짓기에서 빠지며, 그중 평문 브로드캐스트는 <code>vehicle.events</code>로도 앱에 전달됩니다(앞 절). 푸시된 각 메시지의 의미는 <a href="14-lib-reading-state.html">14. 차량 상태 조회</a>의 B부에 있습니다. 블루투스 전송 계층은 <code>connect</code>의 스캔 발견마다 한 줄을 더합니다.</p>
 <ul>
 <li>태그 <code>observe</code>, 레벨 <code>DEBUG</code>. <code>DEBUG</code>를 버리는 로거는 이 줄을 만들지도 않습니다. <code>DebugLogger()</code>나 직접 만든 <code>TeslaLogger</code>로 볼 수 있습니다. iOS 샘플의 관찰 모드는 이 줄만 모읍니다.</li>
 <li>형식: <code>[지점] NB from=… to=… request_uuid=… payload=…</code>. <code>NB</code>는 받은 프레임의 크기입니다.</li>
+<li>스캔 발견 줄(FR-038): <code>[connect:scan-hit] after=&lt;ms&gt;ms rssi=&lt;dBm|unavailable&gt; connectable=&lt;true|false|unknown&gt; attempt=&lt;n&gt;</code>. <code>connect</code>가 직접 돌린 스캔이 찾은 광고마다 한 줄이며, 연결 가능 여부를 확인하고 링크를 열기 전에 씁니다. 그래서 실패하는 <code>connect</code>에도, 재시도마다에도 나타납니다. <code>after</code>는 <code>connect</code>를 시작한 뒤 지난 시간(<code>hitAfterMillis</code>와 같은 값, <a href="12-lib-getting-started.html#sec-scan-observation">12. 라이브러리 시작하기</a>), <code>attempt</code>는 그 발견이 쓰일 열기 시도 번호입니다. 로거가 이 줄을 받은 시각이 발견의 벽시계 시각입니다. <code>ble.scan(vin)</code>과 스캔 없이 다시 쓴 <code>target</code>은 줄을 남기지 않습니다. 광고 이름과 기기 식별자는 없습니다.</li>
 </ul>
 <table>
 <thead><tr><th>항목</th><th>값</th></tr></thead>

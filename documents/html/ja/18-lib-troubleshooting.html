@@ -77,6 +77,7 @@
 <tr><td><code>PermissionDenied</code></td><td>Bluetooth 権限がない、または拒否された</td><td>Android: 実行時に <code>BLUETOOTH_SCAN</code> と <code>BLUETOOTH_CONNECT</code> を要求します。iOS: <code>NSBluetoothAlwaysUsageDescription</code> を追加します。拒否された場合はユーザーを設定に誘導します</td></tr>
 <tr><td><code>BluetoothOff</code></td><td>Bluetooth がオフ</td><td>オンにするようユーザーに依頼します</td></tr>
 <tr><td>スキャンで何も見つからず、接続が <code>ScanTimeout</code> で終わる</td><td>範囲外、VIN の誤り、または iOS シミュレーター</td><td>車両に近づく、VIN を確認する (車両は VIN から導出した名前で照合されます)、実機を使う</td></tr>
+<tr><td>接続が <code>ScanTimeout</code> で終わったが、観察ログにその呼び出しの <code>[connect:scan-hit]</code> 行がある</td><td><code>ScanTimeout</code> はアドバタイズが見つからなかった証拠ではありません。この行は発見を裏付けており、接続が期限内に完了しなかったということです</td><td>もう一度試す。車両が範囲内にあるのに繰り返す場合はログ行を報告する</td></tr>
 <tr><td><code>MaxConnectionsExceeded</code></td><td>車両にすでに 3 つの Bluetooth 接続がある</td><td>別のスマートフォンやアプリを切断し、自分のアプリでは必ず <code>disconnect()</code> を呼びます</td></tr>
 <tr><td><code>ConnectFailed</code> が繰り返し返る</td><td>電波が弱い、または車両がビジー</td><td>ライブラリはすでに 30 秒間リトライしています。時間をおいてもう一度試します</td></tr>
 <tr><td><code>connect</code> が <code>connectTimeout</code> より数秒遅れて返る (例: 30 秒ではなく 32.6 秒)</td><td>タイマーが遅れた可能性が高い。その時点でアプリが動いていなかったと見られる (iOS はバックグラウンドのアプリを一時停止する)。<code>connect</code> は失敗した試行の後始末を待たない</td><td>対処は不要です。<a href="#sec-budget">connect の制限時間</a> を参照してください</td></tr>
@@ -178,7 +179,7 @@
 <table>
 <thead><tr><th></th><th>観察ログ</th><th><code>vehicle.events</code></th></tr></thead>
 <tbody>
-<tr><td>何か</td><td>破棄したメッセージやセキュリティドメインの応答ごとに <code>DEBUG</code> のテキスト 1 行、タグ <code>observe</code></td><td><code>Vehicle</code> の公開 <code>Flow&lt;VehicleEvent&gt;</code> (FR-035)</td></tr>
+<tr><td>何か</td><td>破棄したメッセージやセキュリティドメインの応答ごとに <code>DEBUG</code> のテキスト 1 行、タグ <code>observe</code> (<code>connect</code> のスキャン発見も含みます。次の節を参照)</td><td><code>Vehicle</code> の公開 <code>Flow&lt;VehicleEvent&gt;</code> (FR-035)</td></tr>
 <tr><td>どのフレーム</td><td>破棄したすべてのフレーム (他のスマートフォン宛ての応答、読めないフレーム、ブロードキャスト) とすべてのセキュリティドメインの応答</td><td>平文のブロードキャストだけ (<a href="14-lib-reading-state.html#sec-b-library">14、B2</a>)</td></tr>
 <tr><td>内容</td><td>人が読む要約。未知のフィールドの値は詳細形式でのみ</td><td>型付きのイベント、<code>unknownFields</code> のパス、<code>raw</code> にフレーム全体</td></tr>
 <tr><td>VIN</td><td>ライブラリがマスクする</td><td><code>raw</code> では<strong>マスクしない</strong>。保存や共有の前にアプリがマスクする</td></tr>
@@ -192,10 +193,11 @@
 </ul>
 
 <h2 id="sec-observe">観察ログ（開発用）</h2>
-<p>開発中、ライブラリは破棄するメッセージごと、および車両セキュリティドメインの応答ごとに、要約を1行ログに出せます。車が要求なしに送ってくるものを確認できます。動作は変わりません。ブロードキャストは引き続き応答の対応付けから外れ、そのうち平文のものは <code>vehicle.events</code> でもアプリに届きます（前の節）。プッシュされた各メッセージの意味は <a href="14-lib-reading-state.html">14. 車両状態の取得</a> の B 部にあります。</p>
+<p>開発中、ライブラリは破棄するメッセージごと、および車両セキュリティドメインの応答ごとに、要約を1行ログに出せます。車が要求なしに送ってくるものを確認できます。動作は変わりません。ブロードキャストは引き続き応答の対応付けから外れ、そのうち平文のものは <code>vehicle.events</code> でもアプリに届きます（前の節）。プッシュされた各メッセージの意味は <a href="14-lib-reading-state.html">14. 車両状態の取得</a> の B 部にあります。Bluetooth トランスポートは <code>connect</code> のスキャン発見ごとに 1 行を追加します。</p>
 <ul>
 <li>タグ <code>observe</code>、レベル <code>DEBUG</code>。<code>DEBUG</code> を捨てるロガーはこの行を組み立てもしません。<code>DebugLogger()</code> または自作の <code>TeslaLogger</code> で見られます。iOS サンプルの観察モードはこの行だけを集めます。</li>
 <li>形式: <code>[地点] NB from=… to=… request_uuid=… payload=…</code>。<code>NB</code> は受信したフレームのサイズです。</li>
+<li>スキャン発見行 (FR-038): <code>[connect:scan-hit] after=&lt;ms&gt;ms rssi=&lt;dBm|unavailable&gt; connectable=&lt;true|false|unknown&gt; attempt=&lt;n&gt;</code>。<code>connect</code> が自分で実行したスキャンが見つけたアドバタイズごとに 1 行で、接続可否の確認とリンクのオープンの前に書かれます。そのため失敗する <code>connect</code> でも、リトライのたびにも現れます。<code>after</code> は <code>connect</code> の開始からの経過時間 (<code>hitAfterMillis</code> と同じ尺度、<a href="12-lib-getting-started.html#sec-scan-observation">12. ライブラリ入門</a>)、<code>attempt</code> はその発見を使うオープン試行の番号です。ロガーがこの行を受け取った時刻が発見の壁時計の時刻です。<code>ble.scan(vin)</code> と、スキャンせずに再利用した <code>target</code> は行を書きません。アドバタイズ名とデバイス識別子は含みません。</li>
 </ul>
 <table>
 <thead><tr><th>項目</th><th>値</th></tr></thead>

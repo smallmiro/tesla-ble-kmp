@@ -62,6 +62,7 @@
 <li><a href="#sec-rules">5 つのルール</a></li>
 <li><a href="#sec-kotlin">Kotlin (Android)</a></li>
 <li><a href="#sec-swift">Swift (iOS)</a></li>
+<li><a href="#sec-scan-observation">接続スキャンの観測</a></li>
 <li><a href="#sec-pair">ペアリングしてからロック</a></li>
 <li><a href="#sec-events">ブロードキャストイベント</a></li>
 <li><a href="#sec-next">次のステップ</a></li>
@@ -176,11 +177,43 @@
         }
     } <span class="k">catch</span> { <span class="f">print</span>(<span class="s">"エラー: \(error)"</span>) }
 }</code></pre>
-<p><code>target: nil</code> の場合、<code>connect</code> は自分でスキャンします。<code>Info.plist</code> に <code>NSBluetoothAlwaysUsageDescription</code> を追加してください。<a href="17-lib-platform-notes.html#sec-ios">プラットフォームノート</a> を参照してください。</p>
+<p><code>target: nil</code> の場合、<code>connect</code> は自分でスキャンします。いつ車両を見つけたかは下の <a href="#sec-scan-observation">接続スキャンの観測</a> でわかります。<code>Info.plist</code> に <code>NSBluetoothAlwaysUsageDescription</code> を追加してください。<a href="17-lib-platform-notes.html#sec-ios">プラットフォームノート</a> を参照してください。</p>
 <p>Swift からタイムアウトを渡すには、ボックス化されたヘルパーと秒単位の設定ファクトリを使います。Swift にはデフォルト引数のオーバーロードがないため、すべての引数が必須です。</p>
 <pre><code><span class="k">let</span> status = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">vehicleStatus</span>(timeout: <span class="t">Timeouts</span>.shared.<span class="f">seconds</span>(seconds: <span class="n">10</span>))
 <span class="k">let</span> config = <span class="t">TeslaBleConfig</span>.companion.<span class="f">withSeconds</span>(logger: <span class="t">DebugLogger</span>(), commandTimeoutSeconds: <span class="n">10</span>,
     handshakeTimeoutSeconds: <span class="n">20</span>, connectTimeoutSeconds: <span class="n">30</span>, pairingTimeoutSeconds: <span class="n">90</span>)</code></pre>
+
+<h2 id="sec-scan-observation">接続スキャンの観測</h2>
+<p><code>connect</code> が自分でスキャンしたとき、<code>vehicle.scanObservation</code> (FR-038) は、リンクを開いたアドバタイズについて見た値、つまりいつ届いたかと信号の強さを教えます。遅い接続や再接続を読み解くときに使います。アプリで先にスキャンすると測定したい接続が変わってしまうため、そうはしません。読み取り専用の値で、リンクの開き方は何も変えません。Go の原本にこの API はありません。</p>
+<table>
+<thead><tr><th>フィールド</th><th>Kotlin / Swift</th><th>意味</th></tr></thead>
+<tbody>
+<tr><td><code>hitAfterMillis</code></td><td><code>Long</code> / <code>Int64</code></td><td><code>connect</code> を開始してからライブラリがそのアドバタイズを受け取るまでのミリ秒。それ以前の試行とその間の待ち時間を含みます</td></tr>
+<tr><td><code>rssi</code></td><td><code>Int?</code> / <code>KotlinInt?</code></td><td>そのアドバタイズの信号強度 (dBm)。プラットフォームが値を返さなかった場合は <code>null</code> です (iOS は 127 を予約しており、JVM スタックは <code>Int.MIN_VALUE</code> を返します)。<code>VehicleAdvertisement.rssi</code> にはその数値がそのまま残ります</td></tr>
+<tr><td><code>openAttempt</code></td><td><code>Int</code> / <code>Int32</code></td><td>このリンクを作ったオープン試行の番号 (1 から)。1 より大きい場合、それ以前のオープンが失敗したという意味で、車両を再スキャンしたという意味ではありません</td></tr>
+</tbody>
+</table>
+<ul>
+<li><strong><code>target = null</code> の場合</strong>、値は常にあります (テスト用のフェイクにはありません)。リトライのたびに再スキャンし、値はリンクを開いた最後のスキャンのものです。</li>
+<li><strong><code>ble.scan(vin)</code> で受け取った <code>target</code> の場合</strong>、スキャンは実行されないので値は <code>null</code> です。そのアドバタイズはアプリがすでに持っています。</li>
+<li><strong>ライブラリがもう覚えていない <code>target</code> の場合</strong> (<code>TeslaBle</code> ごとに直近の 16 件を覚えています)、<code>connect</code> が自分でスキャンするので値があり、リトライはその発見を再利用します。したがって <code>null</code> は「スキャンが実行されなかった」ではなく、「この呼び出しには使ったアドバタイズの観測値がない」という意味です。</li>
+<li><strong>接続ごとの値です。</strong> 値は変わらず、<code>disconnect()</code> の後でも読めます。</li>
+<li><strong>成功したときだけあります。</strong> 失敗した <code>connect</code> は <code>Vehicle</code> を返しません。失敗した試行のスキャン発見は <a href="18-lib-troubleshooting.html#sec-observe">観察ログ</a> にあります。</li>
+<li><strong>壁時計の時刻ではありません。</strong> ライブラリがアドバタイズを受け取った時刻を単調クロックで測った値で、電波の受信時刻ではありません。このクロックはデバイスのスリープ中に止まることがあります (<a href="17-lib-platform-notes.html#sec-clock">プラットフォームノート</a>)。そのため開始時刻に <code>hitAfterMillis</code> を足した値は信頼できません。壁時計の時刻が必要なら <code>[connect:scan-hit]</code> ログ行の到着時刻を使ってください。</li>
+<li><strong>そのままログに残せます。</strong> アドバタイズ名とデバイス識別子は含まれず、<code>toString()</code> も 3 つのフィールドだけを出力します。アドバタイズ名は VIN から作られた値で、VIN マスクでは隠れません。</li>
+</ul>
+<h3>Kotlin</h3>
+<pre><code class="language-kotlin"><span class="k">val</span> vehicle = (ble.<span class="f">connect</span>(vin, key) <span class="k">as</span> <span class="t">VehicleResult</span>.<span class="t">Success</span>).value           <span class="c">// target = null: connect がスキャンする</span>
+vehicle.scanObservation<span class="o">?.</span><span class="f">let</span> { scan <span class="o">-&gt;</span>
+    <span class="f">log</span>(<span class="s">"scan hit after ${scan.hitAfterMillis} ms, rssi ${scan.rssi}, open attempt ${scan.openAttempt}"</span>)
+}</code></pre>
+<h3>Swift</h3>
+<pre><code class="language-swift"><span class="c">// vehicle は ble.connect(vin: vin, key: key, target: nil, options: ConnectOptions(timeout: nil)) で受け取った値</span>
+<span class="k">if</span> <span class="k">let</span> scan = vehicle.scanObservation {
+    <span class="k">let</span> rssi = scan.rssi.map { <span class="t">String</span>($<span class="n">0</span>.int32Value) } <span class="o">??</span> <span class="s">"unavailable"</span>
+    <span class="f">print</span>(<span class="s">"scan hit after \(scan.hitAfterMillis) ms, rssi \(rssi), open attempt \(scan.openAttempt)"</span>)
+}</code></pre>
+<p><code>hitAfterMillis</code> が普通の数値なのは、non-null の <code>Duration</code> が Swift で使える値として届かないためです。</p>
 
 <h2 id="sec-pair">ペアリングしてからロック</h2>
 <p>新しいスマートフォンのキーを初めて使うときは、キーカードで登録し、車両の一覧に載るまで待ってから、VCSEC セッションを開始してコマンドを送ります。イベントの扱いは <a href="13-lib-pairing.html#sec-flow">13. キーとペアリング</a>、コマンドは <a href="15-lib-commands.html">15. コマンド</a> で説明します。</p>
@@ -242,6 +275,7 @@ scope.<span class="f">launch</span> {
 <ul>
 <li>キーの登録とペアリングイベント: <a href="13-lib-pairing.html">13. キーとペアリング</a>。<code>vehicleStatus()</code>、<code>keySummary()</code>、<code>listKeys()</code> は引き続き <code>connect(vin, key = null)</code> だけで使えます。</li>
 <li>リンクは <code>vehicle.connection</code>、セッションは <code>vehicle.sessions</code> で監視します。どちらも <code>StateFlow</code> です。リンクが <code>Disconnected</code> を報告した場合でも、<code>disconnect()</code> は自分で呼んでください。</li>
+<li><code>connect</code> がいつ車両を見つけ、信号がどれくらい強かったか: <code>vehicle.scanObservation</code> (上の <a href="#sec-scan-observation">接続スキャンの観測</a>)。</li>
 <li>車両のブロードキャストによるライブの状態: <code>vehicle.events</code> (上の<a href="#sec-events">ブロードキャストイベント</a>、<a href="14-lib-reading-state.html#sec-b-library">14. 車両状態の取得、B2</a>)。</li>
 </ul>
 
