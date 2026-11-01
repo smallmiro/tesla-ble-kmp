@@ -110,6 +110,11 @@
 </table>
 <p>Check the error type, not <code>message</code>: the message now shows the code name instead of the number.</p>
 
+<h3 id="sec-size-limit">Response size limit on <code>getState</code> (planned for M5)</h3>
+<p>The car sends no data when its reply goes over a size limit. The largest reply seen on real cars is about 453 bytes; this is an observed value, not a specification. <code>getState()</code> will return <code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code>, and the app cannot make the reply smaller.</p>
+<p>It is most likely on <code>Drive</code>. A long destination name makes it more frequent, with reports of failures lasting tens of seconds, and of one Model S/X build (<code>2026.27.6.15</code>, South Korea) failing almost always even with no route.</p>
+<p>The library does not resend it and does not change the session, connection or sleep state, so it does not mean the car is gone or asleep. Keep the last value with its age, show it as unavailable when it is too old, and do not retry in a tight loop.</p>
+
 <h2 id="sec-transport">Bluetooth and key store errors</h2>
 <p>Connecting is already retried every second until the connect timeout. The last column is what the app should do.</p>
 <table>
