@@ -146,7 +146,7 @@
 <table>
 <thead><tr><th>エラー</th><th>意味</th><th>対処</th></tr></thead>
 <tbody>
-<tr><td><code>ScanTimeout</code></td><td>時間内に車両が見つからなかった</td><td>車両が範囲内にあるか確認し、もう一度試します</td></tr>
+<tr><td><code>ScanTimeout</code></td><td>接続が期限内に完了せず、失敗した試行はありませんでした。<code>ScanTimeout</code> はアドバタイズが見つからなかった証拠ではありません。<a href="18-lib-troubleshooting.html#sec-observe">観察ログ</a> の <code>[connect:scan-hit]</code> 行が発見を裏付けます</td><td>車両が範囲内にあるか確認し、もう一度試します</td></tr>
 <tr><td><code>MaxConnectionsExceeded</code></td><td>車両にすでに 3 つの Bluetooth 接続がある</td><td>別のスマートフォンやアプリを切断し、もう一度試します</td></tr>
 <tr><td><code>ConnectFailed</code></td><td>接続、サービスの検出、または購読に失敗した</td><td>少し待ってからもう一度試します</td></tr>
 <tr><td><code>Disconnected</code></td><td>リンクが切れた</td><td><code>disconnect()</code> を呼んでから再接続します</td></tr>

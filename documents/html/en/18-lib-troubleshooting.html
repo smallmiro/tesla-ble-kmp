@@ -77,6 +77,7 @@
 <tr><td><code>PermissionDenied</code></td><td>Bluetooth permission missing or declined</td><td>Android: request <code>BLUETOOTH_SCAN</code> and <code>BLUETOOTH_CONNECT</code> at runtime. iOS: add <code>NSBluetoothAlwaysUsageDescription</code>; if declined, send the user to Settings</td></tr>
 <tr><td><code>BluetoothOff</code></td><td>Bluetooth is off</td><td>Ask the user to turn it on</td></tr>
 <tr><td>The scan finds nothing, connecting ends with <code>ScanTimeout</code></td><td>Out of range, wrong VIN, or the iOS simulator</td><td>Move closer, check the VIN (the car is matched by a name derived from it), use a real device</td></tr>
+<tr><td>Connecting ends with <code>ScanTimeout</code>, and the observation log has a <code>[connect:scan-hit]</code> line for that call</td><td><code>ScanTimeout</code> does not prove that no advertisement was found. The line confirms discovery; the connection did not complete within its deadline</td><td>Try again. If it repeats while the car is in range, report the log lines</td></tr>
 <tr><td><code>MaxConnectionsExceeded</code></td><td>The car already has three Bluetooth connections</td><td>Disconnect another phone or app, and always call <code>disconnect()</code> in yours</td></tr>
 <tr><td><code>ConnectFailed</code> keeps coming back</td><td>Weak signal or a busy car</td><td>The library already retries for 30 seconds; try again later</td></tr>
 <tr><td><code>connect</code> returns some seconds after <code>connectTimeout</code>, for example at 32.6 seconds instead of 30</td><td>Most likely a late timer: the app was probably not running when it was due (iOS suspends a background app). <code>connect</code> does not wait for a failed attempt's cleanup</td><td>Nothing to repair; see <a href="#sec-budget">The connect time budget</a></td></tr>
@@ -178,7 +179,7 @@
 <table>
 <thead><tr><th></th><th>Observation log</th><th><code>vehicle.events</code></th></tr></thead>
 <tbody>
-<tr><td>What it is</td><td>One <code>DEBUG</code> text line per dropped message or security-domain reply, tag <code>observe</code></td><td>A public <code>Flow&lt;VehicleEvent&gt;</code> on <code>Vehicle</code> (FR-035)</td></tr>
+<tr><td>What it is</td><td>One <code>DEBUG</code> text line per dropped message or security-domain reply, tag <code>observe</code> (it also has <code>connect</code> scan hits, see the next section)</td><td>A public <code>Flow&lt;VehicleEvent&gt;</code> on <code>Vehicle</code> (FR-035)</td></tr>
 <tr><td>Which frames</td><td>Every dropped frame (replies to other phones, unreadable frames, broadcasts) and every security-domain reply</td><td>Only plain broadcasts (<a href="14-lib-reading-state.html#sec-b-library">14, B2</a>)</td></tr>
 <tr><td>Content</td><td>A summary for people; values of unknown fields only in the detailed form</td><td>Typed events, <code>unknownFields</code> paths, and the whole frame in <code>raw</code></td></tr>
 <tr><td>VIN</td><td>Masked by the library</td><td><strong>Not masked</strong> in <code>raw</code>; the app masks it before storing or sharing</td></tr>
@@ -192,10 +193,11 @@
 </ul>
 
 <h2 id="sec-observe">Observation log (development)</h2>
-<p>While you develop, the library can write one summary line for every message it drops and for every reply from the vehicle security domain. It shows what the car sends without being asked. It changes no behaviour: broadcasts are still kept out of reply matching, and the plain ones also reach apps through <code>vehicle.events</code> (previous section). What each pushed message means is in <a href="14-lib-reading-state.html">14. Reading Vehicle State</a>, Part B.</p>
+<p>While you develop, the library can write one summary line for every message it drops and for every reply from the vehicle security domain. It shows what the car sends without being asked. It changes no behaviour: broadcasts are still kept out of reply matching, and the plain ones also reach apps through <code>vehicle.events</code> (previous section). What each pushed message means is in <a href="14-lib-reading-state.html">14. Reading Vehicle State</a>, Part B. The Bluetooth transport adds one line for every scan hit of <code>connect</code>.</p>
 <ul>
 <li>Tag <code>observe</code>, level <code>DEBUG</code>. A logger that discards <code>DEBUG</code> never builds the line. Visible through <code>DebugLogger()</code> or your own <code>TeslaLogger</code>. The iOS sample's observation mode collects only these lines.</li>
 <li>Shape: <code>[point] NB from=… to=… request_uuid=… payload=…</code>, where <code>NB</code> is the size of the received frame.</li>
+<li>Scan hit line (FR-038): <code>[connect:scan-hit] after=&lt;ms&gt;ms rssi=&lt;dBm|unavailable&gt; connectable=&lt;true|false|unknown&gt; attempt=&lt;n&gt;</code>. One line for every advertisement found by a scan that <code>connect</code> runs itself, written before the connectable check and before opening, so it also appears for a <code>connect</code> that fails and for each retry. <code>after</code> is the time since <code>connect</code> started (the same measure as <code>hitAfterMillis</code>, <a href="12-lib-getting-started.html#sec-scan-observation">12. Getting Started</a>), <code>attempt</code> is the open attempt the hit was found for. The time your logger receives the line is the wall-clock time of the hit. <code>ble.scan(vin)</code> and a <code>target</code> reused without a scan write no line. It has no advertised name and no device identifier.</li>
 </ul>
 <table>
 <thead><tr><th>Part</th><th>Values</th></tr></thead>

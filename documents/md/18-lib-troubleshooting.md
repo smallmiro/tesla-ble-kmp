@@ -10,6 +10,7 @@ Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 | `ScanEvent.Failed(PermissionDenied)` or `Failure(PermissionDenied)` | Bluetooth permission missing or denied | Android: request `BLUETOOTH_SCAN` / `BLUETOOTH_CONNECT` at runtime. iOS: add `NSBluetoothAlwaysUsageDescription`; if denied, send the user to Settings |
 | `ScanEvent.Failed(BluetoothOff)` | Bluetooth is off | Ask the user to turn it on |
 | `scan(vin)` emits nothing, `connect` ends with `ScanTimeout` | Out of range, wrong VIN, or iOS simulator (no Bluetooth) | Move closer, check the VIN (the filter is an exact match on the advertised name `S<hash of VIN>C`), use a real device |
+| `connect` ends with `ScanTimeout`, and the observation log has a `[connect:scan-hit]` line for that call | `ScanTimeout` does not prove that no advertisement was found. The line confirms discovery; the connection did not complete within its deadline | Try again. If it repeats while the car is in range, report the log lines |
 | `Failure(MaxConnectionsExceeded)`, advertisement has `isConnectable == false` | The vehicle already has 3 BLE connections (phone keys, other apps) | Disconnect another device; always call `disconnect()` in your own app |
 | `ConnectFailed` repeats | Link unstable or the vehicle is busy | The library already retries inside `connectTimeout` (30 s); try again later |
 | `connect` returns some seconds after `connectTimeout`, for example at 32.6 s with the default 30 s | Most likely a late timer: the process was probably not running when it was due (iOS suspends a background app). `connect` does not wait for a failed attempt's cleanup | Nothing to repair. See §`connect` time budget |
@@ -105,7 +106,7 @@ Both show the vehicle's broadcasts, for different readers:
 
 | | Observation log | `vehicle.events` |
 |---|---|---|
-| What it is | One `DEBUG` text line per dropped message or VCSEC reply, tag `observe` | Public `Flow<VehicleEvent>` on `Vehicle` (FR-035) |
+| What it is | One `DEBUG` text line per dropped message or VCSEC reply, tag `observe` (it also has `connect` scan hits, see the next section) | Public `Flow<VehicleEvent>` on `Vehicle` (FR-035) |
 | Which frames | Every dropped frame (replies to other clients, unparseable frames, broadcasts) and every VCSEC reply | Only frames that pass the plain broadcast gate (`14-lib-reading-state.md` B2.1) |
 | Content | A summary for people; values of unknown fields only in the detailed decode | Typed model (`Status`, `AuthenticationRequest`, `Unrecognized`), `unknownFields` paths and the whole frame in `raw` |
 | VIN | Masked by the library | **Not masked** in `raw`: the app masks it before storing or sharing |
@@ -122,12 +123,19 @@ Both show the vehicle's broadcasts, for different readers:
 The dispatcher writes one summary line for every message it drops and for every VCSEC reply. It is for development, to
 see what the vehicle pushes without being asked. It changes no behaviour: broadcasts are still dropped from reply
 matching, and the ones that pass the plain broadcast gate are also delivered through `vehicle.events` (previous section).
-What each pushed message means (confirmed on a real car or not) is in `14-lib-reading-state.md` Part B.
+What each pushed message means (confirmed on a real car or not) is in `14-lib-reading-state.md` Part B. The BLE transport
+adds one line for every scan hit of `connect`.
 
 - Tag `observe`, level `DEBUG` (a logger that discards `DEBUG` never evaluates the line). Visible through `DebugLogger()`
   or any custom `TeslaLogger`. The iOS sample's observation mode collects only these lines.
 - Line shape: `[<point>] <N>B from=<dest> to=<dest> request_uuid=<empty|16B> [status=<op>/<fault>] [session_info_request]
   [session_info=<N>B] payload=<summary>`. `<N>B` is the received frame size.
+- Scan hit line (FR-038): `[connect:scan-hit] after=<ms>ms rssi=<dBm|unavailable> connectable=<true|false|unknown>
+  attempt=<n>`. One line for every advertisement found by a scan that `connect` runs itself, written before the connectable
+  check and before opening, so it also appears for a `connect` that fails and for each retry. `after` is time since `connect`
+  started (the same measure as `hitAfterMillis`, `12-lib-getting-started.md` §Connect scan observation), `attempt` is the open
+  attempt the hit was found for. The time your logger receives the line is the wall-clock time of the hit. `ble.scan(vin)`
+  and a `target` reused without a scan write no line. It has no advertised name and no device identifier.
 
 | Part | Values |
 |---|---|

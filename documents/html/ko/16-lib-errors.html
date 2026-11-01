@@ -146,7 +146,7 @@
 <table>
 <thead><tr><th>오류</th><th>의미</th><th>대처</th></tr></thead>
 <tbody>
-<tr><td><code>ScanTimeout</code></td><td>시간 안에 차량을 찾지 못함</td><td>차량이 범위 안에 있는지 확인하고 다시 시도</td></tr>
+<tr><td><code>ScanTimeout</code></td><td>연결이 제한 시간 안에 끝나지 않았고 실패한 시도는 없었습니다. <code>ScanTimeout</code>은 광고를 찾지 못했다는 증거가 아닙니다. <a href="18-lib-troubleshooting.html#sec-observe">관찰 로그</a>의 <code>[connect:scan-hit]</code> 줄이 발견을 확인해 줍니다</td><td>차량이 범위 안에 있는지 확인하고 다시 시도</td></tr>
 <tr><td><code>MaxConnectionsExceeded</code></td><td>차량에 이미 블루투스 연결이 세 개 있음</td><td>다른 휴대폰이나 앱의 연결을 끊고 다시 시도</td></tr>
 <tr><td><code>ConnectFailed</code></td><td>연결, 서비스 탐색, 구독 중 하나가 실패함</td><td>잠시 후 다시 시도</td></tr>
 <tr><td><code>Disconnected</code></td><td>링크가 끊김</td><td><code>disconnect()</code>를 호출한 뒤 다시 연결</td></tr>

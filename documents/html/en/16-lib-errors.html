@@ -146,7 +146,7 @@
 <table>
 <thead><tr><th>Error</th><th>Meaning</th><th>What to do</th></tr></thead>
 <tbody>
-<tr><td><code>ScanTimeout</code></td><td>The car was not found in time</td><td>Check the car is in range, try again</td></tr>
+<tr><td><code>ScanTimeout</code></td><td>The connection did not complete within its deadline, with no failed attempt. <code>ScanTimeout</code> does not prove that no advertisement was found: a <code>[connect:scan-hit]</code> line in the <a href="18-lib-troubleshooting.html#sec-observe">observation log</a> confirms discovery</td><td>Check the car is in range, try again</td></tr>
 <tr><td><code>MaxConnectionsExceeded</code></td><td>The car already has three Bluetooth connections</td><td>Disconnect another phone or app, try again</td></tr>
 <tr><td><code>ConnectFailed</code></td><td>Connecting, discovering services or subscribing failed</td><td>Try again in a moment</td></tr>
 <tr><td><code>Disconnected</code></td><td>The link dropped</td><td>Call <code>disconnect()</code>, then connect again</td></tr>

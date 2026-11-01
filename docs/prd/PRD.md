@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | **v1.0 승인** (2026-09-26, D13 개정 포함). NFR-012 타임아웃 문구는 SDD D29에 맞춰 갱신. 주행·미디어·목적지 조사 결과 반영(2026-11-01, §3.2, FR-033, FR-091, §8, §9). `getState` 구현에 맞춘 문구 정정(2026-11-01, FR-033, FR-101) |
+| 상태 | **v1.0 승인** (2026-09-26, D13 개정 포함). NFR-012 타임아웃 문구는 SDD D29에 맞춰 갱신. 주행·미디어·목적지 조사 결과 반영(2026-11-01, §3.2, FR-033, FR-091, §8, §9). `getState` 구현에 맞춘 문구 정정(2026-11-01, FR-033, FR-101). 연결 스캔 관찰 추가(2026-11-01, FR-038, #134) |
 | 저장소 | `{{REPO_URL}}` (공개, Apache-2.0) |
 | 상위 문서 | `{{HANDOFF_FILE}}` §1~§5, §8, §10~§13 |
 | 정답 기준 | `{{REF_REPO_DIR}}` @ `{{REF_REPO_COMMIT}}` + `pkg/protocol/protocol.md` |
@@ -185,6 +185,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | FR-034 | `ping()`: 온라인+키 인식 확인 | P1 | INFO | `Ping` | `05-command-catalog I`, `00-agent-guide §5` |
 | FR-035 | `Vehicle.events: Flow<VehicleEvent>`: 차량이 요청 없이 보낸 평문 VCSEC 브로드캐스트를 공개 이벤트로 낸다. 게이트: from `DOMAIN_VEHICLE_SECURITY`, to `DOMAIN_BROADCAST`, `request_uuid` 비어 있음, `signature_data`·`session_info` 없음. `vehicleStatus` → `Status`(`vehicleStatus()`와 같은 매핑), `authenticationRequest` → `AuthenticationRequest`(`requestedLevel`, `reasons`; 한 프레임에 둘 다 오면 둘 다), 그 밖·디코딩 실패 → `Unrecognized`. 해석 못 한 부분은 `unknownFields`(경로 문자열)와 받은 프레임 전체 `raw`(방어 복사, VIN 마스킹 없음 — 앱이 가림). 연결마다 hot, replay 0, `connection`이 `Disconnected`(이유 무관)가 되거나 `disconnect()`가 불리면 정상 완료. 디스패처 버퍼 64, 넘치면 새 프레임을 버리고 WARN(1·100·200…번째). 응답 매칭에서 버리는 판정은 원본과 같다. **FR-112의 좁은 예외:** 차량이 처음부터 평문 브로드캐스트로 보낸 프레임의 원본 바이트만 내보내며, 라이브러리가 복호화한 데이터는 어떤 경우에도 내보내지 않는다 | P1 | VCSEC | (없음 — 원본은 브로드캐스트를 버린다, `dispatcher.go:270-272`) | `14-lib-reading-state` B2·B3, `18-lib-troubleshooting` Observation log |
 | FR-036 | `VehicleStatus.gear`: VCSEC `VehicleStatus` 필드 7(`Gear_E`, TESLEMETRY-EXT)을 공개 `Gear`(`UNKNOWN`, `PARK`, `DRIVE`, `REVERSE`, `NEUTRAL`)로 노출. 없음 = `UNKNOWN`(proto3라 `GEAR_UNKNOWN`과 구별 불가), 스키마 밖 값도 `UNKNOWN`. 실차는 브로드캐스트로 확인, 조회 응답은 유력(144건 모두 포함) | P1 | VCSEC | (없음, TESLEMETRY-EXT 스키마) | `14-lib-reading-state` A2, B3.1 |
+| FR-038 | `Vehicle.scanObservation: ConnectScanObservation?`: `connect`가 스스로 돌린 스캔에서 링크를 연 광고에 대해 본 값을 낸다. `hitAfterMillis`(연결 시작부터 라이브러리가 그 광고를 받을 때까지, 앞선 시도와 대기 포함. 단조 시계라 벽시계 시각으로 되돌릴 수 없다), `rssi`(dBm, 플랫폼이 값을 주지 않으면 null), `openAttempt`(그 링크를 연 열기 시도 번호, 1부터. 1보다 커도 다시 스캔했다는 뜻은 아니다). 이 호출에 그 광고의 관찰값이 없으면 null(`scan`에서 받은 `target`을 스캔 없이 쓴 경우). 연결 하나의 고정값이며 `disconnect()` 뒤에도 읽을 수 있다. 실패한 연결에는 결과가 없고, `connect`가 스스로 돌린 스캔의 발견마다 관찰 로그(태그 `observe`, DEBUG) `[connect:scan-hit]` 한 줄을 남긴다. 광고 이름(VIN에서 나온 값)과 기기 식별자는 값과 로그 어디에도 담지 않는다(FR-112). 연결 동작과 오류는 바꾸지 않는다 | P1 | – | (없음 — 원본에 없는 관찰 값) | #134, `12-lib-getting-started` Connect scan observation, `18-lib-troubleshooting` Observation log |
 
 ### 5.5 VCSEC 제어
 
@@ -373,6 +374,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | M3 | transport(Kable) + keystore + 샘플 앱 골격 | FR-001~006, FR-020~021, FR-025, FR-028, FR-031, FR-112, NFR-004~006, NFR-009 | 샘플 앱에서 스캔, 연결, 키 목록, VehicleStatus (실차는 사용자 확인) |
 | M4 | 키 등록 + VCSEC 제어 | FR-022~024, FR-026~027, FR-040~047, FR-104, FR-110~111(VCSEC 부분, → SFR-001~002) | 페어링, 잠금, 해제, 트렁크 (실차는 사용자 확인) |
 | #91 (M4 뒤, M5 전) | 차량 브로드캐스트 이벤트, 기어, iOS 키 접근성 선택 (모니터 샘플의 선행 작업, 원래 M5 항목이던 `vehicle.events`를 앞당김) | FR-035, FR-036, FR-037 | FakeVehicle 시나리오 테스트·가짜 Keychain 테스트 PASS, 사용 문서 갱신. 실차·실기기 확인은 모니터 샘플로 |
+| #134 (M5와 별개, 빌드 18 분석의 링크 안정화) | `connect`의 스캔 발견 시각과 RSSI를 공개 API로 제공 | FR-038 | 가짜 커넥터 테스트 PASS, 사용 문서 갱신. 실차 확인은 모니터 샘플에서 |
 | M5 | Infotainment 제어 + GetState (P0/P1) | FR-033~034, FR-050~053, FR-060~085, FR-090~092, FR-110~111(전체, → SFR-001~002) | P0/P1 항목 완료, 실차 체크리스트 전달 |
 | M6 | 문서화, 배포 준비 | `{{LIB_DOCS_DIR}}` 완성, API 문서, NOTICE, mavenLocal/XCFramework 빌드. **마지막 과제**: GitHub Packages + SPM 배포 파이프라인(D13), 소비자용 PAT 설정 문서 | 문서 링크 검증, 배포 설정 |
 | v1.1 | P2 기능, BLE 목적지 설정 PoC(#119, 요구사항 아님, §3.2) | FR-054, FR-086~089, FR-093~094 | PoC는 실차 결과 기록과 지원 여부 판단 |
