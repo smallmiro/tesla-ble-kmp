@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | **v1.0 승인** (2026-09-26, D13 개정 포함). NFR-012 타임아웃 문구는 SDD D29에 맞춰 갱신 |
+| 상태 | **v1.0 승인** (2026-09-26, D13 개정 포함). NFR-012 타임아웃 문구는 SDD D29에 맞춰 갱신. 주행·미디어·목적지 조사 결과 반영(2026-11-01, §3.2, FR-033, FR-091, §8, §9) |
 | 저장소 | `{{REPO_URL}}` (공개, Apache-2.0) |
 | 상위 문서 | `{{HANDOFF_FILE}}` §1~§5, §8, §10~§13 |
 | 정답 기준 | `{{REF_REPO_DIR}}` @ `{{REF_REPO_COMMIT}}` + `pkg/protocol/protocol.md` |
@@ -86,6 +86,9 @@ Tesla 공식 Go SDK `vehicle-command`는 BLE로 차량과 직접 통신하는 �
 - 배포 파이프라인(GitHub Packages, SPM) 구축은 M6 마지막 과제(D13). Maven Central·GitHub Pages 배포는 범위 밖. 그 전 마일스톤의 DoD에는 포함하지 않음
 - 소프트웨어 키 전용 경로(API 31 미만)(D9)
 - 에러 메시지 현지화(D19)
+- **목적지 설정**(`navigation*` 명령): 공식 Go에 없고 `pkg/proxy/command.go`의 `navigation_request`는 REST로 넘긴다. `car_server.proto`의 관련 항목은 `TESLEMETRY-EXT`라 ADR-0002 결정 3에 따라 공개 API에 연결하지 않는다. BLE 가능 여부는 PoC(#119)로 확인하고, 지원으로 올리려면 ADR·PRD 개정과 사용자 승인이 필요하다. 현재 목적지 **조회**는 `getState(Drive)`로 범위 안이다(FR-033)
+- 미디어의 곡 검색·선택, 재생과 정지를 따로 지정하는 명령: 공식 Go에 없다. `toggleMediaPlayback()`만 제공(FR-091)
+- 차량 속도 제어: 해당 명령이 없다. 속도 제한 모드만 있다(FR-087)
 
 ---
 
@@ -178,7 +181,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | FR-030 | 스캔 결과: 존재, RSSI, connectable (FR-001과 동일 Flow) | P0 | – | `ScanVehicleBeacon` | `02-ble-transport §3` |
 | FR-031 | `vehicleStatus()`: `InformationRequest{GET_STATUS}` → `VehicleStatus`(잠금, 도어 4, 프렁크·트렁크, 충전구, 톤노, 수면 상태, 탑승자). 인증·깨우기 불필요 | P0 | VCSEC | `BodyControllerState` | `05-command-catalog B`, `03-protocol §12` |
 | FR-032 | Whitelist 요약: 키 개수, 슬롯 비트마스크 (FR-025 하위) | P0 | VCSEC | `KeySummary` | `05-command-catalog B` |
-| FR-033 | `getState(category)`: 12개 카테고리(Charge, Climate, Drive, Location, Closures, ChargeSchedule, PreconditioningSchedule, TirePressure, Media, MediaDetail, SoftwareUpdate, ParentalControls)를 Wire 생성 타입으로 반환. 인증·깨우기 필요. `RESPONSE_MTU_EXCEEDED`는 "실행됨"으로 분류 | P0 | INFO | `GetState` | `05-command-catalog I`, `04-go-api-reference state.go`, `08-errors §8` |
+| FR-033 | `getState(category)`: 12개 카테고리(Charge, Climate, Drive, Location, Closures, ChargeSchedule, PreconditioningSchedule, TirePressure, Media, MediaDetail, SoftwareUpdate, ParentalControls)를 Wire 생성 타입으로 반환. 인증·깨우기 필요. 카테고리 하나당 요청 하나. `RESPONSE_MTU_EXCEEDED`는 "실행됨"으로 분류하며, 조회에서는 데이터 없는 결과로 구분해 돌려준다. 재시도하지 않고 세션·연결·수면 상태를 바꾸지 않는다(#116). `Drive`에서 자주 일어날 수 있다(§8) | P0 | INFO | `GetState` | `05-command-catalog I`, `04-go-api-reference state.go`, `08-errors §8` |
 | FR-034 | `ping()`: 온라인+키 인식 확인 | P1 | INFO | `Ping` | `05-command-catalog I`, `00-agent-guide §5` |
 | FR-035 | `Vehicle.events: Flow<VehicleEvent>`: 차량이 요청 없이 보낸 평문 VCSEC 브로드캐스트를 공개 이벤트로 낸다. 게이트: from `DOMAIN_VEHICLE_SECURITY`, to `DOMAIN_BROADCAST`, `request_uuid` 비어 있음, `signature_data`·`session_info` 없음. `vehicleStatus` → `Status`(`vehicleStatus()`와 같은 매핑), `authenticationRequest` → `AuthenticationRequest`(`requestedLevel`, `reasons`; 한 프레임에 둘 다 오면 둘 다), 그 밖·디코딩 실패 → `Unrecognized`. 해석 못 한 부분은 `unknownFields`(경로 문자열)와 받은 프레임 전체 `raw`(방어 복사, VIN 마스킹 없음 — 앱이 가림). 연결마다 hot, replay 0, `connection`이 `Disconnected`(이유 무관)가 되거나 `disconnect()`가 불리면 정상 완료. 디스패처 버퍼 64, 넘치면 새 프레임을 버리고 WARN(1·100·200…번째). 응답 매칭에서 버리는 판정은 원본과 같다. **FR-112의 좁은 예외:** 차량이 처음부터 평문 브로드캐스트로 보낸 프레임의 원본 바이트만 내보내며, 라이브러리가 복호화한 데이터는 어떤 경우에도 내보내지 않는다 | P1 | VCSEC | (없음 — 원본은 브로드캐스트를 버린다, `dispatcher.go:270-272`) | `14-lib-reading-state` B2·B3, `18-lib-troubleshooting` Observation log |
 | FR-036 | `VehicleStatus.gear`: VCSEC `VehicleStatus` 필드 7(`Gear_E`, TESLEMETRY-EXT)을 공개 `Gear`(`UNKNOWN`, `PARK`, `DRIVE`, `REVERSE`, `NEUTRAL`)로 노출. 없음 = `UNKNOWN`(proto3라 `GEAR_UNKNOWN`과 구별 불가), 스키마 밖 값도 `UNKNOWN`. 실차는 브로드캐스트로만 확인(조회 응답은 미확인) | P1 | VCSEC | (없음, TESLEMETRY-EXT 스키마) | `14-lib-reading-state` A2, B3.1 |
@@ -258,7 +261,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | ID | 요구사항 | P | 도메인 | Go | 근거 |
 |---|---|---|---|---|---|
 | FR-090 | `volumeUp()`, `volumeDown()`, `setVolume(0..10)` | P1 | INFO | `VolumeUp/Down`, `SetVolume` | `05-command-catalog F` |
-| FR-091 | `mediaNextTrack()`, `mediaPreviousTrack()`, `mediaNextFavorite()`, `mediaPreviousFavorite()`, `toggleMediaPlayback()` | P1 | INFO | `Media*` | 〃 |
+| FR-091 | `mediaNextTrack()`, `mediaPreviousTrack()`, `mediaNextFavorite()`, `mediaPreviousFavorite()`, `toggleMediaPlayback()`. 토글은 결과가 불확실하면 재전송하지 않고 `getState(Media)`로 확인한다(NFR-007) | P1 | INFO | `Media*` | 〃 |
 | FR-092 | `scheduleSoftwareUpdate(delay)`, `cancelSoftwareUpdate()` | P1 | INFO | `Schedule/CancelSoftwareUpdate` | `05-command-catalog G` |
 | FR-093 | `setVehicleName(name)` | P2 | INFO | `SetVehicleName` | `05-command-catalog H` |
 | FR-094 | `getNearbyCharging()`: Go 원본은 응답 데이터를 버리고 오류만 반환. BLE로 데이터가 오는지 **미검증**. v1.1에서 응답 파싱 여부 결정 | P2 | INFO | `GetNearbyCharging` | `05-command-catalog I`, `04-go-api-reference infotainment.go` |
@@ -346,7 +349,8 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 |---|---|---|
 | 펌웨어 변경으로 프로토콜·응답 형식 변화 | 명령 실패, 파싱 오류 | 원본 커밋 고정. 골든 픽스처 재수집 절차를 `troubleshooting.md`에 문서화. 알 수 없는 enum은 실패가 아닌 `Unknown`으로 파싱 |
 | BLE 불안정(연결 끊김, indication 유실) | 결과 불확실 증가 | FR-100~102: 불확실 결과 + 재조회 API. 청크 1초 타임아웃, 연결 재시도 |
-| 결과 불확실 명령의 이중 실행 | 토글 명령(트렁크) 오작동 | NFR-007 자동 재전송 금지. 문서에 재조회 후 재시도 안내 |
+| 결과 불확실 명령의 이중 실행 | 토글 명령(트렁크, 재생) 오작동 | NFR-007 자동 재전송 금지. 문서에 재조회 후 재시도 안내 |
+| 차량 응답 크기 상한으로 `getState(Drive)` 실패 (`vehicle-command` #472, 관측 상한 약 453바이트, 필드 선택 불가) | 속도·출력·주행거리를 얻지 못함. 경로가 있을 때 수십 초 연속 실패, 한국향 Model S/X `2026.27.6.15`는 경로 없이도 거의 항상 실패한다는 보고. 대체 경로 없음 | 실시간 속도를 보장하지 않는다. 오류를 구분해 전달(FR-033, #116), 문서에 마지막 값 유지와 경과 시간·조회 불가 표시를 안내. 실차 확인은 #118 |
 | 슬롯 3개 초과(키포브·폰키) | 연결 불가 | `MaxConnectionsExceeded` 별도 타입(FR-104). 미사용 시 연결 해제 권장(FR-005) |
 | Kable이 iOS indication/MTU를 기대대로 처리하지 못함 | M3 지연 | M3 첫 작업을 실기기 스파이크로 배치. 실패 시 `Transport` 포트 뒤에서 CoreBluetooth 직접 구현으로 대체(ADR) |
 | iOS AES-GCM 공급자 선택 오류 | 암호 불일치 | 후보 두 가지 모두 `protocol.md` GCM 벡터로 검증한 뒤 ADR 확정 |
@@ -370,7 +374,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | #91 (M4 뒤, M5 전) | 차량 브로드캐스트 이벤트, 기어, iOS 키 접근성 선택 (모니터 샘플의 선행 작업, 원래 M5 항목이던 `vehicle.events`를 앞당김) | FR-035, FR-036, FR-037 | FakeVehicle 시나리오 테스트·가짜 Keychain 테스트 PASS, 사용 문서 갱신. 실차·실기기 확인은 모니터 샘플로 |
 | M5 | Infotainment 제어 + GetState (P0/P1) | FR-033~034, FR-050~053, FR-060~085, FR-090~092, FR-110~111(전체, → SFR-001~002) | P0/P1 항목 완료, 실차 체크리스트 전달 |
 | M6 | 문서화, 배포 준비 | `{{LIB_DOCS_DIR}}` 완성, API 문서, NOTICE, mavenLocal/XCFramework 빌드. **마지막 과제**: GitHub Packages + SPM 배포 파이프라인(D13), 소비자용 PAT 설정 문서 | 문서 링크 검증, 배포 설정 |
-| v1.1 | P2 기능 | FR-054, FR-086~089, FR-093~094 | – |
+| v1.1 | P2 기능, BLE 목적지 설정 PoC(#119, 요구사항 아님, §3.2) | FR-054, FR-086~089, FR-093~094 | PoC는 실차 결과 기록과 지원 여부 판단 |
 
 ---
 
