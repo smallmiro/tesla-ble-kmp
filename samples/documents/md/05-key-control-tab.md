@@ -49,6 +49,28 @@ Enrollment state:
   `startSession` sent nothing), fails with `KeyNotPaired`.
 - Goes back to `unknown` when the connection is lost or the key changes.
 
+## Delete and recreate the key (SFR-020)
+
+Step 1 has a second button, **Delete and recreate the key**, that replaces the monitor key `teslable-monitor` with a new one
+(for example after the key was removed from the car for good, or the key store is damaged). iOS built; Android: planned,
+same spec. Library: `13-lib-pairing.md` §Deleting or replacing a key locally and §Key accessibility,
+`17-lib-platform-notes.md` §Session cache.
+
+| Rule | Detail |
+|---|---|
+| Enabled | The key is ready, the key is not locked, and no other call of this tab runs. A connection is **not** needed |
+| Confirmation | Always, before anything changes. It says: the old key is removed from this phone **permanently** and cannot be restored; the car **still lists the old public key** until it is removed on the car (its screen, or `removeKey` from another enrolled key); the new key is not enrolled, so it must be **enrolled again with the key card** (step 3); the connection is dropped and made again |
+| Locked | The key store is read first (`keys.get(alias)`). `KeyStoreError.Locked` changes nothing, not even the connection, and the result says to unlock the phone (`13-lib-pairing.md`: never delete or re-create on `Locked`). A `Locked` during the delete restores the old key and reconnects; a `Locked` during the create counts as a failed create (no retry) |
+| Order (`KeyReplacer`, pure) | read the key store → disconnect (only if the monitor connection was running: connecting, connected or waiting to retry; a connection the user stopped stays stopped) → drop the key handle → `keys.delete(alias)` → `keys.getOrCreate(alias, PREFER_HARDWARE, AFTER_FIRST_UNLOCK)`, the same settings as step 1 → reconnect with the new key |
+| Why the connection goes first | The live `Vehicle`, its sessions and the session cache belong to the old key (the cache is keyed by the SHA-1 of the public key). After a key change the next `connect` discards the old cache and handshakes again, so the old connection is not kept |
+| Failed delete | The new key is **not** created. The old key is read again (`keys.get`, never `getOrCreate`), so the screen shows what is really there; the connection is made again if it was running; the result says the old key is unchanged |
+| Failed create | The old key is gone and there is no new key. No silent retry and no reconnect; the result says to press step 1 |
+| After success | Step 3 goes back to "not enrolled" (a new key is not on the car; the check after reconnecting confirms it). The status card and the enrollment progress lines are cleared, because they came from the old key's connection. The Control tab key list and key info are cleared |
+| Nickname | A key nickname (SFR-019) belongs to the old key id and stays with it; it is **not** moved to the new key |
+
+Implementation (iOS): `KeyReplacement.swift` (`KeyReplacer`, `KeyReplaceOutcome`, the confirmation text),
+`MonitorEngine.replaceKey()`, `KeyControlModel.replaceKey()`, `Tests/KeyReplacementTests.swift`.
+
 ## Running a command
 
 `KeyControlRunner.run(ensureSession, command, requery)` (pure, unit tested with fakes):
@@ -94,7 +116,7 @@ cannot interleave on the wire.
 
 | | Android | iOS |
 |---|---|---|
-| Pure logic + tests | `KeyControl.kt` (`KeyControlSteps`, `KeyControlRunner`, `Enrollment`), `src/test/.../KeyControlTest.kt` | `KeyControl.swift`, `Tests/KeyControlTests.swift` |
+| Pure logic + tests | `KeyControl.kt` (`KeyControlSteps`, `KeyControlRunner`, `Enrollment`), `src/test/.../KeyControlTest.kt` | `KeyControl.swift`, `Tests/KeyControlTests.swift`; `KeyReplacement.swift`, `Tests/KeyReplacementTests.swift` (SFR-020) |
 | State | `KeyControlState.kt` (made in `MainViewModel`) | `KeyControlModel.swift` (made in `MonitorModel`) |
 | Screen | `ui/KeyControlTab.kt` | `Views/KeyControlTab.swift` |
 
@@ -111,3 +133,15 @@ Both apps use the monitor's connection and the monitor key (`teslable-monitor`):
 5. Trunk toggle and close, frunk with the confirmation dialog.
 6. Reinstall with the key still enrolled: after connect the check gives `enrolled` without pairing again.
 7. Remove the key on the car's screen, press a command: the session fails with `KeyNotPaired`, step 3 becomes "to do".
+
+SFR-020 (delete and recreate the key; iOS runbook in `samples/ios/README.md`):
+
+8. Press **Delete and recreate the key**: the dialog states the four points (permanent removal from this phone, the car
+   still lists the old public key, enroll again with the key card, the connection is dropped). Cancel changes nothing.
+9. Confirm while connected and enrolled: the connection drops and comes back, step 1 stays done, step 3 shows "not
+   enrolled" after the check, the status card shows nothing from the old connection, the Control tab key list is empty.
+   **Key list** then shows the old public key on the car and no row marked "this device".
+10. Enroll the new key (step 3). A nickname given to the old key id does not appear on the new key.
+11. After a restart, before the first unlock: the button is off, or the result says the key store is locked and nothing
+    changed (no key deleted, connection unchanged).
+12. With the VIN saved but disconnected (Disconnect pressed): a new key is created and no connection is started.

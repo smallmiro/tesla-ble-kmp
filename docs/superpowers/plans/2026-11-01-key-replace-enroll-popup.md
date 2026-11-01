@@ -1,0 +1,30 @@
+# 키 삭제 후 다시 만들기(SFR-020)와 등록 진행 팝업(SFR-021) Implementation Plan
+
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+
+**Goal:** 키·제어 탭에서 모니터 키를 지우고 새로 만드는 동작(SFR-020)과, 키 등록 요청 뒤 진행을 보여 주고 실제로 멈출 수 있는 팝업(SFR-021)을 iOS 샘플에 넣는다. Android는 같은 스펙으로 나중에 한다.
+
+**Spec:** `{{SAMPLES_DOCS_DIR}}01-requirements.md`(SFR-020, SFR-021), `{{SAMPLES_DOCS_DIR}}05-key-control-tab.md` §Delete and recreate the key, §Enrollment progress popup. 참고 라이브러리 문서: `{{LIB_DOCS_DIR}}13-lib-pairing.md`(§Deleting or replacing a key locally, §Key accessibility, §Enrolling a key), `17-lib-platform-notes.md`(§Session cache, Swift 인자), `16-lib-errors.md`. 새 라이브러리 API는 필요 없다(`keys.get`, `keys.delete`, `keys.getOrCreate`, `addKeyRequest`, `sessionInfo` 모두 "사용 가능").
+
+## Global Constraints
+
+- 라이브러리 모듈은 바꾸지 않는다. 문서에 "사용 가능"으로 적힌 `:sdk` API만 쓴다. 필요한 API가 없으면 멈추고 `library-api-request` 를 쓴다(이번에는 필요 없었다).
+- `KeyStoreError.Locked` 에서는 키를 지우거나 다시 만들지 않는다. 지우기가 실패하면 새 키를 조용히 만들지 않는다.
+- 옛 키 ID에 붙은 별명(SFR-019)은 새 키로 옮기지 않는다.
+- TDD(순수 로직은 실패 테스트부터), Tidy First(구조 변경 `struct:` 커밋을 먼저), 샘플 스펙 MD + HTML ko/en/ja 같은 PR, `tools/ci/check-manual-i18n.sh`.
+- 역할: iOS `ios-developer`(sonnet/high), Android `android-developer`, HTML ko/ja `docs-translator`.
+
+### Task A: SFR-020 키 삭제 후 다시 만들기 (iOS, 빌드 15)
+
+- [x] **Step 1: 실패 테스트** — `Tests/KeyReplacementTests.swift`: `KeyReplacer` 순서(읽기 → 연결 끊기 → 핸들 버리기 → 지우기 → 만들기 → 다시 연결), 잠금이면 아무것도 바꾸지 않음, 지우기 실패면 새 키를 만들지 않고 옛 키를 복원, 만들기 실패면 재시도·재연결 없음, 확인 문구의 네 가지 말, 버튼 활성 규칙.
+- [x] **Step 2:** 구현: `KeyReplacement.swift`, `MonitorEngine.replaceKey()`(연결 처리 결정: 쓰던 연결만 먼저 끊고 새 키로 다시 연결), `KeyControlModel.replaceKey()`, 1단계 버튼과 확인 대화상자. `CURRENT_PROJECT_VERSION` 15.
+- [x] **Step 3:** 문서: `01-requirements.md`(SFR-020), `05-key-control-tab.md`, HTML en/ko/ja, `samples/ios/README.md` 실기기 체크리스트(R1~R8).
+- [ ] **Step 4:** 실기기 확인(R1~R8), AI 리뷰, PR (Refs: SFR-020).
+
+### Task B: SFR-021 키 등록 진행 팝업 (iOS, 빌드 15)
+
+(아래 Task B는 SFR-021 문서 커밋에서 채운다.)
+
+### Task C: Android (예정, 같은 스펙)
+
+- [ ] SFR-019·020·021을 Android `KeyControl.kt`/`KeyControlState.kt`/화면에 같은 규칙으로 구현하고(순수 규칙은 JVM 단위 테스트), 스펙 상태를 "planned"에서 "built"로 고친다(MD + HTML ko/en/ja).
