@@ -171,6 +171,8 @@ final class MonitorEngine: @unchecked Sendable {
     private var eventsTask: Task<(), Never>?
     private var pollTask: Task<(), Never>?
     private let queryNow = WakeSignal()
+    /// 연결 직후 첫 조회가 끝나기 전에는 키·제어 탭의 자동 등록 확인(`listKeys()`)을 늦춘다(#128).
+    private let initialQueries = InitialQueryGate()
     private var loop: ConnectionLoop<VehicleBox>!
 
     init(defaults: UserDefaults = .standard, logFolder: URL? = nil) {
@@ -529,6 +531,8 @@ final class MonitorEngine: @unchecked Sendable {
 
     private func onTransition(_ state: LinkState<VehicleBox>) {
         let ts = log.stamp()
+        // 화면(키·제어 탭)이 연결을 알기 전에 문을 닫아 둔다: 그래야 탭의 자동 확인이 첫 조회와 겹치지 않는다.
+        if case .connected = state { initialQueries.arm() }
         emit.yield(.link(state))
         switch state {
         case .idle: break
@@ -550,7 +554,7 @@ final class MonitorEngine: @unchecked Sendable {
     // MARK: - 연결마다 새로 도는 것: 이벤트 구독과 주기 조회
 
     private func startConnectionJobs(_ box: VehicleBox) {
-        stopConnectionJobs()
+        cancelConnectionJobs() // 문(`initialQueries`)은 건드리지 않는다: 이 연결의 것이 `onTransition` 에서 이미 닫혔다
         queryNow.clear()
         // 새 연결의 세대를 여기서 먼저 올린다. 조회가 이벤트 구독보다 먼저 끝나도 새 연결의 것으로 센다.
         let started = lock.withLock { () -> LiveState in
@@ -568,6 +572,11 @@ final class MonitorEngine: @unchecked Sendable {
     }
 
     private func stopConnectionJobs() {
+        cancelConnectionJobs()
+        initialQueries.open() // 연결이 끝났다: 기다리던 쪽을 풀어 준다
+    }
+
+    private func cancelConnectionJobs() {
         let (events, poll) = lock.withLock { () -> (Task<(), Never>?, Task<(), Never>?) in
             let e = eventsTask, p = pollTask
             eventsTask = nil
@@ -577,6 +586,9 @@ final class MonitorEngine: @unchecked Sendable {
         events?.cancel()
         poll?.cancel()
     }
+
+    /// 연결 직후 모니터의 첫 조회가 끝날 때까지 기다린다. 연결이 없거나 이미 끝났으면 바로 돌아온다.
+    func waitForInitialQueries() async { await initialQueries.wait() }
 
     /// 이벤트 흐름은 링크가 끊기거나 `disconnect()` 가 불리면 저절로 끝난다. 재연결 판단은 `connection` 으로 한다(루프가 한다).
     private func collectEvents(_ box: VehicleBox) async {
@@ -594,8 +606,14 @@ final class MonitorEngine: @unchecked Sendable {
     }
 
     private func pollLoop(_ box: VehicleBox, epoch: Int) async {
+        var first = true
         while !Task.isCancelled {
             await runQueries(box, epoch: epoch)
+            if first {
+                first = false
+                // 취소된(끝난 연결의) 조회가 새 연결의 문을 열면 안 된다.
+                if !Task.isCancelled { initialQueries.open() }
+            }
             if Task.isCancelled { return }
             await queryNow.wait(seconds: TimeInterval(pollSeconds))
         }

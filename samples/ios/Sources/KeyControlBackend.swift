@@ -43,7 +43,11 @@ struct LiveKeyControlBackend: KeyControlBackend {
     func disconnect() async { await engine.disconnect() }
     func connectNow() -> Bool { engine.connectNow() }
     func replaceKey() async -> KeyReplaceOutcome { await engine.replaceKey() }
-    func checkEnrollment() async -> EnrollmentCheckOutcome { await client.checkEnrollment() }
+    /// 연결 직후에는 모니터의 첫 조회(`listKeys()` 포함)가 끝난 뒤에 확인한다. 두 `listKeys()` 가 겹치면 느린 연결에서 5초 예산을 같이 써 버린다(#128, 빌드 18 분석 F11).
+    func checkEnrollment() async -> EnrollmentCheckOutcome {
+        await engine.waitForInitialQueries()
+        return await client.checkEnrollment()
+    }
     func pair(onEvent: @escaping @Sendable (EnrollmentUpdate) async -> ()) async -> Bool { await client.pair(onEvent: onEvent) }
     func ensureVcsecSession() async -> SessionOutcome { await client.ensureVcsecSession() }
     func send(_ button: ControlButton) async -> CommandOutcome { await client.send(button) }
