@@ -109,6 +109,8 @@ public abstract interface class dev/mirolab/teslable/Vehicle {
 	public abstract fun getEvents ()Lkotlinx/coroutines/flow/Flow;
 	public abstract fun getHasKey ()Z
 	public abstract fun getSessions ()Lkotlinx/coroutines/flow/StateFlow;
+	public abstract fun getState-Kx4hsE0 (Ldev/mirolab/teslable/model/StateCategory;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun getState-Kx4hsE0$default (Ldev/mirolab/teslable/Vehicle;Ldev/mirolab/teslable/model/StateCategory;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public abstract fun getVin ()Ldev/mirolab/teslable/model/Vin;
 	public abstract fun keySummary-dnQKTGw (Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun keySummary-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
@@ -147,6 +149,7 @@ public final class dev/mirolab/teslable/Vehicle$DefaultImpls {
 	public static synthetic fun autoSecureVehicle-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static synthetic fun closeTonneau-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static synthetic fun closeTrunk-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public static synthetic fun getState-Kx4hsE0$default (Ldev/mirolab/teslable/Vehicle;Ldev/mirolab/teslable/model/StateCategory;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static synthetic fun keySummary-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static synthetic fun listKeys-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public static synthetic fun lock-dnQKTGw$default (Ldev/mirolab/teslable/Vehicle;Lkotlin/time/Duration;Lkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;

@@ -1,10 +1,12 @@
 package dev.mirolab.teslable
 
+import com.tesla.generated.carserver.vehicle.VehicleData
 import dev.mirolab.teslable.model.KeyFormFactor
 import dev.mirolab.teslable.model.KeyRole
 import dev.mirolab.teslable.model.PairingEvent
 import dev.mirolab.teslable.model.PublicKeyBytes
 import dev.mirolab.teslable.model.SessionInfoSummary
+import dev.mirolab.teslable.model.StateCategory
 import dev.mirolab.teslable.model.VehicleDomain
 import dev.mirolab.teslable.model.VehicleEvent
 import dev.mirolab.teslable.model.VehicleResult
@@ -68,6 +70,22 @@ public interface Vehicle {
 
     /** 잠금·개폐·수면 상태(FR-031). 인증 없음. */
     public suspend fun vehicleStatus(timeout: Duration? = null): VehicleResult<VehicleStatus>
+
+    /**
+     * Infotainment 상태 [category] 하나를 조회한다(FR-033). Infotainment(GCM). 요청 하나에 종류 하나이며 합쳐서 묻는 방법은 없다.
+     *
+     * - 세션이 필요하다: 세션을 스스로 시작하지 않는다. `INFOTAINMENT` 세션이 없으면 보내지 않고 `Failure(NoSession)`이므로 [startSession]을 먼저 부른다.
+     * - 차를 깨우지 않는다: Infotainment가 잠들어 있으면 `Uncertain(Timeout(afterSend = true))`로 끝난다. 깨우려면 [wakeUp]을 먼저 부른다.
+     * - 값이 없는 것과 0은 다르다: 차량이 보내지 않은 필드는 null로 남고 0으로 바꾸지 않는다. `vehicleData`가 없는 응답은
+     *   `Success(VehicleData())`이고 응답의 내용을 [category]와 맞춰 보지도 않으므로, 쓰는 필드마다 null을 확인한다.
+     * - 응답이 차량의 크기 상한을 넘으면 `Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))`이며 다시 보내지 않는다(#116).
+     * - `VehicleData`는 Wire 생성 타입이다. 공식 proto의 필드만 지원한다: `TESLEMETRY-EXT` 필드는 요청하지 않고, 값이 있어도 의미를 보장하지 않는다.
+     * - 결과에는 위치·목적지가 들어 있을 수 있다. `toString()`을 포함해 로그에 남기지 않는다(FR-112).
+     */
+    public suspend fun getState(
+        category: StateCategory,
+        timeout: Duration? = null,
+    ): VehicleResult<VehicleData>
 
     /** 화이트리스트 요약(FR-032). 인증 없음. */
     public suspend fun keySummary(timeout: Duration? = null): VehicleResult<WhitelistSummary>
