@@ -11,6 +11,7 @@ import dev.mirolab.teslable.InternalTeslableApi
 import dev.mirolab.teslable.application.observe.AddressOwner
 import dev.mirolab.teslable.application.observe.ObservationLog
 import dev.mirolab.teslable.application.observe.ObservedAt
+import dev.mirolab.teslable.application.observe.ReplyAuth
 import dev.mirolab.teslable.application.observe.isPlainBroadcast
 import dev.mirolab.teslable.cache.CachedSession
 import dev.mirolab.teslable.cache.SessionSnapshot
@@ -524,14 +525,14 @@ public class Dispatcher
             }
         }
 
-        /** Go `createHandler`. 닫힌 요청은 이때 정리한다(`PendingRequest.close`가 suspend하지 않으므로 지연 제거). */
+        /** Go `createHandler`. 닫힌 요청은 이때 정리한다. */
         private suspend fun register(
             key: PendingKey,
             requestHash: ByteArray?,
             acceptsSessionInfo: Boolean = true,
         ): PendingRequest =
             pendingMutex.withLock {
-                pending.values.removeAll { it.isClosed }
+                reapClosed()
                 PendingRequest(key, requestHash, timeSource.markNow(), acceptsSessionInfo).also { pending[key] = it }
             }
 
@@ -539,12 +540,17 @@ public class Dispatcher
             pendingMutex.withLock {
                 val found = pending[key] ?: return@withLock null
                 if (found.isClosed) {
-                    pending.remove(key)
+                    reapClosed()
                     null
                 } else {
                     found
                 }
             }
+
+        /** 닫힌 요청을 맵에서 뺀다(`PendingRequest.close`가 suspend하지 않으므로 지연 제거). [pendingMutex] 안에서만 부른다. */
+        private fun reapClosed() {
+            pending.values.removeAll { it.isClosed }
+        }
 
         /** Go `listen` 본문 + `process`: 수신 코루틴에서만 호출된다. */
         private suspend fun process(bytes: ByteArray) {
@@ -584,7 +590,7 @@ public class Dispatcher
             }
             // 차량은 desync가 의심되면 오류 응답에 세션정보를 동봉한다. 반영한 뒤에도 응답은 핸들러로 전달한다.
             checkForSessionUpdate(message, handler)
-            val deliverable = decryptIfNeeded(message, handler) ?: return
+            val deliverable = decryptIfNeeded(message, handler).deliverable ?: return
             // checkForSessionUpdate/decryptIfNeeded가 실행되는 동안
             // 호출자가 이 핸들러를 닫았을 수 있다(둘 다 suspend). deliver() 시도 전에 isClosed를 먼저 검사해도
             // 그 검사와 deliver() 사이에 또 닫힐 수 있으므로, 실패 원인은 deliver()가 실패한 **뒤에** 판단한다
@@ -782,32 +788,38 @@ public class Dispatcher
                 null
             }
 
-        /** Go `decrypt` + `session.decrypt`: 평문이면 그대로, 암호문이면 복호화 후 요청별 윈도우 검사. 드롭이면 null. */
+        /** [decryptIfNeeded]의 결과. [deliverable]은 핸들러에 넘길 메시지이고 드롭이면 null이다. 복호화한 평문일 수 있으므로 로그·관찰에 넘기지 않는다(FR-112). */
+        private class Decryption(
+            val deliverable: RoutableMessage?,
+            val auth: ReplyAuth,
+        )
+
+        /** Go `decrypt` + `session.decrypt`: 평문이면 그대로, 암호문이면 복호화 후 요청별 윈도우 검사. [Decryption.auth]는 원본에 없는 진단 값이다. */
         private suspend fun decryptIfNeeded(
             message: RoutableMessage,
             handler: PendingRequest,
-        ): RoutableMessage? {
-            if (message.signature_data?.AES_GCM_Response_data == null) return message
+        ): Decryption {
+            if (message.signature_data?.AES_GCM_Response_data == null) return Decryption(message, ReplyAuth.NONE)
             val id = message.request_uuid.hex()
             val result = sessions[handler.key.domain]?.decrypt(message, handler.requestHash ?: ByteArray(0))
             if (result == null) {
                 logger.log(LogLevel.WARN, TAG) {
                     "[$id] Error decrypting vehicle response: could not decrypt vehicle response without a session"
                 }
-                return null
+                return Decryption(null, ReplyAuth.GCM_NO_SESSION)
             }
             return when (result) {
                 is SignerResult.Fault -> {
                     logger.log(LogLevel.WARN, TAG) { "[$id] Error decrypting vehicle response: ${result.fault.name}: ${result.detail}" }
-                    null
+                    Decryption(null, ReplyAuth.GCM_FAILED)
                 }
 
                 is SignerResult.Ok -> {
                     if (handler.antiReplay.update(result.value.counter)) {
-                        result.value.message
+                        Decryption(result.value.message, ReplyAuth.GCM_OK)
                     } else {
                         logger.log(LogLevel.INFO, TAG) { "[$id] Dropping duplicate vehicle response" }
-                        null
+                        Decryption(null, ReplyAuth.GCM_REPLAY)
                     }
                 }
             }
