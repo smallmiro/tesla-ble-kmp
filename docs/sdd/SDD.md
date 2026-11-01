@@ -7,7 +7,7 @@
 | 정답 기준 | `{{REF_REPO_DIR}}` @ `{{REF_REPO_COMMIT}}` + `pkg/protocol/protocol.md` |
 | 1차 가이드 | `{{MANUAL_DIR}}` (`01-architecture`, `02-ble-transport`, `03-protocol`, `08-errors`, `10-porting-guide`) |
 | 설계 원본 | `{{SPECS_DIR}}2026-09-26-tesla-ble-kmp-design.md` |
-| 결정 기록 | `{{ADR_DIR}}0001` ~ `0014` (§11) |
+| 결정 기록 | `{{ADR_DIR}}0001` ~ `0015` (§11) |
 | 다음 문서 | `{{PLANS_DIR}}` (Phase 3) |
 
 경로는 `{{PATHS_FILE}}` 의 키로 참조한다. Go 파일 경로는 `{{REF_REPO_DIR}}` 기준이며, 인용한 줄 번호는 커밋 `{{REF_REPO_COMMIT}}` 기준이다.
@@ -751,6 +751,7 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 | 0012 | 로컬 검증 게이트가 GitHub Actions CI를 대체 | 사용자 결정 (2026-09-27) |
 | 0013 | 패키지 루트를 `dev.mirolab.teslable` 로 변경 | PRD D14 (2026-10-17) |
 | 0014 | iOS 키 접근성 선택(잠긴 휴대폰에서 키 사용), 기본값 유지·옵트인, ADR-0008 보완 | 설계 §5.6 (2026-10-24), FR-037 |
+| 0015 | 명령 응답 인증 정책, 성공·데이터에 검증된 응답 요구, 2024.38 이전 펌웨어 미지원, Go와 의도적으로 다름 | 사용자 승인 (2026-11-01), FR-105 |
 
 ---
 
@@ -811,4 +812,4 @@ HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 
 
 | 항목 | 내용 | 상태 |
 |---|---|---|
-| 평문 응답 수용 | Go와 같이 `signature_data.AES_GCM_Response_data`가 없는 응답을 평문으로 받아들인다(`Dispatcher.decryptIfNeeded`, Go `dispatcher.go:301` "Decryption is a no-op for plaintext messages"). 2024.38 이전 펌웨어는 `FLAG_ENCRYPT_RESPONSE`를 무시하고 평문으로 답하기 때문이다(`pkg/protocol/protocol.md:751`). 평문 응답에는 인증 태그가 없으므로 BLE 링크 위의 제3자가 조회 데이터를 위조할 수 있다. 그래서 `16-lib-errors` "Reply authenticity"에 `getState`로 안전 판단을 하지 말라고 적는다. 평문 경로에는 도메인 검사가 없어 명령 응답도 예외가 아니며, 위조한 평문 VCSEC 응답을 받으면 차량이 실행하지 않았어도 `lock()` 같은 명령이 `Success`를 돌려줄 수 있다(`VcsecResponses.interpret`, `COMMAND_STATUS_ABSENT`, Go `vcsec.go:32-33, 175-180`). 거부로 바꾸면 Go와 달라지고(절대 규칙 5) 2024.38 이전 펌웨어를 지원하지 못한다. 보안 리뷰가 지적했고 Codex는 공통 경로에서 거부하기를 권한다(출처를 담는 봉투와 펌웨어 2024.38 이상이 필요하다). 거부하더라도 fault만 담긴 평문 응답은 계속 분류해야 한다: 실차가 MTU fault를 평문으로 보내면(#118) 버려져 `Timeout`이 되어 #116이 막으려는 혼동이 생긴다(`mtuFaultWithAttachedSessionInfoStillRefreshesTheSession`이 경고한다). `BleTransport`의 DEBUG RX 헥사에는 평문 응답이 위치까지 그대로 보인다(Go `ble.go:76`과 같다). 복호화한 데이터가 아니므로 FR-112 위반은 아니다 | **사용자 결정 대기** (pending user decision) |
+| 평문 응답 수용 | Go와 같이 `signature_data.AES_GCM_Response_data`가 없는 응답을 평문으로 받아들인다(`Dispatcher.decryptIfNeeded`, Go `dispatcher.go:301` "Decryption is a no-op for plaintext messages"). 2024.38 이전 펌웨어는 `FLAG_ENCRYPT_RESPONSE`를 무시하고 평문으로 답하기 때문이다(`pkg/protocol/protocol.md:751`). 평문 응답에는 인증 태그가 없으므로 BLE 링크 위의 제3자가 조회 데이터를 위조할 수 있다. 그래서 `16-lib-errors` "Reply authenticity"에 `getState`로 안전 판단을 하지 말라고 적는다. 평문 경로에는 도메인 검사가 없어 명령 응답도 예외가 아니며, 위조한 평문 VCSEC 응답을 받으면 차량이 실행하지 않았어도 `lock()` 같은 명령이 `Success`를 돌려줄 수 있다(`VcsecResponses.interpret`, `COMMAND_STATUS_ABSENT`, Go `vcsec.go:32-33, 175-180`). ADR-0015가 성공·데이터에 검증된 응답을 요구하기로 정했다(FR-105, Go와 의도적으로 다름, 2024.38 이전 펌웨어 미지원). 거부하더라도 fault만 담긴 평문 응답은 계속 분류해야 한다: 실차가 MTU fault를 평문으로 보내면(#118) 버려져 `Timeout`이 되어 #116이 막으려는 혼동이 생긴다(`mtuFaultWithAttachedSessionInfoStillRefreshesTheSession`이 경고한다). `BleTransport`의 DEBUG RX 헥사에는 평문 응답이 위치까지 그대로 보인다(Go `ble.go:76`과 같다). 복호화한 데이터가 아니므로 FR-112 위반은 아니다 | **정책 채택, 구현 대기** (ADR-0015, #118 첫 수집 뒤) |

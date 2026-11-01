@@ -274,7 +274,8 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | FR-101 | 재시도 정책: `Temporary`이고 `MayHaveSucceeded`가 아닌 오류만 1초 간격 재시도. 재시도는 새 counter·nonce·expires_at으로 재인가. 재시도 가능 fault: BUSY, TIMEOUT, INVALID_SIGNATURE, INVALID_TOKEN_OR_COUNTER, INTERNAL, INCORRECT_EPOCH, TIME_EXPIRED, TIME_TO_LIVE_TOO_LONG, `WAIT`. `RESPONSE_MTU_EXCEEDED`는 실행됐을 수 있음(`MayHaveSucceeded`) | P0 | 둘 다 | `ShouldRetry`, `retriableErrors` | `08-errors §4`, `10-porting-guide §8` |
 | FR-102 | 결과 불확실 시 상태를 재조회할 수 있는 API 안내: VCSEC 명령은 `vehicleStatus()`, Infotainment는 `getState()` | P0 | 둘 다 | – | `08-errors §7` |
 | FR-103 | 에러는 `sealed` 계층으로 정의하고 원인 코드를 노출: `MessageFault`(0~28), `OperationStatus`, `SessionInfoStatus`, VCSEC `GenericError`, `WhitelistOperation_information`(KeychainError), Infotainment `actionStatus.result_reason` 문자열, 전송·키스토어·권한 오류 | P0 | 둘 다 | `pkg/protocol/error.go` | `08-errors §1~§3` |
-| FR-104 | `InsufficientPrivileges`, `KeyNotOnWhitelist`, `MaxConnectionsExceeded`, `VehicleAsleep`(Infotainment 응답 없음) 등 앱이 UI 분기에 쓰는 상황을 별도 타입으로 구분 | P0 | 둘 다 | sentinel errors | `08-errors §2, §8` |
+| FR-104 | `InsufficientPrivileges`, `KeyNotPaired`, `TransportError.MaxConnectionsExceeded` 를 별도 타입으로 구분. Infotainment 응답이 없다는 것만으로 차가 잠들었다고 추론하지 않는다: 전송 후 시간 제한이 지나면 `Uncertain(Timeout(afterSend = true))` 이고 자동 재전송·깨우기는 없다. 앱은 UI와 깨우기 판단에 `vehicleStatus().sleepStatus` 를 직접 조회할 수 있다. 이 값은 별도의 미인증 관찰이며 앞선 요청의 원인이나 결과를 확정하지 않는다 | P0 | 둘 다 | sentinel errors | `08-errors §2, §8` |
+| FR-105 | 암호화 명령(양 도메인)은 검증된 `AES_GCM_Response_data` 없이 성공하거나 데이터를 돌려주지 않는다(빈 성공 포함). 2024.38 이전 펌웨어는 지원하지 않는다. Go와 의도적으로 다름. **구현은 #118 첫 수집 뒤**, 태그 없는 `WAIT` 처리는 그 결과로 확정 (ADR-0015) | P0 | 둘 다 | – (Go는 평문 수용) | `03-protocol §9.2` |
 
 ### 5.12 샘플 앱과 로깅
 
