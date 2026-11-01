@@ -186,7 +186,7 @@ private struct ClusterDetailSheet: View {
                             }
                         }
                     }
-                    Text("참고: 실내 버튼으로 트렁크를 열고 닫으면 방송이 오지 않을 수 있습니다. 그때는 다음 주기 조회(vehicleStatus)에서 반영되며, Query 탭에서도 확인할 수 있습니다.")
+                    Text("참고: 실내 버튼으로 트렁크를 열고 닫으면 방송이 오지 않을 수 있습니다. 트렁크는 Query 탭의 vehicleStatus() 로 확인하세요.")
                         .font(.footnote)
                 }
                 Section("최근 이벤트 (바뀐 것, 인증 요청, 알 수 없는 방송)") {

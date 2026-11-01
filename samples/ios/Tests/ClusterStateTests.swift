@@ -68,7 +68,7 @@ final class ClusterStateTests: XCTestCase {
             frontDriverDoor: "CLOSED", frontPassengerDoor: "CLOSED", rearDriverDoor: "CLOSED", rearPassengerDoor: "CLOSED",
             frunk: "CLOSED", trunk: "CLOSED", chargePort: "CLOSED"
         )
-        XCTAssertEqual(cluster(live(allClosed)).closureSummary, "받은 상태 기준 모두 닫힘")
+        XCTAssertEqual(cluster(live(allClosed)).closureSummary, "방송 기준 모두 닫힘")
 
         var partial = allClosed
         partial.chargePort = "UNKNOWN"
