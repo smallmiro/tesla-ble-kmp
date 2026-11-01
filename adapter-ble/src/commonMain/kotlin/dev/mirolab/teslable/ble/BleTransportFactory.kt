@@ -38,6 +38,9 @@ import kotlin.time.TimeSource
  * BLE [TransportFactory]. Go `NewConnectionFromScanResult`의 재시도 루프를 옮기되 시도 사이에 [retryInterval]을 둔다(FR-004,
  * 설계 구체화 3). 재시도하지 않는 실패: [BleAvailability] 검사 실패, 스캔 실패(권한·블루투스 꺼짐), 다른 VIN의 광고,
  * connectable=false(`MaxConnectionsExceeded`), `OpenResult.Failed(retry = false)`. 시간이 다 되면 마지막 오류(없으면 `ScanTimeout`).
+ *
+ * 시간이 다 되면 진행 중인 시도의 정리를 기다리지 않고 바로 돌아온다([openOwned]). 시간을 넘겨 기다리는 곳은 시간이 다 된 바로 그 순간 만들어진
+ * 전송을 닫을 때뿐이고 그 대기는 [DISCONNECT_TIMEOUT]으로 제한된다. 프로세스가 돌지 않는 동안에는 타이머도 울리지 않는다(#130, 18-lib).
  */
 @Suppress("LongParameterList") // Go NewConnection(ctx, vin) + 주입 포트(connector/availability/scope/crypto/시간/로거)
 internal class BleTransportFactory(

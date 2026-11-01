@@ -12,6 +12,7 @@ Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 | `scan(vin)` emits nothing, `connect` ends with `ScanTimeout` | Out of range, wrong VIN, or iOS simulator (no Bluetooth) | Move closer, check the VIN (the filter is an exact match on the advertised name `S<hash of VIN>C`), use a real device |
 | `Failure(MaxConnectionsExceeded)`, advertisement has `isConnectable == false` | The vehicle already has 3 BLE connections (phone keys, other apps) | Disconnect another device; always call `disconnect()` in your own app |
 | `ConnectFailed` repeats | Link unstable or the vehicle is busy | The library already retries inside `connectTimeout` (30 s); try again later |
+| `connect` returns some seconds after `connectTimeout`, for example at 32.6 s with the default 30 s | The timer fired late because the process was not running (iOS suspends a background app). It is not the cleanup of a failed attempt | Nothing to repair. See §`connect` time budget |
 | `connection` turns `Disconnected` | Link lost (range, vehicle side) | Call `vehicle.disconnect()`, then `connect` again |
 | `startSession()` → `RequiresKey` | Connected with `key = null` | Connect with a `VehicleKey` |
 | `startSession()` → `KeyNotPaired` | The public key is not enrolled on the vehicle | Enroll it with `addKeyRequest` (`13-lib-pairing.md`). Check with `listKeys()` or `sessionInfo` |
@@ -38,9 +39,47 @@ Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 | `getState()` → `Success` with the same values again | `Success` is not proof of a new measurement | Compare `timestamp` with the previous reply (`14-lib-reading-state.md` A8.3) |
 | `vehicle.events` completed | The link dropped or `disconnect()` was called (a collection started after that ends at once) | Look at `connection`; call `disconnect()`; connect again for a new `Vehicle` and new `events` |
 | `vehicle.events` delivers nothing | Collection started after the broadcasts (there is no replay), the vehicle sent none (it pushes only while awake), or the frames fail the gate (`14-lib-reading-state.md` B2.1) | Make a change on the car (open a door, shift gear). Compare with the observation log: a plain broadcast has a `[drop:to-domain]` line with `from=domain(DOMAIN_VEHICLE_SECURITY) to=domain(DOMAIN_BROADCAST)` |
+| `[drop:missing-source]` line with `reinterpreted=FromVCSECMessage{authenticationRequest{…}}`, but no `AuthenticationRequest` in `vehicle.events` | By design: a frame without a source fails the gate | Nothing to repair. See §Frames without a source |
 | `WARN` `Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)` | A collector of `vehicle.events` fell more than 64 frames behind | Keep the collector light; move slow work to another coroutine (`16-lib-errors.md`) |
 | `UnknownFault`, `UnknownKeychainCode`, enum values read as `UNKNOWN` | Newer vehicle firmware | Check for a library update |
 | Keychain test fails with -25291 on the simulator | Plain Kotlin/Native test binaries cannot use the Keychain | Verify Keychain behaviour in the sample app |
+
+## `connect` time budget
+
+`connectTimeout` (default 30 s) or `ConnectOptions.timeout` covers scanning, opening the link and the retries between
+attempts. When `connect` fails on it:
+
+- It returns at once, with the error of the last failed attempt, or `ScanTimeout` if no attempt failed (Go: `ble.go:270-275`).
+- It does not wait for an attempt still running. That attempt runs in the library's own scope: it is cancelled and cleans up
+  after `connect` has returned, waiting at most 5 s for the platform disconnect (`DISCONNECT_TIMEOUT`). If it still opens a
+  link, the library disconnects that link.
+- The only wait past the budget: a transport created at the very moment the budget ran out is closed before `connect`
+  returns, which also takes at most 5 s. So the library itself adds at most 5 s to a failed `connect`.
+- The budget is a coroutine timer and cannot fire while the process is not running, so a suspended app can overrun by any
+  amount. A 30 s timer has fired 36 minutes late on a real iPhone (`17-lib-platform-notes.md` §iOS background use by the
+  sample). No timeout can prevent this.
+
+Seen once on a real iPhone (status **Likely**: the log records no process state): `ConnectFailed` after 32.63 s, with the
+reason `NotConnectedException: Disconnect detected`. This was a late timer, not cleanup: `ScanTimeout` returns, where no
+attempt had failed, overran just the same (at 31.35, 32.40 and 33.19 s), and the app's next 4 s wait took 9.03 s. No harm
+was seen (#130).
+
+## Frames without a source
+
+Decision (#130): a frame without `from_destination` stays out of `vehicle.events` and remains a `[drop:missing-source]` line
+in the observation log.
+
+- It fails the gate (`14-lib-reading-state.md` B2.1), and the Go original drops it too (`dispatcher.go:248-251`). Without a
+  source nothing says the frame came from VCSEC: `reinterpreted=` only shows how the same bytes read as a `FromVCSECMessage`.
+- Delivering these frames would widen the public contract: `raw` is always a whole `RoutableMessage` frame, and any stray
+  frame would become an event.
+- The gain is small. A real car sent 2 such frames in 12 connections. The `authenticationRequest` (`DRIVE`, `IDENTIFICATION`)
+  arrived 1 ms before the app saw `connected`, so nothing was collecting yet and, with no replay, a wider gate would not have
+  delivered it. The other was a bare `commandStatus`, which has no event type. An app also cannot act on an
+  `AuthenticationRequest`: the library does not send `AuthenticationResponse`.
+
+Reconsider this if a vehicle sends such frames often: reports elsewhere describe one about every 1.1 s
+(`14-lib-reading-state.md` B3.2).
 
 ## Debug logging
 
@@ -92,7 +131,7 @@ What each pushed message means (confirmed on a real car or not) is in `14-lib-re
 | Part | Values |
 |---|---|
 | `[drop:unparseable]` | Frame did not decode as `RoutableMessage`. Line is `[drop:unparseable] <N>B reinterpreted=<summary or undecodable>` |
-| `[drop:missing-source]` | No `from_destination`. The line ends with `reinterpreted=<summary>`: the same bytes read as an unwrapped `FromVCSECMessage` |
+| `[drop:missing-source]` | No `from_destination`. The line ends with `reinterpreted=<summary>`: the same bytes read as an unwrapped `FromVCSECMessage`. Never an event (§Frames without a source) |
 | `[drop:missing-destination]` | No `to_destination` (not seen from the real vehicle) |
 | `[drop:to-domain]` | Addressed to a domain, not a routing address (the vehicle's broadcasts, `DOMAIN_BROADCAST`) |
 | `[drop:malformed]` | Bad request UUID length or bad routing address length |

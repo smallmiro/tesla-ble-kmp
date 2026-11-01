@@ -63,6 +63,8 @@
 <li><a href="#sec-pairing">ペアリングとコマンド</a></li>
 <li><a href="#sec-getstate">getState での状態の読み取り</a></li>
 <li><a href="#sec-other">その他のメッセージ</a></li>
+<li><a href="#sec-budget">connect の制限時間</a></li>
+<li><a href="#sec-no-source">送信元のないフレーム</a></li>
 <li><a href="#sec-logs">デバッグログ</a></li>
 <li><a href="#sec-events">観察ログと vehicle.events</a></li>
 <li><a href="#sec-observe">観察ログ（開発用）</a></li>
@@ -77,6 +79,7 @@
 <tr><td>スキャンで何も見つからず、接続が <code>ScanTimeout</code> で終わる</td><td>範囲外、VIN の誤り、または iOS シミュレーター</td><td>車両に近づく、VIN を確認する (車両は VIN から導出した名前で照合されます)、実機を使う</td></tr>
 <tr><td><code>MaxConnectionsExceeded</code></td><td>車両にすでに 3 つの Bluetooth 接続がある</td><td>別のスマートフォンやアプリを切断し、自分のアプリでは必ず <code>disconnect()</code> を呼びます</td></tr>
 <tr><td><code>ConnectFailed</code> が繰り返し返る</td><td>電波が弱い、または車両がビジー</td><td>ライブラリはすでに 30 秒間リトライしています。時間をおいてもう一度試します</td></tr>
+<tr><td><code>connect</code> が <code>connectTimeout</code> より数秒遅れて返る (例: 30 秒ではなく 32.6 秒)</td><td>アプリが動いていなかったためタイマーが遅れた (iOS はバックグラウンドのアプリを一時停止する)。失敗した試行の後始末が原因ではない</td><td>対処は不要です。<a href="#sec-budget">connect の制限時間</a> を参照してください</td></tr>
 <tr><td><code>connection</code> が <code>Disconnected</code> になる</td><td>リンクが失われた</td><td><code>disconnect()</code> を呼んでから再接続します</td></tr>
 </tbody>
 </table>
@@ -131,11 +134,31 @@
 <tr><td>タイムアウトを伴う <code>Uncertain</code></td><td>送信後に応答が失われた</td><td>状態をもう一度読み取ります。再送はしません</td></tr>
 <tr><td><code>vehicle.events</code> が終わった</td><td>リンクが切れたか <code>disconnect()</code> が呼ばれた。その後に始めた収集はすぐに終わる</td><td><code>connection</code> を確認して <code>disconnect()</code> を呼び、もう一度接続して新しい <code>Vehicle</code> と新しい <code>events</code> を得ます</td></tr>
 <tr><td><code>vehicle.events</code> に何も届かない</td><td>ブロードキャストの後に収集を始めた (再送はない)、車両が送っていない (起きている間だけ送る)、または平文ブロードキャストの条件に合わないフレーム (<a href="14-lib-reading-state.html#sec-b-library">14、B2</a>)</td><td>車両で何かを変えて (ドアを開ける、ギアを変える) 観察ログと比べます。平文ブロードキャストには、セキュリティドメインからブロードキャストドメインへの <code>[drop:to-domain]</code> の行があります</td></tr>
+<tr><td><code>[drop:missing-source]</code> の行に <code>authenticationRequest</code> が見えるが、<code>vehicle.events</code> に <code>AuthenticationRequest</code> が届かない</td><td>意図した動作: 送信元のないフレームは平文ブロードキャストではない</td><td>対処は不要です。<a href="#sec-no-source">送信元のないフレーム</a> を参照してください</td></tr>
 <tr><td><code>WARN</code> <code>Dropping plain broadcast because the broadcast buffer is full</code></td><td><code>vehicle.events</code> の収集側がフレーム 64 個より多く遅れた</td><td>収集処理は軽くし、遅い処理は別のコルーチンに移します (<a href="16-lib-errors.html#sec-events">16. エラー処理</a>)</td></tr>
 <tr><td><code>UnknownFault</code>、<code>UnknownKeychainCode</code>、<code>UNKNOWN</code> として読まれる値</td><td>新しい車両ファームウェア</td><td>ライブラリのアップデートを確認します</td></tr>
 <tr><td>シミュレーターでキーチェーンのテストが -25291 で失敗する</td><td>素の Kotlin/Native テストバイナリはキーチェーンを使えない</td><td>代わりにサンプルアプリでキーチェーンの動作を確認します</td></tr>
 </tbody>
 </table>
+
+<h2 id="sec-budget">connect の制限時間</h2>
+<p><code>connectTimeout</code> (既定は 30 秒) または <code>ConnectOptions.timeout</code> は、スキャン、リンクのオープン、試行の間のリトライをすべて含みます。この時間が尽きて <code>connect</code> が失敗すると、次のようになります。</p>
+<ul>
+<li>すぐに返ります。最後に失敗した試行のエラーを返し、失敗した試行がなければ <code>ScanTimeout</code> を返します。Go のオリジナルも同じです。</li>
+<li>実行中の試行を待ちません。その試行はキャンセルされ、<code>connect</code> が返った後で後始末をします。プラットフォームの切断は最大 5 秒しか待ちません。それでもリンクを開いた場合は、ライブラリがそのリンクを切断します。</li>
+<li>時間を超えて待つのは 1 つの場合だけです。時間が尽きたまさにその瞬間に作られた接続は <code>connect</code> が返る前に閉じ、これも最大 5 秒です。したがって、失敗した <code>connect</code> にライブラリが足す時間は最大 5 秒です。</li>
+<li>制限時間はタイマーであり、タイマーはアプリが動いていない間は発火できません。そのため、一時停止されたアプリはいくらでも遅れることがあります。実機の iPhone で 30 秒のタイマーが 36 分遅れて発火した例があります (<a href="17-lib-platform-notes.html#sec-ios-bg">プラットフォームノート</a>)。どのタイムアウトでも防げません。</li>
+</ul>
+<p>実機の iPhone で一度観察しました (可能性は高いものの未確定です。ログにプロセスの状態がありません): 32.63 秒後の <code>ConnectFailed</code> です。これは後始末ではなくタイマーの遅れでした。失敗した試行がなかった <code>ScanTimeout</code> も同じように時間を超え (31.35、32.40、33.19 秒で終了)、アプリの次の 4 秒の待機には 9.03 秒かかりました。実害は見られませんでした (#130)。</p>
+
+<h2 id="sec-no-source">送信元のないフレーム</h2>
+<p>決定 (#130): 送信元のないフレームは <code>vehicle.events</code> に入れず、観察ログの <code>[drop:missing-source]</code> の行としてのみ残します。</p>
+<ul>
+<li>平文ブロードキャストではなく (<a href="14-lib-reading-state.html#sec-b-library">14、B2</a>)、Go のオリジナルも破棄します。送信元がなければ、そのフレームがセキュリティドメインから来たと言える根拠がありません。<code>reinterpreted=…</code> は同じバイト列を <code>FromVCSECMessage</code> として読むとどう見えるかを示すだけです。</li>
+<li>これらのフレームを届けると公開の契約が広がります。<code>raw</code> は常に <code>RoutableMessage</code> フレーム全体であり、正体不明のフレームまですべてイベントになってしまいます。</li>
+<li>得られるものは少ないです。実車は 12 回の接続でこのようなフレームを 2 個送りました。<code>authenticationRequest</code> (<code>DRIVE</code>、<code>IDENTIFICATION</code>) はアプリが <code>connected</code> を見る 1 ms 前に届き、まだ収集している側がなかったため、再送がない以上、条件を広げても届かなかったはずです。もう 1 つはイベント型のない <code>commandStatus</code> だけでした。また、アプリは <code>AuthenticationRequest</code> を受けても何もできません。ライブラリは <code>AuthenticationResponse</code> を送りません。</li>
+</ul>
+<p>車両がこのようなフレームを頻繁に送るなら再検討します。他の場所では約 1.1 秒ごとに届くという報告があります (<a href="14-lib-reading-state.html#sec-b-catalogue">14、B3.2</a>)。</p>
 
 <h2 id="sec-logs">デバッグログ</h2>
 <ul>
@@ -178,7 +201,7 @@
 <thead><tr><th>項目</th><th>値</th></tr></thead>
 <tbody>
 <tr><td><code>[drop:unparseable]</code></td><td>フレームがルーティングメッセージとして解釈できませんでした。行末に <code>reinterpreted=…</code>（または <code>undecodable</code>）が付きます</td></tr>
-<tr><td><code>[drop:missing-source]</code></td><td>送信元がありません。行末の <code>reinterpreted=…</code> は同じバイト列をラップされていない <code>FromVCSECMessage</code> として読んだ結果です</td></tr>
+<tr><td><code>[drop:missing-source]</code></td><td>送信元がありません。行末の <code>reinterpreted=…</code> は同じバイト列をラップされていない <code>FromVCSECMessage</code> として読んだ結果です。イベントにはなりません (<a href="#sec-no-source">送信元のないフレーム</a>)</td></tr>
 <tr><td><code>[drop:missing-destination]</code></td><td>宛先がありません（実車では見られませんでした）</td></tr>
 <tr><td><code>[drop:to-domain]</code></td><td>クライアントのアドレスではなくドメイン宛てです（車両のブロードキャストは <code>DOMAIN_BROADCAST</code> を使います）</td></tr>
 <tr><td><code>[drop:malformed]</code></td><td>リクエスト UUID の長さまたはアドレスの長さが不正です</td></tr>

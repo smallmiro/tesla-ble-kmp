@@ -63,6 +63,8 @@
 <li><a href="#sec-pairing">페어링과 명령</a></li>
 <li><a href="#sec-getstate">getState로 상태 읽기</a></li>
 <li><a href="#sec-other">기타 메시지</a></li>
+<li><a href="#sec-budget">connect 시간 예산</a></li>
+<li><a href="#sec-no-source">출발지가 없는 프레임</a></li>
 <li><a href="#sec-logs">디버그 로깅</a></li>
 <li><a href="#sec-events">관찰 로그와 vehicle.events</a></li>
 <li><a href="#sec-observe">관찰 로그 (개발용)</a></li>
@@ -77,6 +79,7 @@
 <tr><td>스캔에서 아무것도 찾지 못하고, 연결이 <code>ScanTimeout</code>으로 끝남</td><td>범위 밖, 잘못된 VIN, 또는 iOS 시뮬레이터</td><td>가까이 가고, VIN을 확인하고(차량은 VIN에서 만든 이름으로 찾음), 실기기를 사용</td></tr>
 <tr><td><code>MaxConnectionsExceeded</code></td><td>차량에 이미 블루투스 연결이 세 개 있음</td><td>다른 휴대폰이나 앱의 연결을 끊고, 내 앱에서는 항상 <code>disconnect()</code>를 호출</td></tr>
 <tr><td><code>ConnectFailed</code>가 계속 발생</td><td>약한 신호 또는 바쁜 차량</td><td>라이브러리가 이미 30초 동안 재시도함. 나중에 다시 시도</td></tr>
+<tr><td><code>connect</code>가 <code>connectTimeout</code>보다 몇 초 늦게 돌아옴(예: 30초가 아니라 32.6초)</td><td>앱이 돌고 있지 않아 타이머가 늦게 울림(iOS는 백그라운드 앱을 일시 중단함). 실패한 시도의 정리 때문이 아님</td><td>고칠 것 없음. <a href="#sec-budget">connect 시간 예산</a> 참고</td></tr>
 <tr><td><code>connection</code>이 <code>Disconnected</code>로 바뀜</td><td>링크가 끊김</td><td><code>disconnect()</code>를 호출한 뒤 다시 연결</td></tr>
 </tbody>
 </table>
@@ -131,11 +134,31 @@
 <tr><td>시간 초과와 함께 <code>Uncertain</code></td><td>전송 후 응답이 유실됨</td><td>상태를 다시 읽고, 재전송하지 않음</td></tr>
 <tr><td><code>vehicle.events</code>가 끝남</td><td>링크가 끊겼거나 <code>disconnect()</code>가 불렸음. 그 뒤에 시작한 수집은 바로 끝남</td><td><code>connection</code>을 확인하고 <code>disconnect()</code>를 호출한 뒤, 다시 연결해 새 <code>Vehicle</code>과 새 <code>events</code>를 받음</td></tr>
 <tr><td><code>vehicle.events</code>로 아무것도 오지 않음</td><td>브로드캐스트가 온 뒤에 수집을 시작했거나(다시 보내 주지 않음), 차량이 보내지 않았거나(깨어 있을 때만 보냄), 평문 브로드캐스트 조건에 맞지 않는 프레임임(<a href="14-lib-reading-state.html#sec-b-library">14, B2</a>)</td><td>차량에서 무언가를 바꾸고(문 열기, 기어 변경) 관찰 로그와 비교. 평문 브로드캐스트는 보안 도메인에서 브로드캐스트 도메인으로 가는 <code>[drop:to-domain]</code> 줄이 있음</td></tr>
+<tr><td><code>[drop:missing-source]</code> 줄에 <code>authenticationRequest</code>가 보이는데 <code>vehicle.events</code>에는 <code>AuthenticationRequest</code>가 없음</td><td>의도한 동작: 출발지가 없는 프레임은 평문 브로드캐스트가 아님</td><td>고칠 것 없음. <a href="#sec-no-source">출발지가 없는 프레임</a> 참고</td></tr>
 <tr><td><code>WARN</code> <code>Dropping plain broadcast because the broadcast buffer is full</code></td><td><code>vehicle.events</code>의 수집자가 프레임 64개보다 더 뒤처짐</td><td>수집 코드는 가볍게 하고 느린 작업은 다른 코루틴으로 옮김(<a href="16-lib-errors.html#sec-events">16. 에러 처리</a>)</td></tr>
 <tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UNKNOWN</code>으로 읽히는 값</td><td>새 차량 펌웨어</td><td>라이브러리 업데이트 확인</td></tr>
 <tr><td>시뮬레이터에서 키체인 테스트가 -25291로 실패</td><td>일반 Kotlin/Native 테스트 바이너리는 키체인을 쓸 수 없음</td><td>키체인 동작은 샘플 앱에서 확인</td></tr>
 </tbody>
 </table>
+
+<h2 id="sec-budget">connect 시간 예산</h2>
+<p><code>connectTimeout</code>(기본 30초) 또는 <code>ConnectOptions.timeout</code>은 스캔, 링크 열기, 시도 사이의 재시도를 모두 포함합니다. 이 시간이 다 되어 <code>connect</code>가 실패하면 다음과 같습니다.</p>
+<ul>
+<li>바로 돌아옵니다. 마지막으로 실패한 시도의 오류를 돌려주고, 실패한 시도가 없었으면 <code>ScanTimeout</code>을 돌려줍니다. Go 원본도 같습니다.</li>
+<li>아직 진행 중인 시도를 기다리지 않습니다. 그 시도는 취소되고 <code>connect</code>가 돌아간 뒤에 정리되며, 플랫폼 연결 해제는 최대 5초까지만 기다립니다. 그 시도가 그래도 링크를 열면 라이브러리가 그 링크를 끊습니다.</li>
+<li>시간을 넘겨 기다리는 경우는 하나뿐입니다. 시간이 다 된 바로 그 순간 만들어진 연결은 <code>connect</code>가 돌아가기 전에 닫으며, 이것도 최대 5초입니다. 따라서 실패한 <code>connect</code>에 라이브러리가 더하는 시간은 최대 5초입니다.</li>
+<li>예산은 타이머이고, 타이머는 앱이 돌지 않는 동안에는 울리지 못합니다. 그래서 일시 중단된 앱은 얼마든지 늦어질 수 있습니다. 실제 iPhone에서 30초 타이머가 36분 늦게 울린 적이 있습니다(<a href="17-lib-platform-notes.html#sec-ios-bg">플랫폼 노트</a>). 어떤 시간 제한으로도 막을 수 없습니다.</li>
+</ul>
+<p>실제 iPhone에서 한 번 관찰했습니다(가능성이 높지만 확정은 아닙니다. 로그에 프로세스 상태가 없습니다): 32.63초 뒤의 <code>ConnectFailed</code>. 이것은 정리가 아니라 늦은 타이머였습니다. 실패한 시도가 없었던 <code>ScanTimeout</code>도 똑같이 시간을 넘겼고(31.35, 32.40, 33.19초에 끝남), 앱의 다음 4초 대기는 9.03초가 걸렸습니다. 피해는 관찰되지 않았습니다(#130).</p>
+
+<h2 id="sec-no-source">출발지가 없는 프레임</h2>
+<p>결정(#130): 출발지가 없는 프레임은 <code>vehicle.events</code>에 넣지 않고, 관찰 로그의 <code>[drop:missing-source]</code> 줄로만 남깁니다.</p>
+<ul>
+<li>평문 브로드캐스트가 아니고(<a href="14-lib-reading-state.html#sec-b-library">14, B2</a>), Go 원본도 버립니다. 출발지가 없으면 그 프레임이 보안 도메인에서 왔다고 말할 근거가 없습니다. <code>reinterpreted=…</code>는 같은 바이트를 <code>FromVCSECMessage</code>로 읽으면 어떻게 보이는지를 보여 줄 뿐입니다.</li>
+<li>이런 프레임을 전달하면 공개 계약이 넓어집니다. <code>raw</code>는 언제나 <code>RoutableMessage</code> 프레임 전체이고, 정체를 알 수 없는 프레임까지 모두 이벤트가 됩니다.</li>
+<li>얻는 것이 적습니다. 실차가 연결 12번에서 이런 프레임을 2개 보냈습니다. <code>authenticationRequest</code>(<code>DRIVE</code>, <code>IDENTIFICATION</code>)는 앱이 <code>connected</code>를 보기 1 ms 전에 도착해 아직 수집하는 쪽이 없었으므로, 다시 보내 주지 않는 이상 규칙을 넓혔어도 전달되지 않았을 것입니다. 다른 하나는 이벤트 타입이 없는 <code>commandStatus</code>뿐이었습니다. 또한 앱은 <code>AuthenticationRequest</code>를 받아도 할 수 있는 일이 없습니다. 라이브러리는 <code>AuthenticationResponse</code>를 보내지 않습니다.</li>
+</ul>
+<p>차량이 이런 프레임을 자주 보낸다면 다시 검토합니다. 다른 곳에서는 약 1.1초마다 온다는 보고가 있습니다(<a href="14-lib-reading-state.html#sec-b-catalogue">14, B3.2</a>).</p>
 
 <h2 id="sec-logs">디버그 로깅</h2>
 <ul>
@@ -178,7 +201,7 @@
 <thead><tr><th>항목</th><th>값</th></tr></thead>
 <tbody>
 <tr><td><code>[drop:unparseable]</code></td><td>프레임이 라우팅 메시지로 해석되지 않았습니다. 줄 끝에 <code>reinterpreted=…</code>(또는 <code>undecodable</code>)이 붙습니다</td></tr>
-<tr><td><code>[drop:missing-source]</code></td><td>출발지가 없습니다. 줄 끝의 <code>reinterpreted=…</code>는 같은 바이트를 감싸지 않은 <code>FromVCSECMessage</code>로 읽은 결과입니다</td></tr>
+<tr><td><code>[drop:missing-source]</code></td><td>출발지가 없습니다. 줄 끝의 <code>reinterpreted=…</code>는 같은 바이트를 감싸지 않은 <code>FromVCSECMessage</code>로 읽은 결과입니다. 이벤트가 되지 않습니다(<a href="#sec-no-source">출발지가 없는 프레임</a>)</td></tr>
 <tr><td><code>[drop:missing-destination]</code></td><td>목적지가 없습니다(실차에서는 보이지 않았습니다)</td></tr>
 <tr><td><code>[drop:to-domain]</code></td><td>클라이언트 주소가 아니라 도메인으로 보낸 메시지입니다(차량의 브로드캐스트는 <code>DOMAIN_BROADCAST</code>를 씁니다)</td></tr>
 <tr><td><code>[drop:malformed]</code></td><td>요청 UUID 길이 또는 주소 길이가 잘못되었습니다</td></tr>
