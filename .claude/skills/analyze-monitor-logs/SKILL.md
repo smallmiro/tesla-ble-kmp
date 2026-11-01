@@ -12,8 +12,11 @@ Owner: `protocol-analyst`. Output: a report in `{{ANALYSIS_DIR}}`. Never edits c
 1. **Get the logs.** Pull from a connected phone into `{{SAMPLE_LOGS_DIR}}` (git-ignored) with the pull script described
    in the monitor app spec (`{{SAMPLES_DOCS_DIR}}`). Never copy logs anywhere that is committed.
 2. **Inventory** with a short script (stdlib Python, `python3 -I`): sessions and time span, count per line kind
-   (`event`, `observe`, `query`, `link`, `mark`), count per event type, `unrecognized` count, disconnects and reconnect
+   (`event`, `observe`, `query`, `link`, `mark`, and on iOS `app` with `event` = `scenePhase`, `protectedData`, `start`), count per event type, `unrecognized` count, disconnects and reconnect
    attempts, gaps in reception. Read whole files only after this summary tells you where to look.
+   Newer iOS logs add `query.startedAt` (request start; `ts` is when the result arrived), `app` lines for the scene phase, the phone
+   lock and why the connection loop's `start()` fired (`reason`, `effect`; written before the `connecting` line). Older logs and Android
+   have none of these: treat missing fields as unknown, not as zero. Format: `{{SAMPLES_DOCS_DIR}}04-monitor-app.md` §Log format.
 3. **Decode raw bytes** with `tools/analysis/pbwire.py` (`python3 -I tools/analysis/pbwire.py <hex>`). Compare the field
    tree with the schema (`domain` module protos) and with `14-lib-reading-state.md` Part B.
 4. **Line up in time.** Put marks, link events, query results and decoded fields on one timeline. For each unknown field,

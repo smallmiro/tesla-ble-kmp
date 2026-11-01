@@ -211,6 +211,9 @@ Control 탭의 **키 등록 요청**은 예전처럼 결과 줄만 남기고 팝
 | 8 | 화면 유지 | 앱을 보는 동안 자동 잠금 시간(예: 30초)이 지나도록 두기, 그다음 홈 화면으로 나가기 | 보는 동안 화면이 꺼지지 않음. 앱을 나가면 평소처럼 꺼짐 |
 | 9 | Mark | Log 탭 메모에 `before: open driver door` → Mark | 줄 수에 `mark`가 늘고 마지막 줄에 보임. VIN 모양 글자를 넣으면 `*`로 가려짐 |
 | 10 | 로그 가져오기 | `tools/samples/pull-monitor-logs.sh ios` (USB 연결, 폰 잠금 해제) | `samples/logs/ios/<날짜>/logs/`에 `monitor-*.jsonl`. 첫 줄은 `session`(`platform: ios`, 앱 `0.5.0(19)`). `grep -rE '[A-HJ-NPR-Z0-9]{17}' samples/logs/ios/<날짜>/`에 아무것도 안 나옴. Finder(기기 → 파일)와 파일 앱에서도 `Documents/logs`가 보임 |
+| 11 | 앱·잠금 줄 (#128) | 앱을 홈 화면으로 내렸다가 다시 열기, 폰을 잠갔다가 풀기 | 로그에 `kind: app` 줄: `scenePhase`(`inactive` → `background` → `inactive` → `active`), `protectedData`(`unavailable` 잠글 때, `available` 풀 때). `session` 줄 뒤 시작 때의 `scenePhase`(첫 줄은 아님) |
+| 12 | 시작 이유 (#128) | 앱 시작 자동 연결, 연결 끊기 뒤 연결 버튼, 재연결 대기 중 연결 버튼, 재연결 대기 중 폰 잠금 해제 | `app`/`start` 줄이 `connecting`보다 앞에: `launch`/`started`, `connect-button`/`started`, `connect-button`/`woke`, `protected-data`/`woke`. 연결된 뒤 연결 버튼은 `ignored`. 앞에 `start`가 없는 `connecting`은 백오프 타이머 |
+| 13 | 조회 시작 시각 (#128) | 연결 뒤 첫 조회 라운드 | 모든 `query` 줄에 `startedAt`(`ts`보다 앞이거나 같음). 연결 직후 `listKeys` `query` 줄의 `startedAt`~`ts` 구간이 키·제어 탭의 자동 등록 확인(통합 로그 `TX:`)과 겹치지 않음: 등록 확인은 첫 라운드의 마지막 `query` 줄 `ts` 뒤에 시작. 스캔 발견 시각·RSSI는 라이브러리 요청 전까지 기록되지 않음 |
 
 ### 잠긴 폰과 키 (계획 Task 11)
 
