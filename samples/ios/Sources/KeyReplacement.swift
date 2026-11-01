@@ -15,14 +15,13 @@ enum KeyProbe: Sendable, Equatable {
     case failed(String)
 }
 
-/// 손상된 키를 알아보는 규칙(문서에 적힌 `PlatformFailure` 의 `stored key is corrupted` 문구).
+/// 손상된 키를 알아보는 규칙. 문서에 적힌 `KeyStoreError.PlatformFailure("stored key is corrupted")` 의 `cause` 와 **정확히** 같을 때만 손상이다.
+/// 부분 일치는 쓰지 않는다: 오탐이면 건강한 등록 키를 확인 뒤 영구히 지우게 된다. 라이브러리는 `message` 에
+/// "key store failure: " 를 붙이므로(`cause` 가 아니다) `message` 로는 맞추지 않는다. 라이브러리가 종류별 오류를 주면 그것으로 바꾼다(계획의 후속 항목).
 enum KeyStoreFailure {
-    static let corruptedText = "stored key is corrupted"
+    static let corruptedCause = "stored key is corrupted"
 
-    /// `PlatformFailure` 의 `cause` 와 `message` 중 하나라도 문서의 문구를 담으면 손상이다.
-    static func isCorrupted(_ texts: String...) -> Bool {
-        texts.contains { $0.contains(corruptedText) }
-    }
+    static func isCorrupted(cause: String) -> Bool { cause == corruptedCause }
 }
 
 enum KeyDeleteResult: Sendable, Equatable {

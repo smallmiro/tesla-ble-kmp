@@ -387,10 +387,10 @@ final class MonitorEngine: @unchecked Sendable {
 
     private static let corruptedKeyText = "키 손상: 저장된 키를 읽을 수 없습니다. 키·제어 탭의 '키 삭제 후 다시 만들기'로 복구하세요(옛 키는 복구할 수 없음)"
 
-    /// 문서에 적힌 손상(`KeyStoreError.PlatformFailure`, `stored key is corrupted`)인지.
-    private static func isCorrupted(_ error: VehicleError) -> Bool {
+    /// 문서에 적힌 손상(`KeyStoreError.PlatformFailure` 의 `cause` 가 정확히 `stored key is corrupted`)인지.
+    static func isCorrupted(_ error: VehicleError) -> Bool {
         guard let failure = error as? VehicleErrorKeyStoreErrorPlatformFailure else { return false }
-        return KeyStoreFailure.isCorrupted(failure.cause, failure.message)
+        return KeyStoreFailure.isCorrupted(cause: failure.cause)
     }
 
     /// 키 저장소에서 키를 읽기만 한다(만들지 않는다).
