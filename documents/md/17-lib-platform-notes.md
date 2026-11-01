@@ -188,6 +188,7 @@ in a Swift program.
 - Generated fields keep their proto names in Swift (`drive_state`, `speed_float`, `charge_state`), unlike the camelCase
   hand-written models.
 - `timestamp` is a Wire `Instant`: `charge.timestamp?.getEpochSecond()` gives `Int64?`.
+- `shift_state` is not an enum. `ShiftState` is a Wire oneof message: its members `P`, `R`, `N`, `D`, `SNA` and `CarServer_Invalid` are nullable, and the one that is not `nil` is the gear (`data.drive_state?.shift_state?.P != nil`). If none is set, the vehicle sent no gear. Do not compare it with a string or an enum value.
 - The type names are plain: `VehicleData`, `DriveState`, `StateCategory`. Only `VehicleStatus_` has the name clash.
 - `StateCategory` is a real Swift enum, so a `switch` over all 12 needs no `default`: `.charge`, `.climate`, `.drive`,
   `.location`, `.closures`, `.chargeSchedule`, `.preconditioningSchedule`, `.tirePressure`, `.media`, `.mediaDetail`,

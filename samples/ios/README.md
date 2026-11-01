@@ -1,4 +1,4 @@
-# iOS 샘플 (모니터 앱, 빌드 20)
+# iOS 샘플 (모니터 앱, 빌드 21)
 
 > 샘플 스펙과 제약: `samples/documents/md/`(에이전트용) · `samples/documents/html/`(사람용). 에이전트 지침: `samples/ios/AGENTS.md`.
 > 이 README는 빌드 절차와 실차 확인 절차(runbook)를 담습니다.
@@ -228,3 +228,28 @@ Control 탭의 **키 등록 요청**은 예전처럼 결과 줄만 남기고 팝
 - 키 접근성은 키를 만들 때 정해진다. `WHEN_UNLOCKED`라는 경고가 뜨면 새 별칭으로 키를 만들어 차량에 다시 등록해야 한다(`13-lib-pairing.md` §Key accessibility). 이 샘플에는 별칭을 바꾸는 화면이 없으니 그 결과를 그대로 보고한다.
 - 결과는 **결과 전체 복사**(Control 탭, 마지막 로그 줄 포함)나 Log 탭 "마지막 줄 복사"로 붙여 넣어 보낸다. 통합 로그(Console.app)는 BLE 원문이 있어 공유하지 않는다.
 - 백그라운드 스캔·재연결은 계획 Task 2 스파이크 전까지 미확인이다. 6번과 5번 결과를 그 입력으로 쓴다.
+
+## 상태 진단 실기기 확인 (SFR-023, 빌드 21)
+
+빌드 21(`TeslableSampleDevice`, 버전 0.5.0)을 설치한다. **Query** 탭 아래쪽의 **상태 진단**에서 사람이 직접 `getState()` 를 부른다.
+규칙은 `samples/documents/md/04-monitor-app.md` §State diagnostics. 사용 문서: `14-lib-reading-state.md` A8.1~A8.3, A8.5, `16-lib-errors.md` §`getState` results, §Response size limit on `getState`, `17-lib-platform-notes.md` §Swift: generated types.
+눌렀을 때만 한 번 보낸다(순서: `vehicleStatus()` → `startSession(INFOTAINMENT)` → `getState`). 자동 재시도와 주기 조회는 없고 `wakeUp()` 을 호출하지 않는다.
+**값은 화면에만 나오고 로그에는 범주·결과·소요 시간·오류 종류만 남는다**(Log 탭 `query` 줄 `getState(DRIVE)` 꼴). 그래서 값(속도, 기어, 곡 제목 등)은 사람이 화면에서 옮겨 적는다. 위치와 경로 값은 앱이 읽지 않는다.
+시뮬레이터에는 블루투스가 없으므로 아래는 모두 실기기·실차에서만 확인한다. **주행 중 조작은 동승자가 한다.**
+
+기록은 첫 줄에 차량 화면에서 옮겨 적은 **펌웨어, 모델, 앱 빌드(21)** 를 쓰고, 이어서 확인마다 화면의 결과 줄(결과 종류, 시각, 소요 시간, 값)을 적는다. VIN은 적지 않는다.
+
+| # | 확인 | 할 일 | 기대 |
+|---|---|---|---|
+| S1 | 버튼이 꺼지는 조건 | 연결 전, 키를 등록하기 전, 차가 잠든 뒤(Live 탭 수면이 `ASLEEP`)에 Query 탭을 본다 | 세 버튼이 꺼져 있고 그 아래에 이유가 있다(연결 안 됨 / 등록된 키 필요 / 수면 중 / 수면 상태 모름). `UNKNOWN` 일 때도 꺼진다. 연결·등록·`AWAKE` 가 모두 되면 켜진다 |
+| S2 | Drive, 정차 | 차를 깨운 상태로 정차해 **Drive** | 결과가 한 줄로 나온다: `Success` 이면 `speed: 0 (단위 미확인)`, `shift_state: P` 등. 차량이 보내지 않은 필드는 `—`(0이 아니다). 소요 시간(ms)이 보인다. 위치·목적지 행은 없다 |
+| S3 | Media | 곡을 재생한 채, 멈춘 채 각각 **Media** | `media_playback_status`, `audio_volume`, 곡 제목이 화면에 보인다. Log 탭의 `getState(MEDIA)` 줄에는 곡 제목도 값도 없다 |
+| S4 | MediaDetail | 곡 재생 중 **MediaDetail** | `now_playing_duration`, `now_playing_elapsed` 와 `timestamp`. 제목 행은 없다(제목은 Media 쪽) |
+| S5 | 불확실의 두 모습 | (가능하면) 긴 목적지를 넣고 **Drive**. 그리고 차가 응답하지 않을 때(예: 링크가 약할 때) | 응답이 너무 크면 `Uncertain` 과 "차량이 응답했지만 응답이 너무 커서…(RESPONSE_MTU_EXCEEDED)", 응답이 없으면 `Uncertain` 과 "시간 안에 응답이 없습니다…". 두 문장이 다르고, 자동으로 다시 보내지 않는다(Log 탭에 줄이 한 개). 결과를 적을 때 어느 쪽인지 쓴다 |
+| S6 | 캐시된 세션 | 세션이 만들어진 뒤 앱을 완전히 종료 → 재실행 → 연결 → 같은 버튼 | `Success`. 차가 캐시된 세션을 받아들이지 않으면 `Failure` 와 "Infotainment 세션이 없어 보내지 않았습니다…"가 나오고 자동 재시도는 없다. **다음 누름**은 새 세션을 시작하고 결과를 낸다. 어느 쪽이 나왔는지 적는다 |
+| S7 | 두 번 누름 | 한 버튼을 빠르게 두 번, 또는 조회 중에 다른 버튼 | 조회는 한 번만 간다(버튼이 조회 중에 꺼지고 Log 탭의 `getState` 줄이 하나) |
+| S8 | 연결이 바뀜 | 조회를 누른 직후 차에서 멀어지거나 Control 탭에서 연결 끊기 | 결과 칸이 비고 Log 탭에 그 조회의 `getState` 줄이 없다. 다시 연결한 뒤에도 옛 결과가 나타나지 않고, 다음 주기 조회(`vehicleStatus`)가 끝난 뒤에 버튼이 켜진다 |
+| S9 | 다른 탭과 겹침 | 키·제어 탭에서 "키 삭제 후 다시 만들기"의 확인 창을 연 채(또는 Control 탭 명령 진행 중) Query 탭에서 버튼 | 조회가 시작되지 않고 "다른 키 동작이 진행 중이라…" 문구가 나온다. 키는 바뀌지 않는다. 조회 중에 키 삭제 후 다시 만들기를 누르면 시작되지 않고, 조회가 끝난 뒤 다시 누르면 시작된다 |
+| S10 | 잠든 차 실험(1회) | 차가 잠든 것(`ASLEEP`)을 Live 탭에서 확인 → 일반 버튼이 꺼져 있음 → 범주를 고르고 **잠든 차에 보내기(실험)** → 확인 창 | 창에 "이 요청 때문에 차가 깨어날 수 있습니다. wakeUp() 은 호출하지 않습니다"가 있다. **보내기** 뒤 결과(Uncertain/Failure/Success 중 무엇인지, 소요 시간)와, 그 뒤 Live 탭 수면 값이 바뀌었는지를 적는다. 깨우기 버튼은 누르지 않는다 |
+| S11 | 로그에 값이 없음 | S2~S10 뒤 **Log 탭 마지막 줄 복사**(또는 로그 pull) | `getState(...)` 줄은 `call`, `result`, `summary`(`durationMs=…`, `error=…` 또는 `reason=…`), `startedAt` 뿐이다. 속도·기어·곡 제목·위치가 어느 줄에도 없다(곡 제목으로 검색해도 0건) |
+| S12 | `timestamp` | 같은 상태에서 같은 버튼을 연속으로 두 번 | 두 `timestamp`(epoch 초)가 같은지 다른지 적는다(`Success` 가 새 측정이라는 증거가 아니다, A8.3) |

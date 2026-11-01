@@ -43,13 +43,14 @@
 
 <div class="callout warn">
 <strong>Android와 iOS 구현 완료, 실기기 확인 대기</strong>
-<p>Android 앱(빌드 <code>0.3.0 (3)</code>)과 iOS 앱(빌드 <code>0.5.0 (20)</code>)은 구현되어 있고 단위 테스트를 통과했으며, 둘 다 실차 확인을 기다립니다. iOS의 백그라운드 재연결은 계획 Task 2 스파이크 전까지 확인되지 않았습니다. 필요한 라이브러리 API를 모두 쓸 수 있습니다: <code>Vehicle.events</code>(라이브러리 매뉴얼 12장 "브로드캐스트 이벤트", 14장 B2)와 iOS의 키 접근성 선택(13장 "휴대폰이 잠겨 있을 때 키 쓰기", FR-037).</p>
+<p>Android 앱(빌드 <code>0.3.0 (3)</code>)과 iOS 앱(빌드 <code>0.5.0 (21)</code>)은 구현되어 있고 단위 테스트를 통과했으며, 둘 다 실차 확인을 기다립니다. iOS의 백그라운드 재연결은 계획 Task 2 스파이크 전까지 확인되지 않았습니다. 필요한 라이브러리 API를 모두 쓸 수 있습니다: <code>Vehicle.events</code>(라이브러리 매뉴얼 12장 "브로드캐스트 이벤트", 14장 B2)와 iOS의 키 접근성 선택(13장 "휴대폰이 잠겨 있을 때 키 쓰기", FR-037).</p>
 </div>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
 <li><a href="#sec-req">요구사항</a></li>
 <li><a href="#sec-key">잠긴 휴대폰에서의 키</a></li>
 <li><a href="#sec-nickname">키 별명(로컬 전용)</a></li>
+<li><a href="#sec-state">상태 진단(SFR-023)</a></li>
 <li><a href="#sec-bg">백그라운드 실행</a></li>
 <li><a href="#sec-log">로그 파일</a></li>
 <li><a href="#sec-android">Android 구현</a></li>
@@ -90,6 +91,34 @@
 <p>규칙은 작은 순수 타입입니다(<code>KeyNickname</code>: 자르기, 길이 확인, 제한. <code>KeyNicknameStore</code>: 주입한 <code>UserDefaults</code>에 저장, 조회, 삭제). 차량 없이 단위 테스트합니다(<code>Tests/KeyNicknameTests.swift</code>). 화면은 <code>samples/ios/README.md</code>의 실기기 확인 목록으로 확인합니다(SFR-019).</p>
 <p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (20)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 예정, 같은 스펙.</p>
 
+<h2 id="sec-state">상태 진단(SFR-023)</h2>
+<p>Query 탭에는 사람이 직접 <code>getState()</code>를 호출해 차량이 돌려주는 값을 읽는 수동 영역이 있습니다. 라이브러리 매뉴얼이 미확인으로 적어 둔 실차 사실(14장 A8.5)을 모으기 위한 것입니다: 범주마다 어떤 필드가 오는지, <code>speed</code>의 단위, 응답이 너무 큰지, 잠든 차가 어떻게 하는지. 제품 기능이 아닙니다. 주기적인 <code>getState</code>도, 자동 재시도도, <code>Location</code> 버튼도 없습니다.</p>
+<table>
+<thead><tr><th>규칙</th><th>내용</th></tr></thead>
+<tbody>
+<tr><td>위치</td><td>Query 탭의 주기 조회 영역 아래: 버튼 세 개 <strong>Drive</strong>, <strong>Media</strong>, <strong>MediaDetail</strong>, 마지막 결과, 그리고 별도의 <strong>잠든 차에 보내기(실험)</strong> 영역.</td></tr>
+<tr><td>켜는 조건</td><td>키로 맺은 연결(<code>Vehicle.hasKey</code>), 키·제어 탭이 등록된 것으로 확인한 키, 그리고 가장 최근에 성공한 <code>vehicleStatus()</code>의 <code>sleepStatus == AWAKE</code>(모니터의 주기 조회, 또는 직전 누름의 재조회). <code>ASLEEP</code>, <code>UNKNOWN</code>, "아직 읽지 않음"이면 버튼이 꺼지고 이유가 버튼 아래에 나옵니다. 조회가 도는 동안에도 꺼집니다.</td></tr>
+<tr><td>한 번 누를 때의 순서</td><td>(1) <code>vehicleStatus(timeout: null)</code>: <code>AWAKE</code>가 아니면 <strong>NotSent</strong>로 끝납니다. (2) <code>startSession(setOf(INFOTAINMENT), timeout: null)</code>: 세션이 이미 <code>Ready</code>이면 라이브러리는 아무것도 보내지 않습니다(14장 A8.2: <code>getState</code>는 세션을 시작하지 않습니다). (3) <code>getState(category, timeout: null)</code> 한 번. 기본 타임아웃을 씁니다(16장 "재시도와 타임아웃").</td></tr>
+<tr><td>결과</td><td>라이브러리가 돌려주는 <code>Success</code>, <code>Uncertain</code>, <code>Failure</code>, 그리고 앱이 보내기 전에 멈춘 경우(수면 중, 수면 상태 모름, <code>vehicleStatus()</code> 실패, 세션 실패)의 <strong>NotSent</strong>. 각각 문장이 다릅니다: 크기 오류는 차가 응답했다고, 시간 초과는 아무것도 오지 않았다고, <code>NoSession</code>은 아무것도 보내지 않았다고 말합니다. 자동 재시도는 없습니다. <code>Failure(NoSession)</code>(차가 더는 받아들이지 않는 캐시된 세션, A8.2) 뒤에는 다음 누름이 새 세션을 시작하며, 샘플이 스스로 하지는 않습니다.</td></tr>
+<tr><td>깨우기</td><td>이 화면은 <strong><code>wakeUp()</code>을 절대 호출하지 않으며</strong> "차를 깨우지 않습니다"가 아니라 "<code>wakeUp()</code>을 호출하지 않습니다"라고 적습니다. Infotainment 핸드셰이크가 잠든 차에 어떤 영향을 주는지는 확인되지 않았기 때문입니다.</td></tr>
+<tr><td>잠든 차 실험</td><td>범주를 따로 고르는 버튼과, 차가 깨어날 수 있다고 알리는 확인 대화상자가 있습니다. 확인하면 <strong>수면 확인만</strong> 건너뜁니다: 연결과 등록된 키는 여전히 필요하고, 같은 세션 단계를 거쳐 <code>getState</code>를 한 번 보냅니다. <code>wakeUp()</code>은 절대 호출하지 않습니다. 기록을 남기며 한 번 시도하는 용도입니다.</td></tr>
+<tr><td>겹침</td><td>키를 교체하는 중이거나 다른 탭(Control, 키·제어)이 호출을 하는 동안에는 조회를 시작하지 않고, 조회가 도는 동안에는 키를 교체할 수 없습니다(<code>KeyOperationGate</code>). 조회가 도는 중의 두 번째 누름은 아무 일도 하지 않습니다.</td></tr>
+<tr><td>연결 변경</td><td>결과와 수면 상태는 그것을 읽은 연결의 것입니다. 연결이 바뀌면 결과를 비우고 수면 상태는 <code>UNKNOWN</code>으로 돌아가며, 옛 연결에서 늦게 도착한 결과는 버립니다(표시하지도 기록하지도 않음).</td></tr>
+</tbody>
+</table>
+<p>보이는 필드. 아래의 이름 붙은 필드만 읽습니다. <code>DriveState</code>에는 경로와 목적지 필드도 있지만 앱은 읽지 않으며, <code>Location</code> 버튼은 없습니다. 없는 값은 <code>—</code>이고 <code>0</code>은 <code>0</code> 그대로입니다(14장 A8.3).</p>
+<table>
+<thead><tr><th>범주</th><th>필드</th></tr></thead>
+<tbody>
+<tr><td>Drive</td><td><code>speed</code>와 <code>speed_float</code>: 원시 숫자 뒤에 "(단위 미확인)"을 붙이며 km/h나 mph로 바꾸지 않습니다(A8.5). <code>shift_state</code>(<code>ShiftState</code> oneof에서 값이 있는 멤버: <code>P</code>, <code>R</code>, <code>N</code>, <code>D</code>, <code>SNA</code>). <code>power</code>. <code>odometer_in_hundredths_of_a_mile</code>(원시). <code>timestamp</code>(epoch 초, 새 측정인지 반복인지 가르기 위함, A8.3).</td></tr>
+<tr><td>Media</td><td><code>media_playback_status</code>, <code>audio_volume</code>, <code>now_playing_title</code>(곡 제목은 화면에만), <code>timestamp</code>.</td></tr>
+<tr><td>MediaDetail</td><td><code>now_playing_duration</code>, <code>now_playing_elapsed</code>, <code>timestamp</code>. 제목은 여기가 아니라 <code>MediaState</code>에 있습니다.</td></tr>
+</tbody>
+</table>
+<p>로그. 끝난 누름마다 <code>query</code> 줄 하나만 남기고 다른 것은 남기지 않습니다: <code>call</code>은 <code>getState(DRIVE)</code>, <code>getState(MEDIA)</code>, <code>getState(MEDIA_DETAIL)</code>, <code>result</code>는 <code>Success</code>, <code>Uncertain</code>, <code>Failure</code>, <code>NotSent</code>, <code>summary</code>는 <code>durationMs=&lt;n&gt;</code>에 <code>error=&lt;종류&gt;</code> 또는 <code>reason=&lt;이유&gt;</code>가 붙은 것, <code>startedAt</code>은 그 누름의 첫 라이브러리 호출을 시작한 시각입니다. <strong>값도, 곡 제목도, 필드 이름도</strong> 로그에 가지 않습니다(FR-112, 14장 A8.3 "결과를 로그에 남기지 마세요"): 로그 줄은 그것들을 담을 자리가 없는 작은 값(<code>StateLogEntry</code>)으로 만들고, 요약이 로그로 가는 샘플의 <code>record</code> 도우미는 <code>getState</code>에 쓰지 않습니다. 오류 종류는 라이브러리의 타입 이름(<code>ResponseTooLarge</code>, <code>Timeout(afterSend=true)</code>, <code>NoSession</code>, 또는 클래스 이름)이며 <code>message</code>나 차량이 보낸 글은 쓰지 않습니다.</p>
+<p>부르는 라이브러리 호출과 매뉴얼 장: <code>vehicleStatus(timeout: nil)</code>(14장 A2), <code>startSession(domains:timeout:)</code>(14장 A8.2, 15장), <code>getState(category:timeout:)</code>와 <code>s.value as? VehicleData</code>, <code>KotlinInt?</code> 숫자, <code>getEpochSecond()</code>(14장 A8.3, 17장 "Swift: 생성된 타입"), 결과 처리와 크기 오류(16장 "<code>getState</code> 결과", "<code>getState</code>의 응답 크기 제한"). 순수 규칙(<code>StateDiagnostics</code>)과 화면 상태(가짜 링크를 쓰는 <code>StateDiagnosticsModel</code>)는 차량 없이 단위 테스트합니다(<code>Tests/StateDiagnosticsTests.swift</code>). 실기기 확인 목록은 <code>samples/ios/README.md</code>(SFR-023)에 있습니다.</p>
+<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (21)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 예정, 같은 스펙.</p>
+
 <h2 id="sec-bg">백그라운드 실행</h2>
 <table>
 <thead><tr><th></th><th>Android</th><th>iOS</th></tr></thead>
@@ -106,6 +135,7 @@
 {<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"event"</span>,<span class="p">"type"</span>:<span class="s">"Status"</span>,<span class="p">"summary"</span>:<span class="s">"lock=LOCKED gear=PARK presence=NOT_PRESENT"</span>,<span class="p">"unknownFields"</span>:[<span class="s">"1.8"</span>],<span class="p">"unrecognized"</span>:<span class="n">true</span>,<span class="p">"raw"</span>:<span class="s">"&lt;hex&gt;"</span>}
 {<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"observe"</span>,<span class="p">"line"</span>:<span class="s">"[drop:no-handler] 83B from=domain(DOMAIN_VEHICLE_SECURITY) …"</span>}
 {<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"query"</span>,<span class="p">"call"</span>:<span class="s">"vehicleStatus"</span>,<span class="p">"result"</span>:<span class="s">"Success"</span>,<span class="p">"summary"</span>:<span class="s">"…"</span>,<span class="p">"startedAt"</span>:<span class="s">"…"</span>}
+{<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"query"</span>,<span class="p">"call"</span>:<span class="s">"getState(DRIVE)"</span>,<span class="p">"result"</span>:<span class="s">"Uncertain"</span>,<span class="p">"summary"</span>:<span class="s">"durationMs=5012 error=Timeout(afterSend=true)"</span>,<span class="p">"startedAt"</span>:<span class="s">"…"</span>}
 {<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"link"</span>,<span class="p">"state"</span>:<span class="s">"backoff"</span>,<span class="p">"reason"</span>:<span class="s">"…"</span>,<span class="p">"attempt"</span>:<span class="n">3</span>,<span class="p">"delayMs"</span>:<span class="n">8000</span>}
 {<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"mark"</span>,<span class="p">"memo"</span>:<span class="s">"before: open driver door"</span>}
 {<span class="p">"ts"</span>:<span class="s">"…"</span>,<span class="p">"kind"</span>:<span class="s">"app"</span>,<span class="p">"event"</span>:<span class="s">"scenePhase"</span>,<span class="p">"phase"</span>:<span class="s">"background"</span>}
@@ -116,7 +146,7 @@
 <tbody>
 <tr><td><code>event</code></td><td>차량에서 온 브로드캐스트: 타입(<code>Status</code>, <code>AuthenticationRequest</code>, <code>Unrecognized</code>), 요약, 라이브러리가 인식하지 못한 필드 번호, 인식하지 못한 내용이 있다는 표시, 16진수 문자열로 된 원시 바이트</td></tr>
 <tr><td><code>observe</code></td><td>라이브러리의 관찰 줄(라이브러리가 이미 마스킹함). 원시 BLE <code>TX:</code>/<code>RX:</code> 줄은 절대 기록하지 않습니다</td></tr>
-<tr><td><code>query</code></td><td>Query 탭의 결과</td></tr>
+<tr><td><code>query</code></td><td>Query 탭의 결과(주기 조회, iOS는 상태 진단 누름 포함)</td></tr>
 <tr><td><code>link</code></td><td>연결 중, 연결됨, 연결 끊김, 재시도 대기, 중지됨</td></tr>
 <tr><td><code>mark</code></td><td>Mark 버튼으로 남긴 메모</td></tr>
 <tr><td><code>app</code></td><td>지금은 iOS만: 링크 둘레의 앱과 폰 상태(화면 상태, 폰 잠금, 연결 시도를 시작한 이유)</td></tr>
@@ -127,6 +157,7 @@
 <li><code>event.summary</code>는 <code>lock=… gear=… presence=…</code>로 시작하고, <code>Status</code>에서는 이어서 <code>sleep=…</code>, <code>doors=FD/FP/RD/RP</code>, <code>frunk=…</code>, <code>trunk=…</code>, <code>chargePort=…</code>가 옵니다. <code>AuthenticationRequest</code>는 <code>level=… reasons=[…]</code>, <code>Unrecognized</code>는 <code>unknownFields=[…]</code>입니다.</li>
 <li><code>link</code>: 해당하지 않는 <code>reason</code>, <code>attempt</code>, <code>delayMs</code>는 쓰지 않습니다. <code>connecting.attempt</code>는 시작 또는 링크가 끊긴 뒤부터 센 시도 횟수입니다. <code>backoff.attempt</code>는 연속 실패 횟수(링크가 끊긴 것도 첫 번째로 셉니다)이고 <code>delayMs</code>는 다음 시도 전의 대기 시간이므로 대기 시간은 2000, 4000, 8000, 16000, 30000, 30000으로 읽힙니다. 링크가 끊기면 <code>disconnected</code> 줄(라이브러리가 이유를 주면 그 이유 포함)을 쓰고 이어서 <code>backoff</code> 줄을 씁니다. 10초 이상 유지된 연결은 대기 시간을 다시 2초부터 시작하게 합니다.</li>
 <li><code>vehicleStatus</code>의 <code>query.summary</code>는 <code>Status</code> 이벤트의 요약과 같은 형식입니다. 공개키와 VIN은 들어 있지 않습니다.</li>
+<li><code>call</code>이 <code>getState(&lt;CATEGORY&gt;)</code>인 <code>query</code> 줄(iOS 전용, SFR-023, <a href="#sec-state">상태 진단</a>)은 주기 조회가 아니라 손으로 누른 것에서 나옵니다. <code>result</code>는 <code>Success</code>, <code>Uncertain</code>, <code>Failure</code>, <code>NotSent</code>이고, <code>summary</code>는 <code>durationMs=&lt;n&gt;</code>와, <code>Success</code>가 아니면 <code>error=&lt;종류&gt;</code> 또는 <code>reason=&lt;이유&gt;</code>입니다. 값은 절대 싣지 않습니다.</li>
 </ul>
 <h3>빌드 18 이후 추가(iOS만)</h3>
 <p>이슈 #128과 빌드 18 링크 상태 분석에서 나온 변경입니다. 새 필드는 줄 끝에 붙이고 새 줄은 새 <code>kind</code>를 쓰므로, 모르는 키와 kind를 무시하는 파서는 그대로 동작합니다. Android는 아직 쓰지 않습니다. Android 앱을 맞출 때까지 여기에 차이가 있습니다.</p>
@@ -201,6 +232,7 @@
 <tr><td><code>KeyNickname.swift</code>, <code>Tests/KeyNicknameTests.swift</code></td><td>로컬 키 별명(SFR-019, <a href="#sec-nickname">키 별명</a>): <code>KeyNickname</code>(자르기, 32자 확인, 입력 제한)과 <code>KeyNicknameStore</code>(주입한 <code>UserDefaults</code>에 저장, 조회, 삭제). 순수 로직이며 단위 테스트합니다. Control 탭 키 목록(<code>SampleModel.swift</code>, <code>Views/ControlTab.swift</code>)이 이를 보여 주고 편집합니다.</td></tr>
 <tr><td><code>KeyReplacement.swift</code>, <code>Tests/KeyReplacementTests.swift</code></td><td>모니터 키 삭제 후 다시 만들기(SFR-020, <a href="05-key-control-tab.html#sec-replace">5. 키·제어 탭</a>): <code>KeyReplacer</code>(순서, 잠금·실패 규칙), <code>KeyReplaceOutcome</code>, 확인 문구. 순수 로직이며 단위 테스트합니다. <code>MonitorEngine.replaceKey()</code>가 <code>ble.keys</code>에 대해 실행합니다.</td></tr>
 <tr><td><code>EnrollmentProgress.swift</code>, <code>Tests/EnrollmentPopupTests.swift</code></td><td>등록 진행 팝업(SFR-021, <a href="05-key-control-tab.html#sec-popup">5. 키·제어 탭</a>): <code>EnrollmentUpdate</code>(<code>BleClient.pair</code>가 알리는 것)와 <code>EnrollmentPopup</code>(단계, 줄, 문구, 버튼, 남은 시간). 순수 로직이며 단위 테스트합니다.</td></tr>
+<tr><td><code>StateDiagnostics.swift</code>, <code>Tests/StateDiagnosticsTests.swift</code></td><td>상태 진단(SFR-023, <a href="#sec-state">상태 진단</a>): 순수 규칙(<code>StateDiagnostics</code>: 버튼 켜기, 값 문구, <code>StateOutcome</code> 문장, <code>StateLogEntry</code>), 라이브러리와의 이음매 <code>StateLink</code> / <code>StateDiagnosticsBackend</code>, 그리고 <code>StateDiagnosticsModel</code>(한 번에 조회 하나, 늦은 결과 버림, 키 동작 중에는 거부). <code>MonitorEngine.swift</code>에 실제 <code>StateLink</code>(<code>vehicleStatus</code>, <code>startSession</code>, <code>getState</code>)가 있고, <code>VehicleMapping.swift</code>가 <code>VehicleData</code>를 이름 붙은 필드로 바꾸며, <code>Views/QueryTab.swift</code>가 그립니다.</td></tr>
 <tr><td><code>KeyControlBackend.swift</code>, <code>Tests/KeyControlModelTests.swift</code>, <code>Tests/KeyOperationGateTests.swift</code></td><td><code>KeyControlBackend</code>: <code>KeyControlModel</code>이 라이브러리와 엔진에 요청하는 모든 것(시험에서는 가짜). <code>KeyOperationGate</code>와 <code>KeyHandleCache</code>는 탭을 가로질러 키 교체를 지킵니다(<code>KeyReplacement.swift</code>).</td></tr>
 <tr><td><code>KeyControl.swift</code>, <code>KeyControlModel.swift</code>, <code>Views/KeyControlTab.swift</code></td><td>키·제어 탭(<a href="05-key-control-tab.html">5. 키·제어 탭</a>): 순수 단계 규칙과 명령 실행기, 탭 상태와 화면. 라이브러리 호출은 <code>BleClient</code>를 거칩니다.</td></tr>
 <tr><td><code>ContentView.swift</code>, <code>Views/</code></td><td>Live, Query, Log, Control, 키·제어가 있는 <code>TabView</code>. <code>isIdleTimerDisabled</code>는 <code>scenePhase == .active</code>를 따릅니다.</td></tr>
@@ -214,6 +246,7 @@
 <tr><td><code>vehicle.connection</code>(<code>for await</code>, <code>.disconnected</code>가 될 때까지 대기)</td><td><code>MonitorEngine.awaitLoss</code></td><td>12장 "다음 단계", 14장 "연결 상태와 세션 상태"</td></tr>
 <tr><td>자기 Task에서 수집하는 <code>vehicle.events</code>(<code>for await</code>, <code>onEnum(of:)</code>). <code>raw</code>는 한 번만 읽고 저장하기 전에 가립니다</td><td><code>MonitorEngine.collectEvents</code>, <code>MonitorEvent.init</code></td><td>12장 "브로드캐스트 이벤트", 14장 B2, B2.4</td></tr>
 <tr><td>30초마다 <code>vehicleStatus(timeout: nil)</code>, <code>keySummary(timeout: nil)</code>, <code>listKeys(timeout: nil)</code>, <code>sessions</code>. <code>Uncertain</code>과 <code>Failure</code>는 그대로 보여 줍니다</td><td><code>MonitorEngine.runQueries</code></td><td>14장 "네 가지 조회", 16장 "세 가지 결과"</td></tr>
+<tr><td>버튼을 누를 때 <code>vehicleStatus(timeout: nil)</code>, <code>startSession(domains: [.infotainment], timeout: nil)</code>, <code>getState(category:timeout:)</code>를 이 순서로 한 번씩, 재시도 없이, <code>wakeUp()</code> 없이</td><td><code>LiveStateLink</code>(<code>MonitorEngine.swift</code>)</td><td>14장 A2, A8.1~A8.3, A8.5, 16장 "getState 결과", 17장 "Swift: 생성된 타입"</td></tr>
 <tr><td><code>keys.getOrCreate(alias:policy:accessibility:)</code>에 <code>"teslable-monitor"</code>, <code>.preferHardware</code>, <code>.afterFirstUnlock</code>. <code>VehicleErrorKeyStoreErrorLocked</code>이면 기다렸다 다시 시도하고 키는 지우지 않습니다</td><td><code>MonitorEngine.ensureKey</code></td><td>13장 "휴대폰이 잠겨 있을 때 키 쓰기", 16장 "블루투스와 키 보관소 오류"</td></tr>
 <tr><td><code>TeslaLogger</code>(태그 <code>observe</code>)</td><td><code>ObserveLogger</code></td><td>18장 "관찰 로그 (개발용)"</td></tr>
 <tr><td><code>Vin.companion.parseOrNull</code>, <code>scan</code>, <code>addKeyRequest</code>, <code>sessionInfo</code>, <code>startSession</code>, VCSEC 명령, <code>removeKey</code></td><td>Control 탭과 키·제어 탭(<code>BleClient</code>)</td><td>12, 13, 15, 16장</td></tr>

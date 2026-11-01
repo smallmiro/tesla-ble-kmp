@@ -45,17 +45,17 @@ The monitor app (`04-monitor-app.md`, SFR-010 to SFR-022): five tabs, one monito
   `Info.plist` gets `UIBackgroundModes: [bluetooth-central]`, `UIFileSharingEnabled` and
   `LSSupportsOpeningDocumentsInPlace` from `project.yml`.
 - Files: see `04-monitor-app.md` §iOS implementation. `MonitorModel.swift` and `MonitorEngine.swift` (connection, events,
-  queries, logs), `ConnectionLoop.swift`, `InitialQueryGate.swift`, `LogLine.swift`, `LogWriter.swift`, `VinMask.swift`, `LiveState.swift`,
+  queries, logs), `ConnectionLoop.swift`, `InitialQueryGate.swift`, `LogLine.swift`, `LogWriter.swift`, `VinMask.swift`, `LiveState.swift`, `StateDiagnostics.swift` (state diagnostics rules and screen state, SFR-023),
   `VehicleMapping.swift`, `SampleModel.swift` (Control tab state and `BleClient`; every action runs through `exclusive { }` so only one
   library call runs at a time), `KeyControl.swift` (Key & Control step rules and command runner, pure), `KeyControlModel.swift`
   (Key & Control tab state), `KeyNickname.swift` (local key nickname rules and store, pure, SFR-019), `KeyReplacement.swift` (monitor key delete-and-recreate order and texts, pure, SFR-020), `EnrollmentProgress.swift` (enrollment progress popup state, pure, SFR-021), `KeyControlBackend.swift` (the seam between the Key & Control tab state and the library, so the state is tested with a fake), `ContentView.swift`, `Views/*Tab.swift`.
-- Tests: `Tests/` (`VinMaskTests`, `LogWriterTests`, `ConnectionLoopTests`, `InitialQueryGateTests`, `LiveStateTests`, `TimeoutsTests`, `KeyControlTests`, `KeyNicknameTests`, `KeyReplacementTests`, `EnrollmentPopupTests`, `KeyOperationGateTests`, `KeyControlModelTests`), run with
+- Tests: `Tests/` (`VinMaskTests`, `LogWriterTests`, `ConnectionLoopTests`, `InitialQueryGateTests`, `LiveStateTests`, `TimeoutsTests`, `KeyControlTests`, `KeyNicknameTests`, `KeyReplacementTests`, `EnrollmentPopupTests`, `KeyOperationGateTests`, `KeyControlModelTests`, `StateDiagnosticsTests`), run with
   `xcodebuild ... test` (`02-constraints.md` §4).
 
 | Tab | Contents |
 |---|---|
 | Live | Connection banner, VIN save and clear, Connect and Disconnect, the latest status per item (broadcast or successful `vehicleStatus()`) with its last-changed time, recent events |
-| Query | `vehicleStatus()`, `keySummary()`, `listKeys()` every 30 s (changeable), results with outcome and time, sessions, "query now" |
+| Query | `vehicleStatus()`, `keySummary()`, `listKeys()` every 30 s (changeable), results with outcome and time, sessions, "query now"; iOS also has the state diagnostics (SFR-023): Drive / Media / MediaDetail buttons that call `getState()` once per tap |
 | Log | Line counts, unrecognized count, last lines and copy, file path, memo and Mark, new file |
 | Control | The former single screen (below). Uses the monitor's connection and key |
 | Key & Control | Four steps (key, connect, enroll, control) and a button grid of the VCSEC commands, status card, results (`05-key-control-tab.md`) |
