@@ -30,7 +30,7 @@ class KableGattLinkTest {
             val peripheral = StuckPeripheral()
             val link = KableGattLink(peripheral, blockLength = 20, Channel(Channel.UNLIMITED), Job(), backgroundScope)
             link.disconnect()
-            assertEquals(DISCONNECT_TIMEOUT.inWholeMilliseconds, currentTime)
+            assertEquals(5_000, currentTime) // 상수가 아니라 문서의 5초를 고정한다(상수를 읽으면 상수를 바꿔도 통과한다)
             assertEquals(1, peripheral.disconnects)
             assertEquals(1, peripheral.closes)
         }
