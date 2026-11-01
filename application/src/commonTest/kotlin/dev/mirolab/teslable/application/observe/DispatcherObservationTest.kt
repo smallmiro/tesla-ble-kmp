@@ -1,5 +1,8 @@
 package dev.mirolab.teslable.application.observe
 
+import com.tesla.generated.carserver.server.Response
+import com.tesla.generated.carserver.vehicle.DriveState
+import com.tesla.generated.carserver.vehicle.VehicleData
 import com.tesla.generated.universalmessage.Destination
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
@@ -17,6 +20,7 @@ import dev.mirolab.teslable.application.dispatcher.replyTo
 import dev.mirolab.teslable.application.dispatcher.testCommand
 import dev.mirolab.teslable.application.vcsec.VcsecResponses
 import dev.mirolab.teslable.application.vehicle.VehicleSession
+import dev.mirolab.teslable.model.StateCategory
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.port.AuthMethod
 import dev.mirolab.teslable.port.LogLevel
@@ -166,6 +170,41 @@ class DispatcherObservationTest {
             assertTrue(lines.all { it.level == LogLevel.DEBUG })
             assertTrue(lines.none { it.message.contains(h.fake.vin.value) })
             assertTrue(lines.none { it.message.contains(TestCrypto.clientPublicKey.toByteArray().toHex()) })
+        }
+
+    @Test
+    fun infotainmentReplyContentNeverReachesLogsOrObservations() =
+        // FR-112: 응답 값은 어떤 레벨의 로그에도 나가지 않는다. 세 경로를 지난다: getState 성공, 복호화 뒤의 드롭(큐 초과), 평문 프레임의 드롭.
+        // 복호화한 메시지는 ObservationLog.infotainment에 오지 않으므로(그게 맞다) 그 요약을 지나려면 평문 프레임이 필요하다. 복호화 전에 드롭되는 프레임이다
+        runTest {
+            val h = dispatcherHarness()
+            val session = VehicleSession(h.dispatcher)
+            assertIs<VehicleResult.Success<Unit>>(session.startSession(timeout = 1.seconds))
+            val destination = "FR112-SENTINEL-DESTINATION"
+            val response = Response(vehicleData = VehicleData(drive_state = DriveState(active_route_destination = destination)))
+            val reply = FakeVehicle.infotainmentPayload(response)
+
+            h.fake.script(Domain.DOMAIN_INFOTAINMENT, listOf(reply))
+            val result = session.infotainment.getState(StateCategory.DRIVE)
+
+            h.fake.script(Domain.DOMAIN_INFOTAINMENT, List(PendingRequest.BUFFER_SIZE + 1) { reply })
+            val command = testCommand(flags = FakeVehicle.FLAG_ENCRYPT_RESPONSE)
+            val open = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(command, AuthMethod.GCM)).value
+            runCurrent()
+            open.close()
+
+            h.transport.deliver(encode(replyTo(h.fake.received.last(), response.encode())))
+            runCurrent()
+
+            val logged = h.logger.entries.map { it.message }
+            val hex = destination.encodeToByteArray().toHex()
+            assertTrue(logged.none { it.contains(destination) || it.contains(hex) }, logged.toString())
+            // 빈 시험이 아니라는 확인: 값은 복호화됐고, 복호화 뒤의 드롭은 암호문으로 남았고, 평문 프레임은 요약을 지났다
+            val data = assertIs<VehicleResult.Success<VehicleData>>(result).value
+            assertEquals(destination, data.drive_state?.active_route_destination)
+            val observed = h.logger.observed()
+            assertTrue(observed.any { it.startsWith("[drop:queue-full] ") && it.contains("payload=encrypted(") }, observed.toString())
+            assertTrue(observed.any { it.startsWith("[drop:no-handler] ") && it.contains("payload=Response{") }, observed.toString())
         }
 
     @Test
