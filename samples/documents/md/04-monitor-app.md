@@ -177,6 +177,8 @@ Files in `samples/ios/Sources/` (tests in `samples/ios/Tests/`, names as in the 
 | `SampleModel.swift`, `Views/ControlTab.swift` | Control tab (the former single screen) on the monitor's connection and key |
 | `KeyControl.swift`, `KeyControlModel.swift`, `Views/KeyControlTab.swift` | Key & Control tab (`05-key-control-tab.md`): pure step rules and command runner, tab state, screen; library calls go through `BleClient` |
 | `KeyNickname.swift`, `Tests/KeyNicknameTests.swift` | Local key nickname (SFR-019, §Key nickname): `KeyNickname` (trim, 32-character check, input clamp) and `KeyNicknameStore` (set / get / remove over an injected `UserDefaults`), pure and unit tested; the Control tab key list (`SampleModel.swift`, `Views/ControlTab.swift`) shows and edits it |
+| `KeyReplacement.swift`, `Tests/KeyReplacementTests.swift` | Delete and recreate the monitor key (SFR-020, `05-key-control-tab.md`): `KeyReplacer` (order, locked and failure rules), `KeyReplaceOutcome`, the confirmation text; pure and unit tested. `MonitorEngine.replaceKey()` runs it against `ble.keys` |
+| `EnrollmentProgress.swift`, `Tests/EnrollmentPopupTests.swift` | Enrollment progress popup (SFR-021, `05-key-control-tab.md`): `EnrollmentUpdate` (what `BleClient.pair` reports) and `EnrollmentPopup` (phases, rows, texts, buttons, remaining time); pure and unit tested |
 | `ContentView.swift`, `Views/` | `TabView` Live / Query / Log / Control / Key & Control; `isIdleTimerDisabled` follows `scenePhase == .active` |
 
 Library calls used (Swift form) and the manual page and section:

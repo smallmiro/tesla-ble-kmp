@@ -50,6 +50,7 @@
 <li><a href="#sec-req">요구사항</a></li>
 <li><a href="#sec-steps">단계와 버튼이 켜지는 조건</a></li>
 <li><a href="#sec-enroll">등록 상태</a></li>
+<li><a href="#sec-popup">등록 진행 팝업</a></li>
 <li><a href="#sec-replace">키 삭제 후 다시 만들기</a></li>
 <li><a href="#sec-run">명령 실행</a></li>
 <li><a href="#sec-buttons">버튼</a></li>
@@ -89,6 +90,28 @@
 <li>Control 탭이 등록을 확인하거나 이 기기의 키를 제거하면 다시 확인합니다.</li>
 <li>명령 전의 세션, 또는 명령 자체(세션이 이미 <code>Ready</code>였으므로 그 명령은 아무것도 보내지 않았습니다)가 <code>KeyNotPaired</code>로 실패하면 <code>notEnrolled</code>가 됩니다.</li>
 <li>연결이 끊기거나 키가 바뀌면 <code>unknown</code>으로 돌아갑니다.</li>
+</ul>
+
+<h2 id="sec-popup">등록 진행 팝업</h2>
+<p><strong>키 등록 요청</strong>(3단계)을 누르면 막는 시트가 바로 열리고 흐름이 끝날 때까지 유지됩니다. 기존 흐름(<code>addKeyRequest</code>, 이어서 매뉴얼 13장 "Enrolling a key"의 확인)을 세 줄과 메시지 하나로 보여 줍니다. iOS 구현 완료, Android: 예정, 같은 스펙. Control 탭의 <strong>키 등록 요청</strong>은 결과 줄만 남기고 팝업이 없습니다.</p>
+<table>
+<thead><tr><th>단계</th><th>시점</th><th>시트 내용</th><th>버튼</th></tr></thead>
+<tbody>
+<tr><td>보내는 중</td><td>버튼을 눌렀을 때</td><td>요청을 보내는 중</td><td>취소</td></tr>
+<tr><td>카드 대기</td><td><code>Sent</code> / <code>WaitingForTap</code></td><td>요청을 보냈습니다: 중앙 콘솔에 키카드를 대고 차 화면에서 승인하세요</td><td>취소</td></tr>
+<tr><td>확인 중</td><td><code>Accepted</code>, 또는 요청이 <code>TimedOut</code>으로 끝났을 때</td><td><code>sessionInfo(publicKey, INFOTAINMENT)</code>를 3초마다: 시도 번호, 2:00 중 경과·남은 시간, 진행 막대(시도마다 갱신하므로 최대 3초 전 값). <code>TimedOut</code> 뒤에는 요청이 시간 초과였고 확인이 진행 중이라고 알립니다</td><td>취소</td></tr>
+<tr><td>완료</td><td>확인에 성공</td><td>키가 등록되었고 4단계 버튼을 쓸 수 있습니다</td><td>닫기</td></tr>
+<tr><td>확인 못 함</td><td>2분 안에 확인되지 않음</td><td>2분 안에 확인되지 않았습니다. 차에서 승인했는지 확인한 뒤 <strong>등록 상태 확인</strong>을 누르세요</td><td>닫기</td></tr>
+<tr><td>실패</td><td><code>Rejected</code>, <code>Failed</code>, <code>KeyNotPaired</code>가 아닌 확인의 <code>Failure</code>(예: <code>NotConnected</code>), 또는 요청을 시작하지 못함(연결이나 키 없음)</td><td>"실패: "와 메시지</td><td>닫기</td></tr>
+<tr><td>취소됨</td><td>사용자가 취소를 누름</td><td>아래 참고</td><td>닫기</td></tr>
+</tbody>
+</table>
+<ul>
+<li><strong>막음.</strong> 흐름이 도는 동안 시트를 끌어내려 닫을 수 없고, <strong>취소</strong>(끝난 뒤에는 <strong>닫기</strong>)만 누를 수 있습니다.</li>
+<li><strong>취소는 기다리기를 실제로 멈춥니다.</strong> 흐름의 Task를 취소하면 요청 수집과 3초 확인 반복이 끝납니다(이미 나간 <code>sessionInfo</code> 호출은 5초 제한 안에 끝남). 누르면 시트가 멈추는 중이라고 알리고 이어서 취소된 상태를 보입니다. 취소해도 3단계의 상태는 바뀌지 않습니다.</li>
+<li><strong>취소로 되돌려지지 않는 것.</strong> 이미 차량에 보낸 요청은 거둘 수 없습니다. 차가 승인 창을 계속 보일 수 있고, 그 뒤에 키카드를 대면 키가 등록될 수도 있습니다. 취소된 시트가 이를 알리고 <strong>등록 상태 확인</strong>을 안내합니다.</li>
+<li><strong>앱이 다음 상태로 넘어가면 닫힘.</strong> 연결(링크 끊김, 다시 연결)이나 키가 바뀌면 시트가 바로 닫히고 흐름이 멈추며 결과 줄("등록 기다리기를 중단했습니다")이 남습니다. 그 뒤에 도착한 알림은 버립니다. 끝난 시트(완료, 확인 못 함, 실패, 취소됨)도 이 경우에는 사라집니다.</li>
+<li>단계·상태 논리는 순수 코드입니다: <code>EnrollmentPopup</code>(단계, 줄, 문구, 버튼 규칙, 남은 시간), <code>EnrollmentUpdate</code>(흐름이 알리는 것), <code>EnrollmentWaiter.wait(onAttempt:)</code>. 테스트는 <code>Tests/EnrollmentPopupTests.swift</code>. <code>Views/KeyControlTab.swift</code>의 시트는 그리기만 합니다.</li>
 </ul>
 
 <h2 id="sec-replace">키 삭제 후 다시 만들기</h2>
@@ -139,7 +162,7 @@
 <table>
 <thead><tr><th>부분</th><th>Android</th><th>iOS</th></tr></thead>
 <tbody>
-<tr><td>순수 로직과 테스트</td><td><code>KeyControl.kt</code>, <code>src/test/.../KeyControlTest.kt</code></td><td><code>KeyControl.swift</code>, <code>Tests/KeyControlTests.swift</code>; <code>KeyReplacement.swift</code>, <code>Tests/KeyReplacementTests.swift</code> (SFR-020)</td></tr>
+<tr><td>순수 로직과 테스트</td><td><code>KeyControl.kt</code>, <code>src/test/.../KeyControlTest.kt</code></td><td><code>KeyControl.swift</code>, <code>Tests/KeyControlTests.swift</code>; <code>KeyReplacement.swift</code>, <code>Tests/KeyReplacementTests.swift</code> (SFR-020); <code>EnrollmentProgress.swift</code>, <code>Tests/EnrollmentPopupTests.swift</code> (SFR-021)</td></tr>
 <tr><td>상태</td><td><code>KeyControlState.kt</code>(<code>MainViewModel</code>에서 생성)</td><td><code>KeyControlModel.swift</code>(<code>MonitorModel</code>에서 생성)</td></tr>
 <tr><td>화면</td><td><code>ui/KeyControlTab.kt</code></td><td><code>Views/KeyControlTab.swift</code></td></tr>
 </tbody>
@@ -164,6 +187,15 @@
 <li>새 키를 등록합니다(3단계). 옛 키 ID에 붙인 별명은 새 키에 나타나지 않습니다.</li>
 <li>재시작 뒤 첫 잠금 해제 전: 버튼이 꺼져 있거나, 결과가 키 저장소가 잠겨 있고 아무것도 바뀌지 않았다고 알립니다(키를 지우지 않았고 연결도 그대로).</li>
 <li>VIN은 저장되어 있지만 연결을 끊은 상태(연결 끊기를 누름): 새 키가 만들어지고 연결은 시작되지 않습니다.</li>
+</ol>
+<p>SFR-021, 등록 진행 팝업(iOS 절차는 <code>samples/ios/README.md</code>):</p>
+<ol start="13">
+<li><strong>키 등록 요청</strong>을 누릅니다: 시트가 바로 열리고, 요청을 보냈으니 중앙 콘솔에 키카드를 대고 차 화면에서 승인하라고 알립니다.</li>
+<li>카드를 대고 승인합니다: 시트가 확인 중으로 바뀌며 시도 번호, 경과·남은 시간을 보이고, 이어서 "완료"와 <strong>닫기</strong>가 나옵니다. 3단계가 완료되고 4단계 버튼이 켜집니다.</li>
+<li>2분 동안 승인하지 않습니다: 안내와 함께 "2분 안에 확인되지 않았습니다", <strong>닫기</strong>, <strong>등록 상태 확인</strong>이 동작합니다.</li>
+<li>기다리는 중에 <strong>취소</strong>를 누릅니다: 시트가 멈추는 중이라고 알린 뒤 요청은 되돌릴 수 없다는 안내와 함께 취소됨을 보이고, 이후 <code>sessionInfo</code> 요청이 없습니다(Log 탭). 그 뒤 카드를 대고 <strong>등록 상태 확인</strong>을 누르면 <code>enrolled</code>가 나올 수 있습니다.</li>
+<li>시트가 열린 채 블루투스를 끄거나 멀어집니다: 시트가 바로 닫히고 결과 줄이 기다리기를 중단했다고 알립니다.</li>
+<li>흐름이 도는 동안 시트를 아래로 끌어 봅니다: 그대로 남습니다.</li>
 </ol>
 
 <footer class="page-nav">
