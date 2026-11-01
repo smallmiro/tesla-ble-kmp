@@ -60,6 +60,7 @@
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#sec-outcomes">Three outcomes</a></li>
 <li><a href="#sec-hierarchy">Error types</a></li>
+<li><a href="#sec-getstate">getState results</a></li>
 <li><a href="#sec-transport">Bluetooth and key store errors</a></li>
 <li><a href="#sec-events">Broadcast events</a></li>
 <li><a href="#sec-retry">Retries and timeouts</a></li>
@@ -71,7 +72,7 @@
 <thead><tr><th>Outcome</th><th>Meaning</th><th>What your app does</th></tr></thead>
 <tbody>
 <tr><td><span class="badge ok">Success</span></td><td>The car confirmed</td><td>Use the value</td></tr>
-<tr><td><span class="badge warn">Uncertain</span></td><td>The car may have done it, but no confirmation arrived</td><td>Do <strong>not</strong> send it again. Read the state instead (<code>vehicleStatus()</code>; <code>getState()</code> once M5 lands)</td></tr>
+<tr><td><span class="badge warn">Uncertain</span></td><td>A command: the car may have done it, but no confirmation arrived. A query: no data was confirmed, and nothing was done (<a href="#sec-getstate">getState results</a>)</td><td>A command: do <strong>not</strong> send it again, read the state instead (<code>vehicleStatus()</code>, or <code>getState()</code> for infotainment state). A query: keep the last value and ask again later</td></tr>
 <tr><td><span class="badge vcsec">Failure</span></td><td>It did not happen</td><td>Look at <code>error</code></td></tr>
 </tbody>
 </table>
@@ -110,10 +111,33 @@
 </table>
 <p>Check the error type, not <code>message</code>: the message now shows the code name instead of the number.</p>
 
-<h3 id="sec-size-limit">Response size limit on <code>getState</code> (planned for M5)</h3>
-<p>The car sends no data when its reply goes over a size limit. The largest reply seen on real cars is about 453 bytes; this is an observed value, not a specification. <code>getState()</code> will return <code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code>, and the app cannot make the reply smaller.</p>
+<h2 id="sec-getstate">getState results</h2>
+<p>A query changes nothing on the car. So <strong><code>Uncertain</code> on a read means no data was confirmed</strong>, not that a command may have run. <code>mayHaveSucceeded</code> is still true, because reads and commands share the error types. There is nothing to check afterwards: keep the last value and ask again later. Asking again is safe, but not in a tight loop; the library sets no interval, so it is your app's choice.</p>
+<table>
+<thead><tr><th>Result</th><th>Meaning</th><th>What your app does</th></tr></thead>
+<tbody>
+<tr><td><code>Success(data)</code></td><td>The car answered</td><td>Check every field you use for <code>null</code>. <code>data</code> can be empty, and a success is not proof of a new measurement: compare <code>timestamp</code> with the previous reply (<a href="14-lib-reading-state.html#sec-a-reading">14, A8.3</a>)</td></tr>
+<tr><td><code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code></td><td>The car received the request but the reply was too large. The car is reachable</td><td>Keep the last value with its age; see the next section</td></tr>
+<tr><td><code>Uncertain(Timeout(afterSend = true))</code></td><td>Nothing came back in time: infotainment is asleep, the reply was lost, or the link dropped while waiting</td><td>Read <code>vehicleStatus()</code>. <code>ASLEEP</code>: your app may wake the car (<a href="14-lib-reading-state.html#sec-a-order">14, A8.2</a>). Otherwise keep the last value with its age. Check <code>connection</code> too</td></tr>
+<tr><td><code>Uncertain(BadResponse(detail))</code></td><td>A reply arrived but could not be read</td><td>Keep the last value. Report <code>detail</code> if it repeats</td></tr>
+<tr><td><code>Failure(Timeout(afterSend = false))</code></td><td>Time ran out before sending or while waiting to retry, for example when the car keeps answering busy while it wakes</td><td>Ask again later, with a longer <code>timeout</code> right after a wake</td></tr>
+<tr><td><code>Failure(NoSession)</code></td><td>No infotainment session (nothing was sent), or the car did not accept the saved one</td><td><code>startSession(setOf(VehicleDomain.INFOTAINMENT))</code>, then ask again once</td></tr>
+<tr><td><code>Failure(InfotainmentRejected(reason))</code></td><td>The car refused. This wins over any data in the reply</td><td>Show a generic message. <code>reason</code> is the car's own text; do not log it</td></tr>
+<tr><td><code>Failure(NotConnected)</code>, <code>TransportError</code></td><td>The link is gone or the write failed</td><td>Call <code>disconnect()</code>, then connect again (<a href="#sec-transport">below</a>)</td></tr>
+</tbody>
+</table>
+<p>Any other error means what the error type table above says. Your interface can tell the two main <code>Uncertain</code> cases apart by error type: a size fault means the car answered, a timeout means nothing came back. Neither is a reason to clear the session.</p>
+
+<h3 id="sec-size-limit">Response size limit on <code>getState</code></h3>
+<p>The car sends no data when its reply goes over a size limit. The largest reply seen on real cars is about 453 bytes; this is an observed value, not a specification. <code>getState()</code> returns <code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code>, and the app cannot make the reply smaller.</p>
 <p>It is most likely on <code>Drive</code>. A long destination name makes it more frequent, with reports of failures lasting tens of seconds, and of one Model S/X build (<code>2026.27.6.15</code>, South Korea) failing almost always even with no route.</p>
-<p>The library does not resend it and does not change the session, connection or sleep state, so it does not mean the car is gone or asleep. Keep the last value with its age, show it as unavailable when it is too old, and do not retry in a tight loop.</p>
+<p>The library does not resend the request. It does not clear the session, reconnect or wake the car because of this fault; session information that came with the reply is still applied as usual. The fault does not mean the car is gone or asleep. Keep the last value with its age, show it as unavailable when it is too old, and do not retry in a tight loop. Live speed is not guaranteed, and how this behaves per firmware is not confirmed on a real car (#118).</p>
+
+<h3 id="sec-authenticity">Reply authenticity</h3>
+<div class="callout warn">
+<strong>Do not base safety decisions on <code>getState</code></strong>
+<p>Like the Go original, the library accepts a plaintext infotainment reply, because firmware before 2024.38 does not encrypt responses (<code>vehicle-command/pkg/protocol/protocol.md:751</code>). A plaintext reply carries no authentication tag, so a party on the BLE link could forge read data. The same goes for <code>vehicleStatus()</code> and <code>vehicle.events</code>, which are unauthenticated plaintext by design (<a href="14-lib-reading-state.html#sec-a-transport">14, A1</a>, <a href="14-lib-reading-state.html#sec-b-wire">B1</a>). Whether to reject plaintext replies is an open decision; rejecting them would drop firmware before 2024.38.</p>
+</div>
 
 <h2 id="sec-transport">Bluetooth and key store errors</h2>
 <p>Connecting is already retried every second until the connect timeout. The last column is what the app should do.</p>

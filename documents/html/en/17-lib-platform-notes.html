@@ -68,6 +68,7 @@
 <li><a href="#sec-clock">Clocks</a></li>
 <li><a href="#sec-slots">Connection slots and dropped links</a></li>
 <li><a href="#sec-swift-timeouts">Swift: timeouts</a></li>
+<li><a href="#sec-swift-generated">Swift: generated types (getState)</a></li>
 </ol></div>
 
 <h2 id="sec-support">Support</h2>
@@ -180,6 +181,19 @@
 <li><code>Timeouts.shared.seconds(seconds:)</code> returns the boxed value to pass as any <code>timeout:</code> argument. Zero, negative, NaN or infinite input throws <code>IllegalArgumentException</code>. <code>Timeouts.shared.millisecondsOf(timeout:)</code> returns the milliseconds of a boxed value (<code>-1</code> for <code>nil</code>); it exists to check the round trip. The iOS sample's XCTest target runs in <code>tools/ci/verify.sh</code> step (d).</li>
 <li><code>TeslaBleConfig.companion.withSeconds(logger:commandTimeoutSeconds:handshakeTimeoutSeconds:connectTimeoutSeconds:pairingTimeoutSeconds:)</code> builds a config from seconds. Every argument is required; <code>commandLifetime</code> keeps its default. <code>TeslaBleConfig.companion.default(logger:)</code> is unchanged.</li>
 <li><code>timeout: nil</code> still means "use the config default".</li>
+</ul>
+
+<h2 id="sec-swift-generated">Swift: generated types (getState)</h2>
+<p><code>getState</code> returns the Wire generated <code>VehicleData</code>, which behaves differently in Swift from the hand-written models. The full example is in <a href="14-lib-reading-state.html#sec-a-reading">14. Reading Vehicle State</a>. These forms pass a Swift typecheck against the framework; they have not run in a Swift program.</p>
+<ul>
+<li><code>vehicle</code> is the <code>Vehicle</code> protocol. Pass every argument: <code>vehicle.getState(category: .drive, timeout: nil)</code>, or <code>timeout: Timeouts.shared.seconds(seconds: 8)</code>. Without <code>timeout:</code> the compiler reports <code>missing argument for parameter 'timeout' in call</code>.</li>
+<li>The generic of <code>VehicleResult</code> is erased, so <code>s.value</code> is <code>AnyObject?</code>. Cast it: <code>s.value as? VehicleData</code>.</li>
+<li>Nullable numbers bridge as <code>KotlinInt?</code> and <code>KotlinFloat?</code>, not <code>Int32?</code> and <code>Float?</code>. Read <code>.int32Value</code> and <code>.floatValue</code>. <code>let speed: Int32? = data.drive_state?.speed</code> is rejected, and the compiler says only <code>failed to produce diagnostic for expression</code>, so that message will not help.</li>
+<li>Generated fields keep their proto names in Swift (<code>drive_state</code>, <code>speed_float</code>, <code>charge_state</code>), unlike the camelCase hand-written models.</li>
+<li><code>timestamp</code> is a Wire <code>Instant</code>: <code>charge.timestamp?.getEpochSecond()</code> gives <code>Int64?</code>.</li>
+<li>The type names are plain: <code>VehicleData</code>, <code>DriveState</code>, <code>StateCategory</code>. Only <code>VehicleStatus_</code> has the name clash.</li>
+<li><code>StateCategory</code> is a real Swift enum, so a <code>switch</code> over all 12 needs no <code>default</code>: <code>.charge</code>, <code>.climate</code>, <code>.drive</code>, <code>.location</code>, <code>.closures</code>, <code>.chargeSchedule</code>, <code>.preconditioningSchedule</code>, <code>.tirePressure</code>, <code>.media</code>, <code>.mediaDetail</code>, <code>.softwareUpdate</code>, <code>.parentalControls</code>.</li>
+<li>The enum in <code>.protocolFault</code> is <code>MessageFault_E</code>. The size limit case is <code>.messagefaultErrorResponseMtuExceeded</code>: <code>case .protocolFault(let p) where p.fault == .messagefaultErrorResponseMtuExceeded:</code>.</li>
 </ul>
 
 <footer class="page-nav">

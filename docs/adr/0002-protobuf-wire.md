@@ -44,3 +44,26 @@ Square Wire 7.0.4. Gradle 플러그인이 `:domain` commonMain에 Kotlin을 생�
 - 새 메시지의 packed repeated 필드에서 Wire 7.0.4가 불필요한 `!!`를 생성해 `:domain`에서 `UNNECESSARY_NOT_NULL_ASSERTION` 경고를 끈다.
 - `NOTICE`에 Teslemetry tesla-protocol 귀속(Apache-2.0, 고정 커밋)을 적는다. 위 "결과"의 "`.proto`는 복사본이며 무수정"은 "Teslemetry 스냅샷의 무수정 복사본"으로 읽는다.
 - 이후 틀린 이름이 고쳐지면 생성 API 호환성 문제가 된다. 미검증 이름을 공개 모델로 승격하지 않는 이유다.
+
+## 개정 (2026-11-01): `VehicleData`와 `TESLEMETRY-EXT` 생성 필드
+
+| 항목 | 내용 |
+|---|---|
+| 상태 | **채택** (2026-11-01, M5 `getState` 계획의 결정 기록, Claude·Codex 협의) |
+| 관련 | `{{PRD_FILE}}` FR-033, `{{SDD_FILE}}` §2.3·§6, `{{PLANS_DIR}}2026-11-01-m5-get-state.md`, `{{LIB_DOCS_DIR}}14-lib-reading-state.md` A8, #115 |
+
+### 맥락
+`getState`는 `VehicleData`를 Wire 생성 타입 그대로 돌려준다(SDD §2.3). 생성 타입은 2026-10-18 개정의 스냅샷에서 나오므로 `TESLEMETRY-EXT` 필드(예: `gui_settings`, `vehicle_config`, `LocationState.native_latitude_d`)가 공개 타입에 함께 드러난다. 결정 3은 이런 항목이 "생성 타입으로 존재할 뿐"이며 명령 API, 상태 이벤트, 안전 판단에 연결하지 않는다고 했다. 그런데 반환 타입이 곧 공개 API이므로, 결정 3만으로는 이 노출이 허용되는지 정해지지 않는다.
+
+### 결정
+1. **수동 노출은 허용한다.** `VehicleData`와 하위 생성 타입을 그대로 돌려준다. 그 결과 공개 타입에 `TESLEMETRY-EXT` 필드가 보이고, 차량이 그 필드를 보내면 값도 그대로 전달되는 것은 결정 3 위반이 아니다.
+2. **요청, 해석, 지원 보장은 하지 않는다.** `StateCategory`는 공식 Go의 12개 선택자만 고른다(`TESLEMETRY-EXT` `Get*` 없음). 라이브러리 코드는 이 필드를 읽어 동작을 정하지 않는다. 사용 문서는 공식 proto에 있는 필드만 지원한다고 적고, `TESLEMETRY-EXT` 필드는 값이 있어도 의미를 보장하지 않는다고 적는다.
+3. **승격 절차는 결정 3 그대로다.** 필드를 지원으로 올리려면 실차 캡처나 공식 Go로 확인한 뒤 ADR 개정과 사용 문서 갱신을 거친다.
+
+### 결과
+- 공개 타입을 감싸지 않으므로 필드 손실이 없고 승인된 SDD 시그니처가 유지된다.
+- 앱에서 `TESLEMETRY-EXT` 필드가 보이고 컴파일러는 사용을 막지 못한다. 지원 범위는 문서로 전달한다.
+- 스냅샷을 갱신해 이름이 바뀌면 생성 API 호환성이 바뀐다(2026-10-18 개정 "결과"). `apiDump`로 드러난다.
+
+### 대안
+- 공식 필드만 담은 수기 모델: 필드가 200여 개이고 펌웨어에 따라 늘어나며, 래핑하면 손실과 지연이 생긴다(SDD §2.3). 기각.

@@ -1,6 +1,6 @@
 # Platform Notes (Android / iOS)
 
-Scope: M3. Items not yet confirmed on a real device are marked so. Go original BLE behaviour: `02-ble-transport.md`.
+Scope: M3, plus the Swift form of `getState` (FR-033). Items not yet confirmed on a real device are marked so. Go original BLE behaviour: `02-ble-transport.md`.
 
 ## Support
 
@@ -171,3 +171,26 @@ checked on a real iPhone yet, so treat the library behaviour in the background a
   (Swift: `TeslaBleConfig.companion.withSeconds(...)`) builds a config from seconds. All arguments are required;
   `commandLifetime` keeps its default. `TeslaBleConfig.companion.default(logger:)` is unchanged.
 - `timeout: nil` still means "use the config default".
+
+## Swift: generated types (`getState`)
+
+`getState` returns the Wire generated `VehicleData`, which behaves differently in Swift from the hand-written models.
+Full example: `14-lib-reading-state.md` A8.3. These forms pass a Swift typecheck against the framework; they have not run
+in a Swift program.
+
+- `vehicle` is the `Vehicle` protocol. Pass every argument: `vehicle.getState(category: .drive, timeout: nil)`, or
+  `timeout: Timeouts.shared.seconds(seconds: 8)`. Without `timeout:` the compiler reports
+  `missing argument for parameter 'timeout' in call`.
+- The generic of `VehicleResult` is erased, so `s.value` is `AnyObject?`. Cast it: `s.value as? VehicleData`.
+- Nullable numbers bridge as `KotlinInt?` and `KotlinFloat?`, not `Int32?` and `Float?`. Read `.int32Value` and
+  `.floatValue`. `let speed: Int32? = data.drive_state?.speed` is rejected, and the compiler says only
+  `failed to produce diagnostic for expression`, so that message will not help.
+- Generated fields keep their proto names in Swift (`drive_state`, `speed_float`, `charge_state`), unlike the camelCase
+  hand-written models.
+- `timestamp` is a Wire `Instant`: `charge.timestamp?.getEpochSecond()` gives `Int64?`.
+- The type names are plain: `VehicleData`, `DriveState`, `StateCategory`. Only `VehicleStatus_` has the name clash.
+- `StateCategory` is a real Swift enum, so a `switch` over all 12 needs no `default`: `.charge`, `.climate`, `.drive`,
+  `.location`, `.closures`, `.chargeSchedule`, `.preconditioningSchedule`, `.tirePressure`, `.media`, `.mediaDetail`,
+  `.softwareUpdate`, `.parentalControls`.
+- The enum in `.protocolFault` is `MessageFault_E`. The size limit case is `.messagefaultErrorResponseMtuExceeded`:
+  `case .protocolFault(let p) where p.fault == .messagefaultErrorResponseMtuExceeded:`.

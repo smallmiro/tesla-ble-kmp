@@ -293,9 +293,9 @@ public interface Vehicle {
     public suspend fun addKey(publicKey: PublicKeyBytes, role: KeyRole = KeyRole.OWNER, formFactor: KeyFormFactor = platformKeyFormFactor(), timeout: Duration? = null): VehicleResult<Unit>
     public suspend fun removeKey(publicKey: PublicKeyBytes, timeout: Duration? = null): VehicleResult<Unit>
 
-    // 조회 (FR-031~034) — M3에서 구현된 것은 vehicleStatus뿐(인증 없음). 나머지는 M5
+    // 조회 (FR-031~034) — vehicleStatus는 M3(인증 없음), getState는 M5의 나머지보다 먼저 구현됨(#115), ping은 M5
     public suspend fun vehicleStatus(...): VehicleResult<VehicleStatus>              // 수기 값 객체
-    public suspend fun getState(category: StateCategory, ...): VehicleResult<VehicleData>   // Wire 생성 타입 그대로
+    public suspend fun getState(category: StateCategory, timeout: Duration? = null): VehicleResult<VehicleData>   // Wire 생성 타입 그대로
     public suspend fun ping(...): VehicleResult<Unit>
 
     // VCSEC 제어 (FR-040~047, M4): lock, unlock, wakeUp, remoteDrive, autoSecureVehicle, openTrunk, actuateTrunk, closeTrunk,
@@ -309,13 +309,13 @@ public interface Vehicle {
 ```
 
 - 모든 `timeout: Duration? = null`은 `TeslaBleConfig.commandTimeout`을 기본으로 쓴다.
-- **M4 구현 범위:** `Vehicle`에는 `vin`, `hasKey`, `connection`, `sessions`, `startSession`, `disconnect`, `vehicleStatus`, `keySummary`, `listKeys`(M3)와 `sessionInfo`, `addKeyRequest`, `addKey`, `removeKey`, VCSEC 제어 12종(M4), `events`(#91, FR-035)가 있다. 위 코드 블록의 나머지(`getState`, `ping`, Infotainment 제어)는 M5 설계이며 아직 없다.
+- **구현 범위(M4와 앞당긴 항목):** `Vehicle`에는 `vin`, `hasKey`, `connection`, `sessions`, `startSession`, `disconnect`, `vehicleStatus`, `keySummary`, `listKeys`(M3)와 `sessionInfo`, `addKeyRequest`, `addKey`, `removeKey`, VCSEC 제어 12종(M4), `events`(#91, FR-035), `getState`(M5의 나머지보다 먼저, FR-033, #115)가 있다. 위 코드 블록의 나머지(`ping`, Infotainment 제어)는 M5 설계이며 아직 없다.
 - **브로드캐스트 이벤트(FR-035):** `events`는 `Dispatcher.plainBroadcasts`(`DefaultVehicle` 생성자 인자 `broadcasts`로 받는다)를 `VcsecBroadcasts.events`로 바꿔 낸다. 모델은 `:domain`의 `VehicleEvent`(sealed: `Status(status)`, `AuthenticationRequest(requestedLevel, reasons)`, `Unrecognized`; 공통 `raw`(받은 `RoutableMessage` 프레임 전체, 읽을 때마다 사본, VIN 마스킹 없음)·`unknownFields`(경로 문자열))와 `AuthenticationLevel`, `AuthenticationReason`. 수집할 때마다 구독 하나(`channelFlow` 안에서 `UNDISPATCHED`로 구독, replay 0). 끝 신호는 `combine(connection, closed)`: `connection`이 `Disconnected`(이유 무관)이거나 `disconnect()`가 `closed`를 세우면, 먼저 온 쪽에서 구독만 취소하고 채널을 닫아 **정상 완료**한다(앱의 수집 코루틴은 취소되지 않는다). 이미 끝난 연결에서 수집하면 바로 끝난다. 그 순간 넘겨주지 못한 프레임은 버려질 수 있다. 버퍼는 `RENDEZVOUS`라 느린 수집자를 위한 버퍼는 디스패처의 64개 하나뿐이다. 재연결 판단은 `connection`으로 한다(아래 링크 손실 규칙 그대로).
 - **세션 표시:** `sessions`는 사건만 따르지 않고 `VehicleSession.isReady(domain)`을 원천으로 한다. 세션 사건(`Updated`/`StaleCache`)은 신호일 뿐이라 그 도메인을 다시 맞추고, 명령이 `NoSession`으로 끝나도 다시 맞춘다(사건이 유실돼도 회복). 핸드셰이크 중(`Handshaking`)이거나 `disconnect()` 뒤에는 건드리지 않는다. 이 연결의 키로 한 `sessionInfo`가 세션을 만들면 `Ready(fromCache = false)`로 보이고, 다른 차량 키로 저장된 오래된 캐시는 첫 명령이 `NoSession`으로 끝난 뒤 `None`으로 바뀐다.
 - **링크 손실:** BLE 링크가 끊기면 전송은 수신 흐름을 닫고 `connection`을 `Disconnected`로 바꾸며(M3에서 전송 자원은 풀린다), 진행 중이던 명령은 `Uncertain`/`NotConnected`로 끝난다. 세션 키와 스코프는 앱이 `Vehicle.disconnect()`를 불러야 풀린다. `connect`가 늦게 실패하거나 취소돼도 전송과 스코프를 풀고 다시 던진다.
 - `Vehicle`은 연결 하나에 객체 하나다. `disconnect()` 뒤 명령은 `Failure(NotConnected)`이고 세션 캐시는 유지된다(설계 구체화 13).
 - `PairingEvent`: `Sent`, `WaitingForTap`, `Accepted`, `Rejected(VehicleError)`, `Unknown(raw)`, `Failed(VehicleError)`, `TimedOut`(끝 이벤트는 `isTerminal`). 실차에서 응답 형식이 확인되기 전까지 `Unknown`을 통해 원시 바이트를 노출한다(M4 실차 검증 항목).
-- `VehicleStatus`, `WhitelistEntry`, `WhitelistSummary`, `SessionInfoSummary`, `VehicleAdvertisement`는 **수기 값 객체**다(작고 안정적). `VehicleData`(GetState 12 카테고리, 200여 필드)와 그 하위 타입은 **Wire 생성 타입을 그대로 노출**한다(FR-033). 이유: 필드가 많고 펌웨어에 따라 늘어나며, 래핑하면 손실·지연이 생긴다. 생성 타입은 `@TeslableGenerated` 문서 주석으로 표시하고 `apiDump`에 포함한다.
+- `VehicleStatus`, `WhitelistEntry`, `WhitelistSummary`, `SessionInfoSummary`, `VehicleAdvertisement`는 **수기 값 객체**다(작고 안정적). `VehicleData`(GetState 12 카테고리, 200여 필드)와 그 하위 타입은 **Wire 생성 타입을 그대로 노출**한다(FR-033). 이유: 필드가 많고 펌웨어에 따라 늘어나며, 래핑하면 손실·지연이 생긴다. `VehicleData`는 Teslemetry 스냅샷에서 생성되므로 `TESLEMETRY-EXT` 필드도 공개 타입에 함께 드러나지만, 라이브러리는 이 필드를 요청하거나 해석하지 않고 지원을 보장하지 않는다(ADR-0002 개정 2026-11-01). 생성 타입은 `@TeslableGenerated` 문서 주석으로 표시하고 `apiDump`에 포함한다.
 - iOS: SKIE가 `suspend` → `async throws`, `Flow` → `AsyncSequence`로 바꾸고, `sealed`는 `onEnum(of:)`로 Swift `switch`에서 다룬다. `VehicleResult`는 Swift에서 `switch onEnum(of: result) { case .success(let s): ... case .uncertain(let u): ... case .failure(let f): ... }`(실제 코드는 `samples/ios/Sources/SampleModel.swift`).
 - **Android 공개 API와 `apiCheck`:** `androidVehicleKeyStore`, `androidSessionCache`, `androidBleAvailability`는 공개 함수지만, 어느 모듈에도 Android용 BCV 덤프가 없어 `apiCheck`가 다루지 않는다. Android 변형의 공개 API 호환성 검사는 보류(deferred)한다.
 
@@ -518,7 +518,10 @@ public data class InvalidArgument(val detail: String) : VehicleError            
 
 - `shouldRetry(e) = !e.mayHaveSucceeded && e.temporary` (Go `ShouldRetry`). 단 `KeyStoreError.Locked`는 temporary지만 `retryWhileRetriable`이 되풀이하지 않는다(FR-037, #96: 잠금 해제는 사용자 몫, 되풀이하면 `Timeout`으로 바뀐다). Go에 없는 오류다.
 - `VehicleResult` 매핑: `mayHaveSucceeded` → `Uncertain`, 그 외 → `Failure`.
-- `getState`(M5, FR-033, #116): 카테고리 하나당 요청 하나만 보낸다. 차량 응답이 크기 상한을 넘으면 `Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))`로 돌려준다. `shouldRetry`가 거짓이라 자동 재전송은 없고, 세션·연결·수면 상태를 바꾸지 않는다. 빠른 재조회 금지와 화면 표시 방법은 `16-lib-errors`에 적는다.
+- `getState`(FR-033, #115, #116): 카테고리 하나당 요청 하나만 보낸다. 세션을 시작하거나 깨우지 않으므로 세션이 없으면 보내지 않고 `Failure(NoSession)`, Infotainment가 잠들어 응답이 없으면 `Uncertain(Timeout(afterSend = true))`다. 차량 응답이 크기 상한을 넘으면 `Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))`로 돌려준다. `shouldRetry`가 거짓이라 자동 재전송은 없고, 이 fault 때문에 세션을 지우거나 다시 연결하거나 깨우지 않는다(동봉된 세션정보의 일반 처리는 그대로: `Dispatcher`가 fault 분류 전에 처리한다, Go `dispatcher.go:295-299`). 빠른 재조회 금지와 화면 표시 방법은 `16-lib-errors`에 적는다.
+  - **빈 응답:** 응답에 `vehicleData`가 없으면 `Success(VehicleData())`다. Go는 `(nil, nil)`을 돌려주지만(`state.go:86`) nil 메시지의 필드는 빈 메시지처럼 읽히고, 호출자는 어차피 필드마다 null을 확인하므로 반환 타입을 nullable로 넓히지 않는다. 대가로 "메시지 없음"과 "빈 메시지"를 구분할 수 없다. `Ping` 같은 다른 종류의 응답도 같은 결과다.
+  - **응답 내용:** 응답을 `category`와 맞춰 보지 않고(Go와 같다) 값이 없는 필드를 0으로 바꾸지 않는다.
+  - **조회의 `Uncertain`:** 조회는 차량 상태를 바꾸지 않으므로 "실행됐을 수 있다"가 아니라 "데이터를 확인하지 못했다"는 뜻이다. 오류 타입을 명령과 함께 쓰므로 `mayHaveSucceeded`는 그대로 참이다.
 - Go의 `GetError` 순서를 그대로 유지: `signed_message_fault` → `session_info.status` → `operation_status`. RoutableMessage 계층의 `OPERATIONSTATUS_ERROR`는 Go와 같이 **오류로 취급하지 않는다**(`error.go:257-263` 스위치가 빈 case로 통과).
 - 재시도 간격은 `Transport.retryInterval`(BLE 1초). 재시도 횟수 상한 없이 `timeout` 안에서 반복한다(Go와 동일).
 
@@ -798,7 +801,14 @@ HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 
 - 연결 재시도는 시도 사이에 1초를 둔다(FR-004). Go `NewConnectionFromScanResult`는 sleep 없이 반복한다(`ble.go:259-278`). 실패한 시도의 연결은 닫는다(Go는 닫지 않는다, `ble.go:280-360`). 다른 VIN의 광고를 `target`으로 주면 `InvalidArgument`(Go는 일반 오류, 재시도 없음 — 같은 결과).
 - 오래된 캐시 감지·삭제는 Go에 없다(사용자 결정 2026-09-27). 같은 연결에서의 회복(무효화 뒤 `startSession()`)은 다음 항목에 적는다.
 - 오래된 캐시로 판정된 세션은 무효화되어 `NoSession`을 돌려주고 `startSession()`이 같은 연결에서 새로 핸드셰이크한다(Go는 같은 연결에서 회복하지 못한다). 회복한 도메인은 핸드셰이크 저장에 다시 포함된다(`SessionCacheSync.markFresh`).
+- `getState`는 응답에 `vehicleData`가 없으면 `Success(VehicleData())`를 돌려준다. Go `GetState`는 `(nil, nil)`이다(`state.go:86`). 근거는 §6 `getState` 항목.
 - 닫힌 세션은 준비 상태가 아니다(`SessionState.isReady`는 `close()` 이후 false). 그래서 disconnect 뒤 `startSession()`은 캐시 세션에도 `NotConnected`다.
 - 인증 없는 VCSEC 조회에서 응답에 기대한 필드가 없으면 `BadResponse("missing …")`다(Go `BodyControllerState`/`KeySummary`/`KeyInfoBySlot`은 nil, nil). `listKeys`는 첫 슬롯 실패를 돌려준다(Go `list-keys`는 실패 슬롯을 출력하고 계속한다). Wire가 모르는 잠금·개폐·역할·형태 값은 `UNKNOWN`이다(Wire 기본값으로 보이지 않게 `unknownFields`로 판별).
 - 다른 공개키로 물은 `sessionInfo`(`Dispatcher.querySessionInfo`)의 응답 세션정보는 이 연결의 세션에 반영하지 않는다(`PendingRequest.acceptsSessionInfo = false`). Go는 반영을 시도하고 태그 불일치를 경고한다 — 캐시 복원 세션을 오래된 것으로 오판하는 것을 막는다. 이 연결의 키로 물으면 Go와 같이 반영한다.
 - 기기 잠금으로 개인키를 쓸 수 없을 때(FR-037, #96, ADR-0014): 키가 `KeyLockedException`을 던지면 `Signer`·`SessionState`는 값으로 바꾸지 않고 전파하고, 디스패처가 그 응답을 받은 요청에 표시해 `HandshakeFlow`가 첫 응답 직후 `Failure(KeyStoreError.Locked)`로 끝낸다(차량이 응답에 실은 오류가 먼저). `retryWhileRetriable`은 `Locked`를 되풀이하지 않는다. 캐시 복원은 그 항목만 건너뛰고 캐시를 지우지 않는다(§7.1). Go는 키 `Exchange` 오류를 구별하지 않는다: 핸드셰이크는 "Session info error"를 남기고 `RetryInterval`마다 재전송하다 데드라인으로 끝나고, `LoadCache`는 전체 실패한다. 응답은 ECDH 전이라 인증되지 않았지만 Locked는 이 기기의 사실이고 응답의 상태는 쓰지 않는다.
+
+### 알려진 한계 (원본과 같은 동작)
+
+| 항목 | 내용 | 상태 |
+|---|---|---|
+| 평문 Infotainment 응답 수용 | Go와 같이 `signature_data.AES_GCM_Response_data`가 없는 응답을 평문으로 받아들인다(`Dispatcher.decryptIfNeeded`, Go `dispatcher.go:301` "Decryption is a no-op for plaintext messages"). 2024.38 이전 펌웨어는 `FLAG_ENCRYPT_RESPONSE`를 무시하고 평문으로 답하기 때문이다(`pkg/protocol/protocol.md:751`). 평문 응답에는 인증 태그가 없으므로 BLE 링크 위의 제3자가 조회 데이터를 위조할 수 있다. 그래서 `16-lib-errors` "Reply authenticity"에 `getState`로 안전 판단을 하지 말라고 적는다. 거부로 바꾸면 Go와 달라지고(절대 규칙 5) 2024.38 이전 펌웨어를 지원하지 못한다. 보안 리뷰가 지적했고 Codex는 공통 경로에서 거부하기를 권한다(출처를 담는 봉투와 펌웨어 2024.38 이상이 필요하다). 거부하더라도 fault만 담긴 평문 응답은 계속 분류해야 한다: 실차가 MTU fault를 평문으로 보내면(#118) 버려져 `Timeout`이 되어 #116이 막으려는 혼동이 생긴다(`mtuFaultWithAttachedSessionInfoStillRefreshesTheSession`이 경고한다). `BleTransport`의 DEBUG RX 헥사에는 평문 응답이 위치까지 그대로 보인다(Go `ble.go:76`과 같다). 복호화한 데이터가 아니므로 FR-112 위반은 아니다 | **사용자 결정 대기** (pending user decision) |

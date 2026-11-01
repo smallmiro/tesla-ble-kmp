@@ -1,7 +1,8 @@
 # Commands
 
 Scope: on `main` (M4) the session calls are `startSession()` and `disconnect()`, and the 12 VCSEC control commands are
-implemented. **Infotainment control (M5) is not implemented yet**; its table below is copied from `docs/prd/PRD.md` §5
+implemented. The Infotainment query `getState(category)` landed ahead of the rest of M5: `14-lib-reading-state.md` A8.
+**Infotainment control and `ping()` (M5) are not implemented yet**; their table below is copied from `docs/prd/PRD.md` §5
 and names may change when the milestone lands. Go original for every command:
 `05-command-catalog.md`.
 
@@ -73,7 +74,6 @@ another vehicle's key) shows `None` after the first command fails with `NoSessio
 | FR-073–083 | Standard / max range, scheduled charging and departure, low power, keep accessory power, charge and precondition schedules | P1 |
 | FR-084, FR-085 | `setSentryMode(on)`, valet mode | P1 |
 | FR-090–092 | Volume, media controls, software update schedule / cancel | P1 |
-| FR-033 | `getState(category)` | see `14-lib-reading-state.md` |
 
 Deferred to v1.1 (P2): FR-054 `triggerHomelink`, FR-086 `clearPinToDrive`, FR-087 speed limit, FR-088 parental
 controls, FR-089 guest mode, FR-093 `setVehicleName`, FR-094 `getNearbyCharging`. `SetPINToDrive` is not possible over

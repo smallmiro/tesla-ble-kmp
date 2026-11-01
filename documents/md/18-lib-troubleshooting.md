@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Scope: M3–M4 (scan, connect, key store, read-only queries, pairing, VCSEC commands, observation log), broadcast events (`Vehicle.events`, FR-035) and key accessibility on a locked iPhone (FR-037). Infotainment command problems are added with M5.
+Scope: M3–M4 (scan, connect, key store, read-only queries, pairing, VCSEC commands, observation log), broadcast events (`Vehicle.events`, FR-035), key accessibility on a locked iPhone (FR-037) and `getState` (FR-033). Infotainment command problems are added with M5.
 Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 
 ## Symptom → cause → action
@@ -30,6 +30,12 @@ Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 | `lock()` (or any VCSEC command) → `NoSession` | No VCSEC session yet, or the cached session is stale | Call `startSession(setOf(VehicleDomain.VCSEC))` first. If `sessions` showed `Ready(fromCache = true)` it changes to `None` after this failure (the cache belonged to another key or vehicle); `startSession` fixes it |
 | `removeKey` / `addKey` → `InsufficientPrivileges` | The connection's key may not manage keys (for example a Driver key) | Use an Owner key |
 | `Uncertain(Timeout(afterSend = true))` | Response lost after sending | Query state again; do not resend |
+| `getState()` → `NoSession` | No Infotainment session yet, or the cached session is stale | Call `startSession(setOf(VehicleDomain.INFOTAINMENT))`, then ask again. If `sessions` showed `Ready(fromCache = true)` it changes to `None` after this failure |
+| `getState()` → `Uncertain(Timeout(afterSend = true))`, while `startSession` succeeded | Infotainment is asleep (a session restored from the cache says nothing about sleep; `getState` never wakes the vehicle), or the reply was lost | Read `vehicleStatus()`. `ASLEEP`: follow the wake order in `14-lib-reading-state.md` A8.2. Otherwise keep the last value and ask again later |
+| `getState()` → `Failure(Timeout(afterSend = false))` | Time ran out before sending or between retries, for example while the vehicle answers busy during a wake | Ask again later; right after a wake pass a longer `timeout` |
+| `getState(DRIVE)` → `Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))` | The reply is over the vehicle's size limit; a long destination name makes this more likely. The vehicle is not gone or asleep | Keep the last value with its age, ask again later, not in a tight loop. There is no smaller query (`16-lib-errors.md` §Response size limit) |
+| `getState()` → `Success`, but a field is `null` | The vehicle did not send that field, or the reply had no `vehicleData` | Show "no value", never 0 (`14-lib-reading-state.md` A8.3). Which fields a real vehicle sends is not confirmed yet (#118) |
+| `getState()` → `Success` with the same values again | `Success` is not proof of a new measurement | Compare `timestamp` with the previous reply (`14-lib-reading-state.md` A8.3) |
 | `vehicle.events` completed | The link dropped or `disconnect()` was called (a collection started after that ends at once) | Look at `connection`; call `disconnect()`; connect again for a new `Vehicle` and new `events` |
 | `vehicle.events` delivers nothing | Collection started after the broadcasts (there is no replay), the vehicle sent none (it pushes only while awake), or the frames fail the gate (`14-lib-reading-state.md` B2.1) | Make a change on the car (open a door, shift gear). Compare with the observation log: a plain broadcast has a `[drop:to-domain]` line with `from=domain(DOMAIN_VEHICLE_SECURITY) to=domain(DOMAIN_BROADCAST)` |
 | `WARN` `Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)` | A collector of `vehicle.events` fell more than 64 frames behind | Keep the collector light; move slow work to another coroutine (`16-lib-errors.md`) |
@@ -46,8 +52,10 @@ Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
   `message` is evaluated lazily. A logger that throws does not stop the library.
 - Levels: `DEBUG` (TX/RX hex), `INFO` (session and connection events), `WARN` (drop or discard reasons), `ERROR`
   (unrecoverable situations).
-- The library logs VINs masked (`Vin.toString()`) and never logs private keys, session keys, nonces or plaintext at any
-  level. Do not add `vin.value` to your own logs either, and mask VINs before sharing logs.
+- The library logs VINs masked (`Vin.toString()`) and never logs private keys, session keys, nonces or decrypted plaintext
+  at any level. Do not add `vin.value` to your own logs either, and mask VINs before sharing logs.
+- Do not log `getState` results, `toString()` included: a `VehicleData` can hold the location and the destination, and
+  `InfotainmentRejected.message` carries the vehicle's own text. The library logs neither (FR-112).
 
 To report a problem, use the iOS sample's "copy whole result" button log together with `DebugLogger`. There is no probe or diagnostics entry point.
 
@@ -133,4 +141,6 @@ Limits and rules:
 - The BLE transport counts inbox overflows per connection. Each dropped message logs
   `Dropping received message because inbox is full (dropped N since connect)` at `ERROR`; when the link ends, one line
   `BLE inbox overflowed N time(s) during this connection` is logged at `WARN` (only if N > 0).
-- `DebugLogger` also prints the BLE `TX:`/`RX:` raw hex at `DEBUG`. Do not share such platform logs.
+- `DebugLogger` also prints the BLE `TX:`/`RX:` raw hex at `DEBUG`. Do not share such platform logs. Replies are ciphertext
+  there, except a plaintext Infotainment reply (firmware before 2024.38, `16-lib-errors.md` §Reply authenticity), which
+  appears as the vehicle sent it, location included.

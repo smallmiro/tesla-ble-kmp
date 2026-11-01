@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | **v1.0 승인** (2026-09-26, D13 개정 포함). NFR-012 타임아웃 문구는 SDD D29에 맞춰 갱신. 주행·미디어·목적지 조사 결과 반영(2026-11-01, §3.2, FR-033, FR-091, §8, §9) |
+| 상태 | **v1.0 승인** (2026-09-26, D13 개정 포함). NFR-012 타임아웃 문구는 SDD D29에 맞춰 갱신. 주행·미디어·목적지 조사 결과 반영(2026-11-01, §3.2, FR-033, FR-091, §8, §9). `getState` 구현에 맞춘 문구 정정(2026-11-01, FR-033, FR-101) |
 | 저장소 | `{{REPO_URL}}` (공개, Apache-2.0) |
 | 상위 문서 | `{{HANDOFF_FILE}}` §1~§5, §8, §10~§13 |
 | 정답 기준 | `{{REF_REPO_DIR}}` @ `{{REF_REPO_COMMIT}}` + `pkg/protocol/protocol.md` |
@@ -181,7 +181,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | FR-030 | 스캔 결과: 존재, RSSI, connectable (FR-001과 동일 Flow) | P0 | – | `ScanVehicleBeacon` | `02-ble-transport §3` |
 | FR-031 | `vehicleStatus()`: `InformationRequest{GET_STATUS}` → `VehicleStatus`(잠금, 도어 4, 프렁크·트렁크, 충전구, 톤노, 수면 상태, 탑승자). 인증·깨우기 불필요 | P0 | VCSEC | `BodyControllerState` | `05-command-catalog B`, `03-protocol §12` |
 | FR-032 | Whitelist 요약: 키 개수, 슬롯 비트마스크 (FR-025 하위) | P0 | VCSEC | `KeySummary` | `05-command-catalog B` |
-| FR-033 | `getState(category)`: 12개 카테고리(Charge, Climate, Drive, Location, Closures, ChargeSchedule, PreconditioningSchedule, TirePressure, Media, MediaDetail, SoftwareUpdate, ParentalControls)를 Wire 생성 타입으로 반환. 인증·깨우기 필요. 카테고리 하나당 요청 하나. `RESPONSE_MTU_EXCEEDED`는 "실행됨"으로 분류하며, 조회에서는 데이터 없는 결과로 구분해 돌려준다. 재시도하지 않고 세션·연결·수면 상태를 바꾸지 않는다(#116). `Drive`에서 자주 일어날 수 있다(§8) | P0 | INFO | `GetState` | `05-command-catalog I`, `04-go-api-reference state.go`, `08-errors §8` |
+| FR-033 | `getState(category)`: 12개 카테고리(Charge, Climate, Drive, Location, Closures, ChargeSchedule, PreconditioningSchedule, TirePressure, Media, MediaDetail, SoftwareUpdate, ParentalControls)를 Wire 생성 타입으로 반환. Infotainment 세션과 깨어 있는 차가 필요하다(세션 시작과 깨우기는 호출자 몫). 카테고리 하나당 요청 하나. `RESPONSE_MTU_EXCEEDED`는 "실행됐을 수 있음"(Go `MayHaveSucceeded`)으로 분류하며, 조회에서는 데이터 없는 결과로 구분해 돌려준다. 다시 보내지 않고, 이 fault 때문에 세션을 지우거나 다시 연결하거나 깨우지 않는다(동봉된 세션정보의 일반 처리는 그대로)(#116). `Drive`에서 자주 일어날 수 있다(§8) | P0 | INFO | `GetState` | `05-command-catalog I`, `04-go-api-reference state.go`, `08-errors §8` |
 | FR-034 | `ping()`: 온라인+키 인식 확인 | P1 | INFO | `Ping` | `05-command-catalog I`, `00-agent-guide §5` |
 | FR-035 | `Vehicle.events: Flow<VehicleEvent>`: 차량이 요청 없이 보낸 평문 VCSEC 브로드캐스트를 공개 이벤트로 낸다. 게이트: from `DOMAIN_VEHICLE_SECURITY`, to `DOMAIN_BROADCAST`, `request_uuid` 비어 있음, `signature_data`·`session_info` 없음. `vehicleStatus` → `Status`(`vehicleStatus()`와 같은 매핑), `authenticationRequest` → `AuthenticationRequest`(`requestedLevel`, `reasons`; 한 프레임에 둘 다 오면 둘 다), 그 밖·디코딩 실패 → `Unrecognized`. 해석 못 한 부분은 `unknownFields`(경로 문자열)와 받은 프레임 전체 `raw`(방어 복사, VIN 마스킹 없음 — 앱이 가림). 연결마다 hot, replay 0, `connection`이 `Disconnected`(이유 무관)가 되거나 `disconnect()`가 불리면 정상 완료. 디스패처 버퍼 64, 넘치면 새 프레임을 버리고 WARN(1·100·200…번째). 응답 매칭에서 버리는 판정은 원본과 같다. **FR-112의 좁은 예외:** 차량이 처음부터 평문 브로드캐스트로 보낸 프레임의 원본 바이트만 내보내며, 라이브러리가 복호화한 데이터는 어떤 경우에도 내보내지 않는다 | P1 | VCSEC | (없음 — 원본은 브로드캐스트를 버린다, `dispatcher.go:270-272`) | `14-lib-reading-state` B2·B3, `18-lib-troubleshooting` Observation log |
 | FR-036 | `VehicleStatus.gear`: VCSEC `VehicleStatus` 필드 7(`Gear_E`, TESLEMETRY-EXT)을 공개 `Gear`(`UNKNOWN`, `PARK`, `DRIVE`, `REVERSE`, `NEUTRAL`)로 노출. 없음 = `UNKNOWN`(proto3라 `GEAR_UNKNOWN`과 구별 불가), 스키마 밖 값도 `UNKNOWN`. 실차는 브로드캐스트로만 확인(조회 응답은 미확인) | P1 | VCSEC | (없음, TESLEMETRY-EXT 스키마) | `14-lib-reading-state` A2, B3.1 |
@@ -271,7 +271,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | ID | 요구사항 | P | 도메인 | Go | 근거 |
 |---|---|---|---|---|---|
 | FR-100 | 모든 명령 결과는 **성공 / 실패 / 결과 불확실(PossibleSuccess)** 셋 중 하나. 응답 없이 타임아웃되면 불확실로 반환하고 자동 재전송하지 않음 | P0 | 둘 다 | `CommandError{MayHaveSucceeded}` | `08-errors §1, §7`, `00-agent-guide §3.3-22` |
-| FR-101 | 재시도 정책: `Temporary`이고 `MayHaveSucceeded`가 아닌 오류만 1초 간격 재시도. 재시도는 새 counter·nonce·expires_at으로 재인가. 재시도 가능 fault: BUSY, TIMEOUT, INVALID_SIGNATURE, INVALID_TOKEN_OR_COUNTER, INTERNAL, INCORRECT_EPOCH, TIME_EXPIRED, TIME_TO_LIVE_TOO_LONG, `WAIT`. `RESPONSE_MTU_EXCEEDED`는 실행됨 | P0 | 둘 다 | `ShouldRetry`, `retriableErrors` | `08-errors §4`, `10-porting-guide §8` |
+| FR-101 | 재시도 정책: `Temporary`이고 `MayHaveSucceeded`가 아닌 오류만 1초 간격 재시도. 재시도는 새 counter·nonce·expires_at으로 재인가. 재시도 가능 fault: BUSY, TIMEOUT, INVALID_SIGNATURE, INVALID_TOKEN_OR_COUNTER, INTERNAL, INCORRECT_EPOCH, TIME_EXPIRED, TIME_TO_LIVE_TOO_LONG, `WAIT`. `RESPONSE_MTU_EXCEEDED`는 실행됐을 수 있음(`MayHaveSucceeded`) | P0 | 둘 다 | `ShouldRetry`, `retriableErrors` | `08-errors §4`, `10-porting-guide §8` |
 | FR-102 | 결과 불확실 시 상태를 재조회할 수 있는 API 안내: VCSEC 명령은 `vehicleStatus()`, Infotainment는 `getState()` | P0 | 둘 다 | – | `08-errors §7` |
 | FR-103 | 에러는 `sealed` 계층으로 정의하고 원인 코드를 노출: `MessageFault`(0~28), `OperationStatus`, `SessionInfoStatus`, VCSEC `GenericError`, `WhitelistOperation_information`(KeychainError), Infotainment `actionStatus.result_reason` 문자열, 전송·키스토어·권한 오류 | P0 | 둘 다 | `pkg/protocol/error.go` | `08-errors §1~§3` |
 | FR-104 | `InsufficientPrivileges`, `KeyNotOnWhitelist`, `MaxConnectionsExceeded`, `VehicleAsleep`(Infotainment 응답 없음) 등 앱이 UI 분기에 쓰는 상황을 별도 타입으로 구분 | P0 | 둘 다 | sentinel errors | `08-errors §2, §8` |
