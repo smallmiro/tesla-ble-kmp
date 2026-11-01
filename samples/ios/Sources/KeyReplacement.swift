@@ -50,6 +50,8 @@ enum KeyReplaceOutcome: Sendable, Equatable {
     case lost(String)
     /// 지우기가 실패했고 지금 키 상태도 읽지 못했다. 다시 연결하지 않았다.
     case unverified(String)
+    /// 지우기가 실패했고 키 저장소가 잠겨 지금 키 상태를 읽을 수 없다. 키가 지워졌는지 모른다. 다시 연결하지 않았다(잠금 해제 뒤 키가 조용히 만들어지면 안 된다).
+    case unknownLocked(String)
     /// 다른 호출(Control 탭의 등록·명령 등)이 진행 중이거나 이미 키를 바꾸는 중이라 시작하지 않았다. 아무것도 바꾸지 않았다.
     case busy
 
@@ -63,6 +65,8 @@ enum KeyReplaceOutcome: Sendable, Equatable {
             return "키를 지우지 못했습니다(\(why)). 옛 키는 그대로이고 새 키를 만들지 않았습니다"
         case .notCreated(let why):
             return "옛 키는 지웠지만 새 키를 만들지 못했습니다(\(why)). 1단계에서 키를 만드세요"
+        case .unknownLocked(let why):
+            return "키를 지우지 못했고(\(why)) 폰이 잠겨 있어 키가 지금 어떤 상태인지 알 수 없습니다. 연결을 다시 만들지 않았습니다. 폰을 잠금 해제한 뒤 1단계의 '다시 불러오기'로 확인하세요"
         case .busy:
             return "다른 호출이 진행 중이거나 키를 바꾸는 중이라 지금은 할 수 없습니다. 끝난 뒤 다시 누르세요"
         case .lost(let why):
@@ -76,7 +80,7 @@ enum KeyReplaceOutcome: Sendable, Equatable {
         switch self {
         case .replaced: return .ok
         case .locked, .busy: return .warn
-        case .notDeleted, .notCreated, .lost, .unverified: return .fail
+        case .notDeleted, .notCreated, .lost, .unverified, .unknownLocked: return .fail
         }
     }
 
@@ -89,7 +93,7 @@ enum KeyReplaceOutcome: Sendable, Equatable {
     /// 옛 키로 만든 연결 상태(상태 카드, 진행 줄)를 버려야 한다: 키를 한 번이라도 지웠다.
     var dropsConnectionState: Bool {
         switch self {
-        case .replaced, .notCreated, .lost, .unverified: return true
+        case .replaced, .notCreated, .lost, .unverified, .unknownLocked: return true
         case .locked, .notDeleted, .busy: return false
         }
     }
@@ -114,6 +118,7 @@ enum KeyReplacer {
         delete: () async -> KeyDeleteResult,
         create: () async -> KeyCreateResult,
         restore: () async -> KeyProbe,
+        wantsReconnect: () -> Bool,
         reconnect: () -> ()
     ) async -> KeyReplaceOutcome {
         // 1) 잠겨 있거나 읽지 못하면 아무것도 건드리지 않는다(연결도 끊지 않는다).
@@ -142,11 +147,11 @@ enum KeyReplacer {
             // 실제로 키가 어떻게 됐는지 다시 읽고 그대로 알린다. 키가 없으면 다시 연결하지 않는다(`getOrCreate` 가 조용히 새 키를 만든다).
             switch await restore() {
             case .present:
-                if wasActive { reconnect() }
+                if wantsReconnect() { reconnect() }
                 return deleteFailure.outcome
             case .locked:
-                if wasActive { reconnect() }
-                return .locked
+                // 잠겨 있어 키가 지워졌는지 모른다. 다시 연결하면 잠금 해제 뒤 `getOrCreate` 가 키를 조용히 만들 수 있다.
+                return .unknownLocked(deleteFailure.why)
             case .absent:
                 return .lost(deleteFailure.why)
             case .failed, .corrupted:
@@ -162,8 +167,8 @@ enum KeyReplacer {
         case .failed(let why):
             return .notCreated(why)
         }
-        // 5) 새 키로 다시 연결한다(새 연결은 옛 세션 캐시를 버린다).
-        if wasActive { reconnect() }
+        // 5) 새 키로 다시 연결한다(새 연결은 옛 세션 캐시를 버린다). 교체 중에 사용자가 누른 것이 있으면 그것을 따른다.
+        if wantsReconnect() { reconnect() }
         return .replaced
     }
 }
@@ -202,6 +207,10 @@ final class KeyOperationGate: @unchecked Sendable {
     private let lock = NSLock()
     private var operations = 0
     private var replacing = false
+    private var intent: ConnectionIntent?
+
+    /// 교체 중에 사용자가 누른 연결·끊기. 마지막 것이 이긴다(SFR-012: 끊기는 자동 재연결도 멈춘다).
+    enum ConnectionIntent: Sendable, Equatable { case connect, stop }
 
     var isReplacing: Bool { lock.withLock { replacing } }
     var activeOperations: Int { lock.withLock { operations } }
@@ -222,12 +231,45 @@ final class KeyOperationGate: @unchecked Sendable {
         lock.withLock {
             if replacing || operations > 0 { return false }
             replacing = true
+            intent = nil
             return true
         }
     }
 
     /// 여러 번 불러도 된다(다시 연결하기 직전에 풀고, 끝에서 한 번 더 부른다).
     func endReplace() { lock.withLock { replacing = false } }
+
+    /// 교체 중에 사용자가 연결이나 끊기를 눌렀으면 기억한다. 교체 중이라 기억했으면 `true`(바로 처리하지 말고 교체가 끝난 뒤에 따른다).
+    @discardableResult
+    func note(_ new: ConnectionIntent) -> Bool {
+        lock.withLock {
+            guard replacing else { return false }
+            intent = new
+            return true
+        }
+    }
+
+    /// 교체가 끝난 뒤 다시 연결할지: 사용자가 마지막에 누른 것이 있으면 그것을, 없으면 쓰던 연결이 있었는지를 따른다.
+    func shouldReconnect(wasActive: Bool) -> Bool {
+        lock.withLock { Self.decide(intent, wasActive: wasActive) }
+    }
+
+    /// `shouldReconnect` 를 정하고 교체를 끝낸다(한 번에: 그 사이에 끼어드는 눌림이 없다).
+    func finishReplace(wasActive: Bool) -> Bool {
+        lock.withLock {
+            let reconnect = Self.decide(intent, wasActive: wasActive)
+            replacing = false
+            return reconnect
+        }
+    }
+
+    private static func decide(_ intent: ConnectionIntent?, wasActive: Bool) -> Bool {
+        switch intent {
+        case .connect: return true
+        case .stop: return false
+        case nil: return wasActive
+        }
+    }
 }
 
 /// 엔진이 들고 있는 키 핸들. `forget()` 은 세대를 올려서, 그 전에 시작한 읽기가 늦게 끝나도 지워질 옛 키를 캐시에 올리지 못한다.

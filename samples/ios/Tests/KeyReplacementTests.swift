@@ -13,6 +13,8 @@ final class KeyReplacerTests: XCTestCase {
         var restore = KeyProbe.present
         /// 연결을 끊은 뒤 연결이 정말 없는가.
         var disconnected = true
+        /// 다시 연결할지(사용자 의도 포함). `nil` 이면 쓰던 연결이 있었을 때만.
+        var wantsReconnect: Bool?
 
         func run(wasActive: Bool) async -> KeyReplaceOutcome {
             await KeyReplacer.run(
@@ -23,6 +25,7 @@ final class KeyReplacerTests: XCTestCase {
                 delete: { self.calls.append("delete"); return self.delete },
                 create: { self.calls.append("create"); return self.create },
                 restore: { self.calls.append("restore"); return self.restore },
+                wantsReconnect: { self.wantsReconnect ?? wasActive },
                 reconnect: { self.calls.append("reconnect") }
             )
         }
@@ -197,13 +200,65 @@ final class KeyReplacerTests: XCTestCase {
         XCTAssertFalse(outcome.line.contains("옛 키는 그대로"))
     }
 
-    func testFailedDeleteWhoseKeyIsNowLockedReportsLockedAndReconnects() async {
+    /// 삭제가 실패했고 키 저장소가 잠겨 읽을 수 없다: 키가 지워졌는지 모른다. 다시 연결하면 잠금 해제 뒤 `getOrCreate` 가 키를 조용히 만들 수 있다.
+    func testFailedDeleteWhoseKeyCannotBeReadBecauseOfTheLockDoesNotReconnect() async {
         let r = Rig()
         r.delete = .failed("boom")
         r.restore = .locked
         let outcome = await r.run(wasActive: true)
+        XCTAssertEqual(outcome, .unknownLocked("boom"))
+        XCTAssertEqual(r.calls, ["probe", "disconnect", "forget", "delete", "restore"])
+        XCTAssertFalse(outcome.line.contains("아무것도 바꾸지 않았습니다"), "the connection was cycled and the key state is unknown")
+        XCTAssertTrue(outcome.line.contains("알 수 없"))
+        XCTAssertTrue(outcome.line.contains("잠금 해제"))
+        XCTAssertEqual(outcome.tone, .fail)
+        XCTAssertTrue(outcome.dropsConnectionState)
+        XCTAssertNil(outcome.enrollmentAfter)
+    }
+
+    func testLockedDeleteWhoseKeyCannotBeReadEitherDoesNotReconnect() async {
+        let r = Rig()
+        r.delete = .locked
+        r.restore = .locked
+        let outcome = await r.run(wasActive: true)
+        XCTAssertEqual(outcome, .unknownLocked("폰이 잠겨 있습니다"))
+        XCTAssertFalse(r.calls.contains("reconnect"))
+    }
+
+    func testLockedDeleteWhoseKeyIsStillThereReportsLockedAndReconnects() async {
+        let r = Rig()
+        r.delete = .locked
+        r.restore = .present
+        let outcome = await r.run(wasActive: true)
         XCTAssertEqual(outcome, .locked)
-        XCTAssertEqual(r.calls, ["probe", "disconnect", "forget", "delete", "restore", "reconnect"])
+        XCTAssertEqual(r.calls.last, "reconnect")
+    }
+
+    // MARK: 교체 중 사용자 의도(마지막 의도가 이긴다)
+
+    func testAConnectPressedDuringTheReplacementReconnectsAfterSuccessEvenIfNothingWasRunning() async {
+        let r = Rig()
+        r.wantsReconnect = true
+        let outcome = await r.run(wasActive: false)
+        XCTAssertEqual(outcome, .replaced)
+        XCTAssertEqual(r.calls, ["probe", "forget", "delete", "create", "reconnect"])
+    }
+
+    func testADisconnectPressedDuringTheReplacementWinsOverTheReconnect() async {
+        let r = Rig()
+        r.wantsReconnect = false
+        let outcome = await r.run(wasActive: true) // 연결이 돌고 있었고, 교체 중에 사용자가 끊었다
+        XCTAssertEqual(outcome, .replaced)
+        XCTAssertEqual(r.calls, ["probe", "disconnect", "forget", "delete", "create"])
+    }
+
+    func testTheUserStopAlsoWinsAfterAFailedDeleteThatLeftTheOldKey() async {
+        let r = Rig()
+        r.delete = .failed("boom")
+        r.wantsReconnect = false
+        let outcome = await r.run(wasActive: true)
+        XCTAssertEqual(outcome, .notDeleted("boom"))
+        XCTAssertFalse(r.calls.contains("reconnect"))
     }
 
     func testLockedDeleteThatLeavesNoKeyIsLostToo() async {
