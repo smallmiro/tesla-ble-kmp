@@ -266,6 +266,8 @@ final class MonitorEngine: @unchecked Sendable {
         await loop.stop()
         defaults.removeObject(forKey: Self.vinKey)
         emit.yield(.vin(nil))
+        lock.withLock { live = LiveState() } // 다음 VIN 이 다른 차일 수 있다
+        emit.yield(.live(LiveState()))
     }
 
     func parsedVin() -> Vin? { savedVin.flatMap { Vin.companion.parseOrNull(value: $0) } }
@@ -553,6 +555,10 @@ final class MonitorEngine: @unchecked Sendable {
     /// 이벤트 흐름은 링크가 끊기거나 `disconnect()` 가 불리면 저절로 끝난다. 재연결 판단은 `connection` 으로 한다(루프가 한다).
     private func collectEvents(_ box: VehicleBox) async {
         nonisolated(unsafe) let events = box.vehicle.events
+        emit.yield(.live(lock.withLock { () -> LiveState in
+            live = LiveReducer.linkStarted(live)
+            return live
+        }))
         for await event in events {
             if Task.isCancelled { break } // 끊긴 연결의 늦은 이벤트가 새 연결의 로그와 Live 를 덮지 않게
             let mapped = MonitorEvent(event) // raw 는 여기서 한 번만 읽고 VIN 을 가려 쓴다

@@ -68,7 +68,7 @@ final class ClusterStateTests: XCTestCase {
             frontDriverDoor: "CLOSED", frontPassengerDoor: "CLOSED", rearDriverDoor: "CLOSED", rearPassengerDoor: "CLOSED",
             frunk: "CLOSED", trunk: "CLOSED", chargePort: "CLOSED"
         )
-        XCTAssertEqual(cluster(live(allClosed)).closureSummary, "모두 닫힘")
+        XCTAssertEqual(cluster(live(allClosed)).closureSummary, "방송 기준 모두 닫힘")
 
         var partial = allClosed
         partial.chargePort = "UNKNOWN"
@@ -88,22 +88,34 @@ final class ClusterStateTests: XCTestCase {
         let c = cluster(live(StatusSnapshot()), now: t0.addingTimeInterval(3))
 
         XCTAssertFalse(c.isStale)
-        XCTAssertEqual(c.headline, "연결됨 · 3초 전")
+        XCTAssertEqual(c.headline, "연결됨")
+        XCTAssertEqual(c.freshness, "3초 전")
     }
 
     func testConnectedBeforeAnyBroadcastSaysSoAndDimsTheValues() {
         let c = cluster(LiveState())
 
         XCTAssertTrue(c.isStale)
-        XCTAssertEqual(c.headline, "연결됨 · 받은 방송 없음")
+        XCTAssertEqual(c.freshness, "받은 방송 없음")
+    }
+
+    func testAReconnectStaysDimUntilThatConnectionHearsABroadcast() {
+        let reconnected = LiveReducer.linkStarted(live(StatusSnapshot(frontDriverDoor: "OPEN")))
+        let c = cluster(reconnected)
+
+        XCTAssertTrue(c.isStale)
+        XCTAssertEqual(c.freshness, "마지막 수신 \(Formatting.clockText(t0))")
+
+        let heard = LiveReducer.reduce(reconnected, MonitorEvent(kind: .status(StatusSnapshot()), raw: [1], unknownFields: []), now: t0)
+        XCTAssertFalse(cluster(heard).isStale)
     }
 
     func testAnyOtherLinkStateDimsTheValuesAndNamesTheLastReceivedTime() {
-        let state = live(StatusSnapshot())
-        let c = cluster(state, link: .stopped)
+        let c = cluster(live(StatusSnapshot()), link: .stopped)
 
         XCTAssertTrue(c.isStale)
-        XCTAssertEqual(c.headline, "\(LinkText.of(LinkState<Int>.stopped)) · 마지막 수신 \(Formatting.clockText(t0))")
-        XCTAssertEqual(cluster(LiveState(), link: .idle).headline, LinkText.of(LinkState<Int>.idle))
+        XCTAssertEqual(c.headline, LinkText.of(LinkState<Int>.stopped))
+        XCTAssertEqual(c.freshness, "마지막 수신 \(Formatting.clockText(t0))")
+        XCTAssertNil(cluster(LiveState(), link: .idle).freshness)
     }
 }

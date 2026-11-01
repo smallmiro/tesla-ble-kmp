@@ -129,6 +129,8 @@ struct ClusterState: Sendable, Equatable {
     /// 지금 값이라고 볼 수 없으면 true. 화면을 어둡게 한다.
     let isStale: Bool
     let headline: String
+    /// 값이 언제 것인지. 연결 사유가 길어도 잘리지 않게 `headline` 과 따로 둔다.
+    let freshness: String?
     private let closures: [ClusterPart: ClusterClosure]
 
     init<V: Sendable & Equatable>(live: LiveState, link: LinkState<V>, now: Date) {
@@ -142,21 +144,21 @@ struct ClusterState: Sendable, Equatable {
 
         let isConnected: Bool
         if case .connected = link { isConnected = true } else { isConnected = false }
-        isStale = !isConnected || live.lastStatusAt == nil
-        switch (isConnected, live.lastStatusAt) {
-        case (true, let last?): headline = "\(LinkText.of(link)) · \(Formatting.ago(since: last, now: now))"
-        case (true, nil): headline = "\(LinkText.of(link)) · 받은 방송 없음"
-        case (false, let last?): headline = "\(LinkText.of(link)) · 마지막 수신 \(Formatting.clockText(last))"
-        case (false, nil): headline = LinkText.of(link)
+        isStale = !isConnected || !live.heardOnThisLink
+        headline = LinkText.of(link)
+        switch (live.lastStatusAt, isStale) {
+        case (let last?, false): freshness = Formatting.ago(since: last, now: now)
+        case (let last?, true): freshness = "마지막 수신 \(Formatting.clockText(last))"
+        case (nil, _): freshness = isConnected ? "받은 방송 없음" : nil
         }
     }
 
     func closure(_ part: ClusterPart) -> ClusterClosure { closures[part] ?? .unknown }
 
-    /// 열린 곳을 색만이 아니라 글자로도 알린다. 모르는 부위가 있으면 모두 닫혔다고 말하지 않는다.
+    /// 열린 곳을 색만이 아니라 글자로도 알린다. 모르는 부위가 있으면 모두 닫혔다고 말하지 않고, 트렁크처럼 방송이 안 올 수 있어 방송 기준임을 밝힌다.
     var closureSummary: String {
         let open = ClusterPart.allCases.filter { closure($0) == .open }
         if !open.isEmpty { return open.map(\.liveKey.label).joined(separator: ", ") + " 열림" }
-        return ClusterPart.allCases.allSatisfy { closure($0) == .closed } ? "모두 닫힘" : ClusterText.none
+        return ClusterPart.allCases.allSatisfy { closure($0) == .closed } ? "방송 기준 모두 닫힘" : ClusterText.none
     }
 }

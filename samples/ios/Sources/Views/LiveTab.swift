@@ -27,7 +27,7 @@ struct LiveTab: View {
             .opacity(state.isStale ? 0.4 : 1)
             .accessibilityLabel("차량 상태: \(state.closureSummary)")
             .accessibilityHint("항목별 시각을 엽니다")
-            footer(state)
+            footer(state).opacity(state.isStale ? 0.4 : 1)
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
@@ -45,10 +45,13 @@ struct LiveTab: View {
     }
 
     private func header(_ state: ClusterState) -> some View {
-        HStack(spacing: 8) {
+        HStack(alignment: .top, spacing: 8) {
             Circle().fill(state.isStale ? Color.gray : .green).frame(width: 9, height: 9)
-            Text(state.headline).font(.footnote).foregroundStyle(.secondary).lineLimit(2)
-                .accessibilityIdentifier("linkBanner")
+            VStack(alignment: .leading, spacing: 0) {
+                Text(state.headline).lineLimit(2).accessibilityIdentifier("linkBanner")
+                if let freshness = state.freshness { Text(freshness) }
+            }
+            .font(.footnote).foregroundStyle(.secondary)
             Spacer()
             Button { showsSettings = true } label: { Image(systemName: "gearshape.fill") }
                 .accessibilityLabel("VIN과 연결 설정")
