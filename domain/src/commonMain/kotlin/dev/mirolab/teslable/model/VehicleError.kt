@@ -156,7 +156,7 @@ public sealed interface VehicleError {
 
     /** 전송 계층 오류(어댑터가 변환). */
     public sealed interface TransportError : VehicleError {
-        /** 연결 시간이 다 될 때까지 차량 광고를 찾지 못함. 광고를 찾은 연결은 이 오류로 끝나지 않는다([ConnectFailed], #140). */
+        /** 연결 시간이 다 될 때까지 차량 광고를 찾지 못함. 광고를 찾았거나 기억한 `target`을 열기 시작한 연결은 이 오류로 끝나지 않는다([ConnectFailed], #140). */
         public data object ScanTimeout : TransportError {
             override val message: String = "no vehicle advertisement found before the scan timeout"
             override val mayHaveSucceeded: Boolean = false
@@ -170,7 +170,7 @@ public sealed interface VehicleError {
             override val temporary: Boolean = false
         }
 
-        /** 연결 실패. 차량을 찾았지만 연결 시간 안에 연결을 끝내지 못한 경우도 포함한다(#140). */
+        /** 연결 실패. 차량을 찾았거나 기억한 `target`을 열던 중에 연결 시간이 다 된 경우도 포함한다(#140). 기억한 `target`은 스캔하지 않으므로 범위 밖의 차량도 이 오류가 된다. */
         public data class ConnectFailed(
             /** 원인 요약(플랫폼 오류 또는 시간 초과 설명). 사람과 로그를 위한 글이므로 분기에 쓰지 않는다. */
             public val cause: String,

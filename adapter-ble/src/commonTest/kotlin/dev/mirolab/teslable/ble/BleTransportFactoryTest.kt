@@ -45,6 +45,14 @@ class BleTransportFactoryTest {
             VehicleError.TransportError.ConnectFailed("vehicle found but the connection did not complete before the deadline"),
         )
 
+    // 스캔 없이 기억한 target을 열다가 시간이 다 된 연결의 결과. 차가 아직 있는지 모르므로 "찾았다"고 말하지 않는다(#140)
+    private val rememberedButNotConnected =
+        VehicleResult.Failure(
+            VehicleError.TransportError.ConnectFailed(
+                "connection to the remembered target did not complete before the deadline (no scan ran)",
+            ),
+        )
+
     private fun TestScope.factory(
         connector: FakeGattConnector,
         availability: BleAvailability = BleAvailability.ALWAYS,
@@ -165,8 +173,8 @@ class BleTransportFactoryTest {
         }
 
     @Test
-    fun aReusedTargetWhoseOpenNeverFinishesIsConnectFailedToo() =
-        // #140: 이 호출은 스캔하지 않았지만(scan-hit 줄이 없다) 앱의 scan이 찾은 광고로 열기를 시작했다
+    fun aRememberedTargetWhoseOpenNeverFinishesDoesNotClaimTheCarWasFound() =
+        // #140: 이 호출은 스캔하지 않았다(scan-hit 줄이 없다). 기억한 광고는 낡았을 수 있어 범위 밖의 차도 여기로 온다. 스캔을 돌리지 않았으니 ScanTimeout도 아니다
         runTest {
             val connector = FakeGattConnector(ad)
             val f = factory(connector)
@@ -181,7 +189,7 @@ class BleTransportFactoryTest {
             connector.openGate = CompletableDeferred()
             val pending = async { f.connect(vin, found, ConnectOptions(timeout = 2.seconds)) }
             advanceTimeBy(3.seconds)
-            assertEquals(foundButNotConnected, pending.await())
+            assertEquals(rememberedButNotConnected, pending.await())
             assertEquals(1, connector.scans)
             connector.openGate?.complete(Unit)
             runCurrent()

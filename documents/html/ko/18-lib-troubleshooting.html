@@ -77,7 +77,7 @@
 <tr><td><code>PermissionDenied</code></td><td>블루투스 권한이 없거나 거부됨</td><td>Android: 런타임에 <code>BLUETOOTH_SCAN</code>과 <code>BLUETOOTH_CONNECT</code>를 요청. iOS: <code>NSBluetoothAlwaysUsageDescription</code>을 추가하고, 거부되었으면 사용자를 설정으로 안내</td></tr>
 <tr><td><code>BluetoothOff</code></td><td>블루투스가 꺼져 있음</td><td>사용자에게 켜 달라고 요청</td></tr>
 <tr><td>스캔에서 아무것도 찾지 못하고, 연결이 <code>ScanTimeout</code>으로 끝남</td><td>범위 밖, 잘못된 VIN, 또는 iOS 시뮬레이터</td><td>가까이 가고, VIN을 확인하고(차량은 VIN에서 만든 이름으로 찾음), 실기기를 사용</td></tr>
-<tr><td>연결이 <code>ConnectFailed</code>로 끝났고, 이유에 차량을 찾았지만 제한 시간 안에 연결을 끝내지 못했다고 적혀 있음</td><td>차량은 찾았지만 링크가 제시간에 열리지 않았습니다. 그 호출의 <code>[connect:scan-hit]</code> 줄이 발견을 보여 주고, 스캔 없이 다시 쓴 광고는 이 줄을 남기지 않습니다. <code>ScanTimeout</code>은 언제나 광고를 찾지 못했다는 뜻입니다</td><td>다시 시도. 차량이 범위 안에 있는데 반복되면 로그 줄을 보고</td></tr>
+<tr><td>연결이 <code>ConnectFailed</code>로 끝났고, 이유에 제한 시간 안에 연결을 끝내지 못했다고 적혀 있음</td><td>이유에 <code>vehicle found</code>가 있으면 라이브러리의 스캔이 차량을 찾았지만(그 <code>[connect:scan-hit]</code> 줄이 발견을 보여 줍니다) 링크가 제시간에 열리지 않은 것입니다. 이유에 <code>remembered target</code>이 있으면 스캔을 돌리지 않았으므로 차량이 아직 있는지 알 수 없습니다. 범위 밖에 있는 기억한 <code>target</code>은 <code>ConnectFailed</code>를 돌려주고 <code>ScanTimeout</code>이 되지 않습니다. <code>ScanTimeout</code>은 언제나 광고를 찾지 못했다는 뜻입니다</td><td>다시 시도. 기억한 <code>target</code>으로 실패했으면 스캔이 돌도록 그 값 없이 연결. 차량이 범위 안에 있는데 반복되면 로그 줄을 보고</td></tr>
 <tr><td><code>MaxConnectionsExceeded</code></td><td>차량에 이미 블루투스 연결이 세 개 있음</td><td>다른 휴대폰이나 앱의 연결을 끊고, 내 앱에서는 항상 <code>disconnect()</code>를 호출</td></tr>
 <tr><td><code>ConnectFailed</code>가 계속 발생</td><td>약한 신호 또는 바쁜 차량</td><td>라이브러리가 이미 30초 동안 재시도함. 나중에 다시 시도</td></tr>
 <tr><td><code>connect</code>가 <code>connectTimeout</code>보다 몇 초 늦게 돌아옴(예: 30초가 아니라 32.6초)</td><td>타이머가 늦게 울렸을 가능성이 높음. 그때 앱이 돌고 있지 않았던 것으로 보임(iOS는 백그라운드 앱을 일시 중단함). <code>connect</code>는 실패한 시도의 정리를 기다리지 않음</td><td>고칠 것 없음. <a href="#sec-budget">connect 시간 예산</a> 참고</td></tr>
@@ -145,7 +145,7 @@
 <h2 id="sec-budget">connect 시간 예산</h2>
 <p><code>connectTimeout</code>(기본 30초) 또는 <code>ConnectOptions.timeout</code>은 스캔, 링크 열기, 시도 사이의 재시도를 모두 포함합니다. 이 시간이 다 되어 <code>connect</code>가 실패하면 다음과 같습니다.</p>
 <ul>
-<li>바로 돌아옵니다. 마지막으로 실패한 시도의 오류를 돌려줍니다. 실패한 시도가 없었으면 차량을 찾은 경우 <code>ConnectFailed</code>, 광고를 찾지 못한 경우 <code>ScanTimeout</code>을 돌려줍니다. Go 원본도 마지막 오류를 돌려주고, 그렇지 않으면 두 경우 모두 일반적인 deadline 오류 하나를 돌려줍니다.</li>
+<li>바로 돌아옵니다. 마지막으로 실패한 시도의 오류를 돌려줍니다. 실패한 시도가 없었으면 스캔이 차량을 찾았거나 기억한 <code>target</code>을 열던 중인 경우 <code>ConnectFailed</code>, 광고를 찾지 못한 경우 <code>ScanTimeout</code>을 돌려줍니다. Go 원본도 마지막 오류를 돌려주고, 그렇지 않으면 이 모든 경우에 일반적인 deadline 오류 하나를 돌려줍니다.</li>
 <li>아직 진행 중인 시도를 기다리지 않습니다. 그 시도는 취소되고 <code>connect</code>가 돌아간 뒤에 정리되며, 플랫폼 연결 해제는 최대 5초까지만 기다립니다. 그 시도가 그래도 링크를 열면 라이브러리가 그 링크를 끊습니다.</li>
 <li>시간을 넘겨 기다리는 경우는 하나뿐입니다. 시간이 다 된 바로 그 순간 만들어진 연결은 <code>connect</code>가 돌아가기 전에 닫으며, 이것도 최대 5초입니다. 따라서 실패한 <code>connect</code>에 라이브러리가 더하는 시간은 최대 5초입니다.</li>
 <li>예산은 타이머이고, 타이머는 앱이 돌지 않는 동안에는 울리지 못합니다. 그래서 일시 중단된 앱은 얼마든지 늦어질 수 있습니다. 실제 iPhone에서 30초 예산이 36분 늦게 끝난 적이 있습니다(<code>docs/analysis/2026-11-01-build18-link-health.md</code> F3, 가능성이 높지만 확정은 아님). 어떤 시간 제한으로도 막을 수 없습니다.</li>
