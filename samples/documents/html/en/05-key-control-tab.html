@@ -50,6 +50,7 @@
 <li><a href="#sec-req">Requirement</a></li>
 <li><a href="#sec-steps">Steps and when buttons are enabled</a></li>
 <li><a href="#sec-enroll">Enrollment state</a></li>
+<li><a href="#sec-replace">Delete and recreate the key</a></li>
 <li><a href="#sec-run">Running a command</a></li>
 <li><a href="#sec-buttons">Buttons</a></li>
 <li><a href="#sec-impl">Implementation</a></li>
@@ -90,6 +91,23 @@
 <li>It goes back to <code>unknown</code> when the connection is lost or the key changes.</li>
 </ul>
 
+<h2 id="sec-replace">Delete and recreate the key</h2>
+<p>Step 1 has a second button, <strong>Delete and recreate the key</strong>, that replaces the monitor key <code>teslable-monitor</code> with a new one (for example after the key was removed from the car for good, or the key store is damaged). Built on iOS; Android: planned, same spec. Library manual: chapter 13 "Deleting or replacing a key locally" and "Key accessibility", chapter 17 "Session cache".</p>
+<table>
+<thead><tr><th>Rule</th><th>Detail</th></tr></thead>
+<tbody>
+<tr><td>Enabled</td><td>The key is ready, the key is not locked, and no other call of this tab runs. A connection is <strong>not</strong> needed.</td></tr>
+<tr><td>Confirmation</td><td>Always, before anything changes. It says: the old key is removed from this phone <strong>permanently</strong> and cannot be restored; the car <strong>still lists the old public key</strong> until it is removed on the car (its screen, or <code>removeKey</code> from another enrolled key); the new key is not enrolled, so it must be <strong>enrolled again with the key card</strong> (step 3); the connection is dropped and made again.</td></tr>
+<tr><td>Locked</td><td>The key store is read first (<code>keys.get(alias)</code>). <code>KeyStoreError.Locked</code> changes nothing, not even the connection, and the result says to unlock the phone (the manual: never delete or re-create on <code>Locked</code>). A <code>Locked</code> during the delete restores the old key and reconnects; a <code>Locked</code> during the create counts as a failed create (no retry).</td></tr>
+<tr><td>Order (<code>KeyReplacer</code>, pure)</td><td>Read the key store, disconnect (only if the monitor connection was running: connecting, connected or waiting to retry; a connection the user stopped stays stopped), drop the key handle, <code>keys.delete(alias)</code>, <code>keys.getOrCreate(alias, PREFER_HARDWARE, AFTER_FIRST_UNLOCK)</code> with the same settings as step 1, then reconnect with the new key.</td></tr>
+<tr><td>Why the connection goes first</td><td>The live <code>Vehicle</code>, its sessions and the session cache belong to the old key (the cache is keyed by the SHA-1 of the public key). After a key change the next <code>connect</code> discards the old cache and handshakes again, so the old connection is not kept.</td></tr>
+<tr><td>Failed delete</td><td>The new key is <strong>not</strong> created. The old key is read again (<code>keys.get</code>, never <code>getOrCreate</code>), so the screen shows what is really there; the connection is made again if it was running; the result says the old key is unchanged.</td></tr>
+<tr><td>Failed create</td><td>The old key is gone and there is no new key. No silent retry and no reconnect; the result says to press step 1.</td></tr>
+<tr><td>After success</td><td>Step 3 goes back to "not enrolled" (a new key is not on the car; the check after reconnecting confirms it). The status card and the enrollment progress lines are cleared, because they came from the old key's connection. The Control tab key list and key info are cleared.</td></tr>
+<tr><td>Nickname</td><td>A key nickname (SFR-019) belongs to the old key id and stays with it; it is <strong>not</strong> moved to the new key.</td></tr>
+</tbody>
+</table>
+
 <h2 id="sec-run">Running a command</h2>
 <p><code>KeyControlRunner.run(ensureSession, command, requery)</code> is pure and tested with fakes:</p>
 <ol>
@@ -121,12 +139,13 @@
 <table>
 <thead><tr><th>Part</th><th>Android</th><th>iOS</th></tr></thead>
 <tbody>
-<tr><td>Pure logic and tests</td><td><code>KeyControl.kt</code>, <code>src/test/.../KeyControlTest.kt</code></td><td><code>KeyControl.swift</code>, <code>Tests/KeyControlTests.swift</code></td></tr>
+<tr><td>Pure logic and tests</td><td><code>KeyControl.kt</code>, <code>src/test/.../KeyControlTest.kt</code></td><td><code>KeyControl.swift</code>, <code>Tests/KeyControlTests.swift</code>; <code>KeyReplacement.swift</code>, <code>Tests/KeyReplacementTests.swift</code> (SFR-020)</td></tr>
 <tr><td>State</td><td><code>KeyControlState.kt</code> (made in <code>MainViewModel</code>)</td><td><code>KeyControlModel.swift</code> (made in <code>MonitorModel</code>)</td></tr>
 <tr><td>Screen</td><td><code>ui/KeyControlTab.kt</code></td><td><code>Views/KeyControlTab.swift</code></td></tr>
 </tbody>
 </table>
 <p>Both apps use the monitor's connection and the monitor key (<code>teslable-monitor</code>) through <code>MonitorEngine</code>: <code>ensureKey()</code>, <code>currentVehicle()</code>, <code>currentKey()</code> and <code>connectNow()</code>.</p>
+<p>SFR-020 on iOS: <code>KeyReplacement.swift</code> (<code>KeyReplacer</code>, <code>KeyReplaceOutcome</code>, the confirmation text), <code>MonitorEngine.replaceKey()</code>, <code>KeyControlModel.replaceKey()</code>.</p>
 
 <h2 id="sec-check">Real-car checklist</h2>
 <ol>
@@ -137,6 +156,14 @@
 <li>Trunk toggle and close; frunk with the confirmation dialog.</li>
 <li>Reinstall while the key is still enrolled: after connecting, the check gives <code>enrolled</code> without pairing again.</li>
 <li>Remove the key on the car's screen and press a command: the session fails with <code>KeyNotPaired</code> and step 3 goes back to "to do".</li>
+</ol>
+<p>SFR-020, delete and recreate the key (the iOS runbook is in <code>samples/ios/README.md</code>):</p>
+<ol start="8">
+<li>Press <strong>Delete and recreate the key</strong>: the dialog states the four points (permanent removal from this phone, the car still lists the old public key, enroll again with the key card, the connection is dropped). Cancel changes nothing.</li>
+<li>Confirm while connected and enrolled: the connection drops and comes back, step 1 stays done, step 3 shows "not enrolled" after the check, the status card shows nothing from the old connection, the Control tab key list is empty. <strong>Key list</strong> then shows the old public key on the car and no row marked "this device".</li>
+<li>Enroll the new key (step 3). A nickname given to the old key id does not appear on the new key.</li>
+<li>After a restart, before the first unlock: the button is off, or the result says the key store is locked and nothing changed (no key deleted, connection unchanged).</li>
+<li>With the VIN saved but disconnected (Disconnect pressed): a new key is created and no connection is started.</li>
 </ol>
 
 <footer class="page-nav">
