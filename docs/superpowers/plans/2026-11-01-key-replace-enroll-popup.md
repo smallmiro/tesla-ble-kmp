@@ -22,6 +22,8 @@
 - [x] **Step 4 (리뷰 반영):** 손상된 키(`stored key is corrupted`, 문서에 적힌 경우만) 복구 경로, 엔진 수준의 문(`KeyOperationGate`: 다른 탭의 동작·연결과 교체가 서로 막음, 핸들 캐시 세대), 지우기 실패 뒤 복원 결과를 따름(`lost`/`unverified`), `KeyControlBackend` 이음매와 `KeyControlModel` 시험.
 - [ ] **Step 5:** 실기기 확인(R1~R11), AI 리뷰, PR (Refs: SFR-020).
 
+- [ ] **후속(라이브러리):** 손상된 키를 문자열이 아니라 종류로 알 수 있게 `library-api-request` 스킬로 라이브러리에 타입 있는 손상 오류(예: `KeyStoreError.Corrupted`)를 요청한다. 지금 샘플은 `PlatformFailure.cause == "stored key is corrupted"` 정확 일치만 쓴다(`KeyStoreFailure.isCorrupted(cause:)`). 요청서는 아직 쓰지 않는다.
+
 ### Task B: SFR-021 키 등록 진행 팝업 (iOS, 빌드 16)
 
 - [x] **Step 1:** 구조 변경 먼저(`struct:`): `BleClient.pair` 가 줄 대신 `EnrollmentUpdate` 단계를 보낸다(Control 탭 결과 줄은 그대로).
