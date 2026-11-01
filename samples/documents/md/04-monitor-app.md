@@ -1,6 +1,6 @@
 # Monitor App (SFR-010 to SFR-017)
 
-Status: **Android implemented** (build `0.3.0 (3)`) and **iOS implemented** (build `0.5.0 (16)`); unit tests and builds
+Status: **Android implemented** (build `0.3.0 (3)`) and **iOS implemented** (build `0.5.0 (17)`); unit tests and builds
 pass, **real-device checks pending** for both (iOS background reconnect is unconfirmed until the plan Task 2 spike).
 Issue #91. The library APIs it needs are available: `Vehicle.events`
 (`12-lib-getting-started.md` §Broadcast events, `14-lib-reading-state.md` B2) and the key accessibility `KeyAccessibility`
@@ -22,7 +22,7 @@ raw bytes so that unknown protocol fields can be analysed later (`protocol-analy
 | SFR-011 | The VIN is entered once and saved (Android `SharedPreferences`, iOS `UserDefaults`), with a button to clear it. On app start, if a VIN is saved, the app scans and connects automatically. A **Connect** button always tries immediately |
 | SFR-012 | When `connection` becomes `Disconnected`, the app calls `Vehicle.disconnect()` and reconnects with back-off (2 s doubling to at most 30 s), also in the background. **Disconnect** stops automatic reconnection until Connect is pressed |
 | SFR-013 | While the app is visible, the screen does not turn off (Android `FLAG_KEEP_SCREEN_ON`, iOS `isIdleTimerDisabled` tied to the active scene phase) |
-| SFR-014 | Live tab: latest `VehicleEvent.Status` drawn as lock, gear, presence, sleep, four doors, frunk, trunk, charge port; next to each item the time it last **changed** (a repeated equal value is not a change). Recent events list including authentication requests. Connection banner (connected / reconnecting, attempt n / disconnected with reason). A note that the trunk may not produce a broadcast |
+| SFR-014 | Live tab: latest `VehicleEvent.Status` drawn as lock, gear, presence, sleep, four doors, frunk, trunk, charge port; next to each item the time it last **changed** (a repeated equal value is not a change). Recent events list including authentication requests. Connection banner (connected / reconnecting, attempt n / disconnected with reason). A note that the trunk may not produce a broadcast. On iOS the Live tab is drawn as a cluster (SFR-022) and these items sit in a detail sheet |
 | SFR-015 | Query tab: polls `vehicleStatus()`, `keySummary()`, `listKeys()` every 30 s (changeable on screen) and shows `sessions`. Each result shows `Success` / `Uncertain` / `Failure` and its time. A "query now" button |
 | SFR-016 | Log tab and log files: every line in the format below is appended to a JSON Lines file; a memo field with a **Mark** button writes a `mark` line; the tab shows line counts, the unrecognized-event count, the last lines and the file location, and can start a new file |
 | SFR-017 | `tools/samples/pull-monitor-logs.sh android|ios` copies the log folder from a USB-connected phone to `samples/logs/<platform>/<date>/` (git-ignored) |
@@ -57,7 +57,7 @@ The rules are a small pure type (`KeyNickname`: trim, length check, clamp; `KeyN
 injected `UserDefaults`) that is unit tested without a vehicle (`Tests/KeyNicknameTests.swift`). The screen is checked
 with the real-device checklist in `samples/ios/README.md` (SFR-019).
 
-Status: iOS built (`0.5.0 (16)`), unit tests pass, real-device check pending. Android: planned, same spec.
+Status: iOS built (`0.5.0 (17)`), unit tests pass, real-device check pending. Android: planned, same spec.
 
 ## Background
 
@@ -173,6 +173,7 @@ Files in `samples/ios/Sources/` (tests in `samples/ios/Tests/`, names as in the 
 | `ConnectionLoop.swift` | State machine `idle`, `connecting(n)`, `connected(V)`, `backoff(attempt:delay:reason:)`, `stopped`; knows nothing about the library; the clock and the sleeper can be replaced (tests use a manual clock) |
 | `LogLine.swift`, `LogWriter.swift`, `VinMask.swift` | Log line format, file writer on its own serial queue behind the `LogSink` protocol, VIN masking |
 | `LiveState.swift` | Reduces events into the Live tab state (last-changed time per item) |
+| `ClusterState.swift`, `Tests/ClusterStateTests.swift` | Reduces `LiveState` and the link into the cluster values of SFR-022: gear, closure of each `ClusterPart` (only `CLOSED` is closed), texts, dimming, headline. `Views/LiveTab.swift` overlays the `ClusterCar*` image set: eight SVGs on one 400×760 canvas |
 | `VehicleMapping.swift` | The only place that turns `VehicleEvent` / `VehicleStatus_` into Swift values (`MonitorEvent`, `StatusSnapshot`); `VehicleBox` carries a `Vehicle` across tasks |
 | `SampleModel.swift`, `Views/ControlTab.swift` | Control tab (the former single screen) on the monitor's connection and key |
 | `KeyControl.swift`, `KeyControlModel.swift`, `Views/KeyControlTab.swift` | Key & Control tab (`05-key-control-tab.md`): pure step rules and command runner, tab state, screen; library calls go through `BleClient` |
@@ -225,7 +226,7 @@ How it behaves, where the design left room:
 ## Real-vehicle checklist (both apps)
 
 1. Fresh install, enter VIN, create the monitor key, enroll it; restart the app → connects on its own.
-2. Live tab: open and close the driver door, shift P/R/N/D, lock from outside → each change appears with its time.
+2. Live tab: open and close the driver door, shift P/R/N/D, lock from outside → each change appears with its time (iOS: in the detail sheet).
 3. Walk away until the link drops, come back → reconnects without touching the phone (screen on, then screen locked).
 4. Locked phone for 30 minutes near the car → still connected or reconnected; log keeps growing.
 5. Disconnect button → no reconnect attempts for 2 minutes.

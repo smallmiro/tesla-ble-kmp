@@ -43,7 +43,7 @@
 
 <div class="callout warn">
 <strong>Android と iOS は実装済み、実機確認待ち</strong>
-<p>Android アプリ（ビルド <code>0.3.0 (3)</code>）と iOS アプリ（ビルド <code>0.5.0 (16)</code>）は実装済みで、単体テストは通過しています。どちらも実車での確認を待っています。iOS がバックグラウンドで再接続するかどうかは、計画の Task 2 のスパイクまで未確認です。必要なライブラリ API はすべて使えます: <code>Vehicle.events</code>（ライブラリマニュアル 12 章「ブロードキャストイベント」、14 章 B2）と iOS のキーアクセシビリティの選択（13 章「スマートフォンのロック中にキーを使う」、FR-037）。</p>
+<p>Android アプリ（ビルド <code>0.3.0 (3)</code>）と iOS アプリ（ビルド <code>0.5.0 (17)</code>）は実装済みで、単体テストは通過しています。どちらも実車での確認を待っています。iOS がバックグラウンドで再接続するかどうかは、計画の Task 2 のスパイクまで未確認です。必要なライブラリ API はすべて使えます: <code>Vehicle.events</code>（ライブラリマニュアル 12 章「ブロードキャストイベント」、14 章 B2）と iOS のキーアクセシビリティの選択（13 章「スマートフォンのロック中にキーを使う」、FR-037）。</p>
 </div>
 
 <div class="toc"><strong>このページの内容</strong><ol>
@@ -65,7 +65,7 @@
 <tr><td>SFR-011</td><td>VIN は 1 回入力すると保存され、消去ボタンがあります。保存済みの VIN がある状態でアプリを起動すると、自動でスキャンして接続します。<strong>Connect</strong> ボタンは常に即座に接続を試みます。</td></tr>
 <tr><td>SFR-012</td><td>接続が切れると、アプリは古い接続を解放して再接続します。最初は 2 秒待ち、倍々にして最大 30 秒まで延ばします。バックグラウンドでも同様です。<strong>Disconnect</strong> は、Connect を押すまで自動再接続を止めます。</td></tr>
 <tr><td>SFR-013</td><td>アプリが画面に表示されている間は、画面が消灯しません。</td></tr>
-<tr><td>SFR-014</td><td>Live タブ：最新のステータスブロードキャストから、ロック、ギア、在車状態、スリープ、4 つのドア、フランク、トランク、充電ポートを表示し、それぞれに最後に<em>変化した</em>時刻を付けます（同じ値が再送されても変化とは見なしません）。認証リクエストを含む最近のイベントの一覧。接続バナー。トランクはブロードキャストを送らない場合があるという注記。</td></tr>
+<tr><td>SFR-014</td><td>Live タブ：最新のステータスブロードキャストから、ロック、ギア、在車状態、スリープ、4 つのドア、フランク、トランク、充電ポートを表示し、それぞれに最後に<em>変化した</em>時刻を付けます（同じ値が再送されても変化とは見なしません）。認証リクエストを含む最近のイベントの一覧。接続バナー。トランクはブロードキャストを送らない場合があるという注記。iOS の Live タブはクラスターとして描き（SFR-022）、これらの項目は詳細シートにあります。</td></tr>
 <tr><td>SFR-015</td><td>Query タブ：<code>vehicleStatus()</code>、<code>keySummary()</code>、<code>listKeys()</code> を 30 秒ごと（変更可能）に読み取り、セッション状態を表示します。各結果には、成功、不確定、失敗のいずれかと時刻が表示されます。「今すぐ問い合わせ」ボタン。</td></tr>
 <tr><td>SFR-016</td><td>Log タブとログファイル：すべてのレコードを JSON Lines ファイルに書き込みます。メモ欄と <strong>Mark</strong> ボタンで、これから行う操作を記録します。タブには、件数、未認識イベントの数、最後の数行、ファイルの場所が表示され、新しいファイルを開始できます。</td></tr>
 <tr><td>SFR-017</td><td><code>tools/samples/pull-monitor-logs.sh android|ios</code> は、ケーブルで接続したスマートフォンからログを <code>samples/logs/&lt;platform&gt;/&lt;date&gt;/</code> にコピーします。このフォルダーは git の管理対象外です。</td></tr>
@@ -88,7 +88,7 @@
 </tbody>
 </table>
 <p>ルールは小さな純粋な型です（<code>KeyNickname</code>: 削る、長さの確認、切り詰め。<code>KeyNicknameStore</code>: 注入した <code>UserDefaults</code> への保存、取得、削除）。車両なしで単体テストします（<code>Tests/KeyNicknameTests.swift</code>）。画面は <code>samples/ios/README.md</code> の実機確認リストで確認します（SFR-019）。</p>
-<p><strong>状態:</strong> iOS ビルド済み（<code>0.5.0 (16)</code>）、単体テストは通過、実機確認待ち。Android: 予定、同じ仕様。</p>
+<p><strong>状態:</strong> iOS ビルド済み（<code>0.5.0 (17)</code>）、単体テストは通過、実機確認待ち。Android: 予定、同じ仕様。</p>
 
 <h2 id="sec-bg">バックグラウンドでの動作</h2>
 <table>
@@ -181,6 +181,7 @@
 <tr><td><code>ConnectionLoop.swift</code></td><td>状態機械 <code>idle</code>、<code>connecting(n)</code>、<code>connected(V)</code>、<code>backoff(attempt:delay:reason:)</code>、<code>stopped</code>。ライブラリのことは何も知らず、時計とスリープは差し替えられます（テストは手動の時計を使います）。</td></tr>
 <tr><td><code>LogLine.swift</code>、<code>LogWriter.swift</code>、<code>VinMask.swift</code></td><td>ログ行の形式、<code>LogSink</code> プロトコルの後ろにある専用シリアルキュー上のファイル書き込み、VIN のマスク。</td></tr>
 <tr><td><code>LiveState.swift</code></td><td>イベントを Live タブの状態（項目ごとの最後に変わった時刻）に変えます。</td></tr>
+<tr><td><code>ClusterState.swift</code>, <code>Tests/ClusterStateTests.swift</code></td><td><code>LiveState</code> と接続状態を SFR-022 のクラスターの値に変えます: ギア、<code>ClusterPart</code> ごとの閉状態（<code>CLOSED</code> のみ閉）、文言、暗い表示、見出し。<code>Views/LiveTab.swift</code> は <code>ClusterCar*</code> 画像（400×760 キャンバスの SVG 8 個）を重ねて描きます。</td></tr>
 <tr><td><code>VehicleMapping.swift</code></td><td><code>VehicleEvent</code> と <code>VehicleStatus_</code> を Swift の値（<code>MonitorEvent</code>、<code>StatusSnapshot</code>）に変える唯一の場所。<code>VehicleBox</code> は <code>Vehicle</code> をタスク間で運びます。</td></tr>
 <tr><td><code>SampleModel.swift</code>、<code>Views/ControlTab.swift</code></td><td>モニターの接続とキーを使う Control タブ（以前の 1 画面）。</td></tr>
 <tr><td><code>KeyNickname.swift</code>、<code>Tests/KeyNicknameTests.swift</code></td><td>ローカルのキーニックネーム（SFR-019、<a href="#sec-nickname">キーのニックネーム</a>）: <code>KeyNickname</code>（削る、32 文字の確認、入力の切り詰め）と <code>KeyNicknameStore</code>（注入した <code>UserDefaults</code> への保存、取得、削除）。純粋なロジックで、単体テストします。コントロールタブのキー一覧（<code>SampleModel.swift</code>、<code>Views/ControlTab.swift</code>）が表示と編集を行います。</td></tr>
