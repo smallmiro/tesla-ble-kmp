@@ -1,4 +1,4 @@
-# iOS 샘플 (모니터 앱, 빌드 14)
+# iOS 샘플 (모니터 앱, 빌드 15)
 
 > 샘플 스펙과 제약: `samples/documents/md/`(에이전트용) · `samples/documents/html/`(사람용). 에이전트 지침: `samples/ios/AGENTS.md`.
 > 이 README는 빌드 절차와 실차 확인 절차(runbook)를 담습니다.
@@ -92,9 +92,9 @@ VIN은 가려지고 키·서명처럼 보이는 값은 `redacted(NB)`로만 남�
 
 참고: 제어 결과가 `불확실`이면 샘플이 다시 보내지 않고 `vehicleStatus`로 재조회해 `→ 재조회: 잠금 …, 트렁크 …`를 덧붙인다(FR-102). 이 기기의 키를 삭제하려 하면 확인 창에 "이 기기의 키를 지웁니다"가 뜬다.
 
-## 키·제어 탭 실기기 확인 (SFR-018, 빌드 14)
+## 키·제어 탭 실기기 확인 (SFR-018, 빌드 15)
 
-빌드 14(`TeslableSampleDevice`, 버전 0.5.0)를 설치한다. 새 탭 **키·제어**(다섯 번째): 키 → 연결 → 등록 → 제어 네 단계와 버튼 격자.
+빌드 15(`TeslableSampleDevice`, 버전 0.5.0)를 설치한다. 새 탭 **키·제어**(다섯 번째): 키 → 연결 → 등록 → 제어 네 단계와 버튼 격자.
 규칙과 버튼 표는 `samples/documents/md/05-key-control-tab.md`. 모든 명령은 먼저 VCSEC 세션을 보장하고(`startSession(setOf(VCSEC))`), 명령을 한 번만 보내고, 그 뒤에 `vehicleStatus()`로 재조회한다(`Uncertain`도 다시 보내지 않는다).
 결과에는 VIN·공개키 전문을 적지 않는다. 시뮬레이터에는 블루투스가 없으므로 아래는 모두 실기기에서만 확인한다. 기록은 화면 "결과" 목록(최신이 위)과 Log 탭 `observe` 줄로 한다.
 
@@ -115,9 +115,9 @@ VIN은 가려지고 키·서명처럼 보이는 값은 `redacted(NB)`로만 남�
 | C13 | 다른 탭에서 등록·삭제 | Control 탭에서 이 기기 키를 등록하거나 삭제한 뒤 키·제어 탭으로 돌아오기 | 탭이 보일 때 등록 확인이 다시 돌아 3·4단계가 실제 상태를 따름 |
 | C14 | 확인 창 도중 변화 | 프렁크 확인 창을 띄운 채 연결이 끊기게 한 뒤 "열기" | 명령을 보내지 않고 결과 줄에 보내지 않은 이유가 남음 |
 
-## 키 별명 실기기 확인 (SFR-019, 빌드 14)
+## 키 별명 실기기 확인 (SFR-019, 빌드 15)
 
-빌드 14(`TeslableSampleDevice`, 버전 0.5.0)를 설치한다. Control 탭의 키 목록 각 행에 **이 폰에만 저장되는** 별명을 붙인다.
+빌드 15(`TeslableSampleDevice`, 버전 0.5.0)를 설치한다. Control 탭의 키 목록 각 행에 **이 폰에만 저장되는** 별명을 붙인다.
 차량에는 키 이름 칸이 없다(VCSEC `KeyMetadata`는 `keyFormFactor`뿐이다). 그래서 별명은 차 화면에 나타나지 않고 차량으로 가지도 않는다.
 규칙은 `samples/documents/md/04-monitor-app.md` §Key nickname. 저장소 규칙(자르기, 32자, 빈 입력 삭제)은 `Tests/KeyNicknameTests.swift`가 시험한다.
 결과·화면에 공개키 전문과 VIN을 적지 않는다. 키 목록을 읽으려면 차에 연결돼 있어야 하므로 아래는 실기기에서만 확인한다.
@@ -136,9 +136,9 @@ VIN은 가려지고 키·서명처럼 보이는 값은 `redacted(NB)`로만 남�
 | N10 | 삭제 확인 창 | 별명이 있는 행의 **삭제** | 확인 창에 별명과 라벨이 함께 보인다(공개키 전문은 없다) |
 | N11 | 복사본 | **결과 전체 복사** 후 붙여 넣기 | 별명 글, 공개키 전문, VIN이 없다 |
 
-## 모니터 앱 실기기 확인 (SFR-010~017, 빌드 14)
+## 모니터 앱 실기기 확인 (SFR-010~017, 빌드 15)
 
-빌드 14(`TeslableSampleDevice`, 버전 0.5.0)를 설치한다(빌드 11에서 시작한 확인을 이어서 한다). 탭은 Live / Query / Log / Control / 키·제어. 화면 설명과 로그 형식은 `samples/documents/md/04-monitor-app.md`.
+빌드 15(`TeslableSampleDevice`, 버전 0.5.0)를 설치한다(빌드 11에서 시작한 확인을 이어서 한다). 탭은 Live / Query / Log / Control / 키·제어. 화면 설명과 로그 형식은 `samples/documents/md/04-monitor-app.md`.
 결과에는 VIN·공개키 전문을 적지 않는다. 시뮬레이터에는 블루투스가 없으므로 아래는 모두 실기기에서만 확인한다.
 
 사전 준비: 실기기 실행 절차(위)로 설치 → Live 탭에서 VIN 저장(화면에는 가린 VIN만 보인다). 모니터 키는 별칭 `teslable-monitor`, 접근성 `afterFirstUnlock`으로 만들어진다.
@@ -155,7 +155,7 @@ VIN은 가려지고 키·서명처럼 보이는 값은 `redacted(NB)`로만 남�
 | 7 | 끊기 | Live 탭 "연결 끊기" | 배너 `연결 끊음 (자동 재연결 중지)`, 2분 동안 연결 시도 없음(`link` 줄 `stopped` 뒤 `connecting` 없음). "연결"을 누르면 바로 다시 시작 |
 | 8 | 화면 유지 | 앱을 보는 동안 자동 잠금 시간(예: 30초)이 지나도록 두기, 그다음 홈 화면으로 나가기 | 보는 동안 화면이 꺼지지 않음. 앱을 나가면 평소처럼 꺼짐 |
 | 9 | Mark | Log 탭 메모에 `before: open driver door` → Mark | 줄 수에 `mark`가 늘고 마지막 줄에 보임. VIN 모양 글자를 넣으면 `*`로 가려짐 |
-| 10 | 로그 가져오기 | `tools/samples/pull-monitor-logs.sh ios` (USB 연결, 폰 잠금 해제) | `samples/logs/ios/<날짜>/logs/`에 `monitor-*.jsonl`. 첫 줄은 `session`(`platform: ios`, 앱 `0.5.0(14)`). `grep -rE '[A-HJ-NPR-Z0-9]{17}' samples/logs/ios/<날짜>/`에 아무것도 안 나옴. Finder(기기 → 파일)와 파일 앱에서도 `Documents/logs`가 보임 |
+| 10 | 로그 가져오기 | `tools/samples/pull-monitor-logs.sh ios` (USB 연결, 폰 잠금 해제) | `samples/logs/ios/<날짜>/logs/`에 `monitor-*.jsonl`. 첫 줄은 `session`(`platform: ios`, 앱 `0.5.0(15)`). `grep -rE '[A-HJ-NPR-Z0-9]{17}' samples/logs/ios/<날짜>/`에 아무것도 안 나옴. Finder(기기 → 파일)와 파일 앱에서도 `Documents/logs`가 보임 |
 
 ### 잠긴 폰과 키 (계획 Task 11)
 
