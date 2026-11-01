@@ -51,7 +51,7 @@ struct LiveState: Sendable, Equatable {
 enum LiveReducer {
     static let maxRecent = 100
 
-    /// 새 연결이 시작됐다. 값은 남기되, 이 연결에서 방송이나 성공한 `vehicleStatus()` 로 상태를 듣기 전에는 현재 값으로 보지 않게 한다.
+    /// 새 연결이 시작됐다. 값은 남기되, 이 연결에서 방송을 받기 전에는 현재 값으로 보지 않게 한다.
     static func linkStarted(_ state: LiveState) -> LiveState {
         var next = state
         next.heardOnThisLink = false

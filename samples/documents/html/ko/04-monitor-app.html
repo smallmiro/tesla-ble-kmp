@@ -65,7 +65,7 @@
 <tr><td>SFR-011</td><td>VIN은 한 번 입력하면 저장되며, 지우는 버튼이 있습니다. 저장된 VIN이 있는 상태로 앱을 시작하면 스스로 스캔하고 연결합니다. <strong>Connect</strong> 버튼은 항상 즉시 시도합니다.</td></tr>
 <tr><td>SFR-012</td><td>연결이 끊어지면 앱은 이전 연결을 해제하고 다시 연결합니다. 처음에는 2초를 기다리고 30초까지 두 배씩 늘리며, 백그라운드에서도 동작합니다. <strong>Disconnect</strong>는 Connect를 누를 때까지 자동 재연결을 멈춥니다.</td></tr>
 <tr><td>SFR-013</td><td>앱이 화면에 보이는 동안 화면이 꺼지지 않습니다.</td></tr>
-<tr><td>SFR-014</td><td>Live 탭: 가장 최근 상태 브로드캐스트의 잠금, 기어, 탑승 여부, 절전, 네 개의 문, 프렁크, 트렁크, 충전 포트를 각각 마지막으로 <em>변경된</em> 시각과 함께 표시합니다(같은 값을 다시 받은 것은 변경이 아닙니다). 인증 요청을 포함한 최근 이벤트 목록. 연결 배너. 트렁크는 브로드캐스트를 보내지 않을 수 있다는 안내. iOS의 Live 탭은 클러스터로 그리고(SFR-022), 이 항목들은 상세 시트에 있습니다.</td></tr>
+<tr><td>SFR-014</td><td>Live 탭: 가장 최근 상태 브로드캐스트(iOS는 성공한 <code>vehicleStatus()</code>도)의 잠금, 기어, 탑승 여부, 절전, 네 개의 문, 프렁크, 트렁크, 충전 포트를 각각 마지막으로 <em>변경된</em> 시각과 함께 표시합니다(같은 값을 다시 받은 것은 변경이 아닙니다). 인증 요청을 포함한 최근 이벤트 목록. 연결 배너. 트렁크는 브로드캐스트를 보내지 않을 수 있다는 안내. iOS의 Live 탭은 클러스터로 그리고(SFR-022), 이 항목들은 상세 시트에 있습니다. 거기서는 주기 조회의 성공한 <code>vehicleStatus()</code>도 상태로 반영하므로(Android는 브로드캐스트만) 트렁크 변화는 다음 조회 뒤에 보입니다.</td></tr>
 <tr><td>SFR-015</td><td>Query 탭: <code>vehicleStatus()</code>, <code>keySummary()</code>, <code>listKeys()</code>를 30초마다(조정 가능) 읽고 세션 상태를 표시합니다. 각 결과는 성공, 불확실, 실패 여부와 시각을 보여 줍니다. "지금 조회" 버튼.</td></tr>
 <tr><td>SFR-016</td><td>Log 탭과 로그 파일: 모든 기록을 JSON Lines 파일에 씁니다. 메모 입력란과 <strong>Mark</strong> 버튼으로 곧 하려는 동작을 기록합니다. 탭에는 개수, 인식하지 못한 이벤트 수, 마지막 줄들, 파일 위치가 표시되고, 새 파일을 시작할 수 있습니다.</td></tr>
 <tr><td>SFR-017</td><td><code>tools/samples/pull-monitor-logs.sh android|ios</code>는 케이블로 연결한 휴대폰에서 로그를 git이 무시하는 <code>samples/logs/&lt;platform&gt;/&lt;date&gt;/</code>로 복사합니다.</td></tr>
@@ -164,7 +164,7 @@
 <li><strong>연결은 하나.</strong> Control 탭은 모니터의 연결과 키를 씁니다(차는 BLE 연결을 3개까지 받습니다). Control 탭의 연결과 연결 끊기 버튼은 모니터의 루프를 시작하고 멈춥니다. 새 연결은 이전 차량의 연결이 끊어진 뒤에야 시작합니다.</li>
 <li><strong>프로세스당 엔진 하나.</strong> 처음 쓸 때 만들어 프로세스가 끝날 때까지 유지합니다(프로세스당 라이브러리 인스턴스 하나, 12장). 서비스가 프로세스를 포그라운드로 붙들어 둡니다. 알림의 <strong>중지</strong>는 연결을 끊고 자동 재연결을 멈추고 서비스를 내립니다. 같은 프로세스에서 앱을 다시 열어도 스스로 연결하지 <strong>않으므로</strong> 연결 버튼을 누릅니다. 새 프로세스는 VIN이 저장되어 있으면 스스로 연결합니다.</li>
 <li><strong>키 오류.</strong> <code>KeyStoreError.Locked</code>이면 그 시도가 실패하므로 루프가 기다렸다가 키를 다시 읽습니다(키는 지우지 않습니다). 그 밖의 키 오류는 키 없이 연결합니다. 방송과 세 조회는 키가 필요 없습니다(14장 B2.4). Control 탭은 키의 <code>protection</code>과 <code>accessibility</code>를 보여 주고, 키가 <code>WHEN_UNLOCKED</code>이면 경고합니다.</li>
-<li><strong>Live 탭.</strong> 최근 이벤트 목록에는 바뀐 것, 인증 요청, 알 수 없는 방송이 들어갑니다(최대 100개). 같은 상태 방송이 반복되면 "마지막 방송"만 움직입니다. 반복 여부와 상관없이 모든 이벤트는 로그 파일에 들어갑니다. 첫 상태는 그 이전을 알 수 없으므로 "처음 관측" 시각을 보여 줍니다. 저장된 VIN은 가려서 보여 줍니다.</li>
+<li><strong>Live 탭.</strong> 최근 이벤트 목록에는 바뀐 것, 인증 요청, 알 수 없는 방송이 들어갑니다(최대 100개). 같은 상태(방송 또는 조회)가 반복되면 "마지막 수신"만 움직입니다. 반복 여부와 상관없이 모든 이벤트는 로그 파일에 들어갑니다. 첫 상태는 그 이전을 알 수 없으므로 "처음 관측" 시각을 보여 줍니다. 저장된 VIN은 가려서 보여 줍니다.</li>
 <li><strong>Query 탭.</strong> 주기를 바꾸면 곧바로 한 번 조회하고 다시 셉니다. 조회는 차를 깨우지 않습니다.</li>
 <li><strong>로그 파일.</strong> 크기는 십진 MB입니다(20 000 000바이트와 200 000 000바이트). 정리는 폴더를 한도 이하로 유지하며 쓰고 있는 파일은 지우지 않습니다. 같은 초에 파일 두 개가 시작되면 두 번째 이름은 1초 뒤로 정합니다. 줄은 쓸 때마다 내보냅니다. 쓰기 큐는 4096줄이며, 가득 차면 멈추는 대신 새 줄을 버리고 셉니다(Log 탭). 쓰기 오류(디스크 가득 참, 폴더 삭제 등)는 그 줄을 버린 것으로 세고 다음 줄에서 파일을 다시 열며, 앱을 죽이지 않습니다.</li>
 <li><strong>가져오기.</strong> <code>adb pull</code>은 파일을 <code>samples/logs/android/&lt;date&gt;/logs/</code>에 둡니다.</li>
@@ -180,7 +180,7 @@
 <tr><td><code>MonitorEngine.swift</code></td><td>라이브러리 인스턴스, <code>ConnectionLoop</code>, <code>Vehicle.events</code> Task, 조회 주기 Task, 저장된 VIN(<code>UserDefaults</code>), 모니터 키, <code>LogWriter</code>를 소유합니다. 변경 사항은 순서가 유지되도록 <code>AsyncStream</code> 하나로 모델에 보냅니다. <code>observe</code> 줄은 모든 것을 <code>DebugLogger</code>로 넘기는 <code>TeslaLogger</code>인 <code>ObserveLogger</code>를 통해 들어옵니다.</td></tr>
 <tr><td><code>ConnectionLoop.swift</code></td><td>상태 기계 <code>idle</code>, <code>connecting(n)</code>, <code>connected(V)</code>, <code>backoff(attempt:delay:reason:)</code>, <code>stopped</code>. 라이브러리를 전혀 모르며, 시계와 sleeper를 바꿔 끼울 수 있습니다(테스트는 수동 시계를 씁니다).</td></tr>
 <tr><td><code>LogLine.swift</code>, <code>LogWriter.swift</code>, <code>VinMask.swift</code></td><td>로그 줄 형식, 자체 직렬 큐에서 <code>LogSink</code> 프로토콜 뒤에 있는 파일 쓰기, VIN 가리기.</td></tr>
-<tr><td><code>LiveState.swift</code></td><td>이벤트를 Live 탭 상태(항목별 마지막으로 바뀐 시각)로 바꿉니다.</td></tr>
+<tr><td><code>LiveState.swift</code></td><td>이벤트를 Live 탭 상태(항목별 마지막으로 바뀐 시각)로 바꿉니다. 성공한 <code>vehicleStatus()</code>도 방송처럼 현재 링크에서 받은 것으로 치며, 연결마다 올라가는 <code>linkEpoch</code>가 연결이 끝난 뒤 도착한 결과를 걸러 냅니다(SFR-022).</td></tr>
 <tr><td><code>ClusterState.swift</code>, <code>Tests/ClusterStateTests.swift</code></td><td><code>LiveState</code>와 연결 상태를 SFR-022의 클러스터 값으로 바꿉니다: 기어, <code>ClusterPart</code>별 닫힘 상태(<code>CLOSED</code>만 닫힘), 문구, 어둡게 표시, 머리글. <code>Views/LiveTab.swift</code>는 <code>ClusterCar*</code> 이미지(400×760 캔버스의 SVG 8개)를 겹쳐 그립니다.</td></tr>
 <tr><td><code>VehicleMapping.swift</code></td><td><code>VehicleEvent</code>와 <code>VehicleStatus_</code>를 Swift 값(<code>MonitorEvent</code>, <code>StatusSnapshot</code>)으로 바꾸는 유일한 곳입니다. <code>VehicleBox</code>는 <code>Vehicle</code>을 Task 사이에서 전달합니다.</td></tr>
 <tr><td><code>SampleModel.swift</code>, <code>Views/ControlTab.swift</code></td><td>모니터의 연결과 키를 쓰는 Control 탭(예전의 단일 화면).</td></tr>

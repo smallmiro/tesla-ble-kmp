@@ -65,7 +65,7 @@
 <tr><td>SFR-011</td><td>VIN は 1 回入力すると保存され、消去ボタンがあります。保存済みの VIN がある状態でアプリを起動すると、自動でスキャンして接続します。<strong>Connect</strong> ボタンは常に即座に接続を試みます。</td></tr>
 <tr><td>SFR-012</td><td>接続が切れると、アプリは古い接続を解放して再接続します。最初は 2 秒待ち、倍々にして最大 30 秒まで延ばします。バックグラウンドでも同様です。<strong>Disconnect</strong> は、Connect を押すまで自動再接続を止めます。</td></tr>
 <tr><td>SFR-013</td><td>アプリが画面に表示されている間は、画面が消灯しません。</td></tr>
-<tr><td>SFR-014</td><td>Live タブ：最新のステータスブロードキャストから、ロック、ギア、在車状態、スリープ、4 つのドア、フランク、トランク、充電ポートを表示し、それぞれに最後に<em>変化した</em>時刻を付けます（同じ値が再送されても変化とは見なしません）。認証リクエストを含む最近のイベントの一覧。接続バナー。トランクはブロードキャストを送らない場合があるという注記。iOS の Live タブはクラスターとして描き（SFR-022）、これらの項目は詳細シートにあります。</td></tr>
+<tr><td>SFR-014</td><td>Live タブ：最新のステータスブロードキャスト（iOS は成功した <code>vehicleStatus()</code> も）から、ロック、ギア、在車状態、スリープ、4 つのドア、フランク、トランク、充電ポートを表示し、それぞれに最後に<em>変化した</em>時刻を付けます（同じ値が再送されても変化とは見なしません）。認証リクエストを含む最近のイベントの一覧。接続バナー。トランクはブロードキャストを送らない場合があるという注記。iOS の Live タブはクラスターとして描き（SFR-022）、これらの項目は詳細シートにあります。そこでは定期問い合わせで成功した <code>vehicleStatus()</code> も状態に反映するため（Android はブロードキャストのみ）、トランクの変化は次の問い合わせの後に表示されます。</td></tr>
 <tr><td>SFR-015</td><td>Query タブ：<code>vehicleStatus()</code>、<code>keySummary()</code>、<code>listKeys()</code> を 30 秒ごと（変更可能）に読み取り、セッション状態を表示します。各結果には、成功、不確定、失敗のいずれかと時刻が表示されます。「今すぐ問い合わせ」ボタン。</td></tr>
 <tr><td>SFR-016</td><td>Log タブとログファイル：すべてのレコードを JSON Lines ファイルに書き込みます。メモ欄と <strong>Mark</strong> ボタンで、これから行う操作を記録します。タブには、件数、未認識イベントの数、最後の数行、ファイルの場所が表示され、新しいファイルを開始できます。</td></tr>
 <tr><td>SFR-017</td><td><code>tools/samples/pull-monitor-logs.sh android|ios</code> は、ケーブルで接続したスマートフォンからログを <code>samples/logs/&lt;platform&gt;/&lt;date&gt;/</code> にコピーします。このフォルダーは git の管理対象外です。</td></tr>
@@ -164,7 +164,7 @@
 <li><strong>接続は 1 つ。</strong> Control タブはモニターの接続とキーを使います（車は BLE 接続を 3 つまで受け付けます）。Control タブの接続ボタンと切断ボタンは、モニターのループを開始・停止します。新しい接続は、前の車両の接続が切れてから始まります。</li>
 <li><strong>プロセスごとにエンジンは 1 つ。</strong> 最初に使うときに作られ、プロセスが続く間は保たれます（プロセスごとにライブラリのインスタンスは 1 つ、12 章）。サービスがプロセスをフォアグラウンドに保ちます。通知の<strong>停止</strong>は、接続を切り、自動再接続を止め、サービスを終了させます。同じプロセスでアプリを開き直しても自動では接続<strong>しません</strong>。接続ボタンを押してください。新しいプロセスは、VIN が保存されていれば自動で接続します。</li>
 <li><strong>キーのエラー。</strong> <code>KeyStoreError.Locked</code> ならその試行は失敗となり、ループは待ってからキーを読み直します（キーは消しません）。それ以外のキーのエラーは、キーなしで接続します。ブロードキャストと 3 つの問い合わせにキーは要りません（14 章 B2.4）。Control タブはキーの <code>protection</code> と <code>accessibility</code> を表示し、キーが <code>WHEN_UNLOCKED</code> なら警告します。</li>
-<li><strong>Live タブ。</strong> 最近のイベントの一覧には、変化、認証要求、認識できないブロードキャストが入ります（最大 100 件）。同じ状態のブロードキャストが繰り返されても、動くのは「最後のブロードキャスト」だけです。繰り返しかどうかにかかわらず、すべてのイベントはログファイルに入ります。最初の状態はそれ以前を知りようがないので、「初めて観測」の時刻を表示します。保存した VIN はマスクして表示します。</li>
+<li><strong>Live タブ。</strong> 最近のイベントの一覧には、変化、認証要求、認識できないブロードキャストが入ります（最大 100 件）。同じ状態（ブロードキャストまたは問い合わせ）が繰り返されても、動くのは「最後の受信」だけです。繰り返しかどうかにかかわらず、すべてのイベントはログファイルに入ります。最初の状態はそれ以前を知りようがないので、「初めて観測」の時刻を表示します。保存した VIN はマスクして表示します。</li>
 <li><strong>Query タブ。</strong> 間隔を変えるとすぐに 1 回問い合わせ、そこから数え直します。問い合わせは車を起こしません。</li>
 <li><strong>ログファイル。</strong> サイズは 10 進の MB です（20 000 000 バイトと 200 000 000 バイト）。削除はフォルダを上限以下に保ち、書き込み中のファイルは消しません。同じ秒に 2 つのファイルが始まるときは、2 つ目の名前を 1 秒後にします。行は書くたびにフラッシュします。書き込みのキューは 4096 行で、いっぱいになると、待たずに新しい行を捨てて数えます（Log タブ）。書き込みエラー（ディスクがいっぱい、フォルダがないなど）はその行を捨てたものとして数え、次の行でファイルを開き直します。アプリは落ちません。</li>
 <li><strong>取り出し。</strong> <code>adb pull</code> はファイルを <code>samples/logs/android/&lt;date&gt;/logs/</code> に置きます。</li>
@@ -180,7 +180,7 @@
 <tr><td><code>MonitorEngine.swift</code></td><td>ライブラリのインスタンス、<code>ConnectionLoop</code>、<code>Vehicle.events</code> の Task、問い合わせのポーリング Task、保存した VIN（<code>UserDefaults</code>）、モニターのキー、<code>LogWriter</code> を持ちます。変更は 1 つの <code>AsyncStream</code> を通してモデルに送り、順序を保ちます。<code>observe</code> の行は、すべてを <code>DebugLogger</code> に渡す <code>TeslaLogger</code> である <code>ObserveLogger</code> を通して入ってきます。</td></tr>
 <tr><td><code>ConnectionLoop.swift</code></td><td>状態機械 <code>idle</code>、<code>connecting(n)</code>、<code>connected(V)</code>、<code>backoff(attempt:delay:reason:)</code>、<code>stopped</code>。ライブラリのことは何も知らず、時計とスリープは差し替えられます（テストは手動の時計を使います）。</td></tr>
 <tr><td><code>LogLine.swift</code>、<code>LogWriter.swift</code>、<code>VinMask.swift</code></td><td>ログ行の形式、<code>LogSink</code> プロトコルの後ろにある専用シリアルキュー上のファイル書き込み、VIN のマスク。</td></tr>
-<tr><td><code>LiveState.swift</code></td><td>イベントを Live タブの状態（項目ごとの最後に変わった時刻）に変えます。</td></tr>
+<tr><td><code>LiveState.swift</code></td><td>イベントを Live タブの状態（項目ごとの最後に変わった時刻）に変えます。成功した <code>vehicleStatus()</code> もブロードキャストと同様に現在のリンクで受信したものとみなし、接続ごとに増える <code>linkEpoch</code> が接続終了後に届いた結果を除外します（SFR-022）。</td></tr>
 <tr><td><code>ClusterState.swift</code>, <code>Tests/ClusterStateTests.swift</code></td><td><code>LiveState</code> と接続状態を SFR-022 のクラスターの値に変えます: ギア、<code>ClusterPart</code> ごとの閉状態（<code>CLOSED</code> のみ閉）、文言、暗い表示、見出し。<code>Views/LiveTab.swift</code> は <code>ClusterCar*</code> 画像（400×760 キャンバスの SVG 8 個）を重ねて描きます。</td></tr>
 <tr><td><code>VehicleMapping.swift</code></td><td><code>VehicleEvent</code> と <code>VehicleStatus_</code> を Swift の値（<code>MonitorEvent</code>、<code>StatusSnapshot</code>）に変える唯一の場所。<code>VehicleBox</code> は <code>Vehicle</code> をタスク間で運びます。</td></tr>
 <tr><td><code>SampleModel.swift</code>、<code>Views/ControlTab.swift</code></td><td>モニターの接続とキーを使う Control タブ（以前の 1 画面）。</td></tr>

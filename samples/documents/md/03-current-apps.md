@@ -54,7 +54,7 @@ The monitor app (`04-monitor-app.md`, SFR-010 to SFR-022): five tabs, one monito
 
 | Tab | Contents |
 |---|---|
-| Live | Connection banner, VIN save and clear, Connect and Disconnect, the latest broadcast status per item with its last-changed time, recent events |
+| Live | Connection banner, VIN save and clear, Connect and Disconnect, the latest status per item (broadcast or successful `vehicleStatus()`) with its last-changed time, recent events |
 | Query | `vehicleStatus()`, `keySummary()`, `listKeys()` every 30 s (changeable), results with outcome and time, sessions, "query now" |
 | Log | Line counts, unrecognized count, last lines and copy, file path, memo and Mark, new file |
 | Control | The former single screen (below). Uses the monitor's connection and key |
