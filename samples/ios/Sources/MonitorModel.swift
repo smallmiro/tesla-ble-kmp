@@ -33,6 +33,7 @@ final class MonitorModel: ObservableObject {
         control = SampleModel(engine: engine)
         keyControl = KeyControlModel(engine: engine)
         control.onEnrollmentChange = { [weak keyControl] change in keyControl?.enrollmentChangedElsewhere(change) }
+        keyControl.onKeyReplaced = { [weak control] in control?.keyReplaced() }
         let updates = engine.updates
         Task { [weak self] in
             for await update in updates { self?.apply(update) }

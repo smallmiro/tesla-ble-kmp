@@ -58,6 +58,8 @@ struct KeyControlSteps: Sendable, Equatable {
     let refreshStatusEnabled: Bool
     /// 키 없이 연결되어 있다: 2단계 버튼이 "연결 끊고 다시 연결"이 된다(Android와 같다).
     let reconnectNeeded: Bool
+    /// "키 삭제 후 다시 만들기" 버튼(SFR-020). 읽을 수 있는 키가 있고 다른 호출이 없을 때만. 연결은 필요 없다. 잠금이면 끈다.
+    let replaceKeyEnabled: Bool
 
     init(_ i: KeyControlInputs) {
         let idle = !i.busy
@@ -109,6 +111,7 @@ struct KeyControlSteps: Sendable, Equatable {
         checkEnrollmentEnabled = idle && ready && i.enrollment != .checking
         refreshStatusEnabled = idle && i.connected
         reconnectNeeded = i.connected && !i.hasKey
+        replaceKeyEnabled = idle && i.keyReady && !i.keyLocked
     }
 
     /// 4단계 버튼이 지금 꺼져 있는 이유(켜져 있으면 `nil`). 확인 대화상자를 누른 뒤처럼, 보낼 때 규칙을 다시 따질 때 쓴다.

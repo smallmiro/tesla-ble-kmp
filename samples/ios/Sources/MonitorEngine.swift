@@ -321,6 +321,89 @@ final class MonitorEngine: @unchecked Sendable {
         }
     }
 
+    // MARK: - 키 삭제 후 다시 만들기 (SFR-020)
+
+    /// 모니터 키를 지우고 새로 만든다(`13-lib-pairing.md` §Deleting or replacing a key locally). 순서는 `KeyReplacer` 가 정한다:
+    /// 잠겨 있으면 아무것도 하지 않고, 쓰던 연결은 먼저 끊고(세션 캐시가 옛 키 것이다), 지우기가 실패하면 새 키를 만들지 않는다.
+    /// 접근성(`afterFirstUnlock`)·보호(`preferHardware`)는 `ensureKey()` 가 만들 때 쓰는 값 그대로다. 연결을 쓰던 중이었으면 새 키로 다시 연결한다.
+    func replaceKey() async -> KeyReplaceOutcome {
+        let wasActive: Bool
+        switch loop.state {
+        case .idle, .stopped: wasActive = false
+        case .connecting, .connected, .backoff: wasActive = true
+        }
+        return await KeyReplacer.run(
+            wasActive: wasActive,
+            probe: { await self.readStoredKey().probe },
+            disconnect: { await self.loop.stop() },
+            forgetHandle: {
+                self.lock.withLock { self.key = nil }
+                self.emit.yield(.key(KeyStatus(text: "키 삭제 중", state: .none)))
+            },
+            delete: { await self.deleteStoredKey() },
+            create: {
+                switch await self.ensureKey() {
+                case .ready: return .created
+                case .locked: return .locked
+                case .failed(let why): return .failed(why)
+                }
+            },
+            restore: { await self.restoreStoredKey() },
+            reconnect: { _ = self.connectNow() }
+        )
+    }
+
+    /// 키 저장소에서 키를 읽기만 한다(만들지 않는다).
+    private func readStoredKey() async -> (probe: KeyProbe, key: VehicleKey?) {
+        do {
+            let result = try await ble.keys.get(alias: Self.monitorKeyAlias)
+            switch onEnum(of: result) {
+            case .success(let s):
+                if let k = s.value as? VehicleKey { return (.present, k) }
+                return (.absent, nil)
+            case .failure(let f):
+                if f.error is VehicleErrorKeyStoreErrorLocked { return (.locked, nil) }
+                return (.failed(f.error.message), nil)
+            case .uncertain(let u): return (.failed(u.error.message), nil)
+            }
+        } catch {
+            return (.failed("\(error)"), nil)
+        }
+    }
+
+    private func deleteStoredKey() async -> KeyDeleteResult {
+        do {
+            let result = try await ble.keys.delete(alias: Self.monitorKeyAlias)
+            switch onEnum(of: result) {
+            case .success: return .deleted
+            case .failure(let f):
+                if f.error is VehicleErrorKeyStoreErrorLocked { return .locked }
+                return .failed(f.error.message)
+            case .uncertain(let u): return .failed(u.error.message)
+            }
+        } catch {
+            return .failed("\(error)")
+        }
+    }
+
+    /// 지우기가 실패한 뒤 옛 키를 다시 읽어 화면 상태를 되돌린다. 읽기만 하고 새로 만들지 않는다.
+    private func restoreStoredKey() async {
+        let read = await readStoredKey()
+        switch read.probe {
+        case .present:
+            if let k = read.key {
+                lock.withLock { key = k }
+                emit.yield(.key(describe(k)))
+            }
+        case .absent:
+            emit.yield(.key(KeyStatus(text: "키 없음", state: .none)))
+        case .locked:
+            emit.yield(.key(KeyStatus(text: "키 잠김: 폰을 잠금 해제하면 다시 읽습니다(키는 지우지 않음)", state: .locked)))
+        case .failed(let why):
+            emit.yield(.key(KeyStatus(text: "키 오류: \(why)", state: .error)))
+        }
+    }
+
     private func describe(_ k: VehicleKey) -> KeyStatus {
         let text = "\(k.alias): \(k.protection.name), 접근성 \(k.accessibility.name)"
         let warning = k.accessibility == .afterFirstUnlock
