@@ -136,7 +136,7 @@
 <h3 id="sec-authenticity">応答の真正性</h3>
 <div class="callout warn">
 <strong><code>getState</code> に基づいて安全に関わる判断をしないでください</strong>
-<p>Go 原本と同様に、ライブラリは平文のインフォテインメント応答を受け入れます。2024.38 より前のファームウェアは応答を暗号化しないためです (<code>vehicle-command/pkg/protocol/protocol.md:751</code>)。平文の応答には認証タグがないため、BLE 接続上の第三者が読み取りデータを偽造できます。<code>vehicleStatus()</code> と <code>vehicle.events</code> も設計上は認証のない平文で、同じ扱いです (<a href="14-lib-reading-state.html#sec-a-transport">14、A1</a>、<a href="14-lib-reading-state.html#sec-b-wire">B1</a>)。平文の応答を拒否するかどうかは未決定で、拒否すると 2024.38 より前のファームウェアは使えなくなります。</p>
+<p>Go 原本と同様に、ライブラリは平文の応答を受け入れます。2024.38 より前のファームウェアは応答を暗号化しないためです (<code>vehicle-command/pkg/protocol/protocol.md:751</code>)。平文の応答には認証タグがないため、BLE 接続上の第三者が読み取りデータを偽造できます。<code>vehicleStatus()</code> と <code>vehicle.events</code> も設計上は認証のない平文で、同じ扱いです (<a href="14-lib-reading-state.html#sec-a-transport">14、A1</a>、<a href="14-lib-reading-state.html#sec-b-wire">B1</a>)。平文の経路にはドメインの確認がないためコマンド応答も例外ではなく、偽造された平文の VCSEC 応答を受け取ると、車両が実行していなくても <code>lock()</code> などのコマンドが <code>Success</code> を返すことがあります。平文の応答を拒否するかどうかは未決定で、拒否すると 2024.38 より前のファームウェアは使えなくなります。</p>
 </div>
 
 <h2 id="sec-transport">Bluetooth とキーストアのエラー</h2>

@@ -213,7 +213,7 @@
 <li>A missing enum value cannot be told from its zero value: an absent lock state reads <code>VEHICLELOCKSTATE_UNLOCKED</code> (sleep and presence read <code>UNKNOWN</code>). Only message parts can be reported as <code>absent</code>.</li>
 <li>Encrypted content and session info appear by length only, public keys by SHA-1 prefix only. The VIN and decrypted content never appear. Keep this rule when you add lines.</li>
 <li>The BLE transport counts inbox overflows per connection. Each dropped message logs <code>Dropping received message because inbox is full (dropped N since connect)</code> at <code>ERROR</code>; when the link ends, one line <code>BLE inbox overflowed N time(s) during this connection</code> is logged at <code>WARN</code> (only if N is above 0).</li>
-<li><code>DebugLogger</code> also prints the raw BLE bytes (<code>TX:</code> and <code>RX:</code>) at <code>DEBUG</code>. Do not share such platform logs. Replies are encrypted there, except a plaintext infotainment reply (firmware before 2024.38, see <a href="16-lib-errors.html#sec-authenticity">16. Error Handling</a>), which appears as the car sent it, location included.</li>
+<li><code>DebugLogger</code> also prints the raw BLE bytes (<code>TX:</code> and <code>RX:</code>) at <code>DEBUG</code>. Do not share such platform logs. Only what the car encrypted stays encrypted there. Everything else appears as the car sent it, including VCSEC query replies, broadcasts and a plaintext infotainment reply (firmware before 2024.38, see <a href="16-lib-errors.html#sec-authenticity">16. Error Handling</a>), which can hold the location.</li>
 </ul>
 
 <footer class="page-nav">

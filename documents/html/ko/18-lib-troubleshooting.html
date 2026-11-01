@@ -213,7 +213,7 @@
 <li>enum 값이 빠진 것과 0번 값은 구분할 수 없습니다. 잠금 상태가 없으면 <code>VEHICLELOCKSTATE_UNLOCKED</code>로 읽힙니다(sleep, presence는 <code>UNKNOWN</code>). <code>absent</code>로 알 수 있는 것은 메시지 부분뿐입니다.</li>
 <li>암호화된 내용과 세션 정보는 길이만, 공개키는 SHA-1 앞부분만 적습니다. VIN과 복호화된 내용은 나오지 않습니다. 줄을 추가할 때도 이 규칙을 지키세요.</li>
 <li>BLE 전송은 연결마다 수신 버퍼 넘침을 셉니다. 버려진 메시지마다 <code>ERROR</code>로 <code>Dropping received message because inbox is full (dropped N since connect)</code>를 남기고, 링크가 끝나면 <code>WARN</code>으로 <code>BLE inbox overflowed N time(s) during this connection</code> 한 줄을 남깁니다(N이 0보다 클 때만).</li>
-<li><code>DebugLogger</code>는 <code>DEBUG</code>에서 BLE 원문 바이트(<code>TX:</code>, <code>RX:</code>)도 출력합니다. 이런 플랫폼 로그는 공유하지 마세요. 응답은 거기서 암호화되어 있지만, 평문 인포테인먼트 응답(2024.38 이전 펌웨어, <a href="16-lib-errors.html#sec-authenticity">16. 에러 처리</a> 참고)은 차량이 보낸 그대로, 위치를 포함해 나타납니다.</li>
+<li><code>DebugLogger</code>는 <code>DEBUG</code>에서 BLE 원문 바이트(<code>TX:</code>, <code>RX:</code>)도 출력합니다. 이런 플랫폼 로그는 공유하지 마세요. 거기서는 차량이 암호화한 내용만 암호화되어 있습니다. 나머지는 차량이 보낸 그대로 나타나며, VCSEC 조회 응답, 브로드캐스트, 위치가 들어 있을 수 있는 평문 인포테인먼트 응답(2024.38 이전 펌웨어, <a href="16-lib-errors.html#sec-authenticity">16. 에러 처리</a> 참고)도 여기에 포함됩니다.</li>
 </ul>
 
 <footer class="page-nav">
