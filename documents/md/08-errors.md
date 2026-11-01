@@ -189,7 +189,7 @@ The "Retry" column is based on `RoutableMessageError.Temporary()` (membership in
 | 22 | `REMOTE_SERVICE_ACCESS_DISABLED` | Authorized by a Service key but remote service commands are not allowed | X | false | - |
 | 23 | `COMMAND_REQUIRES_ACCOUNT_CREDENTIALS` | A command requiring Tesla account credentials was sent over a channel without them. Resend via Fleet API | X | false | Send over the internet path, not BLE |
 | 24 | `REQUEST_MTU_EXCEEDED` | Request fields exceed the MTU | X | false | Reduce payload size |
-| 25 | `RESPONSE_MTU_EXCEEDED` | Request was received but the response exceeds the MTU | X | **true** | The command was executed. For state queries, use a smaller category |
+| 25 | `RESPONSE_MTU_EXCEEDED` | Request was received but the response exceeds the MTU | X | **true** | The command may have been executed; check before resending. Go defines no fallback for state queries |
 | 26 | `REPEATED_COUNTER` | (no proto comment) Repeated counter | X | false | Update session and resend (manually) |
 | 27 | `INVALID_KEY_HANDLE` | (no proto comment) Invalid key handle | X | false | Use `signer_identity.public_key` (the SDK does not use handles) |
 | 28 | `REQUIRES_RESPONSE_ENCRYPTION` | (no proto comment) Response encryption required | X | false | Set `FLAG_ENCRYPT_RESPONSE` (bit 1 → value 2) in `flags`. SDK default `vehicle.DefaultFlags` |
@@ -386,7 +386,7 @@ Sessions loaded from the session cache (`pkg/cache`) are marked `ready` immediat
 | `MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES` | Insufficient key role (Driver managing keys, Vehicle Monitor sending control commands), Fleet Manager using BLE, vehicle state (driving, valet) | Check role with `list-keys` | Re-pair with a key of the appropriate role |
 | `MESSAGEFAULT_ERROR_COMMAND_REQUIRES_ACCOUNT_CREDENTIALS` | A command requiring account credentials was sent over BLE | - | Send via the internet path (OAuth token) |
 | `MESSAGEFAULT_ERROR_KEYCHAIN_IS_FULL` / `keychain operation failed: ..._WHITELIST_FULL` | Keychain full | `list-keys` | Remove via vehicle UI or `remove-key` |
-| `MESSAGEFAULT_ERROR_RESPONSE_MTU_EXCEEDED` | Response size exceeded (mostly state queries) | - | The command was executed (MHS=true). Use a smaller state category |
+| `MESSAGEFAULT_ERROR_RESPONSE_MTU_EXCEEDED` | Response size exceeded (mostly state queries) | - | The command may have been executed (MHS=true). Not retried automatically. Go defines no smaller request for this case |
 | `vehicle does not support protocol -- use REST API` (HTTP 422) | Pre-2021 Model S/X | - | Fleet API REST commands; proxy forwards automatically |
 | `vehicle unavailable: vehicle is offline or asleep` (503/408) | Internet path, vehicle asleep | - | Retry after `car.Wakeup(ctx)` (polls at 10s intervals) |
 | `could not load key: ...` / `could not load token: ...` | Keyring entry name mismatch, keyring type mismatch | `-keyring-debug` or `TESLA_KEYRING_DEBUG=1`; `-keyring-type` list in `tesla-keygen -h` | Match `TESLA_KEY_NAME`/`TESLA_TOKEN_NAME`; set `TESLA_KEYRING_TYPE`; for a file keyring, `TESLA_KEYRING_PASSWORD` |
