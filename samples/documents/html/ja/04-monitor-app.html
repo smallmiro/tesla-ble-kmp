@@ -51,6 +51,7 @@
 <li><a href="#sec-key">ロック中のスマートフォンでのキー</a></li>
 <li><a href="#sec-nickname">キーのニックネーム（ローカル専用）</a></li>
 <li><a href="#sec-state">状態診断（SFR-023）</a></li>
+<li><a href="#sec-wide">広い画面と折りたたみ画面 (SFR-024)</a></li>
 <li><a href="#sec-bg">バックグラウンドでの動作</a></li>
 <li><a href="#sec-log">ログファイル</a></li>
 <li><a href="#sec-android">Android の実装</a></li>
@@ -118,6 +119,24 @@
 <p>ログ。終わったタップごとに <code>query</code> 行を 1 本だけ残し、ほかは残しません: <code>call</code> は <code>getState(DRIVE)</code>、<code>getState(MEDIA)</code>、<code>getState(MEDIA_DETAIL)</code>、<code>result</code> は <code>Success</code>、<code>Uncertain</code>、<code>Failure</code>、<code>NotSent</code>、<code>summary</code> は <code>durationMs=&lt;n&gt;</code> に <code>error=&lt;種類&gt;</code> または <code>reason=&lt;理由&gt;</code> を付けたもの、<code>startedAt</code> はそのタップの最初のライブラリ呼び出しを始めた時刻です。<strong>値も、曲名も、フィールド名も</strong>ログには届きません（FR-112、14 章 A8.3「結果をログに残さない」）: ログ行はそれらを入れる場所のない小さな値（<code>StateLogEntry</code>）から作り、要約がログに行くサンプルの <code>record</code> ヘルパーは <code>getState</code> には使いません。エラーの種類はライブラリの型名（<code>ResponseTooLarge</code>、<code>Timeout(afterSend=true)</code>、<code>NoSession</code>、またはクラス名）で、<code>message</code> や車両が送った文は使いません。</p>
 <p>使うライブラリ呼び出しとマニュアルの章: <code>vehicleStatus(timeout: nil)</code>（14 章 A2）、<code>startSession(domains:timeout:)</code>（14 章 A8.2、15 章）、<code>getState(category:timeout:)</code> と <code>s.value as? VehicleData</code>、<code>KotlinInt?</code> の数値、<code>getEpochSecond()</code>（14 章 A8.3、17 章「Swift: 生成された型」）、結果の扱いとサイズエラー（16 章「<code>getState</code> の結果」「<code>getState</code> の応答サイズ制限」）。純粋なルール（<code>StateDiagnostics</code>）と画面状態（偽のリンクを使う <code>StateDiagnosticsModel</code>）は車両なしで単体テストします（<code>Tests/StateDiagnosticsTests.swift</code>）。実機確認リストは <code>samples/ios/README.md</code>（SFR-023）にあります。</p>
 <p><strong>状態:</strong> iOS ビルド済み（<code>0.5.0 (22)</code>）、単体テストは通過、実機確認待ち。Android: 予定、同じ仕様。</p>
+
+<h2 id="sec-wide">広い画面と折りたたみ画面 (SFR-024)</h2>
+<p>アプリは、折りたたみ式の iPhone Duo で公式 Tesla アプリ(4.62)が使う大画面レイアウトに合わせます。<strong>内側ディスプレイ</strong>では 2 つの領域を表示します。左はナビゲーションメニュー、右は常に見える大きな車両と、下に並ぶクイック操作です。<strong>外側ディスプレイ</strong>は通常のフォンレイアウトのままです。サンプルも自分の画面で同じことをします。使うのはサイズクラスと使える幅だけなので、iPad や分割ウィンドウにも当てはまります。機種、<code>UIScreen</code>、向き、ヒンジの角度は見ず、iOS 27.1 の折りたたみ API も使いません。</p>
+<table>
+<thead><tr><th>ルール</th><th>内容</th></tr></thead>
+<tbody>
+<tr><td>判定</td><td><code>DuoLayout.mode(isRegularWidth:width:)</code>(純粋関数、<code>Tests/DuoLayoutTests.swift</code>): 水平サイズクラスが <code>regular</code> <strong>かつ</strong>使える幅(セーフエリアを除く)が <strong>540pt</strong> 以上のときだけ<strong>2 領域</strong>、それ以外は<strong>フォンレイアウト</strong>です。<code>ContentView</code> が幅を測り、変わるたび(折りたたみ、展開、回転、分割ウィンドウ)に判定し直します。Xcode 27.2 の <code>iPhone Duo</code> シミュレータのプロファイルは、外側ディスプレイが 466 x 678pt、内側ディスプレイが 669 x 951pt(どちらも 3 倍)です。</td></tr>
+<tr><td>フォンレイアウト</td><td>変更なし: Live、Query、Log、Control、キー＆コントロール の 5 つのタブ(SFR-010、SFR-018)。外側ディスプレイと通常の iPhone で使います。</td></tr>
+<tr><td>左の領域</td><td>使える幅の 40%、260~520pt。<code>NavigationStack</code> のメニュー: <strong>Live 詳細</strong>(SFR-014 の項目ごとの時刻と最近のイベントを、シートではなくページで)、<strong>Query</strong>、<strong>Log</strong>、<strong>Control</strong>、<strong>キー＆コントロール</strong>。選んだページは戻るボタン付きでその場に開きます。ページはフォンのタブと同じビューです(コピーなし)。キー＆コントロール はコマンドの確認ダイアログを右の領域に任せる(<code>ownsCommandDialog: false</code>)ので、ダイアログは 1 つだけです。</td></tr>
+<tr><td>右の領域</td><td>SFR-022 の Live クラスター(接続と鮮度のヘッダーと設定ボタン、ギア行、速度、ロック表示、車両、各部の開閉、在車、スリープ、最後のイベント)は、左でページを開いている間も画面に残ります。車両や最後のイベント行をタップすると従来どおり詳細シートが、歯車ボタンで VIN と接続のシートが開きます。</td></tr>
+<tr><td>クイック制御</td><td>右の領域の下: <strong>ロック</strong>、<strong>ロック解除</strong>、<strong>トランク開閉</strong>、<strong>フランクを開く</strong>(キー＆コントロール と同じく先に確認)、<strong>スリープ解除</strong>。キー＆コントロール タブにある既存のボタン(<code>QuickControls.buttons</code>)を<strong>同じ <code>KeyControlModel</code></strong> で動かします。キー＆コントロール のステップ 4 が有効なとき(キー、接続、登録済みのキー)だけ有効になり、無効のときは同じヒントを表示します。コマンドは先に VCSEC セッションを確認し、1 回だけ送り、続けて <code>vehicleStatus()</code> を呼び、<code>Uncertain</code> は再送しません(<a href="05-key-control-tab.html">5. キー＆コントロールタブ</a>)。最後の結果行はボタンの下に出ます。バーが現れたときに登録状態を再確認するのも、キー＆コントロール タブが現れたときと同じです。新しいコマンドは追加していません。キー＆コントロール にないクラクション、フラッシュ、空調のボタンは作っていません。</td></tr>
+<tr><td>セーフエリア</td><td>内容はセーフエリアの内側に置き、右の領域の黒い背景だけが画面の端まで広がります。Duo の内側ディスプレイは、ステータスとセンサーのドックが<strong>右</strong>端にあり、右の余白が左より大きくなります。その下には何も置きません。</td></tr>
+<tr><td>状態の維持</td><td>1 つの値 <code>AppNavigation</code> が両レイアウトの選択です。フォンのタブと左のページが相互に対応する(<code>tab</code> / <code>pane</code>、テスト済み)ため、折りたたみ・展開をしても選んだ項目が続きます。「Live 詳細」ページは記憶されますが、フォンレイアウトでは Live タブとして表示されます。<code>ContentView</code> が持つ <code>ScreenContinuity</code> が、開いている Live シートと Log のメモの文字を保ちます。2 つのレイアウトは別のビューツリーだからです。キー操作のシートと確認ダイアログは、モニターにある <code>KeyControlModel</code> が駆動します。保たれないもの: スクロール位置、文字入力のフォーカス、Query 間隔の入力途中の値(ページが現れるたびに現在の間隔に戻ります。今のタブ切り替えと同じ)、「他の車種」の開閉。</td></tr>
+<tr><td>扱わないもの</td><td>半分折りたたんだ姿勢は特別扱いしません。折り目の下に重要なものがないことだけを確認します。ヒンジの予約領域、<code>ArrangementView</code>、<code>onHingeChange</code>(iOS 27.1)は使いません。</td></tr>
+</tbody>
+</table>
+<p>判定と対応は純粋なロジックなので、車両なしで単体テストします(<code>Tests/DuoLayoutTests.swift</code>)。画面は <code>samples/ios/README.md</code> の実機チェックリスト(SFR-024)で確認します。Simulator アプリがないとシミュレータを折りたためないため、2 領域のレイアウトは iPad シミュレータでも確認しました。Duo 本体での姿勢変更は実機で確認します。</p>
+<p><strong>状態:</strong> iOS 実装済み(<code>0.5.0 (22)</code>)、単体テスト合格、実機確認待ち。Android: 現時点では対象外(折りたたみ端末の対象なし)。大画面レイアウトは別の要件になります。</p>
 
 <h2 id="sec-bg">バックグラウンドでの動作</h2>
 <table>
@@ -235,7 +254,8 @@
 <tr><td><code>StateDiagnostics.swift</code>、<code>Tests/StateDiagnosticsTests.swift</code></td><td>状態診断（SFR-023、<a href="#sec-state">状態診断</a>）: 純粋なルール（<code>StateDiagnostics</code>: ボタンのオン条件、値の文言、<code>StateOutcome</code> の文、<code>StateLogEntry</code>）、ライブラリとの継ぎ目 <code>StateLink</code> / <code>StateDiagnosticsBackend</code>、そして <code>StateDiagnosticsModel</code>（問い合わせは一度に 1 つ、遅れた結果は捨てる、キー操作中は拒否）。<code>MonitorEngine.swift</code> に実物の <code>StateLink</code>（<code>vehicleStatus</code>、<code>startSession</code>、<code>getState</code>）があり、<code>VehicleMapping.swift</code> が <code>VehicleData</code> を名前付きのフィールドに変え、<code>Views/QueryTab.swift</code> が描画します。</td></tr>
 <tr><td><code>KeyControlBackend.swift</code>、<code>Tests/KeyControlModelTests.swift</code>、<code>Tests/KeyOperationGateTests.swift</code></td><td><code>KeyControlBackend</code>: <code>KeyControlModel</code> がライブラリとエンジンに頼むすべて（テストでは偽物）。<code>KeyOperationGate</code> と <code>KeyHandleCache</code> がタブをまたいでキーの置き換えを守ります（<code>KeyReplacement.swift</code>）。</td></tr>
 <tr><td><code>KeyControl.swift</code>、<code>KeyControlModel.swift</code>、<code>Views/KeyControlTab.swift</code></td><td>キー＆コントロールタブ（<a href="05-key-control-tab.html">5. キー＆コントロールタブ</a>）。純粋なステップ規則とコマンド実行部、タブの状態と画面。ライブラリの呼び出しは <code>BleClient</code> を通ります。</td></tr>
-<tr><td><code>ContentView.swift</code>、<code>Views/</code></td><td>Live、Query、Log、Control、キー＆コントロールを持つ <code>TabView</code>。<code>isIdleTimerDisabled</code> は <code>scenePhase == .active</code> に従います。</td></tr>
+<tr><td><code>ContentView.swift</code>, <code>Views/</code></td><td>フォンレイアウト: Live、Query、Log、Control、キー＆コントロール の <code>TabView</code>。広いレイアウト: <code>Views/TwoPaneView.swift</code>(SFR-024)。<code>isIdleTimerDisabled</code> は <code>scenePhase == .active</code> に従います。</td></tr>
+<tr><td><code>DuoLayout.swift</code>, <code>Tests/DuoLayoutTests.swift</code>, <code>ScreenContinuity.swift</code>, <code>Views/TwoPaneView.swift</code></td><td>広い画面と折りたたみ画面(SFR-024、<a href="#sec-wide">広い画面と折りたたみ画面</a>): 純粋な <code>DuoLayout.mode</code> / <code>leftPaneWidth</code>、<code>AppNavigation</code>(両レイアウトで 1 つの選択)、<code>QuickControls</code>。<code>ScreenContinuity</code>(レイアウトが変わっても残る開いたシートとメモ)。<code>TwoPaneView</code>(左のメニュー、右の Live と <code>QuickControlsBar</code>)。</td></tr>
 </tbody>
 </table>
 <p>使ったライブラリ呼び出し（Swift 形式）と、従ったマニュアルの章:</p>

@@ -38,14 +38,14 @@ Control tab (the former single screen):
 
 ## iOS (`samples/ios`)
 
-The monitor app (`04-monitor-app.md`, SFR-010 to SFR-022): five tabs, one monitor object for the app's lifetime. Build
+The monitor app (`04-monitor-app.md`, SFR-010 to SFR-024): five tabs, one monitor object for the app's lifetime. Build
 `0.5.0 (22)`; unit tests pass, real-device check pending.
 
 - XcodeGen project (`project.yml`), schemes `TeslableSample` (simulator) and `TeslableSampleDevice` (device).
   `Info.plist` gets `UIBackgroundModes: [bluetooth-central]`, `UIFileSharingEnabled` and
   `LSSupportsOpeningDocumentsInPlace` from `project.yml`.
 - Files: see `04-monitor-app.md` §iOS implementation. `MonitorModel.swift` and `MonitorEngine.swift` (connection, events,
-  queries, logs), `ConnectionLoop.swift`, `InitialQueryGate.swift`, `LogLine.swift`, `LogWriter.swift`, `VinMask.swift`, `LiveState.swift`, `StateDiagnostics.swift` (state diagnostics rules and screen state, SFR-023),
+  queries, logs), `ConnectionLoop.swift`, `InitialQueryGate.swift`, `LogLine.swift`, `LogWriter.swift`, `VinMask.swift`, `LiveState.swift`, `StateDiagnostics.swift` (state diagnostics rules and screen state, SFR-023), `DuoLayout.swift` (wide-screen layout choice, selection mapping and quick-control list, pure, SFR-024), `ScreenContinuity.swift` (open sheets and memo kept across a layout change), `Views/TwoPaneView.swift` (two-pane layout and quick controls bar, SFR-024),
   `VehicleMapping.swift`, `SampleModel.swift` (Control tab state and `BleClient`; every action runs through `exclusive { }` so only one
   library call runs at a time), `KeyControl.swift` (Key & Control step rules and command runner, pure), `KeyControlModel.swift`
   (Key & Control tab state), `KeyNickname.swift` (local key nickname rules and store, pure, SFR-019), `KeyReplacement.swift` (monitor key delete-and-recreate order and texts, pure, SFR-020), `EnrollmentProgress.swift` (enrollment progress popup state, pure, SFR-021), `KeyControlBackend.swift` (the seam between the Key & Control tab state and the library, so the state is tested with a fake), `ContentView.swift`, `Views/*Tab.swift`.
@@ -59,6 +59,10 @@ The monitor app (`04-monitor-app.md`, SFR-010 to SFR-022): five tabs, one monito
 | Log | Line counts, unrecognized count, last lines and copy, file path, memo and Mark, new file |
 | Control | The former single screen (below). Uses the monitor's connection and key |
 | Key & Control | Four steps (key, connect, enroll, control) and a button grid of the VCSEC commands, status card, results (`05-key-control-tab.md`) |
+
+On iOS the five tabs are the **phone layout**. With a regular horizontal size class and at least 540 pt of usable width
+(the iPhone Duo inner display) the same screens are shown as two panes (SFR-024, `04-monitor-app.md` §Wide and
+foldable screens): a menu on the left, the Live cluster with quick controls on the right.
 
 Control tab (the former single screen; same groups as Android):
 
