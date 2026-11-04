@@ -337,6 +337,8 @@ protocol StateDiagnosticsBackend: Sendable {
 @MainActor
 final class StateDiagnosticsModel: ObservableObject {
     @Published private(set) var reading: StateReading?
+    /// 이 연결에서 마지막으로 성공한 수동 Drive 조회(Live의 두 영역 화면이 속도를 보일 때 쓴다, SFR-024). 새로 조회하지 않고 읽기만 한다. 연결이 바뀌면 지운다.
+    @Published private(set) var lastDrive: StateReading?
     /// 돌고 있는 조회의 범주.
     @Published private(set) var running: DiagnosticCategory?
     /// 조회를 시작하지 못한 이유(결과가 아니다).
@@ -378,6 +380,7 @@ final class StateDiagnosticsModel: ObservableObject {
         inputs.busy = false
         running = nil
         reading = nil // 값은 읽은 연결의 것이다
+        lastDrive = nil
         notice = nil
     }
 
@@ -432,6 +435,7 @@ final class StateDiagnosticsModel: ObservableObject {
             durationMs: max(0, Int((Date().timeIntervalSince(startedAt) * 1000).rounded())), fields: fields
         )
         self.reading = reading
+        if category == .drive, outcome == .success { lastDrive = reading }
         running = nil
         inputs.busy = false
         backend.writeLog(reading.logEntry, startedAt: startedStamp)

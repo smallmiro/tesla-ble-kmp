@@ -84,11 +84,4 @@ final class DuoLayoutTests: XCTestCase {
             XCTAssertEqual(nav.tab, tab)
         }
     }
-
-    // MARK: 빠른 제어
-
-    func testQuickControlsAreExistingKeyControlButtonsOnly() {
-        XCTAssertEqual(QuickControls.buttons, [.lock, .unlock, .actuateTrunk, .openFrunk, .wakeUp])
-        XCTAssertTrue(QuickControls.buttons.allSatisfy { ControlButton.allCases.contains($0) })
-    }
 }

@@ -58,7 +58,15 @@ enum DuoLayout {
     }
 }
 
-/// 오른쪽 Live 영역 아래의 빠른 제어: 키·제어 탭이 이미 가진 버튼 중 자주 쓰는 다섯 개. 새 명령은 만들지 않는다.
+/// 오른쪽 영역의 빠른 제어: 모두 키·제어 탭이 이미 가진 버튼이고 `KeyControlModel.press` 로만 보낸다. 새 명령은 만들지 않는다.
+/// 잠금은 지금 잠금 상태에 따라 잠그기 또는 잠금 해제(`LockCallout`). 프렁크는 확인 창이 먼저 뜬다.
 enum QuickControls {
-    static let buttons: [ControlButton] = [.lock, .unlock, .actuateTrunk, .openFrunk, .wakeUp]
+    /// 차 앞쪽 말풍선.
+    static let frunk: ControlButton = .openFrunk
+    /// 차 뒤쪽 말풍선.
+    static let trunk: ControlButton = .actuateTrunk
+    /// 아래 동작 줄: 말풍선에 없고, 키·제어 탭의 기본 목록에 있으며, 한 번 눌러도 되는 것. `remoteDrive` 는 한 번 누르기로 두지 않는다.
+    /// 자동 잠금(`autoSecure`)은 Model X 용이라 키·제어 탭도 "다른 차종" 아래에 두므로 차종을 모르는 여기에는 넣지 않는다.
+    static let actionRow: [ControlButton] = [.wakeUp, .closeTrunk]
 }
+
