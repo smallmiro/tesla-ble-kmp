@@ -17,10 +17,13 @@ struct ContentView: View {
 
     var body: some View {
         let known = width ?? .greatestFiniteMagnitude
-        Group {
-            switch DuoLayout.mode(isRegularWidth: sizeClass == .regular, width: known) {
-            case .phone: phoneTabs
-            case .twoPane: TwoPaneView(monitor: monitor, continuity: continuity, nav: $nav, width: known)
+        let mode = DuoLayout.mode(isRegularWidth: sizeClass == .regular, width: known)
+        // 두 배치가 같은 TabView 를 쓴다. 탭 막대는 시스템이 그린다(접는 폰에서는 안전 영역 오른쪽 도크 아래 세로 막대).
+        TabView(selection: Binding(get: { nav.tab }, set: { nav.tab = $0 })) {
+            ForEach(AppTab.allCases, id: \.self) { tab in
+                content(of: tab, mode: mode, width: known)
+                    .tabItem { Label(tab.title, systemImage: tab.symbol) }
+                    .tag(tab)
             }
         }
         .background(WidthReader(width: $width))
@@ -28,30 +31,38 @@ struct ContentView: View {
             monitor.start()
             monitor.scenePhaseChanged(Self.name(of: scenePhase)) // 처음 화면 상태도 남긴다
             keepScreenOn(scenePhase == .active)
+            if mode == .twoPane { monitor.keyControl.tabAppeared() }
         }
         .onChange(of: scenePhase) {
             monitor.scenePhaseChanged(Self.name(of: $0))
             keepScreenOn($0 == .active)
         }
+        // 키·제어 탭이 나타날 때와 같이, 두 영역이 되면 다른 곳에서 등록이 바뀌었을 수 있어 등록 상태를 다시 확인한다.
+        .onChange(of: mode) { if $0 == .twoPane { monitor.keyControl.tabAppeared() } }
     }
 
-    private var phoneTabs: some View {
-        TabView(selection: Binding(get: { nav.tab }, set: { nav.tab = $0 })) {
-            NavigationStack { LiveTab(monitor: monitor, continuity: continuity).navigationTitle("Live") }
-                .tabItem { Label("Live", systemImage: "dot.radiowaves.left.and.right") }
-                .tag(AppTab.live)
-            NavigationStack { QueryTab(monitor: monitor).navigationTitle("Query") }
-                .tabItem { Label("Query", systemImage: "arrow.triangle.2.circlepath") }
-                .tag(AppTab.query)
-            NavigationStack { LogTab(monitor: monitor, continuity: continuity).navigationTitle("Log") }
-                .tabItem { Label("Log", systemImage: "doc.text") }
-                .tag(AppTab.log)
-            NavigationStack { ControlTab(monitor: monitor, model: monitor.control).navigationTitle("Control") }
-                .tabItem { Label("Control", systemImage: "slider.horizontal.3") }
-                .tag(AppTab.control)
-            NavigationStack { KeyControlTab(monitor: monitor, model: monitor.keyControl).navigationTitle("키·제어") }
-                .tabItem { Label("키·제어", systemImage: "key.fill") }
-                .tag(AppTab.keyControl)
+    /// 폰 배치는 탭마다 자기 화면. 두 영역은 고른 탭 하나만 두 영역 전체를 그리고 나머지는 비워 둔다(탭 막대만 쓴다).
+    @ViewBuilder
+    private func content(of tab: AppTab, mode: DuoLayout.Mode, width: CGFloat) -> some View {
+        switch mode {
+        case .phone: phonePage(tab)
+        case .twoPane:
+            if nav.tab == tab {
+                TwoPaneView(monitor: monitor, continuity: continuity, nav: $nav, width: width)
+            } else {
+                Color.clear
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func phonePage(_ tab: AppTab) -> some View {
+        switch tab {
+        case .live: NavigationStack { LiveTab(monitor: monitor, continuity: continuity).navigationTitle("Live") }
+        case .query: NavigationStack { QueryTab(monitor: monitor).navigationTitle("Query") }
+        case .log: NavigationStack { LogTab(monitor: monitor, continuity: continuity).navigationTitle("Log") }
+        case .control: NavigationStack { ControlTab(monitor: monitor, model: monitor.control).navigationTitle("Control") }
+        case .keyControl: NavigationStack { KeyControlTab(monitor: monitor, model: monitor.keyControl).navigationTitle("키·제어") }
         }
     }
 
@@ -68,6 +79,28 @@ struct ContentView: View {
     /// SFR-013: 앱이 보일 때만 화면이 꺼지지 않게 한다. 백그라운드와 비활성에서는 시스템 기본으로 돌아간다.
     private func keepScreenOn(_ on: Bool) {
         UIApplication.shared.isIdleTimerDisabled = on
+    }
+}
+
+private extension AppTab {
+    var title: String {
+        switch self {
+        case .live: return "Live"
+        case .query: return "Query"
+        case .log: return "Log"
+        case .control: return "Control"
+        case .keyControl: return "키·제어"
+        }
+    }
+
+    var symbol: String {
+        switch self {
+        case .live: return "dot.radiowaves.left.and.right"
+        case .query: return "arrow.triangle.2.circlepath"
+        case .log: return "doc.text"
+        case .control: return "slider.horizontal.3"
+        case .keyControl: return "key.fill"
+        }
     }
 }
 
