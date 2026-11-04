@@ -64,3 +64,48 @@ struct LinkBanner: View {
         }
     }
 }
+
+extension KeyControlModel.ResultLine.Tone {
+    /// 결과 줄 글자색. 키·제어 탭과 넓은 화면의 빠른 제어(SFR-024)가 같이 쓴다.
+    var color: Color {
+        switch self {
+        case .ok: return .green
+        case .info: return .primary
+        case .warn: return .orange
+        case .fail: return .red
+        }
+    }
+}
+
+/// 영향이 큰 명령(프렁크 열기, 원격 주행 허용)을 보내기 전에 묻는 확인 창(SFR-018). `enabled` 가 `false` 이면 아무것도 붙이지 않는다.
+private struct CommandConfirmation: ViewModifier {
+    @ObservedObject var model: KeyControlModel
+    let enabled: Bool
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if enabled {
+            content.confirmationDialog(
+                model.pendingConfirm?.confirmation?.title ?? "",
+                isPresented: Binding(get: { model.pendingConfirm != nil }, set: { if !$0 { model.pendingConfirm = nil } }),
+                titleVisibility: .visible,
+                presenting: model.pendingConfirm
+            ) { button in
+                Button(button.confirmation?.action ?? button.title, role: .destructive) {
+                    Task { await model.runConfirmed(button) }
+                }
+                Button("취소", role: .cancel) {}
+            } message: { button in
+                Text(button.confirmation?.message ?? "")
+            }
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    func commandConfirmation(_ model: KeyControlModel, enabled: Bool = true) -> some View {
+        modifier(CommandConfirmation(model: model, enabled: enabled))
+    }
+}

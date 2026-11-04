@@ -5,7 +5,7 @@ import UIKit
 /// 예전 "관찰 모드"의 메모·표시와 복사는 여기로 합쳐졌다: 이제 `observe` 줄은 늘 로그 파일에 쓰이고, 메모는 `mark` 줄이 된다.
 struct LogTab: View {
     @ObservedObject var monitor: MonitorModel
-    @State private var memo = ""
+    @ObservedObject var continuity: ScreenContinuity
     @State private var copied = false
     @State private var copyReset: Task<(), Never>?
 
@@ -20,13 +20,13 @@ struct LogTab: View {
                 Text("Documents/logs/ (Finder, 파일 앱, tools/samples/pull-monitor-logs.sh ios)").font(.footnote)
             }
             Section("메모 (행동 직전/직후 적기, 비밀 입력 금지)") {
-                TextField("최대 \(LogLine.memoMax)자, 예: before: open driver door", text: $memo)
-                    .onChange(of: memo) { memo = String($0.prefix(LogLine.memoMax)) }
+                TextField("최대 \(LogLine.memoMax)자, 예: before: open driver door", text: $continuity.memo)
+                    .onChange(of: continuity.memo) { continuity.memo = String($0.prefix(LogLine.memoMax)) }
                 Button("Mark") {
-                    monitor.mark(memo)
-                    memo = ""
+                    monitor.mark(continuity.memo)
+                    continuity.memo = ""
                 }
-                .disabled(memo.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                .disabled(continuity.memo.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
                 Button("새 파일") { monitor.newLogFile() }
             }
             Section("마지막 줄 (최신이 아래)") {
