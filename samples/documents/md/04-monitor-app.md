@@ -1,6 +1,6 @@
 # Monitor App (SFR-010 to SFR-017)
 
-Status: **Android implemented** (build `0.3.0 (3)`) and **iOS implemented** (build `0.5.0 (21)`); unit tests and builds
+Status: **Android implemented** (build `0.3.0 (3)`) and **iOS implemented** (build `0.5.0 (22)`); unit tests and builds
 pass, **real-device checks pending** for both (iOS background reconnect is unconfirmed until the plan Task 2 spike).
 Issue #91. The library APIs it needs are available: `Vehicle.events`
 (`12-lib-getting-started.md` §Broadcast events, `14-lib-reading-state.md` B2) and the key accessibility `KeyAccessibility`
@@ -57,7 +57,7 @@ The rules are a small pure type (`KeyNickname`: trim, length check, clamp; `KeyN
 injected `UserDefaults`) that is unit tested without a vehicle (`Tests/KeyNicknameTests.swift`). The screen is checked
 with the real-device checklist in `samples/ios/README.md` (SFR-019).
 
-Status: iOS built (`0.5.0 (21)`), unit tests pass, real-device check pending. Android: planned, same spec.
+Status: iOS built (`0.5.0 (22)`), unit tests pass, real-device check pending. Android: planned, same spec.
 
 ## State diagnostics (SFR-023)
 
@@ -97,7 +97,7 @@ Library calls and manual pages: `vehicleStatus(timeout: nil)` (14 A2), `startSes
 §Response size limit on `getState`). The pure rules (`StateDiagnostics`) and the screen state (`StateDiagnosticsModel`, with a fake link) are unit tested
 without a vehicle (`Tests/StateDiagnosticsTests.swift`); the real-device checklist is in `samples/ios/README.md` (SFR-023).
 
-Status: iOS built (`0.5.0 (21)`), unit tests pass, real-device check pending. Android: planned, same spec.
+Status: iOS built (`0.5.0 (22)`), unit tests pass, real-device check pending. Android: planned, same spec.
 
 ## Background
 
