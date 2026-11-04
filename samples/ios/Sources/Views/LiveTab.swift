@@ -1,6 +1,6 @@
 import SwiftUI
 
-/// Live 탭(SFR-011, SFR-014, SFR-022): 기어, 속도, 잠금, 차량 그림으로 만든 클러스터. VIN과 연결은 ⚙︎ 시트, 항목별 시각과 이벤트는 상세 시트에 있다.
+/// Live 탭(SFR-011, SFR-014, SFR-022): 기어, 속도, 잠금, 차량 사진으로 만든 클러스터. VIN과 연결은 ⚙︎ 시트, 항목별 시각과 이벤트는 상세 시트에 있다.
 struct LiveTab: View {
     @ObservedObject var monitor: MonitorModel
     @ObservedObject var continuity: ScreenContinuity
@@ -20,7 +20,7 @@ struct LiveTab: View {
             }
             .opacity(state.isStale ? 0.4 : 1)
             Button { continuity.showsDetail = true } label: {
-                ClusterCar(state: state).frame(maxWidth: .infinity, maxHeight: .infinity)
+                ClusterCar(photo: ClusterPhoto.photo(for: .phone), state: state).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .buttonStyle(.plain)
             .opacity(state.isStale ? 0.4 : 1)

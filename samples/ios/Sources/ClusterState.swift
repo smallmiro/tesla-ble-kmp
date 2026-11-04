@@ -1,7 +1,7 @@
 import CoreGraphics
 import Foundation
 
-/// Live 탭 클러스터의 차량 그림에서 따로 움직이는 부위(SFR-022). 좌핸들 기준으로 왼쪽이 운전석이다.
+/// Live 클러스터의 차량 사진 위에서 열림을 아이콘으로 알리는 부위(SFR-022). 좌핸들 기준으로 왼쪽이 운전석이다.
 enum ClusterPart: CaseIterable, Sendable {
     case doorFrontLeft, doorRearLeft, doorFrontRight, doorRearRight, frunk, trunk, chargePort
 
@@ -14,39 +14,6 @@ enum ClusterPart: CaseIterable, Sendable {
         case .frunk: return .frunk
         case .trunk: return .trunk
         case .chargePort: return .chargePort
-        }
-    }
-
-    /// `Assets.xcassets` 의 이미지 이름. 모든 부위는 같은 400×760 캔버스에 그려져 있어 겹치면 맞는다.
-    var assetName: String {
-        switch self {
-        case .doorFrontLeft: return "ClusterCarDoorFrontLeft"
-        case .doorRearLeft: return "ClusterCarDoorRearLeft"
-        case .doorFrontRight: return "ClusterCarDoorFrontRight"
-        case .doorRearRight: return "ClusterCarDoorRearRight"
-        case .frunk: return "ClusterCarFrunk"
-        case .trunk: return "ClusterCarTrunk"
-        case .chargePort: return "ClusterCarChargePort"
-        }
-    }
-
-    /// 400×760 캔버스 위의 문 경첩 위치. 문이 아니면 없다.
-    var hinge: CGPoint? {
-        switch self {
-        case .doorFrontLeft: return CGPoint(x: 106, y: 286)
-        case .doorRearLeft: return CGPoint(x: 110, y: 410)
-        case .doorFrontRight: return CGPoint(x: 294, y: 286)
-        case .doorRearRight: return CGPoint(x: 290, y: 410)
-        case .frunk, .trunk, .chargePort: return nil
-        }
-    }
-
-    /// 열렸을 때 도는 각도(도). 양수가 시계 방향이라 왼쪽 문이 바깥으로 벌어진다.
-    var openAngle: Double {
-        switch self {
-        case .doorFrontLeft, .doorRearLeft: return 38
-        case .doorFrontRight, .doorRearRight: return -38
-        case .frunk, .trunk, .chargePort: return 0
         }
     }
 }

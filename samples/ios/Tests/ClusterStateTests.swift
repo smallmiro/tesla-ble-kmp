@@ -76,14 +76,6 @@ final class ClusterStateTests: XCTestCase {
         XCTAssertEqual(cluster(LiveState()).closureSummary, "—")
     }
 
-    func testDoorHingesSwingOutwardOnEachSide() {
-        XCTAssertGreaterThan(ClusterPart.doorFrontLeft.openAngle, 0)
-        XCTAssertGreaterThan(ClusterPart.doorRearLeft.openAngle, 0)
-        XCTAssertLessThan(ClusterPart.doorFrontRight.openAngle, 0)
-        XCTAssertLessThan(ClusterPart.doorRearRight.openAngle, 0)
-        XCTAssertEqual(ClusterPart.frunk.openAngle, 0)
-    }
-
     func testConnectedShowsTheAgeOfTheLastBroadcast() {
         let c = cluster(live(StatusSnapshot()), now: t0.addingTimeInterval(3))
 

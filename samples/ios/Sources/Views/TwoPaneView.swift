@@ -246,8 +246,7 @@ private struct HomeRightPane: View {
             ClusterHeader(state: state) { continuity.showsSettings = true }
             ClusterGearRow(gear: state.gear).padding(.top, 4)
             speed(drive).opacity(state.isStale ? 0.5 : 1)
-            lockCallout(lock, enabled: control.buttonEnabled)
-            CarWithCallouts(state: state, enabled: control.buttonEnabled, onOpenDetail: { continuity.showsDetail = true }) { model.press($0) }
+            CarWithCallouts(state: state, lock: lock, enabled: control.buttonEnabled, onOpenDetail: { continuity.showsDetail = true }) { model.press($0) }
             statusLines(control, state: state)
             actionRow(enabled: control.buttonEnabled)
         }
@@ -269,23 +268,6 @@ private struct HomeRightPane: View {
                 .accessibilityIdentifier("clusterSpeed")
             Text(drive.unitNote ?? StateDiagnostics.unitUnknown).font(.footnote).foregroundStyle(.secondary)
             Text(drive.ageText ?? "Query 탭의 Drive 로 조회").font(.caption).foregroundStyle(.tertiary)
-        }
-    }
-
-    private func lockCallout(_ lock: LockCallout, enabled: Bool) -> some View {
-        let active = enabled && lock.button != nil
-        return VStack(spacing: 0) {
-            Button { if let button = lock.button { model.press(button) } } label: {
-                VStack(spacing: 2) {
-                    Image(systemName: lock.symbol).font(.title2)
-                    Text(lock.label).font(.caption2)
-                }
-                .frame(minWidth: 64, minHeight: 44)
-            }
-            .buttonStyle(.plain)
-            .disabled(!active)
-            .opacity(active ? 1 : 0.35)
-            Rectangle().fill(Color.secondary.opacity(0.5)).frame(width: 1, height: 10)
         }
     }
 
