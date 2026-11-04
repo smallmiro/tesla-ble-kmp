@@ -97,7 +97,7 @@ struct QuickControlsBar: View {
                         .frame(maxWidth: .infinity, minHeight: 54)
                     }
                     .buttonStyle(.bordered)
-                    .tint(.white)
+                    .tint(.primary)
                     .disabled(!control.buttonEnabled)
                 }
             }
