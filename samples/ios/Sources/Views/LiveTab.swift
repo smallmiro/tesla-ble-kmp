@@ -34,12 +34,9 @@ struct LiveTab: View {
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color.black.ignoresSafeArea())
-        .foregroundStyle(.white)
-        .environment(\.colorScheme, .dark)
+        // 시스템 화면 모드(라이트/다크)를 따른다. 다크 모드의 시스템 배경은 검정이다.
+        .background(Color(uiColor: .systemBackground).ignoresSafeArea())
         .toolbar(.hidden, for: .navigationBar)
-        .toolbarBackground(Color.black, for: .tabBar)
-        .toolbarColorScheme(.dark, for: .tabBar)
         .tickingNow($now)
         .onReceive(monitor.$vinKnown) { known in if known && monitor.savedVin == nil { continuity.showsSettings = true } }
         .sheet(isPresented: $continuity.showsSettings) { ClusterSettingsSheet(monitor: monitor) }
@@ -65,7 +62,7 @@ struct LiveTab: View {
             ForEach(ClusterGear.allCases, id: \.self) { item in
                 Text(item.letter)
                     .font(.title2.weight(.semibold))
-                    .foregroundStyle(item == gear ? Color.white : Color.white.opacity(0.25))
+                    .foregroundStyle(item == gear ? Color.primary : Color.primary.opacity(0.25))
             }
         }
         .accessibilityElement(children: .ignore)
