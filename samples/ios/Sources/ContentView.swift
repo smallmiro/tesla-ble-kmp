@@ -8,17 +8,20 @@ struct ContentView: View {
     /// 선택한 탭을 직접 들고 있다. 접힘 상태가 바뀌어 화면이 다시 그려져도 같은 탭이 유지된다(SFR-024).
     @State private var selection = AppTab.live
 
+    /// 열린 시트와 입력 중인 글. 배치가 바뀌어 화면이 다시 만들어져도 이어지게 여기서 하나 든다.
+    @State private var continuity = ScreenContinuity()
+
     private enum AppTab: Hashable { case live, query, log, control, keyControl }
 
     var body: some View {
         TabView(selection: $selection) {
-            NavigationStack { LiveTab(monitor: monitor).navigationTitle("Live") }
+            NavigationStack { LiveTab(monitor: monitor, continuity: continuity).navigationTitle("Live") }
                 .tabItem { Label("Live", systemImage: "dot.radiowaves.left.and.right") }
                 .tag(AppTab.live)
             NavigationStack { QueryTab(monitor: monitor).navigationTitle("Query") }
                 .tabItem { Label("Query", systemImage: "arrow.triangle.2.circlepath") }
                 .tag(AppTab.query)
-            NavigationStack { LogTab(monitor: monitor).navigationTitle("Log") }
+            NavigationStack { LogTab(monitor: monitor, continuity: continuity).navigationTitle("Log") }
                 .tabItem { Label("Log", systemImage: "doc.text") }
                 .tag(AppTab.log)
             NavigationStack { ControlTab(monitor: monitor, model: monitor.control).navigationTitle("Control") }

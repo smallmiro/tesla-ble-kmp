@@ -3,9 +3,8 @@ import SwiftUI
 /// Live 탭(SFR-011, SFR-014, SFR-022): 기어, 속도, 잠금, 차량 그림으로 만든 클러스터. VIN과 연결은 ⚙︎ 시트, 항목별 시각과 이벤트는 상세 시트에 있다.
 struct LiveTab: View {
     @ObservedObject var monitor: MonitorModel
+    @ObservedObject var continuity: ScreenContinuity
     @State private var now = Date()
-    @State private var showsSettings = false
-    @State private var showsDetail = false
 
     var body: some View {
         let state = ClusterState(live: monitor.live, link: monitor.link, now: now)
@@ -20,7 +19,7 @@ struct LiveTab: View {
                 Text(state.lockText).font(.subheadline).foregroundStyle(.secondary).padding(.top, 4)
             }
             .opacity(state.isStale ? 0.4 : 1)
-            Button { showsDetail = true } label: {
+            Button { continuity.showsDetail = true } label: {
                 ClusterCar(state: state).frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .buttonStyle(.plain)
@@ -39,9 +38,9 @@ struct LiveTab: View {
         .toolbarBackground(Color.black, for: .tabBar)
         .toolbarColorScheme(.dark, for: .tabBar)
         .tickingNow($now)
-        .onReceive(monitor.$vinKnown) { known in if known && monitor.savedVin == nil { showsSettings = true } }
-        .sheet(isPresented: $showsSettings) { ClusterSettingsSheet(monitor: monitor) }
-        .sheet(isPresented: $showsDetail) { ClusterDetailSheet(monitor: monitor) }
+        .onReceive(monitor.$vinKnown) { known in if known && monitor.savedVin == nil { continuity.showsSettings = true } }
+        .sheet(isPresented: $continuity.showsSettings) { ClusterSettingsSheet(monitor: monitor) }
+        .sheet(isPresented: $continuity.showsDetail) { ClusterDetailSheet(monitor: monitor) }
     }
 
     private func header(_ state: ClusterState) -> some View {
@@ -53,7 +52,7 @@ struct LiveTab: View {
             }
             .font(.footnote).foregroundStyle(.secondary)
             Spacer()
-            Button { showsSettings = true } label: { Image(systemName: "gearshape.fill") }
+            Button { continuity.showsSettings = true } label: { Image(systemName: "gearshape.fill") }
                 .accessibilityLabel("VIN과 연결 설정")
         }
     }
@@ -82,7 +81,7 @@ struct LiveTab: View {
             }
             .font(.footnote).foregroundStyle(.secondary)
             Divider()
-            Button { showsDetail = true } label: {
+            Button { continuity.showsDetail = true } label: {
                 Text(monitor.live.recent.first.map { "\(Formatting.clockText($0.at))  \($0.text)" } ?? "최근 이벤트 없음")
                     .font(.caption.monospacedDigit()).foregroundStyle(.secondary).lineLimit(1)
                     .frame(maxWidth: .infinity, alignment: .leading)
@@ -161,43 +160,52 @@ private struct ClusterSettingsSheet: View {
     }
 }
 
-/// 항목별 원본 값과 마지막 변경 시각, 최근 이벤트(SFR-014).
+/// 항목별 원본 값과 마지막 변경 시각, 최근 이벤트(SFR-014)를 시트로 보여 준다.
 private struct ClusterDetailSheet: View {
     @ObservedObject var monitor: MonitorModel
-    @State private var now = Date()
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section("차량 상태 (방송 또는 조회)") {
-                    if let last = monitor.live.lastStatusAt {
-                        Text("마지막 수신 \(Formatting.clockText(last)) (\(Formatting.ago(since: last, now: now)))").font(.footnote)
-                    } else {
-                        Text("아직 받은 상태가 없습니다").font(.footnote)
-                    }
-                    ForEach(LiveItemKey.allCases, id: \.self) { key in
-                        LabeledContent(key.label) {
-                            if let item = monitor.live.items[key] {
-                                Text("\(item.value)  ·  \(item.changed ? "바뀜" : "처음 관측") \(Formatting.clockText(item.since))")
-                                    .font(.footnote)
-                            } else {
-                                Text(ClusterText.none)
-                            }
+            ClusterDetailForm(monitor: monitor)
+                .navigationTitle("차량 상태")
+                .navigationBarTitleDisplayMode(.inline)
+                .toolbar { Button("닫기") { dismiss() } }
+        }
+    }
+}
+
+/// 항목별 원본 값과 마지막 변경 시각, 최근 이벤트(SFR-014). 시트와 넓은 화면의 왼쪽 영역(SFR-024)이 같이 쓴다.
+struct ClusterDetailForm: View {
+    @ObservedObject var monitor: MonitorModel
+    @State private var now = Date()
+
+    var body: some View {
+        Form {
+            Section("차량 상태 (방송 또는 조회)") {
+                if let last = monitor.live.lastStatusAt {
+                    Text("마지막 수신 \(Formatting.clockText(last)) (\(Formatting.ago(since: last, now: now)))").font(.footnote)
+                } else {
+                    Text("아직 받은 상태가 없습니다").font(.footnote)
+                }
+                ForEach(LiveItemKey.allCases, id: \.self) { key in
+                    LabeledContent(key.label) {
+                        if let item = monitor.live.items[key] {
+                            Text("\(item.value)  ·  \(item.changed ? "바뀜" : "처음 관측") \(Formatting.clockText(item.since))")
+                                .font(.footnote)
+                        } else {
+                            Text(ClusterText.none)
                         }
                     }
-                    Text("참고: 실내 버튼으로 트렁크를 열고 닫으면 방송이 오지 않을 수 있습니다. 트렁크는 Query 탭의 vehicleStatus() 로 확인하세요.")
-                        .font(.footnote)
                 }
-                Section("최근 이벤트 (바뀐 것, 인증 요청, 알 수 없는 방송)") {
-                    if monitor.live.recent.isEmpty { Text("없음").font(.footnote) }
-                    ForEach(monitor.live.recent) { MonoSmall("\(Formatting.clockText($0.at))  \($0.text)") }
-                }
+                Text("참고: 실내 버튼으로 트렁크를 열고 닫으면 방송이 오지 않을 수 있습니다. 트렁크는 Query 탭의 vehicleStatus() 로 확인하세요.")
+                    .font(.footnote)
             }
-            .navigationTitle("차량 상태")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar { Button("닫기") { dismiss() } }
-            .tickingNow($now)
+            Section("최근 이벤트 (바뀐 것, 인증 요청, 알 수 없는 방송)") {
+                if monitor.live.recent.isEmpty { Text("없음").font(.footnote) }
+                ForEach(monitor.live.recent) { MonoSmall("\(Formatting.clockText($0.at))  \($0.text)") }
+            }
         }
+        .tickingNow($now)
     }
 }

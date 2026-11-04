@@ -6,6 +6,8 @@ struct KeyControlTab: View {
     let monitor: MonitorModel
     @ObservedObject var model: KeyControlModel
     @State private var showOtherModels = false
+    /// 명령 확인 창을 이 탭이 띄운다. 넓은 화면에서 오른쪽 빠른 제어가 띄울 때는 `false`(SFR-024): 같은 창이 둘 뜨지 않게.
+    var ownsCommandDialog = true
 
     var body: some View {
         let steps = model.steps
@@ -39,19 +41,7 @@ struct KeyControlTab: View {
         } message: {
             Text(model.replaceConfirmation.message)
         }
-        .confirmationDialog(
-            model.pendingConfirm?.confirmation?.title ?? "",
-            isPresented: Binding(get: { model.pendingConfirm != nil }, set: { if !$0 { model.pendingConfirm = nil } }),
-            titleVisibility: .visible,
-            presenting: model.pendingConfirm
-        ) { button in
-            Button(button.confirmation?.action ?? button.title, role: .destructive) {
-                Task { await model.runConfirmed(button) }
-            }
-            Button("취소", role: .cancel) {}
-        } message: { button in
-            Text(button.confirmation?.message ?? "")
-        }
+        .commandConfirmation(model, enabled: ownsCommandDialog)
     }
 
     // MARK: - 단계
@@ -168,22 +158,13 @@ struct KeyControlTab: View {
                     ForEach(model.results) { line in
                         HStack(alignment: .firstTextBaseline, spacing: 6) {
                             Text(Formatting.clockText(line.at)).font(.caption.monospaced()).foregroundStyle(.secondary)
-                            Text("\(line.title): \(line.text)").font(.footnote).foregroundStyle(color(line.tone))
+                            Text("\(line.title): \(line.text)").font(.footnote).foregroundStyle(line.tone.color)
                                 .textSelection(.enabled)
                         }
                     }
                 }
                 Button("결과 지우기", role: .destructive) { model.clearResults() }.font(.footnote)
             }
-        }
-    }
-
-    private func color(_ tone: KeyControlModel.ResultLine.Tone) -> Color {
-        switch tone {
-        case .ok: return .green
-        case .info: return .primary
-        case .warn: return .orange
-        case .fail: return .red
         }
     }
 }
