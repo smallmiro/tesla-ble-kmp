@@ -74,7 +74,7 @@ struct CarWithCallouts: View {
             }
             .buttonStyle(.plain)
             .disabled(!active)
-            .opacity(active ? 1 : 0.7)
+            .opacity(active ? 1 : 0.5)
             .accessibilityLabel(lock.label)
             .at(spot.icon, in: size)
         }
@@ -96,7 +96,7 @@ struct CarWithCallouts: View {
             }
             .buttonStyle(.plain)
             .disabled(!enabled)
-            .opacity(enabled ? 1 : 0.7)
+            .opacity(enabled ? 1 : 0.5)
             .accessibilityLabel(button.title)
             .at(labelCenter, in: size)
         }
