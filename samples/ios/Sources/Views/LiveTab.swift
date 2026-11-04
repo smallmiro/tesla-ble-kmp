@@ -4,6 +4,8 @@ import SwiftUI
 struct LiveTab: View {
     @ObservedObject var monitor: MonitorModel
     @ObservedObject var continuity: ScreenContinuity
+    /// 넓은 화면의 두 영역 배치에서만 주는 값(SFR-024): 클러스터 아래에 빠른 제어를 붙인다. 폰 탭에서는 `nil`.
+    var quickControls: KeyControlModel?
     @State private var now = Date()
 
     var body: some View {
@@ -27,6 +29,7 @@ struct LiveTab: View {
             .accessibilityLabel("차량 상태: \(state.closureSummary)")
             .accessibilityHint("항목별 시각을 엽니다")
             footer(state).opacity(state.isStale ? 0.4 : 1)
+            if let quickControls { QuickControlsBar(model: quickControls) }
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 8)
