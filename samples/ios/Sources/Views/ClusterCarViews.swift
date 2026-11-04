@@ -12,7 +12,7 @@ struct ClusterCar: View {
             let size = geo.size
             ZStack {
                 Image(photo.assetName).resizable().frame(width: size.width, height: size.height)
-                ForEach(markers, id: \.part) { marker in
+                ForEach(state.openMarkers(on: photo), id: \.part) { marker in
                     if photo.drawsLines {
                         PhotoLine(from: marker.spot.icon, to: marker.spot.car, size: size, color: Color.red.opacity(0.7))
                     }
@@ -23,19 +23,6 @@ struct ClusterCar: View {
         }
         .aspectRatio(photo.aspect, contentMode: .fit)
         .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-    }
-
-    /// 두 영역 배치의 충전구는 늘 보이는 아이콘(`CarWithCallouts`)이 맡으므로 여기서는 그리지 않는다.
-    /// 프렁크와 트렁크는 말풍선 선의 끝(차 위)에 아이콘을 둔다.
-    private var markers: [OpenMarker] {
-        state.openMarkers(on: photo).compactMap { marker in
-            guard photo == .side else { return marker }
-            switch marker.part {
-            case .chargePort: return nil
-            case .frunk, .trunk: return OpenMarker(part: marker.part, spot: PhotoSpot(car: marker.spot.car, icon: marker.spot.car))
-            default: return marker
-            }
-        }
     }
 }
 

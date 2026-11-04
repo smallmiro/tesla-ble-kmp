@@ -107,9 +107,19 @@ extension ClusterPart {
 
 extension ClusterState {
     /// 열린 부위의 아이콘 목록(`ClusterPart.allCases` 순서). 닫힘과 모름은 아이콘이 없다(모름은 요약 글자가 말한다).
+    /// 옆 사진(side)에서는 충전구를 늘 보이는 번개 말풍선이 그리므로 목록에 넣지 않고,
+    /// 프렁크와 트렁크 아이콘은 말풍선 글자가 아니라 선이 차에 닿는 곳(`car`)에 둔다. 화면은 이 목록을 그대로 그린다.
     func openMarkers(on photo: ClusterPhoto) -> [OpenMarker] {
         ClusterPart.allCases
             .filter { closure($0) == .open }
-            .map { OpenMarker(part: $0, spot: photo.spot($0)) }
+            .compactMap { part in
+                let spot = photo.spot(part)
+                guard photo == .side else { return OpenMarker(part: part, spot: spot) }
+                switch part {
+                case .chargePort: return nil
+                case .frunk, .trunk: return OpenMarker(part: part, spot: PhotoSpot(car: spot.car, icon: spot.car))
+                case .doorFrontLeft, .doorRearLeft, .doorFrontRight, .doorRearRight: return OpenMarker(part: part, spot: spot)
+                }
+            }
     }
 }
