@@ -10,4 +10,14 @@ final class ScreenContinuity: ObservableObject {
     @Published var showsDetail = false
     /// Log: 메모 입력 글.
     @Published var memo = ""
+
+    /// 마지막으로 받은 `vinKnown`. 두 영역 배치는 탭을 바꿀 때마다 오른쪽 영역을 다시 만들고 다시 구독해 같은 값을 또 받는다.
+    private var lastVinKnown = false
+
+    /// SFR-022: VIN이 알려지지 않음 → 알려짐으로 바뀌었고 저장된 VIN이 없을 때만 설정 시트를 스스로 연다.
+    /// 같은 값을 다시 받으면(뷰가 다시 만들어짐) 열지 않는다.
+    func vinKnownChanged(_ known: Bool, savedVin: String?) {
+        defer { lastVinKnown = known }
+        if known && !lastVinKnown && savedVin == nil { showsSettings = true }
+    }
 }
