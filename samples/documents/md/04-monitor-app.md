@@ -99,6 +99,32 @@ without a vehicle (`Tests/StateDiagnosticsTests.swift`); the real-device checkli
 
 Status: iOS built (`0.5.0 (22)`), unit tests pass, real-device check pending. Android: planned, same spec.
 
+## Wide and foldable screens (SFR-024)
+
+The app follows the large-screen layout of the official Tesla app on the foldable iPhone Duo (app 4.62): on the **inner
+display** it shows two panes, a navigation menu on the left and a large, always visible vehicle on the right with
+quick actions along the bottom; the **outer display** keeps the normal phone layout. The sample does the same with its
+own screens. It uses only the size class and the usable width, so it also applies to an iPad or a split window. It
+never looks at the device model, `UIScreen`, the orientation or the hinge angle, and uses no iOS 27.1 fold API.
+
+| Rule | Detail |
+|---|---|
+| Choice | `DuoLayout.mode(isRegularWidth:width:)` (pure, `Tests/DuoLayoutTests.swift`): **two panes** only when the horizontal size class is `regular` **and** the usable width (safe areas excluded) is at least **540 pt**; otherwise the **phone layout**. The width is measured by `ContentView` and re-evaluated whenever it changes (fold, unfold, rotation, split view). The Xcode 27.2 `iPhone Duo` simulator profile has an outer display of 466 x 678 pt and an inner display of 669 x 951 pt (both 3x) |
+| Phone layout | Unchanged: the five tabs Live, Query, Log, Control, Key & Control (SFR-010, SFR-018). Used on the outer display and on ordinary iPhones |
+| Left pane | Width 40% of the usable width, between 260 and 520 pt. A `NavigationStack` with a menu: **Live detail** (the per-item times and recent events of SFR-014, as a page instead of a sheet), **Query**, **Log**, **Control**, **Key & Control**. A chosen page opens in place with a back button. The pages are the same views as the phone tabs (no copies). Key & Control leaves the command confirmation to the right pane (`ownsCommandDialog: false`) so only one dialog exists |
+| Right pane | The Live cluster of SFR-022 (link and freshness header with the settings button, gear row, speed, lock text, vehicle, closures, presence, sleep, last event) stays on screen while a page is open on the left. Tapping the vehicle or the last event line still opens the detail sheet, and the gear button the VIN and connection sheet |
+| Quick controls | Along the bottom of the right pane: **Lock**, **Unlock**, **Trunk open/close**, **Frunk open** (asks first, as in Key & Control), **Wake up**. They are existing Key & Control buttons (`QuickControls.buttons`), driven by the **same `KeyControlModel`**: they are on only when step 4 of Key & Control is on (a key, a connection and an enrolled key) and show the same hint when off; a command ensures a VCSEC session first, is sent once, is followed by `vehicleStatus()`, and an `Uncertain` result is never resent (`05-key-control-tab.md`, `16-lib-errors.md`). The latest result line is shown under the buttons. The enrolment state is checked again when the bar appears, as when the Key & Control tab appears. No new command was added: there is no horn, flash or climate button because Key & Control has none |
+| Safe areas | Content stays inside the safe area; only the black background of the right pane runs to the screen edge. The inner display of the Duo has its status and sensor dock on the **right** edge, so the right inset is larger than the left: nothing is placed under it |
+| Staying put | One value, `AppNavigation`, is the selection of both layouts: the phone tab and the left page map to each other (`tab` / `pane`, tested), so a fold or unfold keeps the selected section. The page "Live detail" is remembered but shows the Live tab on the phone layout. `ScreenContinuity`, held by `ContentView`, keeps the open Live sheets and the Log memo text across the change, because the two layouts are different view trees. The key operation sheets and dialogs are driven by `KeyControlModel`, which lives in the monitor. Not kept: scroll positions, text focus, the Query interval draft (it is reset to the current interval whenever the page appears, as when switching tabs today) and the "other models" disclosure |
+| Not handled | A partly folded posture gets no special handling; the check is that nothing important sits under the fold. Hinge reserved regions, `ArrangementView` and `onHingeChange` (iOS 27.1) are not used |
+
+The decision and the mapping are pure and unit tested without a vehicle (`Tests/DuoLayoutTests.swift`). The screens are
+checked with the real-device checklist in `samples/ios/README.md` (SFR-024). The simulator cannot be folded without the
+Simulator app, so the two-pane layout was also looked at on an iPad simulator; the posture change on the Duo itself
+is a real-device check.
+
+Status: iOS built (`0.5.0 (22)`), unit tests pass, real-device check pending. Android: not applicable today (no foldable target); a large-screen layout would be a separate requirement.
+
 ## Background
 
 | | Android | iOS |
@@ -254,7 +280,8 @@ Files in `samples/ios/Sources/` (tests in `samples/ios/Tests/`, names as in the 
 | `EnrollmentProgress.swift`, `Tests/EnrollmentPopupTests.swift` | Enrollment progress popup (SFR-021, `05-key-control-tab.md`): `EnrollmentUpdate` (what `BleClient.pair` reports) and `EnrollmentPopup` (phases, rows, texts, buttons, remaining time); pure and unit tested |
 | `StateDiagnostics.swift`, `Tests/StateDiagnosticsTests.swift` | State diagnostics (SFR-023, §State diagnostics): pure rules (`StateDiagnostics`: button enabling, value texts, `StateOutcome` sentences, `StateLogEntry`), the `StateLink` / `StateDiagnosticsBackend` seam to the library, and `StateDiagnosticsModel` (one query at a time, drops late results, refuses while a key operation runs). `MonitorEngine.swift` has the live `StateLink` (`vehicleStatus`, `startSession`, `getState`); `VehicleMapping.swift` turns a `VehicleData` into the named fields; `Views/QueryTab.swift` draws it |
 | `KeyControlBackend.swift`, `Tests/KeyControlModelTests.swift`, `Tests/KeyOperationGateTests.swift` | `KeyControlBackend`: everything `KeyControlModel` asks of the library and the engine (a fake in tests); `KeyOperationGate` and `KeyHandleCache` guard the key replacement across tabs (`KeyReplacement.swift`) |
-| `ContentView.swift`, `Views/` | `TabView` Live / Query / Log / Control / Key & Control; `isIdleTimerDisabled` follows `scenePhase == .active` |
+| `ContentView.swift`, `Views/` | Phone layout: `TabView` Live / Query / Log / Control / Key & Control; wide layout: `Views/TwoPaneView.swift` (SFR-024); `isIdleTimerDisabled` follows `scenePhase == .active` |
+| `DuoLayout.swift`, `Tests/DuoLayoutTests.swift`, `ScreenContinuity.swift`, `Views/TwoPaneView.swift` | Wide and foldable screens (SFR-024, §Wide and foldable screens): pure `DuoLayout.mode` / `leftPaneWidth`, `AppNavigation` (one selection for both layouts), `QuickControls`; `ScreenContinuity` (open sheets and memo that survive a layout change); `TwoPaneView` (left menu, right Live with `QuickControlsBar`) |
 
 Library calls used (Swift form) and the manual page and section:
 

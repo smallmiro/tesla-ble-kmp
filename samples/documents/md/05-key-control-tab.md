@@ -147,6 +147,13 @@ Other controls: a status card (lock, trunk, frunk, sleep, time of the last read)
 (`vehicleStatus()`), and a result list (newest first, time stamped, no VIN). The status card belongs to one connection: it is
 cleared when the connection changes, and a re-query that ends after the connection changed does not update it.
 
+**Quick controls (SFR-024, iOS).** On a wide screen (iPhone Duo inner display) the Live pane shows five of these buttons
+along its bottom: Lock, Unlock, Trunk open/close, Frunk open, Wake up (`QuickControls.buttons`). They call the same
+`KeyControlModel.press`, so every rule on this page applies unchanged: step 4 must be on, the hint is the same when it
+is off, **Frunk open** asks first, a session is ensured, the command is sent once, `vehicleStatus()` follows, and
+`Uncertain` is never resent. The confirmation dialog is shown by the quick controls while this tab is open in the left
+pane (`ownsCommandDialog: false` here), so there is only one dialog. The latest result line appears under the buttons.
+
 ## Concurrency
 
 All library calls of this tab run through the tab's own `exclusive { }` (one at a time, buttons disabled while busy). On
