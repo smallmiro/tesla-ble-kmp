@@ -267,7 +267,7 @@ private struct HomeRightPane: View {
             Text(drive.speedText)
                 .font(.system(size: 64, weight: .bold, design: .rounded).monospacedDigit())
                 .accessibilityIdentifier("clusterSpeed")
-            Text(drive.unitNote ?? "km/h").font(.footnote).foregroundStyle(.secondary)
+            Text(drive.unitNote ?? StateDiagnostics.unitUnknown).font(.footnote).foregroundStyle(.secondary)
             Text(drive.ageText ?? "Query 탭의 Drive 로 조회").font(.caption).foregroundStyle(.tertiary)
         }
     }
