@@ -122,37 +122,6 @@ extension View {
     }
 }
 
-/// 위에서 본 차량. 부위 이미지를 같은 캔버스에 겹치고, 열린 문은 경첩을 중심으로 돌린다.
-struct ClusterCar: View {
-    let state: ClusterState
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-
-    var body: some View {
-        ZStack {
-            Image("ClusterCarBase").resizable()
-            ForEach(ClusterPart.allCases, id: \.self) { part in partView(part) }
-        }
-        .aspectRatio(400.0 / 760.0, contentMode: .fit)
-    }
-
-    private func partView(_ part: ClusterPart) -> some View {
-        let closure = state.closure(part)
-        let isOpen = closure == .open
-        return ZStack {
-            Image(part.assetName).resizable()
-            if isOpen { Image(part.assetName).resizable().renderingMode(.template).foregroundStyle(Color.red) }
-        }
-        .opacity(closure == .unknown ? 0.45 : 1)
-        .rotationEffect(.degrees(isOpen ? part.openAngle : 0), anchor: anchor(part))
-        .animation(reduceMotion ? nil : .easeInOut(duration: 0.3), value: isOpen)
-    }
-
-    private func anchor(_ part: ClusterPart) -> UnitPoint {
-        guard let hinge = part.hinge else { return .center }
-        return UnitPoint(x: hinge.x / 400, y: hinge.y / 760)
-    }
-}
-
 /// VIN 저장·지우기, 연결·끊기. VIN이 없으면 Live 탭이 처음 열 때 자동으로 띄운다.
 struct ClusterSettingsSheet: View {
     @ObservedObject var monitor: MonitorModel
