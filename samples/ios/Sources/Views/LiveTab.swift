@@ -103,14 +103,14 @@ struct ClusterGearRow: View {
     }
 }
 
-/// VIN이 처음 알려질 때 설정 시트를 자동으로 띄우고, 설정 시트와 상세 시트를 `ScreenContinuity` 의 값으로 연다.
+/// VIN이 알려질 때 설정 시트를 자동으로 띄우고(`ScreenContinuity.vinKnownChanged`, 다시 구독해도 한 번), 설정 시트와 상세 시트를 `ScreenContinuity` 의 값으로 연다.
 private struct ClusterSheets: ViewModifier {
     @ObservedObject var monitor: MonitorModel
     @ObservedObject var continuity: ScreenContinuity
 
     func body(content: Content) -> some View {
         content
-            .onReceive(monitor.$vinKnown) { known in if known && monitor.savedVin == nil { continuity.showsSettings = true } }
+            .onReceive(monitor.$vinKnown) { continuity.vinKnownChanged($0, savedVin: monitor.savedVin) }
             .sheet(isPresented: $continuity.showsSettings) { ClusterSettingsSheet(monitor: monitor) }
             .sheet(isPresented: $continuity.showsDetail) { ClusterDetailSheet(monitor: monitor) }
     }
