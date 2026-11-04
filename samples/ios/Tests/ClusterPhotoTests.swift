@@ -53,11 +53,34 @@ final class ClusterPhotoTests: XCTestCase {
         snapshot.frontPassengerDoor = "OPEN"
         snapshot.trunk = "AJAR"
         snapshot.chargePort = "UNKNOWN"
-        for photo in ClusterPhoto.allCases {
-            let markers = cluster(snapshot).openMarkers(on: photo)
-            XCTAssertEqual(markers.map(\.part), [.doorFrontRight, .trunk], "\(photo)")
-            XCTAssertEqual(markers.map(\.spot), [photo.spot(.doorFrontRight), photo.spot(.trunk)], "\(photo)")
+        let top = cluster(snapshot).openMarkers(on: .top)
+        XCTAssertEqual(top.map(\.part), [.doorFrontRight, .trunk])
+        XCTAssertEqual(top.map(\.spot), [ClusterPhoto.top.spot(.doorFrontRight), ClusterPhoto.top.spot(.trunk)])
+
+        // 옆 사진: 문은 표의 좌표 그대로(아이콘과 선), 트렁크 아이콘은 선이 차에 닿는 곳.
+        let side = cluster(snapshot).openMarkers(on: .side)
+        XCTAssertEqual(side.map(\.part), [.doorFrontRight, .trunk])
+        XCTAssertEqual(side[0].spot, ClusterPhoto.side.spot(.doorFrontRight))
+        XCTAssertEqual(side[1].spot.icon, ClusterPhoto.side.spot(.trunk).car)
+    }
+
+    func testSidePhotoPutsFrunkAndTrunkIconsAtTheCarPointOfTheirLines() {
+        var snapshot = allClosed
+        snapshot.frunk = "OPEN"
+        snapshot.trunk = "OPEN"
+        let markers = cluster(snapshot).openMarkers(on: .side)
+        XCTAssertEqual(markers.map(\.part), [.frunk, .trunk])
+        for marker in markers {
+            XCTAssertEqual(marker.spot.icon, ClusterPhoto.side.spot(marker.part).car, "\(marker.part)")
+            XCTAssertEqual(marker.spot.car, ClusterPhoto.side.spot(marker.part).car, "\(marker.part)")
         }
+    }
+
+    func testSidePhotoLeavesTheChargePortToItsBoltCalloutButTopPhotoShowsIt() {
+        var snapshot = allClosed
+        snapshot.chargePort = "OPEN"
+        XCTAssertEqual(cluster(snapshot).openMarkers(on: .side), [])
+        XCTAssertEqual(cluster(snapshot).openMarkers(on: .top).map(\.part), [.chargePort])
     }
 
     func testEverySevenPartsCanBeOpenAtOnce() {
@@ -66,7 +89,8 @@ final class ClusterPhotoTests: XCTestCase {
             frunk: "OPEN", trunk: "OPEN", chargePort: "OPEN"
         )
         XCTAssertEqual(cluster(open).openMarkers(on: .top).count, 7)
-        XCTAssertEqual(cluster(open).openMarkers(on: .side).count, 7)
+        // 옆 사진은 충전구를 번개 말풍선이 보이므로 여섯 개.
+        XCTAssertEqual(cluster(open).openMarkers(on: .side).map(\.part), [.doorFrontLeft, .doorRearLeft, .doorFrontRight, .doorRearRight, .frunk, .trunk])
     }
 
     func testIconSymbolsExistAndLeftRightDoorsDiffer() {
