@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// 차량 사진(`ClusterPhoto`)과 열린 부위의 빨간 아이콘(SFR-022). 닫힘과 모름은 아이콘이 없다.
-/// 사진의 검은 바탕은 밝은 모드에서도 어두운 둥근 판으로 둔다(다크 모드의 검정 배경에서는 판 가장자리가 보이지 않는다).
+/// 사진의 검은 바탕은 어두운 둥근 판으로 둔다(앱이 항상 다크 모드라 검정 배경과 이어진다).
 /// 말풍선이 있는 사진(side)은 아이콘에서 부위로 가는 선도 긋는다. 모든 좌표는 사진 크기를 곱한 정규화 좌표다.
 struct ClusterCar: View {
     let photo: ClusterPhoto
@@ -50,7 +50,6 @@ struct CarWithCallouts: View {
         .accessibilityHint("항목별 시각을 엽니다")
         .overlay { GeometryReader { geo in callouts(geo.size) } }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .environment(\.colorScheme, .dark)
     }
 
     private func callouts(_ size: CGSize) -> some View {
