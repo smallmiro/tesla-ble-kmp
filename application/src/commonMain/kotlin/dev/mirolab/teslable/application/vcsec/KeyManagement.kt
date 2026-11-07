@@ -49,8 +49,9 @@ public class KeyManagement internal constructor(
     ): VehicleResult<Unit> = whitelist(VcsecPayloads.removeKey(publicKey), timeout)
 
     /**
-     * Go `SessionInfo`: [publicKey]에 대한 [domain]의 세션정보. 등록돼 있지 않으면 `Failure(KeyNotPaired)`. 응답 대기 중 시간 초과는
-     * `Uncertain(Timeout(afterSend = true))`(M3 조회와 같다). 다시 보내지 않는다(Go도 한 번 보낸다).
+     * Go `SessionInfo`: [publicKey]에 대한 [domain]의 세션정보. 등록돼 있지 않으면 `Failure(KeyNotPaired)`. 요청의 BLE 쓰기를 부른 뒤의
+     * 시간 초과는 쓰기가 끝나지 않았어도 `Uncertain(Timeout(afterSend = true))`(M3 조회와 같다, ADR-0010 2026-11-07 개정). 다시 보내지
+     * 않는다(Go도 한 번 보낸다).
      */
     public suspend fun sessionInfo(
         publicKey: PublicKeyBytes,
@@ -58,8 +59,9 @@ public class KeyManagement internal constructor(
         timeout: Duration = timeouts.commandTimeout,
     ): VehicleResult<SessionInfoSummary> =
         withAttemptTimeout(timeout) { setAfterSend ->
-            val pending = dispatcher.querySessionInfo(domain, publicKey).valueOr { return@withAttemptTimeout it.toResult() }
-            setAfterSend(true)
+            val pending =
+                dispatcher.querySessionInfo(domain, publicKey) { setAfterSend(true) }.valueOr { return@withAttemptTimeout it.toResult() }
+            setAfterSend(true) // 넘겨준 요청은 쓰기를 부른 요청이다(알리지 않는 전송 구현에 대비)
             pending.use { interpret(it.receive()) }
         }
 

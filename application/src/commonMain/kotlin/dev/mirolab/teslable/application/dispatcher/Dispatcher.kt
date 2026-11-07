@@ -393,13 +393,26 @@ public class Dispatcher
             message: RoutableMessage,
             auth: AuthMethod,
             lifetime: Duration = DEFAULT_LIFETIME,
-        ): VehicleResult<PendingRequest> = sendWith(message, auth, lifetime, acceptsSessionInfo = true)
+        ): VehicleResult<PendingRequest> = sendWith(message, auth, lifetime, acceptsSessionInfo = true, onWriteInvoked = {})
+
+        /**
+         * [send]와 같고, 이 요청의 BLE 쓰기를 부르기 직전마다 [onWriteInvoked]를 부른다(`Transport.send(message, onWriteInvoked)`; 전송
+         * 재시도마다 다시 불릴 수 있다). 그 뒤로는 요청이 차량에 닿았을 수 있다 — `VcsecCommands`·`SendWithRetry`·`KeyManagement`가 시간
+         * 초과를 `Timeout(afterSend = true)`로 가르는 기준이다(원본에 없음, ADR-0010 2026-11-07 개정).
+         */
+        internal suspend fun send(
+            message: RoutableMessage,
+            auth: AuthMethod,
+            lifetime: Duration,
+            onWriteInvoked: () -> Unit,
+        ): VehicleResult<PendingRequest> = sendWith(message, auth, lifetime, acceptsSessionInfo = true, onWriteInvoked)
 
         private suspend fun sendWith(
             message: RoutableMessage,
             auth: AuthMethod,
             lifetime: Duration,
             acceptsSessionInfo: Boolean,
+            onWriteInvoked: () -> Unit,
         ): VehicleResult<PendingRequest> {
             if (!isListening) return VehicleResult.Failure(VehicleError.NotConnected)
             val domain = message.to_destination?.domain
@@ -413,7 +426,7 @@ public class Dispatcher
             val addressed = message.copy(uuid = uuid, from_destination = Destination(routing_address = routingAddress))
             val outgoing = authorize(addressed, domain, auth, lifetime).valueOr { return it.toResult() }
             val request = register(key, RequestHash.of(outgoing), acceptsSessionInfo)
-            return transmit(request, RoutableMessage.ADAPTER.encode(outgoing), uuid)
+            return transmit(request, RoutableMessage.ADAPTER.encode(outgoing), uuid, onWriteInvoked)
         }
 
         /**
@@ -423,12 +436,20 @@ public class Dispatcher
         public suspend fun querySessionInfo(
             domain: Domain,
             publicKey: PublicKeyBytes,
+        ): VehicleResult<PendingRequest> = querySessionInfo(domain, publicKey) {}
+
+        /** [querySessionInfo]와 같고, BLE 쓰기를 부르기 직전마다 [onWriteInvoked]를 부른다(내부 [send] 오버로드 참고). */
+        internal suspend fun querySessionInfo(
+            domain: Domain,
+            publicKey: PublicKeyBytes,
+            onWriteInvoked: () -> Unit,
         ): VehicleResult<PendingRequest> =
             sendWith(
                 sessionInfoRequest(domain, publicKey),
                 AuthMethod.NONE,
                 DEFAULT_LIFETIME,
                 acceptsSessionInfo = publicKey == privateKey?.publicKey,
+                onWriteInvoked = onWriteInvoked,
             )
 
         /** Go `RequestSessionInfo`: 개인키가 없으면 [VehicleError.RequiresKey]. 인증 없이 보낸다. */
@@ -534,16 +555,20 @@ public class Dispatcher
             }
         }
 
-        /** Go `Send`의 전송 루프. 넘겨주지 못했으면(오류·취소) `finally`에서 등록을 푼다. */
+        /**
+         * Go `Send`의 전송 루프. 넘겨주지 못했으면(오류·취소) `finally`에서 등록을 푼다. [onWriteInvoked]는 시도마다 전송에 넘긴다 —
+         * 쓰기를 부른 뒤 실패해 다시 보내더라도 앞선 쓰기가 차량에 닿았을 수 있으므로, 받는 쪽은 이 알림을 되돌리지 않는다.
+         */
         private suspend fun transmit(
             request: PendingRequest,
             encoded: ByteArray,
             uuid: ByteString,
+            onWriteInvoked: () -> Unit,
         ): VehicleResult<PendingRequest> {
             var handedOver = false
             try {
                 while (true) {
-                    val sent = transport.send(encoded)
+                    val sent = transport.send(encoded, onWriteInvoked)
                     if (sent is VehicleResult.Success) {
                         handedOver = true
                         return VehicleResult.Success(request)

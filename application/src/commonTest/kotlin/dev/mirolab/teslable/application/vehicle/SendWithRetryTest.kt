@@ -12,6 +12,7 @@ import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.port.AuthMethod
 import dev.mirolab.teslable.testing.FakeVehicle
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.advanceUntilIdle
@@ -109,6 +110,53 @@ class SendWithRetryTest {
             assertEquals(VehicleError.Timeout(afterSend = true), result.error)
             assertTrue(result.error.mayHaveSucceeded)
             assertEquals(1, h.transport.sent.size)
+            assertEquals(0, h.dispatcher.pendingCount())
+        }
+
+    @Test
+    fun deadlineWhileTheWriteIsStillRunningIsUncertain() =
+        // H1(2026-11-07 F4): 첫 BLE 쓰기를 부른 뒤의 만료는 쓰기가 끝나지 않았어도 Uncertain — 차량은 요청을 받았다
+        runTest {
+            val h = dispatcherHarness()
+            h.transport.writeGate = CompletableDeferred()
+            val result =
+                assertIs<VehicleResult.Uncertain>(
+                    SendWithRetry(h.dispatcher).send(infotainment, payload, AuthMethod.NONE, timeout = 1.seconds),
+                )
+            assertEquals(VehicleError.Timeout(afterSend = true), result.error)
+            assertEquals(1, h.fake.received.size)
+            assertEquals(0, h.dispatcher.pendingCount())
+        }
+
+    @Test
+    fun deadlineInTheTransportRetryAfterAFailedWriteIsUncertain() =
+        // H1: 전송 재시도(Dispatcher.transmit의 delay)는 표시를 지우지 않는다. 쓰기 전 실패만 이어지면 그대로 Failure다
+        // (timesOutBeforeSendWhenTransportKeepsFailingTransiently)
+        runTest {
+            val h = dispatcherHarness(retryInterval = 4.milliseconds)
+            h.transport.enqueueWriteError(VehicleError.TransportError.WriteFailed("gatt 133"))
+            val result =
+                assertIs<VehicleResult.Uncertain>(
+                    SendWithRetry(h.dispatcher).send(infotainment, payload, AuthMethod.NONE, timeout = 2.milliseconds),
+                )
+            assertEquals(VehicleError.Timeout(afterSend = true), result.error)
+            assertEquals(1, h.transport.writesInvoked)
+            assertEquals(0, h.dispatcher.pendingCount())
+        }
+
+    @Test
+    fun deadlineWhileWaitingForTheTransportToWriteIsFailure() =
+        // 전송 직렬화 대기(BleTransport sendMutex)에서 끝나면 쓰기를 부른 적이 없다 → Failure(Timeout(afterSend = false))
+        runTest {
+            val h = dispatcherHarness()
+            h.transport.preWriteGate = CompletableDeferred()
+            val result =
+                assertIs<VehicleResult.Failure>(
+                    SendWithRetry(h.dispatcher).send(infotainment, payload, AuthMethod.NONE, timeout = 1.seconds),
+                )
+            assertEquals(VehicleError.Timeout(afterSend = false), result.error)
+            assertEquals(0, h.transport.writesInvoked)
+            assertEquals(0, h.fake.received.size)
             assertEquals(0, h.dispatcher.pendingCount())
         }
 

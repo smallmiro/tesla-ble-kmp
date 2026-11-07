@@ -18,6 +18,7 @@ import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.port.AuthMethod
 import dev.mirolab.teslable.testing.FakeVehicle
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
@@ -195,6 +196,34 @@ class VcsecCommandsTest {
             val waiter = session.vcsec.execute(lock, AuthMethod.GCM, VcsecResponses.COMMAND_STATUS_ABSENT, timeout = 10.milliseconds)
             assertEquals(VehicleError.Timeout(afterSend = false), assertIs<VehicleResult.Failure>(waiter).error)
             assertTrue(blocker.await() is VehicleResult.Uncertain)
+        }
+
+    @Test
+    fun deadlineWhileTheWriteIsStillRunningIsUncertain() =
+        // H1(2026-11-07 F4): 쓰기 완료가 오기 전에 시간이 다 됐지만 차량은 요청을 받고 실행했다 — "보내기 전"(Failure)이 아니다.
+        // Go는 BLE 쓰기에서 ctx를 무시하므로(ble.go:108) 같은 만료가 응답 대기 중에 걸려 PossibleSuccess다(vcsec.go:78)
+        runTest {
+            val h = dispatcherHarness()
+            val session = connected(h)
+            h.fake.script(vcsec, listOf(FakeVehicle.vcsecEmpty()))
+            h.transport.writeGate = CompletableDeferred() // write-with-response의 완료가 오지 않는다
+            val result = session.vcsec.execute(lock, AuthMethod.GCM, VcsecResponses.COMMAND_STATUS_ABSENT, timeout = 1.seconds)
+            assertEquals(VehicleError.Timeout(afterSend = true), assertIs<VehicleResult.Uncertain>(result).error)
+            assertEquals(1, h.fake.received.count { it.signature_data?.AES_GCM_Personalized_data != null })
+            assertEquals(0, h.dispatcher.pendingCount())
+        }
+
+    @Test
+    fun deadlineInTheTransportRetryAfterAFailedWriteIsUncertain() =
+        // H1: 실패한 쓰기도 바이트가 닿았을 수 있다 — 전송 재시도는 표시를 지우지 않는다
+        // (Go dispatcher.go:454-457은 여기서 PossibleSuccess: false — 취소 가능한 쓰기에 맞춘 의도한 차이, ADR-0010 2026-11-07 개정)
+        runTest {
+            val h = dispatcherHarness(retryInterval = 4.milliseconds)
+            val session = connected(h)
+            h.transport.enqueueWriteError(VehicleError.TransportError.WriteFailed("gatt 133"))
+            val result = session.vcsec.execute(lock, AuthMethod.GCM, VcsecResponses.COMMAND_STATUS_ABSENT, timeout = 2.milliseconds)
+            assertEquals(VehicleError.Timeout(afterSend = true), assertIs<VehicleResult.Uncertain>(result).error)
+            assertEquals(0, h.dispatcher.pendingCount())
         }
 
     @Test
