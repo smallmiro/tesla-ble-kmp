@@ -106,7 +106,7 @@
 <li><strong>Serialize.</strong> <code>VcsecCommands</code> takes the per-connection lock, so only one VCSEC command is in flight.</li>
 <li><strong>Retry loop.</strong> Each attempt that fails with a retryable error starts again after the transport's retry interval.</li>
 <li><strong>Sign and encrypt.</strong> <code>Dispatcher.send</code> asks <code>SessionState</code> to authorize the message: the counter goes up, the metadata is bound, a nonce is drawn.</li>
-<li><strong>Send.</strong> The bytes go to the <code>Transport</code> port, implemented by <code>:adapter-ble</code>.</li>
+<li><strong>Send.</strong> The bytes go to the <code>Transport</code> port, implemented by <code>:adapter-ble</code>. Just before the first Bluetooth write starts, the transport tells the dispatcher, and from then on the request counts as possibly sent: a timeout is <code>Uncertain</code>, even if the write never finished (<a href="16-lib-errors.html#sec-retry">16, Retries and timeouts</a>).</li>
 <li><strong>Wait.</strong> The request waits until an answer is judged final.</li>
 </ol>
 <p>Infotainment commands take the same steps from the retry loop on, without the lock. On the way back, one receive coroutine per connection reads <code>Transport.incoming</code>, parses each message, matches it to the waiting request, applies attached session information, decrypts it and checks it against replays, then hands it over.</p>

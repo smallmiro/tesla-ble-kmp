@@ -27,7 +27,7 @@
 | D26 | 세션 캐시 | 포트 + 플랫폼 기본 구현(D18). **자체 바이너리 포맷 v1**, 키 공개키에 종속. Go JSON 포맷과 호환하지 않음 | 0007 |
 | D27 | 키 보관과 세션 키 | 개인키는 플랫폼 키스토어 핸들로만 존재. ECDH 결과와 K는 `Session` 객체 메모리에만 있고 `close()` 시 0으로 덮어씀 | 0008 |
 | D28 | add-key-request 응답 읽기 | Go와 달리 원시 `FromVCSECMessage` 프레임을 읽어 페어링 진행 상태를 알림 (FR-023) | 0009 |
-| D29 | 타임아웃과 취소 | 명령별 `timeout` 파라미터(기본 5초)로 라이브러리가 `withTimeoutOrNull`을 걸고, 전송 후 타임아웃은 `Uncertain`. 외부 취소(`CancellationException`)는 값으로 바꾸지 않고 전파. `expires_at` 수명은 별도 `commandLifetime`(기본 5초) | 0010 |
+| D29 | 타임아웃과 취소 | 명령별 `timeout` 파라미터(기본 5초)로 라이브러리가 `withTimeoutOrNull`을 걸고, 전송 후 타임아웃은 `Uncertain`. 외부 취소(`CancellationException`)는 값으로 바꾸지 않고 전파. `expires_at` 수명은 별도 `commandLifetime`(기본 5초). **2026-11-07 개정:** "전송"은 요청의 첫 BLE 쓰기를 **부른** 시점(쓰기 확인이 아님). 전송 재시도는 표시를 지우지 않는다(§5 타임아웃) | 0010 |
 | D30 | 골든 픽스처 저장 | 리소스 파일 대신 **Kotlin 상수**(`:testing` commonMain). iOS 네이티브 테스트에서 리소스 로딩 문제 회피. `{{PATHS_FILE}}` `FIXTURES_DIR` 갱신 | 0011 |
 
 ---
@@ -179,6 +179,8 @@ public interface Transport {                              // connector.Connector
     public val allowedLatency: Duration                   // BLE 4s
     public val scanObservation: ConnectScanObservation? get() = null  // FR-038. 이 링크를 연 광고에 대해 연결 호출이 본 값. 원본에 없음
     public suspend fun send(message: ByteArray): VehicleResult<Unit>  // 값으로(ADR-0006). Uncertain = 차량이 받았을 수 있음
+    @InternalTeslableApi public suspend fun send(message: ByteArray, onWriteInvoked: () -> Unit): VehicleResult<Unit>
+        // D29 2026-11-07: 첫 플랫폼 쓰기를 부르기 직전에 onWriteInvoked 한 번(쓰기 전에 끝나면 부르지 않음). 기본 구현은 진입 즉시 부르고 send(message)
     public suspend fun close()                            // 멱등
 }
 public data class ConnectScanObservation(val hitAfterMillis: Long, val rssi: Int?, val openAttempt: Int)   // FR-038. 광고 이름·기기 식별자 없음(FR-112). Long은 Swift용(non-null Duration은 내부 표현 그대로 Int64)
@@ -232,7 +234,7 @@ public fun interface TeslaLogger {                           // 기본 NoOp
 | `SessionState` (도메인별) | `Signer` 보유. `Mutex`(임계 구역은 `Signer` 호출뿐) + `CompletableDeferred<Unit>`(`ready`). `processHello`(첫 호출은 `Signer.createAuthenticated`)·`authorize`·`decrypt`·`export`·`loadFromCache` | `session.go` |
 | `PendingRequest` | `(address, uuid?, domain)` 키, `Channel<RoutableMessage>(10)`, `SlidingWindow`(`antiReplay`), `requestHash`. `close()`는 suspend하지 않고 플래그 + 채널 닫기만(취소 중에도 안전); 맵에서 지우는 것은 `Dispatcher`가 `register`/`lookup` 때 지연 수행 | `receiver.go` |
 | `HandshakeFlow` | `startSession(domain)`: 세션 준비(`ready`)·응답·재전송 간격(`select`) 중 먼저 오는 것을 처리, 캐시 복원 세션은 즉시 성공. `startSessions(domains)`: 도메인마다 병렬, 첫 실패에 나머지 취소 | `StartSession`, `tryStartSession`, `StartSessions` |
-| `SendWithRetry` | 응답 하나를 기다리는 명령(Infotainment, 세션정보 등). `shouldRetry()` 오류면 `retryInterval` 후 새 counter·nonce로 재인가해 재전송. 시간 초과는 응답 대기 중이면 `Uncertain(Timeout(afterSend=true))`, 그 전이면 `Failure(Timeout(afterSend=false))`(D29) | `vehicle.go` `Send`, `trySend` |
+| `SendWithRetry` | 응답 하나를 기다리는 명령(Infotainment, 세션정보 등). `shouldRetry()` 오류면 `retryInterval` 후 새 counter·nonce로 재인가해 재전송. 시간 초과는 요청의 첫 BLE 쓰기를 부른 뒤면(쓰기가 끝나지 않았거나 전송 재시도 중이어도) `Uncertain(Timeout(afterSend=true))`, 그 전·재시도 대기 중이면 `Failure(Timeout(afterSend=false))`(D29, 2026-11-07 개정) | `vehicle.go` `Send`, `trySend` |
 | `VcsecCommands` | 페이로드를 VCSEC로 보내고 `VcsecResponses.readUntil`로 종료까지 읽는다. 한 연결의 VCSEC 명령은 인스턴스 안 `Mutex`로 직렬화(FR-049) — 생성자가 `internal`이라 `VehicleSession`이 연결마다 정확히 하나만 만든다 | `vcsec.go` `getVCSECResult` |
 | `VcsecResponses` | `interpret`(Go `unmarshalVCSECResponse`): 프로토콜 오류 → payload 종류 → 파싱 → `nominalError` → `commandStatus` 순 해석. `readUntil`(Go `readUntil`). `TerminalTest` 3종: `FIRST_MESSAGE`, `COMMAND_STATUS_ABSENT`, `WHITELIST_OPERATION_COMPLETE` | `vcsec.go` `unmarshalVCSECResponse`, `readUntil`, `isWhitelistOperationComplete` |
 | `InfotainmentCommands` | `Action`을 Infotainment에 GCM으로 보내고 단일 응답을 `InfotainmentResponses.interpret`로 해석. M5가 명령별 빌더를 더한다 | `infotainment.go` `executeCarServerAction` |
@@ -330,7 +332,7 @@ public interface Vehicle {
 - 재시도 규칙은 Go `tryToConnect`/`NewConnectionFromScanResult`와 같다: 스캔·연결·탐색·구독 실패는 재시도, 이름 불일치·connectable=false·권한 없음은 즉시 실패.
 - 시간이 다 됐을 때의 오류: 실패한 시도가 있으면 그 오류(Go `lastError`). 없으면 Go는 스캔과 dial을 나누지 않고 일반 `ctx.Err()`를 돌려주지만, 여기서는 셋으로 나눈다(#140): 이 호출의 스캔이 광고를 받았으면 `ConnectFailed`, 스캔 없이 기억한 `target`을 열던 중이면 역시 `ConnectFailed`이되 차량이 아직 있는지 모르므로 `cause`가 찾았다고 말하지 않는다, 그 밖에는 `ScanTimeout`. `ScanTimeout`은 광고를 찾지 못했을 때만 쓴다. 모두 `temporary`이고 `mayHaveSucceeded`가 아니므로 재시도 판단은 같다.
 - 연결 스캔 관찰(FR-038, 원본에 없음): `BleTransportFactory.connect`가 시작 시각을 잡고, 스스로 돌린 스캔의 흐름이 광고를 내는 순간(스캔을 정리하기 전) 경과 시간을 호출별 상태에 적는다. `recentHits`의 `ScanHit`은 호출 사이에 공유되므로 시간을 붙이지 않는다. 링크가 열리면 그 `ScanHit`이 이 호출의 스캔이 찾은 객체일 때만(동일성 비교) `Transport.scanObservation`을 채운다 — 기억해 둔 `target`을 스캔 없이 쓴 경우와, 재시도 사이에 앱의 `scan`이 기억을 바꾼 경우는 null이다. RSSI의 "값 없음"(CoreBluetooth 127, btleplug `Int.MIN_VALUE`)은 여기서 null로 바꾸고 `VehicleAdvertisement.rssi`는 그대로 둔다. 발견마다 `observe` 태그 DEBUG 줄 `[connect:scan-hit]`을 남겨 실패한 연결의 발견도 로그로 볼 수 있게 한다(`:adapter-ble`은 `:application`에 의존하지 않으므로 태그 문자열을 따로 둔다). 공개 형태의 논의는 #134 커밋 본문.
-- `send`: `Framer.frame` → `write(txChar, chunk, WriteType.WithResponse)` 순차. 전송 중 `Mutex`.
+- `send`: `Framer.frame` → `write(txChar, chunk, WriteType.WithResponse)` 순차. 전송 중 `Mutex`. `send(message, onWriteInvoked)`는 잠금·연결 검사·프레이밍·TX 로그 뒤, 첫 `write` 바로 앞에서 `onWriteInvoked`를 한 번 부른다(사이에 중단점 없음; 이미 취소됐으면 `ensureActive`로 쓰지도 알리지도 않는다, D29 2026-11-07 개정).
 - `incoming`: `observe(rxChar)` → `Reassembler.push` → 메시지 단위 `Flow`. 버퍼는 `Channel(BUFFERED=64)`; Go의 5보다 크게 잡아 드롭 가능성을 줄인다(매뉴얼 `10-porting-guide §3` 권고).
 
 ### 2.5 `:adapter-crypto`
@@ -413,16 +415,20 @@ Vehicle.startSession({VCSEC, INFOTAINMENT})              // VehicleSession.start
 
 ```
 Vehicle.lock(timeout)                                          // VcsecCommands.execute(payload, GCM, COMMAND_STATUS_ABSENT)
-  withAttemptTimeout(timeout) {                                 // D29: 전송 전이면 Failure(Timeout(false)), 응답 대기 중이면 Uncertain(Timeout(true))
+  withAttemptTimeout(timeout) {                                 // D29: 첫 BLE 쓰기 호출 전이면 Failure(Timeout(false)), 그 뒤면 Uncertain(Timeout(true))
     serial.withLock {                                           // FR-049: 연결당 VcsecCommands 인스턴스 하나(생성자 internal)
       retryWhileRetriable(retryInterval) {                      // shouldRetry() 오류마다 새 시도(아래 attempt 전체를 다시)
+        afterSend(false)
         msg = RoutableMessage(to=VCSEC, payload, flags=2)        // uuid·from_destination은 dispatcher.send가 채운다
-        pending = dispatcher.send(msg, AuthMethod.GCM, commandLifetime).valueOr { return it }
-          // dispatcher.send 내부: SessionState.authorize(ready.await(); Signer.encrypt(msg, lifetime) — counter++, AAD=SHA256(TLV), nonce=rand12) → register → transport.send
+        pending = dispatcher.send(msg, AuthMethod.GCM, commandLifetime) { afterSend(true) }.valueOr { return it }
+          // dispatcher.send 내부: SessionState.authorize(ready.await(); Signer.encrypt(msg, lifetime) — counter++, AAD=SHA256(TLV), nonce=rand12) → register
+          //   → transport.send(bytes, onWriteInvoked)              // 첫 link.write 직전에 onWriteInvoked → afterSend(true). 전송 재시도도 지우지 않는다
+        afterSend(true)                                          // 알리지 않는 전송 구현 대비
         readUntil(pending, done):
           from = interpret(pending.receive())                    // 프로토콜 오류 → 값으로 반환(재시도는 retryWhileRetriable이 함)
             interpret: FromVCSECMessage 파싱; nominalError → Failure(VcsecRejected); commandStatus.operationStatus WAIT → Failure(Busy)
           done.check(from): Continue(다음 메시지) / Done(Success) / Fail(error)
+        afterSend(false)                                         // 응답 처리를 마침: 재시도할 응답 뒤 재시도 대기 중 만료는 Failure(Go vcsec.go:98-100)
       }
     }
   }
@@ -484,7 +490,7 @@ Go는 1단계에서 `conn.Send` 후 즉시 반환하고 3단계를 하지 않는
 | 세션 | `Dispatcher`가 만들 때 `Map<Domain, SessionState>`(도메인마다 하나, 불변 — 잠금으로 보호할 필요 없음). `SessionState` 내부 `Mutex`(Signer 상태) + `CompletableDeferred<Unit> ready`. `Signer` 변경 멤버: `encrypt`, `updateSessionInfo`, `updateSignedSessionInfo`, `close`; 읽기 전용: `decrypt`, `exportSessionInfo`, `timestamp`, `counter`/`epoch`/공개키 getter — 임계 구역이 이 호출들뿐이라 락 대기가 µs 단위로 유계다(설계 구체화 4) | `session.lock` |
 | VCSEC 직렬화 | `VcsecCommands` 인스턴스 안의 `Mutex serial`(연결당 하나 — 생성자가 `internal`이라 `VehicleSession`이 정확히 하나만 만든다). `readUntil`이 끝날 때까지(재시도 포함) 다음 VCSEC 요청이 대기. Infotainment는 병렬 허용 | 프록시 `lockVIN`, 매뉴얼 `00-agent-guide §3.1-2` |
 | 핸드셰이크 병렬 | `HandshakeFlow.startSessions`: 도메인마다 `async { startSession(it) }`, `select`로 먼저 끝나는 것을 처리; 하나가 실패하면 나머지 `job.cancel()`, 첫 실패 반환 | `StartSessions` |
-| 타임아웃 | 명령별 `withAttemptTimeout(timeout)`(D29). `afterSend`는 **현재 시도**의 단계다: 응답을 기다리는 동안 초과했으면 `true`(`Uncertain`), 전송 전이거나 재시도 대기 중(`delay(retryInterval)`)이면 `false`(`Failure`) — 이전 시도에서 응답을 기다렸었는지는 영향을 주지 않는다. 핸드셰이크(`VehicleSession.startSession`)도 같은 헬퍼를 쓰지만 `HandshakeFlow`는 `setAwaiting`을 절대 부르지 않으므로 항상 `afterSend = false`(사용자 승인 답 b) | `ctx` deadline |
+| 타임아웃 | 명령별 `withAttemptTimeout(timeout)`(D29). `afterSend`는 **현재 시도**의 단계다: 그 시도 요청의 첫 BLE 쓰기를 **부른** 때(`Transport.send(message, onWriteInvoked)`의 알림 — 쓰기 확인이 아니다, 2026-11-07 개정)부터 응답 처리를 마칠 때까지 `true`(`Uncertain`). 쓰기가 끝나지 않았거나, 쓰기를 부른 뒤 실패해 `Dispatcher.transmit`이 다시 보내는 동안(전송 재시도 대기 포함)에도 `true`다. 쓰기를 부르기 전(VCSEC 락 대기, `BleTransport` 전송 잠금 대기, 쓰기 전 검사·실패)이거나 재시도할 응답을 받은 뒤 다음 시도를 기다리는 중(`retryWhileRetriable`의 `delay(retryInterval)`)이면 `false`(`Failure`) — 이전 시도의 쓰기·응답 대기는 영향을 주지 않는다. `VcsecCommands`, `SendWithRetry`, `KeyManagement.sessionInfo`가 같다. 핸드셰이크(`VehicleSession.startSession`)도 같은 헬퍼를 쓰지만 `HandshakeFlow`는 `setAfterSend`를 절대 부르지 않으므로 항상 `afterSend = false`(사용자 승인 답 b) | `ctx` deadline |
 | 취소 | 호출 코루틴 취소 → `CancellationException` 전파. 전송 후 취소된 명령의 `PendingRequest`는 `finally`에서 해제(`close()`) | `ctx.Done()` |
 | 백프레셔 | `PendingRequest.channel = Channel(10)`, 가득 차면 `deliver()`가 `false`를 돌려주고 디스패처가 **ERROR** 레벨로 드롭 로그를 남긴다(Go `dispatcher.go:313`도 error 레벨 — 동일). 전송은 `Transport` 구현이 자체 순서를 보장. 평문 브로드캐스트(FR-035)는 `MutableSharedFlow(extraBufferCapacity = 64)`(기본 SUSPEND) + `tryEmit`: 수신 코루틴은 기다리지 않고, 가득 차면 새 프레임을 버리고 연결별로 세어 1·100·200…번째에 WARN(이미 버퍼에 든 프레임의 순서는 지킨다) | `receiverBufferSize` |
 | 스레드 안전 공개 API | `Vehicle` 메서드는 어느 스레드에서든 호출 가능. 콜백은 없고 `Flow`/`StateFlow`만 노출 | – |
@@ -792,7 +798,8 @@ HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 
 - `Dispatcher.process`·`VcsecResponses.interpret`·`InfotainmentResponses.interpret`는 모두 `decodeOrNull`(`IOException`뿐 아니라 Wire가 손상된 입력에 던지는 `IllegalStateException`·`IllegalArgumentException`도 값으로 받는다, ADR-0006)로 응답을 디코딩한다. Go의 protobuf 파서 오류 문구는 재현하지 않는다 — "Dropping unparseable message"·"vcsec: undecodable response"·"unable to parse vehicle response: undecodable" 로그·오류 메시지에 원본 파서 상세가 없다(Wire는 Go처럼 oneof가 두 번 나오면 마지막에 이긴 멤버만 남긴다 — 이 부분은 Go와 동일).
 - `SessionState.authorize`는 `Signer.encrypt` 실패를 `Failure(ProtocolFault)`로 돌려준다. Go `session.authorize`는 오류를 지우고 즉시 재시도한다(ctx 만료까지 바쁜 루프). 재시도는 `SendWithRetry`/`VcsecCommands`가 `retryInterval` 간격을 두고 한다 — 관찰 결과는 같다.
 - `Dispatcher.loadSessions`는 손상된 항목·모르는 도메인 값의 항목을 건너뛰고 나머지를 복원한다(기존 세션 맵에 병합). Go `LoadCache`는 손상된 항목 하나만 있어도 전체 실패한다. 새 `Dispatcher`(세션이 모두 빈 상태)에서 부르면 병합과 교체의 결과는 같다.
-- 핸드셰이크 시간 초과(`VehicleSession.startSession`)는 항상 `Failure(Timeout(afterSend = false))`다 — `HandshakeFlow`는 `withAttemptTimeout`의 `setAwaiting`을 절대 부르지 않기 때문이다(사용자 승인 답 b — 전용 타입 없음). Go는 `context.DeadlineExceeded`를 그대로 돌려준다.
+- 핸드셰이크 시간 초과(`VehicleSession.startSession`)는 항상 `Failure(Timeout(afterSend = false))`다 — `HandshakeFlow`는 `withAttemptTimeout`의 `setAfterSend`를 절대 부르지 않기 때문이다(사용자 승인 답 b — 전용 타입 없음). Go는 `context.DeadlineExceeded`를 그대로 돌려준다.
+- 명령·조회의 "전송"은 요청의 첫 BLE 쓰기를 **부른** 시점이다(D29·ADR-0010 2026-11-07 개정, 실차 2026-11-07 F4). Go는 BLE 쓰기에서 `ctx`를 무시하므로(`ble.go:108-127`) 전송 뒤의 만료가 늘 응답 대기에 걸려 `PossibleSuccess: true`다(`vcsec.go:78`, `vehicle.go:211-212`). 이 포트의 쓰기는 취소되므로 쓰는 도중의 만료를 따로 `Uncertain(Timeout(afterSend = true))`로 본다 — 결과는 Go와 같다. 다른 점 하나: 쓰기를 부른 뒤 실패해 전송을 다시 시도하는 동안의 만료도 `Uncertain`이다. Go `Dispatcher.Send`는 이때 `PossibleSuccess: false`를 돌려준다(`dispatcher.go:454-457`). 실패한 write-with-response도 차량에 닿았을 수 있어서다(사용자 승인 H1). 쓰기 전 실패(`FakeTransport.enqueueSendError`, Go `TestVehicleSendTimeout`의 포팅)는 그대로 `Failure`다.
 - Wire가 모르는 `whitelistOperationInformation`은 `UnknownKeychainCode(rawCode)`(Go `KeychainError{Code}`와 같은 정보 — 원시 코드를 `unknownFields`에서 되찾는다). 모르는 VCSEC `operationStatus`·Infotainment `actionStatus.result`는 Go처럼 그냥 통과(default 분기가 없다). 모르는 VCSEC `nominalError.genericError`는 Wire가 `NONE`으로 읽으므로 `unknownFields`에서 원시 코드를 되찾아 `UnknownVcsecError(rawCode)`로 보존한다(Go `vcsec.go:44-45`는 항상 실제 코드를 담는다; L58 해소, M4).
 - `PendingRequest.close()`는 suspend하지 않고 플래그 + 채널 닫기만 한다(Go `closeHandler`는 즉시 맵에서 제거한다). 맵에서 지우는 것은 `Dispatcher`가 다음 `register`/`lookup` 때 지연 수행한다. 관찰 결과는 같다: 닫힌 요청에 온 응답은 "without registered handler"로 드롭된다.
 - `Dispatcher.send`는 `Domain.DOMAIN_BROADCAST`도 `InvalidArgument`로 거부한다(Go도 `Domain_DOMAIN_BROADCAST`를 거부한다 — 동일 동작, 기록만).

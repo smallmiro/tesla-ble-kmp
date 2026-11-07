@@ -33,14 +33,22 @@ fixtures such as `FakeVehicle` and `FakeTransport` and is referenced only from o
 VehicleSession.vcsec.execute(payload, auth, done)
   → serial.withLock { ... }              // one VCSEC command per connection (serialization lock owned by VcsecCommands)
     → retryWhileRetriable(retryInterval) { ... }   // a new attempt for every shouldRetry() error
-      → Dispatcher.send(message, auth, lifetime)
+      → Dispatcher.send(message, auth, lifetime) { afterSend(true) }
           → SessionState.authorize        // Signer.encrypt: counter++, AAD, nonce
-          → transport.send(bytes)         // Transport port (implemented by :adapter-ble)
+          → transport.send(bytes, onWriteInvoked)   // Transport port (implemented by :adapter-ble);
+                                          // calls onWriteInvoked right before the first link.write
       → wait on PendingRequest (readUntil) // until the response is judged final
 ```
 
 Infotainment commands take the same last two steps (retry → `Dispatcher.send`) through
 `InfotainmentCommands.execute` → `SendWithRetry.send`, without the serialization lock.
+
+The request counts as possibly sent from the moment its first BLE write is invoked, not when the write completes
+(ADR-0010, revised 2026-11-07). A timeout after that point is `Uncertain(Timeout(afterSend = true))`, also while the
+write is still running or the dispatcher resends after a failed write. A timeout before it (VCSEC lock wait, waiting
+for the transport's send lock, checks before writing), or while waiting to retry after a reply that asked for a retry,
+is `Failure(Timeout(afterSend = false))`. `Transport.send(message, onWriteInvoked)` is an `@InternalTeslableApi`
+member of the port; its default implementation reports on entry.
 
 **Receiving**
 
