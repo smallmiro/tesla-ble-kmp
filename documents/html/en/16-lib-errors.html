@@ -177,6 +177,7 @@
 <thead><tr><th>Situation</th><th>What the library does</th></tr></thead>
 <tbody>
 <tr><td>A temporary error the car cannot have acted on (busy, wait, expired, bad counter…)</td><td>Waits one second, signs the command again with a fresh counter and expiry, and resends it. Session information that came with the error is applied first</td></tr>
+<tr><td>A temporary Bluetooth write error</td><td>Writes the same bytes again after one second, without signing them again, until a write succeeds or time runs out</td></tr>
 <tr><td>An error after which the car may have acted (no answer, unreadable answer)</td><td>Never resends, so a toggle cannot run twice. Returns <code>Uncertain</code></td></tr>
 <tr><td>Time runs out before the request's first Bluetooth write starts: waiting for the previous security-controller command, waiting for the link to be free, or a check before writing</td><td><code>Failure(Timeout)</code></td></tr>
 <tr><td>Time runs out while waiting to retry after the car asked for a retry (busy, wait, expired…)</td><td><code>Failure(Timeout)</code></td></tr>
