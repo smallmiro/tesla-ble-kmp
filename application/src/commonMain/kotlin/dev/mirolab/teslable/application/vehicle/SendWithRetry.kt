@@ -22,9 +22,11 @@ import kotlin.time.Duration
  * INCORRECT_EPOCH, TIME_EXPIRED, `Busy`, 일시 전송 오류 …)면 [Dispatcher.retryInterval] 뒤 **새 counter·nonce·expires_at으로 재인가**해
  * 다시 보낸다(FR-101; `Dispatcher.send`가 매번 `Signer.encrypt`). `mayHaveSucceeded` 오류는 재시도하지 않는다(NFR-007).
  *
- * 시간 초과(D29, `withAttemptTimeout`): 전송 전·재시도 대기 중이면
- * `Failure(Timeout(afterSend = false))`(Go `Dispatcher.Send`·`Vehicle.Send`의 ctx 분기), 응답 대기 중이면
- * `Uncertain(Timeout(afterSend = true))`(Go `trySend`의 `PossibleSuccess: true`).
+ * 시간 초과(D29, `withAttemptTimeout`): 요청의 BLE 쓰기를 부르기 전(전송 직렬화 대기, 쓰기 전 전송 실패 뒤의 재전송 대기, 재시도할 응답을
+ * 받고 다음 시도를 기다리는 동안)이면 `Failure(Timeout(afterSend = false))`(Go `Dispatcher.Send`·`Vehicle.Send`의 ctx 분기), 쓰기를 부른
+ * 뒤면 쓰기가 끝나지 않았어도 `Uncertain(Timeout(afterSend = true))`(Go `trySend`의 `PossibleSuccess: true`). Go는 BLE 쓰기에서 ctx를
+ * 무시하므로(`ble.go:108`) 쓰는 도중의 만료가 없다. 쓰기를 부른 뒤 실패해 전송을 다시 시도하는 동안의 만료도 `Uncertain`이다 — Go
+ * `dispatcher.go:454-457`은 이때 `PossibleSuccess: false`지만, 실패한 write-with-response도 차량에 닿았을 수 있다(ADR-0010 2026-11-07 개정).
  *
  * VCSEC는 거부한다(FR-049 직렬화 우회 차단, 설계 구체화 13): VCSEC 명령은 `VcsecCommands`로만 보낸다.
  */
@@ -58,7 +60,10 @@ public class SendWithRetry(
         }
     }
 
-    /** Go `trySend` + `getReceiver`. [afterSend]는 응답을 기다리는 동안만 true(취소되면 true로 남아 `Uncertain`이 된다). */
+    /**
+     * Go `trySend` + `getReceiver`. [afterSend]는 요청의 첫 BLE 쓰기를 부른 때부터(전송 재시도 동안에도) 응답을 받을 때까지 true다 —
+     * 그사이 취소되면 true로 남아 `Uncertain`이 된다. 응답을 받으면 false로 돌아가므로 재시도 대기 중 만료는 `Failure`다(Go `vehicle.go:250-252`).
+     */
     private suspend fun trySend(
         domain: Domain,
         payload: ByteString,
@@ -73,8 +78,8 @@ public class SendWithRetry(
                 protobuf_message_as_bytes = payload,
                 flags = flags,
             )
-        val pending = dispatcher.send(message, auth, timeouts.commandLifetime).valueOr { return it.toResult() }
-        afterSend(true)
+        val pending = dispatcher.send(message, auth, timeouts.commandLifetime) { afterSend(true) }.valueOr { return it.toResult() }
+        afterSend(true) // 넘겨준 요청은 쓰기를 부른 요청이다(알리지 않는 전송 구현에 대비)
         val response = pending.use { it.receive() }
         afterSend(false)
         ResponseClassifier.protocolError(response)?.let { return it.toResult() }
