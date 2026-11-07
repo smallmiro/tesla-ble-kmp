@@ -170,6 +170,7 @@ class KeyManagementTest {
                 VehicleSession(h.dispatcher).keys.sessionInfo(friend, infotainment, timeout = 3.seconds),
             )
             assertEquals(1, h.transport.writesInvoked)
+            assertEquals(0, h.dispatcher.pendingCount())
         }
 
     @Test

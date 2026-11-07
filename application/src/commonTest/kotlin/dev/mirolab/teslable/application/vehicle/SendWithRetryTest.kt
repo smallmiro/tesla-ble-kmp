@@ -145,6 +145,24 @@ class SendWithRetryTest {
         }
 
     @Test
+    fun aLaterTransportAttemptThatDoesNotWriteKeepsTheMark() =
+        // 표시는 시도 안에서 되돌리지 않는다: 쓰기를 부른 뒤 실패하고, 다음 전송 시도들이 쓰기 전에 실패해도 만료는 Uncertain
+        // (retryInterval 4ms, timeout 10ms: t=0 쓰기 실패, t=4·8 쓰기 전 실패, 만료 t=10은 delay 중)
+        runTest {
+            val h = dispatcherHarness(retryInterval = 4.milliseconds)
+            h.transport.enqueueWriteError(VehicleError.TransportError.WriteFailed("gatt 133"))
+            repeat(10) { h.transport.enqueueSendError(VehicleError.TransportError.WriteFailed("not written")) }
+            val result =
+                assertIs<VehicleResult.Uncertain>(
+                    SendWithRetry(h.dispatcher).send(infotainment, payload, AuthMethod.NONE, timeout = 10.milliseconds),
+                )
+            assertEquals(VehicleError.Timeout(afterSend = true), result.error)
+            assertEquals(1, h.transport.writesInvoked)
+            assertEquals(3, h.transport.sent.size)
+            assertEquals(0, h.dispatcher.pendingCount())
+        }
+
+    @Test
     fun deadlineWhileWaitingForTheTransportToWriteIsFailure() =
         // 전송 직렬화 대기(BleTransport sendMutex)에서 끝나면 쓰기를 부른 적이 없다 → Failure(Timeout(afterSend = false))
         runTest {

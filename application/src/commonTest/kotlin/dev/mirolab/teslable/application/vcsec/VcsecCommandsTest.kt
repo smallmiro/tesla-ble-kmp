@@ -227,6 +227,35 @@ class VcsecCommandsTest {
         }
 
     @Test
+    fun deadlineInTheRetryWaitAfterAVcsecWaitIsFailure() =
+        // vcsec.go:94-103: WAIT(Busy)는 실행되지 않았다는 답 — 응답 처리를 마치면 표시를 지우므로 재시도 대기 중 만료는 Failure(Timeout(false)).
+        // retryInterval 3ms, timeout 10ms: 시도는 t=0,3,6,9ms에 바로 WAIT를 받고 만료(t=10ms)는 늘 delay 중에 걸린다(결정적)
+        runTest {
+            val h = dispatcherHarness(retryInterval = 3.milliseconds)
+            val session = connected(h)
+            h.fake.script(vcsec, *Array(100) { listOf(FakeVehicle.vcsecBusy()) })
+            val result = session.vcsec.execute(lock, AuthMethod.GCM, VcsecResponses.COMMAND_STATUS_ABSENT, timeout = 10.milliseconds)
+            assertEquals(VehicleError.Timeout(afterSend = false), assertIs<VehicleResult.Failure>(result).error)
+            assertEquals(4, h.fake.received.count { it.signature_data?.AES_GCM_Personalized_data != null })
+            assertEquals(0, h.dispatcher.pendingCount())
+        }
+
+    @Test
+    fun deadlineWhileWaitingForTheTransportToWriteIsFailure() =
+        // 전송 직렬화 대기(BleTransport sendMutex)에서 끝나면 쓰기를 부른 적이 없다 → Failure(Timeout(afterSend = false))
+        runTest {
+            val h = dispatcherHarness()
+            val session = connected(h)
+            val writesBefore = h.transport.writesInvoked
+            h.transport.preWriteGate = CompletableDeferred()
+            val result = session.vcsec.execute(lock, AuthMethod.GCM, VcsecResponses.COMMAND_STATUS_ABSENT, timeout = 1.seconds)
+            assertEquals(VehicleError.Timeout(afterSend = false), assertIs<VehicleResult.Failure>(result).error)
+            assertEquals(writesBefore, h.transport.writesInvoked)
+            assertEquals(0, h.fake.received.count { it.signature_data?.AES_GCM_Personalized_data != null })
+            assertEquals(0, h.dispatcher.pendingCount())
+        }
+
+    @Test
     fun infotainmentPingRoundTripsAndErrorsCarryTheReason() =
         // infotainment.go Ping + getCarServerResponse 통합
         runTest {
