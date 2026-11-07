@@ -106,7 +106,7 @@
 <li><strong>直列化します。</strong> <code>VcsecCommands</code> が接続ごとのロックを取得するため、処理中の VCSEC コマンドは常に 1 つだけです。</li>
 <li><strong>リトライループ。</strong> リトライ可能なエラーで失敗した試行は、トランスポートのリトライ間隔の後に再び始まります。</li>
 <li><strong>署名と暗号化。</strong> <code>Dispatcher.send</code> が <code>SessionState</code> にメッセージの認可を依頼します。カウンターが増え、メタデータが結び付けられ、ノンスが生成されます。</li>
-<li><strong>送信。</strong> バイト列は <code>:adapter-ble</code> が実装する <code>Transport</code> ポートに送られます。</li>
+<li><strong>送信。</strong> バイト列は <code>:adapter-ble</code> が実装する <code>Transport</code> ポートに送られます。最初の Bluetooth 書き込みが始まる直前にトランスポートがディスパッチャーに知らせ、その時点からリクエストは送信された可能性があるものとして扱われます。書き込みが終わっていなくても、その後のタイムアウトは <code>Uncertain</code> です (<a href="16-lib-errors.html#sec-retry">16、リトライとタイムアウト</a>)。</li>
 <li><strong>待機。</strong> リクエストは応答が最終と判断されるまで待ちます。</li>
 </ol>
 <p>インフォテインメントのコマンドは、ロックなしでリトライループ以降の同じ手順をたどります。戻りの経路では、接続ごとに 1 つの受信コルーチンが <code>Transport.incoming</code> を読み、各メッセージを解析し、待機中のリクエストと照合し、付属するセッション情報を適用し、復号してリプレイを検査したうえで引き渡します。</p>
