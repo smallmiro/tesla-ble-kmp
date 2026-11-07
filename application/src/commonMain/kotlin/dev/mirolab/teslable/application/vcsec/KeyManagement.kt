@@ -57,9 +57,9 @@ public class KeyManagement internal constructor(
         domain: Domain,
         timeout: Duration = timeouts.commandTimeout,
     ): VehicleResult<SessionInfoSummary> =
-        withAttemptTimeout(timeout) { setAwaiting ->
+        withAttemptTimeout(timeout) { setAfterSend ->
             val pending = dispatcher.querySessionInfo(domain, publicKey).valueOr { return@withAttemptTimeout it.toResult() }
-            setAwaiting(true)
+            setAfterSend(true)
             pending.use { interpret(it.receive()) }
         }
 

@@ -53,20 +53,20 @@ public class SendWithRetry(
             return VehicleResult.Failure(VehicleError.InvalidArgument("VCSEC commands must go through VcsecCommands"))
         }
         val payloadCopy = payload.toByteString()
-        return withAttemptTimeout(timeout) { setAwaiting ->
-            retryWhileRetriable(dispatcher.retryInterval) { trySend(domain, payloadCopy, auth, flags, setAwaiting) }
+        return withAttemptTimeout(timeout) { setAfterSend ->
+            retryWhileRetriable(dispatcher.retryInterval) { trySend(domain, payloadCopy, auth, flags, setAfterSend) }
         }
     }
 
-    /** Go `trySend` + `getReceiver`. [awaiting]은 응답을 기다리는 동안만 true(취소되면 true로 남아 `Uncertain`이 된다). */
+    /** Go `trySend` + `getReceiver`. [afterSend]는 응답을 기다리는 동안만 true(취소되면 true로 남아 `Uncertain`이 된다). */
     private suspend fun trySend(
         domain: Domain,
         payload: ByteString,
         auth: AuthMethod,
         flags: Int,
-        awaiting: (Boolean) -> Unit,
+        afterSend: (Boolean) -> Unit,
     ): VehicleResult<RoutableMessage> {
-        awaiting(false)
+        afterSend(false)
         val message =
             RoutableMessage(
                 to_destination = Destination(domain = domain),
@@ -74,9 +74,9 @@ public class SendWithRetry(
                 flags = flags,
             )
         val pending = dispatcher.send(message, auth, timeouts.commandLifetime).valueOr { return it.toResult() }
-        awaiting(true)
+        afterSend(true)
         val response = pending.use { it.receive() }
-        awaiting(false)
+        afterSend(false)
         ResponseClassifier.protocolError(response)?.let { return it.toResult() }
         return VehicleResult.Success(response)
     }
