@@ -50,22 +50,22 @@ public class VcsecCommands internal constructor(
         timeout: Duration = timeouts.commandTimeout,
     ): VehicleResult<FromVCSECMessage> {
         val payloadCopy = payload.toByteString()
-        return withAttemptTimeout(timeout) { setAwaiting ->
+        return withAttemptTimeout(timeout) { setAfterSend ->
             serial.withLock {
-                retryWhileRetriable(dispatcher.retryInterval) { attempt(payloadCopy, auth, done, flags, setAwaiting) }
+                retryWhileRetriable(dispatcher.retryInterval) { attempt(payloadCopy, auth, done, flags, setAfterSend) }
             }
         }
     }
 
-    /** Go `getReceiver` + [VcsecResponses.readUntil]. [awaiting]은 응답을 기다리는 동안만 true(취소되면 true로 남아 `Uncertain`이 된다). */
+    /** Go `getReceiver` + [VcsecResponses.readUntil]. [afterSend]는 응답을 기다리는 동안만 true(취소되면 true로 남아 `Uncertain`이 된다). */
     private suspend fun attempt(
         payload: ByteString,
         auth: AuthMethod,
         done: VcsecResponses.TerminalTest,
         flags: Int,
-        awaiting: (Boolean) -> Unit,
+        afterSend: (Boolean) -> Unit,
     ): VehicleResult<FromVCSECMessage> {
-        awaiting(false)
+        afterSend(false)
         val message =
             RoutableMessage(
                 to_destination = Destination(domain = Domain.DOMAIN_VEHICLE_SECURITY),
@@ -73,9 +73,9 @@ public class VcsecCommands internal constructor(
                 flags = flags,
             )
         val pending = dispatcher.send(message, auth, timeouts.commandLifetime).valueOr { return it.toResult() }
-        awaiting(true)
+        afterSend(true)
         val result = pending.use { VcsecResponses.readUntil(it, done) }
-        awaiting(false)
+        afterSend(false)
         return result
     }
 }
