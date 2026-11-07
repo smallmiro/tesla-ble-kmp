@@ -2,6 +2,7 @@
 // dummyConnector: Sleep/Wake, EnqueueReply, EnqueueSendError, Send, AckRequests, RetryInterval, AllowedLatency
 package dev.mirolab.teslable.testing
 
+import dev.mirolab.teslable.InternalTeslableApi
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.Vin
@@ -22,6 +23,7 @@ import kotlin.time.Duration.Companion.seconds
  * [send]는 [onSend]를 **동기로** 부른다(Go는 `handleAsync` goroutine이지만 결정성을 위해 같은 코루틴에서 처리한다);
  * 응답은 [deliver]로 [incoming]에 넣는다.
  */
+@OptIn(InternalTeslableApi::class)
 public class FakeTransport(
     override val vin: Vin = Vin(DEFAULT_VIN),
     override val retryInterval: Duration = 1.milliseconds,
@@ -75,11 +77,21 @@ public class FakeTransport(
         return ok
     }
 
-    override suspend fun send(message: ByteArray): VehicleResult<Unit> {
+    override suspend fun send(message: ByteArray): VehicleResult<Unit> = send(message) {}
+
+    /**
+     * [ackRequests]와 [enqueueSendError]의 오류는 쓰기를 부르기 **전의** 실패다(Go `dummyConnector.Send`처럼 아무것도 보내지 않는다).
+     * 그 밖에는 [onWriteInvoked]를 부른 뒤 바이트를 차량([onSend])에 넘긴다 — 바이트는 쓰기를 부르는 순간 차량으로 간다.
+     */
+    override suspend fun send(
+        message: ByteArray,
+        onWriteInvoked: () -> Unit,
+    ): VehicleResult<Unit> {
         sentMessages += message.copyOf()
         // Go dummyConnector.Send checks !d.AckRequests before consuming errorQueue (dispatcher_test.go:251-254).
         if (!ackRequests) return VehicleResult.Failure(VehicleError.TransportError.Disconnected)
         sendErrors.removeFirstOrNull()?.let { return it.toResult() }
+        onWriteInvoked()
         onSend?.invoke(message.copyOf())
         return VehicleResult.Success(Unit)
     }
