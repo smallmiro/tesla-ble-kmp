@@ -94,7 +94,7 @@
 <tr><td><code>KeychainRejected</code>, <code>VcsecRejected</code>, <code>InfotainmentRejected</code></td><td>차량이 이해했지만 거부함</td><td>아니요</td><td>아니요</td></tr>
 <tr><td><code>TransportError</code></td><td>블루투스 스캔, 연결, 쓰기</td><td>스캔 시간 초과, 연결 실패, 쓰기 실패만</td><td>아니요</td></tr>
 <tr><td><code>KeyStoreError</code></td><td>플랫폼 키 보관소. <code>Locked</code>는 <code>startSession()</code>도 돌려줌</td><td><code>Locked</code>만</td><td>아니요</td></tr>
-<tr><td><code>Timeout</code></td><td>명령의 시간 제한이 지남</td><td>예</td><td>첫 블루투스 쓰기가 이미 시작된 경우(<a href="#sec-retry">재시도와 시간 제한</a>)</td></tr>
+<tr><td><code>Timeout</code></td><td>명령의 시간 제한이 지남</td><td>예</td><td>첫 블루투스 쓰기가 이미 시작된 경우(<a href="#sec-retry">재시도와 시간 제한</a>). 핸드셰이크는 항상 아니오</td></tr>
 <tr><td><code>InvalidArgument</code></td><td>잘못된 인자</td><td>아니요</td><td>아니요</td></tr>
 </tbody>
 </table>
@@ -172,7 +172,7 @@
 </table>
 
 <h2 id="sec-retry">재시도와 시간 제한</h2>
-<p>라이브러리는 Go 원본과 같은 규칙으로 재시도합니다.</p>
+<p>라이브러리는 Go 원본과 같은 규칙으로 재시도합니다. 다른 점이 하나 있습니다. Go 원본은 블루투스 쓰기가 실패하면 그대로 끝내지만, 이 라이브러리는 같은 바이트를 다시 씁니다.</p>
 <table>
 <thead><tr><th>상황</th><th>라이브러리 동작</th></tr></thead>
 <tbody>
@@ -196,7 +196,7 @@
 <tr><td><code>pairingTimeout</code></td><td>60 s</td><td><code>addKeyRequest()</code></td></tr>
 </tbody>
 </table>
-<p><strong>"보냄"은 쓰기가 시작되었다는 뜻입니다(2026-11-07 변경).</strong> 요청은 휴대폰이 쓰기를 확인한 때가 아니라 첫 블루투스 쓰기가 시작된 순간부터 보냈을 수 있는 것으로 봅니다. 쓰기가 실패해도 이것은 되돌아가지 않습니다. 라이브러리는 같은 바이트를 다시 보내며, 그 재전송 중에 시간 제한이 지나도 여전히 <code>Uncertain</code>입니다. 이 변경 전에는 쓰기가 아직 진행 중일 때 시간 제한이 지나면, 차량이 이미 요청을 받았을 수 있는데도 <code>Failure(Timeout)</code>("timed out before sending")으로 보고했습니다. 실제 차량에서 한 번 있었던 일입니다. iPhone 앱이 백그라운드에 있을 때 <code>listKeys()</code> 요청이 9.65초 뒤에 끝났고(제한은 5초), 그 요청에 대한 차량의 응답이 9밀리초 뒤에 도착했습니다. Go 원본은 블루투스 쓰기에서 기한을 무시하므로 이런 경우를 만나지 않습니다. 앱이 할 일은 그대로입니다. <code>Failure(Timeout)</code>은 아무것도 실행되지 않았다는 뜻이고 <code>Uncertain(Timeout)</code>은 실행되었을 수 있다는 뜻이므로, 명령을 다시 보내기 전에 상태를 읽으세요. 휴대폰이 쓰기를 늦게 끝낼 때(예: 백그라운드) <code>Failure(Timeout)</code>은 줄고 <code>Uncertain(Timeout)</code>은 늘어납니다.</p>
+<p><strong>"보냄"은 쓰기가 시작되었다는 뜻입니다(2026-11-07 변경).</strong> 명령이나 조회는 휴대폰이 쓰기를 확인한 때가 아니라 첫 블루투스 쓰기가 시작된 순간부터 보냈을 수 있는 것으로 봅니다. 쓰기가 실패해도 이것은 되돌아가지 않습니다. 라이브러리는 같은 바이트를 다시 보내며, 그 재전송 중에 시간 제한이 지나도 여전히 <code>Uncertain</code>입니다. 이 변경 전에는 쓰기가 아직 진행 중일 때 시간 제한이 지나면, 차량이 이미 요청을 받았을 수 있는데도 <code>Failure(Timeout)</code>("timed out before sending")으로 보고했습니다. 실제 차량에서 한 번 있었던 일입니다. iPhone 앱이 백그라운드에 있을 때 <code>listKeys()</code> 요청이 9.65초 뒤에 끝났고(제한은 5초), 그 요청에 대한 차량의 응답이 9밀리초 뒤에 도착했습니다. Go 원본은 블루투스 쓰기에서 기한을 무시하므로 이런 경우를 만나지 않습니다. 앱이 할 일은 그대로입니다. <code>Failure(Timeout)</code>은 아무것도 실행되지 않았다는 뜻이고 <code>Uncertain(Timeout)</code>은 실행되었을 수 있다는 뜻이므로, 명령을 다시 보내기 전에 상태를 읽으세요. 휴대폰이 쓰기를 늦게 끝낼 때(예: 백그라운드) <code>Failure(Timeout)</code>은 줄고 <code>Uncertain(Timeout)</code>은 늘어납니다.</p>
 
 <h2 id="sec-requery">Uncertain 뒤에 읽을 것</h2>
 <p><code>Uncertain</code> 뒤에는 절대 다시 보내지 마세요. 명령이 바꾸는 상태를 읽으세요.</p>

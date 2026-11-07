@@ -39,7 +39,7 @@ the user can unlock the phone; the app calls again after the unlock.
 | `InfotainmentRejected(reason)` | `actionStatus ERROR` | false | false |
 | `TransportError.*` | Scan, connect, write (M3) | true only for `ScanTimeout`, `ConnectFailed`, `WriteFailed` | false |
 | `KeyStoreError.*` | Key store (M3; `Locked` FR-037, also from `startSession()`) | true only for `Locked` | false |
-| `Timeout(afterSend)` | Command or query timed out. `afterSend` is true once the request's first BLE write was started, even if the write never completed (§Retries and timeouts) | true | `afterSend` |
+| `Timeout(afterSend)` | Command or query timed out. `afterSend` is true once the request's first BLE write was started, even if the write never completed (§Retries and timeouts). Always false for the handshake | true | `afterSend` |
 | `InvalidArgument(detail)` | Bad call argument | false | false |
 
 **Proto schema and error codes (2026-10-18, ADR-0002 revision).** "In the proto schema" means the pinned
@@ -105,13 +105,14 @@ original does not separate these cases: it returns the last error, otherwise one
 
 ## Retries and timeouts (M2)
 
-The library retries with the same rules as Go `vehicle-command`.
+The library retries with the same rules as Go `vehicle-command`, with one difference: Go's BLE connector ends a command
+on a failed write, while this library treats a failed write as temporary and writes the same bytes again.
 
 | Situation | Library behaviour |
 |---|---|
 | `error.shouldRetry()`: `BUSY`, `TIMEOUT`, `INVALID_SIGNATURE`, `INVALID_TOKEN_OR_COUNTER`, `INTERNAL`, `INCORRECT_EPOCH`, `TIME_EXPIRED`, `TIME_TO_LIVE_TOO_LONG`, `Busy` (VCSEC `WAIT`) | After 1 s (BLE `retryInterval`) it **authorizes again with a new counter, nonce and expires_at** and resends. Session info attached to the error response is applied first |
-| Temporary write error (`TransportError.WriteFailed`) | After 1 s it writes the **same bytes** again, without authorizing again (Go `Dispatcher.Send`), until a write succeeds, a non-temporary error comes or `timeout` runs out |
-| `mayHaveSucceeded` errors (timeout with no response, `RESPONSE_MTU_EXCEEDED`, unparsable VCSEC or Infotainment response) | **Never resent automatically** (prevents running a toggle twice). Returned as `Uncertain`; query state again |
+| Temporary write error (`TransportError.WriteFailed`) | After 1 s it writes the **same bytes** again, without authorizing again, until a write succeeds, a non-temporary error comes or `timeout` runs out. Go's BLE connector does not retry a failed write |
+| `mayHaveSucceeded` errors (timeout after the request's write was started, `RESPONSE_MTU_EXCEEDED`, unparsable VCSEC or Infotainment response) | **Never resent automatically** (prevents running a toggle twice). Returned as `Uncertain`; query state again |
 | Timeout (`timeout`, default 5 s) before the request's first BLE write was started: waiting for the previous VCSEC command, waiting for the link to be free (another request is being written), or a check before writing (`listKeys()` with no time left) | `Failure(Timeout(afterSend = false))` |
 | Timeout while waiting to retry after a reply that asked for a retry (busy, `WAIT`, expired, …) | `Failure(Timeout(afterSend = false))` |
 | Timeout after the request's first BLE write was started: the write had not completed, it failed and the library was resending, or the response did not come | `Uncertain(Timeout(afterSend = true))` |
@@ -123,8 +124,9 @@ The library retries with the same rules as Go `vehicle-command`.
 Defaults come from `TeslaBleConfig`: `commandTimeout` 5 s, `commandLifetime` 5 s, `handshakeTimeout` 20 s,
 `connectTimeout` 30 s, `pairingTimeout` 60 s (`addKeyRequest`).
 
-**"Sent" means the write was started (ADR-0010, revised 2026-11-07).** A request counts as possibly sent from the moment
-its first BLE write is invoked, not when the phone confirms the write. A failed write does not undo this: the library
+**"Sent" means the write was started (ADR-0010, revised 2026-11-07).** A command or query counts as possibly sent from
+the moment its first BLE write is invoked, not when the phone confirms the write (`addKeyRequest` reports its own
+events, `13-lib-pairing.md`). A failed write does not undo this: the library
 resends the same bytes after a failed write, and a timeout during that resend is still `Uncertain`. Before this change a
 timeout that landed inside the write was `Failure(Timeout(afterSend = false))` ("timed out before sending") although the
 vehicle may have had the request. This was seen once on a real car (iOS app in the background, a `listKeys()` request):

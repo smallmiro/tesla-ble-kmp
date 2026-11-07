@@ -80,7 +80,9 @@ public class FakeTransport(
 
     /**
      * 다음 [send]가 쓰기를 부르기 **전에** [error]로 끝나게 한다(Go `EnqueueSendError`: 아무것도 보내지 않는다). [enqueueWriteError]와
-     * 한 큐를 써서 넣은 순서대로 소비된다.
+     * 한 큐를 써서 넣은 순서대로 소비된다. 주의: 재시도할 수 있는 오류(예: `WriteFailed`)를 넣으면 실제 `BleTransport`에는 없는 경우를
+     * 흉내 낸다 — 그쪽의 쓰기 전 실패(`InvalidArgument`, `Disconnected`)는 모두 재시도하지 않는 오류이고 `WriteFailed`는 쓰기를 부른 뒤에만
+     * 난다. Go 포팅 시험(`TestVehicleSendTimeout` 등)이 이 모양을 쓴다.
      */
     public fun enqueueSendError(error: VehicleError) {
         sendErrors.addLast(ScriptedError(error, afterWrite = false))
