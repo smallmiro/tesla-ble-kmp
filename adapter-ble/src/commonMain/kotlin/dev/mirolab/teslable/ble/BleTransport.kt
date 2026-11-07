@@ -102,6 +102,8 @@ internal class BleTransport(
      * 실제 전송. [onWriteInvoked]는 잠금을 얻고 연결·크기 검사와 프레이밍을 마친 뒤, 첫 [GattLink.write]를 부르기 바로 앞에서 한 번
      * 부른다(사이에 중단점이 없다). 그 직전에 이미 취소됐으면 쓰지도 알리지도 않는다(`ensureActive`). 원본에 없음: Go는 ctx를 무시하고
      * 쓰므로(`ble.go:108`) 쓰는 도중 만료가 "보내기 전"이 될 일이 없다 — 취소 가능한 쓰기에서 그 구분을 디스패처에 넘긴다(ADR-0010 개정).
+     * 알린 뒤 아무것도 나가지 않는 경우가 남는다: 알림과 Kable 자체의 취소 검사 사이에 취소가 걸리거나, 플랫폼 호출 전에 Kable이 거부할
+     * 때(연결 없음 등, `WriteFailed`로 바뀐다). 둘 다 "보냈을 수 있음"으로 남아 안전한 쪽으로 틀린다.
      */
     override suspend fun send(
         message: ByteArray,
