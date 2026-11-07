@@ -1847,6 +1847,7 @@ abstract interface dev.mirolab.teslable.port/Transport { // dev.mirolab.teslable
 
     abstract suspend fun close() // dev.mirolab.teslable.port/Transport.close|close(){}[0]
     abstract suspend fun send(kotlin/ByteArray): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.port/Transport.send|send(kotlin.ByteArray){}[0]
+    open suspend fun send(kotlin/ByteArray, kotlin/Function0<kotlin/Unit>): dev.mirolab.teslable.model/VehicleResult<kotlin/Unit> // dev.mirolab.teslable.port/Transport.send|send(kotlin.ByteArray;kotlin.Function0<kotlin.Unit>){}[0]
 }
 
 abstract interface dev.mirolab.teslable.port/TransportFactory { // dev.mirolab.teslable.port/TransportFactory|null[0]

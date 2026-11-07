@@ -11069,10 +11069,12 @@ public abstract interface class dev/mirolab/teslable/port/Transport {
 	public abstract fun getState ()Lkotlinx/coroutines/flow/StateFlow;
 	public abstract fun getVin ()Ldev/mirolab/teslable/model/Vin;
 	public abstract fun send ([BLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public fun send ([BLkotlin/jvm/functions/Function0;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public final class dev/mirolab/teslable/port/Transport$DefaultImpls {
 	public static fun getScanObservation (Ldev/mirolab/teslable/port/Transport;)Ldev/mirolab/teslable/port/ConnectScanObservation;
+	public static fun send (Ldev/mirolab/teslable/port/Transport;[BLkotlin/jvm/functions/Function0;Lkotlin/coroutines/Continuation;)Ljava/lang/Object;
 }
 
 public abstract interface class dev/mirolab/teslable/port/TransportFactory {

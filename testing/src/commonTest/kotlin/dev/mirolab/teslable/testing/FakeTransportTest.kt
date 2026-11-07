@@ -1,5 +1,6 @@
 package dev.mirolab.teslable.testing
 
+import dev.mirolab.teslable.InternalTeslableApi
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.port.TransportState
@@ -14,6 +15,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
+@OptIn(InternalTeslableApi::class)
 class FakeTransportTest {
     @Test
     fun matchesGoDummyConnectorTimings() {
@@ -79,6 +81,22 @@ class FakeTransportTest {
             val queued = assertIs<VehicleResult.Failure>(transport.send(byteArrayOf(2)))
             assertEquals(VehicleError.TransportError.WriteFailed("gatt"), queued.error)
             assertIs<VehicleResult.Success<Unit>>(transport.send(byteArrayOf(3)))
+        }
+
+    @Test
+    fun reportsTheWriteBeforeHandingTheBytesToTheVehicleButNotForPreWriteFailures() =
+        runTest {
+            // Transport.send(message, onWriteInvoked): 쓰기 전 실패(ackRequests, enqueueSendError)는 알리지 않고, 쓰면 차량에 넘기기 전에 알린다
+            val transport = FakeTransport()
+            val events = mutableListOf<String>()
+            transport.onSend = { events += "vehicle" }
+            transport.ackRequests = false
+            transport.send(byteArrayOf(1)) { events += "write" }
+            transport.ackRequests = true
+            transport.enqueueSendError(VehicleError.TransportError.WriteFailed("gatt"))
+            transport.send(byteArrayOf(2)) { events += "write" }
+            assertIs<VehicleResult.Success<Unit>>(transport.send(byteArrayOf(3)) { events += "write" })
+            assertEquals(listOf("write", "vehicle"), events)
         }
 
     @Test

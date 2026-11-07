@@ -17,6 +17,10 @@ internal class FakeGattLink(
     var disconnects = 0
         private set
 
+    /** [write]가 불린 횟수(끝나기 전에 취소된 쓰기와 실패한 쓰기 포함). [written]은 성공한 청크만 담는다. */
+    var writeCalls = 0
+        private set
+
     /** non-null이면 [write]가 이 게이트를 기다린다(쓰기 도중 취소 시험). */
     var writeGate: CompletableDeferred<Unit>? = null
 
@@ -40,6 +44,7 @@ internal class FakeGattLink(
     }
 
     override suspend fun write(chunk: ByteArray): VehicleError.TransportError? {
+        writeCalls++
         yield() // 실제 GATT 쓰기처럼 중단점을 둔다 — 동시 send가 직렬화되지 않으면 청크가 섞여 테스트가 실패한다
         if (written.size >= gateAfterWrites) writeGate?.await()
         val error = writeErrors.removeFirstOrNull()
