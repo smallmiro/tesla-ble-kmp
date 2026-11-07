@@ -58,14 +58,15 @@ internal suspend fun <T> retryWhileRetriable(
 
 /**
  * Go `Send`/`trySend`의 `ctx.Done()` 분기(D29, ADR-0010): [timeout] 안에 [block]이 끝나지 못하면
- * [VehicleError.Timeout]을 값으로 돌려준다. `afterSend`는 [block]이 `setAwaiting`으로 마지막에 넘긴 값이다 — 응답을
- * 기다리는 동안 초과하면 true([VehicleResult.Uncertain]), 그 전이면 false([VehicleResult.Failure]).
+ * [VehicleError.Timeout]을 값으로 돌려준다. `afterSend`는 [block]이 `setAfterSend`로 마지막에 넘긴 값이다 — 호출자는 요청의 첫 BLE
+ * 쓰기를 부를 때 true를 넘기고(쓰기 확인이 아니라 쓰기 호출, ADR-0010 2026-11-07 개정) 응답 처리를 마치면 false로 돌린다. true일 때
+ * 초과하면 [VehicleResult.Uncertain], 아니면 [VehicleResult.Failure].
  */
 internal suspend fun <T> withAttemptTimeout(
     timeout: Duration,
-    block: suspend (setAwaiting: (Boolean) -> Unit) -> VehicleResult<T>,
+    block: suspend (setAfterSend: (Boolean) -> Unit) -> VehicleResult<T>,
 ): VehicleResult<T> {
-    var awaitingResponse = false
-    val result = withTimeoutOrNull(timeout) { block { awaitingResponse = it } }
-    return result ?: VehicleError.Timeout(afterSend = awaitingResponse).toResult()
+    var afterSend = false
+    val result = withTimeoutOrNull(timeout) { block { afterSend = it } }
+    return result ?: VehicleError.Timeout(afterSend = afterSend).toResult()
 }

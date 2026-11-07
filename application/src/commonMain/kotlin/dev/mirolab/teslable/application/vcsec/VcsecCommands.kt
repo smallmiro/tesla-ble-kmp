@@ -24,7 +24,9 @@ import kotlin.time.Duration
  * Go `getVCSECResult`: VCSEC에 보내고 [VcsecResponses.readUntil]로 종료까지 읽는다. `shouldRetry()` 오류(`Busy` 포함)면 [Dispatcher.retryInterval]
  * 뒤 새 요청(새 routing_address·counter)으로 다시 보낸다(`retryWhileRetriable`).
  * 한 연결의 VCSEC 명령은 [serial]로 직렬화한다(FR-049, SDD §5) — 시간 제한(`withAttemptTimeout`)은
- * 락 대기를 포함하며, 락 대기 중 만료는 `Failure(Timeout(afterSend = false))`, 응답 대기 중 만료는 `Uncertain(Timeout(afterSend = true))`다.
+ * 락 대기를 포함한다. 요청의 BLE 쓰기를 부르기 전(락 대기, 전송 직렬화 대기, 재시도할 응답을 받고 다음 시도를 기다리는 동안)의 만료는
+ * `Failure(Timeout(afterSend = false))`, 그 뒤(쓰기가 끝나지 않았어도, 전송 재시도 중에도)의 만료는 `Uncertain(Timeout(afterSend = true))`다
+ * (D29, ADR-0010 2026-11-07 개정).
  * [payload]는 첫 시도 전에 딱 한 번만 [ByteString]으로 복사해 얼린다 — 그러지 않으면 호출자가 첫 시도 뒤(예: 재시도를 기다리는 동안)
  * 넘겨준 배열을 제자리에서 바꿀 경우 그 변경이 재시도로 새어 들어간다(`SendWithRetry.send`와 같은 이유).
  *
@@ -50,32 +52,36 @@ public class VcsecCommands internal constructor(
         timeout: Duration = timeouts.commandTimeout,
     ): VehicleResult<FromVCSECMessage> {
         val payloadCopy = payload.toByteString()
-        return withAttemptTimeout(timeout) { setAwaiting ->
+        return withAttemptTimeout(timeout) { setAfterSend ->
             serial.withLock {
-                retryWhileRetriable(dispatcher.retryInterval) { attempt(payloadCopy, auth, done, flags, setAwaiting) }
+                retryWhileRetriable(dispatcher.retryInterval) { attempt(payloadCopy, auth, done, flags, setAfterSend) }
             }
         }
     }
 
-    /** Go `getReceiver` + [VcsecResponses.readUntil]. [awaiting]은 응답을 기다리는 동안만 true(취소되면 true로 남아 `Uncertain`이 된다). */
+    /**
+     * Go `getReceiver` + [VcsecResponses.readUntil]. [afterSend]는 요청의 첫 BLE 쓰기를 부른 때부터(전송 재시도 동안에도) 응답 처리를
+     * 마칠 때까지 true다 — 그사이 취소되면 true로 남아 `Uncertain`이 된다. 응답(재시도할 오류 포함)을 다 읽으면 false로 돌아가므로
+     * 재시도 대기 중 만료는 `Failure`다(Go `vcsec.go:98-100`).
+     */
     private suspend fun attempt(
         payload: ByteString,
         auth: AuthMethod,
         done: VcsecResponses.TerminalTest,
         flags: Int,
-        awaiting: (Boolean) -> Unit,
+        afterSend: (Boolean) -> Unit,
     ): VehicleResult<FromVCSECMessage> {
-        awaiting(false)
+        afterSend(false)
         val message =
             RoutableMessage(
                 to_destination = Destination(domain = Domain.DOMAIN_VEHICLE_SECURITY),
                 protobuf_message_as_bytes = payload,
                 flags = flags,
             )
-        val pending = dispatcher.send(message, auth, timeouts.commandLifetime).valueOr { return it.toResult() }
-        awaiting(true)
+        val pending = dispatcher.send(message, auth, timeouts.commandLifetime) { afterSend(true) }.valueOr { return it.toResult() }
+        afterSend(true) // 넘겨준 요청은 쓰기를 부른 요청이다(알리지 않는 전송 구현에 대비)
         val result = pending.use { VcsecResponses.readUntil(it, done) }
-        awaiting(false)
+        afterSend(false)
         return result
     }
 }

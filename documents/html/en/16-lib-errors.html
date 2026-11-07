@@ -94,7 +94,7 @@
 <tr><td><code>KeychainRejected</code>, <code>VcsecRejected</code>, <code>InfotainmentRejected</code></td><td>The car understood but refused</td><td>no</td><td>no</td></tr>
 <tr><td><code>TransportError</code></td><td>Bluetooth scan, connect or write</td><td>Only scan timeout, connect failed, write failed</td><td>no</td></tr>
 <tr><td><code>KeyStoreError</code></td><td>Platform key store; <code>Locked</code> also from <code>startSession()</code></td><td>Only <code>Locked</code></td><td>no</td></tr>
-<tr><td><code>Timeout</code></td><td>The command ran out of time</td><td>yes</td><td>If it had already been sent</td></tr>
+<tr><td><code>Timeout</code></td><td>The command ran out of time</td><td>yes</td><td>If its first Bluetooth write had already started (<a href="#sec-retry">Retries and timeouts</a>); never for the handshake</td></tr>
 <tr><td><code>InvalidArgument</code></td><td>A bad argument</td><td>no</td><td>no</td></tr>
 </tbody>
 </table>
@@ -119,9 +119,9 @@
 <tbody>
 <tr><td><code>Success(data)</code></td><td>The car answered</td><td>Check every field you use for <code>null</code>. <code>data</code> can be empty, and a success is not proof of a new measurement: compare <code>timestamp</code> with the previous reply (<a href="14-lib-reading-state.html#sec-a-reading">14, A8.3</a>)</td></tr>
 <tr><td><code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code></td><td>The car received the request but the reply was too large. The car is reachable</td><td>Keep the last value with its age; see the next section</td></tr>
-<tr><td><code>Uncertain(Timeout(afterSend = true))</code></td><td>Nothing came back in time: infotainment is asleep, the reply was lost, or the link dropped while waiting</td><td>Read <code>vehicleStatus()</code>. <code>ASLEEP</code>: your app may wake the car (<a href="14-lib-reading-state.html#sec-a-order">14, A8.2</a>). Otherwise keep the last value with its age. Check <code>connection</code> too</td></tr>
+<tr><td><code>Uncertain(Timeout(afterSend = true))</code></td><td>Nothing came back in time after the request's write started: infotainment is asleep, the reply was lost, the link dropped while waiting, or the phone did not finish the write in time (app in the background)</td><td>Read <code>vehicleStatus()</code>. <code>ASLEEP</code>: your app may wake the car (<a href="14-lib-reading-state.html#sec-a-order">14, A8.2</a>). Otherwise keep the last value with its age. Check <code>connection</code> too</td></tr>
 <tr><td><code>Uncertain(BadResponse(detail))</code></td><td>A reply arrived but could not be read</td><td>Keep the last value. Report <code>detail</code> if it repeats</td></tr>
-<tr><td><code>Failure(Timeout(afterSend = false))</code></td><td>Time ran out before sending or while waiting to retry, for example when the car keeps answering busy while it wakes</td><td>Ask again later, with a longer <code>timeout</code> right after a wake</td></tr>
+<tr><td><code>Failure(Timeout(afterSend = false))</code></td><td>Time ran out before the request's write started or while waiting to retry, for example when the car keeps answering busy while it wakes</td><td>Ask again later, with a longer <code>timeout</code> right after a wake</td></tr>
 <tr><td><code>Failure(NoSession)</code></td><td>No infotainment session (nothing was sent), or the car did not accept the saved one</td><td><code>startSession(setOf(VehicleDomain.INFOTAINMENT))</code>, then ask again once</td></tr>
 <tr><td><code>Failure(InfotainmentRejected(reason))</code></td><td>The car refused. This wins over any data in the reply</td><td>Show a generic message. <code>reason</code> is the car's own text; do not log it</td></tr>
 <tr><td><code>Failure(NotConnected)</code>, <code>TransportError</code></td><td>The link is gone or the write failed</td><td>Call <code>disconnect()</code>, then connect again (<a href="#sec-transport">below</a>)</td></tr>
@@ -172,14 +172,16 @@
 </table>
 
 <h2 id="sec-retry">Retries and timeouts</h2>
-<p>The library retries with the same rules as the Go original.</p>
+<p>The library retries with the same rules as the Go original, with one difference: the Go original gives up after a failed Bluetooth write, while this library writes the same bytes again.</p>
 <table>
 <thead><tr><th>Situation</th><th>What the library does</th></tr></thead>
 <tbody>
 <tr><td>A temporary error the car cannot have acted on (busy, wait, expired, bad counter…)</td><td>Waits one second, signs the command again with a fresh counter and expiry, and resends it. Session information that came with the error is applied first</td></tr>
+<tr><td>A temporary Bluetooth write error</td><td>Writes the same bytes again after one second, without signing them again, until a write succeeds or time runs out</td></tr>
 <tr><td>An error after which the car may have acted (no answer, unreadable answer)</td><td>Never resends, so a toggle cannot run twice. Returns <code>Uncertain</code></td></tr>
-<tr><td>Time runs out before sending</td><td><code>Failure(Timeout)</code></td></tr>
-<tr><td>Time runs out while waiting for the answer</td><td><code>Uncertain(Timeout)</code></td></tr>
+<tr><td>Time runs out before the request's first Bluetooth write starts: waiting for the previous security-controller command, waiting for the link to be free, or a check before writing</td><td><code>Failure(Timeout)</code></td></tr>
+<tr><td>Time runs out while waiting to retry after the car asked for a retry (busy, wait, expired…)</td><td><code>Failure(Timeout)</code></td></tr>
+<tr><td>Time runs out after the first Bluetooth write started: the write has not finished, it failed and the library is resending, or the answer has not come</td><td><code>Uncertain(Timeout)</code></td></tr>
 <tr><td>The handshake runs out of time</td><td><code>Failure(Timeout)</code>; no session was made and nothing changed</td></tr>
 <tr><td>The phone lock blocks the key during the handshake (iOS)</td><td><code>Failure(KeyStoreError.Locked)</code> as soon as the car answers, <strong>not retried</strong> although it is temporary; no session. A saved session the lock kept from being restored stays saved</td></tr>
 </tbody>
@@ -194,6 +196,7 @@
 <tr><td><code>pairingTimeout</code></td><td>60 s</td><td><code>addKeyRequest()</code></td></tr>
 </tbody>
 </table>
+<p><strong>"Sent" means the write started (changed 2026-11-07).</strong> A command or query counts as possibly sent from the moment its first Bluetooth write starts, not when the phone confirms the write. A failed write does not undo this: the library sends the same bytes again, and a timeout during that resend is still <code>Uncertain</code>. Before this change, a timeout that came while the write was still running was reported as <code>Failure(Timeout)</code> ("timed out before sending") although the car may already have had the request. This happened once on a real car, with the iPhone app in the background: a <code>listKeys()</code> request ended after 9.65 seconds (the limit was 5), and the car's answer to it arrived 9 milliseconds later. The Go original never meets this case, because its Bluetooth write ignores the deadline. Nothing else changes for your app: <code>Failure(Timeout)</code> means nothing was executed, <code>Uncertain(Timeout)</code> means it may have been, so read the state before sending a command again. Expect fewer <code>Failure(Timeout)</code> and more <code>Uncertain(Timeout)</code> results when the phone is slow to finish writes, for example in the background.</p>
 
 <h2 id="sec-requery">What to read after Uncertain</h2>
 <p>After <code>Uncertain</code>, never resend. Read the state the command changes:</p>

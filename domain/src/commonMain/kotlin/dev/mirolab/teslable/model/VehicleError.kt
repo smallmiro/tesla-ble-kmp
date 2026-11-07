@@ -251,9 +251,13 @@ public sealed interface VehicleError {
         }
     }
 
-    /** 명령 시간 초과(ADR-0010). 전송 후면 실행됐을 수 있다. */
+    /** 명령 시간 초과(ADR-0010). 요청의 BLE 쓰기를 부른 뒤면 실행됐을 수 있다. */
     public data class Timeout(
-        /** 전송 후 응답 대기 중 초과했으면 true. */
+        /**
+         * 요청의 BLE 쓰기를 부른 뒤에 초과했으면 true — 쓰기가 아직 끝나지 않았거나 실패해 다시 보내는 중이어도, 응답을 기다리는 중이어도
+         * 그렇다(ADR-0010 2026-11-07 개정). false면 실행되지 않았다: 아직 쓰기를 부르지 않았거나(차례 대기, 전송 전 검사), 차량이 재시도할
+         * 오류로 답한 뒤 다음 시도를 기다리던 중이었다. 핸드셰이크(`startSession`)의 시간 초과는 부작용이 없어 항상 false다.
+         */
         public val afterSend: Boolean,
     ) : VehicleError {
         override val message: String get() = if (afterSend) "timed out waiting for vehicle response" else "timed out before sending command"

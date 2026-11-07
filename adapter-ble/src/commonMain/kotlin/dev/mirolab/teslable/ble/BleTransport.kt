@@ -20,6 +20,8 @@ import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.currentCoroutineContext
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -94,7 +96,19 @@ internal class BleTransport(
         stateFlow.compareAndSet(TransportState.Connected, TransportState.Disconnected(VehicleError.TransportError.Disconnected))
     }
 
-    override suspend fun send(message: ByteArray): VehicleResult<Unit> {
+    override suspend fun send(message: ByteArray): VehicleResult<Unit> = send(message) {}
+
+    /**
+     * 실제 전송. [onWriteInvoked]는 잠금을 얻고 연결·크기 검사와 프레이밍을 마친 뒤, 첫 [GattLink.write]를 부르기 바로 앞에서 한 번
+     * 부른다(사이에 중단점이 없다). 그 직전에 이미 취소됐으면 쓰지도 알리지도 않는다(`ensureActive`). 원본에 없음: Go는 ctx를 무시하고
+     * 쓰므로(`ble.go:108`) 쓰는 도중 만료가 "보내기 전"이 될 일이 없다 — 취소 가능한 쓰기에서 그 구분을 디스패처에 넘긴다(ADR-0010 개정).
+     * 알린 뒤 아무것도 나가지 않는 경우가 남는다: 알림과 Kable 자체의 취소 검사 사이에 취소가 걸리거나, 플랫폼 호출 전에 Kable이 거부할
+     * 때(연결 없음 등, `WriteFailed`로 바뀐다). 둘 다 "보냈을 수 있음"으로 남아 안전한 쪽으로 틀린다.
+     */
+    override suspend fun send(
+        message: ByteArray,
+        onWriteInvoked: () -> Unit,
+    ): VehicleResult<Unit> {
         if (message.size > Framer.MAX_MESSAGE_SIZE) {
             return VehicleResult.Failure(VehicleError.InvalidArgument("message exceeds ${Framer.MAX_MESSAGE_SIZE} bytes"))
         }
@@ -102,13 +116,18 @@ internal class BleTransport(
             if (stateFlow.value != TransportState.Connected) return@withLock VehicleResult.Failure(VehicleError.TransportError.Disconnected)
             val chunks = Framer.frame(message, link.blockLength)
             logger.log(LogLevel.DEBUG, TAG) { "TX: ${chunks.joinToString("") { it.toHex() }}" }
-            writeAll(chunks)
+            writeAll(chunks, onWriteInvoked)
         }
     }
 
-    private suspend fun writeAll(chunks: List<ByteArray>): VehicleResult<Unit> {
+    private suspend fun writeAll(
+        chunks: List<ByteArray>,
+        onWriteInvoked: () -> Unit,
+    ): VehicleResult<Unit> {
         var written = 0
         try {
+            currentCoroutineContext().ensureActive()
+            onWriteInvoked()
             for (chunk in chunks) {
                 val error = link.write(chunk)
                 if (error != null) return VehicleResult.Failure(error)

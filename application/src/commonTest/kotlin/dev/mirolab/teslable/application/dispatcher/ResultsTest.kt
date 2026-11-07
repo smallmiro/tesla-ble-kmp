@@ -88,15 +88,15 @@ class ResultsTest {
     fun withAttemptTimeoutReturnsBlockResultWhenItCompletesInTime() =
         runTest {
             val result =
-                withAttemptTimeout<Unit>(1.seconds) { setAwaiting ->
-                    setAwaiting(true)
+                withAttemptTimeout<Unit>(1.seconds) { setAfterSend ->
+                    setAfterSend(true)
                     VehicleResult.Success(Unit)
                 }
             assertIs<VehicleResult.Success<Unit>>(result)
         }
 
     @Test
-    fun withAttemptTimeoutIsFailureBeforeSetAwaitingIsCalledTrue() =
+    fun withAttemptTimeoutIsFailureBeforeSetAfterSendIsCalledTrue() =
         runTest {
             val neverCompletes = CompletableDeferred<Unit>()
             val result =
@@ -110,12 +110,12 @@ class ResultsTest {
         }
 
     @Test
-    fun withAttemptTimeoutIsUncertainAfterSetAwaitingIsCalledTrue() =
+    fun withAttemptTimeoutIsUncertainAfterSetAfterSendIsCalledTrue() =
         runTest {
             val neverCompletes = CompletableDeferred<Unit>()
             val result =
-                withAttemptTimeout<Unit>(1.milliseconds) { setAwaiting ->
-                    setAwaiting(true)
+                withAttemptTimeout<Unit>(1.milliseconds) { setAfterSend ->
+                    setAfterSend(true)
                     neverCompletes.await()
                     VehicleResult.Success(Unit)
                 }
@@ -125,15 +125,15 @@ class ResultsTest {
         }
 
     @Test
-    fun withAttemptTimeoutUsesTheLastSetAwaitingValueBeforeTimingOut() =
-        // M6: setAwaiting은 마지막 값이 이긴다 — true(응답 대기)로 갔다가 false(다음 재시도 전)로 돌아온 뒤 시간이
+    fun withAttemptTimeoutUsesTheLastSetAfterSendValueBeforeTimingOut() =
+        // M6: setAfterSend는 마지막 값이 이긴다 — true(응답 대기)로 갔다가 false(다음 재시도 전)로 돌아온 뒤 시간이
         // 초과되면 afterSend는 false다(재시도마다 초기화된다는 것과 같은 성질).
         runTest {
             val neverCompletes = CompletableDeferred<Unit>()
             val result =
-                withAttemptTimeout<Unit>(1.milliseconds) { setAwaiting ->
-                    setAwaiting(true)
-                    setAwaiting(false)
+                withAttemptTimeout<Unit>(1.milliseconds) { setAfterSend ->
+                    setAfterSend(true)
+                    setAfterSend(false)
                     neverCompletes.await()
                     VehicleResult.Success(Unit)
                 }
@@ -153,8 +153,8 @@ class ResultsTest {
             val job =
                 launch {
                     result =
-                        withAttemptTimeout<Unit>(1.seconds) { setAwaiting ->
-                            setAwaiting(true)
+                        withAttemptTimeout<Unit>(1.seconds) { setAfterSend ->
+                            setAfterSend(true)
                             neverCompletes.await()
                             VehicleResult.Success(Unit)
                         }

@@ -94,7 +94,7 @@
 <tr><td><code>KeychainRejected</code>, <code>VcsecRejected</code>, <code>InfotainmentRejected</code></td><td>차량이 이해했지만 거부함</td><td>아니요</td><td>아니요</td></tr>
 <tr><td><code>TransportError</code></td><td>블루투스 스캔, 연결, 쓰기</td><td>스캔 시간 초과, 연결 실패, 쓰기 실패만</td><td>아니요</td></tr>
 <tr><td><code>KeyStoreError</code></td><td>플랫폼 키 보관소. <code>Locked</code>는 <code>startSession()</code>도 돌려줌</td><td><code>Locked</code>만</td><td>아니요</td></tr>
-<tr><td><code>Timeout</code></td><td>명령의 시간 제한이 지남</td><td>예</td><td>이미 전송된 경우</td></tr>
+<tr><td><code>Timeout</code></td><td>명령의 시간 제한이 지남</td><td>예</td><td>첫 블루투스 쓰기가 이미 시작된 경우(<a href="#sec-retry">재시도와 시간 제한</a>). 핸드셰이크는 항상 아니오</td></tr>
 <tr><td><code>InvalidArgument</code></td><td>잘못된 인자</td><td>아니요</td><td>아니요</td></tr>
 </tbody>
 </table>
@@ -119,9 +119,9 @@
 <tbody>
 <tr><td><code>Success(data)</code></td><td>차량이 응답함</td><td>사용하는 모든 필드를 <code>null</code>인지 확인하세요. <code>data</code>가 비어 있을 수 있고, 성공이 새 측정값의 증거는 아닙니다. <code>timestamp</code>를 이전 응답과 비교하세요(<a href="14-lib-reading-state.html#sec-a-reading">14, A8.3</a>)</td></tr>
 <tr><td><code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code></td><td>차량이 요청을 받았지만 응답이 너무 컸음. 차량과는 통신 가능함</td><td>마지막 값을 경과 시간과 함께 유지하세요. 다음 절을 참고하세요</td></tr>
-<tr><td><code>Uncertain(Timeout(afterSend = true))</code></td><td>시간 안에 아무것도 오지 않음: 인포테인먼트가 잠들었거나, 응답이 유실되었거나, 기다리는 동안 연결이 끊어졌음</td><td><code>vehicleStatus()</code>를 읽으세요. <code>ASLEEP</code>이면 앱이 차량을 깨울 수 있습니다(<a href="14-lib-reading-state.html#sec-a-order">14, A8.2</a>). 그 외에는 마지막 값을 경과 시간과 함께 유지하세요. <code>connection</code>도 확인하세요</td></tr>
+<tr><td><code>Uncertain(Timeout(afterSend = true))</code></td><td>요청의 쓰기가 시작된 뒤 시간 안에 아무것도 오지 않음: 인포테인먼트가 잠들었거나, 응답이 유실되었거나, 기다리는 동안 연결이 끊어졌거나, 휴대폰이 쓰기를 제때 끝내지 못했음(앱이 백그라운드에 있을 때)</td><td><code>vehicleStatus()</code>를 읽으세요. <code>ASLEEP</code>이면 앱이 차량을 깨울 수 있습니다(<a href="14-lib-reading-state.html#sec-a-order">14, A8.2</a>). 그 외에는 마지막 값을 경과 시간과 함께 유지하세요. <code>connection</code>도 확인하세요</td></tr>
 <tr><td><code>Uncertain(BadResponse(detail))</code></td><td>응답은 왔지만 읽을 수 없었음</td><td>마지막 값을 유지하세요. 반복되면 <code>detail</code>을 보고하세요</td></tr>
-<tr><td><code>Failure(Timeout(afterSend = false))</code></td><td>보내기 전이나 재시도를 기다리는 동안 시간이 다 됨. 예: 깨우는 중에 차량이 계속 busy로 응답하는 경우</td><td>나중에 다시 조회하세요. 깨운 직후에는 더 긴 <code>timeout</code>을 쓰세요</td></tr>
+<tr><td><code>Failure(Timeout(afterSend = false))</code></td><td>요청의 쓰기가 시작되기 전이나 재시도를 기다리는 동안 시간이 다 됨. 예: 깨우는 중에 차량이 계속 busy로 응답하는 경우</td><td>나중에 다시 조회하세요. 깨운 직후에는 더 긴 <code>timeout</code>을 쓰세요</td></tr>
 <tr><td><code>Failure(NoSession)</code></td><td>인포테인먼트 세션이 없거나(아무것도 보내지 않음), 차량이 저장된 세션을 받아들이지 않음</td><td><code>startSession(setOf(VehicleDomain.INFOTAINMENT))</code>를 호출한 뒤 한 번 다시 조회하세요</td></tr>
 <tr><td><code>Failure(InfotainmentRejected(reason))</code></td><td>차량이 거부함. 응답에 데이터가 있어도 이 결과가 우선함</td><td>일반적인 메시지를 보여 주세요. <code>reason</code>은 차량이 보낸 문구이므로 로그에 남기지 마세요</td></tr>
 <tr><td><code>Failure(NotConnected)</code>, <code>TransportError</code></td><td>연결이 끊겼거나 쓰기에 실패함</td><td><code>disconnect()</code>를 호출한 뒤 다시 연결하세요(<a href="#sec-transport">아래</a>)</td></tr>
@@ -172,14 +172,16 @@
 </table>
 
 <h2 id="sec-retry">재시도와 시간 제한</h2>
-<p>라이브러리는 Go 원본과 같은 규칙으로 재시도합니다.</p>
+<p>라이브러리는 Go 원본과 같은 규칙으로 재시도합니다. 다른 점이 하나 있습니다. Go 원본은 블루투스 쓰기가 실패하면 그대로 끝내지만, 이 라이브러리는 같은 바이트를 다시 씁니다.</p>
 <table>
 <thead><tr><th>상황</th><th>라이브러리 동작</th></tr></thead>
 <tbody>
 <tr><td>차량이 동작했을 리 없는 일시적 오류(busy, wait, 만료, 잘못된 카운터…)</td><td>1초 기다린 뒤 새 카운터와 만료 시각으로 명령에 다시 서명하고 재전송합니다. 오류와 함께 온 세션 정보를 먼저 적용합니다</td></tr>
+<tr><td>일시적인 블루투스 쓰기 오류</td><td>1초 뒤 다시 서명하지 않고 같은 바이트를 다시 씁니다. 쓰기가 성공하거나 시간이 다 될 때까지 반복합니다</td></tr>
 <tr><td>차량이 동작했을 수 있는 오류(응답 없음, 읽을 수 없는 응답)</td><td>토글 명령이 두 번 실행되지 않도록 절대 재전송하지 않습니다. <code>Uncertain</code>을 반환합니다</td></tr>
-<tr><td>전송 전에 시간 제한이 지남</td><td><code>Failure(Timeout)</code></td></tr>
-<tr><td>응답을 기다리는 중에 시간 제한이 지남</td><td><code>Uncertain(Timeout)</code></td></tr>
+<tr><td>요청의 첫 블루투스 쓰기가 시작되기 전에 시간 제한이 지남: 앞선 보안 컨트롤러 명령을 기다리는 중, 링크가 비기를 기다리는 중, 또는 쓰기 전 검사</td><td><code>Failure(Timeout)</code></td></tr>
+<tr><td>차량이 재시도를 요청한 뒤(busy, wait, 만료…) 재시도를 기다리는 중에 시간 제한이 지남</td><td><code>Failure(Timeout)</code></td></tr>
+<tr><td>첫 블루투스 쓰기가 시작된 뒤에 시간 제한이 지남: 쓰기가 아직 끝나지 않았거나, 실패해서 라이브러리가 다시 보내는 중이거나, 응답이 아직 오지 않음</td><td><code>Uncertain(Timeout)</code></td></tr>
 <tr><td>핸드셰이크의 시간 제한이 지남</td><td><code>Failure(Timeout)</code>. 세션이 만들어지지 않았고 바뀐 것은 없습니다</td></tr>
 <tr><td>핸드셰이크 중에 폰 잠금이 키를 막음(iOS)</td><td>차량이 답하자마자 <code>Failure(KeyStoreError.Locked)</code>. 일시적 오류지만 <strong>다시 시도하지 않습니다</strong>. 세션은 없습니다. 잠금 때문에 복원하지 못한 저장된 세션은 그대로 남습니다</td></tr>
 </tbody>
@@ -194,6 +196,7 @@
 <tr><td><code>pairingTimeout</code></td><td>60 s</td><td><code>addKeyRequest()</code></td></tr>
 </tbody>
 </table>
+<p><strong>"보냄"은 쓰기가 시작되었다는 뜻입니다(2026-11-07 변경).</strong> 명령이나 조회는 휴대폰이 쓰기를 확인한 때가 아니라 첫 블루투스 쓰기가 시작된 순간부터 보냈을 수 있는 것으로 봅니다. 쓰기가 실패해도 이것은 되돌아가지 않습니다. 라이브러리는 같은 바이트를 다시 보내며, 그 재전송 중에 시간 제한이 지나도 여전히 <code>Uncertain</code>입니다. 이 변경 전에는 쓰기가 아직 진행 중일 때 시간 제한이 지나면, 차량이 이미 요청을 받았을 수 있는데도 <code>Failure(Timeout)</code>("timed out before sending")으로 보고했습니다. 실제 차량에서 한 번 있었던 일입니다. iPhone 앱이 백그라운드에 있을 때 <code>listKeys()</code> 요청이 9.65초 뒤에 끝났고(제한은 5초), 그 요청에 대한 차량의 응답이 9밀리초 뒤에 도착했습니다. Go 원본은 블루투스 쓰기에서 기한을 무시하므로 이런 경우를 만나지 않습니다. 앱이 할 일은 그대로입니다. <code>Failure(Timeout)</code>은 아무것도 실행되지 않았다는 뜻이고 <code>Uncertain(Timeout)</code>은 실행되었을 수 있다는 뜻이므로, 명령을 다시 보내기 전에 상태를 읽으세요. 휴대폰이 쓰기를 늦게 끝낼 때(예: 백그라운드) <code>Failure(Timeout)</code>은 줄고 <code>Uncertain(Timeout)</code>은 늘어납니다.</p>
 
 <h2 id="sec-requery">Uncertain 뒤에 읽을 것</h2>
 <p><code>Uncertain</code> 뒤에는 절대 다시 보내지 마세요. 명령이 바꾸는 상태를 읽으세요.</p>

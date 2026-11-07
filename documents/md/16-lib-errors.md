@@ -39,7 +39,7 @@ the user can unlock the phone; the app calls again after the unlock.
 | `InfotainmentRejected(reason)` | `actionStatus ERROR` | false | false |
 | `TransportError.*` | Scan, connect, write (M3) | true only for `ScanTimeout`, `ConnectFailed`, `WriteFailed` | false |
 | `KeyStoreError.*` | Key store (M3; `Locked` FR-037, also from `startSession()`) | true only for `Locked` | false |
-| `Timeout(afterSend)` | Command timed out | true | `afterSend` |
+| `Timeout(afterSend)` | Command or query timed out. `afterSend` is true once the request's first BLE write was started, even if the write never completed (§Retries and timeouts). Always false for the handshake | true | `afterSend` |
 | `InvalidArgument(detail)` | Bad call argument | false | false |
 
 **Proto schema and error codes (2026-10-18, ADR-0002 revision).** "In the proto schema" means the pinned
@@ -105,14 +105,17 @@ original does not separate these cases: it returns the last error, otherwise one
 
 ## Retries and timeouts (M2)
 
-The library retries with the same rules as Go `vehicle-command`.
+The library retries with the same rules as Go `vehicle-command`, with one difference: Go's BLE connector ends a command
+on a failed write, while this library treats a failed write as temporary and writes the same bytes again.
 
 | Situation | Library behaviour |
 |---|---|
-| `error.shouldRetry()`: `BUSY`, `TIMEOUT`, `INVALID_SIGNATURE`, `INVALID_TOKEN_OR_COUNTER`, `INTERNAL`, `INCORRECT_EPOCH`, `TIME_EXPIRED`, `TIME_TO_LIVE_TOO_LONG`, `Busy` (VCSEC `WAIT`), temporary transport errors | After 1 s (BLE `retryInterval`) it **authorizes again with a new counter, nonce and expires_at** and resends. Session info attached to the error response is applied first |
-| `mayHaveSucceeded` errors (timeout with no response, `RESPONSE_MTU_EXCEEDED`, unparsable VCSEC or Infotainment response) | **Never resent automatically** (prevents running a toggle twice). Returned as `Uncertain`; query state again |
-| Timeout (`timeout`, default 5 s) before sending or while waiting to retry | `Failure(Timeout(afterSend = false))` |
-| Timeout while waiting for the response | `Uncertain(Timeout(afterSend = true))` |
+| `error.shouldRetry()`: `BUSY`, `TIMEOUT`, `INVALID_SIGNATURE`, `INVALID_TOKEN_OR_COUNTER`, `INTERNAL`, `INCORRECT_EPOCH`, `TIME_EXPIRED`, `TIME_TO_LIVE_TOO_LONG`, `Busy` (VCSEC `WAIT`) | After 1 s (BLE `retryInterval`) it **authorizes again with a new counter, nonce and expires_at** and resends. Session info attached to the error response is applied first |
+| Temporary write error (`TransportError.WriteFailed`) | After 1 s it writes the **same bytes** again, without authorizing again, until a write succeeds, a non-temporary error comes or `timeout` runs out. Go's BLE connector does not retry a failed write |
+| `mayHaveSucceeded` errors (timeout after the request's write was started, `RESPONSE_MTU_EXCEEDED`, unparsable VCSEC or Infotainment response) | **Never resent automatically** (prevents running a toggle twice). Returned as `Uncertain`; query state again |
+| Timeout (`timeout`, default 5 s) before the request's first BLE write was started: waiting for the previous VCSEC command, waiting for the link to be free (another request is being written), or a check before writing (`listKeys()` with no time left) | `Failure(Timeout(afterSend = false))` |
+| Timeout while waiting to retry after a reply that asked for a retry (busy, `WAIT`, expired, …) | `Failure(Timeout(afterSend = false))` |
+| Timeout after the request's first BLE write was started: the write had not completed, it failed and the library was resending, or the response did not come | `Uncertain(Timeout(afterSend = true))` |
 | Handshake timeout (`handshakeTimeout`, default 20 s) | `Failure(Timeout(afterSend = false))`; no session, no side effect |
 | Handshake blocked by the phone lock (iOS, FR-037) | `Failure(KeyStoreError.Locked)` right after the vehicle's reply, **not retried** although `temporary`; no session. A cached session the lock kept from being restored stays in the cache |
 | VCSEC commands | One at a time per connection. Time spent waiting for the previous one counts against `timeout` |
@@ -120,6 +123,18 @@ The library retries with the same rules as Go `vehicle-command`.
 
 Defaults come from `TeslaBleConfig`: `commandTimeout` 5 s, `commandLifetime` 5 s, `handshakeTimeout` 20 s,
 `connectTimeout` 30 s, `pairingTimeout` 60 s (`addKeyRequest`).
+
+**"Sent" means the write was started (ADR-0010, revised 2026-11-07).** A command or query counts as possibly sent from
+the moment its first BLE write is invoked, not when the phone confirms the write (`addKeyRequest` reports its own
+events, `13-lib-pairing.md`). A failed write does not undo this: the library
+resends the same bytes after a failed write, and a timeout during that resend is still `Uncertain`. Before this change a
+timeout that landed inside the write was `Failure(Timeout(afterSend = false))` ("timed out before sending") although the
+vehicle may have had the request. This was seen once on a real car (iOS app in the background, a `listKeys()` request):
+the result came 9.65 s after the start, with the default 5 s, and the vehicle's reply to that request 9 ms later. The Go
+original never meets this case, because its BLE write ignores the deadline. For an app nothing else changes:
+`Failure(Timeout)` means not executed, `Uncertain(Timeout)` means possibly executed, so read the state before sending a
+command again. Expect fewer `Failure(Timeout)` and more `Uncertain(Timeout)` results when the phone is slow to complete
+writes, for example while the app is in the background.
 
 ## Per-command re-query (FR-102)
 
@@ -175,9 +190,9 @@ interval, so it is the app's choice.
 |---|---|---|
 | `Success(data)` | The vehicle answered | Check every field you use for `null`. `data` can be empty, and a success is not proof of a new measurement: compare `timestamp` with the previous reply (`14-lib-reading-state.md` A8.3) |
 | `Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))` | The vehicle received the request but the reply was too large. The vehicle is reachable | Keep the last value with its age; see the next section |
-| `Uncertain(Timeout(afterSend = true))` | Nothing came back within `timeout`: Infotainment is asleep, the reply was lost, or the link dropped while waiting | Read `vehicleStatus()`. `ASLEEP`: the app may wake the vehicle (`14-lib-reading-state.md` A8.2). Otherwise keep the last value with its age. Check `connection` too |
+| `Uncertain(Timeout(afterSend = true))` | Nothing came back within `timeout` after the request's write was started: Infotainment is asleep, the reply was lost, the link dropped while waiting, or the phone did not complete the write in time (app in the background) | Read `vehicleStatus()`. `ASLEEP`: the app may wake the vehicle (`14-lib-reading-state.md` A8.2). Otherwise keep the last value with its age. Check `connection` too |
 | `Uncertain(BadResponse(detail))` | A reply arrived but could not be parsed | Keep the last value. Report `detail` if it repeats |
-| `Failure(Timeout(afterSend = false))` | Time ran out before sending or while waiting to retry, for example when the vehicle keeps answering busy while it wakes | Ask again later, with a longer `timeout` right after a wake |
+| `Failure(Timeout(afterSend = false))` | Time ran out before the request's write was started or while waiting to retry, for example when the vehicle keeps answering busy while it wakes | Ask again later, with a longer `timeout` right after a wake |
 | `Failure(NoSession)` | No `INFOTAINMENT` session (nothing was sent), or the vehicle did not accept the cached one | `startSession(setOf(VehicleDomain.INFOTAINMENT))`, then ask again once |
 | `Failure(InfotainmentRejected(reason))` | The vehicle refused (`actionStatus ERROR`). This wins over any data in the reply | Show a generic message. `reason` is the vehicle's own text; do not log it |
 | `Failure(NotConnected)`, `TransportError.*` | The link is gone or the write failed | `disconnect()`, then a new `connect` (§Transport and key store errors) |

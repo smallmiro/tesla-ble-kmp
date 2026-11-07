@@ -2,12 +2,14 @@
 // dummyConnector: Sleep/Wake, EnqueueReply, EnqueueSendError, Send, AckRequests, RetryInterval, AllowedLatency
 package dev.mirolab.teslable.testing
 
+import dev.mirolab.teslable.InternalTeslableApi
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.Vin
 import dev.mirolab.teslable.model.toResult
 import dev.mirolab.teslable.port.Transport
 import dev.mirolab.teslable.port.TransportState
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -22,6 +24,7 @@ import kotlin.time.Duration.Companion.seconds
  * [send]는 [onSend]를 **동기로** 부른다(Go는 `handleAsync` goroutine이지만 결정성을 위해 같은 코루틴에서 처리한다);
  * 응답은 [deliver]로 [incoming]에 넣는다.
  */
+@OptIn(InternalTeslableApi::class)
 public class FakeTransport(
     override val vin: Vin = Vin(DEFAULT_VIN),
     override val retryInterval: Duration = 1.milliseconds,
@@ -30,8 +33,16 @@ public class FakeTransport(
     private val inbox = Channel<ByteArray>(Channel.UNLIMITED)
     private val stateFlow = MutableStateFlow<TransportState>(TransportState.Connected)
     private val sentMessages = mutableListOf<ByteArray>()
-    private val sendErrors = ArrayDeque<VehicleError>()
+
+    // 한 줄로 순서를 지킨다: afterWrite = false는 쓰기 전 실패(enqueueSendError), true는 쓰기를 부른 뒤의 실패(enqueueWriteError)
+    private class ScriptedError(
+        val error: VehicleError,
+        val afterWrite: Boolean,
+    )
+
+    private val sendErrors = ArrayDeque<ScriptedError>()
     private var deliveredCount = 0
+    private var writesInvokedCount = 0
 
     override val incoming: Flow<ByteArray> = inbox.receiveAsFlow()
     override val state: StateFlow<TransportState> = stateFlow
@@ -52,9 +63,37 @@ public class FakeTransport(
     public var isAsleep: Boolean = false
         private set
 
-    /** 다음 [send]가 [error]를 돌려주게 한다(Go `EnqueueSendError`). 큐는 순서대로 소비된다. */
+    /** 쓰기를 부른 횟수(`Transport.send`의 `onWriteInvoked`를 부른 횟수). [sent]는 쓰기 전에 실패한 전송까지 담는다. */
+    public val writesInvoked: Int get() = writesInvokedCount
+
+    /**
+     * non-null이면 [send]가 쓰기를 부르기 **전에** 이 게이트를 기다린다(`BleTransport`의 전송 직렬화 대기). 취소할 수 있다.
+     * 그동안 끝나면 쓰기를 부른 적이 없다.
+     */
+    public var preWriteGate: CompletableDeferred<Unit>? = null
+
+    /**
+     * non-null이면 [send]가 쓰기를 부르고 바이트를 차량에 넘긴 **뒤**, 쓰기 완료를 이 게이트까지 미룬다(write-with-response의 완료
+     * 통지가 늦는 경우 — 2026-11-07 F4). 취소할 수 있다. 차량은 이미 요청을 받았고 답할 수 있다.
+     */
+    public var writeGate: CompletableDeferred<Unit>? = null
+
+    /**
+     * 다음 [send]가 쓰기를 부르기 **전에** [error]로 끝나게 한다(Go `EnqueueSendError`: 아무것도 보내지 않는다). [enqueueWriteError]와
+     * 한 큐를 써서 넣은 순서대로 소비된다. 주의: 재시도할 수 있는 오류(예: `WriteFailed`)를 넣으면 실제 `BleTransport`에는 없는 경우를
+     * 흉내 낸다 — 그쪽의 쓰기 전 실패(`InvalidArgument`, `Disconnected`)는 모두 재시도하지 않는 오류이고 `WriteFailed`는 쓰기를 부른 뒤에만
+     * 난다. Go 포팅 시험(`TestVehicleSendTimeout` 등)이 이 모양을 쓴다.
+     */
     public fun enqueueSendError(error: VehicleError) {
-        sendErrors.addLast(error)
+        sendErrors.addLast(ScriptedError(error, afterWrite = false))
+    }
+
+    /**
+     * 다음 [send]가 쓰기를 부른 **뒤** [error]로 끝나게 한다(실패한 쓰기: 바이트가 차량에 닿았는지 모른다 — 이 가짜는 차량에 넘기지
+     * 않는다). [enqueueSendError]와 한 큐를 써서 넣은 순서대로 소비된다.
+     */
+    public fun enqueueWriteError(error: VehicleError) {
+        sendErrors.addLast(ScriptedError(error, afterWrite = true))
     }
 
     /** 응답을 버리기 시작한다(Go `Sleep`). */
@@ -75,12 +114,28 @@ public class FakeTransport(
         return ok
     }
 
-    override suspend fun send(message: ByteArray): VehicleResult<Unit> {
+    override suspend fun send(message: ByteArray): VehicleResult<Unit> = send(message) {}
+
+    /**
+     * [preWriteGate] 대기, [ackRequests]와 [enqueueSendError]의 오류는 쓰기를 부르기 **전**이다(Go `dummyConnector.Send`처럼 아무것도
+     * 보내지 않는다). 그 밖에는 [onWriteInvoked]를 부른 뒤, [enqueueWriteError]의 오류면 그것으로 끝나고, 아니면 바이트를 차량([onSend])에
+     * 넘기고 [writeGate]를 기다린다 — 바이트는 쓰기를 부르는 순간 차량으로 간다.
+     */
+    override suspend fun send(
+        message: ByteArray,
+        onWriteInvoked: () -> Unit,
+    ): VehicleResult<Unit> {
         sentMessages += message.copyOf()
+        preWriteGate?.await()
         // Go dummyConnector.Send checks !d.AckRequests before consuming errorQueue (dispatcher_test.go:251-254).
         if (!ackRequests) return VehicleResult.Failure(VehicleError.TransportError.Disconnected)
-        sendErrors.removeFirstOrNull()?.let { return it.toResult() }
+        val scripted = sendErrors.removeFirstOrNull()
+        if (scripted != null && !scripted.afterWrite) return scripted.error.toResult()
+        onWriteInvoked()
+        writesInvokedCount++
+        if (scripted != null) return scripted.error.toResult()
         onSend?.invoke(message.copyOf())
+        writeGate?.await()
         return VehicleResult.Success(Unit)
     }
 

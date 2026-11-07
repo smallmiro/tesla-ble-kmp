@@ -94,7 +94,7 @@
 <tr><td><code>KeychainRejected</code>, <code>VcsecRejected</code>, <code>InfotainmentRejected</code></td><td>車両は理解したが拒否した</td><td>いいえ</td><td>いいえ</td></tr>
 <tr><td><code>TransportError</code></td><td>Bluetooth のスキャン、接続、書き込み</td><td>スキャンのタイムアウト、接続失敗、書き込み失敗のみ</td><td>いいえ</td></tr>
 <tr><td><code>KeyStoreError</code></td><td>プラットフォームのキーストア。<code>Locked</code> は <code>startSession()</code> も返す</td><td><code>Locked</code> のみ</td><td>いいえ</td></tr>
-<tr><td><code>Timeout</code></td><td>コマンドが時間切れになった</td><td>はい</td><td>すでに送信済みだった場合</td></tr>
+<tr><td><code>Timeout</code></td><td>コマンドが時間切れになった</td><td>はい</td><td>最初の Bluetooth 書き込みがすでに始まっていた場合 (<a href="#sec-retry">リトライとタイムアウト</a>)。ハンドシェイクでは常にいいえ</td></tr>
 <tr><td><code>InvalidArgument</code></td><td>不正な引数</td><td>いいえ</td><td>いいえ</td></tr>
 </tbody>
 </table>
@@ -119,9 +119,9 @@
 <tbody>
 <tr><td><code>Success(data)</code></td><td>車両が応答した</td><td>使うすべてのフィールドが <code>null</code> でないか確認します。<code>data</code> が空のことがあり、成功は新しい測定値の証拠ではありません。<code>timestamp</code> を前回の応答と比較します (<a href="14-lib-reading-state.html#sec-a-reading">14、A8.3</a>)</td></tr>
 <tr><td><code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code></td><td>車両はリクエストを受け取ったが、応答が大きすぎた。車両とは通信できている</td><td>最後の値を経過時間とともに保持します。次の節を参照</td></tr>
-<tr><td><code>Uncertain(Timeout(afterSend = true))</code></td><td>時間内に何も返ってこなかった: インフォテインメントがスリープしている、応答が失われた、または待っている間に接続が切れた</td><td><code>vehicleStatus()</code> を読みます。<code>ASLEEP</code> ならアプリが車両を起こせます (<a href="14-lib-reading-state.html#sec-a-order">14、A8.2</a>)。そうでなければ最後の値を経過時間とともに保持します。<code>connection</code> も確認します</td></tr>
+<tr><td><code>Uncertain(Timeout(afterSend = true))</code></td><td>リクエストの書き込みが始まった後、時間内に何も返ってこなかった: インフォテインメントがスリープしている、応答が失われた、待っている間に接続が切れた、または書き込みが時間内に完了しなかった (アプリがバックグラウンドにあるとき)</td><td><code>vehicleStatus()</code> を読みます。<code>ASLEEP</code> ならアプリが車両を起こせます (<a href="14-lib-reading-state.html#sec-a-order">14、A8.2</a>)。そうでなければ最後の値を経過時間とともに保持します。<code>connection</code> も確認します</td></tr>
 <tr><td><code>Uncertain(BadResponse(detail))</code></td><td>応答は届いたが読み取れなかった</td><td>最後の値を保持します。繰り返す場合は <code>detail</code> を報告します</td></tr>
-<tr><td><code>Failure(Timeout(afterSend = false))</code></td><td>送信前、または再試行を待つ間に時間切れになった。例: 起こしている間、車両が busy を返し続ける場合</td><td>後でもう一度問い合わせます。起こした直後は長めの <code>timeout</code> を使います</td></tr>
+<tr><td><code>Failure(Timeout(afterSend = false))</code></td><td>リクエストの書き込みが始まる前、または再試行を待つ間に時間切れになった。例: 起こしている間、車両が busy を返し続ける場合</td><td>後でもう一度問い合わせます。起こした直後は長めの <code>timeout</code> を使います</td></tr>
 <tr><td><code>Failure(NoSession)</code></td><td>インフォテインメントのセッションがない (何も送っていない)、または車両が保存済みのセッションを受け付けなかった</td><td><code>startSession(setOf(VehicleDomain.INFOTAINMENT))</code> を呼んでから、もう一度だけ問い合わせます</td></tr>
 <tr><td><code>Failure(InfotainmentRejected(reason))</code></td><td>車両が拒否した。応答にデータがあってもこちらが優先される</td><td>一般的なメッセージを表示します。<code>reason</code> は車両自身の文言なので、ログに残さないでください</td></tr>
 <tr><td><code>Failure(NotConnected)</code>、<code>TransportError</code></td><td>接続が切れた、または書き込みに失敗した</td><td><code>disconnect()</code> を呼んでから、再接続します (<a href="#sec-transport">下記</a>)</td></tr>
@@ -172,14 +172,16 @@
 </table>
 
 <h2 id="sec-retry">リトライとタイムアウト</h2>
-<p>ライブラリは Go の原本と同じルールでリトライします。</p>
+<p>ライブラリは Go の原本と同じルールでリトライします。違いが一つあります。Go の原本は Bluetooth 書き込みが失敗するとそこで終わりますが、このライブラリは同じバイト列をもう一度書き込みます。</p>
 <table>
 <thead><tr><th>状況</th><th>ライブラリの動作</th></tr></thead>
 <tbody>
 <tr><td>車両が動作した可能性のない一時的なエラー (busy、待機、期限切れ、不正なカウンター…)</td><td>1 秒待ち、新しいカウンターと有効期限でコマンドに署名し直して再送します。エラーと一緒に届いたセッション情報を先に適用します</td></tr>
+<tr><td>一時的な Bluetooth 書き込みエラー</td><td>1 秒後、署名し直さずに同じバイト列をもう一度書き込みます。書き込みが成功するか時間切れになるまで繰り返します</td></tr>
 <tr><td>車両が動作した可能性のあるエラー (応答なし、読み取れない応答)</td><td>トグルが 2 回実行されないよう、決して再送しません。<code>Uncertain</code> を返します</td></tr>
-<tr><td>送信前に時間切れになった</td><td><code>Failure(Timeout)</code></td></tr>
-<tr><td>応答を待つ間に時間切れになった</td><td><code>Uncertain(Timeout)</code></td></tr>
+<tr><td>リクエストの最初の Bluetooth 書き込みが始まる前に時間切れになった: 前のセキュリティコントローラーのコマンドを待っている、リンクが空くのを待っている、または書き込み前のチェック</td><td><code>Failure(Timeout)</code></td></tr>
+<tr><td>車両が再試行を求めた後 (busy、待機、期限切れ…)、再試行を待つ間に時間切れになった</td><td><code>Failure(Timeout)</code></td></tr>
+<tr><td>最初の Bluetooth 書き込みが始まった後に時間切れになった: 書き込みがまだ終わっていない、失敗してライブラリが再送している、または応答がまだ来ていない</td><td><code>Uncertain(Timeout)</code></td></tr>
 <tr><td>ハンドシェイクが時間切れになった</td><td><code>Failure(Timeout)</code>。セッションは作られず、何も変わっていません</td></tr>
 <tr><td>ハンドシェイク中に電話のロックがキーを妨げた (iOS)</td><td>車両が応答するとすぐに <code>Failure(KeyStoreError.Locked)</code>。一時的なエラーですが<strong>リトライしません</strong>。セッションはありません。ロックのため復元できなかった保存済みのセッションはそのまま残ります</td></tr>
 </tbody>
@@ -194,6 +196,7 @@
 <tr><td><code>pairingTimeout</code></td><td>60 s</td><td><code>addKeyRequest()</code></td></tr>
 </tbody>
 </table>
+<p><strong>「送信」は書き込みが始まったことを意味します (2026-11-07 変更)。</strong> コマンドやクエリは、書き込みの完了が確認された時点ではなく、最初の Bluetooth 書き込みが始まった時点から、送信された可能性があるものとして扱われます。書き込みが失敗してもこれは取り消されません。ライブラリは同じバイト列を再送し、その再送中に時間切れになっても <code>Uncertain</code> のままです。この変更の前は、書き込みがまだ進行中のときに時間切れになると、車両がすでにリクエストを受け取っていた可能性があるにもかかわらず <code>Failure(Timeout)</code> (「timed out before sending」) と報告していました。実車で一度起きています。iPhone アプリがバックグラウンドにあるとき、<code>listKeys()</code> のリクエストが 9.65 秒後に終わり (上限は 5 秒)、そのリクエストへの車両の応答が 9 ミリ秒後に届きました。Go のオリジナルは Bluetooth 書き込みで期限を無視するため、このケースに出会いません。アプリがすべきことは変わりません。<code>Failure(Timeout)</code> は何も実行されなかったこと、<code>Uncertain(Timeout)</code> は実行された可能性があることを意味するので、コマンドを再送する前に状態を読んでください。書き込みの完了が遅いとき (例: バックグラウンド)、<code>Failure(Timeout)</code> は減り、<code>Uncertain(Timeout)</code> が増えます。</p>
 
 <h2 id="sec-requery">Uncertain の後に読むもの</h2>
 <p><code>Uncertain</code> の後は絶対に再送しないでください。コマンドが変更する状態を読み取ります。</p>

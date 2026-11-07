@@ -1,9 +1,15 @@
 package dev.mirolab.teslable.testing
 
+import dev.mirolab.teslable.InternalTeslableApi
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.port.TransportState
+import kotlinx.coroutines.CompletableDeferred
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.flow.toList
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlin.test.Test
 import kotlin.test.assertContentEquals
@@ -14,6 +20,7 @@ import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
+@OptIn(InternalTeslableApi::class, ExperimentalCoroutinesApi::class)
 class FakeTransportTest {
     @Test
     fun matchesGoDummyConnectorTimings() {
@@ -79,6 +86,71 @@ class FakeTransportTest {
             val queued = assertIs<VehicleResult.Failure>(transport.send(byteArrayOf(2)))
             assertEquals(VehicleError.TransportError.WriteFailed("gatt"), queued.error)
             assertIs<VehicleResult.Success<Unit>>(transport.send(byteArrayOf(3)))
+        }
+
+    @Test
+    fun reportsTheWriteBeforeHandingTheBytesToTheVehicleButNotForPreWriteFailures() =
+        runTest {
+            // Transport.send(message, onWriteInvoked): 쓰기 전 실패(ackRequests, enqueueSendError)는 알리지 않고, 쓰면 차량에 넘기기 전에 알린다
+            val transport = FakeTransport()
+            val events = mutableListOf<String>()
+            transport.onSend = { events += "vehicle" }
+            transport.ackRequests = false
+            transport.send(byteArrayOf(1)) { events += "write" }
+            transport.ackRequests = true
+            transport.enqueueSendError(VehicleError.TransportError.WriteFailed("gatt"))
+            transport.send(byteArrayOf(2)) { events += "write" }
+            assertIs<VehicleResult.Success<Unit>>(transport.send(byteArrayOf(3)) { events += "write" })
+            assertEquals(listOf("write", "vehicle"), events)
+        }
+
+    @Test
+    fun writeErrorsFailAfterTheWriteIsReportedInTheOrderTheyWereQueued() =
+        runTest {
+            // enqueueSendError(쓰기 전)와 enqueueWriteError(쓰기 뒤)는 한 큐: 넣은 순서대로 소비되고, 쓰기 뒤 실패는 차량에 넘기지 않는다
+            val transport = FakeTransport()
+            var handled = 0
+            transport.onSend = { handled++ }
+            transport.enqueueWriteError(VehicleError.TransportError.WriteFailed("first"))
+            transport.enqueueSendError(VehicleError.TransportError.WriteFailed("second"))
+            var reports = 0
+            val first = transport.send(byteArrayOf(1)) { reports++ }
+            assertEquals(VehicleResult.Failure(VehicleError.TransportError.WriteFailed("first")), first)
+            assertEquals(1, reports)
+            val second = transport.send(byteArrayOf(2)) { reports++ }
+            assertEquals(VehicleResult.Failure(VehicleError.TransportError.WriteFailed("second")), second)
+            assertEquals(1, reports)
+            assertIs<VehicleResult.Success<Unit>>(transport.send(byteArrayOf(3)) { reports++ })
+            assertEquals(2, reports)
+            assertEquals(2, transport.writesInvoked)
+            assertEquals(1, handled)
+            assertEquals(3, transport.sent.size)
+        }
+
+    @Test
+    fun gatesHoldTheSendBeforeOrAfterTheWrite() =
+        runTest {
+            // preWriteGate: 쓰기를 부르기 전 대기. writeGate: 차량이 바이트를 받은 뒤 쓰기 완료를 미룬다
+            val transport = FakeTransport()
+            val handled = mutableListOf<Byte>()
+            transport.onSend = { handled += it.single() }
+            transport.preWriteGate = CompletableDeferred()
+            val waiting = launch { transport.send(byteArrayOf(1)) }
+            runCurrent()
+            assertEquals(0, transport.writesInvoked)
+            waiting.cancel()
+            runCurrent()
+            assertEquals(0, transport.writesInvoked)
+            assertEquals(emptyList(), handled)
+            transport.preWriteGate = null
+            transport.writeGate = CompletableDeferred()
+            val writing = async { transport.send(byteArrayOf(2)) }
+            runCurrent()
+            assertEquals(1, transport.writesInvoked)
+            assertEquals(listOf<Byte>(2), handled) // 완료 전에 차량이 이미 받았다
+            assertFalse(writing.isCompleted)
+            transport.writeGate?.complete(Unit)
+            assertIs<VehicleResult.Success<Unit>>(writing.await())
         }
 
     @Test

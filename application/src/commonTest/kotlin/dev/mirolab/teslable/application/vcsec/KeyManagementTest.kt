@@ -22,6 +22,7 @@ import dev.mirolab.teslable.testing.FakeVehicle
 import dev.mirolab.teslable.testing.RecordingSessionCache
 import dev.mirolab.teslable.testing.TestCrypto
 import dev.mirolab.teslable.util.toHex
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.launch
@@ -156,6 +157,20 @@ class KeyManagementTest {
                 VehicleResult.Uncertain(VehicleError.Timeout(afterSend = true)),
                 VehicleSession(h.dispatcher).keys.sessionInfo(friend, infotainment, timeout = 3.seconds),
             )
+        }
+
+    @Test
+    fun deadlineWhileTheWriteIsStillRunningIsUncertainToo() =
+        // H1: sessionInfo도 같은 정의 — 첫 BLE 쓰기를 부른 뒤의 만료는 쓰기가 끝나지 않았어도 Uncertain(Timeout(afterSend = true))
+        runTest {
+            val h = dispatcherHarness()
+            h.transport.writeGate = CompletableDeferred()
+            assertEquals(
+                VehicleResult.Uncertain(VehicleError.Timeout(afterSend = true)),
+                VehicleSession(h.dispatcher).keys.sessionInfo(friend, infotainment, timeout = 3.seconds),
+            )
+            assertEquals(1, h.transport.writesInvoked)
+            assertEquals(0, h.dispatcher.pendingCount())
         }
 
     @Test

@@ -1,6 +1,7 @@
 // Ported from vehicle-command@a4b43c1 pkg/connector/connector.go (Apache-2.0) — Connector, AuthMethod (GCM only, D6)
 package dev.mirolab.teslable.port
 
+import dev.mirolab.teslable.InternalTeslableApi
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.Vin
@@ -60,6 +61,26 @@ public interface Transport {
 
     /** 메시지 하나를 보낸다(프레이밍·분할 포함). Go `Send`. */
     public suspend fun send(message: ByteArray): VehicleResult<Unit>
+
+    /**
+     * [send]와 같지만, 이 메시지의 **첫 플랫폼 쓰기를 부르기 직전에** [onWriteInvoked]를 같은 코루틴에서 한 번 부른다(원본에 없음,
+     * ADR-0010 2026-11-07 개정). 그 뒤로는 쓰기가 끝나지 않았거나 실패했어도 바이트가 차량에 닿았을 수 있다 — 디스패처는 이것으로
+     * 시간 초과를 `Timeout(afterSend = true)`로 가른다. 쓰기를 부르기 전에 끝나면(전송 직렬화 대기 중 취소, 크기·연결 검사 실패) 부르지
+     * 않는다. [onWriteInvoked]는 중단하거나 던지지 않는다.
+     *
+     * 기본 구현은 들어오자마자 부르고 [send]에 맡긴다: 쓰기 시점을 모르는 구현은 "보냈을 수 있음" 쪽으로 일찍 알린다. 이 멤버를
+     * 재정의하는 구현은 실제 전송을 여기에 두고 [send]가 이것을 부르게 한다(서로 부르는 순환을 만들지 않는다). 디스패처는 이 멤버로만
+     * 보낸다 — 다른 전송을 감싸는 구현(`Transport by x`)이 한 인자 [send]만 재정의하면 그 재정의는 디스패처 경로에서 쓰이지 않는다.
+     * 라이브러리 모듈 사이의 계약이며 앱이 부르거나 구현할 API가 아니다.
+     */
+    @InternalTeslableApi
+    public suspend fun send(
+        message: ByteArray,
+        onWriteInvoked: () -> Unit,
+    ): VehicleResult<Unit> {
+        onWriteInvoked()
+        return send(message)
+    }
 
     /** 연결을 닫는다. 멱등. Go `Close()`. */
     public suspend fun close()

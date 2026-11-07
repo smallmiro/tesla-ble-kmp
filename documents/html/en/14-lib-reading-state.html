@@ -308,7 +308,7 @@
 <tr><td>Ends at</td><td>The first reply</td></tr>
 <tr><td>Reply</td><td><code>CarServer.Response.vehicleData</code>, returned unchanged as the Wire generated type <code>com.tesla.generated.carserver.vehicle.VehicleData</code></td></tr>
 <tr><td>Timeout</td><td>Without <code>timeout</code>, the default command timeout (5 seconds)</td></tr>
-<tr><td>Retries</td><td>As for commands (<a href="16-lib-errors.html#sec-retry">16. Error Handling</a>): temporary errors are retried inside the timeout with a fresh counter, nonce and expiry; <code>Uncertain</code> is never resent</td></tr>
+<tr><td>Retries</td><td>As for commands (<a href="16-lib-errors.html#sec-retry">16. Error Handling</a>): temporary errors from the car are retried inside the timeout with a fresh counter, nonce and expiry, and a temporary write error writes the same bytes again; <code>Uncertain</code> is never resent</td></tr>
 <tr><td>Results</td><td><a href="16-lib-errors.html#sec-getstate">16. Error Handling</a></td></tr>
 </tbody>
 </table>

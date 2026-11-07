@@ -50,7 +50,8 @@ All VCSEC commands are authenticated with AES-GCM over the VCSEC session. Withou
 All return `VehicleResult<Unit>`. Failures to expect: `NoSession`, `NotConnected`, `InsufficientPrivileges` (for example
 a Vehicle Monitor key, or the vehicle state forbids it), `VcsecRejected(error)`, `UnknownVcsecError(rawCode)`.
 
-`Uncertain` (timeout after sending, unreadable reply) means the vehicle may have acted. **Do not resend**; read
+`Uncertain` (timeout after the request's first BLE write was started, unreadable reply) means the vehicle may have
+acted. **Do not resend**; read
 `vehicleStatus()` to see the lock state and closures (`16-lib-errors.md` §Per-command re-query). This matters most for
 the toggles `openTrunk()` / `actuateTrunk()`.
 
