@@ -308,7 +308,7 @@
 <tr><td>끝나는 시점</td><td>첫 번째 응답</td></tr>
 <tr><td>응답</td><td><code>CarServer.Response.vehicleData</code>를 Wire가 생성한 타입 <code>com.tesla.generated.carserver.vehicle.VehicleData</code>로 그대로 돌려줍니다</td></tr>
 <tr><td>시간 제한</td><td><code>timeout</code>이 없으면 기본 명령 시간 제한(5초)</td></tr>
-<tr><td>재시도</td><td>명령과 같습니다(<a href="16-lib-errors.html#sec-retry">16. 에러 처리</a>). 차량이 보낸 일시적 오류는 시간 제한 안에서 새 카운터, nonce, 만료 시각으로 재시도하고, 일시적인 쓰기 오류는 같은 바이트를 다시 쓰며, <code>Uncertain</code>은 다시 보내지 않습니다</td></tr>
+<tr><td>재시도</td><td><a href="16-lib-errors.html#sec-retry">16. 에러 처리</a>: 차량이 보낸 일시적 오류는 시간 제한 안에서 새 카운터, nonce, 만료 시각으로 재시도하고, 일시적인 쓰기 오류는 같은 바이트를 다시 쓰며, <code>Uncertain</code>은 다시 보내지 않습니다. 명령과 달리 조회는 쓰기가 실패한 뒤에도 이 재시도를 유지합니다. 두 번 실행해도 바뀌는 것이 없기 때문입니다</td></tr>
 <tr><td>결과</td><td><a href="16-lib-errors.html#sec-getstate">16. 에러 처리</a></td></tr>
 </tbody>
 </table>

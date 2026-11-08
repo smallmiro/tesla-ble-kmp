@@ -308,7 +308,7 @@
 <tr><td>終了のタイミング</td><td>最初の応答</td></tr>
 <tr><td>応答</td><td><code>CarServer.Response.vehicleData</code> を、Wire が生成した型 <code>com.tesla.generated.carserver.vehicle.VehicleData</code> としてそのまま返します</td></tr>
 <tr><td>タイムアウト</td><td><code>timeout</code> がなければ既定のコマンドタイムアウト (5 秒)</td></tr>
-<tr><td>リトライ</td><td>コマンドと同じです (<a href="16-lib-errors.html#sec-retry">16. エラー処理</a>)。車両が返した一時的なエラーはタイムアウトの範囲内で、新しいカウンター、ノンス、有効期限を使って再試行し、一時的な書き込みエラーは同じバイト列をもう一度書き込み、<code>Uncertain</code> は再送しません</td></tr>
+<tr><td>リトライ</td><td><a href="16-lib-errors.html#sec-retry">16. エラー処理</a>: 車両が返した一時的なエラーはタイムアウトの範囲内で、新しいカウンター、ノンス、有効期限を使って再試行し、一時的な書き込みエラーは同じバイト列をもう一度書き込み、<code>Uncertain</code> は再送しません。コマンドと違い、読み取りは書き込みが失敗した後もこのリトライを続けます。2 回実行しても何も変わらないためです</td></tr>
 <tr><td>結果</td><td><a href="16-lib-errors.html#sec-getstate">16. エラー処理</a></td></tr>
 </tbody>
 </table>

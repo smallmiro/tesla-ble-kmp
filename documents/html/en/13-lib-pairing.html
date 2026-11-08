@@ -197,7 +197,7 @@
 <ul>
 <li><code>role</code> defaults to <code>KeyRole.OWNER</code>; <code>formFactor</code> defaults to <code>platformKeyFormFactor()</code>: <code>ANDROID_DEVICE</code> on Android, <code>IOS_DEVICE</code> on iOS, <code>CLOUD_KEY</code> on the JVM (tests).</li>
 <li>In Swift, Kotlin default arguments are not available: pass every argument (<code>role:</code>, <code>formFactor:</code>, <code>timeout:</code>), for example <code>formFactor: .iosDevice</code>.</li>
-<li><code>addKey</code> and <code>removeKey</code> can fail with <code>InsufficientPrivileges</code> (the connection's key may not manage keys, for example a Driver key), <code>KeychainRejected(code)</code> (for example <code>WHITELIST_FULL</code>), <code>NoSession</code> or <code>InvalidArgument</code> (<code>role = UNKNOWN</code>). <code>Uncertain</code> means the car may have changed its key list: check with <code>listKeys()</code> and do not resend.</li>
+<li><code>addKey</code> and <code>removeKey</code> can fail with <code>InsufficientPrivileges</code> (the connection's key may not manage keys, for example a Driver key), <code>KeychainRejected(code)</code> (for example <code>WHITELIST_FULL</code>), <code>NoSession</code> or <code>InvalidArgument</code> (<code>role = UNKNOWN</code>). <code>Uncertain</code> means the car may have changed its key list: check with <code>listKeys()</code> and do not resend. When a write failed and the library wrote the same bytes again, a refusal such as <code>InsufficientPrivileges</code> or <code>KeyNotPaired</code> (removing your own key makes the repeated copy's key unknown) comes back as <code>Uncertain(Timeout)</code>, not <code>Failure</code>.</li>
 </ul>
 
 <h2 id="sec-events">Pairing events</h2>

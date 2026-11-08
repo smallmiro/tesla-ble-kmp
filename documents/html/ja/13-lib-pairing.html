@@ -197,7 +197,7 @@
 <ul>
 <li><code>role</code> のデフォルトは <code>KeyRole.OWNER</code>、<code>formFactor</code> のデフォルトは <code>platformKeyFormFactor()</code> です。Android は <code>ANDROID_DEVICE</code>、iOS は <code>IOS_DEVICE</code>、JVM (テスト) は <code>CLOUD_KEY</code> です。</li>
 <li>Swift では Kotlin のデフォルト引数を使えません。すべての引数 (<code>role:</code>、<code>formFactor:</code>、<code>timeout:</code>) を渡してください。例: <code>formFactor: .iosDevice</code>。</li>
-<li><code>addKey</code> と <code>removeKey</code> は <code>InsufficientPrivileges</code> (接続のキーにキー管理の権限がない場合。例: Driver キー)、<code>KeychainRejected(code)</code> (例: <code>WHITELIST_FULL</code>)、<code>NoSession</code>、<code>InvalidArgument</code> (<code>role = UNKNOWN</code>) で失敗することがあります。<code>Uncertain</code> は車両のキー一覧が変わった可能性を示します。<code>listKeys()</code> で確認し、再送しないでください。</li>
+<li><code>addKey</code> と <code>removeKey</code> は <code>InsufficientPrivileges</code> (接続のキーにキー管理の権限がない場合。例: Driver キー)、<code>KeychainRejected(code)</code> (例: <code>WHITELIST_FULL</code>)、<code>NoSession</code>、<code>InvalidArgument</code> (<code>role = UNKNOWN</code>) で失敗することがあります。<code>Uncertain</code> は車両のキー一覧が変わった可能性を示します。<code>listKeys()</code> で確認し、再送しないでください。書き込みが失敗してライブラリが同じバイト列をもう一度書き込んだ場合は、<code>InsufficientPrivileges</code> や <code>KeyNotPaired</code> のような拒否 (自分のキーを削除すると、再度書き込んだコピーのキーを車両が知らないことになります) は <code>Failure</code> ではなく <code>Uncertain(Timeout)</code> として返ります。</li>
 </ul>
 
 <h2 id="sec-events">ペアリングイベント</h2>
