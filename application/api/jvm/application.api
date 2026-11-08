@@ -114,6 +114,8 @@ public final class dev/mirolab/teslable/application/infotainment/InfotainmentCom
 	public static synthetic fun batchRemoveChargeSchedules-zkXUZaI$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;ZZZJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun batchRemovePreconditionSchedules-zkXUZaI (ZZZJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun batchRemovePreconditionSchedules-zkXUZaI$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;ZZZJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun cancelSoftwareUpdate-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun cancelSoftwareUpdate-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun chargeMaxRange-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun chargeMaxRange-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun chargeStandardRange-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -154,6 +156,8 @@ public final class dev/mirolab/teslable/application/infotainment/InfotainmentCom
 	public static synthetic fun mediaPreviousTrack-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun openChargePort-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun openChargePort-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun ping-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun ping-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun removeChargeSchedule-8Mi8wO0 (JJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun removeChargeSchedule-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun removePreconditionSchedule-8Mi8wO0 (JJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -164,6 +168,8 @@ public final class dev/mirolab/teslable/application/infotainment/InfotainmentCom
 	public static synthetic fun scheduleCharging-exY8QGI$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;ZIJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun scheduleDeparture-myKFqkg (IILdev/mirolab/teslable/model/ChargingPolicy;Ldev/mirolab/teslable/model/ChargingPolicy;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun scheduleDeparture-myKFqkg$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;IILdev/mirolab/teslable/model/ChargingPolicy;Ldev/mirolab/teslable/model/ChargingPolicy;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun scheduleSoftwareUpdate-8Mi8wO0 (IJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun scheduleSoftwareUpdate-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;IJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun setBioweaponDefenseMode-exY8QGI (ZZJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun setBioweaponDefenseMode-exY8QGI$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;ZZJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun setCabinOverheatProtection-exY8QGI (ZZJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
