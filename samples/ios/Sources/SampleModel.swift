@@ -332,8 +332,8 @@ actor BleClient {
             let result = try await call(vehicle)
             switch onEnum(of: result) {
             case .success(let s): return "\(title): \(String(describing: s.value))"
-            case .uncertain(let u): return "\(title) 불확실: \(u.error.commandResultText)"
-            case .failure(let f): return "\(title) 실패: \(f.error.commandResultText)"
+            case .uncertain(let u): return "\(title) 불확실: \(u.error.readResultText)"
+            case .failure(let f): return "\(title) 실패: \(f.error.readResultText)"
             }
         } catch { return "\(title) 오류: \(error)" }
     }
