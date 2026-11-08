@@ -355,3 +355,22 @@ object InfotainmentReducer {
         return InfoUiState(state.unconfirmed - category, state.readings + (category to reading))
     }
 }
+
+/** 연결(`Vehicle`)이나 키가 바뀔 때마다 올라가는 세대. 누르기가 시작할 때의 값을 기억해 두었다가 끝날 때 비교한다. */
+class InfoGeneration {
+    var value: Int = 0
+        private set
+
+    /** 새 세대로 넘어간다(연결이 바뀌었거나 같은 연결에서 키가 바뀌었다). 새 값을 돌려준다. */
+    fun bump(): Int = ++value
+}
+
+/** 끝난 호출의 결과가 아직 그 연결·그 키의 것인지 가린다. 같은 연결에서 키만 바뀐 경우도 낡은 결과로 본다(`05-key-control-tab.md` §Connection change). */
+object InfotainmentGuard {
+    fun isCurrent(
+        startVehicle: Any?,
+        nowVehicle: Any?,
+        startGeneration: Int,
+        nowGeneration: Int,
+    ): Boolean = startVehicle != null && startVehicle === nowVehicle && startGeneration == nowGeneration
+}

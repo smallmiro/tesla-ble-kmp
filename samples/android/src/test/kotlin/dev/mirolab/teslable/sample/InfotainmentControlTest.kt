@@ -587,6 +587,56 @@ class InfotainmentControlTest {
         assertFalse(read.contains("실행했을 수"), read)
     }
 
+    // --- 결과가 아직 "그 연결·그 키"의 것인가 -----------------------------------------------------------------------------
+
+    @Test
+    fun aResultIsCurrentOnlyForTheSameVehicleAndTheSameGeneration() {
+        val vehicle = Any()
+
+        assertTrue(InfotainmentGuard.isCurrent(vehicle, vehicle, startGeneration = 3, nowGeneration = 3))
+        assertFalse(InfotainmentGuard.isCurrent(vehicle, Any(), 3, 3), "another connection")
+        assertFalse(InfotainmentGuard.isCurrent(vehicle, null, 3, 3), "disconnected")
+        assertFalse(InfotainmentGuard.isCurrent(null, null, 3, 3), "no connection at the start either")
+    }
+
+    @Test
+    fun aKeyChangeOnTheSameConnectionMakesAnInFlightResultStale() {
+        val vehicle = Any()
+        val generation = InfoGeneration()
+        val started = generation.value
+
+        generation.bump() // observe(): the key (public key) changed, same Vehicle instance
+
+        assertFalse(InfotainmentGuard.isCurrent(vehicle, vehicle, started, generation.value))
+    }
+
+    @Test
+    fun aStaleResultLeavesTheNewKeysStateAlone() {
+        val vehicle = Any()
+        val generation = InfoGeneration()
+        val started = generation.value
+        generation.bump()
+        val current = InfotainmentGuard.isCurrent(vehicle, vehicle, started, generation.value)
+        val fresh = InfoUiState.AFTER_CONNECTION_CHANGE
+        val data = VehicleData(climate_state = ClimateState(is_climate_on = true))
+
+        val afterCommand = InfotainmentReducer.afterCommand(fresh, InfoCommand.CLIMATE_ON, uncertainOutcome, current)
+        val afterRead = InfotainmentReducer.afterRead(fresh, InfoCategory.CLIMATE, readOutcome(InfoKind.SUCCESS, data), current, t0)
+
+        assertEquals(fresh, afterCommand)
+        assertEquals(fresh, afterRead)
+    }
+
+    @Test
+    fun everyBumpGivesANewGeneration() {
+        val generation = InfoGeneration()
+
+        val seen = (1..3).map { generation.bump() } + generation.value
+
+        assertEquals(seen.toSet().size, 3, "three bumps, three new values")
+        assertEquals(seen.last(), seen[2])
+    }
+
     @Test
     fun aConnectionChangeStartsFromAnEmptyState() {
         val s = InfotainmentReducer.afterCommand(InfoUiState(), InfoCommand.CLIMATE_ON, uncertainOutcome, current = true)
