@@ -10175,6 +10175,35 @@ public final class dev/mirolab/teslable/model/AuthenticationReason : java/lang/E
 	public static fun values ()[Ldev/mirolab/teslable/model/AuthenticationReason;
 }
 
+public final class dev/mirolab/teslable/model/CabinOverheatProtectionTemperature : java/lang/Enum {
+	public static final field HIGH Ldev/mirolab/teslable/model/CabinOverheatProtectionTemperature;
+	public static final field LOW Ldev/mirolab/teslable/model/CabinOverheatProtectionTemperature;
+	public static final field MEDIUM Ldev/mirolab/teslable/model/CabinOverheatProtectionTemperature;
+	public static final field UNSPECIFIED Ldev/mirolab/teslable/model/CabinOverheatProtectionTemperature;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/model/CabinOverheatProtectionTemperature;
+	public static fun values ()[Ldev/mirolab/teslable/model/CabinOverheatProtectionTemperature;
+}
+
+public final class dev/mirolab/teslable/model/ChargingPolicy : java/lang/Enum {
+	public static final field ALL_DAYS Ldev/mirolab/teslable/model/ChargingPolicy;
+	public static final field OFF Ldev/mirolab/teslable/model/ChargingPolicy;
+	public static final field WEEKDAYS Ldev/mirolab/teslable/model/ChargingPolicy;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/model/ChargingPolicy;
+	public static fun values ()[Ldev/mirolab/teslable/model/ChargingPolicy;
+}
+
+public final class dev/mirolab/teslable/model/ClimateKeeperMode : java/lang/Enum {
+	public static final field CAMP Ldev/mirolab/teslable/model/ClimateKeeperMode;
+	public static final field DOG Ldev/mirolab/teslable/model/ClimateKeeperMode;
+	public static final field OFF Ldev/mirolab/teslable/model/ClimateKeeperMode;
+	public static final field ON Ldev/mirolab/teslable/model/ClimateKeeperMode;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/model/ClimateKeeperMode;
+	public static fun values ()[Ldev/mirolab/teslable/model/ClimateKeeperMode;
+}
+
 public final class dev/mirolab/teslable/model/ClosureState : java/lang/Enum {
 	public static final field AJAR Ldev/mirolab/teslable/model/ClosureState;
 	public static final field CLOSED Ldev/mirolab/teslable/model/ClosureState;
@@ -10353,6 +10382,32 @@ public final class dev/mirolab/teslable/model/PublicKeyBytes {
 }
 
 public final class dev/mirolab/teslable/model/PublicKeyBytes$Companion {
+}
+
+public final class dev/mirolab/teslable/model/SeatClimateLevel : java/lang/Enum {
+	public static final field HIGH Ldev/mirolab/teslable/model/SeatClimateLevel;
+	public static final field LOW Ldev/mirolab/teslable/model/SeatClimateLevel;
+	public static final field MED Ldev/mirolab/teslable/model/SeatClimateLevel;
+	public static final field OFF Ldev/mirolab/teslable/model/SeatClimateLevel;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/model/SeatClimateLevel;
+	public static fun values ()[Ldev/mirolab/teslable/model/SeatClimateLevel;
+}
+
+public final class dev/mirolab/teslable/model/SeatPosition : java/lang/Enum {
+	public static final field FRONT_LEFT Ldev/mirolab/teslable/model/SeatPosition;
+	public static final field FRONT_RIGHT Ldev/mirolab/teslable/model/SeatPosition;
+	public static final field SECOND_ROW_CENTER Ldev/mirolab/teslable/model/SeatPosition;
+	public static final field SECOND_ROW_LEFT Ldev/mirolab/teslable/model/SeatPosition;
+	public static final field SECOND_ROW_LEFT_BACK Ldev/mirolab/teslable/model/SeatPosition;
+	public static final field SECOND_ROW_RIGHT Ldev/mirolab/teslable/model/SeatPosition;
+	public static final field SECOND_ROW_RIGHT_BACK Ldev/mirolab/teslable/model/SeatPosition;
+	public static final field THIRD_ROW_LEFT Ldev/mirolab/teslable/model/SeatPosition;
+	public static final field THIRD_ROW_RIGHT Ldev/mirolab/teslable/model/SeatPosition;
+	public static final field UNKNOWN Ldev/mirolab/teslable/model/SeatPosition;
+	public static fun getEntries ()Lkotlin/enums/EnumEntries;
+	public static fun valueOf (Ljava/lang/String;)Ldev/mirolab/teslable/model/SeatPosition;
+	public static fun values ()[Ldev/mirolab/teslable/model/SeatPosition;
 }
 
 public final class dev/mirolab/teslable/model/SessionInfoSummary {
