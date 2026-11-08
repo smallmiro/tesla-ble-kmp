@@ -1,13 +1,20 @@
 package dev.mirolab.teslable
 
+import com.tesla.generated.carserver.common.ChargeSchedule
+import com.tesla.generated.carserver.common.PreconditionSchedule
 import com.tesla.generated.carserver.vehicle.VehicleData
 import dev.mirolab.teslable.application.dispatcher.SessionEvent
 import dev.mirolab.teslable.application.vcsec.VcsecBroadcasts
 import dev.mirolab.teslable.application.vehicle.VehicleSession
+import dev.mirolab.teslable.model.CabinOverheatProtectionTemperature
+import dev.mirolab.teslable.model.ChargingPolicy
+import dev.mirolab.teslable.model.ClimateKeeperMode
 import dev.mirolab.teslable.model.KeyFormFactor
 import dev.mirolab.teslable.model.KeyRole
 import dev.mirolab.teslable.model.PairingEvent
 import dev.mirolab.teslable.model.PublicKeyBytes
+import dev.mirolab.teslable.model.SeatClimateLevel
+import dev.mirolab.teslable.model.SeatPosition
 import dev.mirolab.teslable.model.SessionInfoSummary
 import dev.mirolab.teslable.model.StateCategory
 import dev.mirolab.teslable.model.VehicleDomain
@@ -236,4 +243,198 @@ internal class DefaultVehicle(
 
     override suspend fun stopTonneau(timeout: Duration?): VehicleResult<Unit> =
         session.control.stopTonneau(timeout ?: config.commandTimeout).reconciling(VehicleDomain.VCSEC)
+
+    override suspend fun climateOn(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.climateOn(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun climateOff(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.climateOff(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun setSeatHeater(
+        levels: Map<SeatPosition, SeatClimateLevel>,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment.setSeatHeater(levels, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun setClimateTemp(
+        driverCelsius: Float,
+        passengerCelsius: Float,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment
+            .setClimateTemp(driverCelsius, passengerCelsius, timeout ?: config.commandTimeout)
+            .reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun setSeatCooler(
+        level: SeatClimateLevel,
+        seat: SeatPosition,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment.setSeatCooler(level, seat, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun setSteeringWheelHeater(
+        enabled: Boolean,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment.setSteeringWheelHeater(enabled, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun autoSeatAndClimate(
+        seats: List<SeatPosition>,
+        enabled: Boolean,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment.autoSeatAndClimate(seats, enabled, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun setPreconditioningMax(
+        enabled: Boolean,
+        manualOverride: Boolean,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment
+            .setPreconditioningMax(enabled, manualOverride, timeout ?: config.commandTimeout)
+            .reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun setClimateKeeperMode(
+        mode: ClimateKeeperMode,
+        manualOverride: Boolean,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment
+            .setClimateKeeperMode(mode, manualOverride, timeout ?: config.commandTimeout)
+            .reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun setBioweaponDefenseMode(
+        enabled: Boolean,
+        manualOverride: Boolean,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment
+            .setBioweaponDefenseMode(enabled, manualOverride, timeout ?: config.commandTimeout)
+            .reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun setCabinOverheatProtection(
+        enabled: Boolean,
+        fanOnly: Boolean,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment
+            .setCabinOverheatProtection(enabled, fanOnly, timeout ?: config.commandTimeout)
+            .reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun setCabinOverheatProtectionTemperature(
+        temperature: CabinOverheatProtectionTemperature,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment
+            .setCabinOverheatProtectionTemperature(temperature, timeout ?: config.commandTimeout)
+            .reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun chargeStart(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.chargeStart(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun chargeStop(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.chargeStop(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun setChargeLimit(
+        percent: Int,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment.setChargeLimit(percent, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun setChargingAmps(
+        amps: Int,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment.setChargingAmps(amps, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun chargeStandardRange(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.chargeStandardRange(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun chargeMaxRange(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.chargeMaxRange(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun scheduleCharging(
+        enabled: Boolean,
+        minutesAfterMidnight: Int,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment
+            .scheduleCharging(enabled, minutesAfterMidnight, timeout ?: config.commandTimeout)
+            .reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun scheduleDeparture(
+        departAtMinutes: Int,
+        offPeakEndMinutes: Int,
+        preconditioning: ChargingPolicy,
+        offPeak: ChargingPolicy,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment
+            .scheduleDeparture(departAtMinutes, offPeakEndMinutes, preconditioning, offPeak, timeout ?: config.commandTimeout)
+            .reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun clearScheduledDeparture(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.clearScheduledDeparture(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun setLowPowerMode(
+        enabled: Boolean,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment.setLowPowerMode(enabled, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun setKeepAccessoryPowerMode(
+        enabled: Boolean,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment.setKeepAccessoryPowerMode(enabled, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun addChargeSchedule(
+        schedule: ChargeSchedule,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment.addChargeSchedule(schedule, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun removeChargeSchedule(
+        id: Long,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment.removeChargeSchedule(id, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun batchRemoveChargeSchedules(
+        home: Boolean,
+        work: Boolean,
+        other: Boolean,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment
+            .batchRemoveChargeSchedules(home, work, other, timeout ?: config.commandTimeout)
+            .reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun addPreconditionSchedule(
+        schedule: PreconditionSchedule,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment.addPreconditionSchedule(schedule, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun removePreconditionSchedule(
+        id: Long,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment.removePreconditionSchedule(id, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun batchRemovePreconditionSchedules(
+        home: Boolean,
+        work: Boolean,
+        other: Boolean,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment
+            .batchRemovePreconditionSchedules(home, work, other, timeout ?: config.commandTimeout)
+            .reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun openChargePort(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.openChargePort(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun closeChargePort(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.closeChargePort(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
 }
