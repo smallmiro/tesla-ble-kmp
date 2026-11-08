@@ -1,6 +1,6 @@
 # Error Handling
 
-Scope: M1 error model, M2 retries and timeouts, M3 transport and key store errors, M4 `InsufficientPrivileges`, `UnknownVcsecError` and per-command re-query for VCSEC, M5 invalid arguments and per-command re-query for the Infotainment climate and charging commands, broadcast events (`Vehicle.events`, FR-035), `KeyStoreError.Locked` on a locked iPhone from the key store and the handshake (FR-037), queries while another BLE client is active, `getState` results, the response size limit and reply authenticity (FR-033). Go original: `08-errors.md` (MessageFault meanings and remedies in §3.1).
+Scope: M1 error model, M2 retries and timeouts, M3 transport and key store errors, M4 `InsufficientPrivileges`, `UnknownVcsecError` and per-command re-query for VCSEC, M5 invalid arguments and per-command re-query for the Infotainment commands, broadcast events (`Vehicle.events`, FR-035), `KeyStoreError.Locked` on a locked iPhone from the key store and the handshake (FR-037), queries while another BLE client is active, `getState` results, the response size limit and reply authenticity (FR-033). Go original: `08-errors.md` (MessageFault meanings and remedies in §3.1).
 
 ## Three outcomes (`VehicleResult<T>`)
 
@@ -67,13 +67,16 @@ succeeds).
 |---|---|---|---|
 | `setSeatCooler(level, seat)` | `seat` is `FRONT_LEFT` or `FRONT_RIGHT` | `invalid seat position for seat cooler: <SEAT>` (for example `…: SECOND_ROW_LEFT`) | Before the session check: returned even without a session |
 | `scheduleDeparture(departAtMinutes, …)` | `departAtMinutes` is in `0..1440` (both ends allowed) | `invalid departure time: <n> minutes after midnight (expected 0..1440)` | Before the session check |
+| `enableValetMode(pin)` | `pin` is exactly four ASCII digits `0`–`9`; other scripts' digits and full-width digits are refused | `PIN codes must be four digits` (the PIN itself is never in an error or a log) | Before the session check |
+| `setVolume(volume)` | `volume` is in `0..10` and not NaN | `invalid volume (should be in [0, 10])` | Before the session check |
 | `addKey`, `addKeyRequest` (`PairingEvent.Failed`) | `role` is not `KeyRole.UNKNOWN` | `role UNKNOWN cannot be enrolled` | Before sending (`13-lib-pairing.md`) |
 | `connect(vin, key, target)` | `target` is an advertisement of `vin` | `advertisement <local name> is not for this VIN` | Before connecting |
 | Any request | The framed message is at most 1024 bytes (`14-lib-reading-state.md` A1); a very long schedule `name` could exceed it | `message exceeds 1024 bytes` | By the transport, after the session check |
 
 The Go original returns `invalid seat position` and `invalid departure time` for the first two; the condition and the
-point of the check are the same, only the wording is longer here. Match on the type, not on `detail`: `detail` is text
-for people and logs.
+point of the check are the same, only the wording is longer here. The PIN and volume texts are Go's own. Go lets a NaN
+volume through (both comparisons are false); this library refuses it. Match on the type, not on `detail`: `detail` is
+text for people and logs.
 
 ## Transport and key store errors (M3)
 
@@ -133,7 +136,7 @@ run the first one.
 |---|---|
 | `error.shouldRetry()`: `BUSY`, `TIMEOUT`, `INVALID_SIGNATURE`, `INVALID_TOKEN_OR_COUNTER`, `INTERNAL`, `INCORRECT_EPOCH`, `TIME_EXPIRED`, `TIME_TO_LIVE_TOO_LONG`, `Busy` (VCSEC `WAIT`) | After 1 s (BLE `retryInterval`) it **authorizes again with a new counter, nonce and expires_at** and resends. Session info attached to the error response is applied first. A command whose write failed does not retry (two rows down); attached session info is still applied |
 | Temporary write error (`TransportError.WriteFailed`) | After 1 s it writes the **same bytes** again, without authorizing again, until a write succeeds, a non-temporary error comes or `timeout` runs out. Go's BLE connector does not retry a failed write |
-| A **command** whose write was started and failed, so the same bytes went out again, gets a reply that would start a new attempt (any error in the first row) or any protocol-layer rejection: `ProtocolFault` with any code except `RESPONSE_MTU_EXCEEDED` (including `REPEATED_COUNTER`), `KeyNotPaired`, `InsufficientPrivileges`, `UnknownFault` | **No new copy is authorized.** The reply may answer a duplicate of a copy the vehicle already ran (the vehicle rejects a repeated counter with `INVALID_TOKEN_OR_COUNTER`). The library logs a `WARN` (tag `Dispatcher`) with `possible duplicate` and keeps waiting on the same request until a reply settles it: a success (the first copy's late reply, or the repeated copy's own when the first never arrived), an application-level rejection (`VcsecRejected`, `KeychainRejected`, `InfotainmentRejected`) or a `mayHaveSucceeded` error (`RESPONSE_MTU_EXCEEDED`, an unparsable reply) ends the call as usual. With no such reply the result is `Uncertain(Timeout(afterSend = true))` when `timeout` runs out. Commands: every VCSEC command, `addKey()`, `removeKey()`, and the Infotainment climate and charging commands (M5) |
+| A **command** whose write was started and failed, so the same bytes went out again, gets a reply that would start a new attempt (any error in the first row) or any protocol-layer rejection: `ProtocolFault` with any code except `RESPONSE_MTU_EXCEEDED` (including `REPEATED_COUNTER`), `KeyNotPaired`, `InsufficientPrivileges`, `UnknownFault` | **No new copy is authorized.** The reply may answer a duplicate of a copy the vehicle already ran (the vehicle rejects a repeated counter with `INVALID_TOKEN_OR_COUNTER`). The library logs a `WARN` (tag `Dispatcher`) with `possible duplicate` and keeps waiting on the same request until a reply settles it: a success (the first copy's late reply, or the repeated copy's own when the first never arrived), an application-level rejection (`VcsecRejected`, `KeychainRejected`, `InfotainmentRejected`) or a `mayHaveSucceeded` error (`RESPONSE_MTU_EXCEEDED`, an unparsable reply) ends the call as usual. With no such reply the result is `Uncertain(Timeout(afterSend = true))` when `timeout` runs out. Commands: every VCSEC command, `addKey()`, `removeKey()`, and every Infotainment command (M5) |
 | The same for a **read**: `vehicleStatus()`, `keySummary()`, `listKeys()`, `getState()` | Retried as in the first row (a new request or a new copy). A read changes nothing on the vehicle, so running it twice is harmless |
 | `mayHaveSucceeded` errors (timeout after the request's write was started, `RESPONSE_MTU_EXCEEDED`, unparsable VCSEC or Infotainment response) | **Never resent automatically** (prevents running a toggle twice). Returned as `Uncertain`; query state again |
 | Timeout (`timeout`, default 5 s) before the request's first BLE write was started: waiting for the previous VCSEC command, waiting for the link to be free (another request is being written), or a check before writing (`listKeys()` with no time left) | `Failure(Timeout(afterSend = false))` |
@@ -186,7 +189,11 @@ After `Uncertain`, never resend. Read the state the command changes:
 | Charging: `chargeStart`, `chargeStop`, `setChargeLimit`, `setChargingAmps`, `chargeStandardRange`, `chargeMaxRange`, `scheduleCharging`, `scheduleDeparture`, `clearScheduledDeparture`, `openChargePort`, `closeChargePort` | `getState(StateCategory.CHARGE)` | The matching `charge_state` field |
 | `addChargeSchedule`, `removeChargeSchedule`, `batchRemoveChargeSchedules` | `getState(StateCategory.CHARGE_SCHEDULE)` | `charge_schedule_state.charge_schedules`: whether the `id` is there |
 | `addPreconditionSchedule`, `removePreconditionSchedule`, `batchRemovePreconditionSchedules` | `getState(StateCategory.PRECONDITIONING_SCHEDULE)` | `preconditioning_schedule_state.precondition_schedules` |
-| `setLowPowerMode`, `setKeepAccessoryPowerMode` | None | The official `VehicleData` has no field for these modes. Show the result as unknown and do not resend |
+| Body and security: `ventWindows`, `closeWindows`, `setSunroof`, `setSentryMode`, `enableValetMode`, `disableValetMode`, `resetValetPin` | `getState(StateCategory.CLOSURES)` | The window, sunroof, sentry or valet field (`15-lib-commands.md` §Re-query) |
+| Media: `volumeUp`, `volumeDown`, `setVolume`, `mediaNextTrack`, `mediaPreviousTrack`, `mediaNextFavorite`, `mediaPreviousFavorite`, `toggleMediaPlayback` | `getState(StateCategory.MEDIA)` | `audio_volume`, `now_playing_title`, `media_playback_status`. **Never resend `toggleMediaPlayback`**: run twice, it ends where it started |
+| `scheduleSoftwareUpdate`, `cancelSoftwareUpdate` | `getState(StateCategory.SOFTWARE_UPDATE)` | `status`, `scheduled_time_ms` |
+| `setLowPowerMode`, `setKeepAccessoryPowerMode`, `honkHorn`, `flashLights` | None | The official `VehicleData` has no field for these. Show the result as unknown and do not resend |
+| `ping` | None | It changed nothing; the app may call it again |
 
 For Infotainment the read can itself be `Uncertain` (Infotainment asleep, reply too large, §`getState` results): the
 command's result then stays unknown until a later read succeeds. Which field a command changes on a real vehicle is not
