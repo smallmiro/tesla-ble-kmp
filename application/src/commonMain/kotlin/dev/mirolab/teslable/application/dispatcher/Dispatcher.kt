@@ -558,6 +558,8 @@ public class Dispatcher
         /**
          * Go `Send`의 전송 루프. 넘겨주지 못했으면(오류·취소) `finally`에서 등록을 푼다. [onWriteInvoked]는 시도마다 전송에 넘긴다 —
          * 쓰기를 부른 뒤 실패해 다시 보내더라도 앞선 쓰기가 차량에 닿았을 수 있으므로, 받는 쪽은 이 알림을 되돌리지 않는다.
+         * 같은 이유로 그런 실패 뒤에는 [request]에 표시한다([PendingRequest.markFailedWrite], 원본에 없음 — Go의 BLE 연결은 실패한 쓰기를
+         * 다시 보내지 않는다, ADR-0010 2026-11-08 개정): 다시 보낸 사본은 중복일 수 있다. 쓰기를 부르기 전의 실패는 표시하지 않는다.
          */
         private suspend fun transmit(
             request: PendingRequest,
@@ -568,7 +570,12 @@ public class Dispatcher
             var handedOver = false
             try {
                 while (true) {
-                    val sent = transport.send(encoded, onWriteInvoked)
+                    var writeInvoked = false
+                    val sent =
+                        transport.send(encoded) {
+                            writeInvoked = true
+                            onWriteInvoked()
+                        }
                     if (sent is VehicleResult.Success) {
                         handedOver = true
                         return VehicleResult.Success(request)
@@ -578,6 +585,7 @@ public class Dispatcher
                         logger.log(LogLevel.WARN, TAG) { "[${uuid.hex()}] Terminal transmission error: ${error.message}" }
                         return error.toResult()
                     }
+                    if (writeInvoked) request.markFailedWrite()
                     logger.log(LogLevel.DEBUG, TAG) { "[${uuid.hex()}] Retrying transmission after error: ${error.message}" }
                     delay(retryInterval)
                 }

@@ -86,15 +86,8 @@ public class VehicleInfoQueries internal constructor(
         field: String,
         extract: (FromVCSECMessage) -> T?,
     ): VehicleResult<T> =
-        when (
-            val result =
-                vcsec.execute(
-                    informationRequest(type, slot),
-                    AuthMethod.NONE,
-                    VcsecResponses.FIRST_MESSAGE,
-                    timeout = timeout,
-                )
-        ) {
+        // 정보 요청은 차량 상태를 바꾸지 않으므로 반복해도 안전한 조회로 보낸다(ADR-0010 2026-11-08 개정의 면제)
+        when (val result = vcsec.query(informationRequest(type, slot), AuthMethod.NONE, VcsecResponses.FIRST_MESSAGE, timeout)) {
             is VehicleResult.Success -> {
                 extract(result.value)?.let { VehicleResult.Success(it) }
                     ?: VehicleResult.Failure(VehicleError.BadResponse("missing $field"))

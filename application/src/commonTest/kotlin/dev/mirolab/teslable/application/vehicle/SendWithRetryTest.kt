@@ -4,10 +4,13 @@ import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.MessageFault_E
 import com.tesla.generated.universalmessage.OperationStatus_E
 import com.tesla.generated.universalmessage.RoutableMessage
+import dev.mirolab.teslable.application.dispatcher.DispatcherHarness
 import dev.mirolab.teslable.application.dispatcher.HandshakeFlow
 import dev.mirolab.teslable.application.dispatcher.dispatcherHarness
 import dev.mirolab.teslable.application.dispatcher.encode
 import dev.mirolab.teslable.application.dispatcher.replyTo
+import dev.mirolab.teslable.application.infotainment.InfotainmentCommands
+import dev.mirolab.teslable.model.StateCategory
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.port.AuthMethod
@@ -160,6 +163,45 @@ class SendWithRetryTest {
             assertEquals(1, h.transport.writesInvoked)
             assertEquals(3, h.transport.sent.size)
             assertEquals(0, h.dispatcher.pendingCount())
+        }
+
+    private fun signedCopies(h: DispatcherHarness) = h.fake.received.filter { it.signature_data?.AES_GCM_Personalized_data != null }
+
+    @Test
+    fun aReplayFaultForTheResentCopyAfterAFailedWriteIsUncertainAndNoNewCopyIsSigned() =
+        // VcsecCommandsTest와 같은 경로의 Infotainment 판: 첫 사본은 실행됐고 응답이 유실됐다. 재전송 사본의 INVALID_TOKEN_OR_COUNTER로 새 사본을
+        // 인가해 보내지 않고(NFR-007) 시간 제한까지 첫 사본의 응답을 기다려 Uncertain(ADR-0010 2026-11-08 개정)
+        runTest {
+            val h = dispatcherHarness()
+            assertIs<VehicleResult.Success<Unit>>(HandshakeFlow(h.dispatcher).startSession(infotainment))
+            h.fake.dropNextReplies(1)
+            h.transport.enqueueWriteErrorAfterDelivery(VehicleError.TransportError.WriteFailed("gatt 133"))
+            val result =
+                assertIs<VehicleResult.Uncertain>(
+                    SendWithRetry(h.dispatcher).send(infotainment, payload, AuthMethod.GCM, timeout = 1.seconds),
+                )
+            assertEquals(VehicleError.Timeout(afterSend = true), result.error)
+            assertEquals(1, h.fake.authenticatedPayloads(infotainment).size)
+            val copies = signedCopies(h)
+            assertEquals(2, copies.size)
+            assertEquals(copies[0], copies[1])
+            assertEquals(0, h.dispatcher.pendingCount())
+        }
+
+    @Test
+    fun getStateIsRepeatSafeSoItSignsANewCopyAfterTheReplayFault() =
+        // 반복해도 안전한 조회는 면제한다(ADR-0010 2026-11-08 개정): 같은 경로에서도 Go처럼 새 사본으로 다시 물어 데이터를 받는다.
+        // 조회는 차량 상태를 바꾸지 않으므로 두 번 처리돼도 해가 없다
+        runTest {
+            val h = dispatcherHarness()
+            assertIs<VehicleResult.Success<Unit>>(HandshakeFlow(h.dispatcher).startSession(infotainment))
+            h.fake.dropNextReplies(1)
+            h.transport.enqueueWriteErrorAfterDelivery(VehicleError.TransportError.WriteFailed("gatt 133"))
+            val result = InfotainmentCommands(SendWithRetry(h.dispatcher)).getState(StateCategory.CHARGE, timeout = 1.seconds)
+            assertIs<VehicleResult.Success<*>>(result)
+            assertEquals(2, h.fake.authenticatedPayloads(infotainment).size)
+            assertEquals(3, signedCopies(h).size)
+            assertFalse(h.logger.contains("possible duplicate"))
         }
 
     @Test

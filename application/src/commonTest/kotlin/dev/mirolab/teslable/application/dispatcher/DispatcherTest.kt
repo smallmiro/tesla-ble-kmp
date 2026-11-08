@@ -124,6 +124,32 @@ class DispatcherTest {
         }
 
     @Test
+    fun marksTheRequestWhenAWriteItInvokedFailsAndTheSameBytesGoOutAgain() =
+        // 원본에 없음(ADR-0010 2026-11-08 개정): 쓰기를 부른 뒤 실패하면 차량이 그 사본을 받았을 수 있다 — 같은 바이트를 다시 쓰므로
+        // 그 요청에 표시해 명령 계층이 재전송 사본에 대한 거부로 새 사본을 인가하지 않게 한다
+        runTest {
+            val h = dispatcherHarness()
+            h.transport.enqueueWriteError(VehicleError.TransportError.WriteFailed("gatt 133"))
+            val pending = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), AuthMethod.NONE)).value
+            pending.use { assertTrue(it.hadFailedWrite) }
+            assertEquals(2, h.transport.sent.size)
+            assertContentEquals(h.transport.sent[0], h.transport.sent[1])
+        }
+
+    @Test
+    fun aFailureBeforeTheWriteOrACleanWriteLeavesTheRequestUnmarked() =
+        // 쓰기를 부르기 전의 실패는 아무것도 보내지 않았다(Go dummyConnector.Send의 errorQueue) — 표시하지 않는다. 표시는 요청마다 새로 시작한다
+        runTest {
+            val h = dispatcherHarness()
+            h.transport.enqueueSendError(VehicleError.TransportError.WriteFailed("not written"))
+            val retried = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), AuthMethod.NONE)).value
+            retried.use { assertFalse(it.hadFailedWrite) }
+            assertEquals(2, h.transport.sent.size)
+            val clean = assertIs<VehicleResult.Success<PendingRequest>>(h.dispatcher.send(testCommand(), AuthMethod.NONE)).value
+            clean.use { assertFalse(it.hadFailedWrite) }
+        }
+
+    @Test
     fun sendGivesUpWhenCallerTimesOutDuringRetries() =
         // dispatcher_test.go TestSendTimeout: RetryInterval/2 안에 끝나지 않으면 취소되고 등록이 풀린다 (Timeout 매핑은 Task 9)
         // R4: retryInterval을 4ms로 넓혀 RetryInterval/2(2ms)가 첫 전송과 첫 재시도 사이에 정확히 걸리도록 한다
