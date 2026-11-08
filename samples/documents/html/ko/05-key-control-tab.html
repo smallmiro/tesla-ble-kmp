@@ -218,7 +218,7 @@
 <tr><td>충전</td><td><code>battery_level</code>, <code>charge_limit_soc</code>, <code>charger_power</code>, <code>charge_port_door_open</code>, <code>timestamp</code></td></tr>
 </tbody>
 </table>
-<p>읽기의 <code>timestamp</code>가 그 카테고리의 이전 읽기와 같으면 읽은 값 표시는 타임스탬프가 바뀌지 않았다고 알리므로 새 측정이라고 단정할 수 없습니다(A8.3). <strong>알려진 공백:</strong> <code>15-lib-commands.md</code> "Re-query"는 충전 시작이나 중지 뒤에 볼 필드로 <code>charge_state.charging_state</code>를 들지만, 매뉴얼은 Kotlin이나 Swift 앱이 그 oneof 래퍼를 어떻게 읽는지 말하지 않습니다. 그래서 읽은 값 표시는 이를 빼고, 매뉴얼이 설명할 때까지 충전 중이라는 눈에 보이는 신호로 <code>charger_power</code>를 씁니다(라이브러리 요청, #118).</p>
+<p>읽기의 <code>timestamp</code>가 그 카테고리의 이전 읽기와 같으면 읽은 값 표시는 타임스탬프가 바뀌지 않았다고 알리므로 새 측정이라고 단정할 수 없습니다(A8.3). 읽은 값 표시는 충전 중이라는 눈에 보이는 신호로 <code>charger_power</code>를 쓰고, <code>charge_state.charging_state</code>는 아직 보여 주지 않습니다. 라이브러리 매뉴얼이 이제 그 oneof 래퍼를 읽는 방법을 설명합니다(<code>14-lib-reading-state.md</code> A8.6). 샘플에 보여 주는 일은 후속 작업입니다.</p>
 
 <h3 id="sec-info-late">연결 변경과 늦은 결과</h3>
 <p>읽은 값, 미확인 표시, 누름의 결과는 그것을 만든 <strong>연결</strong>(<code>Vehicle</code> 인스턴스)에 속합니다. 연결이 바뀌면(링크 끊김, 재연결, 키 변경) 읽은 값과 표시가 지워집니다. 연결이 바뀐 <strong>뒤에</strong> 도착한 결과는 버려집니다. 읽은 값도, 표시도, 등록 상태나 상태 카드 갱신도 없습니다. 결과 줄 하나가 이를 기록하며 명령 이름만 적습니다. 연결이 바뀌어 결과를 버렸고, 차가 실행했을 수 있으니 다시 연결한 뒤 상태를 읽으라는 내용입니다.</p>

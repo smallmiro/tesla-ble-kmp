@@ -225,10 +225,9 @@ Values are shown on screen only (FR-112): the last successful read per category,
 | Charge | `battery_level`, `charge_limit_soc`, `charger_power`, `charge_port_door_open`, `timestamp` |
 
 If the `timestamp` of a read equals the one of the previous read of that category, the readout says "timestamp did not
-change: not necessarily a new measurement" (A8.3). Known gap: `15-lib-commands.md` §Re-query names `charge_state.charging_state`
-as the field to look at after charge start/stop, but the manual does not say how a Kotlin or Swift app reads that oneof
-wrapper, so the readout leaves it out and uses `charger_power` as the visible sign of charging until the manual
-describes it (library request, #118).
+change: not necessarily a new measurement" (A8.3). The readout uses `charger_power` as the visible sign of charging and does
+not show `charge_state.charging_state` yet. The library manual now describes how to read that oneof wrapper
+(`14-lib-reading-state.md` A8.6); showing it in the samples is a follow-up.
 
 ### Connection change and late results
 

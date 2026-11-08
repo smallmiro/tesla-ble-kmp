@@ -218,7 +218,7 @@
 <tr><td>充電</td><td><code>battery_level</code>、<code>charge_limit_soc</code>、<code>charger_power</code>、<code>charge_port_door_open</code>、<code>timestamp</code></td></tr>
 </tbody>
 </table>
-<p>読み取りの <code>timestamp</code> がそのカテゴリの前回の読み取りと同じなら、読み取り値の表示はタイムスタンプが変わっていないと伝えるので、新しい測定とは限りません（A8.3）。<strong>既知の欠落:</strong> <code>15-lib-commands.md</code> "Re-query" は、充電の開始または停止の後に見るフィールドとして <code>charge_state.charging_state</code> を挙げますが、マニュアルは Kotlin や Swift のアプリがその oneof ラッパーをどう読むかを述べていません。そのため読み取り値の表示はこれを省き、マニュアルが説明するまで、充電中の目に見えるサインとして <code>charger_power</code> を使います（ライブラリへの要望、#118）。</p>
+<p>読み取りの <code>timestamp</code> がそのカテゴリの前回の読み取りと同じなら、読み取り値の表示はタイムスタンプが変わっていないと伝えるので、新しい測定とは限りません（A8.3）。読み取り値の表示は充電中の目に見えるサインとして <code>charger_power</code> を使い、<code>charge_state.charging_state</code> はまだ表示しません。ライブラリのマニュアルは、その oneof ラッパーの読み方を説明するようになりました（<code>14-lib-reading-state.md</code> A8.6）。サンプルでの表示は今後の作業です。</p>
 
 <h3 id="sec-info-late">接続の変更と遅れた結果</h3>
 <p>読み取り値、未確認の印、タップの結果は、それを生んだ<strong>接続</strong>（<code>Vehicle</code> インスタンス）に属します。接続が変わると（リンク切断、再接続、キーの変更）、読み取り値と印は消えます。接続が変わった<strong>後</strong>に届いた結果は捨てられます。読み取り値も、印も、登録状態や状態カードの更新もありません。結果行が 1 行これを記録し、コマンド名だけを書きます。接続が変わったため結果を捨てたこと、車が実行したかもしれないこと、再接続の後に状態を読むことです。</p>

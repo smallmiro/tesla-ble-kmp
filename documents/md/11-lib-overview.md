@@ -9,7 +9,7 @@ These pages describe the code on `main`. They are maintained by agents: every PR
 public API or milestone status updates the affected `1x-lib-*.md` page **and** the matching HTML page in `ko/`, `en/`
 and `ja/` in the same PR (AGENTS.md §3 rule 13).
 
-## Status (M4, and the library part of M5)
+## Status (M5)
 
 | Area | State | Page |
 |---|---|---|
@@ -22,7 +22,7 @@ and `ja/` in the same PR (AGENTS.md §3 rule 13).
 | Infotainment state query `getState(category)`, 12 categories (FR-033, #115, #116; ahead of the rest of M5) | Done (checked with FakeVehicle tests; real-vehicle check pending, #118) | `14-lib-reading-state.md` A8, `16-lib-errors.md` §`getState` results |
 | Connect scan observation `Vehicle.scanObservation` (`ConnectScanObservation`: time to the scan hit, RSSI, open attempt) and the `[connect:scan-hit]` observation log line (FR-038, #134, not part of M5) | Done (checked with fake connector tests; real-vehicle check pending) | `12-lib-getting-started.md` §Connect scan observation, `18-lib-troubleshooting.md` §Observation log (development) |
 | Infotainment commands: 51 `Vehicle` methods for climate, charging and power, charge port, body, security, media, software update and `ping()` (FR-034, FR-050–053, FR-060–085, FR-090–092; M5) | Done (checked with FakeVehicle tests and a Swift typecheck; real-vehicle check pending, #118) | `15-lib-commands.md` §Implemented: Infotainment, `16-lib-errors.md` §Invalid arguments, `17-lib-platform-notes.md` §Swift: command arguments |
-| Sample apps: climate and charging in the samples (M5, SFR-001, SFR-002) | **Not implemented** | `samples/documents/md/README.md` |
+| Sample apps: climate and charging in the samples (M5, SFR-001, SFR-002, SFR-025) | Done (Android and iOS sample unit tests; real-device check pending, #118) | `samples/documents/md/05-key-control-tab.md` |
 | Packaging: GitHub Packages + Swift Package Manager (M6) | **Not implemented** | this page, "Installation" |
 
 Do not document or call an API that is listed as not implemented. Planned names come from `docs/prd/PRD.md` and may
