@@ -1,21 +1,34 @@
 // Ported from vehicle-command@a4b43c1 pkg/vehicle/infotainment.go (Apache-2.0) — getCarServerResponse, executeCarServerAction;
-// pkg/vehicle/state.go GetState
+// pkg/vehicle/state.go GetState; pkg/vehicle/climate.go (command methods; builders in ClimateActions.kt)
 package dev.mirolab.teslable.application.infotainment
 
 import com.tesla.generated.carserver.server.Action
 import com.tesla.generated.carserver.server.Response
+import com.tesla.generated.carserver.server.VehicleAction
 import com.tesla.generated.carserver.vehicle.VehicleData
 import com.tesla.generated.universalmessage.Domain
 import com.tesla.generated.universalmessage.RoutableMessage
 import dev.mirolab.teslable.application.dispatcher.valueOr
 import dev.mirolab.teslable.application.vehicle.SendWithRetry
+import dev.mirolab.teslable.model.CabinOverheatProtectionTemperature
+import dev.mirolab.teslable.model.ClimateKeeperMode
+import dev.mirolab.teslable.model.SeatClimateLevel
+import dev.mirolab.teslable.model.SeatPosition
 import dev.mirolab.teslable.model.StateCategory
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.toResult
 import dev.mirolab.teslable.port.AuthMethod
 import kotlin.time.Duration
 
-/** Go `executeCarServerAction`/`getCarServerResponse`: `Action`을 Infotainment에 보내고(단일 응답, GCM) `Response`로 해석한다. M5가 명령별 빌더를 더한다. */
+/**
+ * Go `executeCarServerAction`/`getCarServerResponse`: `Action`을 Infotainment에 보내고(단일 응답, GCM) `Response`로 해석한다.
+ *
+ * 명령 메서드(M5)는 Go 메서드 하나에 하나다. 모두 [execute]의 명령 경로로 보낸다: 세션을 시작하거나 차를 깨우지 않고(세션이 없으면
+ * `Failure(NoSession)`), 응답이 없으면 다시 보내지 않고 `Uncertain(Timeout(afterSend = true))`이며, 쓰기 실패 뒤에는 새 사본을 인가해
+ * 보내지 않는다(ADR-0010 2026-11-08 개정). 로컬 인자 검증은 Go에 있는 것만 하고, 실패하면 아무것도 보내지 않고 `Failure(InvalidArgument)`다.
+ * 성공 응답의 내용은 Go처럼 버린다(`Success(Unit)`).
+ */
+@Suppress("TooManyFunctions") // Go Vehicle의 Infotainment 명령 메서드와 1:1 (PRD §5)
 public class InfotainmentCommands(
     private val send: SendWithRetry,
 ) {
@@ -54,4 +67,96 @@ public class InfotainmentCommands(
             is VehicleResult.Failure -> result
             is VehicleResult.Uncertain -> result
         }
+
+    /** 공조 켜기(FR-060). Go `ClimateOn`. */
+    public suspend fun climateOn(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(ClimateActions.climateOn(), timeout)
+
+    /** 공조 끄기(FR-060). Go `ClimateOff`. */
+    public suspend fun climateOff(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(ClimateActions.climateOff(), timeout)
+
+    /** 좌석 히터(FR-061). Go `SetSeatHeater`. 좌석은 [SeatPosition] 선언 순서로 보내고, 빈 맵도 보낸다. */
+    public suspend fun setSeatHeater(
+        levels: Map<SeatPosition, SeatClimateLevel>,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ClimateActions.seatHeater(levels), timeout)
+
+    /** 운전석·조수석 온도, 섭씨(FR-062). Go `ChangeClimateTemp`. 범위를 검사하지 않는다(Go와 같다). */
+    public suspend fun setClimateTemp(
+        driverCelsius: Float,
+        passengerCelsius: Float,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ClimateActions.climateTemp(driverCelsius, passengerCelsius), timeout)
+
+    /** 좌석 쿨러(FR-063). Go `SetSeatCooler`. [seat]가 앞좌석이 아니면 보내지 않고 `Failure(InvalidArgument)`. */
+    public suspend fun setSeatCooler(
+        level: SeatClimateLevel,
+        seat: SeatPosition,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ClimateActions.seatCooler(level, seat), timeout)
+
+    /** 스티어링 휠 히터(FR-064). Go `SetSteeringWheelHeater`. */
+    public suspend fun setSteeringWheelHeater(
+        enabled: Boolean,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ClimateActions.steeringWheelHeater(enabled), timeout)
+
+    /** 자동 좌석 공조(FR-065). Go `AutoSeatAndClimate`. Go가 다루지 않는 좌석은 조용히 거르고, 남은 좌석이 없어도 보낸다. */
+    public suspend fun autoSeatAndClimate(
+        seats: List<SeatPosition>,
+        enabled: Boolean,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ClimateActions.autoSeatAndClimate(seats, enabled), timeout)
+
+    /** 최대 사전 공조(FR-066). Go `SetPreconditioningMax`. */
+    public suspend fun setPreconditioningMax(
+        enabled: Boolean,
+        manualOverride: Boolean,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ClimateActions.preconditioningMax(enabled, manualOverride), timeout)
+
+    /** 공조 유지 모드(FR-067). Go `SetClimateKeeperMode`. */
+    public suspend fun setClimateKeeperMode(
+        mode: ClimateKeeperMode,
+        manualOverride: Boolean,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ClimateActions.climateKeeperMode(mode, manualOverride), timeout)
+
+    /** 생화학 무기 방어 모드(FR-068). Go `SetBioweaponDefenseMode`. */
+    public suspend fun setBioweaponDefenseMode(
+        enabled: Boolean,
+        manualOverride: Boolean,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ClimateActions.bioweaponDefenseMode(enabled, manualOverride), timeout)
+
+    /** 실내 과열 방지(FR-069). Go `SetCabinOverheatProtection`. */
+    public suspend fun setCabinOverheatProtection(
+        enabled: Boolean,
+        fanOnly: Boolean,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ClimateActions.cabinOverheatProtection(enabled, fanOnly), timeout)
+
+    /** 실내 과열 방지 온도 단계(FR-069). Go `SetCabinOverheatProtectionTemperature`. */
+    public suspend fun setCabinOverheatProtectionTemperature(
+        temperature: CabinOverheatProtectionTemperature,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ClimateActions.cabinOverheatProtectionTemperature(temperature), timeout)
+
+    /** Go `executeCarServerAction`: [vehicleAction]을 `Action`에 담아 [execute]로 보내고, 성공 응답의 내용은 버린다. */
+    private suspend fun command(
+        vehicleAction: VehicleAction,
+        timeout: Duration,
+    ): VehicleResult<Unit> =
+        when (val result = execute(Action(vehicleAction = vehicleAction), timeout)) {
+            is VehicleResult.Success -> VehicleResult.Success(Unit)
+            is VehicleResult.Failure -> result
+            is VehicleResult.Uncertain -> result
+        }
+
+    /** 로컬 검증을 거친 빌더 결과. 검증에 실패했으면 Go처럼 보내기 전에 그 오류로 끝난다. */
+    private suspend fun command(
+        built: VehicleResult<VehicleAction>,
+        timeout: Duration,
+    ): VehicleResult<Unit> = command(built.valueOr { return it.toResult() }, timeout)
 }
