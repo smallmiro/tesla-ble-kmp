@@ -1,5 +1,11 @@
 package dev.mirolab.teslable.ble
 
+import com.tesla.generated.carserver.common.ChargeSchedule
+import com.tesla.generated.carserver.server.Action
+import com.tesla.generated.carserver.server.VehicleAction
+import com.tesla.generated.universalmessage.Destination
+import com.tesla.generated.universalmessage.Domain
+import com.tesla.generated.universalmessage.RoutableMessage
 import dev.mirolab.teslable.InternalTeslableApi
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
@@ -8,6 +14,7 @@ import dev.mirolab.teslable.port.LogLevel
 import dev.mirolab.teslable.port.TeslaLogger
 import dev.mirolab.teslable.port.TransportState
 import dev.mirolab.teslable.testing.RecordingLogger
+import dev.mirolab.teslable.transport.Framer
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
@@ -20,8 +27,10 @@ import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.testTimeSource
+import okio.ByteString.Companion.toByteString
 import kotlin.test.Test
 import kotlin.test.assertEquals
+import kotlin.test.assertFalse
 import kotlin.test.assertIs
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
@@ -179,6 +188,35 @@ class BleTransportTest {
             val result = transport(FakeGattLink()).send(ByteArray(1025))
             val failure = assertIs<VehicleResult.Failure>(result)
             assertIs<VehicleError.InvalidArgument>(failure.error)
+        }
+
+    @Test
+    fun aChargeScheduleNamePastTheMessageLimitIsRefusedWithTheDocumentedDetail() =
+        // 16-lib-errors §Invalid arguments: 메시지(길이 접두사를 뺀 RoutableMessage)는 Framer.MAX_MESSAGE_SIZE(1024바이트, Go maxBLEMessageSize)까지다.
+        // 명령 빌더는 Go처럼 일정 필드를 검사하지 않으므로 긴 name은 이 전송 검사에서 걸린다: 1024바이트는 보내고, 이름이 한 글자 더 길어
+        // 1025바이트가 되면 쓰기를 부르지 않고 InvalidArgument("message exceeds 1024 bytes")다. 실제 명령은 암호화·서명이 붙어 더 길다
+        runTest {
+            fun message(nameLength: Int): ByteArray {
+                val schedule = ChargeSchedule(id = 1, name = "n".repeat(nameLength), enabled = true)
+                val action = Action(vehicleAction = VehicleAction(addChargeScheduleAction = schedule))
+                return RoutableMessage(
+                    to_destination = Destination(domain = Domain.DOMAIN_INFOTAINMENT),
+                    protobuf_message_as_bytes = action.encode().toByteString(),
+                ).encode()
+            }
+            val atLimit = (900..Framer.MAX_MESSAGE_SIZE).first { message(it).size == Framer.MAX_MESSAGE_SIZE }
+            val link = FakeGattLink()
+            val transport = transport(link)
+            assertEquals(VehicleResult.Success(Unit), transport.send(message(atLimit)))
+            val writesAtLimit = link.written.size
+            var writeInvoked = false
+
+            val result = transport.send(message(atLimit + 1)) { writeInvoked = true }
+
+            assertEquals(1025, message(atLimit + 1).size)
+            assertEquals(VehicleResult.Failure(VehicleError.InvalidArgument("message exceeds 1024 bytes")), result)
+            assertEquals(writesAtLimit, link.written.size)
+            assertFalse(writeInvoked)
         }
 
     @Test
