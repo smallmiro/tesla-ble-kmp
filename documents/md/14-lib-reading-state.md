@@ -292,7 +292,7 @@ suspend fun getState(category: StateCategory, timeout: Duration? = null): Vehicl
 | Terminal rule | The first reply |
 | Reply | `CarServer.Response.vehicleData`, returned unchanged as the Wire generated type `com.tesla.generated.carserver.vehicle.VehicleData` |
 | Timeout | `timeout = null` uses `commandTimeout` (5 s) |
-| Retries | As for commands (`16-lib-errors.md` §Retries and timeouts): temporary errors from the vehicle are retried inside `timeout` with a new counter, nonce and `expires_at`, and a temporary write error writes the same bytes again; `Uncertain` is never resent |
+| Retries | `16-lib-errors.md` §Retries and timeouts: temporary errors from the vehicle are retried inside `timeout` with a new counter, nonce and `expires_at`, and a temporary write error writes the same bytes again; `Uncertain` is never resent. Unlike a command, a read keeps this retry after a failed write too: running it twice changes nothing |
 | Results | `16-lib-errors.md` §`getState` results |
 
 ### A8.1 Categories

@@ -50,6 +50,13 @@ for the transport's send lock, checks before writing), or while waiting to retry
 is `Failure(Timeout(afterSend = false))`. `Transport.send(message, onWriteInvoked)` is an `@InternalTeslableApi`
 member of the port; its default implementation reports on entry.
 
+When a write it invoked fails and the dispatcher writes the same bytes again, it marks the request (ADR-0010, revised
+2026-11-08). For a marked command, `VcsecCommands` and `SendWithRetry` do not retry with a newly authorized copy: a reply
+that would start a new attempt, or a protocol-layer rejection, may answer a duplicate of a copy the vehicle already ran,
+so they keep reading the same request until a reply settles it or the timeout returns
+`Uncertain(Timeout(afterSend = true))`. Reads (`VehicleInfoQueries`, `getState`) go through internal repeat-safe entry
+points and keep the normal retry.
+
 **Receiving**
 
 ```

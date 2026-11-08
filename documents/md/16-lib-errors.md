@@ -105,13 +105,17 @@ original does not separate these cases: it returns the last error, otherwise one
 
 ## Retries and timeouts (M2)
 
-The library retries with the same rules as Go `vehicle-command`, with one difference: Go's BLE connector ends a command
-on a failed write, while this library treats a failed write as temporary and writes the same bytes again.
+The library retries with the same rules as Go `vehicle-command`, with two differences, both after a failed write: Go's
+BLE connector ends a command on a failed write, while this library treats a failed write as temporary and writes the
+same bytes again; and after such a write a command never authorizes a new copy, because the vehicle may already have
+run the first one.
 
 | Situation | Library behaviour |
 |---|---|
-| `error.shouldRetry()`: `BUSY`, `TIMEOUT`, `INVALID_SIGNATURE`, `INVALID_TOKEN_OR_COUNTER`, `INTERNAL`, `INCORRECT_EPOCH`, `TIME_EXPIRED`, `TIME_TO_LIVE_TOO_LONG`, `Busy` (VCSEC `WAIT`) | After 1 s (BLE `retryInterval`) it **authorizes again with a new counter, nonce and expires_at** and resends. Session info attached to the error response is applied first |
+| `error.shouldRetry()`: `BUSY`, `TIMEOUT`, `INVALID_SIGNATURE`, `INVALID_TOKEN_OR_COUNTER`, `INTERNAL`, `INCORRECT_EPOCH`, `TIME_EXPIRED`, `TIME_TO_LIVE_TOO_LONG`, `Busy` (VCSEC `WAIT`) | After 1 s (BLE `retryInterval`) it **authorizes again with a new counter, nonce and expires_at** and resends. Session info attached to the error response is applied first. Not for a command whose write failed (two rows down) |
 | Temporary write error (`TransportError.WriteFailed`) | After 1 s it writes the **same bytes** again, without authorizing again, until a write succeeds, a non-temporary error comes or `timeout` runs out. Go's BLE connector does not retry a failed write |
+| A **command** whose write was started and failed, so the same bytes went out again, gets a reply that would start a new attempt (any error in the first row) or any protocol-layer rejection: `ProtocolFault` with any code (including `REPEATED_COUNTER`), `KeyNotPaired`, `InsufficientPrivileges`, `UnknownFault` | **No new copy is authorized.** The reply may answer a duplicate of a copy the vehicle already ran (the vehicle rejects a repeated counter with `INVALID_TOKEN_OR_COUNTER`). The library logs a `WARN` (tag `Dispatcher`) with `possible duplicate` and keeps waiting on the same request: a late reply to the first copy is the result, otherwise `Uncertain(Timeout(afterSend = true))` when `timeout` runs out. A success, an application-level rejection (`VcsecRejected`, `KeychainRejected`, `InfotainmentRejected`) and `mayHaveSucceeded` errors end the call as usual. Commands: every VCSEC command, `addKey()`, `removeKey()`, Infotainment commands |
+| The same for a **read**: `vehicleStatus()`, `keySummary()`, `keyInfoBySlot()`, `listKeys()`, `getState()` | Retried as in the first row (a new request or a new copy). A read changes nothing on the vehicle, so running it twice is harmless |
 | `mayHaveSucceeded` errors (timeout after the request's write was started, `RESPONSE_MTU_EXCEEDED`, unparsable VCSEC or Infotainment response) | **Never resent automatically** (prevents running a toggle twice). Returned as `Uncertain`; query state again |
 | Timeout (`timeout`, default 5 s) before the request's first BLE write was started: waiting for the previous VCSEC command, waiting for the link to be free (another request is being written), or a check before writing (`listKeys()` with no time left) | `Failure(Timeout(afterSend = false))` |
 | Timeout while waiting to retry after a reply that asked for a retry (busy, `WAIT`, expired, …) | `Failure(Timeout(afterSend = false))` |
@@ -135,6 +139,19 @@ original never meets this case, because its BLE write ignores the deadline. For 
 `Failure(Timeout)` means not executed, `Uncertain(Timeout)` means possibly executed, so read the state before sending a
 command again. Expect fewer `Failure(Timeout)` and more `Uncertain(Timeout)` results when the phone is slow to complete
 writes, for example while the app is in the background.
+
+**No new copy after a failed write (ADR-0010, revised 2026-11-08).** A write that reports failure may still have reached
+the vehicle. If the vehicle ran that first copy and its reply was lost, the copy the library writes again carries the
+same counter, and the vehicle refuses it as a replay (`INVALID_TOKEN_OR_COUNTER`). Before this change the library took
+that refusal as a reason to retry, authorized a new copy with a new counter, and the vehicle could run the command
+twice: a toggle such as `openTrunk()` would end where it started. Now a command whose write failed sends no new copy; it
+keeps listening for the first copy's reply until `timeout` and otherwise returns `Uncertain(Timeout(afterSend = true))`.
+The app does what it does for any `Uncertain`: read the state, do not resend (§Per-command re-query). For the same
+reason a protocol-layer rejection such as `KeyNotPaired` or `InsufficientPrivileges` is not reported as `Failure` on
+this path: it may answer the duplicate (removing your own key, for example, makes the repeated copy's key unknown).
+Without a failed write nothing changes: when the vehicle answers with a fault and fresh session info, for example on the
+first request with a cached session that is out of step, the library applies it and retries as in the first row. The Go
+original never gets here, because its BLE connector ends the command on the failed write.
 
 ## Per-command re-query (FR-102)
 
