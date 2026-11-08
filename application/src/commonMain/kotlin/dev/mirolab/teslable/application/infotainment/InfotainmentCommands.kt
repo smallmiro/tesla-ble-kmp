@@ -1,6 +1,7 @@
 // Ported from vehicle-command@a4b43c1 pkg/vehicle/infotainment.go (Apache-2.0) — getCarServerResponse, executeCarServerAction;
 // pkg/vehicle/state.go GetState; pkg/vehicle/climate.go, charge.go, actions.go (command methods; builders in ClimateActions.kt,
-// ChargeActions.kt, VehicleControlActions.kt); pkg/vehicle/security.go (builders in SecurityActions.kt)
+// ChargeActions.kt, VehicleControlActions.kt); pkg/vehicle/security.go (builders in SecurityActions.kt); infotainment.go media
+// (builders in MediaActions.kt)
 package dev.mirolab.teslable.application.infotainment
 
 import com.tesla.generated.carserver.common.ChargeSchedule
@@ -305,6 +306,42 @@ public class InfotainmentCommands(
     /** 발레 PIN 초기화(FR-085). Go `ResetValetPin`. */
     public suspend fun resetValetPin(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
         command(SecurityActions.resetValetPin(), timeout)
+
+    /** 볼륨 한 단계 올리기(FR-090). Go `VolumeUp`. */
+    public suspend fun volumeUp(timeout: Duration = send.commandTimeout): VehicleResult<Unit> = command(MediaActions.volumeUp(), timeout)
+
+    /** 볼륨 한 단계 내리기(FR-090). Go `VolumeDown`. */
+    public suspend fun volumeDown(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(MediaActions.volumeDown(), timeout)
+
+    /**
+     * 볼륨 절대값 0..10(FR-090). Go `SetVolume`. 범위 밖이거나 NaN이면 보내지 않고
+     * `Failure(InvalidArgument("invalid volume (should be in [0, 10])"))`다(NaN 거부는 Go와 다르다, SDD §12). 0도 보낸다.
+     */
+    public suspend fun setVolume(
+        volume: Float,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(MediaActions.setVolume(volume), timeout)
+
+    /** 다음 곡(FR-091). Go `MediaNextTrack`. */
+    public suspend fun mediaNextTrack(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(MediaActions.nextTrack(), timeout)
+
+    /** 이전 곡(FR-091). Go `MediaPreviousTrack`. */
+    public suspend fun mediaPreviousTrack(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(MediaActions.previousTrack(), timeout)
+
+    /** 다음 즐겨찾기(FR-091). Go `MediaNextFavorite`. */
+    public suspend fun mediaNextFavorite(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(MediaActions.nextFavorite(), timeout)
+
+    /** 이전 즐겨찾기(FR-091). Go `MediaPreviousFavorite`. */
+    public suspend fun mediaPreviousFavorite(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(MediaActions.previousFavorite(), timeout)
+
+    /** 재생·일시정지 토글(FR-091). Go `ToggleMediaPlayback`. 토글이므로 `Uncertain`이면 다시 보내지 말고 `getState(MEDIA)`로 확인한다. */
+    public suspend fun toggleMediaPlayback(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(MediaActions.togglePlayback(), timeout)
 
     /** Go `executeCarServerAction`: [vehicleAction]을 `Action`에 담아 [execute]로 보내고, 성공 응답의 내용은 버린다. */
     private suspend fun command(
