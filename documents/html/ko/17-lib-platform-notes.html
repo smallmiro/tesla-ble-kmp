@@ -55,7 +55,7 @@
 </nav>
 <main class="content">
 <h1>17. 플랫폼 노트</h1>
-<p class="lead">Android나 iOS 앱이 설정해야 할 것, 라이브러리가 키와 세션을 보관하는 위치, 알아 두면 좋은 플랫폼 동작을 정리합니다. 실기기에서 아직 확인되지 않은 항목은 그렇다고 표시합니다.</p>
+<p class="lead">Android나 iOS 앱이 설정해야 할 것, 라이브러리가 키와 세션을 보관하는 위치, 알아 두면 좋은 플랫폼 동작, Swift에서 라이브러리를 호출하는 방법을 정리합니다. 실기기에서 아직 확인되지 않은 항목은 그렇다고 표시합니다.</p>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
 <li><a href="#sec-support">지원 범위</a></li>
@@ -69,6 +69,7 @@
 <li><a href="#sec-slots">연결 슬롯과 끊긴 링크</a></li>
 <li><a href="#sec-swift-timeouts">Swift: 시간 제한</a></li>
 <li><a href="#sec-swift-generated">Swift: 생성된 타입(getState)</a></li>
+<li><a href="#sec-swift-commands">Swift: 명령 인자(공조와 충전)</a></li>
 </ol></div>
 
 <h2 id="sec-support">지원 범위</h2>
@@ -195,6 +196,31 @@
 <li>타입 이름은 그대로입니다: <code>VehicleData</code>, <code>DriveState</code>, <code>StateCategory</code>. 이름이 충돌하는 것은 <code>VehicleStatus_</code>뿐입니다.</li>
 <li><code>StateCategory</code>는 진짜 Swift enum이므로 12개 전부에 대한 <code>switch</code>에는 <code>default</code>가 필요 없습니다: <code>.charge</code>, <code>.climate</code>, <code>.drive</code>, <code>.location</code>, <code>.closures</code>, <code>.chargeSchedule</code>, <code>.preconditioningSchedule</code>, <code>.tirePressure</code>, <code>.media</code>, <code>.mediaDetail</code>, <code>.softwareUpdate</code>, <code>.parentalControls</code>.</li>
 <li><code>.protocolFault</code> 안의 enum은 <code>MessageFault_E</code>입니다. 크기 상한 경우는 <code>.messagefaultErrorResponseMtuExceeded</code>입니다: <code>case .protocolFault(let p) where p.fault == .messagefaultErrorResponseMtuExceeded:</code>.</li>
+</ul>
+
+<h2 id="sec-swift-commands">Swift: 명령 인자(공조와 충전)</h2>
+<p>Swift에서 공조와 충전 명령을 호출하는 방법입니다(<a href="15-lib-commands.html#sec-cc">15. 명령</a>). 이 형태들은 프레임워크(디버그 시뮬레이터 프레임워크, 2026-11-08)를 대상으로 한 Swift 타입 검사를 통과했으며, Swift 프로그램에서 실행해 본 것은 아닙니다.</p>
+<ul>
+<li>모든 인자를 넘기세요. <code>timeout:</code>도 포함합니다(<code>nil</code>은 설정 기본값 사용): <code>try await vehicle.climateOn(timeout: nil)</code>. 빠뜨리면 컴파일러가 <code>missing argument for parameter 'timeout' in call</code>을 보고합니다.</li>
+<li>인자용 enum은 진짜 Swift enum이므로 이를 대상으로 한 <code>switch</code>에는 <code>default</code>가 필요 없습니다: <code>SeatPosition</code>(<code>.unknown</code>, <code>.frontLeft</code>, <code>.frontRight</code>, <code>.secondRowLeft</code>, <code>.secondRowLeftBack</code>, <code>.secondRowCenter</code>, <code>.secondRowRight</code>, <code>.secondRowRightBack</code>, <code>.thirdRowLeft</code>, <code>.thirdRowRight</code>), <code>SeatClimateLevel</code>(<code>.off</code>, <code>.low</code>, <code>.med</code>, <code>.high</code>), <code>ClimateKeeperMode</code>(<code>.off</code>, <code>.on</code>, <code>.dog</code>, <code>.camp</code>), <code>CabinOverheatProtectionTemperature</code>(<code>.unspecified</code>, <code>.low</code>, <code>.medium</code>, <code>.high</code>), <code>ChargingPolicy</code>(<code>.off</code>, <code>.allDays</code>, <code>.weekdays</code>).</li>
+<li><code>setSeatHeater(levels:timeout:)</code>는 Swift 딕셔너리 <code>[SeatPosition: SeatClimateLevel]</code>를 받으며 리터럴도 됩니다: <code>try await vehicle.setSeatHeater(levels: [.frontLeft: .high, .secondRowCenter: .off], timeout: nil)</code>. 빈 <code>[:]</code>도 전송됩니다. Swift 딕셔너리에는 순서가 없지만, 라이브러리는 어쨌든 좌석을 <code>SeatPosition</code> 순서로 보냅니다.</li>
+<li><code>autoSeatAndClimate(seats:enabled:timeout:)</code>는 Swift 배열을 받습니다: <code>seats: [.frontLeft, .frontRight]</code>.</li>
+<li>숫자: <code>percent</code>, <code>amps</code>, 분 단위 값은 <code>Int32</code>, 일정 id는 <code>Int64</code>, 온도는 <code>Float</code>입니다. 일반 숫자 리터럴이 그대로 동작합니다. 예: <code>scheduleDeparture(departAtMinutes: 480, offPeakEndMinutes: 360, preconditioning: .allDays, offPeak: .weekdays, timeout: nil)</code>.</li>
+<li><code>ChargeSchedule</code>과 <code>PreconditionSchedule</code>은 생성된 프로토콜 클래스입니다. Swift에는 기본 인자가 없으므로 모든 필드와 <code>unknownFields: OkioByteString.companion.EMPTY</code>를 넣어 만드세요. <code>ChargeSchedule()</code>은 <code>'init()' is unavailable</code>로 거부됩니다. 필드는 프로토콜 이름을 그대로 유지합니다:</li>
+</ul>
+<pre><code class="language-swift"><span class="k">let</span> schedule = <span class="t">ChargeSchedule</span>(
+    id: <span class="n">1_700_000_000</span>, name: <span class="s">"Home"</span>, days_of_week: <span class="n">127</span>, start_enabled: <span class="n">true</span>, start_time: <span class="n">120</span>,
+    end_enabled: <span class="n">false</span>, end_time: <span class="n">0</span>, one_time: <span class="n">false</span>, enabled: <span class="n">true</span>,
+    latitude: <span class="n">0</span>, longitude: <span class="n">0</span>, unknownFields: <span class="t">OkioByteString</span>.companion.<span class="t">EMPTY</span>)
+_ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">addChargeSchedule</span>(schedule: schedule, timeout: <span class="n">nil</span>)
+_ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">removeChargeSchedule</span>(id: schedule.id, timeout: <span class="n">nil</span>)   <span class="c">// id is Int64</span>
+
+<span class="k">let</span> precondition = <span class="t">PreconditionSchedule</span>(
+    id: <span class="n">2</span>, name: <span class="s">"Work"</span>, days_of_week: <span class="n">62</span>, precondition_time: <span class="n">450</span>, one_time: <span class="n">false</span>, enabled: <span class="n">true</span>,
+    latitude: <span class="n">0</span>, longitude: <span class="n">0</span>, unknownFields: <span class="t">OkioByteString</span>.companion.<span class="t">EMPTY</span>)
+_ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">addPreconditionSchedule</span>(schedule: precondition, timeout: <span class="n">nil</span>)</code></pre>
+<ul>
+<li>라이브러리가 거부한 인자는 <code>.invalidArgument</code>를 가진 <code>.failure</code>로 돌아옵니다: <code>if case .failure(let f) = onEnum(of: result), case .invalidArgument(let bad) = onEnum(of: f.error) { … bad.detail … }</code>(<a href="16-lib-errors.html#sec-invalid-argument">16. 에러 처리</a>).</li>
 </ul>
 
 <footer class="page-nav">

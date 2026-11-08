@@ -55,7 +55,7 @@
 </nav>
 <main class="content">
 <h1>17. プラットフォームノート</h1>
-<p class="lead">Android や iOS のアプリで設定すべきこと、ライブラリがキーとセッションを保存する場所、知っておくべきいくつかのプラットフォーム固有の動作をまとめます。実機でまだ確認していない項目はその旨を記載しています。</p>
+<p class="lead">Android や iOS のアプリで設定すべきこと、ライブラリがキーとセッションを保存する場所、知っておくべきいくつかのプラットフォーム固有の動作、Swift からライブラリを呼び出す方法をまとめます。実機でまだ確認していない項目はその旨を記載しています。</p>
 
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-support">サポート範囲</a></li>
@@ -69,6 +69,7 @@
 <li><a href="#sec-slots">接続スロットとリンク切断</a></li>
 <li><a href="#sec-swift-timeouts">Swift: タイムアウト</a></li>
 <li><a href="#sec-swift-generated">Swift: 生成された型 (getState)</a></li>
+<li><a href="#sec-swift-commands">Swift: コマンドの引数 (空調と充電)</a></li>
 </ol></div>
 
 <h2 id="sec-support">サポート範囲</h2>
@@ -195,6 +196,31 @@
 <li>型名はそのままです: <code>VehicleData</code>、<code>DriveState</code>、<code>StateCategory</code>。名前が衝突するのは <code>VehicleStatus_</code> だけです。</li>
 <li><code>StateCategory</code> は本物の Swift の enum なので、12 個すべてに対する <code>switch</code> に <code>default</code> は不要です: <code>.charge</code>、<code>.climate</code>、<code>.drive</code>、<code>.location</code>、<code>.closures</code>、<code>.chargeSchedule</code>、<code>.preconditioningSchedule</code>、<code>.tirePressure</code>、<code>.media</code>、<code>.mediaDetail</code>、<code>.softwareUpdate</code>、<code>.parentalControls</code>。</li>
 <li><code>.protocolFault</code> の中の enum は <code>MessageFault_E</code> です。サイズ上限のケースは <code>.messagefaultErrorResponseMtuExceeded</code> です: <code>case .protocolFault(let p) where p.fault == .messagefaultErrorResponseMtuExceeded:</code>。</li>
+</ul>
+
+<h2 id="sec-swift-commands">Swift: コマンドの引数 (空調と充電)</h2>
+<p>Swift から空調と充電のコマンドを呼び出す方法です (<a href="15-lib-commands.html#sec-cc">15. コマンド</a>)。これらの形はフレームワーク (デバッグ用シミュレーターフレームワーク、2026-11-08) に対する Swift の型チェックを通っていますが、Swift のプログラムで実行したものではありません。</p>
+<ul>
+<li>すべての引数を渡してください。<code>timeout:</code> も含みます (<code>nil</code> は設定のデフォルトを使う): <code>try await vehicle.climateOn(timeout: nil)</code>。省略すると、コンパイラが <code>missing argument for parameter 'timeout' in call</code> を報告します。</li>
+<li>引数の enum は本物の Swift の enum なので、それに対する <code>switch</code> に <code>default</code> は不要です: <code>SeatPosition</code> (<code>.unknown</code>, <code>.frontLeft</code>, <code>.frontRight</code>, <code>.secondRowLeft</code>, <code>.secondRowLeftBack</code>, <code>.secondRowCenter</code>, <code>.secondRowRight</code>, <code>.secondRowRightBack</code>, <code>.thirdRowLeft</code>, <code>.thirdRowRight</code>)、<code>SeatClimateLevel</code> (<code>.off</code>, <code>.low</code>, <code>.med</code>, <code>.high</code>)、<code>ClimateKeeperMode</code> (<code>.off</code>, <code>.on</code>, <code>.dog</code>, <code>.camp</code>)、<code>CabinOverheatProtectionTemperature</code> (<code>.unspecified</code>, <code>.low</code>, <code>.medium</code>, <code>.high</code>)、<code>ChargingPolicy</code> (<code>.off</code>, <code>.allDays</code>, <code>.weekdays</code>)。</li>
+<li><code>setSeatHeater(levels:timeout:)</code> は Swift の辞書 <code>[SeatPosition: SeatClimateLevel]</code> を受け取り、リテラルも使えます: <code>try await vehicle.setSeatHeater(levels: [.frontLeft: .high, .secondRowCenter: .off], timeout: nil)</code>。空の <code>[:]</code> も送られます。Swift の辞書には順序がありませんが、ライブラリはいずれにしてもシートを <code>SeatPosition</code> の順に送ります。</li>
+<li><code>autoSeatAndClimate(seats:enabled:timeout:)</code> は Swift の配列を受け取ります: <code>seats: [.frontLeft, .frontRight]</code>。</li>
+<li>数値: <code>percent</code>、<code>amps</code>、分の値は <code>Int32</code>、スケジュールの id は <code>Int64</code>、温度は <code>Float</code> です。通常の数値リテラルがそのまま使えます。例: <code>scheduleDeparture(departAtMinutes: 480, offPeakEndMinutes: 360, preconditioning: .allDays, offPeak: .weekdays, timeout: nil)</code>。</li>
+<li><code>ChargeSchedule</code> と <code>PreconditionSchedule</code> は生成されたプロトコルのクラスです。Swift にはデフォルト引数がないため、すべてのフィールドと <code>unknownFields: OkioByteString.companion.EMPTY</code> を渡して組み立ててください。<code>ChargeSchedule()</code> は <code>'init()' is unavailable</code> で拒否されます。フィールドはプロトコルの名前のままです:</li>
+</ul>
+<pre><code class="language-swift"><span class="k">let</span> schedule = <span class="t">ChargeSchedule</span>(
+    id: <span class="n">1_700_000_000</span>, name: <span class="s">"Home"</span>, days_of_week: <span class="n">127</span>, start_enabled: <span class="n">true</span>, start_time: <span class="n">120</span>,
+    end_enabled: <span class="n">false</span>, end_time: <span class="n">0</span>, one_time: <span class="n">false</span>, enabled: <span class="n">true</span>,
+    latitude: <span class="n">0</span>, longitude: <span class="n">0</span>, unknownFields: <span class="t">OkioByteString</span>.companion.<span class="t">EMPTY</span>)
+_ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">addChargeSchedule</span>(schedule: schedule, timeout: <span class="n">nil</span>)
+_ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">removeChargeSchedule</span>(id: schedule.id, timeout: <span class="n">nil</span>)   <span class="c">// id is Int64</span>
+
+<span class="k">let</span> precondition = <span class="t">PreconditionSchedule</span>(
+    id: <span class="n">2</span>, name: <span class="s">"Work"</span>, days_of_week: <span class="n">62</span>, precondition_time: <span class="n">450</span>, one_time: <span class="n">false</span>, enabled: <span class="n">true</span>,
+    latitude: <span class="n">0</span>, longitude: <span class="n">0</span>, unknownFields: <span class="t">OkioByteString</span>.companion.<span class="t">EMPTY</span>)
+_ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">addPreconditionSchedule</span>(schedule: precondition, timeout: <span class="n">nil</span>)</code></pre>
+<ul>
+<li>ライブラリが拒否した引数は、<code>.invalidArgument</code> を持つ <code>.failure</code> として返ります: <code>if case .failure(let f) = onEnum(of: result), case .invalidArgument(let bad) = onEnum(of: f.error) { … bad.detail … }</code> (<a href="16-lib-errors.html#sec-invalid-argument">16. エラー処理</a>)。</li>
 </ul>
 
 <footer class="page-nav">

@@ -55,13 +55,14 @@
 </nav>
 <main class="content">
 <h1>15. コマンド</h1>
-<p class="lead"><code>Vehicle</code> はセッションの開始と終了、そして 12 個のセキュリティコントローラーコマンド (ロック、トランク、ウェイクアップ) を送れます。インフォテインメントのコマンド (空調、充電、メディアなど) は M5 で追加されます。このページでは両方を一覧にします。<code>getState()</code> によるインフォテインメント状態の読み取りは、M5 の残りより先にすでに使えます。<a href="14-lib-reading-state.html#sec-a-getstate">14. 車両状態の取得</a> を参照してください。</p>
+<p class="lead"><code>Vehicle</code> はセッションの開始と終了、12 個のセキュリティコントローラーコマンド (ロック、トランク、ウェイクアップ)、そして空調と充電のための 31 個のインフォテインメントコマンドを送れます。残りのインフォテインメントコマンド (ウィンドウ、ホーン、メディアなど) は M5 の後半で追加されます。このページではすべてを一覧にします。<code>getState()</code> によるインフォテインメント状態の読み取りも使えます。<a href="14-lib-reading-state.html#sec-a-getstate">14. 車両状態の取得</a> を参照してください。</p>
 
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-now">現在使えるもの</a></li>
 <li><a href="#sec-rules">すべてのコマンドに共通する動作</a></li>
 <li><a href="#sec-m4">セキュリティコントローラー (M4)</a></li>
-<li><a href="#sec-m5">M5 で追加予定: インフォテインメント</a></li>
+<li><a href="#sec-cc">空調と充電 (M5)</a></li>
+<li><a href="#sec-m5">M5 で追加予定: 残りのインフォテインメント</a></li>
 <li><a href="#sec-later">その後</a></li>
 </ol></div>
 
@@ -78,6 +79,7 @@
 <h2 id="sec-rules">すべてのコマンドに共通する動作</h2>
 <ul>
 <li>コマンドはドメインのセッション上で AES-GCM により暗号化と認証が行われ、5 秒で失効します。</li>
+<li>どのコマンドもセッションを開始したり車両を起こしたりしません。対応する領域のセッションがないと、コマンドは <code>Failure(NoSession)</code> を返し、何も送りません。</li>
 <li>一時的な失敗は 1 秒ごとに自動でリトライされます。すでに実行された可能性のあるコマンドが再送されることは <strong>決して</strong> ありません。</li>
 <li>Bluetooth 書き込みが失敗し、ライブラリが同じバイト列をもう一度書き込んだ場合、コマンドは再び署名されません。リトライを意味するエラーやメッセージ自体の拒否 (例: <code>KeyNotPaired</code>) は結果として扱われず、結果を決める応答 (最初のコピーへの遅れた応答、または最初のコピーが届かなかった場合の再度書き込んだコピーの成功) が時間内に届かなければ、呼び出しは <code>Uncertain(Timeout)</code> を返します。<a href="16-lib-errors.html#sec-retry">16. エラー処理</a> を参照してください。</li>
 <li>セキュリティコントローラーのコマンドは接続ごとに 1 つずつ実行されます。インフォテインメントのコマンドは並行して実行できます。</li>
@@ -110,15 +112,210 @@
 <li><code>sessions</code> は実際のセッション状態に従います。コマンドが <code>NoSession</code> で終わったときやセッションイベントが届いたときに、ライブラリがそのドメインを再確認します。車両がもう受け付けないキャッシュ済みセッション (例: 別のキーのキャッシュ) は、最初のコマンドが失敗した後に <code>None</code> と表示され、<code>startSession</code> で回復します。</li>
 </ul>
 
-<h2 id="sec-m5">M5 で追加予定: インフォテインメント</h2>
+<h2 id="sec-cc">空調と充電 (M5)</h2>
+<p>31 個のメソッドはすべてインフォテインメントのセッション上で認証され、任意の <code>timeout</code> (デフォルト 5 秒) を受け取り、<code>VehicleResult&lt;Unit&gt;</code> を返します。Go 原本と同じく、成功の応答にアプリが必要とする内容はありません。コマンドはシミュレートした車両に対する自動テストで確認しており、<strong>実車ではまだ 1 つも確認していません</strong> (#118)。</p>
+
+<h3 id="sec-cc-order">送信する前に</h3>
+<ol>
+<li>インフォテインメントのセッションを開始します: <code>startSession(setOf(VehicleDomain.INFOTAINMENT))</code>、または両方のドメイン。セッションがないと、コマンドは <code>Failure(NoSession)</code> を返し、何も送りません。</li>
+<li>車両が起きていることを確認します。ライブラリは車両を起こし<strong>ません</strong>。インフォテインメントがスリープしていると、コマンドは送られても何も返らず、結果は <code>Uncertain(Timeout)</code> になります。先に <code>vehicleStatus()</code> を読みます (セッションは不要で、車両を起こすこともありません)。<code>ASLEEP</code> なら <a href="14-lib-reading-state.html#sec-a-order">14、A8.2</a> のように車両を起こし (VCSEC セッション、<code>wakeUp()</code>、<code>AWAKE</code> になるまで待つ)、インフォテインメントのセッションを開始します。</li>
+<li>コマンドを送り、結果を確認します:</li>
+</ol>
+<table>
+<thead><tr><th>結果</th><th>意味</th><th>アプリの対応</th></tr></thead>
+<tbody>
+<tr><td><span class="badge ok">Success</span></td><td>車両がコマンドを受け付けた</td><td>新しい状態を表示するには <code>getState</code> で読みます (<a href="#sec-cc-requery">Uncertain の後</a>)</td></tr>
+<tr><td><span class="badge warn">Uncertain</span></td><td>車両が実行した可能性がある: 時間内に応答がない (インフォテインメントがスリープ、応答の喪失)、ライブラリが再度書き込んだ失敗した書き込み、または読み取れない応答</td><td><strong>再送しないでください。</strong> <code>getState</code> で状態を読み、その内容で判断します。低消費電力モードとアクセサリー電源は読み戻せません</td></tr>
+<tr><td><code>Failure(InvalidArgument)</code></td><td>送信前のチェックに失敗し、何も送られていない</td><td>引数を直します (<a href="#sec-cc-checks">次の節</a>)</td></tr>
+<tr><td><code>Failure(InfotainmentRejected)</code></td><td>車両が拒否した</td><td>一般的なメッセージを表示します。<code>reason</code> は車両自身の文言なので、ログに残さないでください</td></tr>
+<tr><td><code>NoSession</code>, <code>NotConnected</code>, other errors</td><td>呼び出し順が誤っているか、リンクが切れた</td><td><a href="16-lib-errors.html">16. エラー処理</a> を参照してください</td></tr>
+</tbody>
+</table>
+
+<h3 id="sec-cc-checks">送信前のチェック</h3>
+<p>ライブラリは Go 原本が検査するものだけを検査します。検査はセッションの確認より前に行われるため、不正な引数はセッションがなくても <code>InvalidArgument</code> として報告され、何も送られません。</p>
+<table>
+<thead><tr><th>メソッド</th><th>ルール</th><th>メッセージ (<code>detail</code>)</th></tr></thead>
+<tbody>
+<tr><td><code>setSeatCooler</code></td><td>前席のみ: <code>FRONT_LEFT</code> または <code>FRONT_RIGHT</code></td><td><code>invalid seat position for seat cooler: &lt;SEAT&gt;</code></td></tr>
+<tr><td><code>scheduleDeparture</code></td><td>出発時刻は午前 0 時から 0〜1440 分 (両端を含む)</td><td><code>invalid departure time: &lt;n&gt; minutes after midnight (expected 0..1440)</code></td></tr>
+</tbody>
+</table>
+<p>それ以外はすべて与えられたまま車両に送られ、車両が判断します: 温度、充電上限、電流、その他の時刻、スケジュールのフィールド。<code>autoSeatAndClimate</code> は、Go 原本が扱わないシートを黙って除外します。</p>
+
+<h3 id="sec-cc-types">引数の型</h3>
+<table>
+<thead><tr><th>型</th><th>値</th><th>使用箇所</th></tr></thead>
+<tbody>
+<tr><td><code>SeatPosition</code></td><td><code>UNKNOWN</code>, <code>FRONT_LEFT</code>, <code>FRONT_RIGHT</code>, <code>SECOND_ROW_LEFT</code>, <code>SECOND_ROW_LEFT_BACK</code>, <code>SECOND_ROW_CENTER</code>, <code>SECOND_ROW_RIGHT</code>, <code>SECOND_ROW_RIGHT_BACK</code>, <code>THIRD_ROW_LEFT</code>, <code>THIRD_ROW_RIGHT</code>, Go と同じ順序。<code>_BACK</code> は背もたれで、一部の Model S のみヒーターがある</td><td>シートヒーター (全シート)、シートクーラー (前席)、オートシートクライメート (<code>UNKNOWN</code> と前席)</td></tr>
+<tr><td><code>SeatClimateLevel</code></td><td><code>OFF</code>, <code>LOW</code>, <code>MED</code>, <code>HIGH</code></td><td>シートヒーター、シートクーラー</td></tr>
+<tr><td><code>ClimateKeeperMode</code></td><td><code>OFF</code>, <code>ON</code>, <code>DOG</code>, <code>CAMP</code></td><td>クライメートキーパー</td></tr>
+<tr><td><code>CabinOverheatProtectionTemperature</code></td><td><code>UNSPECIFIED</code>, <code>LOW</code>, <code>MEDIUM</code>, <code>HIGH</code></td><td>車内過熱防止の温度</td></tr>
+<tr><td><code>ChargingPolicy</code></td><td><code>OFF</code> (その部分は送らない)、<code>ALL_DAYS</code>、<code>WEEKDAYS</code></td><td>出発時刻の予約</td></tr>
+<tr><td><code>ChargeSchedule</code>, <code>PreconditionSchedule</code></td><td>生成されたプロトコルの型で、与えられたまま送られる。<code>id</code> は符号なし 64 ビットの数を持つ <code>Long</code> で、<code>Long.MAX_VALUE</code> を超える id は負の <code>Long</code> になる</td><td>充電とプレコンディショニングのスケジュールの追加</td></tr>
+</tbody>
+</table>
+<p>すべての時刻は車両の現地時間の午前 0 時からの分です。<code>days_of_week</code> はビットマスクで、Go のコマンドラインツールは日曜 1、月曜 2、火曜 4、水曜 8、木曜 16、金曜 32、土曜 64 を使い (毎日 127、平日 62)、新しいスケジュールの <code>id</code> には現在の Unix 時間を使います。</p>
+
+<h3 id="sec-cc-climate">空調</h3>
+<table>
+<thead><tr><th>メソッド</th><th>要件</th><th>ペイロード例 (hex)</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>climateOn()</code></td><td>FR-060</td><td><code>120452020801</code></td><td>protocol.md の例</td></tr>
+<tr><td><code>climateOff()</code></td><td>FR-060</td><td><code>12025200</code></td><td></td></tr>
+<tr><td><code>setClimateTemp(driverCelsius, passengerCelsius)</code></td><td>FR-062</td><td><code>(22.0, 21.5)</code> → <code>1210720e2a021a00350000b0413d0000ac41</code></td><td>摂氏、範囲チェックなし。Go 原本と同じく常に <code>TEMP_MAX</code> レベルを送る</td></tr>
+<tr><td><code>setSeatHeater(levels)</code></td><td>FR-061</td><td><code>{FRONT_LEFT: HIGH}</code> → <code>1209a202060a042a003a00</code></td><td>シートからレベルへのマップ。マップの順序に関係なく、シートは <code>SeatPosition</code> の順に送られる。空のマップも送られる</td></tr>
+<tr><td><code>setSeatCooler(level, seat)</code></td><td>FR-063</td><td><code>(LOW, FRONT_RIGHT)</code> → <code>12098a03060a0408021002</code></td><td>前席のみ</td></tr>
+<tr><td><code>setSteeringWheelHeater(enabled)</code></td><td>FR-064</td><td><code>true</code> → <code>12046a020801</code></td><td></td></tr>
+<tr><td><code>autoSeatAndClimate(seats, enabled)</code></td><td>FR-065</td><td><code>([FRONT_RIGHT, UNKNOWN], false)</code> → <code>12098203060a0210020a00</code></td><td><code>UNKNOWN</code>、<code>FRONT_LEFT</code>、<code>FRONT_RIGHT</code> を順に残し (重複も含む)、他のシートは除外する。残るシートがなくても送られる</td></tr>
+<tr><td><code>setPreconditioningMax(enabled, manualOverride)</code></td><td>FR-066</td><td><code>(true, true)</code> → <code>1206620408011001</code></td><td></td></tr>
+<tr><td><code>setClimateKeeperMode(mode, manualOverride)</code></td><td>FR-067</td><td><code>(DOG, true)</code> → <code>1207e2020408021001</code></td><td></td></tr>
+<tr><td><code>setBioweaponDefenseMode(enabled, manualOverride)</code></td><td>FR-068</td><td><code>(true, false)</code> → <code>12059a02020801</code></td><td></td></tr>
+<tr><td><code>setCabinOverheatProtection(enabled, fanOnly)</code></td><td>FR-069</td><td><code>(true, true)</code> → <code>120792030408011001</code></td><td></td></tr>
+<tr><td><code>setCabinOverheatProtectionTemperature(temperature)</code></td><td>FR-069</td><td><code>HIGH</code> → <code>12059204020803</code></td><td></td></tr>
+</tbody>
+</table>
+
+<h3 id="sec-cc-charging">充電と電源</h3>
+<table>
+<thead><tr><th>メソッド</th><th>要件</th><th>ペイロード例 (hex)</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>chargeStart()</code></td><td>FR-070</td><td><code>120432021200</code></td><td>充電を開始</td></tr>
+<tr><td><code>chargeStop()</code></td><td>FR-070</td><td><code>120432022a00</code></td><td>充電を停止</td></tr>
+<tr><td><code>setChargeLimit(percent)</code></td><td>FR-071</td><td><code>80</code> → <code>12042a020850</code></td><td>範囲チェックなし</td></tr>
+<tr><td><code>setChargingAmps(amps)</code></td><td>FR-072</td><td><code>32</code> → <code>1205da02020820</code></td><td>範囲チェックなし</td></tr>
+<tr><td><code>chargeStandardRange()</code></td><td>FR-073</td><td><code>120432021a00</code></td><td>スタンダードレンジ</td></tr>
+<tr><td><code>chargeMaxRange()</code></td><td>FR-073</td><td><code>120432022200</code></td><td>最大レンジ</td></tr>
+<tr><td><code>scheduleCharging(enabled, minutesAfterMidnight)</code></td><td>FR-074</td><td><code>(true, 120)</code> → <code>1207ca020408011078</code></td><td>時刻はチェックしない</td></tr>
+<tr><td><code>scheduleDeparture(departAtMinutes, offPeakEndMinutes, preconditioning, offPeak)</code></td><td>FR-075</td><td><code>(480, 360, ALL_DAYS, WEEKDAYS)</code> → <code>1213d20210080110e0031a020a002202120028e802</code></td><td>常に出発時刻の予約をオンにする。出発時刻は 0〜1440 でなければならず、オフピークの終了時刻はチェックしない。<code>OFF</code> のポリシーはその部分を除外する</td></tr>
+<tr><td><code>clearScheduledDeparture()</code></td><td>FR-075</td><td><code>1203d20200</code></td><td>出発時刻の予約をオフにする</td></tr>
+<tr><td><code>setLowPowerMode(enabled)</code></td><td>FR-076</td><td><code>true</code> → <code>12059208020801</code></td><td>読み戻せない</td></tr>
+<tr><td><code>setKeepAccessoryPowerMode(enabled)</code></td><td>FR-077</td><td><code>true</code> → <code>1205d208020801</code></td><td>読み戻せない</td></tr>
+<tr><td><code>addChargeSchedule(schedule)</code></td><td>FR-078</td><td><code>ChargeSchedule(id = 1, enabled = true)</code> → <code>12078a060408014801</code></td><td>与えられたまま送る</td></tr>
+<tr><td><code>removeChargeSchedule(id)</code></td><td>FR-079</td><td><code>1_700_000_000</code> → <code>12099206060880e2cfaa06</code></td><td></td></tr>
+<tr><td><code>batchRemoveChargeSchedules(home, work, other)</code></td><td>FR-080</td><td><code>(true, false, true)</code> → <code>1207e2060408011801</code></td><td><code>other</code> は自宅でも職場でもないスケジュールを意味する</td></tr>
+<tr><td><code>addPreconditionSchedule(schedule)</code></td><td>FR-081</td><td><code>PreconditionSchedule(id = 2, enabled = true)</code> → <code>12079a060408023001</code></td><td>与えられたまま送る</td></tr>
+<tr><td><code>removePreconditionSchedule(id)</code></td><td>FR-082</td><td><code>2</code> → <code>1205a206020802</code></td><td></td></tr>
+<tr><td><code>batchRemovePreconditionSchedules(home, work, other)</code></td><td>FR-083</td><td><code>(false, true, true)</code> → <code>1207da060410011801</code></td><td></td></tr>
+<tr><td><code>openChargePort()</code></td><td>FR-052</td><td><code>1203f20300</code></td><td>充電ポートのドアを開ける</td></tr>
+<tr><td><code>closeChargePort()</code></td><td>FR-052</td><td><code>1203ea0300</code></td><td>充電ポートのドアを閉める</td></tr>
+</tbody>
+</table>
+
+<h3 id="sec-cc-requery">Uncertain の後</h3>
+<p>再送せず、コマンドが変える状態を読み取ります。フィールド名は公式のプロトコル定義に基づいており、コマンドが実車でどのフィールドを変えるかはまだ確認していません (#118)。読み取り自体が <code>Uncertain</code> で返ることもあり (インフォテインメントがスリープ、応答が大きすぎる)、その場合は後の読み取りが成功するまでコマンドの結果は不明のままです。</p>
+<table>
+<thead><tr><th>コマンド</th><th>読み取り方法</th><th>見るフィールド</th></tr></thead>
+<tbody>
+<tr><td><code>climateOn</code>, <code>climateOff</code></td><td><code>getState(StateCategory.CLIMATE)</code></td><td><code>climate_state.is_climate_on</code></td></tr>
+<tr><td><code>setClimateTemp</code></td><td>同じ</td><td><code>driver_temp_setting</code>, <code>passenger_temp_setting</code></td></tr>
+<tr><td><code>setSeatHeater</code>, <code>setSeatCooler</code></td><td>同じ</td><td><code>seat_heater_*</code>, <code>seat_fan_front_left</code> と <code>_right</code></td></tr>
+<tr><td><code>setSteeringWheelHeater</code>, <code>autoSeatAndClimate</code></td><td>同じ</td><td><code>steering_wheel_heater</code>, <code>auto_seat_climate_left</code> と <code>_right</code></td></tr>
+<tr><td><code>setClimateKeeperMode</code>, <code>setBioweaponDefenseMode</code></td><td>同じ</td><td><code>climate_keeper_mode</code>, <code>bioweapon_mode_on</code> (HEPA フィルター搭載車)</td></tr>
+<tr><td><code>setCabinOverheatProtection</code>, <code>setCabinOverheatProtectionTemperature</code></td><td>同じ</td><td><code>cabin_overheat_protection</code>, <code>cop_activation_temperature</code></td></tr>
+<tr><td><code>setPreconditioningMax</code></td><td>同じ</td><td>空調の状態。単一のフィールドは特定されていない</td></tr>
+<tr><td><code>chargeStart</code>, <code>chargeStop</code>, <code>chargeStandardRange</code>, <code>chargeMaxRange</code></td><td><code>getState(StateCategory.CHARGE)</code></td><td><code>charge_state.charging_state</code>, <code>charge_limit_soc</code></td></tr>
+<tr><td><code>setChargeLimit</code>, <code>setChargingAmps</code></td><td>同じ</td><td><code>charge_limit_soc</code>, <code>charging_amps</code>, <code>charge_current_request</code></td></tr>
+<tr><td><code>scheduleCharging</code></td><td>同じ</td><td><code>scheduled_charging_mode</code>, <code>scheduled_charging_start_time_minutes</code></td></tr>
+<tr><td><code>scheduleDeparture</code>, <code>clearScheduledDeparture</code></td><td>同じ</td><td><code>scheduled_departure_time_minutes</code>, <code>preconditioning_enabled</code>, <code>off_peak_charging_times</code></td></tr>
+<tr><td><code>openChargePort</code>, <code>closeChargePort</code></td><td>同じ</td><td><code>charge_port_door_open</code></td></tr>
+<tr><td>充電スケジュール: 追加、削除、一括削除</td><td><code>getState(StateCategory.CHARGE_SCHEDULE)</code></td><td><code>charge_schedule_state.charge_schedules</code>: <code>id</code> を探します</td></tr>
+<tr><td>プレコンディショニングのスケジュール: 追加、削除、一括削除</td><td><code>getState(StateCategory.PRECONDITIONING_SCHEDULE)</code></td><td><code>preconditioning_schedule_state.precondition_schedules</code></td></tr>
+<tr><td><code>setLowPowerMode</code>, <code>setKeepAccessoryPowerMode</code></td><td>なし</td><td>公式の車両データにはこれらのモード用のフィールドがありません。結果は不明として表示し、再送しないでください</td></tr>
+</tbody>
+</table>
+
+<h3 id="sec-cc-kotlin">Kotlin の例</h3>
+<pre><code class="language-kotlin"><span class="k">import</span> com.tesla.generated.carserver.common.<span class="t">ChargeSchedule</span>
+<span class="k">import</span> dev.mirolab.teslable.<span class="t">Vehicle</span>
+<span class="k">import</span> dev.mirolab.teslable.model.<span class="t">ChargingPolicy</span>
+<span class="k">import</span> dev.mirolab.teslable.model.<span class="t">SeatClimateLevel</span>
+<span class="k">import</span> dev.mirolab.teslable.model.<span class="t">SeatPosition</span>
+<span class="k">import</span> dev.mirolab.teslable.model.<span class="t">StateCategory</span>
+<span class="k">import</span> dev.mirolab.teslable.model.<span class="t">VehicleError</span>
+<span class="k">import</span> dev.mirolab.teslable.model.<span class="t">VehicleResult</span>
+
+<span class="c">// Before: an INFOTAINMENT session (startSession) and an awake vehicle (14-lib-reading-state.md A8.2).</span>
+<span class="k">suspend</span> <span class="k">fun</span> <span class="f">warmUp</span>(vehicle: <span class="t">Vehicle</span>): <span class="t">String</span> {
+    <span class="k">when</span> (<span class="k">val</span> result = vehicle.<span class="f">climateOn</span>()) {
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> <span class="t">Unit</span>
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Uncertain</span> <span class="o">-&gt;</span> {
+            <span class="c">// The vehicle may have turned climate on. Never resend: read the state.</span>
+            <span class="k">val</span> state = vehicle.<span class="f">getState</span>(<span class="t">StateCategory</span>.<span class="t">CLIMATE</span>)
+            <span class="k">val</span> on = (state <span class="k">as</span>? <span class="t">VehicleResult</span>.<span class="t">Success</span>)<span class="o">?.</span>value<span class="o">?.</span>climate_state<span class="o">?.</span>is_climate_on
+            <span class="k">return</span> <span class="k">if</span> (on <span class="o">==</span> <span class="n">true</span>) <span class="s">"climate on"</span> <span class="k">else</span> <span class="s">"unknown, read again later"</span>
+        }
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span> <span class="k">return</span> <span class="s">"not sent or refused: ${result.error.message}"</span>
+    }
+    <span class="c">// Handle these results the same way.</span>
+    vehicle.<span class="f">setClimateTemp</span>(driverCelsius = <span class="n">22</span>.0f, passengerCelsius = <span class="n">21</span>.5f)
+    vehicle.<span class="f">setSeatHeater</span>(<span class="f">mapOf</span>(<span class="t">SeatPosition</span>.<span class="t">FRONT_LEFT</span> to <span class="t">SeatClimateLevel</span>.<span class="t">HIGH</span>, <span class="t">SeatPosition</span>.<span class="t">FRONT_RIGHT</span> to <span class="t">SeatClimateLevel</span>.<span class="t">LOW</span>))
+    <span class="k">return</span> <span class="s">"climate on"</span>
+}
+
+<span class="k">suspend</span> <span class="k">fun</span> <span class="f">planCharging</span>(vehicle: <span class="t">Vehicle</span>, scheduleId: <span class="t">Long</span>, latitude: <span class="t">Float</span>, longitude: <span class="t">Float</span>) {
+    vehicle.<span class="f">setChargeLimit</span>(<span class="n">80</span>)
+    <span class="c">// Leave at 08:00, off-peak charging ends at 06:00 (minutes after the vehicle's local midnight).</span>
+    <span class="k">val</span> departure = vehicle.<span class="f">scheduleDeparture</span>(<span class="n">480</span>, <span class="n">360</span>, <span class="t">ChargingPolicy</span>.<span class="t">ALL_DAYS</span>, <span class="t">ChargingPolicy</span>.<span class="t">WEEKDAYS</span>)
+    <span class="k">if</span> (departure <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">&amp;&amp;</span> departure.error <span class="k">is</span> <span class="t">VehicleError</span>.<span class="t">InvalidArgument</span>) {
+        <span class="k">return</span> <span class="c">// departAtMinutes outside 0..1440; nothing was sent</span>
+    }
+    <span class="k">val</span> schedule =
+        <span class="t">ChargeSchedule</span>(
+            id = scheduleId, <span class="c">// the Go CLI uses the current Unix time</span>
+            name = <span class="s">"Home"</span>,
+            days_of_week = <span class="n">127</span>, <span class="c">// every day</span>
+            start_enabled = <span class="n">true</span>,
+            start_time = <span class="n">120</span>, <span class="c">// 02:00</span>
+            enabled = <span class="n">true</span>,
+            latitude = latitude,
+            longitude = longitude,
+        )
+    vehicle.<span class="f">addChargeSchedule</span>(schedule)
+}</code></pre>
+
+<h3 id="sec-cc-swift">Swift の例</h3>
+<p>Swift では <code>timeout:</code> を含むすべての引数を渡します。スケジュールはすべてのフィールドと <code>unknownFields</code> で組み立てます。詳細は <a href="17-lib-platform-notes.html#sec-swift-commands">17. プラットフォームノート</a> にあります。この形はフレームワークに対する Swift の型チェックを通っていますが、Swift のプログラムで実行したものではありません。</p>
+<pre><code class="language-swift"><span class="k">func</span> <span class="f">warmUp</span>(vehicle: <span class="t">Vehicle</span>) <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="t">String</span> {
+    <span class="k">let</span> result = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">climateOn</span>(timeout: <span class="n">nil</span>)
+    <span class="k">switch</span> <span class="f">onEnum</span>(of: result) {
+    <span class="k">case</span> .success:
+        <span class="k">break</span>
+    <span class="k">case</span> .uncertain:
+        <span class="c">// The vehicle may have turned climate on. Never resend: read the state.</span>
+        <span class="k">let</span> state = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">getState</span>(category: .climate, timeout: <span class="n">nil</span>)
+        <span class="k">if</span> <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s) = <span class="f">onEnum</span>(of: state), <span class="k">let</span> data = s.value <span class="k">as</span>? <span class="t">VehicleData</span>,
+           data.climate_state?.is_climate_on?.boolValue <span class="o">==</span> <span class="n">true</span> {
+            <span class="k">return</span> <span class="s">"climate on"</span>
+        }
+        <span class="k">return</span> <span class="s">"unknown, read again later"</span>
+    <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f):
+        <span class="k">return</span> <span class="s">"not sent or refused: \(f.error.message)"</span>
+    }
+    _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">setClimateTemp</span>(driverCelsius: <span class="n">22.0</span>, passengerCelsius: <span class="n">21.5</span>, timeout: <span class="n">nil</span>)
+    _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">setSeatHeater</span>(levels: [.frontLeft: .high, .frontRight: .low], timeout: <span class="n">nil</span>)
+    <span class="k">return</span> <span class="s">"climate on"</span>
+}
+
+<span class="k">func</span> <span class="f">planCharging</span>(vehicle: <span class="t">Vehicle</span>, scheduleId: <span class="t">Int64</span>, latitude: <span class="t">Float</span>, longitude: <span class="t">Float</span>) <span class="k">async</span> <span class="k">throws</span> {
+    _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">setChargeLimit</span>(percent: <span class="n">80</span>, timeout: <span class="n">nil</span>)
+    <span class="k">let</span> departure = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">scheduleDeparture</span>(
+        departAtMinutes: <span class="n">480</span>, offPeakEndMinutes: <span class="n">360</span>, preconditioning: .allDays, offPeak: .weekdays, timeout: <span class="n">nil</span>)
+    <span class="k">if</span> <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f) = <span class="f">onEnum</span>(of: departure), <span class="k">case</span> .invalidArgument = <span class="f">onEnum</span>(of: f.error) {
+        <span class="k">return</span> <span class="c">// departAtMinutes outside 0..1440; nothing was sent</span>
+    }
+    <span class="k">let</span> schedule = <span class="t">ChargeSchedule</span>(
+        id: scheduleId, name: <span class="s">"Home"</span>, days_of_week: <span class="n">127</span>, start_enabled: <span class="n">true</span>, start_time: <span class="n">120</span>,
+        end_enabled: <span class="n">false</span>, end_time: <span class="n">0</span>, one_time: <span class="n">false</span>, enabled: <span class="n">true</span>,
+        latitude: latitude, longitude: longitude, unknownFields: <span class="t">OkioByteString</span>.companion.<span class="t">EMPTY</span>)
+    _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">addChargeSchedule</span>(schedule: schedule, timeout: <span class="n">nil</span>)
+}</code></pre>
+
+<h2 id="sec-m5">M5 で追加予定: 残りのインフォテインメント</h2>
 <table>
 <thead><tr><th>領域</th><th>予定メソッド</th><th>優先度</th></tr></thead>
 <tbody>
-<tr><td>空調</td><td><code>climateOn()</code>, <code>climateOff()</code>, <code>setClimateTemp(driverC, passengerC)</code></td><td><span class="badge ok">P0</span></td></tr>
-<tr><td>充電</td><td><code>chargeStart()</code>, <code>chargeStop()</code>, <code>setChargeLimit(percent)</code>, <code>setChargingAmps(amps)</code></td><td><span class="badge ok">P0</span></td></tr>
-<tr><td>空調の追加機能</td><td>シートヒーターとシートクーラー、ステアリングヒーター、プレコンディショニング、クライメートキーパー (ドッグ、キャンプ)、生物兵器防御モード、車内過熱防止</td><td><span class="badge info">P1</span></td></tr>
-<tr><td>充電の追加機能</td><td>スタンダードレンジと最大レンジ、充電予約と出発時刻の設定、充電とプレコンディショニングのスケジュール、低消費電力モードとアクセサリー電源モード</td><td><span class="badge info">P1</span></td></tr>
-<tr><td>ボディ</td><td><code>ventWindows()</code>, <code>closeWindows()</code>, <code>setSunroof(level)</code>, <code>openChargePort()</code>, <code>closeChargePort()</code>, <code>honkHorn()</code>, <code>flashLights()</code></td><td><span class="badge info">P1</span></td></tr>
+<tr><td>ボディ</td><td><code>ventWindows()</code>, <code>closeWindows()</code>, <code>setSunroof(level)</code>, <code>honkHorn()</code>, <code>flashLights()</code></td><td><span class="badge info">P1</span></td></tr>
 <tr><td>セキュリティ</td><td><code>setSentryMode(on)</code>、バレーモード</td><td><span class="badge info">P1</span></td></tr>
 <tr><td>メディアとアップデート</td><td>音量、トラック、お気に入りの操作、ソフトウェアアップデートの予約とキャンセル</td><td><span class="badge info">P1</span></td></tr>
 <tr><td>状態</td><td><code>ping()</code></td><td><span class="badge info">P1</span></td></tr>

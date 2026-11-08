@@ -60,6 +60,7 @@
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-outcomes">3 つの結果</a></li>
 <li><a href="#sec-hierarchy">エラーの種類</a></li>
+<li><a href="#sec-invalid-argument">不正な引数</a></li>
 <li><a href="#sec-getstate">getState の結果</a></li>
 <li><a href="#sec-transport">Bluetooth とキーストアのエラー</a></li>
 <li><a href="#sec-events">ブロードキャストイベント</a></li>
@@ -95,7 +96,7 @@
 <tr><td><code>TransportError</code></td><td>Bluetooth のスキャン、接続、書き込み</td><td>スキャンのタイムアウト、接続失敗、書き込み失敗のみ</td><td>いいえ</td></tr>
 <tr><td><code>KeyStoreError</code></td><td>プラットフォームのキーストア。<code>Locked</code> は <code>startSession()</code> も返す</td><td><code>Locked</code> のみ</td><td>いいえ</td></tr>
 <tr><td><code>Timeout</code></td><td>コマンドが時間切れになった</td><td>はい</td><td>最初の Bluetooth 書き込みがすでに始まっていた場合 (<a href="#sec-retry">リトライとタイムアウト</a>)。ハンドシェイクでは常にいいえ</td></tr>
-<tr><td><code>InvalidArgument</code></td><td>不正な引数</td><td>いいえ</td><td>いいえ</td></tr>
+<tr><td><code>InvalidArgument</code></td><td>不正な引数。何も送っていない (<a href="#sec-invalid-argument">不正な引数</a>)</td><td>いいえ</td><td>いいえ</td></tr>
 </tbody>
 </table>
 <p>各プロトコルフォールトコードの意味は <a href="09-errors-troubleshooting.html#sec-fault">9. エラーとトラブルシューティング</a> にあります。</p>
@@ -111,6 +112,20 @@
 </tbody>
 </table>
 <p><code>message</code> ではなくエラー型で判断してください。メッセージには番号の代わりにコード名が入るようになりました。</p>
+
+<h2 id="sec-invalid-argument">不正な引数</h2>
+<p><code>InvalidArgument</code> は、ライブラリが何も送る前に引数を拒否したことを意味します。車両には何も届いていないので、読み戻すものはありません。引数を直してください。ライブラリは Go 原本が検査するものだけを検査し、それ以外の値は与えられたまま車両に送られて車両が判断します (例: 範囲外の充電上限や温度は <code>InfotainmentRejected</code> で返るか、成功します)。</p>
+<table>
+<thead><tr><th>呼び出し</th><th>ルール</th><th>メッセージ (<code>detail</code>)</th><th>チェックのタイミング</th></tr></thead>
+<tbody>
+<tr><td><code>setSeatCooler(level, seat)</code></td><td>前席のみ: <code>FRONT_LEFT</code> または <code>FRONT_RIGHT</code></td><td><code>invalid seat position for seat cooler: &lt;SEAT&gt;</code></td><td>セッションの確認より前なので、セッションがなくても返される</td></tr>
+<tr><td><code>scheduleDeparture(departAtMinutes, …)</code></td><td>出発時刻は午前 0 時から 0〜1440 分 (両端を含む)</td><td><code>invalid departure time: &lt;n&gt; minutes after midnight (expected 0..1440)</code></td><td>セッションの確認より前</td></tr>
+<tr><td><code>addKey</code>, <code>addKeyRequest</code> (as <code>PairingEvent.Failed</code>)</td><td>ロールが <code>KeyRole.UNKNOWN</code> ではない</td><td><code>role UNKNOWN cannot be enrolled</code></td><td>送信前 (<a href="13-lib-pairing.html">13. キーとペアリング</a>)</td></tr>
+<tr><td><code>connect(vin, key, target)</code></td><td><code>target</code> のアドバタイズが <code>vin</code> のものである</td><td><code>advertisement &lt;local name&gt; is not for this VIN</code></td><td>接続前</td></tr>
+<tr><td>任意のリクエスト</td><td>フレーム化したメッセージは最大 1024 バイトで、非常に長いスケジュールの <code>name</code> はこれを超える可能性がある</td><td><code>message exceeds 1024 bytes</code></td><td>Bluetooth 層で、セッションの確認の後</td></tr>
+</tbody>
+</table>
+<p>Go 原本は最初の 2 つに対して <code>invalid seat position</code> と <code>invalid departure time</code> を返します。ルールとチェックのタイミングは同じで、ここではメッセージだけが詳しくなっています。<code>detail</code> ではなくエラー型で判断してください。この文言は人とログのためのものです。</p>
 
 <h2 id="sec-getstate">getState の結果</h2>
 <p>クエリは車両の状態を何も変えません。したがって<strong>読み取りでの <code>Uncertain</code> は、確認できたデータがないという意味</strong>であり、コマンドが実行された可能性があるという意味ではありません。読み取りとコマンドは同じエラー型を共有するため、<code>mayHaveSucceeded</code> は引き続き true です。後から確認するものはありません。最後の値を保持し、後でもう一度問い合わせてください。再度の問い合わせは安全ですが、短い間隔で繰り返してはいけません。ライブラリは間隔を決めないので、アプリが選びます。</p>
@@ -209,9 +224,14 @@
 <tr><td><code>lock</code>, <code>unlock</code>, <code>wakeUp</code>, <code>remoteDrive</code>, <code>autoSecureVehicle</code>, <code>openTrunk</code>, <code>actuateTrunk</code>, <code>closeTrunk</code>, <code>openFrunk</code>, <code>openTonneau</code>, <code>closeTonneau</code>, <code>stopTonneau</code></td><td><code>vehicleStatus()</code></td><td>ロック状態、開閉部、スリープ状態。<code>openTrunk</code> と <code>actuateTrunk</code> はトグルなので、再送を決める前に開閉状態を比較してください</td></tr>
 <tr><td><code>addKey</code>, <code>removeKey</code></td><td><code>listKeys()</code></td><td>公開キーが車両のキー一覧にあるか</td></tr>
 <tr><td><code>addKeyRequest</code> (<code>TimedOut</code>、または最終応答なしでフローが終わった場合)</td><td><code>sessionInfo(publicKey, VehicleDomain.INFOTAINMENT)</code></td><td><code>Success</code> = 登録済み、<code>Failure(KeyNotPaired)</code> = まだ</td></tr>
+<tr><td>空調コマンド: <code>climateOn</code>, <code>climateOff</code>, <code>setClimateTemp</code>, <code>setSeatHeater</code>, <code>setSeatCooler</code>, <code>setSteeringWheelHeater</code>, <code>autoSeatAndClimate</code>, <code>setPreconditioningMax</code>, <code>setClimateKeeperMode</code>, <code>setBioweaponDefenseMode</code>, <code>setCabinOverheatProtection</code>, <code>setCabinOverheatProtectionTemperature</code></td><td><code>getState(StateCategory.CLIMATE)</code></td><td>対応する空調のフィールド (<a href="15-lib-commands.html#sec-cc-requery">15. コマンド</a>)</td></tr>
+<tr><td>充電コマンド: <code>chargeStart</code>, <code>chargeStop</code>, <code>setChargeLimit</code>, <code>setChargingAmps</code>, <code>chargeStandardRange</code>, <code>chargeMaxRange</code>, <code>scheduleCharging</code>, <code>scheduleDeparture</code>, <code>clearScheduledDeparture</code>, <code>openChargePort</code>, <code>closeChargePort</code></td><td><code>getState(StateCategory.CHARGE)</code></td><td>対応する充電のフィールド</td></tr>
+<tr><td><code>addChargeSchedule</code>, <code>removeChargeSchedule</code>, <code>batchRemoveChargeSchedules</code></td><td><code>getState(StateCategory.CHARGE_SCHEDULE)</code></td><td>スケジュールの <code>id</code> が <code>charge_schedules</code> にあるか</td></tr>
+<tr><td><code>addPreconditionSchedule</code>, <code>removePreconditionSchedule</code>, <code>batchRemovePreconditionSchedules</code></td><td><code>getState(StateCategory.PRECONDITIONING_SCHEDULE)</code></td><td><code>precondition_schedules</code></td></tr>
+<tr><td><code>setLowPowerMode</code>, <code>setKeepAccessoryPowerMode</code></td><td>なし</td><td>公式の車両データにはこれらのモード用のフィールドがありません。結果は不明として表示し、再送しないでください</td></tr>
 </tbody>
 </table>
-<p>インフォテインメントのコマンドは M5 でこの表に追加されます。</p>
+<p>インフォテインメントでは、読み取り自体が <code>Uncertain</code> で返ることがあります (インフォテインメントがスリープ、応答が大きすぎる、<a href="#sec-getstate">getState の結果</a>)。その場合は後の読み取りが成功するまでコマンドの結果は不明のままです。コマンドが実車でどのフィールドを変えるかはまだ確認していません (#118)。</p>
 
 <h2 id="sec-other-client">他の Bluetooth クライアントが動作している間のクエリ</h2>
 <p>状態: <span class="badge info">有力</span>。1 台の車両の実車ログによるものです (<a href="14-lib-reading-state.html#sec-b-catalogue">14、B3.5</a>)。統制したシナリオでは再現しておらず、仕組みは不明です。</p>
