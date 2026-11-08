@@ -19,7 +19,10 @@ import kotlin.time.Duration
 public class InfotainmentCommands(
     private val send: SendWithRetry,
 ) {
-    /** [action]을 실행한다. 시간 초과·재시도 규칙은 [SendWithRetry.send]와 같다. */
+    /**
+     * [action]을 실행한다. 시간 초과·재시도 규칙은 [SendWithRetry.send]와 같다: 명령으로 다루므로 쓰기 실패 뒤에는 새 사본을 인가해 보내지
+     * 않는다(ADR-0010 2026-11-08 개정). 조회는 [getState]를 쓴다.
+     */
     public suspend fun execute(
         action: Action,
         timeout: Duration = send.commandTimeout,
@@ -33,7 +36,9 @@ public class InfotainmentCommands(
 
     /**
      * Go `GetState`(FR-033): [category] 하나를 조회한다. 세션을 시작하거나 차를 깨우지 않으므로 세션이 없으면 `Failure(NoSession)`이고,
-     * 시간 초과·재시도·거부·해석 규칙은 [execute]와 같다. 응답의 내용을 [category]와 맞춰 보지 않는다(Go와 같다).
+     * 시간 초과·거부·해석 규칙은 [execute]와 같다. 재시도는 반복해도 안전한 조회로 보낸다([SendWithRetry.query]): 쓰기가 실패해 같은 바이트를
+     * 다시 보낸 뒤에도 Go처럼 재시도할 오류에 새 사본으로 다시 묻는다(ADR-0010 2026-11-08 개정의 면제 — 조회는 차량 상태를 바꾸지 않는다).
+     * 응답의 내용을 [category]와 맞춰 보지 않는다(Go와 같다).
      *
      * 응답에 `vehicleData`가 없으면 `Success(VehicleData())`다. Go는 `(nil, nil)`을 돌려주지만 nil 메시지의 필드는 빈 메시지처럼 읽히고,
      * 호출자는 어차피 필드마다 null을 확인하므로 반환 타입을 nullable로 넓히지 않는다(M5 계획 결정 기록).
@@ -44,7 +49,7 @@ public class InfotainmentCommands(
         category: StateCategory,
         timeout: Duration = send.commandTimeout,
     ): VehicleResult<VehicleData> =
-        when (val result = execute(category.toAction(), timeout)) {
+        when (val result = interpret(send.query(Domain.DOMAIN_INFOTAINMENT, category.toAction().encode(), AuthMethod.GCM, timeout))) {
             is VehicleResult.Success -> VehicleResult.Success(result.value.vehicleData ?: VehicleData())
             is VehicleResult.Failure -> result
             is VehicleResult.Uncertain -> result

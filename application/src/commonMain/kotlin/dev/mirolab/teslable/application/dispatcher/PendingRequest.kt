@@ -44,6 +44,9 @@ public class PendingRequest internal constructor(
     @Volatile
     private var lockedKey = false
 
+    @Volatile
+    private var failedWrite = false
+
     /** Go `receiver.antireplay`: 이 요청의 응답 counter 슬라이딩 윈도우(32). 수신 코루틴만 갱신한다. */
     internal val antiReplay: SlidingWindow = SlidingWindow()
 
@@ -66,6 +69,18 @@ public class PendingRequest internal constructor(
     /** 수신 코루틴이 [keyLocked]를 세운다. */
     internal fun markKeyLocked() {
         lockedKey = true
+    }
+
+    /**
+     * 이 요청의 쓰기를 부른 뒤 쓰기가 실패해, 전송 루프가 같은 바이트를 다시 썼는지(원본에 없음, ADR-0010 2026-11-08 개정). 그러면 차량이
+     * 첫 사본을 받아 실행했을 수 있고, 다시 보낸 사본에 대한 거부는 중복 사본에 대한 거부일 수 있다. [Dispatcher]의 전송 루프가 재시도 대기
+     * 전에 세우고 내리지 않는다(요청마다 새 객체라 다음 시도에 남지 않는다). 쓰기를 부르기 전의 실패는 세우지 않는다.
+     */
+    internal val hadFailedWrite: Boolean get() = failedWrite
+
+    /** 전송 루프가 [hadFailedWrite]를 세운다. */
+    internal fun markFailedWrite() {
+        failedWrite = true
     }
 
     /** Go `Recv()`의 `select` 용 절. */

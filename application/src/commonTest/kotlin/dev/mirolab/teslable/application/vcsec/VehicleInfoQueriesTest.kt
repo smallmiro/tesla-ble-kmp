@@ -165,6 +165,23 @@ class VehicleInfoQueriesTest {
         }
 
     @Test
+    fun aQueryIsRepeatSafeSoAWaitAfterAFailedWriteStillSendsANewRequest() =
+        // 반복해도 안전한 조회는 면제한다(ADR-0010 2026-11-08 개정): 쓰기가 실패해 같은 바이트를 다시 보낸 뒤 그 사본이 WAIT를 받아도 Go처럼
+        // 새 요청을 보낸다. 인증 없는 조회에는 counter가 없어 차량이 중복을 거부하지 않는다. 첫 사본의 응답은 유실, 둘째 사본은 WAIT
+        runTest {
+            val h = dispatcherHarness(privateKey = null)
+            val locked =
+                reply(FromVCSECMessage(vehicleStatus = WireVehicleStatus(vehicleLockState = VehicleLockState_E.VEHICLELOCKSTATE_LOCKED)))
+            h.fake.script(vcsec, locked, listOf(FakeVehicle.vcsecBusy()), locked)
+            h.fake.dropNextReplies(1)
+            h.transport.enqueueWriteErrorAfterDelivery(VehicleError.TransportError.WriteFailed("gatt 133"))
+            val status =
+                assertIs<VehicleResult.Success<VehicleStatus>>(VehicleSession(h.dispatcher).info.vehicleStatus(timeout = 1.seconds))
+            assertEquals(LockState.LOCKED, status.value.lockState)
+            assertEquals(3, h.fake.received.size) // 첫 사본, 같은 바이트의 재전송, 새 요청
+        }
+
+    @Test
     fun replyWithoutVehicleStatusIsBadResponse() =
         // 설계 구체화 12: Go는 (nil, nil) — 우리는 값 객체를 만들 수 없으므로 실패
         runTest {

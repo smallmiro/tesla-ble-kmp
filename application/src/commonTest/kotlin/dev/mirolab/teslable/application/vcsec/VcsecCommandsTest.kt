@@ -5,9 +5,12 @@ import com.tesla.generated.carserver.server.Ping
 import com.tesla.generated.carserver.server.VehicleAction
 import com.tesla.generated.errors.GenericError_E
 import com.tesla.generated.universalmessage.Domain
+import com.tesla.generated.universalmessage.MessageFault_E
 import com.tesla.generated.vcsec.CommandStatus
 import com.tesla.generated.vcsec.FromVCSECMessage
 import com.tesla.generated.vcsec.RKEAction_E
+import com.tesla.generated.vcsec.SignedMessage_information_E
+import com.tesla.generated.vcsec.SignedMessage_status
 import com.tesla.generated.vcsec.UnsignedMessage
 import com.tesla.generated.vcsec.WhitelistOperation_information_E
 import com.tesla.generated.vcsec.WhitelistOperation_status
@@ -33,6 +36,7 @@ import kotlin.test.assertNull
 import kotlin.test.assertTrue
 import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
+import com.tesla.generated.vcsec.OperationStatus_E as VcsecOperationStatus
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class VcsecCommandsTest {
@@ -253,6 +257,114 @@ class VcsecCommandsTest {
             assertEquals(writesBefore, h.transport.writesInvoked)
             assertEquals(0, h.fake.received.count { it.signature_data?.AES_GCM_Personalized_data != null })
             assertEquals(0, h.dispatcher.pendingCount())
+        }
+
+    private fun DispatcherHarness.signedCopies() = fake.received.filter { it.signature_data?.AES_GCM_Personalized_data != null }
+
+    @Test
+    fun aReplayFaultForTheResentCopyAfterAFailedWriteIsUncertainAndNoNewCopyIsSigned() =
+        // 실패로 보인 첫 쓰기가 차량에 닿아 실행됐고 그 응답이 유실됐다. 같은 바이트의 재전송은 같은 counter라 차량이 재전송으로 거부한다
+        // (Go verifier.go:217-220 INVALID_TOKEN_OR_COUNTER). 그 fault로 새 counter의 사본을 인가해 보내면 두 번 실행된다(NFR-007) —
+        // 새 사본 없이 첫 사본의 응답을 시간 제한까지 기다려 Uncertain. Go는 실패한 BLE 쓰기에서 끝난다(ble.go:121, ADR-0010 2026-11-08 개정)
+        runTest {
+            val h = dispatcherHarness()
+            val session = connected(h)
+            h.fake.dropNextReplies(1)
+            h.transport.enqueueWriteErrorAfterDelivery(VehicleError.TransportError.WriteFailed("gatt 133"))
+            val result = session.vcsec.execute(lock, AuthMethod.GCM, VcsecResponses.COMMAND_STATUS_ABSENT, timeout = 1.seconds)
+            assertEquals(VehicleError.Timeout(afterSend = true), assertIs<VehicleResult.Uncertain>(result).error)
+            assertEquals(1, h.fake.authenticatedPayloads(vcsec).size) // 차량은 한 번만 실행했다
+            val copies = h.signedCopies()
+            assertEquals(2, copies.size) // 첫 사본과 같은 바이트의 재전송뿐이다
+            assertEquals(copies[0], copies[1])
+            assertEquals(0, h.dispatcher.pendingCount())
+            assertTrue(h.logger.contains("possible duplicate"))
+            // 표시는 그 요청에만 남는다: 다음 명령은 재시도할 오류에 평소처럼 새 사본을 보낸다
+            h.fake.script(vcsec, listOf(FakeVehicle.vcsecBusy()), listOf(FakeVehicle.vcsecEmpty()))
+            assertIs<VehicleResult.Success<FromVCSECMessage>>(
+                session.vcsec.execute(lock, AuthMethod.GCM, VcsecResponses.COMMAND_STATUS_ABSENT),
+            )
+            assertEquals(4, h.signedCopies().size)
+        }
+
+    @Test
+    fun theFirstCopysReplyArrivingAfterTheReplayFaultIsTheResult() =
+        // 같은 요청을 계속 읽으므로 첫 사본의 응답이 재전송 사본의 fault보다 늦게 와도 결과가 된다(같은 routing address·request hash)
+        runTest {
+            val h = dispatcherHarness()
+            val session = connected(h)
+            h.fake.holdNextReplies(1)
+            h.transport.enqueueWriteErrorAfterDelivery(VehicleError.TransportError.WriteFailed("gatt 133"))
+            val result = async { session.vcsec.execute(lock, AuthMethod.GCM, VcsecResponses.COMMAND_STATUS_ABSENT, timeout = 1.seconds) }
+            advanceTimeBy(100.milliseconds)
+            assertFalse(result.isCompleted)
+            assertEquals(1, h.fake.releaseHeldReplies())
+            assertEquals(FromVCSECMessage(), assertIs<VehicleResult.Success<FromVCSECMessage>>(result.await()).value)
+            assertEquals(1, h.fake.authenticatedPayloads(vcsec).size)
+            assertEquals(2, h.signedCopies().size)
+        }
+
+    @Test
+    fun protocolFaultsForTheResentCopyAfterAFailedWriteAreNotTakenAsTheOutcome() =
+        // 쓰기 실패 뒤 다시 보낸 사본에 대한 프로토콜 계층의 판정은 중복 사본에 대한 답일 수 있다: 재시도 대상이 아닌 REPEATED_COUNTER,
+        // 첫 사본이 자기 키를 지웠다면 나올 UNKNOWN_KEY_ID(KeyNotPaired), INSUFFICIENT_PRIVILEGES도 "실행 안 됨"(Failure)으로 단정하지 않는다.
+        // 여기서는 첫 사본이 닿지 않아 차량이 재전송 사본을 처음으로 검증하고 대본으로 답한다
+        runTest {
+            val h = dispatcherHarness()
+            val session = connected(h)
+            val faults =
+                listOf(
+                    MessageFault_E.MESSAGEFAULT_ERROR_REPEATED_COUNTER,
+                    MessageFault_E.MESSAGEFAULT_ERROR_UNKNOWN_KEY_ID,
+                    MessageFault_E.MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES,
+                )
+            for (fault in faults) {
+                val before = h.signedCopies().size
+                h.transport.enqueueWriteError(VehicleError.TransportError.WriteFailed("gatt 133"))
+                h.fake.script(vcsec, listOf(FakeVehicle.ScriptedReply(fault = fault)))
+                val result = session.vcsec.execute(lock, AuthMethod.GCM, VcsecResponses.COMMAND_STATUS_ABSENT, timeout = 100.milliseconds)
+                assertEquals(VehicleError.Timeout(afterSend = true), assertIs<VehicleResult.Uncertain>(result, "$fault").error)
+                assertEquals(before + 1, h.signedCopies().size, "$fault") // 새 사본 없음
+            }
+        }
+
+    @Test
+    fun anApplicationLevelRejectionAfterAFailedWriteIsStillAFailure() =
+        // 페이로드 안의 결과(nominalError)는 그 사본이 재전송 검사를 통과했다는 뜻이다 — 같은 counter의 사본은 하나만 통과하므로
+        // (verifier.go:217-220) 다른 사본은 실행되지 않았다. 그래서 쓰기 실패 뒤에도 Failure다(vcsec_test.go TestNominalVSCECError)
+        runTest {
+            val h = dispatcherHarness()
+            val session = connected(h)
+            h.transport.enqueueWriteError(VehicleError.TransportError.WriteFailed("gatt 133"))
+            h.fake.script(vcsec, listOf(FakeVehicle.vcsecNominalError(GenericError_E.GENERICERROR_VEHICLE_NOT_IN_PARK)))
+            val result =
+                assertIs<VehicleResult.Failure>(
+                    session.vcsec.execute(lock, AuthMethod.GCM, VcsecResponses.COMMAND_STATUS_ABSENT, timeout = 1.seconds),
+                )
+            assertEquals(VehicleError.VcsecRejected(GenericError_E.GENERICERROR_VEHICLE_NOT_IN_PARK), result.error)
+        }
+
+    @Test
+    fun aLegacySignedMessageFaultInTheCommandStatusIsNotTheOutcome() =
+        // vcsec.go:54-57: commandStatus ERROR + signedMessageStatus는 오류가 아니고(Go는 그 값을 해석하지 않는다, 08-errors §3.8), RKE 종료
+        // 판정은 commandStatus가 있으면 계속 읽는다 — 그 안의 counter 거부도 결과가 되지 않고 새 사본도 없다(현재 동작 고정)
+        runTest {
+            val h = dispatcherHarness()
+            val session = connected(h)
+            h.transport.enqueueWriteError(VehicleError.TransportError.WriteFailed("gatt 133"))
+            val counterFault = SignedMessage_information_E.SIGNEDMESSAGE_INFORMATION_FAULT_TOKEN_AND_COUNTER_INVALID
+            val legacy =
+                FromVCSECMessage(
+                    commandStatus =
+                        CommandStatus(
+                            operationStatus = VcsecOperationStatus.OPERATIONSTATUS_ERROR,
+                            signedMessageStatus = SignedMessage_status(signedMessageInformation = counterFault),
+                        ),
+                )
+            h.fake.script(vcsec, listOf(FakeVehicle.vcsecPayload(legacy)))
+            val result = session.vcsec.execute(lock, AuthMethod.GCM, VcsecResponses.COMMAND_STATUS_ABSENT, timeout = 100.milliseconds)
+            assertEquals(VehicleError.Timeout(afterSend = true), assertIs<VehicleResult.Uncertain>(result).error)
+            assertEquals(1, h.signedCopies().size)
         }
 
     @Test

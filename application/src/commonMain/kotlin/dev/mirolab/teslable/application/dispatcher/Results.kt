@@ -7,10 +7,15 @@ import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.shouldRetry
 import dev.mirolab.teslable.model.toResult
+import dev.mirolab.teslable.port.LogLevel
+import dev.mirolab.teslable.port.TeslaLogger
 import dev.mirolab.teslable.protocol.SignerResult
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.time.Duration
+
+/** 재시도 판단의 로그 태그. 전송 재시도 로그("Retrying transmission after error")와 같은 `Dispatcher`다. */
+private const val RETRY_TAG = "Dispatcher"
 
 /** `Signer`의 fault를 공개 오류로: `UNKNOWN_KEY_ID`는 [VehicleError.KeyNotPaired], `INSUFFICIENT_PRIVILEGES`는 전용 타입. */
 internal fun SignerResult.Fault.toVehicleError(): VehicleError =
@@ -58,6 +63,50 @@ internal suspend fun <T> retryWhileRetriable(
         val error = result.errorOrNull() ?: return result
         if (!error.startsNewAttempt()) return result
         delay(interval)
+    }
+}
+
+/**
+ * 요청의 쓰기가 실패해 같은 바이트를 다시 보낸 뒤([PendingRequest.hadFailedWrite])에는 이 오류를 담은 응답이 요청의 결과를 정하지 않는다
+ * (원본에 없음, ADR-0010 2026-11-08 개정). 다시 보낸 사본은 첫 사본의 중복일 수 있고, 차량의 답은 그 중복에 대한 판정일 수 있기 때문이다:
+ * 재전송 검사의 `INVALID_TOKEN_OR_COUNTER`(Go `verifier.go:217-220`)나 `REPEATED_COUNTER`, 첫 사본이 바꾼 상태에 대한 `UNKNOWN_KEY_ID`
+ * (자기 키를 지운 경우)·`INSUFFICIENT_PRIVILEGES` 등. 해당하는 것: 새 시도를 시작할 오류([startsNewAttempt]) 전부와 메시지에 대한 프로토콜
+ * 계층의 판정 전부([VehicleError.ProtocolFault], [VehicleError.KeyNotPaired], [VehicleError.InsufficientPrivileges],
+ * [VehicleError.UnknownFault] — 응답 경로에서는 `ResponseClassifier.protocolError`만 만든다). `mayHaveSucceeded` 오류는 이미 `Uncertain`이라
+ * 결과를 정한다. 페이로드 안의 애플리케이션 결과(`VcsecRejected`, `KeychainRejected`, `InfotainmentRejected` …)도 결과를 정한다: 그 사본이
+ * counter 검사를 통과했다는 뜻이고 같은 counter의 사본은 하나만 통과하므로 다른 사본은 실행되지 않았다. 값만 보는 판정이라 완전한 계층
+ * 분류는 아니다 — 프로토콜 계층에서 온 `UnknownResponse`·`BadResponse`는 가려내지 못해 그대로 결과로 둔다(SDD §12 알려진 한계).
+ */
+internal fun VehicleError.isInconclusiveAfterFailedWrite(): Boolean {
+    if (mayHaveSucceeded) return false
+    return startsNewAttempt() ||
+        this is VehicleError.ProtocolFault ||
+        this == VehicleError.KeyNotPaired ||
+        this == VehicleError.InsufficientPrivileges ||
+        this is VehicleError.UnknownFault
+}
+
+/**
+ * [read]로 이 요청의 응답을 읽어 결과를 돌려준다. 단 이 요청의 쓰기가 실패해 같은 바이트를 다시 보냈고([PendingRequest.hadFailedWrite])
+ * 반복해도 안전한 조회가 아니면([repeatSafe]가 false), 결과를 정하지 않는 오류([isInconclusiveAfterFailedWrite])는 경고만 남기고 건너뛰어
+ * 같은 요청의 다음 응답을 읽는다 — 새로 인가한 사본을 보내지 않는다(실패로 보인 첫 쓰기가 실행됐을 수 있다, NFR-007). 첫 사본의 응답이
+ * 늦게 오면 그것이 결과고, 끝내 오지 않으면 호출자의 `withAttemptTimeout`이 `Uncertain(Timeout(afterSend = true))`로 끝낸다(호출자는
+ * 그동안 `afterSend`를 true로 둔다). 호출자는 [read] 전체를 한 번의 `use` 안에서 부른다. 원본에 없음: Go의 BLE 연결은 실패한 쓰기를
+ * 다시 보내지 않고 그 오류로 끝낸다(`pkg/connector/ble/ble.go:121`, ADR-0010 2026-11-08 개정).
+ */
+internal suspend fun <T> PendingRequest.awaitOutcome(
+    repeatSafe: Boolean,
+    logger: TeslaLogger,
+    read: suspend () -> VehicleResult<T>,
+): VehicleResult<T> {
+    while (true) {
+        val result = read()
+        val error = result.errorOrNull() ?: return result
+        if (repeatSafe || !hadFailedWrite || !error.isInconclusiveAfterFailedWrite()) return result
+        logger.log(LogLevel.WARN, RETRY_TAG) {
+            "[attempt=$attempt] Not signing a new copy: a write of this request failed and the same bytes were sent again, " +
+                "so this reply (${error.message}) may answer a possible duplicate. Waiting for the first copy's reply until the timeout"
+        }
     }
 }
 
