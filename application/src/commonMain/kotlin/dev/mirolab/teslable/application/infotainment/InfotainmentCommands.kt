@@ -1,6 +1,6 @@
 // Ported from vehicle-command@a4b43c1 pkg/vehicle/infotainment.go (Apache-2.0) — getCarServerResponse, executeCarServerAction;
 // pkg/vehicle/state.go GetState; pkg/vehicle/climate.go, charge.go, actions.go (command methods; builders in ClimateActions.kt,
-// ChargeActions.kt, VehicleControlActions.kt)
+// ChargeActions.kt, VehicleControlActions.kt); pkg/vehicle/security.go (builders in SecurityActions.kt)
 package dev.mirolab.teslable.application.infotainment
 
 import com.tesla.generated.carserver.common.ChargeSchedule
@@ -279,6 +279,32 @@ public class InfotainmentCommands(
     /** 라이트 점멸(FR-053). Go `FlashLights`. */
     public suspend fun flashLights(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
         command(VehicleControlActions.flashLights(), timeout)
+
+    /** 센트리 모드(FR-084). Go `SetSentryMode`. */
+    public suspend fun setSentryMode(
+        enabled: Boolean,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(SecurityActions.sentryMode(enabled), timeout)
+
+    /**
+     * 발레 모드 켜기(FR-085). Go `EnableValetMode`. [pin]이 ASCII 숫자 네 개가 아니면 보내지 않고
+     * `Failure(InvalidArgument("PIN codes must be four digits"))`다. PIN은 오류·로그에 남기지 않는다.
+     */
+    public suspend fun enableValetMode(
+        pin: String,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(SecurityActions.enableValetMode(pin), timeout)
+
+    /**
+     * 발레 모드 끄기(FR-085). Go `DisableValetMode`. 차량이 거부하며 준 사유가 "already off"로 끝나면(대소문자 구분) `Success`다.
+     * Go는 모든 오류 문자열의 접미사를 보지만 여기서는 `InfotainmentRejected`의 사유만 본다(SDD §12).
+     */
+    public suspend fun disableValetMode(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        SecurityActions.settleDisableValetMode(command(SecurityActions.disableValetMode(), timeout))
+
+    /** 발레 PIN 초기화(FR-085). Go `ResetValetPin`. */
+    public suspend fun resetValetPin(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(SecurityActions.resetValetPin(), timeout)
 
     /** Go `executeCarServerAction`: [vehicleAction]을 `Action`에 담아 [execute]로 보내고, 성공 응답의 내용은 버린다. */
     private suspend fun command(
