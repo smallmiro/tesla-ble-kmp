@@ -1,7 +1,7 @@
 import XCTest
 @testable import TeslableSample
 
-/// `Timeout(afterSend)` 를 사람에게 설명하는 문구(SFR-018, SFR-023). 정본: `documents/md/16-lib-errors.md`
+/// `Timeout(afterSend)` 를 사람에게 설명하는 문구(SFR-018, SFR-023). 정본: `{{LIB_DOCS_DIR}}16-lib-errors.md`
 /// (`Timeout(afterSend)` 행, §Retries and timeouts, "Sent means the write was started").
 final class TimeoutNoteTests: XCTestCase {
     func testAfterSendSaysTheCarMayHaveRunItAndToReadTheStateAgain() {
