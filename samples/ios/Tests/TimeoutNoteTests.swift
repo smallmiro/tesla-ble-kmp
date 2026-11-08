@@ -38,6 +38,18 @@ final class TimeoutNoteTests: XCTestCase {
         XCTAssertTrue(notSent.contains(TimeoutNote.command(afterSend: false)), notSent)
     }
 
+    func testReadResultLineUsesTheReadNoteNeverTheCommandOne() {
+        let sent = TimeoutNote.line(message: "timed out", timeoutAfterSend: true, read: true)
+        XCTAssertTrue(sent.hasPrefix("timed out"), sent)
+        XCTAssertTrue(sent.contains(TimeoutNote.read(afterSend: true)), sent)
+        XCTAssertFalse(sent.contains("실행했을 수"), "a vehicleStatus() read is not executed: \(sent)")
+        XCTAssertEqual(TimeoutNote.line(message: "boom", timeoutAfterSend: nil, read: true), "boom")
+    }
+
+    func testNotExecutedAlsoCoversTheHandshake() {
+        XCTAssertTrue(TimeoutNote.command(afterSend: false).contains("핸드셰이크"), "16-lib-errors.md: handshake timeout is Failure(Timeout(afterSend = false))")
+    }
+
     func testStateFaultTextUsesTheReadVariant() {
         XCTAssertTrue(StateFault.noReply(afterSend: true).text.contains(TimeoutNote.read(afterSend: true)))
         XCTAssertTrue(StateFault.noReply(afterSend: false).text.contains(TimeoutNote.read(afterSend: false)))
