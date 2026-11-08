@@ -14,10 +14,13 @@ import dev.mirolab.teslable.model.StateCategory
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.port.AuthMethod
+import dev.mirolab.teslable.port.LogLevel
 import dev.mirolab.teslable.testing.FakeVehicle
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
@@ -186,6 +189,76 @@ class SendWithRetryTest {
             assertEquals(2, copies.size)
             assertEquals(copies[0], copies[1])
             assertEquals(0, h.dispatcher.pendingCount())
+        }
+
+    @Test
+    fun theDecisionIsAWarnLineOfTheDispatcherTag() =
+        // 16·18쪽이 적은 로그 수준과 태그: WARN, Dispatcher, 시도 번호와 "possible duplicate"
+        runTest {
+            val h = dispatcherHarness()
+            assertIs<VehicleResult.Success<Unit>>(HandshakeFlow(h.dispatcher).startSession(infotainment))
+            h.fake.dropNextReplies(1)
+            h.transport.enqueueWriteErrorAfterDelivery(VehicleError.TransportError.WriteFailed("gatt 133"))
+            assertIs<VehicleResult.Uncertain>(SendWithRetry(h.dispatcher).send(infotainment, payload, AuthMethod.GCM, timeout = 1.seconds))
+            val line = h.logger.entries.single { it.message.contains("possible duplicate") }
+            assertEquals(LogLevel.WARN, line.level)
+            assertEquals("Dispatcher", line.tag)
+            assertTrue(line.message.startsWith("[attempt="))
+            assertTrue(line.message.contains("MESSAGEFAULT_ERROR_INVALID_TOKEN_OR_COUNTER"))
+        }
+
+    @Test
+    fun theFirstCopysReplyArrivingAfterTheReplayFaultIsTheResult() =
+        // Infotainment 판: 같은 요청(uuid)을 계속 읽으므로 첫 사본의 늦은 응답이 결과가 된다(새 사본 없이)
+        runTest {
+            val h = dispatcherHarness()
+            assertIs<VehicleResult.Success<Unit>>(HandshakeFlow(h.dispatcher).startSession(infotainment))
+            h.fake.holdNextReplies(1)
+            h.transport.enqueueWriteErrorAfterDelivery(VehicleError.TransportError.WriteFailed("gatt 133"))
+            val result = async { SendWithRetry(h.dispatcher).send(infotainment, payload, AuthMethod.GCM, timeout = 1.seconds) }
+            advanceTimeBy(100.milliseconds)
+            assertFalse(result.isCompleted)
+            assertEquals(1, h.fake.releaseHeldReplies())
+            assertIs<VehicleResult.Success<RoutableMessage>>(result.await())
+            assertEquals(1, h.fake.authenticatedPayloads(infotainment).size)
+            assertEquals(2, signedCopies(h).size)
+        }
+
+    @Test
+    fun keyAndPrivilegeRefusalsAfterAFailedWriteAreUncertainNotFailure() =
+        // 자기 키를 지운 뒤의 UNKNOWN_KEY_ID처럼 첫 사본이 바꾼 상태에 대한 답일 수 있다 — "실행 안 됨"으로 단정하지 않는다.
+        // 첫 사본은 닿지 않아 차량이 재전송 사본을 처음 검증하고 대본으로 답한다
+        runTest {
+            val h = dispatcherHarness()
+            assertIs<VehicleResult.Success<Unit>>(HandshakeFlow(h.dispatcher).startSession(infotainment))
+            for (fault in listOf(
+                MessageFault_E.MESSAGEFAULT_ERROR_UNKNOWN_KEY_ID,
+                MessageFault_E.MESSAGEFAULT_ERROR_INSUFFICIENT_PRIVILEGES,
+            )) {
+                val before = signedCopies(h).size
+                h.transport.enqueueWriteError(VehicleError.TransportError.WriteFailed("gatt 133"))
+                h.fake.script(infotainment, listOf(FakeVehicle.ScriptedReply(fault = fault)))
+                val result = SendWithRetry(h.dispatcher).send(infotainment, payload, AuthMethod.GCM, timeout = 100.milliseconds)
+                assertEquals(VehicleError.Timeout(afterSend = true), assertIs<VehicleResult.Uncertain>(result, "$fault").error)
+                assertEquals(before + 1, signedCopies(h).size, "$fault")
+            }
+        }
+
+    @Test
+    fun aMayHaveSucceededReplyAfterAFailedWriteEndsTheCallAtOnce() =
+        // RESPONSE_MTU_EXCEEDED는 mayHaveSucceeded라 이미 Uncertain이다 — 시간 제한까지 기다리지 않고 그 결과로 끝난다(#116 구분 유지)
+        runTest {
+            val h = dispatcherHarness()
+            assertIs<VehicleResult.Success<Unit>>(HandshakeFlow(h.dispatcher).startSession(infotainment))
+            h.transport.enqueueWriteError(VehicleError.TransportError.WriteFailed("gatt 133"))
+            h.fake.script(infotainment, listOf(FakeVehicle.ScriptedReply(fault = MessageFault_E.MESSAGEFAULT_ERROR_RESPONSE_MTU_EXCEEDED)))
+            val start = testTimeSource.markNow()
+            val result = SendWithRetry(h.dispatcher).send(infotainment, payload, AuthMethod.GCM, timeout = 5.seconds)
+            assertEquals(
+                VehicleError.ProtocolFault(MessageFault_E.MESSAGEFAULT_ERROR_RESPONSE_MTU_EXCEEDED),
+                assertIs<VehicleResult.Uncertain>(result).error,
+            )
+            assertEquals(h.dispatcher.retryInterval, start.elapsedNow()) // 전송 재시도 대기 한 번뿐
         }
 
     @Test

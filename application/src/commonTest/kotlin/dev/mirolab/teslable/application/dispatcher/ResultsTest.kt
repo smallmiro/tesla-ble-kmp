@@ -1,5 +1,8 @@
 package dev.mirolab.teslable.application.dispatcher
 
+import com.tesla.generated.errors.GenericError_E
+import com.tesla.generated.universalmessage.MessageFault_E
+import com.tesla.generated.vcsec.WhitelistOperation_information_E
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.shouldRetry
@@ -165,4 +168,37 @@ class ResultsTest {
             assertTrue(job.isCancelled)
             assertNull(result)
         }
+
+    @Test
+    fun afterAFailedWriteOnlyRetryTriggersAndProtocolVerdictsAreInconclusive() {
+        // ADR-0010 2026-11-08: 새 시도를 시작할 오류와 메시지에 대한 프로토콜 계층 판정은 중복 사본에 대한 답일 수 있다(결과로 받지 않음).
+        // mayHaveSucceeded 오류(RESPONSE_MTU_EXCEEDED, 해석할 수 없는 응답)는 이미 Uncertain이라 결과를 정하고, 페이로드 안의 애플리케이션
+        // 결과는 그 사본이 counter 검사를 통과했다는 뜻이라 결과를 정한다
+        val inconclusive =
+            listOf(
+                VehicleError.Busy,
+                VehicleError.ProtocolFault(MessageFault_E.MESSAGEFAULT_ERROR_INVALID_TOKEN_OR_COUNTER),
+                VehicleError.ProtocolFault(MessageFault_E.MESSAGEFAULT_ERROR_INCORRECT_EPOCH),
+                VehicleError.ProtocolFault(MessageFault_E.MESSAGEFAULT_ERROR_REPEATED_COUNTER),
+                VehicleError.ProtocolFault(MessageFault_E.MESSAGEFAULT_ERROR_INVALID_COMMAND),
+                VehicleError.KeyNotPaired,
+                VehicleError.InsufficientPrivileges,
+                VehicleError.UnknownFault(rawCode = 99),
+                VehicleError.TransportError.WriteFailed("gatt 133"),
+            )
+        for (error in inconclusive) assertTrue(error.isInconclusiveAfterFailedWrite(), "$error")
+        val conclusive =
+            listOf(
+                VehicleError.ProtocolFault(MessageFault_E.MESSAGEFAULT_ERROR_RESPONSE_MTU_EXCEEDED),
+                VehicleError.BadResponse("vcsec: undecodable response", mayHaveSucceeded = true),
+                VehicleError.Timeout(afterSend = true),
+                VehicleError.VcsecRejected(GenericError_E.GENERICERROR_VEHICLE_NOT_IN_PARK),
+                VehicleError.KeychainRejected(WhitelistOperation_information_E.WHITELISTOPERATION_INFORMATION_WHITELIST_FULL),
+                VehicleError.InfotainmentRejected("car is in drive"),
+                VehicleError.UnknownResponse,
+                VehicleError.KeyStoreError.Locked,
+                VehicleError.TransportError.Disconnected,
+            )
+        for (error in conclusive) assertFalse(error.isInconclusiveAfterFailedWrite(), "$error")
+    }
 }
