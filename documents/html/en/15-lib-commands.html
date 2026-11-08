@@ -55,13 +55,14 @@
 </nav>
 <main class="content">
 <h1>15. Commands</h1>
-<p class="lead">A <code>Vehicle</code> can start and end sessions and send the twelve security-controller commands (locks, trunks, wake-up). Infotainment commands (climate, charging, media and more) arrive with M5. This page lists both. Reading infotainment state with <code>getState()</code> is already available, ahead of the rest of M5: see <a href="14-lib-reading-state.html#sec-a-getstate">14. Reading Vehicle State</a>.</p>
+<p class="lead">A <code>Vehicle</code> can start and end sessions, send the twelve security-controller commands (locks, trunks, wake-up) and send the 31 infotainment commands for climate and charging. The rest of the infotainment commands (windows, horn, media and more) arrive later in M5. This page lists all of them. Reading infotainment state with <code>getState()</code> is available too: see <a href="14-lib-reading-state.html#sec-a-getstate">14. Reading Vehicle State</a>.</p>
 
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#sec-now">Available today</a></li>
 <li><a href="#sec-rules">How every command behaves</a></li>
 <li><a href="#sec-m4">Security controller (M4)</a></li>
-<li><a href="#sec-m5">Coming in M5: infotainment</a></li>
+<li><a href="#sec-cc">Climate and charging (M5)</a></li>
+<li><a href="#sec-m5">Coming in M5: the rest of infotainment</a></li>
 <li><a href="#sec-later">Later</a></li>
 </ol></div>
 
@@ -78,6 +79,7 @@
 <h2 id="sec-rules">How every command behaves</h2>
 <ul>
 <li>Commands are encrypted and authenticated with AES-GCM over the domain's session and expire after 5 seconds.</li>
+<li>No command starts a session or wakes the car. Without a session for its part of the car, a command returns <code>Failure(NoSession)</code> and sends nothing.</li>
 <li>Temporary failures are retried every second automatically. A command that may already have run is <strong>never</strong> sent again.</li>
 <li>When a Bluetooth write fails and the library writes the same bytes again, the command is never signed again: an error that would mean a retry, or a refusal of the message itself (for example <code>KeyNotPaired</code>), is not taken as the result, and the call returns <code>Uncertain(Timeout)</code> unless an answer that settles it arrives in time (the late answer to the first copy, or the repeated copy's success when the first never arrived). See <a href="16-lib-errors.html#sec-retry">16. Error Handling</a>.</li>
 <li>Security-controller commands run one at a time per connection; infotainment commands may run side by side.</li>
@@ -110,15 +112,210 @@
 <li><code>sessions</code> follows the real session state. When a command ends with <code>NoSession</code>, or a session event arrives, the library re-checks that domain. A cached session the car no longer accepts (for example the cache belonged to another key) shows <code>None</code> after the first command fails; <code>startSession</code> recovers it.</li>
 </ul>
 
-<h2 id="sec-m5">Coming in M5: infotainment</h2>
+<h2 id="sec-cc">Climate and charging (M5)</h2>
+<p>All 31 methods are authenticated over the infotainment session, take an optional <code>timeout</code> (default 5 seconds) and return <code>VehicleResult&lt;Unit&gt;</code>. The car's answer to a success carries nothing the app needs, as in the Go original. The commands are checked with automated tests against a simulated car; <strong>none has been checked on a real car yet</strong> (#118).</p>
+
+<h3 id="sec-cc-order">Before you send</h3>
+<ol>
+<li>Start an infotainment session: <code>startSession(setOf(VehicleDomain.INFOTAINMENT))</code>, or both domains. Without it, a command returns <code>Failure(NoSession)</code> and sends nothing.</li>
+<li>Make sure the car is awake. The library does <strong>not</strong> wake it: if infotainment is asleep, the command goes out, nothing comes back, and the result is <code>Uncertain(Timeout)</code>. Read <code>vehicleStatus()</code> first (no session needed, it never wakes the car). If it says <code>ASLEEP</code>, wake the car as in <a href="14-lib-reading-state.html#sec-a-order">14, A8.2</a> (VCSEC session, <code>wakeUp()</code>, wait for <code>AWAKE</code>) and start the infotainment session.</li>
+<li>Send the command and look at the result:</li>
+</ol>
+<table>
+<thead><tr><th>Result</th><th>Meaning</th><th>What your app does</th></tr></thead>
+<tbody>
+<tr><td><span class="badge ok">Success</span></td><td>The car accepted the command</td><td>To show the new state, read it with <code>getState</code> (<a href="#sec-cc-requery">After Uncertain</a>)</td></tr>
+<tr><td><span class="badge warn">Uncertain</span></td><td>The car may have done it: no answer in time (infotainment asleep, answer lost), a failed write the library repeated, or an unreadable answer</td><td><strong>Never send it again.</strong> Read the state with <code>getState</code> and decide from what it shows. Low power mode and accessory power cannot be read back</td></tr>
+<tr><td><code>Failure(InvalidArgument)</code></td><td>A check before sending failed, and nothing was sent</td><td>Fix the argument (<a href="#sec-cc-checks">next section</a>)</td></tr>
+<tr><td><code>Failure(InfotainmentRejected)</code></td><td>The car refused</td><td>Show a generic message. <code>reason</code> is the car's own text; do not log it</td></tr>
+<tr><td><code>NoSession</code>, <code>NotConnected</code>, other errors</td><td>Called in the wrong order, or the link is gone</td><td>See <a href="16-lib-errors.html">16. Error Handling</a></td></tr>
+</tbody>
+</table>
+
+<h3 id="sec-cc-checks">Checks before sending</h3>
+<p>The library checks only what the Go original checks. The checks run before the session check, so a bad argument is reported as <code>InvalidArgument</code> even without a session, and nothing is sent.</p>
+<table>
+<thead><tr><th>Method</th><th>Rule</th><th>Message (<code>detail</code>)</th></tr></thead>
+<tbody>
+<tr><td><code>setSeatCooler</code></td><td>Front seats only: <code>FRONT_LEFT</code> or <code>FRONT_RIGHT</code></td><td><code>invalid seat position for seat cooler: &lt;SEAT&gt;</code></td></tr>
+<tr><td><code>scheduleDeparture</code></td><td>The departure time is 0 to 1440 minutes after midnight, both ends included</td><td><code>invalid departure time: &lt;n&gt; minutes after midnight (expected 0..1440)</code></td></tr>
+</tbody>
+</table>
+<p>Everything else goes to the car as given, and the car decides: temperatures, charge limit, current, the other times and the schedule fields. <code>autoSeatAndClimate</code> quietly leaves out the seats the Go original does not handle.</p>
+
+<h3 id="sec-cc-types">Argument types</h3>
+<table>
+<thead><tr><th>Type</th><th>Values</th><th>Used by</th></tr></thead>
+<tbody>
+<tr><td><code>SeatPosition</code></td><td><code>UNKNOWN</code>, <code>FRONT_LEFT</code>, <code>FRONT_RIGHT</code>, <code>SECOND_ROW_LEFT</code>, <code>SECOND_ROW_LEFT_BACK</code>, <code>SECOND_ROW_CENTER</code>, <code>SECOND_ROW_RIGHT</code>, <code>SECOND_ROW_RIGHT_BACK</code>, <code>THIRD_ROW_LEFT</code>, <code>THIRD_ROW_RIGHT</code>, in the Go order. <code>_BACK</code> is the backrest, heated on some Model S only</td><td>Seat heater (every seat), seat cooler (front seats), auto seat climate (<code>UNKNOWN</code> and the front seats)</td></tr>
+<tr><td><code>SeatClimateLevel</code></td><td><code>OFF</code>, <code>LOW</code>, <code>MED</code>, <code>HIGH</code></td><td>Seat heater, seat cooler</td></tr>
+<tr><td><code>ClimateKeeperMode</code></td><td><code>OFF</code>, <code>ON</code>, <code>DOG</code>, <code>CAMP</code></td><td>Climate keeper</td></tr>
+<tr><td><code>CabinOverheatProtectionTemperature</code></td><td><code>UNSPECIFIED</code>, <code>LOW</code>, <code>MEDIUM</code>, <code>HIGH</code></td><td>Cabin overheat protection temperature</td></tr>
+<tr><td><code>ChargingPolicy</code></td><td><code>OFF</code> (that part is not sent), <code>ALL_DAYS</code>, <code>WEEKDAYS</code></td><td>Scheduled departure</td></tr>
+<tr><td><code>ChargeSchedule</code>, <code>PreconditionSchedule</code></td><td>Generated protocol types, sent as given. The <code>id</code> is a <code>Long</code> holding an unsigned 64-bit number; an id above <code>Long.MAX_VALUE</code> is a negative <code>Long</code></td><td>Adding charge and precondition schedules</td></tr>
+</tbody>
+</table>
+<p>All times are minutes after midnight in the car's local time. <code>days_of_week</code> is a bit mask; the Go command-line tool uses Sunday 1, Monday 2, Tuesday 4, Wednesday 8, Thursday 16, Friday 32 and Saturday 64 (every day 127, weekdays 62), and takes the current Unix time as a new schedule's <code>id</code>.</p>
+
+<h3 id="sec-cc-climate">Climate</h3>
+<table>
+<thead><tr><th>Method</th><th>Requirement</th><th>Example payload (hex)</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td><code>climateOn()</code></td><td>FR-060</td><td><code>120452020801</code></td><td>The protocol.md example</td></tr>
+<tr><td><code>climateOff()</code></td><td>FR-060</td><td><code>12025200</code></td><td></td></tr>
+<tr><td><code>setClimateTemp(driverCelsius, passengerCelsius)</code></td><td>FR-062</td><td><code>(22.0, 21.5)</code> → <code>1210720e2a021a00350000b0413d0000ac41</code></td><td>Celsius, no range check. Always sends the <code>TEMP_MAX</code> level, as the Go original does</td></tr>
+<tr><td><code>setSeatHeater(levels)</code></td><td>FR-061</td><td><code>{FRONT_LEFT: HIGH}</code> → <code>1209a202060a042a003a00</code></td><td>A map of seat to level. Seats go out in the order of <code>SeatPosition</code>, whatever the map order; an empty map is sent too</td></tr>
+<tr><td><code>setSeatCooler(level, seat)</code></td><td>FR-063</td><td><code>(LOW, FRONT_RIGHT)</code> → <code>12098a03060a0408021002</code></td><td>Front seats only</td></tr>
+<tr><td><code>setSteeringWheelHeater(enabled)</code></td><td>FR-064</td><td><code>true</code> → <code>12046a020801</code></td><td></td></tr>
+<tr><td><code>autoSeatAndClimate(seats, enabled)</code></td><td>FR-065</td><td><code>([FRONT_RIGHT, UNKNOWN], false)</code> → <code>12098203060a0210020a00</code></td><td>Keeps <code>UNKNOWN</code>, <code>FRONT_LEFT</code> and <code>FRONT_RIGHT</code> in order, duplicates included, and leaves out other seats; sent even when no seat is left</td></tr>
+<tr><td><code>setPreconditioningMax(enabled, manualOverride)</code></td><td>FR-066</td><td><code>(true, true)</code> → <code>1206620408011001</code></td><td></td></tr>
+<tr><td><code>setClimateKeeperMode(mode, manualOverride)</code></td><td>FR-067</td><td><code>(DOG, true)</code> → <code>1207e2020408021001</code></td><td></td></tr>
+<tr><td><code>setBioweaponDefenseMode(enabled, manualOverride)</code></td><td>FR-068</td><td><code>(true, false)</code> → <code>12059a02020801</code></td><td></td></tr>
+<tr><td><code>setCabinOverheatProtection(enabled, fanOnly)</code></td><td>FR-069</td><td><code>(true, true)</code> → <code>120792030408011001</code></td><td></td></tr>
+<tr><td><code>setCabinOverheatProtectionTemperature(temperature)</code></td><td>FR-069</td><td><code>HIGH</code> → <code>12059204020803</code></td><td></td></tr>
+</tbody>
+</table>
+
+<h3 id="sec-cc-charging">Charging and power</h3>
+<table>
+<thead><tr><th>Method</th><th>Requirement</th><th>Example payload (hex)</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td><code>chargeStart()</code></td><td>FR-070</td><td><code>120432021200</code></td><td>Start charging</td></tr>
+<tr><td><code>chargeStop()</code></td><td>FR-070</td><td><code>120432022a00</code></td><td>Stop charging</td></tr>
+<tr><td><code>setChargeLimit(percent)</code></td><td>FR-071</td><td><code>80</code> → <code>12042a020850</code></td><td>No range check</td></tr>
+<tr><td><code>setChargingAmps(amps)</code></td><td>FR-072</td><td><code>32</code> → <code>1205da02020820</code></td><td>No range check</td></tr>
+<tr><td><code>chargeStandardRange()</code></td><td>FR-073</td><td><code>120432021a00</code></td><td>Standard range</td></tr>
+<tr><td><code>chargeMaxRange()</code></td><td>FR-073</td><td><code>120432022200</code></td><td>Max range</td></tr>
+<tr><td><code>scheduleCharging(enabled, minutesAfterMidnight)</code></td><td>FR-074</td><td><code>(true, 120)</code> → <code>1207ca020408011078</code></td><td>The time is not checked</td></tr>
+<tr><td><code>scheduleDeparture(departAtMinutes, offPeakEndMinutes, preconditioning, offPeak)</code></td><td>FR-075</td><td><code>(480, 360, ALL_DAYS, WEEKDAYS)</code> → <code>1213d20210080110e0031a020a002202120028e802</code></td><td>Always turns scheduled departure on. The departure time must be 0 to 1440; the off-peak end time is not checked. An <code>OFF</code> policy leaves its part out</td></tr>
+<tr><td><code>clearScheduledDeparture()</code></td><td>FR-075</td><td><code>1203d20200</code></td><td>Turns scheduled departure off</td></tr>
+<tr><td><code>setLowPowerMode(enabled)</code></td><td>FR-076</td><td><code>true</code> → <code>12059208020801</code></td><td>Cannot be read back</td></tr>
+<tr><td><code>setKeepAccessoryPowerMode(enabled)</code></td><td>FR-077</td><td><code>true</code> → <code>1205d208020801</code></td><td>Cannot be read back</td></tr>
+<tr><td><code>addChargeSchedule(schedule)</code></td><td>FR-078</td><td><code>ChargeSchedule(id = 1, enabled = true)</code> → <code>12078a060408014801</code></td><td>Sent as given</td></tr>
+<tr><td><code>removeChargeSchedule(id)</code></td><td>FR-079</td><td><code>1_700_000_000</code> → <code>12099206060880e2cfaa06</code></td><td></td></tr>
+<tr><td><code>batchRemoveChargeSchedules(home, work, other)</code></td><td>FR-080</td><td><code>(true, false, true)</code> → <code>1207e2060408011801</code></td><td><code>other</code> means schedules that are neither home nor work</td></tr>
+<tr><td><code>addPreconditionSchedule(schedule)</code></td><td>FR-081</td><td><code>PreconditionSchedule(id = 2, enabled = true)</code> → <code>12079a060408023001</code></td><td>Sent as given</td></tr>
+<tr><td><code>removePreconditionSchedule(id)</code></td><td>FR-082</td><td><code>2</code> → <code>1205a206020802</code></td><td></td></tr>
+<tr><td><code>batchRemovePreconditionSchedules(home, work, other)</code></td><td>FR-083</td><td><code>(false, true, true)</code> → <code>1207da060410011801</code></td><td></td></tr>
+<tr><td><code>openChargePort()</code></td><td>FR-052</td><td><code>1203f20300</code></td><td>Open the charge port door</td></tr>
+<tr><td><code>closeChargePort()</code></td><td>FR-052</td><td><code>1203ea0300</code></td><td>Close the charge port door</td></tr>
+</tbody>
+</table>
+
+<h3 id="sec-cc-requery">After Uncertain</h3>
+<p>Never resend: read the state the command changes. The field names come from the official protocol definitions; which field a command changes on a real car is not confirmed yet (#118). The read itself can come back <code>Uncertain</code> (infotainment asleep, answer too large); then the command's result stays unknown until a later read succeeds.</p>
+<table>
+<thead><tr><th>Commands</th><th>Read with</th><th>Look at</th></tr></thead>
+<tbody>
+<tr><td><code>climateOn</code>, <code>climateOff</code></td><td><code>getState(StateCategory.CLIMATE)</code></td><td><code>climate_state.is_climate_on</code></td></tr>
+<tr><td><code>setClimateTemp</code></td><td>same</td><td><code>driver_temp_setting</code>, <code>passenger_temp_setting</code></td></tr>
+<tr><td><code>setSeatHeater</code>, <code>setSeatCooler</code></td><td>same</td><td><code>seat_heater_*</code>, <code>seat_fan_front_left</code> and <code>_right</code></td></tr>
+<tr><td><code>setSteeringWheelHeater</code>, <code>autoSeatAndClimate</code></td><td>same</td><td><code>steering_wheel_heater</code>, <code>auto_seat_climate_left</code> and <code>_right</code></td></tr>
+<tr><td><code>setClimateKeeperMode</code>, <code>setBioweaponDefenseMode</code></td><td>same</td><td><code>climate_keeper_mode</code>, <code>bioweapon_mode_on</code> (cars with a HEPA filter)</td></tr>
+<tr><td><code>setCabinOverheatProtection</code>, <code>setCabinOverheatProtectionTemperature</code></td><td>same</td><td><code>cabin_overheat_protection</code>, <code>cop_activation_temperature</code></td></tr>
+<tr><td><code>setPreconditioningMax</code></td><td>same</td><td>The climate state; no single field is identified</td></tr>
+<tr><td><code>chargeStart</code>, <code>chargeStop</code>, <code>chargeStandardRange</code>, <code>chargeMaxRange</code></td><td><code>getState(StateCategory.CHARGE)</code></td><td><code>charge_state.charging_state</code>, <code>charge_limit_soc</code></td></tr>
+<tr><td><code>setChargeLimit</code>, <code>setChargingAmps</code></td><td>same</td><td><code>charge_limit_soc</code>, <code>charging_amps</code>, <code>charge_current_request</code></td></tr>
+<tr><td><code>scheduleCharging</code></td><td>same</td><td><code>scheduled_charging_mode</code>, <code>scheduled_charging_start_time_minutes</code></td></tr>
+<tr><td><code>scheduleDeparture</code>, <code>clearScheduledDeparture</code></td><td>same</td><td><code>scheduled_departure_time_minutes</code>, <code>preconditioning_enabled</code>, <code>off_peak_charging_times</code></td></tr>
+<tr><td><code>openChargePort</code>, <code>closeChargePort</code></td><td>same</td><td><code>charge_port_door_open</code></td></tr>
+<tr><td>Charge schedules: add, remove, batch remove</td><td><code>getState(StateCategory.CHARGE_SCHEDULE)</code></td><td><code>charge_schedule_state.charge_schedules</code>: look for the <code>id</code></td></tr>
+<tr><td>Precondition schedules: add, remove, batch remove</td><td><code>getState(StateCategory.PRECONDITIONING_SCHEDULE)</code></td><td><code>preconditioning_schedule_state.precondition_schedules</code></td></tr>
+<tr><td><code>setLowPowerMode</code>, <code>setKeepAccessoryPowerMode</code></td><td>None</td><td>The official vehicle data has no field for these modes. Show the result as unknown and do not resend</td></tr>
+</tbody>
+</table>
+
+<h3 id="sec-cc-kotlin">Kotlin example</h3>
+<pre><code class="language-kotlin"><span class="k">import</span> com.tesla.generated.carserver.common.<span class="t">ChargeSchedule</span>
+<span class="k">import</span> dev.mirolab.teslable.<span class="t">Vehicle</span>
+<span class="k">import</span> dev.mirolab.teslable.model.<span class="t">ChargingPolicy</span>
+<span class="k">import</span> dev.mirolab.teslable.model.<span class="t">SeatClimateLevel</span>
+<span class="k">import</span> dev.mirolab.teslable.model.<span class="t">SeatPosition</span>
+<span class="k">import</span> dev.mirolab.teslable.model.<span class="t">StateCategory</span>
+<span class="k">import</span> dev.mirolab.teslable.model.<span class="t">VehicleError</span>
+<span class="k">import</span> dev.mirolab.teslable.model.<span class="t">VehicleResult</span>
+
+<span class="c">// Before: an INFOTAINMENT session (startSession) and an awake vehicle (14-lib-reading-state.md A8.2).</span>
+<span class="k">suspend</span> <span class="k">fun</span> <span class="f">warmUp</span>(vehicle: <span class="t">Vehicle</span>): <span class="t">String</span> {
+    <span class="k">when</span> (<span class="k">val</span> result = vehicle.<span class="f">climateOn</span>()) {
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> <span class="t">Unit</span>
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Uncertain</span> <span class="o">-&gt;</span> {
+            <span class="c">// The vehicle may have turned climate on. Never resend: read the state.</span>
+            <span class="k">val</span> state = vehicle.<span class="f">getState</span>(<span class="t">StateCategory</span>.<span class="t">CLIMATE</span>)
+            <span class="k">val</span> on = (state <span class="k">as</span>? <span class="t">VehicleResult</span>.<span class="t">Success</span>)<span class="o">?.</span>value<span class="o">?.</span>climate_state<span class="o">?.</span>is_climate_on
+            <span class="k">return</span> <span class="k">if</span> (on <span class="o">==</span> <span class="n">true</span>) <span class="s">"climate on"</span> <span class="k">else</span> <span class="s">"unknown, read again later"</span>
+        }
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span> <span class="k">return</span> <span class="s">"not sent or refused: ${result.error.message}"</span>
+    }
+    <span class="c">// Handle these results the same way.</span>
+    vehicle.<span class="f">setClimateTemp</span>(driverCelsius = <span class="n">22</span>.0f, passengerCelsius = <span class="n">21</span>.5f)
+    vehicle.<span class="f">setSeatHeater</span>(<span class="f">mapOf</span>(<span class="t">SeatPosition</span>.<span class="t">FRONT_LEFT</span> to <span class="t">SeatClimateLevel</span>.<span class="t">HIGH</span>, <span class="t">SeatPosition</span>.<span class="t">FRONT_RIGHT</span> to <span class="t">SeatClimateLevel</span>.<span class="t">LOW</span>))
+    <span class="k">return</span> <span class="s">"climate on"</span>
+}
+
+<span class="k">suspend</span> <span class="k">fun</span> <span class="f">planCharging</span>(vehicle: <span class="t">Vehicle</span>, scheduleId: <span class="t">Long</span>, latitude: <span class="t">Float</span>, longitude: <span class="t">Float</span>) {
+    vehicle.<span class="f">setChargeLimit</span>(<span class="n">80</span>)
+    <span class="c">// Leave at 08:00, off-peak charging ends at 06:00 (minutes after the vehicle's local midnight).</span>
+    <span class="k">val</span> departure = vehicle.<span class="f">scheduleDeparture</span>(<span class="n">480</span>, <span class="n">360</span>, <span class="t">ChargingPolicy</span>.<span class="t">ALL_DAYS</span>, <span class="t">ChargingPolicy</span>.<span class="t">WEEKDAYS</span>)
+    <span class="k">if</span> (departure <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">&amp;&amp;</span> departure.error <span class="k">is</span> <span class="t">VehicleError</span>.<span class="t">InvalidArgument</span>) {
+        <span class="k">return</span> <span class="c">// departAtMinutes outside 0..1440; nothing was sent</span>
+    }
+    <span class="k">val</span> schedule =
+        <span class="t">ChargeSchedule</span>(
+            id = scheduleId, <span class="c">// the Go CLI uses the current Unix time</span>
+            name = <span class="s">"Home"</span>,
+            days_of_week = <span class="n">127</span>, <span class="c">// every day</span>
+            start_enabled = <span class="n">true</span>,
+            start_time = <span class="n">120</span>, <span class="c">// 02:00</span>
+            enabled = <span class="n">true</span>,
+            latitude = latitude,
+            longitude = longitude,
+        )
+    vehicle.<span class="f">addChargeSchedule</span>(schedule)
+}</code></pre>
+
+<h3 id="sec-cc-swift">Swift example</h3>
+<p>Swift passes every argument, including <code>timeout:</code>. Schedules are built with every field plus <code>unknownFields</code>; the details are in <a href="17-lib-platform-notes.html#sec-swift-commands">17. Platform Notes</a>. This form passes a Swift typecheck against the framework; it has not run in a Swift program.</p>
+<pre><code class="language-swift"><span class="k">func</span> <span class="f">warmUp</span>(vehicle: <span class="t">Vehicle</span>) <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="t">String</span> {
+    <span class="k">let</span> result = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">climateOn</span>(timeout: <span class="n">nil</span>)
+    <span class="k">switch</span> <span class="f">onEnum</span>(of: result) {
+    <span class="k">case</span> .success:
+        <span class="k">break</span>
+    <span class="k">case</span> .uncertain:
+        <span class="c">// The vehicle may have turned climate on. Never resend: read the state.</span>
+        <span class="k">let</span> state = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">getState</span>(category: .climate, timeout: <span class="n">nil</span>)
+        <span class="k">if</span> <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s) = <span class="f">onEnum</span>(of: state), <span class="k">let</span> data = s.value <span class="k">as</span>? <span class="t">VehicleData</span>,
+           data.climate_state?.is_climate_on?.boolValue <span class="o">==</span> <span class="n">true</span> {
+            <span class="k">return</span> <span class="s">"climate on"</span>
+        }
+        <span class="k">return</span> <span class="s">"unknown, read again later"</span>
+    <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f):
+        <span class="k">return</span> <span class="s">"not sent or refused: \(f.error.message)"</span>
+    }
+    _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">setClimateTemp</span>(driverCelsius: <span class="n">22.0</span>, passengerCelsius: <span class="n">21.5</span>, timeout: <span class="n">nil</span>)
+    _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">setSeatHeater</span>(levels: [.frontLeft: .high, .frontRight: .low], timeout: <span class="n">nil</span>)
+    <span class="k">return</span> <span class="s">"climate on"</span>
+}
+
+<span class="k">func</span> <span class="f">planCharging</span>(vehicle: <span class="t">Vehicle</span>, scheduleId: <span class="t">Int64</span>, latitude: <span class="t">Float</span>, longitude: <span class="t">Float</span>) <span class="k">async</span> <span class="k">throws</span> {
+    _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">setChargeLimit</span>(percent: <span class="n">80</span>, timeout: <span class="n">nil</span>)
+    <span class="k">let</span> departure = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">scheduleDeparture</span>(
+        departAtMinutes: <span class="n">480</span>, offPeakEndMinutes: <span class="n">360</span>, preconditioning: .allDays, offPeak: .weekdays, timeout: <span class="n">nil</span>)
+    <span class="k">if</span> <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f) = <span class="f">onEnum</span>(of: departure), <span class="k">case</span> .invalidArgument = <span class="f">onEnum</span>(of: f.error) {
+        <span class="k">return</span> <span class="c">// departAtMinutes outside 0..1440; nothing was sent</span>
+    }
+    <span class="k">let</span> schedule = <span class="t">ChargeSchedule</span>(
+        id: scheduleId, name: <span class="s">"Home"</span>, days_of_week: <span class="n">127</span>, start_enabled: <span class="n">true</span>, start_time: <span class="n">120</span>,
+        end_enabled: <span class="n">false</span>, end_time: <span class="n">0</span>, one_time: <span class="n">false</span>, enabled: <span class="n">true</span>,
+        latitude: latitude, longitude: longitude, unknownFields: <span class="t">OkioByteString</span>.companion.<span class="t">EMPTY</span>)
+    _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">addChargeSchedule</span>(schedule: schedule, timeout: <span class="n">nil</span>)
+}</code></pre>
+
+<h2 id="sec-m5">Coming in M5: the rest of infotainment</h2>
 <table>
 <thead><tr><th>Area</th><th>Planned methods</th><th>Priority</th></tr></thead>
 <tbody>
-<tr><td>Climate</td><td><code>climateOn()</code>, <code>climateOff()</code>, <code>setClimateTemp(driverC, passengerC)</code></td><td><span class="badge ok">P0</span></td></tr>
-<tr><td>Charging</td><td><code>chargeStart()</code>, <code>chargeStop()</code>, <code>setChargeLimit(percent)</code>, <code>setChargingAmps(amps)</code></td><td><span class="badge ok">P0</span></td></tr>
-<tr><td>Climate extras</td><td>Seat heaters and coolers, steering wheel heater, preconditioning, climate keeper (dog, camp), bioweapon defense, cabin overheat protection</td><td><span class="badge info">P1</span></td></tr>
-<tr><td>Charging extras</td><td>Standard and max range, scheduled charging and departure, charge and precondition schedules, low power and accessory power modes</td><td><span class="badge info">P1</span></td></tr>
-<tr><td>Body</td><td><code>ventWindows()</code>, <code>closeWindows()</code>, <code>setSunroof(level)</code>, <code>openChargePort()</code>, <code>closeChargePort()</code>, <code>honkHorn()</code>, <code>flashLights()</code></td><td><span class="badge info">P1</span></td></tr>
+<tr><td>Body</td><td><code>ventWindows()</code>, <code>closeWindows()</code>, <code>setSunroof(level)</code>, <code>honkHorn()</code>, <code>flashLights()</code></td><td><span class="badge info">P1</span></td></tr>
 <tr><td>Security</td><td><code>setSentryMode(on)</code>, valet mode</td><td><span class="badge info">P1</span></td></tr>
 <tr><td>Media and updates</td><td>Volume, track and favourite controls, schedule or cancel a software update</td><td><span class="badge info">P1</span></td></tr>
 <tr><td>Status</td><td><code>ping()</code></td><td><span class="badge info">P1</span></td></tr>

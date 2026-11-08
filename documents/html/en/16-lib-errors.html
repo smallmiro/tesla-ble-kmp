@@ -60,6 +60,7 @@
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#sec-outcomes">Three outcomes</a></li>
 <li><a href="#sec-hierarchy">Error types</a></li>
+<li><a href="#sec-invalid-argument">Invalid arguments</a></li>
 <li><a href="#sec-getstate">getState results</a></li>
 <li><a href="#sec-transport">Bluetooth and key store errors</a></li>
 <li><a href="#sec-events">Broadcast events</a></li>
@@ -95,7 +96,7 @@
 <tr><td><code>TransportError</code></td><td>Bluetooth scan, connect or write</td><td>Only scan timeout, connect failed, write failed</td><td>no</td></tr>
 <tr><td><code>KeyStoreError</code></td><td>Platform key store; <code>Locked</code> also from <code>startSession()</code></td><td>Only <code>Locked</code></td><td>no</td></tr>
 <tr><td><code>Timeout</code></td><td>The command ran out of time</td><td>yes</td><td>If its first Bluetooth write had already started (<a href="#sec-retry">Retries and timeouts</a>); never for the handshake</td></tr>
-<tr><td><code>InvalidArgument</code></td><td>A bad argument</td><td>no</td><td>no</td></tr>
+<tr><td><code>InvalidArgument</code></td><td>A bad argument; nothing was sent (<a href="#sec-invalid-argument">Invalid arguments</a>)</td><td>no</td><td>no</td></tr>
 </tbody>
 </table>
 <p>The meaning of every protocol fault code is in <a href="09-errors-troubleshooting.html#sec-fault">9. Errors and Troubleshooting</a>.</p>
@@ -111,6 +112,20 @@
 </tbody>
 </table>
 <p>Check the error type, not <code>message</code>: the message now shows the code name instead of the number.</p>
+
+<h2 id="sec-invalid-argument">Invalid arguments</h2>
+<p><code>InvalidArgument</code> means the library refused an argument before sending anything. Nothing reached the car, so there is nothing to read back: fix the argument. The library checks only what the Go original checks; other values go to the car as given and the car decides (for example a charge limit or a temperature out of range comes back as <code>InfotainmentRejected</code>, or succeeds).</p>
+<table>
+<thead><tr><th>Call</th><th>Rule</th><th>Message (<code>detail</code>)</th><th>When it is checked</th></tr></thead>
+<tbody>
+<tr><td><code>setSeatCooler(level, seat)</code></td><td>Front seats only: <code>FRONT_LEFT</code> or <code>FRONT_RIGHT</code></td><td><code>invalid seat position for seat cooler: &lt;SEAT&gt;</code></td><td>Before the session check, so it is returned even without a session</td></tr>
+<tr><td><code>scheduleDeparture(departAtMinutes, …)</code></td><td>The departure time is 0 to 1440 minutes after midnight, both ends included</td><td><code>invalid departure time: &lt;n&gt; minutes after midnight (expected 0..1440)</code></td><td>Before the session check</td></tr>
+<tr><td><code>addKey</code>, <code>addKeyRequest</code> (as <code>PairingEvent.Failed</code>)</td><td>The role is not <code>KeyRole.UNKNOWN</code></td><td><code>role UNKNOWN cannot be enrolled</code></td><td>Before sending (<a href="13-lib-pairing.html">13. Keys and Pairing</a>)</td></tr>
+<tr><td><code>connect(vin, key, target)</code></td><td>The <code>target</code> advertisement belongs to <code>vin</code></td><td><code>advertisement &lt;local name&gt; is not for this VIN</code></td><td>Before connecting</td></tr>
+<tr><td>Any request</td><td>The framed message is at most 1024 bytes; a very long schedule <code>name</code> could go over it</td><td><code>message exceeds 1024 bytes</code></td><td>By the Bluetooth layer, after the session check</td></tr>
+</tbody>
+</table>
+<p>The Go original returns <code>invalid seat position</code> and <code>invalid departure time</code> for the first two. The rule and the moment of the check are the same; only the message says more here. Check the error type, not <code>detail</code>: the text is for people and logs.</p>
 
 <h2 id="sec-getstate">getState results</h2>
 <p>A query changes nothing on the car. So <strong><code>Uncertain</code> on a read means no data was confirmed</strong>, not that a command may have run. <code>mayHaveSucceeded</code> is still true, because reads and commands share the error types. There is nothing to check afterwards: keep the last value and ask again later. Asking again is safe, but not in a tight loop; the library sets no interval, so it is your app's choice.</p>
@@ -209,9 +224,14 @@
 <tr><td><code>lock</code>, <code>unlock</code>, <code>wakeUp</code>, <code>remoteDrive</code>, <code>autoSecureVehicle</code>, <code>openTrunk</code>, <code>actuateTrunk</code>, <code>closeTrunk</code>, <code>openFrunk</code>, <code>openTonneau</code>, <code>closeTonneau</code>, <code>stopTonneau</code></td><td><code>vehicleStatus()</code></td><td>Lock state, closures, sleep status. <code>openTrunk</code> and <code>actuateTrunk</code> toggle, so compare the closure state before deciding to send again</td></tr>
 <tr><td><code>addKey</code>, <code>removeKey</code></td><td><code>listKeys()</code></td><td>Whether the public key is in the car's key list</td></tr>
 <tr><td><code>addKeyRequest</code> (<code>TimedOut</code>, or the flow ended without a final answer)</td><td><code>sessionInfo(publicKey, VehicleDomain.INFOTAINMENT)</code></td><td><code>Success</code> = enrolled; <code>Failure(KeyNotPaired)</code> = not (yet)</td></tr>
+<tr><td>Climate commands: <code>climateOn</code>, <code>climateOff</code>, <code>setClimateTemp</code>, <code>setSeatHeater</code>, <code>setSeatCooler</code>, <code>setSteeringWheelHeater</code>, <code>autoSeatAndClimate</code>, <code>setPreconditioningMax</code>, <code>setClimateKeeperMode</code>, <code>setBioweaponDefenseMode</code>, <code>setCabinOverheatProtection</code>, <code>setCabinOverheatProtectionTemperature</code></td><td><code>getState(StateCategory.CLIMATE)</code></td><td>The matching climate field (<a href="15-lib-commands.html#sec-cc-requery">15. Commands</a>)</td></tr>
+<tr><td>Charging commands: <code>chargeStart</code>, <code>chargeStop</code>, <code>setChargeLimit</code>, <code>setChargingAmps</code>, <code>chargeStandardRange</code>, <code>chargeMaxRange</code>, <code>scheduleCharging</code>, <code>scheduleDeparture</code>, <code>clearScheduledDeparture</code>, <code>openChargePort</code>, <code>closeChargePort</code></td><td><code>getState(StateCategory.CHARGE)</code></td><td>The matching charging field</td></tr>
+<tr><td><code>addChargeSchedule</code>, <code>removeChargeSchedule</code>, <code>batchRemoveChargeSchedules</code></td><td><code>getState(StateCategory.CHARGE_SCHEDULE)</code></td><td>Whether the schedule <code>id</code> is in <code>charge_schedules</code></td></tr>
+<tr><td><code>addPreconditionSchedule</code>, <code>removePreconditionSchedule</code>, <code>batchRemovePreconditionSchedules</code></td><td><code>getState(StateCategory.PRECONDITIONING_SCHEDULE)</code></td><td><code>precondition_schedules</code></td></tr>
+<tr><td><code>setLowPowerMode</code>, <code>setKeepAccessoryPowerMode</code></td><td>None</td><td>The official vehicle data has no field for these modes. Show the result as unknown and do not resend</td></tr>
 </tbody>
 </table>
-<p>Infotainment commands will be added to this table with M5.</p>
+<p>For infotainment the read can itself come back <code>Uncertain</code> (infotainment asleep, answer too large, <a href="#sec-getstate">getState results</a>); then the command's result stays unknown until a later read succeeds. Which field a command changes on a real car is not confirmed yet (#118).</p>
 
 <h2 id="sec-other-client">Queries while another Bluetooth client is active</h2>
 <p>Status: <span class="badge info">Likely</span>, from real-car logs of one car (<a href="14-lib-reading-state.html#sec-b-catalogue">14, B3.5</a>). It was not reproduced in a controlled scenario, and the mechanism is unknown.</p>
