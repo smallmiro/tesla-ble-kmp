@@ -105,16 +105,20 @@ BLE 연결이 실패한 쓰기를 그 오류로 끝내고(`pkg/connector/ble/ble
 (`pkg/protocol/error.go:125-138`) `Dispatcher.Send`도 `Vehicle.Send`·`getVCSECResult`도 다시 보내지 않는다.
 
 ### 결정 (사용자 승인 ③, 2026-11-08)
+결정 ③은 위 2026-11-07 절 "남은 일"의 셋째 선택지("실행됐을 수 있음"으로 돌려줌)를 사용자가 구체화한 것이다: 같은 바이트의 재전송은
+그대로 두고, 그 뒤 새 사본을 인가하게 될 거부가 오면 다시 보내지 않고 `Uncertain`으로 끝낸다(쓰기 실패 자체를 곧바로 `Uncertain`으로
+돌려주는 것이 아니다).
 - **표시.** `Dispatcher.transmit`는 한 번의 `Transport.send`가 쓰기를 부른 뒤(`onWriteInvoked`) 재시도할 오류로 실패하면, 재시도 대기 전에
   그 요청(`PendingRequest`, 서명한 사본 하나)에 `hadFailedWrite`를 세운다. 요청마다 새로 시작하고 내리지 않는다. 쓰기를 부르기 전의 실패는
-  세우지 않는다. 쓰기 시점을 모르는 전송(`Transport.send(message, onWriteInvoked)` 기본 구현은 들어오자마자 알린다)은 모든 실패가 표시가
-  된다(안전한 쪽).
+  세우지 않는다. 쓰기 시점을 모르는 전송(`Transport.send(message, onWriteInvoked)` 기본 구현은 들어오자마자 알린다)은 재시도할 오류로 끝난 실패가
+  모두 표시가 된다(안전한 쪽).
 - **보호 대상 요청(명령)에서는 새 사본이 없다.** 표시된 요청의 응답이 다음 오류면 결과로 받지 않는다(`awaitOutcome`). WARN 한 줄(태그
   `Dispatcher`, `possible duplicate`)을 남기고 **같은 요청**을 계속 읽는다.
   - 새 시도를 시작할 오류 전부(`shouldRetry()`이고 `KeyStoreError.Locked`가 아님): `BUSY`, `TIMEOUT`, `INVALID_SIGNATURE`,
     `INVALID_TOKEN_OR_COUNTER`, `INTERNAL`, `INCORRECT_EPOCH`, `TIME_EXPIRED`, `TIME_TO_LIVE_TOO_LONG`, `Busy`(`WAIT`, VCSEC
     `commandStatus WAIT` 포함).
-  - 메시지에 대한 프로토콜 계층의 판정 전부: `ProtocolFault`(재시도 대상이 아닌 `REPEATED_COUNTER` 등 모든 코드), `KeyNotPaired`
+  - 메시지에 대한 프로토콜 계층의 판정 전부: `ProtocolFault`(재시도 대상이 아닌 `REPEATED_COUNTER` 등 모든 코드. 단 `mayHaveSucceeded`인
+    `RESPONSE_MTU_EXCEEDED`는 이미 `Uncertain`이라 결과를 정한다), `KeyNotPaired`
     (`UNKNOWN_KEY_ID`, `KEY_NOT_ON_WHITELIST`), `InsufficientPrivileges`, `UnknownFault`. 중복 사본에 대한 답이거나 첫 사본이 바꾼 상태에 대한
     답일 수 있다(예: 자기 키를 지운 `removeKey`의 재전송 사본은 `UNKNOWN_KEY_ID`). 그래서 "실행 안 됨"(`Failure`)으로 단정하지 않는다.
   - 첫 사본의 응답이 늦게 오면(같은 routing address·uuid·request hash라 같은 요청으로 배달되고 복호화된다) 그것이 결과다. 끝내 오지 않으면
@@ -122,8 +126,8 @@ BLE 연결이 실패한 쓰기를 그 오류로 끝내고(`pkg/connector/ble/ble
     `expires_at` 수명을 다시 시작하지 않는다). 새 오류 타입은 없다.
   - **결과를 정하는 응답**: 성공, `mayHaveSucceeded` 오류(이미 `Uncertain`: `RESPONSE_MTU_EXCEEDED`, 해석할 수 없는 응답), 페이로드 안의
     애플리케이션 결과(`VcsecRejected`·`UnknownVcsecError`, `KeychainRejected`·`UnknownKeychainCode`, `InfotainmentRejected`). 애플리케이션
-    결과는 그 사본이 counter 검사를 통과했다는 뜻이고 같은 counter의 사본은 하나만 통과하므로(verifier는 `Verify`에서 counter를 먼저
-    소비한다) 다른 사본은 실행되지 않았다. 이 논거는 진짜 응답과 Go 참조 verifier의 검사 순서를 전제한다.
+    결과는 그 사본이 counter 검사를 통과했다는 뜻이고 같은 counter의 사본은 하나만 통과하므로(verifier는 `Verify`에서 서명 검사 뒤,
+    명령 실행 전에 counter를 소비한다, `verifier.go:202-220`) 다른 사본은 실행되지 않았다. 이 논거는 진짜 응답과 Go 참조 verifier의 검사 순서를 전제한다.
   - VCSEC의 옛 `commandStatus{ERROR, signedMessageStatus}`(counter 거부가 페이로드 안에 오는 형태)는 Go처럼 오류가 아니고 RKE·화이트리스트
     종료 판정이 계속 읽으므로 결과가 되지 않는다(시험으로 고정). 임의의 종료 판정까지 보장하지는 않는다.
 - **면제: 반복해도 안전한 조회만.** 차량 상태를 바꾸지 않는 요청은 Go처럼 재시도할 오류에 새 사본(새 요청)을 보낸다: VCSEC 정보 요청

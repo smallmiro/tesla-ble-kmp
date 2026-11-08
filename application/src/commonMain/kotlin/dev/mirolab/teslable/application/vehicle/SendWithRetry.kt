@@ -46,7 +46,8 @@ public class SendWithRetry(
      * 외부 취소는 `CancellationException`으로 전파되고 `PendingRequest`는 `use`에서 풀린다. [payload]는 첫 시도 전에
      * 딱 한 번만 [ByteString]으로 복사해 얼린다(Go `Send` 236~238행과 동일) — `trySend`가 재시도마다 다시 복사하면
      * 호출자가 `send`를 호출한 뒤(예: 첫 시도가 실패해 재시도를 기다리는 동안) 넘겨준 배열을 제자리에서 바꿀 경우
-     * 그 변경이 재시도에 새어 들어간다(`retriesReuseThePayloadCopiedBeforeTheFirstAttempt`가 고정한다).
+     * 그 변경이 재시도에 새어 들어간다(`retriesReuseThePayloadCopiedBeforeTheFirstAttempt`가 고정한다). 명령으로 다룬다: 쓰기를 부른 뒤
+     * 실패해 같은 바이트를 다시 보낸 요청은 새 사본을 인가해 보내지 않는다(클래스 설명, ADR-0010 2026-11-08 개정).
      */
     public suspend fun send(
         domain: Domain,

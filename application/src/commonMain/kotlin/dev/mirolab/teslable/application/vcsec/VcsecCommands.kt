@@ -23,7 +23,8 @@ import kotlin.time.Duration
 
 /**
  * Go `getVCSECResult`: VCSEC에 보내고 [VcsecResponses.readUntil]로 종료까지 읽는다. `shouldRetry()` 오류(`Busy` 포함)면 [Dispatcher.retryInterval]
- * 뒤 새 요청(새 routing_address·counter)으로 다시 보낸다(`retryWhileRetriable`).
+ * 뒤 새 요청(새 routing_address·counter)으로 다시 보낸다(`retryWhileRetriable`). 예외(원본에 없음, ADR-0010 2026-11-08 개정): 쓰기를 부른 뒤
+ * 실패해 같은 바이트를 다시 보낸 명령([execute])은 새 요청을 보내지 않는다 — [query]로 보낸 조회만 Go처럼 다시 보낸다.
  * 한 연결의 VCSEC 명령은 [serial]로 직렬화한다(FR-049, SDD §5) — 시간 제한(`withAttemptTimeout`)은
  * 락 대기를 포함한다. 요청의 BLE 쓰기를 부르기 전(락 대기, 전송 직렬화 대기, 재시도할 응답을 받고 다음 시도를 기다리는 동안)의 만료는
  * `Failure(Timeout(afterSend = false))`, 그 뒤(쓰기가 끝나지 않았어도, 전송 재시도 중에도)의 만료는 `Uncertain(Timeout(afterSend = true))`다
