@@ -117,18 +117,18 @@
 - [x] `lib-docs-sync`: `11`(상태 표), `15-lib-commands`(공조·충전, Kotlin·Swift 예제), `16`(InvalidArgument), `17`(Swift 딕셔너리·일정 생성) MD + HTML en → ko/ja(`docs-translator`). `check-manual-i18n.sh`.
 
 ### Task A8: 검증·리뷰·머지 (PR A)
-- [ ] `tools/ci/verify.sh` → 새 컨텍스트 리뷰(general-purpose, `git diff main...HEAD`, DoD, Go 대조) → 수정 → PR(rebase merge).
+- [x] `tools/ci/verify.sh` → 새 컨텍스트 리뷰(general-purpose, `git diff main...HEAD`, DoD, Go 대조) → 수정 → PR(rebase merge). (#153)
 
 ### Task B1~B6: 나머지 명령 + ping (PR B)
 A2~A8과 같은 순서: `VehicleControlActions.kt`(창문, 선루프, 경적, 라이트), `SecurityActions.kt`(센트리, 발레), `MediaActions.kt`(볼륨, 트랙, 즐겨찾기, 토글), `SoftwareUpdateActions.kt`, `ping`. 검증: PIN ASCII 4자리(오류에 PIN 없음), 볼륨 0..10 + NaN 거부, `disableValetMode` "already off" → Success. `toggleMediaPlayback` 응답 유실 시 재전송 없음 시험. 문서 `11`·`15`·`16`·`17` + PRD/SDD. 머지.
 - [x] 빌더와 명령(창문·선루프·경적·라이트, 센트리·발레, 미디어, SW 업데이트, `ping`), 공통 실패 경로 51개, 공개 API(`apiDump` 추가만, Swift typecheck), Go `TestValidPIN` 포팅.
 - [x] 문서: PRD·SDD(§12에 NaN 볼륨, "already off" 범위, 초 단위 SW 업데이트), `11`·`14`(A8.6 oneof 래퍼 필드 읽기)·`15`·`16`·`17`·`18` MD + HTML en.
-- [ ] HTML ko/ja(`docs-translator`), `tools/ci/verify.sh` → 새 컨텍스트 리뷰 → PR(rebase merge).
+- [x] HTML ko/ja(`docs-translator`), `tools/ci/verify.sh` → 새 컨텍스트 리뷰 → PR(rebase merge). (#155)
 
 ### Task C1~C4: 샘플 (PR C)
-- [ ] `android-developer`·`ios-developer`(`sample-from-lib-docs`): Query/Control 화면에 공조 on/off, 충전 start/stop. 연결·키·세션 조건, `Uncertain`은 그대로 보여 주고 `getState(CLIMATE/CHARGE)` 재조회 버튼, 연결이 바뀐 뒤 늦은 결과는 버린다, 자동 재시도·깨우기 없음.
-- [ ] 샘플 스펙(SFR-001/002 상태, 앱 스펙) MD + HTML ko/en/ja, runbook에 실차 확인 절차.
-- [ ] 빌드·단위 시험, verify.sh, 리뷰, 머지.
+- [x] `android-developer`·`ios-developer`(`sample-from-lib-docs`): Query/Control 화면에 공조 on/off, 충전 start/stop. 연결·키·세션 조건, `Uncertain`은 그대로 보여 주고 `getState(CLIMATE/CHARGE)` 재조회 버튼, 연결이 바뀐 뒤 늦은 결과는 버린다, 자동 재시도·깨우기 없음.
+- [x] 샘플 스펙(SFR-001/002 상태, 앱 스펙) MD + HTML ko/en/ja, runbook에 실차 확인 절차.
+- [x] 빌드·단위 시험, verify.sh, 리뷰, 머지. (#154)
 
 ### Task D: 마일스톤 종료
-- [ ] `11-lib-overview` 상태 표 점검, 로드맵 M5 완료 표시, 실차 체크리스트(명령별 확인 항목, 실차 캡처 골든 climate-on·state charge)를 `{{HANDOFF_DIR}}` 인계 노트와 #118에 남긴다.
+- [x] `11-lib-overview` 상태 표 점검, 로드맵 M5 완료 표시, 실차 체크리스트(명령별 확인 항목, 실차 캡처 골든 climate-on·state charge)를 `{{HANDOFF_DIR}}` 인계 노트와 #118에 남긴다. (`2026-11-09-m5-complete.md`)
