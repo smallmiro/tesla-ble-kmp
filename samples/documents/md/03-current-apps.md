@@ -39,17 +39,17 @@ Control tab (the former single screen):
 ## iOS (`samples/ios`)
 
 The monitor app (`04-monitor-app.md`, SFR-010 to SFR-024): five tabs, one monitor object for the app's lifetime. Build
-`0.5.0 (24)`; unit tests pass, real-device check pending.
+`0.5.0 (25)`; unit tests pass, real-device check pending.
 
 - XcodeGen project (`project.yml`), schemes `TeslableSample` (simulator) and `TeslableSampleDevice` (device).
   `Info.plist` gets `UIBackgroundModes: [bluetooth-central]`, `UIFileSharingEnabled` and
   `LSSupportsOpeningDocumentsInPlace` from `project.yml`.
 - Files: see `04-monitor-app.md` §iOS implementation. `MonitorModel.swift` and `MonitorEngine.swift` (connection, events,
-  queries, logs), `ConnectionLoop.swift`, `InitialQueryGate.swift`, `LogLine.swift`, `LogWriter.swift`, `VinMask.swift`, `LiveState.swift`, `StateDiagnostics.swift` (state diagnostics rules and screen state, SFR-023), `DuoLayout.swift` (wide-screen layout choice, selection mapping and quick-control list, pure, SFR-024), `ScreenContinuity.swift` (open sheets and memo kept across a layout change, and the one-time VIN sheet trigger), `HomeSummary.swift` (texts of the two-pane first screen, pure, SFR-024), `Views/TwoPaneView.swift` (two-pane layout with the Tesla-style first screen, SFR-024),
+  queries, logs), `ConnectionLoop.swift`, `InitialQueryGate.swift`, `LogLine.swift`, `LogWriter.swift`, `VinMask.swift`, `LiveState.swift`, `StateDiagnostics.swift` (state diagnostics rules and screen state, SFR-023), `TimeoutNote.swift` (sentences for `Timeout(afterSend)`, pure, SFR-018, SFR-023), `DuoLayout.swift` (wide-screen layout choice, selection mapping and quick-control list, pure, SFR-024), `ScreenContinuity.swift` (open sheets and memo kept across a layout change, and the one-time VIN sheet trigger), `HomeSummary.swift` (texts of the two-pane first screen, pure, SFR-024), `Views/TwoPaneView.swift` (two-pane layout with the Tesla-style first screen, SFR-024),
   `VehicleMapping.swift`, `SampleModel.swift` (Control tab state and `BleClient`; every action runs through `exclusive { }` so only one
   library call runs at a time), `KeyControl.swift` (Key & Control step rules and command runner, pure), `KeyControlModel.swift`
   (Key & Control tab state), `KeyNickname.swift` (local key nickname rules and store, pure, SFR-019), `KeyReplacement.swift` (monitor key delete-and-recreate order and texts, pure, SFR-020), `EnrollmentProgress.swift` (enrollment progress popup state, pure, SFR-021), `KeyControlBackend.swift` (the seam between the Key & Control tab state and the library, so the state is tested with a fake), `ContentView.swift`, `Views/*Tab.swift`.
-- Tests: `Tests/` (`VinMaskTests`, `LogWriterTests`, `ConnectionLoopTests`, `InitialQueryGateTests`, `LiveStateTests`, `TimeoutsTests`, `KeyControlTests`, `KeyNicknameTests`, `KeyReplacementTests`, `EnrollmentPopupTests`, `KeyOperationGateTests`, `KeyControlModelTests`, `StateDiagnosticsTests`, `DuoLayoutTests`, `ScreenContinuityTests`, `HomeSummaryTests`), run with
+- Tests: `Tests/` (`VinMaskTests`, `LogWriterTests`, `ConnectionLoopTests`, `InitialQueryGateTests`, `LiveStateTests`, `TimeoutsTests`, `KeyControlTests`, `KeyNicknameTests`, `KeyReplacementTests`, `EnrollmentPopupTests`, `KeyOperationGateTests`, `KeyControlModelTests`, `StateDiagnosticsTests`, `TimeoutNoteTests`, `DuoLayoutTests`, `ScreenContinuityTests`, `HomeSummaryTests`), run with
   `xcodebuild ... test` (`02-constraints.md` §4).
 
 | Tab | Contents |

@@ -43,7 +43,7 @@
 
 <div class="callout warn">
 <strong>Android와 iOS 구현 완료, 실기기 확인 대기</strong>
-<p>Android 앱(빌드 <code>0.3.0 (3)</code>)과 iOS 앱(빌드 <code>0.5.0 (24)</code>)은 구현되어 있고 단위 테스트를 통과했으며, 둘 다 실차 확인을 기다립니다. iOS의 백그라운드 재연결은 계획 Task 2 스파이크 전까지 확인되지 않았습니다. 필요한 라이브러리 API를 모두 쓸 수 있습니다: <code>Vehicle.events</code>(라이브러리 매뉴얼 12장 "브로드캐스트 이벤트", 14장 B2)와 iOS의 키 접근성 선택(13장 "휴대폰이 잠겨 있을 때 키 쓰기", FR-037).</p>
+<p>Android 앱(빌드 <code>0.3.0 (3)</code>)과 iOS 앱(빌드 <code>0.5.0 (25)</code>)은 구현되어 있고 단위 테스트를 통과했으며, 둘 다 실차 확인을 기다립니다. iOS의 백그라운드 재연결은 계획 Task 2 스파이크 전까지 확인되지 않았습니다. 필요한 라이브러리 API를 모두 쓸 수 있습니다: <code>Vehicle.events</code>(라이브러리 매뉴얼 12장 "브로드캐스트 이벤트", 14장 B2)와 iOS의 키 접근성 선택(13장 "휴대폰이 잠겨 있을 때 키 쓰기", FR-037).</p>
 </div>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
@@ -90,7 +90,7 @@
 </tbody>
 </table>
 <p>규칙은 작은 순수 타입입니다(<code>KeyNickname</code>: 자르기, 길이 확인, 제한. <code>KeyNicknameStore</code>: 주입한 <code>UserDefaults</code>에 저장, 조회, 삭제). 차량 없이 단위 테스트합니다(<code>Tests/KeyNicknameTests.swift</code>). 화면은 <code>samples/ios/README.md</code>의 실기기 확인 목록으로 확인합니다(SFR-019).</p>
-<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (24)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 예정, 같은 스펙.</p>
+<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (25)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 예정, 같은 스펙.</p>
 
 <h2 id="sec-state">상태 진단(SFR-023)</h2>
 <p>Query 탭에는 사람이 직접 <code>getState()</code>를 호출해 차량이 돌려주는 값을 읽는 수동 영역이 있습니다. 라이브러리 매뉴얼이 미확인으로 적어 둔 실차 사실(14장 A8.5)을 모으기 위한 것입니다: 범주마다 어떤 필드가 오는지, <code>speed</code>의 단위, 응답이 너무 큰지, 잠든 차가 어떻게 하는지. 제품 기능이 아닙니다. 주기적인 <code>getState</code>도, 자동 재시도도, <code>Location</code> 버튼도 없습니다.</p>
@@ -100,7 +100,7 @@
 <tr><td>위치</td><td>Query 탭의 주기 조회 영역 아래: 버튼 세 개 <strong>Drive</strong>, <strong>Media</strong>, <strong>MediaDetail</strong>, 마지막 결과, 그리고 별도의 <strong>잠든 차에 보내기(실험)</strong> 영역.</td></tr>
 <tr><td>켜는 조건</td><td>키로 맺은 연결(<code>Vehicle.hasKey</code>), 키·제어 탭이 등록된 것으로 확인한 키, 그리고 가장 최근에 성공한 <code>vehicleStatus()</code>의 <code>sleepStatus == AWAKE</code>(모니터의 주기 조회, 또는 직전 누름의 재조회). <code>ASLEEP</code>, <code>UNKNOWN</code>, "아직 읽지 않음"이면 버튼이 꺼지고 이유가 버튼 아래에 나옵니다. 조회가 도는 동안에도 꺼집니다.</td></tr>
 <tr><td>한 번 누를 때의 순서</td><td>(1) <code>vehicleStatus(timeout: null)</code>: <code>AWAKE</code>가 아니면 <strong>NotSent</strong>로 끝납니다. (2) <code>startSession(setOf(INFOTAINMENT), timeout: null)</code>: 세션이 이미 <code>Ready</code>이면 라이브러리는 아무것도 보내지 않습니다(14장 A8.2: <code>getState</code>는 세션을 시작하지 않습니다). (3) <code>getState(category, timeout: null)</code> 한 번. 기본 타임아웃을 씁니다(16장 "재시도와 타임아웃").</td></tr>
-<tr><td>결과</td><td>라이브러리가 돌려주는 <code>Success</code>, <code>Uncertain</code>, <code>Failure</code>, 그리고 앱이 보내기 전에 멈춘 경우(수면 중, 수면 상태 모름, <code>vehicleStatus()</code> 실패, 세션 실패)의 <strong>NotSent</strong>. 각각 문장이 다릅니다: 크기 오류는 차가 응답했다고, 시간 초과는 아무것도 오지 않았다고, <code>NoSession</code>은 아무것도 보내지 않았다고 말합니다. 자동 재시도는 없습니다. <code>Failure(NoSession)</code>(차가 더는 받아들이지 않는 캐시된 세션, A8.2) 뒤에는 다음 누름이 새 세션을 시작하며, 샘플이 스스로 하지는 않습니다.</td></tr>
+<tr><td>결과</td><td>라이브러리가 돌려주는 <code>Success</code>, <code>Uncertain</code>, <code>Failure</code>, 그리고 앱이 보내기 전에 멈춘 경우(수면 중, 수면 상태 모름, <code>vehicleStatus()</code> 실패, 세션 실패)의 <strong>NotSent</strong>. 각각 문장이 다릅니다: 크기 오류는 차가 응답했다고, 시간 초과는 아무것도 오지 않았다고, <code>NoSession</code>은 아무것도 보내지 않았다고 말합니다. <code>Timeout</code> 문장은 <code>16-lib-errors.md</code>(<code>Timeout(afterSend)</code> 행)를 따릅니다: <code>afterSend = true</code>는 보냈을 수 있다(<code>Uncertain</code>, 첫 BLE 쓰기가 시작됨)고, 값은 확인되지 않았고 조회는 차를 바꾸지 않으니 다시 조회하라고 말하며, 백그라운드에서는 BLE 쓰기가 느려질 수 있다고 덧붙입니다. <code>afterSend = false</code>는 실행되지 않았다(쓰기를 시작하기 전이거나, 차가 재시도를 요청한 뒤 기다리다 시간이 다함, <code>Failure</code>)고 말합니다. 자동 재시도는 없습니다. <code>Failure(NoSession)</code>(차가 더는 받아들이지 않는 캐시된 세션, A8.2) 뒤에는 다음 누름이 새 세션을 시작하며, 샘플이 스스로 하지는 않습니다.</td></tr>
 <tr><td>깨우기</td><td>이 화면은 <strong><code>wakeUp()</code>을 절대 호출하지 않으며</strong> "차를 깨우지 않습니다"가 아니라 "<code>wakeUp()</code>을 호출하지 않습니다"라고 적습니다. Infotainment 핸드셰이크가 잠든 차에 어떤 영향을 주는지는 확인되지 않았기 때문입니다.</td></tr>
 <tr><td>잠든 차 실험</td><td>범주를 따로 고르는 버튼과, 차가 깨어날 수 있다고 알리는 확인 대화상자가 있습니다. 확인하면 <strong>수면 확인만</strong> 건너뜁니다: 연결과 등록된 키는 여전히 필요하고, 같은 세션 단계를 거쳐 <code>getState</code>를 한 번 보냅니다. <code>wakeUp()</code>은 절대 호출하지 않습니다. 기록을 남기며 한 번 시도하는 용도입니다.</td></tr>
 <tr><td>겹침</td><td>키를 교체하는 중이거나 다른 탭(Control, 키·제어)이 호출을 하는 동안에는 조회를 시작하지 않고, 조회가 도는 동안에는 키를 교체할 수 없습니다(<code>KeyOperationGate</code>). 조회가 도는 중의 두 번째 누름은 아무 일도 하지 않습니다.</td></tr>
@@ -118,7 +118,7 @@
 </table>
 <p>로그. 끝난 누름마다 <code>query</code> 줄 하나만 남기고 다른 것은 남기지 않습니다: <code>call</code>은 <code>getState(DRIVE)</code>, <code>getState(MEDIA)</code>, <code>getState(MEDIA_DETAIL)</code>, <code>result</code>는 <code>Success</code>, <code>Uncertain</code>, <code>Failure</code>, <code>NotSent</code>, <code>summary</code>는 <code>durationMs=&lt;n&gt;</code>에 <code>error=&lt;종류&gt;</code> 또는 <code>reason=&lt;이유&gt;</code>가 붙은 것, <code>startedAt</code>은 그 누름의 첫 라이브러리 호출을 시작한 시각입니다. <strong>값도, 곡 제목도, 필드 이름도</strong> 로그에 가지 않습니다(FR-112, 14장 A8.3 "결과를 로그에 남기지 마세요"): 로그 줄은 그것들을 담을 자리가 없는 작은 값(<code>StateLogEntry</code>)으로 만들고, 요약이 로그로 가는 샘플의 <code>record</code> 도우미는 <code>getState</code>에 쓰지 않습니다. 오류 종류는 라이브러리의 타입 이름(<code>ResponseTooLarge</code>, <code>Timeout(afterSend=true)</code>, <code>NoSession</code>, 또는 클래스 이름)이며 <code>message</code>나 차량이 보낸 글은 쓰지 않습니다.</p>
 <p>부르는 라이브러리 호출과 매뉴얼 장: <code>vehicleStatus(timeout: nil)</code>(14장 A2), <code>startSession(domains:timeout:)</code>(14장 A8.2, 15장), <code>getState(category:timeout:)</code>와 <code>s.value as? VehicleData</code>, <code>KotlinInt?</code> 숫자, <code>getEpochSecond()</code>(14장 A8.3, 17장 "Swift: 생성된 타입"), 결과 처리와 크기 오류(16장 "<code>getState</code> 결과", "<code>getState</code>의 응답 크기 제한"). 순수 규칙(<code>StateDiagnostics</code>)과 화면 상태(가짜 링크를 쓰는 <code>StateDiagnosticsModel</code>)는 차량 없이 단위 테스트합니다(<code>Tests/StateDiagnosticsTests.swift</code>). 실기기 확인 목록은 <code>samples/ios/README.md</code>(SFR-023)에 있습니다.</p>
-<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (24)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 예정, 같은 스펙.</p>
+<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (25)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 예정, 같은 스펙.</p>
 
 <h2 id="sec-wide">넓은 화면과 접는 화면 (SFR-024)</h2>
 <p>앱은 접는 iPhone Duo에서 공식 Tesla 앱(4.62)이 쓰는 큰 화면 배치를 따릅니다. <strong>안쪽 화면</strong>에서는 두 영역을 보여 줍니다. 왼쪽은 이동 메뉴, 오른쪽은 늘 보이는 큰 차량과 아래쪽 빠른 동작입니다. <strong>바깥 화면</strong>은 보통의 폰 배치를 유지합니다. 샘플도 자기 화면으로 같은 일을 합니다. 크기 클래스와 쓸 수 있는 너비만 쓰므로 iPad나 분할 창에도 적용됩니다. 기기 모델, <code>UIScreen</code>, 방향, 힌지 각도는 보지 않고, iOS 27.1 접힘 API도 쓰지 않습니다.</p>
@@ -139,7 +139,7 @@
 </tbody>
 </table>
 <p>선택과 대응은 순수 로직이라 차량 없이 단위 테스트합니다(<code>Tests/DuoLayoutTests.swift</code>). 화면은 <code>samples/ios/README.md</code> 의 실기기 체크리스트(SFR-024)로 확인합니다. Simulator 앱 없이는 시뮬레이터를 접을 수 없어, 두 영역 배치는 iPad 시뮬레이터에서도 보았습니다. Duo 자체의 자세 변경은 실기기에서 확인합니다.</p>
-<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (24)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 지금은 해당 없음(접는 기기 대상 없음). 큰 화면 배치는 별도 요구사항이 됩니다.</p>
+<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (25)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 지금은 해당 없음(접는 기기 대상 없음). 큰 화면 배치는 별도 요구사항이 됩니다.</p>
 
 <h2 id="sec-bg">백그라운드 실행</h2>
 <table>
