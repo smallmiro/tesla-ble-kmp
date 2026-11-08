@@ -33,8 +33,9 @@ import kotlin.time.Duration.Companion.seconds
 
 /**
  * 공조·충전 명령(FR-052, FR-060~083)의 공통 실패 경로. 모든 명령이 `InfotainmentCommands.execute`의 명령 경로(`SendWithRetry.send`)를
- * 지나므로 구현을 바꾸지 않고 현재 동작을 고정하는 특성 시험이다. 응답 유실·세션 없음·거부는 PR A의 공개 명령 31개 전부에 돌려, 어느
- * 메서드도 조회 경로(`SendWithRetry.query`)나 다른 경로로 새지 않음을 본다(M5 계획 Review Focus 3·4).
+ * 지나므로 구현을 바꾸지 않고 현재 동작을 고정하는 특성 시험이다. 응답 유실·세션 없음·거부는 공개 Infotainment 명령 51개 전부(공조·충전
+ * 31개, 차체·보안·미디어·SW 업데이트·ping 20개)에 돌려, 어느 메서드도 조회 경로(`SendWithRetry.query`)나 다른 경로로 새지 않음을
+ * 본다(M5 계획 Review Focus 3·4).
  */
 @OptIn(ExperimentalCoroutinesApi::class, InternalTeslableApi::class)
 class InfotainmentCommandFailureTest {
@@ -47,7 +48,7 @@ class InfotainmentCommandFailureTest {
         val call: suspend InfotainmentCommands.(Duration) -> VehicleResult<Unit>,
     )
 
-    /** PR A의 공개 명령 메서드 31개 전부(인자는 로컬 검증을 통과하는 값). */
+    /** 공개 Infotainment 명령 메서드 51개 전부(인자는 로컬 검증을 통과하는 값). */
     private val everyCommand: List<Command> =
         listOf(
             Command("climateOn") { climateOn(it) },
@@ -83,6 +84,26 @@ class InfotainmentCommandFailureTest {
             Command("batchRemovePreconditionSchedules") { batchRemovePreconditionSchedules(false, true, false, it) },
             Command("openChargePort") { openChargePort(it) },
             Command("closeChargePort") { closeChargePort(it) },
+            Command("ping") { ping(it) },
+            Command("ventWindows") { ventWindows(it) },
+            Command("closeWindows") { closeWindows(it) },
+            Command("setSunroof") { setSunroof(0, it) },
+            Command("honkHorn") { honkHorn(it) },
+            Command("flashLights") { flashLights(it) },
+            Command("setSentryMode") { setSentryMode(true, it) },
+            Command("enableValetMode") { enableValetMode("1234", it) },
+            Command("disableValetMode") { disableValetMode(it) },
+            Command("resetValetPin") { resetValetPin(it) },
+            Command("volumeUp") { volumeUp(it) },
+            Command("volumeDown") { volumeDown(it) },
+            Command("setVolume") { setVolume(5.0f, it) },
+            Command("mediaNextTrack") { mediaNextTrack(it) },
+            Command("mediaPreviousTrack") { mediaPreviousTrack(it) },
+            Command("mediaNextFavorite") { mediaNextFavorite(it) },
+            Command("mediaPreviousFavorite") { mediaPreviousFavorite(it) },
+            Command("toggleMediaPlayback") { toggleMediaPlayback(it) },
+            Command("scheduleSoftwareUpdate") { scheduleSoftwareUpdate(3600, it) },
+            Command("cancelSoftwareUpdate") { cancelSoftwareUpdate(it) },
         )
 
     private suspend fun connected(h: DispatcherHarness): InfotainmentCommands {
@@ -100,7 +121,7 @@ class InfotainmentCommandFailureTest {
         // NFR-007, FR-100: 응답이 없으면 실행됐을 수 있으므로 Uncertain(Timeout(afterSend = true))이고 다시 보내지 않는다(Go trySend의
         // PossibleSuccess, vehicle.go:211-212). 명령마다 서명된 프레임이 정확히 하나 늘어야 한다
         runTest {
-            assertEquals(31, everyCommand.size)
+            assertEquals(51, everyCommand.size)
             val h = dispatcherHarness()
             val c = connected(h)
 
@@ -172,7 +193,8 @@ class InfotainmentCommandFailureTest {
 
     @Test
     fun localValidationFailsBeforeTheSessionCheckAndSendsNothing() =
-        // climate.go:17-20, charge.go:216-218: 인자 검사는 executeCarServerAction보다 먼저다 — 세션이 없어도 InvalidArgument가 먼저 나온다
+        // climate.go:17-20, charge.go:216-218, security.go:49-51, infotainment.go:98-100: 인자 검사는 executeCarServerAction보다 먼저다 —
+        // 세션이 없어도 InvalidArgument가 먼저 나온다
         runTest {
             val h = dispatcherHarness()
             val c = VehicleSession(h.dispatcher).infotainment
@@ -182,6 +204,10 @@ class InfotainmentCommandFailureTest {
 
             assertEquals(VehicleResult.Failure(badSeat), c.setSeatCooler(SeatClimateLevel.LOW, SeatPosition.SECOND_ROW_LEFT))
             assertEquals(VehicleResult.Failure(badDeparture), c.scheduleDeparture(1441, 0, ChargingPolicy.OFF, ChargingPolicy.OFF))
+            val badPin = VehicleError.InvalidArgument("PIN codes must be four digits")
+            val badVolume = VehicleError.InvalidArgument("invalid volume (should be in [0, 10])")
+            assertEquals(VehicleResult.Failure(badPin), c.enableValetMode("12a4"))
+            assertEquals(VehicleResult.Failure(badVolume), c.setVolume(Float.NaN))
             assertTrue(h.transport.sent.isEmpty())
         }
 
