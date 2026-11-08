@@ -101,17 +101,17 @@ class ClimateCommandsTest {
                 )
             assertEquals(SeatPosition.entries.toSet(), levels.keys)
             val expected =
-                "123fa2023c" + // 12 3f | a2 02 3c (원소 10개 × 6바이트)
-                    "0a0412003200" + // UNKNOWN(6) OFF(2)
-                    "0a041a003a00" + // FRONT_LEFT(7) LOW(3)
-                    "0a0422004200" + // FRONT_RIGHT(8) MED(4)
-                    "0a042a004a00" + // SECOND_ROW_LEFT → CAR_SEAT_REAR_LEFT(9) HIGH(5)
-                    "0a0412005200" + // SECOND_ROW_LEFT_BACK → REAR_LEFT_BACK(10) OFF
-                    "0a041a005a00" + // SECOND_ROW_CENTER → REAR_CENTER(11) LOW
-                    "0a0422006200" + // SECOND_ROW_RIGHT → REAR_RIGHT(12) MED
-                    "0a042a006a00" + // SECOND_ROW_RIGHT_BACK → REAR_RIGHT_BACK(13) HIGH
-                    "0a0412007200" + // THIRD_ROW_LEFT(14) OFF
-                    "0a041a007a00" // THIRD_ROW_RIGHT(15) LOW
+                "123fa2023c" + // 12 3f | a2 02 3c (원소 10개 × 6바이트, 원소마다 0a 04 | 단계 | 좌석)
+                    "0a0412003200" + // OFF(2) UNKNOWN(6)
+                    "0a041a003a00" + // LOW(3) FRONT_LEFT(7)
+                    "0a0422004200" + // MED(4) FRONT_RIGHT(8)
+                    "0a042a004a00" + // HIGH(5) SECOND_ROW_LEFT → CAR_SEAT_REAR_LEFT(9)
+                    "0a0412005200" + // OFF SECOND_ROW_LEFT_BACK → REAR_LEFT_BACK(10)
+                    "0a041a005a00" + // LOW SECOND_ROW_CENTER → REAR_CENTER(11)
+                    "0a0422006200" + // MED SECOND_ROW_RIGHT → REAR_RIGHT(12)
+                    "0a042a006a00" + // HIGH SECOND_ROW_RIGHT_BACK → REAR_RIGHT_BACK(13)
+                    "0a0412007200" + // OFF THIRD_ROW_LEFT(14)
+                    "0a041a007a00" // LOW THIRD_ROW_RIGHT(15)
             h.assertSends(listOf(expected to { c.setSeatHeater(levels) }))
         }
 
