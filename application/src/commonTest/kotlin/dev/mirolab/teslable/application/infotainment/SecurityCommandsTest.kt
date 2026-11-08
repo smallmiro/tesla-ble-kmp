@@ -102,6 +102,27 @@ class SecurityCommandsTest {
         }
 
     @Test
+    fun goTestValidPinCasesKeepTheirVerdicts() =
+        // security_test.go TestValidPIN의 표 그대로: 유효 "0000", "0123", "4569"는 보내고, 무효 "", "123a", "12345", "1", "four"는
+        // 보내기 전에 거부한다
+        runTest {
+            val h = dispatcherHarness()
+            val c = connected(h)
+            val goInvalid = listOf("", "123a", "12345", "1", "four")
+
+            for (pin in goInvalid) assertEquals(invalidPin, c.enableValetMode(pin), "pin of length ${pin.length}")
+            assertTrue(h.fake.authenticatedPayloads(infotainment).isEmpty())
+
+            h.assertSends(
+                listOf(
+                    "120bfa0108" + "0801" + "120430303030" to { c.enableValetMode("0000") }, // password "0000"
+                    "120bfa0108" + "0801" + "120430313233" to { c.enableValetMode("0123") }, // "0123"
+                    "120bfa0108" + "0801" + "120434353639" to { c.enableValetMode("4569") }, // "4569"
+                ),
+            )
+        }
+
+    @Test
     fun disableValetModeTreatsAReasonEndingInAlreadyOffAsSuccess() =
         // security.go:63-65: 끄기에서 오류 문자열이 "already off"로 끝나면 nil. 이 라이브러리는 차량 거부(InfotainmentRejected)의 사유에만
         // 적용한다(M5 계획 결정 기록) — 이미 꺼져 있다는 차량의 답은 원하는 상태라는 뜻이다
