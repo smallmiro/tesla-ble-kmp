@@ -1,5 +1,6 @@
 // Ported from vehicle-command@a4b43c1 pkg/vehicle/infotainment.go (Apache-2.0) — getCarServerResponse, executeCarServerAction;
-// pkg/vehicle/state.go GetState; pkg/vehicle/climate.go, charge.go (command methods; builders in ClimateActions.kt, ChargeActions.kt)
+// pkg/vehicle/state.go GetState; pkg/vehicle/climate.go, charge.go, actions.go (command methods; builders in ClimateActions.kt,
+// ChargeActions.kt, VehicleControlActions.kt)
 package dev.mirolab.teslable.application.infotainment
 
 import com.tesla.generated.carserver.common.ChargeSchedule
@@ -256,6 +257,28 @@ public class InfotainmentCommands(
     /** 충전 포트 닫기(FR-052). Go `CloseChargePort`(= `ChargePortClose`). */
     public suspend fun closeChargePort(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
         command(ChargeActions.closeChargePort(), timeout)
+
+    /** 창문 환기(FR-050). Go `VentWindows`. */
+    public suspend fun ventWindows(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(VehicleControlActions.ventWindows(), timeout)
+
+    /** 창문 닫기(FR-050). Go `CloseWindows`. */
+    public suspend fun closeWindows(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(VehicleControlActions.closeWindows(), timeout)
+
+    /** 선루프 절대 단계(FR-051). Go `ChangeSunroofState`. 값을 검사하지 않고 0도 보낸다(Go와 같다). */
+    public suspend fun setSunroof(
+        level: Int,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(VehicleControlActions.sunroof(level), timeout)
+
+    /** 경적(FR-053). Go `HonkHorn`. */
+    public suspend fun honkHorn(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(VehicleControlActions.honkHorn(), timeout)
+
+    /** 라이트 점멸(FR-053). Go `FlashLights`. */
+    public suspend fun flashLights(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(VehicleControlActions.flashLights(), timeout)
 
     /** Go `executeCarServerAction`: [vehicleAction]을 `Action`에 담아 [execute]로 보내고, 성공 응답의 내용은 버린다. */
     private suspend fun command(
