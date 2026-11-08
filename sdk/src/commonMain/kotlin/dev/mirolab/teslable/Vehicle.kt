@@ -1,10 +1,17 @@
 package dev.mirolab.teslable
 
+import com.tesla.generated.carserver.common.ChargeSchedule
+import com.tesla.generated.carserver.common.PreconditionSchedule
 import com.tesla.generated.carserver.vehicle.VehicleData
+import dev.mirolab.teslable.model.CabinOverheatProtectionTemperature
+import dev.mirolab.teslable.model.ChargingPolicy
+import dev.mirolab.teslable.model.ClimateKeeperMode
 import dev.mirolab.teslable.model.KeyFormFactor
 import dev.mirolab.teslable.model.KeyRole
 import dev.mirolab.teslable.model.PairingEvent
 import dev.mirolab.teslable.model.PublicKeyBytes
+import dev.mirolab.teslable.model.SeatClimateLevel
+import dev.mirolab.teslable.model.SeatPosition
 import dev.mirolab.teslable.model.SessionInfoSummary
 import dev.mirolab.teslable.model.StateCategory
 import dev.mirolab.teslable.model.VehicleDomain
@@ -22,9 +29,10 @@ import kotlin.time.Duration
 
 /**
  * 연결된 차량(SDD §2.3). 연결 하나에 객체 하나 — [disconnect] 뒤에는 명령이 `Failure(NotConnected)`이고, 다시 쓰려면
- * `TeslaBle.connect`로 새로 연결한다(설계 구체화 13). M5가 Infotainment 제어·조회 메서드를 더한다. 모든 `timeout`은 null이면 설정 기본값.
+ * `TeslaBle.connect`로 새로 연결한다(설계 구체화 13). M5가 Infotainment 제어·조회 메서드를 더한다(공조·충전 명령은 [climateOn]부터).
+ * 모든 `timeout`은 null이면 설정 기본값.
  */
-@Suppress("TooManyFunctions") // 공개 API 1:1 — 조회, 키, VCSEC 제어 12종(M5가 더 늘린다)
+@Suppress("TooManyFunctions") // 공개 API 1:1 — 조회, 키, VCSEC 제어 12종, Infotainment 공조·충전 명령(M5)
 public interface Vehicle {
     /** VIN. */
     public val vin: Vin
@@ -177,4 +185,210 @@ public interface Vehicle {
 
     /** 토노 커버 멈춤(Cybertruck) (FR-047). VCSEC(GCM). 세션이 없으면 `NoSession`. `Uncertain`이면 다시 보내지 말고 `vehicleStatus()`로 확인(FR-102). */
     public suspend fun stopTonneau(timeout: Duration? = null): VehicleResult<Unit>
+
+    /**
+     * 공조 켜기 (FR-060). Infotainment(GCM). 아래 공조·충전 명령은 모두 같은 규칙을 따른다.
+     *
+     * - 세션이 필요하다: 스스로 시작하지 않는다. `INFOTAINMENT` 세션이 없으면 보내지 않고 `Failure(NoSession)`이므로 [startSession]을 먼저 부른다.
+     * - 차를 깨우지 않는다: Infotainment가 잠들어 있으면 `Uncertain(Timeout(afterSend = true))`로 끝난다. 깨우려면 [wakeUp]을 먼저 부른다.
+     * - `Uncertain`이면 차량이 실행했을 수 있다. 다시 보내지 말고 `getState`로 확인한다(FR-102). 라이브러리도 다시 보내지 않는다.
+     * - 차량이 거부하면 `Failure(InfotainmentRejected(reason))`. `reason`은 차량이 준 문장이다.
+     * - 인자 검증은 원본(Go)에 있는 것만 한다. 실패하면 아무것도 보내지 않고 `Failure(InvalidArgument)`.
+     *
+     * 확인: `getState(CLIMATE)`.
+     */
+    public suspend fun climateOn(timeout: Duration? = null): VehicleResult<Unit>
+
+    /** 공조 끄기 (FR-060). 규칙은 [climateOn]과 같다. 확인: `getState(CLIMATE)`. */
+    public suspend fun climateOff(timeout: Duration? = null): VehicleResult<Unit>
+
+    /**
+     * 좌석 히터 (FR-061). [levels]의 좌석마다 단계 하나. 좌석은 [SeatPosition] 선언 순서로 보내고(넣은 순서와 상관없다) 빈 맵도 보낸다.
+     * 규칙은 [climateOn]과 같다. 확인: `getState(CLIMATE)`.
+     */
+    public suspend fun setSeatHeater(
+        levels: Map<SeatPosition, SeatClimateLevel>,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 운전석·조수석 설정 온도, 섭씨 (FR-062). 범위를 검사하지 않는다(차량이 판단한다). 규칙은 [climateOn]과 같다. 확인: `getState(CLIMATE)`. */
+    public suspend fun setClimateTemp(
+        driverCelsius: Float,
+        passengerCelsius: Float,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /**
+     * 좌석 쿨러 (FR-063). [seat]는 `FRONT_LEFT`·`FRONT_RIGHT`만 받는다 — 그 밖이면 보내지 않고 `Failure(InvalidArgument)`.
+     * 규칙은 [climateOn]과 같다. 확인: `getState(CLIMATE)`.
+     */
+    public suspend fun setSeatCooler(
+        level: SeatClimateLevel,
+        seat: SeatPosition,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 스티어링 휠 히터 (FR-064). 규칙은 [climateOn]과 같다. 확인: `getState(CLIMATE)`. */
+    public suspend fun setSteeringWheelHeater(
+        enabled: Boolean,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /**
+     * 자동 좌석 공조 (FR-065). 원본이 다루는 좌석(`UNKNOWN`, `FRONT_LEFT`, `FRONT_RIGHT`)만 보내고 나머지는 오류 없이 뺀다. 순서와 중복은
+     * 그대로이고, 남은 좌석이 없어도 보낸다. 규칙은 [climateOn]과 같다. 확인: `getState(CLIMATE)`.
+     */
+    public suspend fun autoSeatAndClimate(
+        seats: List<SeatPosition>,
+        enabled: Boolean,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 최대 사전 공조 (FR-066). 규칙은 [climateOn]과 같다. 확인: `getState(CLIMATE)`. */
+    public suspend fun setPreconditioningMax(
+        enabled: Boolean,
+        manualOverride: Boolean,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 공조 유지 모드 (FR-067). 규칙은 [climateOn]과 같다. 확인: `getState(CLIMATE)`. */
+    public suspend fun setClimateKeeperMode(
+        mode: ClimateKeeperMode,
+        manualOverride: Boolean,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 생화학 무기 방어 모드 (FR-068). 규칙은 [climateOn]과 같다. 확인: `getState(CLIMATE)`. */
+    public suspend fun setBioweaponDefenseMode(
+        enabled: Boolean,
+        manualOverride: Boolean,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 실내 과열 방지 (FR-069). 규칙은 [climateOn]과 같다. 확인: `getState(CLIMATE)`. */
+    public suspend fun setCabinOverheatProtection(
+        enabled: Boolean,
+        fanOnly: Boolean,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 실내 과열 방지가 동작하는 온도 단계 (FR-069). 규칙은 [climateOn]과 같다. 확인: `getState(CLIMATE)`. */
+    public suspend fun setCabinOverheatProtectionTemperature(
+        temperature: CabinOverheatProtectionTemperature,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 충전 시작 (FR-070). 규칙은 [climateOn]과 같다. 확인: `getState(CHARGE)`. */
+    public suspend fun chargeStart(timeout: Duration? = null): VehicleResult<Unit>
+
+    /** 충전 중지 (FR-070). 규칙은 [climateOn]과 같다. 확인: `getState(CHARGE)`. */
+    public suspend fun chargeStop(timeout: Duration? = null): VehicleResult<Unit>
+
+    /** 충전 한도(%) (FR-071). 값을 검사하지 않는다(차량이 판단한다). 규칙은 [climateOn]과 같다. 확인: `getState(CHARGE)`. */
+    public suspend fun setChargeLimit(
+        percent: Int,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 충전 전류(A) (FR-072). 값을 검사하지 않는다(차량이 판단한다). 규칙은 [climateOn]과 같다. 확인: `getState(CHARGE)`. */
+    public suspend fun setChargingAmps(
+        amps: Int,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 표준 범위까지 충전 (FR-073). 규칙은 [climateOn]과 같다. 확인: `getState(CHARGE)`. */
+    public suspend fun chargeStandardRange(timeout: Duration? = null): VehicleResult<Unit>
+
+    /** 최대 범위까지 충전 (FR-073). 규칙은 [climateOn]과 같다. 확인: `getState(CHARGE)`. */
+    public suspend fun chargeMaxRange(timeout: Duration? = null): VehicleResult<Unit>
+
+    /**
+     * 예약 충전 (FR-074). [minutesAfterMidnight]는 차량 현지 시각 자정 뒤 분이며 검사하지 않는다. 규칙은 [climateOn]과 같다.
+     * 확인: `getState(CHARGE)`.
+     */
+    public suspend fun scheduleCharging(
+        enabled: Boolean,
+        minutesAfterMidnight: Int,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /**
+     * 예약 출발 (FR-075). 시각은 차량 현지 시각 자정 뒤 분이다. [departAtMinutes]가 0..1440(양 끝 포함) 밖이면 보내지 않고
+     * `Failure(InvalidArgument)`이고 [offPeakEndMinutes]는 검사하지 않는다. 정책이 `OFF`면 그 부분을 보내지 않는다. 규칙은 [climateOn]과
+     * 같다. 확인: `getState(CHARGE)`.
+     */
+    public suspend fun scheduleDeparture(
+        departAtMinutes: Int,
+        offPeakEndMinutes: Int,
+        preconditioning: ChargingPolicy,
+        offPeak: ChargingPolicy,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 예약 출발 해제 (FR-075). 규칙은 [climateOn]과 같다. 확인: `getState(CHARGE)`. */
+    public suspend fun clearScheduledDeparture(timeout: Duration? = null): VehicleResult<Unit>
+
+    /** 저전력 모드 (FR-076). 규칙은 [climateOn]과 같다. 공식 `VehicleData`에 이 상태가 없어 `getState`로는 확인할 수 없다. */
+    public suspend fun setLowPowerMode(
+        enabled: Boolean,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 하차 뒤 액세서리 전원 유지 (FR-077). 규칙은 [climateOn]과 같다. 공식 `VehicleData`에 이 상태가 없어 `getState`로는 확인할 수 없다. */
+    public suspend fun setKeepAccessoryPowerMode(
+        enabled: Boolean,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /**
+     * 충전 일정 추가 (FR-078). Wire 생성 타입 [schedule]을 그대로 보낸다(시각은 자정 뒤 분, `id`는 uint64를 담은 `Long`). 규칙은
+     * [climateOn]과 같다. 확인: `getState(CHARGE_SCHEDULE)`.
+     */
+    public suspend fun addChargeSchedule(
+        schedule: ChargeSchedule,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 충전 일정 삭제 (FR-079). [id]는 uint64를 담은 `Long`이다. 규칙은 [climateOn]과 같다. 확인: `getState(CHARGE_SCHEDULE)`. */
+    public suspend fun removeChargeSchedule(
+        id: Long,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 종류별 충전 일정 일괄 삭제 (FR-080). 규칙은 [climateOn]과 같다. 확인: `getState(CHARGE_SCHEDULE)`. */
+    public suspend fun batchRemoveChargeSchedules(
+        home: Boolean,
+        work: Boolean,
+        other: Boolean,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /**
+     * 사전 공조 일정 추가 (FR-081). Wire 생성 타입 [schedule]을 그대로 보낸다(시각은 자정 뒤 분, `id`는 uint64를 담은 `Long`). 규칙은
+     * [climateOn]과 같다. 확인: `getState(PRECONDITIONING_SCHEDULE)`.
+     */
+    public suspend fun addPreconditionSchedule(
+        schedule: PreconditionSchedule,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 사전 공조 일정 삭제 (FR-082). [id]는 uint64를 담은 `Long`이다. 규칙은 [climateOn]과 같다. 확인: `getState(PRECONDITIONING_SCHEDULE)`. */
+    public suspend fun removePreconditionSchedule(
+        id: Long,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 종류별 사전 공조 일정 일괄 삭제 (FR-083). 규칙은 [climateOn]과 같다. 확인: `getState(PRECONDITIONING_SCHEDULE)`. */
+    public suspend fun batchRemovePreconditionSchedules(
+        home: Boolean,
+        work: Boolean,
+        other: Boolean,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 충전 포트 열기 (FR-052). 규칙은 [climateOn]과 같다. 확인: `getState(CHARGE)`(`charge_port_door_open`). */
+    public suspend fun openChargePort(timeout: Duration? = null): VehicleResult<Unit>
+
+    /** 충전 포트 닫기 (FR-052). 규칙은 [climateOn]과 같다. 확인: `getState(CHARGE)`(`charge_port_door_open`). */
+    public suspend fun closeChargePort(timeout: Duration? = null): VehicleResult<Unit>
 }
