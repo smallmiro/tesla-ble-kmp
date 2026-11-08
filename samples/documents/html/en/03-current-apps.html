@@ -48,8 +48,8 @@
 </ol></div>
 
 <h2 id="sec-android">Android</h2>
-<p>The monitor app (<a href="04-monitor-app.html">4. Monitor App</a>, SFR-010 to SFR-018): five tabs and a foreground service. Build <code>0.3.0 (3)</code>; the unit tests pass and the real-device check is pending.</p>
-<p>Gradle module <code>:samples:android</code>, package and application id <code>dev.mirolab.teslable.sample</code>, <code>minSdk</code> 31. <code>MainActivity.kt</code> holds the tabs and the permission requests and keeps the screen on while it is visible. <code>MonitorService.kt</code> and <code>MonitorEngine.kt</code> run the service, the connection, the events, the queries and the logs. <code>SampleState.kt</code> holds the Control tab state and runs every action through <code>exclusive { }</code>, so only one library call runs at a time. <code>KeyControl.kt</code> (pure step rules and command runner), <code>KeyControlState.kt</code> (tab state) and <code>Enrollment.kt</code> (pair and confirm, shared by both tabs) make up the Key &amp; Control tab. The tabs are in <code>ui/</code>. Unit tests (including <code>KeyControlTest</code>) are in <code>src/test/</code> and run with <code>./gradlew :samples:android:testDebugUnitTest</code>.</p>
+<p>The monitor app (<a href="04-monitor-app.html">4. Monitor App</a>, SFR-010 to SFR-018): five tabs and a foreground service. Build <code>0.4.0 (4)</code>; the unit tests pass and the real-device check is pending.</p>
+<p>Gradle module <code>:samples:android</code>, package and application id <code>dev.mirolab.teslable.sample</code>, <code>minSdk</code> 31. <code>MainActivity.kt</code> holds the tabs and the permission requests and keeps the screen on while it is visible. <code>MonitorService.kt</code> and <code>MonitorEngine.kt</code> run the service, the connection, the events, the queries and the logs. <code>SampleState.kt</code> holds the Control tab state and runs every action through <code>exclusive { }</code>, so only one library call runs at a time. <code>KeyControl.kt</code> (pure step rules and command runner), <code>InfotainmentControl.kt</code> (pure rules, runner and readout of the Infotainment climate and charging buttons, SFR-025), <code>KeyControlState.kt</code> (tab state) and <code>Enrollment.kt</code> (pair and confirm, shared by both tabs) make up the Key &amp; Control tab. The tabs are in <code>ui/</code>. Unit tests (including <code>KeyControlTest</code> and <code>InfotainmentControlTest</code>) are in <code>src/test/</code> and run with <code>./gradlew :samples:android:testDebugUnitTest</code>.</p>
 <table>
 <thead><tr><th>Tab</th><th>Contents</th></tr></thead>
 <tbody>
@@ -57,7 +57,7 @@
 <tr><td>Query</td><td><code>vehicleStatus()</code>, <code>keySummary()</code> and <code>listKeys()</code> every 30 seconds (adjustable), results with outcome and time, sessions, "query now"</td></tr>
 <tr><td>Log</td><td>Line counts, unrecognized count, last lines, file path, memo and Mark, new file</td></tr>
 <tr><td>Control</td><td>The former single screen (below). It uses the monitor's connection and key</td></tr>
-<tr><td>Key &amp; Control</td><td>Four steps (key, connect, enroll, control), a grid of VCSEC command buttons, a status card and results (<a href="05-key-control-tab.html">5. Key &amp; Control Tab</a>)</td></tr>
+<tr><td>Key &amp; Control</td><td>Four steps (key, connect, enroll, control), a grid of VCSEC command buttons, an Infotainment section (climate on/off, charge start/stop, read climate / charge; SFR-025), a status card and results (<a href="05-key-control-tab.html">5. Key &amp; Control Tab</a>)</td></tr>
 </tbody>
 </table>
 <p>The Control tab:</p>
