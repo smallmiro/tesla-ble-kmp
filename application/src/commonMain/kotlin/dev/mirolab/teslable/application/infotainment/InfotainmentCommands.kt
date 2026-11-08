@@ -1,12 +1,13 @@
 // Ported from vehicle-command@a4b43c1 pkg/vehicle/infotainment.go (Apache-2.0) — getCarServerResponse, executeCarServerAction;
 // pkg/vehicle/state.go GetState; pkg/vehicle/climate.go, charge.go, actions.go (command methods; builders in ClimateActions.kt,
 // ChargeActions.kt, VehicleControlActions.kt); pkg/vehicle/security.go (builders in SecurityActions.kt); infotainment.go media
-// (builders in MediaActions.kt)
+// (builders in MediaActions.kt), software update (SoftwareUpdateActions.kt), Ping
 package dev.mirolab.teslable.application.infotainment
 
 import com.tesla.generated.carserver.common.ChargeSchedule
 import com.tesla.generated.carserver.common.PreconditionSchedule
 import com.tesla.generated.carserver.server.Action
+import com.tesla.generated.carserver.server.Ping
 import com.tesla.generated.carserver.server.Response
 import com.tesla.generated.carserver.server.VehicleAction
 import com.tesla.generated.carserver.vehicle.VehicleData
@@ -342,6 +343,23 @@ public class InfotainmentCommands(
     /** 재생·일시정지 토글(FR-091). Go `ToggleMediaPlayback`. 토글이므로 `Uncertain`이면 다시 보내지 말고 `getState(MEDIA)`로 확인한다. */
     public suspend fun toggleMediaPlayback(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
         command(MediaActions.togglePlayback(), timeout)
+
+    /** 소프트웨어 업데이트 예약(FR-092). Go `ScheduleSoftwareUpdate`. [delaySeconds] 뒤에 시작하며 값을 검사하지 않는다(Go와 같다). */
+    public suspend fun scheduleSoftwareUpdate(
+        delaySeconds: Int,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(SoftwareUpdateActions.schedule(delaySeconds), timeout)
+
+    /** 예약한 소프트웨어 업데이트 취소(FR-092). Go `CancelSoftwareUpdate`. */
+    public suspend fun cancelSoftwareUpdate(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(SoftwareUpdateActions.cancel(), timeout)
+
+    /**
+     * 인증된 "아무것도 하지 않는" 명령(FR-034). Go `Ping`: `ping{ping_id: 1}`을 다른 명령과 같은 명령 경로로 보내고 응답의 Ping 내용은
+     * 보지 않는다(Go처럼 응답 구분은 프로토콜 계층이 한다). `Success`는 차량이 이 키를 알고 Infotainment가 답했다는 뜻이다.
+     */
+    public suspend fun ping(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(VehicleAction(ping = Ping(ping_id = 1)), timeout)
 
     /** Go `executeCarServerAction`: [vehicleAction]을 `Action`에 담아 [execute]로 보내고, 성공 응답의 내용은 버린다. */
     private suspend fun command(
