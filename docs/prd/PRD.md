@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | **v1.0 승인** (2026-09-26, D13 개정 포함). NFR-012 타임아웃 문구는 SDD D29에 맞춰 갱신. 주행·미디어·목적지 조사 결과 반영(2026-11-01, §3.2, FR-033, FR-091, §8, §9). `getState` 구현에 맞춘 문구 정정(2026-11-01, FR-033, FR-101). 연결 스캔 관찰 추가(2026-11-01, FR-038, #134). 연결 시간 초과 오류 구분(2026-11-01, FR-004, #140). 시간 초과의 "전송" 정의를 첫 BLE 쓰기 호출로 정정(2026-11-07, NFR-012, ADR-0010 H1) |
+| 상태 | **v1.0 승인** (2026-09-26, D13 개정 포함). NFR-012 타임아웃 문구는 SDD D29에 맞춰 갱신. 주행·미디어·목적지 조사 결과 반영(2026-11-01, §3.2, FR-033, FR-091, §8, §9). `getState` 구현에 맞춘 문구 정정(2026-11-01, FR-033, FR-101). 연결 스캔 관찰 추가(2026-11-01, FR-038, #134). 연결 시간 초과 오류 구분(2026-11-01, FR-004, #140). 시간 초과의 "전송" 정의를 첫 BLE 쓰기 호출로 정정(2026-11-07, NFR-012, ADR-0010 H1). 쓰기 실패 뒤 새 사본 재인가 금지(2026-11-08, FR-101 예외, NFR-007, ADR-0010 개정) |
 | 저장소 | `{{REPO_URL}}` (공개, Apache-2.0) |
 | 상위 문서 | `{{HANDOFF_FILE}}` §1~§5, §8, §10~§13 |
 | 정답 기준 | `{{REF_REPO_DIR}}` @ `{{REF_REPO_COMMIT}}` + `pkg/protocol/protocol.md` |
@@ -272,7 +272,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | ID | 요구사항 | P | 도메인 | Go | 근거 |
 |---|---|---|---|---|---|
 | FR-100 | 모든 명령 결과는 **성공 / 실패 / 결과 불확실(PossibleSuccess)** 셋 중 하나. 응답 없이 타임아웃되면 불확실로 반환하고 자동 재전송하지 않음 | P0 | 둘 다 | `CommandError{MayHaveSucceeded}` | `08-errors §1, §7`, `00-agent-guide §3.3-22` |
-| FR-101 | 재시도 정책: `Temporary`이고 `MayHaveSucceeded`가 아닌 오류만 1초 간격 재시도. 재시도는 새 counter·nonce·expires_at으로 재인가. 재시도 가능 fault: BUSY, TIMEOUT, INVALID_SIGNATURE, INVALID_TOKEN_OR_COUNTER, INTERNAL, INCORRECT_EPOCH, TIME_EXPIRED, TIME_TO_LIVE_TOO_LONG, `WAIT`. `RESPONSE_MTU_EXCEEDED`는 실행됐을 수 있음(`MayHaveSucceeded`) | P0 | 둘 다 | `ShouldRetry`, `retriableErrors` | `08-errors §4`, `10-porting-guide §8` |
+| FR-101 | 재시도 정책: `Temporary`이고 `MayHaveSucceeded`가 아닌 오류만 1초 간격 재시도. 재시도는 새 counter·nonce·expires_at으로 재인가. 재시도 가능 fault: BUSY, TIMEOUT, INVALID_SIGNATURE, INVALID_TOKEN_OR_COUNTER, INTERNAL, INCORRECT_EPOCH, TIME_EXPIRED, TIME_TO_LIVE_TOO_LONG, `WAIT`. `RESPONSE_MTU_EXCEEDED`는 실행됐을 수 있음(`MayHaveSucceeded`). **예외(2026-11-08, Go와 다름, ADR-0010):** 요청의 BLE 쓰기를 부른 뒤 실패해 같은 바이트를 다시 보낸 명령은 재시도할 오류나 프로토콜 계층의 거부(`REPEATED_COUNTER`, `UNKNOWN_KEY_ID`, `INSUFFICIENT_PRIVILEGES` 포함)로 재인가하지 않고, 시간 제한까지 첫 사본의 응답을 기다린다(없으면 결과 불확실). 반복해도 안전한 조회(VCSEC 정보 요청, `getState`)는 예외에서 빠진다 | P0 | 둘 다 | `ShouldRetry`, `retriableErrors` | `08-errors §4`, `10-porting-guide §8` |
 | FR-102 | 결과 불확실 시 상태를 재조회할 수 있는 API 안내: VCSEC 명령은 `vehicleStatus()`, Infotainment는 `getState()` | P0 | 둘 다 | – | `08-errors §7` |
 | FR-103 | 에러는 `sealed` 계층으로 정의하고 원인 코드를 노출: `MessageFault`(0~28), `OperationStatus`, `SessionInfoStatus`, VCSEC `GenericError`, `WhitelistOperation_information`(KeychainError), Infotainment `actionStatus.result_reason` 문자열, 전송·키스토어·권한 오류 | P0 | 둘 다 | `pkg/protocol/error.go` | `08-errors §1~§3` |
 | FR-104 | `InsufficientPrivileges`, `KeyNotPaired`, `TransportError.MaxConnectionsExceeded` 를 별도 타입으로 구분. Infotainment 응답이 없다는 것만으로 차가 잠들었다고 추론하지 않는다: 전송 후 시간 제한이 지나면 `Uncertain(Timeout(afterSend = true))` 이고 자동 재전송·깨우기는 없다. 앱은 UI와 깨우기 판단에 `vehicleStatus().sleepStatus` 를 직접 조회할 수 있다. 이 값은 별도의 미인증 관찰이며 앞선 요청의 원인이나 결과를 확정하지 않는다 | P0 | 둘 다 | sentinel errors | `08-errors §2, §8` |
@@ -315,7 +315,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | NFR-004 | **키 보안**: 개인키는 하드웨어 우선 생성, 내보내기 API 없음(D10). 세션 키는 메모리에만. 캐시에는 세션정보만 | 코드 리뷰, 테스트 | `10-porting-guide §12`, `00-agent-guide §3.3-21` |
 | NFR-005 | **암호 원시연산은 플랫폼 제공만** (JCA/Keystore, Security.framework/CommonCrypto 또는 ADR로 정한 GCM 공급자). 자체 구현 금지. HMAC 비교는 상수 시간 | 코드 리뷰 | `00-agent-guide §3.1-4` |
 | NFR-006 | **로그**: FR-112. 릴리스 빌드 기본 로거는 no-op | 테스트 | `08-errors §9.1` |
-| NFR-007 | **결과 불확실 명령은 자동 재전송 금지** (토글성 명령 이중 실행 방지) | FakeVehicle 테스트 | `08-errors §7` |
+| NFR-007 | **결과 불확실 명령은 자동 재전송 금지** (토글성 명령 이중 실행 방지). 쓰기 실패 뒤 같은 바이트를 다시 보낸 명령도 새 사본을 인가해 보내지 않는다(FR-101 예외, 2026-11-08) | FakeVehicle 테스트 | `08-errors §7` |
 | NFR-008 | **라이선스**: Apache-2.0, `NOTICE`에 원본 저작권 고지, 포팅 파일 헤더 `// Ported from vehicle-command@a4b43c1 <경로> (Apache-2.0)`. AGPL 코드 유입 없음. 의존성(Wire, Kable, SKIE, kotlinx)은 모두 Apache-2.0 | 로컬 게이트 | `{{WORKFLOW_FILE}}` §4.4, §6 |
 | NFR-009 | **플랫폼**: Android `minSdk 31`, iOS 16.0+ (D9). Kotlin/Native 타깃: `iosArm64`, `iosSimulatorArm64` | 빌드 | `10-porting-guide §12` |
 | NFR-010 | **API 안정성**: `explicitApi()`, 공개 API KDoc 필수, `binary-compatibility-validator`(`apiCheck`), `ByteArray` 방어 복사, 값 객체 불변 | 로컬 게이트 | `{{WORKFLOW_FILE}}` §4.4 |

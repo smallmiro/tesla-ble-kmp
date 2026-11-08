@@ -22,6 +22,10 @@ These are implemented in the dispatcher (M2) and apply to every command:
 
 - Authenticated with AES-GCM over the domain session; `expires_at` lifetime is `commandLifetime` (5 s).
 - Retried automatically at 1 s intervals while `error.shouldRetry()`; never resent when `mayHaveSucceeded`.
+- After a failed write that the library repeats with the same bytes, a command is never authorized again: a fault for
+  the repeated copy (a retriable one, or any protocol-layer rejection such as `KeyNotPaired`) is not taken as the result,
+  and the call returns `Uncertain(Timeout(afterSend = true))` unless the first copy's reply arrives within `timeout`
+  (`16-lib-errors.md` §Retries and timeouts).
 - VCSEC commands are serialized per connection; Infotainment commands may run in parallel.
 - An `Uncertain` result means "query state, do not resend" (`16-lib-errors.md`).
 
@@ -50,8 +54,8 @@ All VCSEC commands are authenticated with AES-GCM over the VCSEC session. Withou
 All return `VehicleResult<Unit>`. Failures to expect: `NoSession`, `NotConnected`, `InsufficientPrivileges` (for example
 a Vehicle Monitor key, or the vehicle state forbids it), `VcsecRejected(error)`, `UnknownVcsecError(rawCode)`.
 
-`Uncertain` (timeout after the request's first BLE write was started, unreadable reply) means the vehicle may have
-acted. **Do not resend**; read
+`Uncertain` (timeout after the request's first BLE write was started, including after a failed write the library
+repeated, unreadable reply) means the vehicle may have acted. **Do not resend**; read
 `vehicleStatus()` to see the lock state and closures (`16-lib-errors.md` §Per-command re-query). This matters most for
 the toggles `openTrunk()` / `actuateTrunk()`.
 

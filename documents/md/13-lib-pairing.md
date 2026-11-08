@@ -202,7 +202,9 @@ example `formFactor: .iosDevice`.
 `addKey` / `removeKey` failures: `InsufficientPrivileges` (the connection's key may not manage keys, for example a
 Driver key), `KeychainRejected(code)` (for example `WHITELIST_FULL`, `NO_PERMISSION_TO_ADD`), `NoSession`,
 `InvalidArgument` (`role = UNKNOWN`). `Uncertain` means the vehicle may have changed its key list: check with
-`listKeys()`, do not resend.
+`listKeys()`, do not resend. After a failed write that the library repeated, a protocol-layer refusal such as
+`InsufficientPrivileges` or `KeyNotPaired` (removing your own key makes the repeated copy's key unknown) is reported as
+`Uncertain(Timeout(afterSend = true))`, not `Failure` (`16-lib-errors.md` §Retries and timeouts).
 
 ### `PairingEvent`
 
