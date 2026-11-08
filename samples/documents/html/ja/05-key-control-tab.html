@@ -43,7 +43,7 @@
 
 <div class="callout warn">
 <strong>Android と iOS でビルド済み、実機確認待ち</strong>
-<p>Android ビルド <code>0.3.0 (3)</code>、iOS ビルド <code>0.5.0 (25)</code>。ステップの規則とコマンド実行器は単体テストで確認し、画面と車はこのページの末尾のチェックリストで確認します。</p>
+<p>Android ビルド <code>0.4.0 (4)</code>、iOS ビルド <code>0.5.0 (25)</code>。ステップの規則とコマンド実行器は単体テストで確認し、画面と車はこのページの末尾のチェックリストで確認します。インフォテインメントのセクション（SFR-025）は Android にだけ実装済みで、iOS は同じ仕様で予定しています。</p>
 </div>
 
 <div class="toc"><strong>このページの内容</strong><ol>
@@ -54,17 +54,19 @@
 <li><a href="#sec-replace">キーの削除と再作成</a></li>
 <li><a href="#sec-run">コマンドの実行</a></li>
 <li><a href="#sec-buttons">ボタン</a></li>
+<li><a href="#sec-infotainment">インフォテインメントの操作</a></li>
 <li><a href="#sec-impl">実装</a></li>
 <li><a href="#sec-check">実車チェックリスト</a></li>
 </ol></div>
 
-<p>このタブが従うライブラリマニュアルの章: 13 章「キーが登録済みか確認する」と「キーを登録する」、15 章「実装済み: VCSEC」、16 章「コマンドごとの再問い合わせ」、14 章（<code>vehicleStatus()</code>）、17 章（Swift の引数）。</p>
+<p>このタブが従うライブラリマニュアルの章: 13 章「キーが登録済みか確認する」と「キーを登録する」、15 章「実装済み: VCSEC」と「実装済み: Infotainment の空調と充電」（SFR-025）、16 章「コマンドごとの再問い合わせ」と「<code>getState</code> の結果」、14 章（<code>vehicleStatus()</code> と A8 <code>getState</code>）、17 章（Swift の引数）。</p>
 
 <h2 id="sec-req">要件</h2>
 <table>
 <thead><tr><th>ID</th><th>アプリの動作</th></tr></thead>
 <tbody>
 <tr><td>SFR-018</td><td>Control の次に<strong>キー＆コントロール</strong>タブ。4 つのステップを、それぞれ完了、未実施、1 行のヒント付きのブロックで示します。(1) <strong>キー</strong>: モニターのキーを作成または読み込みます。(2) <strong>接続</strong>: 保存した VIN とモニターの接続を使います。(3) <strong>登録</strong>: 登録を要求し（コンソールにキーカード）、進捗行を表示し、自動で確認します。(4) <strong>操作</strong>: 使える VCSEC コマンドのボタンのグリッド。すべてのコマンドは、まず VCSEC セッションがあることを確認してから 1 回だけ送られ、<code>Uncertain</code> の結果は再送されず、<code>vehicleStatus()</code> の再問い合わせが続きます。状態カードは、直近の <code>vehicleStatus()</code> による施錠、トランク、フランク、スリープの状態を表示します。</td></tr>
+<tr><td>SFR-025</td><td>ステップ 4 のインフォテインメントのセクション（VCSEC グリッドの下）: <strong>空調オン / オフ</strong>、<strong>充電開始 / 停止</strong>、<strong>空調を読む / 充電を読む</strong>（<code>getState(CLIMATE)</code> と <code>getState(CHARGE)</code>、<code>Uncertain</code> の後の再問い合わせにも使う）。有効になる条件はステップ 4 と同じです。1 回のタップは <code>vehicleStatus()</code>（<code>AWAKE</code> のときだけ進む）、<code>startSession(setOf(INFOTAINMENT))</code>、次に呼び出し<strong>1 回</strong>です。<code>wakeUp()</code> は決して呼ばず、何も再送しません。<code>Uncertain</code> はそのまま表示し、読み取りまたは後の成功で確定するまで、そのカテゴリを「未確認」として表示します。接続が変わった後に届いた結果は捨てます。ログには、コマンド、結果、所要時間、エラーの種類だけを残します。詳細は<a href="#sec-infotainment">インフォテインメントの操作</a>。</td></tr>
 </tbody>
 </table>
 
@@ -157,10 +159,76 @@
 <tr><td>Cybertruck</td><td>トノカバーを開ける / 閉める / 停止</td><td><code>openTonneau()</code>、<code>closeTonneau()</code>、<code>stopTonneau()</code></td><td>なし</td></tr>
 </tbody>
 </table>
-<p>ダイアログを確認すると、ステップ 4 の規則を再度検査します。もう成り立たない場合や別の呼び出しが実行中の場合は、何も送らず、理由を結果行に残します。Model X と Cybertruck のボタンは、折りたたまれた「他の車種」セクションにあります。インフォテインメントのコマンド（空調、充電、ホーン、ライト）は M5 を待つため表示しません。タブには、<strong>状態を更新</strong>ボタン付きの状態カード（施錠、トランク、フランク、スリープ、最後に読んだ時刻）と、新しい行が一番上に来て、時刻が付き、VIN を含まない結果リストもあります。状態カードは 1 つの接続に属します。接続が変わると消え、接続が変わった後に終わった再照会はカードを更新しません。</p>
+<p>ダイアログを確認すると、ステップ 4 の規則を再度検査します。もう成り立たない場合や別の呼び出しが実行中の場合は、何も送らず、理由を結果行に残します。Model X と Cybertruck のボタンは、折りたたまれた「他の車種」セクションにあります。インフォテインメントの空調・充電ボタンは、グリッドの下の別セクションにあります（<a href="#sec-infotainment">インフォテインメントの操作</a>）。それ以外のインフォテインメントのコマンド（ホーン、ライト、ウィンドウ、メディア）は M5 の残りを待つため表示しません。タブには、<strong>状態を更新</strong>ボタン付きの状態カード（施錠、トランク、フランク、スリープ、最後に読んだ時刻）と、新しい行が一番上に来て、時刻が付き、VIN を含まない結果リストもあります。状態カードは 1 つの接続に属します。接続が変わると消え、接続が変わった後に終わった再照会はカードを更新しません。</p>
 <p>このタブのすべてのライブラリ呼び出しは、タブ自身の <code>exclusive { }</code> で 1 つずつ実行され、呼び出しの実行中はボタンが無効になります。Android ではビューモデルのスコープで実行されるため、タブを切り替えたりスマートフォンを回転させたりしてもキャンセルされません。Control タブには別のガードがあり、ライブラリが接続ごとに VCSEC コマンドを直列化するため、両方のタブでの押下が通信上で混ざることはありません。</p>
 
 <p><strong>吹き出しと操作(SFR-024、iOS)。</strong>広い画面(iPhone Duo の内側ディスプレイ)では、右の領域に車の写真の上中央のロックアイコン、左上の<strong>フランクを開く</strong>(小さな「開く」の下に太字の「フロント」)、右上の<strong>トランク開閉</strong>(「開閉」の下に太字の「トランク」)、下の行の<strong>スリープ解除</strong>と<strong>トランクを閉じる</strong>が並びます(<code>QuickControls</code>)。同じ <code>KeyControlModel.press</code> を呼ぶため、このページのルールはすべてそのまま当てはまります。ステップ 4 が有効であること(そうでなければ薄くし、同じオレンジのヒントを 1 回表示)、<strong>フランクを開く</strong>は先に確認すること、セッションを確認すること、コマンドは 1 回だけ送ること、続けて <code>vehicleStatus()</code> を呼ぶこと、<code>Uncertain</code> は再送しないこと。このタブが左の領域に開いている間は、確認ダイアログを右の領域が表示します(ここでは <code>ownsCommandDialog: false</code>)。そのためダイアログは 1 つだけです。最後の結果行は車の下に出ます。</p>
+
+<h2 id="sec-infotainment">インフォテインメントの操作 (SFR-025)</h2>
+<p>ステップ 4 の一番下、VCSEC グリッドと「他の車種」セクションの下にあるセクションで、タイトルは <strong>Infotainment (空調、充電)</strong> です。ライブラリの Infotainment コマンド（<code>15-lib-commands.md</code> "Implemented: Infotainment climate and charging"、M5。<strong>実車ではまだ確認していません</strong>、#118）と <code>getState</code>（<code>14-lib-reading-state.md</code> A8）を初めて使う場所です。Android は実装済みで、iOS は同じ仕様で予定しています。両アプリは同じ韓国語の UI ラベルを使い、下の表の行ごとに 1 つです（意味で記載）。正確な文字列は Android の <code>InfotainmentControl.kt</code> にある <code>InfoCommand</code> と <code>InfoCategory</code> にあり、iOS はそれをそのままコピーします（Android のテスト <code>buttonLabelsMatchTheIosSample</code> が固定します）。</p>
+<table>
+<thead><tr><th>グループ</th><th>ボタン</th><th>呼び出し</th><th><code>Uncertain</code> のときに読む呼び出し</th></tr></thead>
+<tbody>
+<tr><td>空調</td><td>空調オン</td><td><code>climateOn()</code></td><td><code>getState(CLIMATE)</code></td></tr>
+<tr><td>空調</td><td>空調オフ</td><td><code>climateOff()</code></td><td><code>getState(CLIMATE)</code></td></tr>
+<tr><td>空調</td><td>空調を読む</td><td><code>getState(CLIMATE)</code></td><td>-</td></tr>
+<tr><td>充電</td><td>充電開始</td><td><code>chargeStart()</code></td><td><code>getState(CHARGE)</code></td></tr>
+<tr><td>充電</td><td>充電停止</td><td><code>chargeStop()</code></td><td><code>getState(CHARGE)</code></td></tr>
+<tr><td>充電</td><td>充電を読む</td><td><code>getState(CHARGE)</code></td><td>-</td></tr>
+</tbody>
+</table>
+<p>ここには元に戻せないものがないため、確認ダイアログはありません。グループのタイトルは空調と充電です。</p>
+
+<h3 id="sec-info-enable">ボタンが有効になる条件</h3>
+<p>6 つのボタンは<strong>ステップ 4 の規則そのまま</strong>です。キーの準備完了、キー付きの接続（<code>Vehicle.hasKey</code>）、登録状態が <code>enrolled</code>、このタブのライブラリ呼び出しが実行中でないこと。別の規則も、キャッシュされた「セッション準備完了」の入力もありません。タップで INFOTAINMENT セッションを開始するので、ユーザーが先にセッションを開始する必要はありません。実行時に条件がもう成り立たないタップは何も送らず、結果行が理由を伝えます（VCSEC のボタンと同じ文）。</p>
+
+<h3 id="sec-info-tap">1 回のタップの順序</h3>
+<p><code>15-lib-commands.md</code> "Call order" と <code>14-lib-reading-state.md</code> A8.2 に従い、SFR-023 と同じ順序です。</p>
+<ol>
+<li>既定のタイムアウトで <code>vehicleStatus()</code>。<code>sleepStatus == AWAKE</code> のときだけ進みます。<code>ASLEEP</code>、<code>UNKNOWN</code>、または失敗した、もしくは <code>Uncertain</code> の取得は、タップを <strong>NotSent</strong> で終わらせます。セッションは開始せず、何も送らず、<strong><code>wakeUp()</code> は決して呼びません</strong>。起こすかどうかはユーザーが決めます。ドアのグループの<strong>スリープ解除</strong>ボタンを押し、<code>AWAKE</code> になるまで待ってから、もう一度タップします。取得に成功すると状態カードを更新します。</li>
+<li>既定のタイムアウトで <code>startSession(setOf(INFOTAINMENT))</code>。すでに <code>Ready</code> のドメインは、要求なしで成功します。<code>Failure</code> または <code>Uncertain</code> はタップを <strong>NotSent</strong> で終わらせ、<code>KeyNotPaired</code> は登録状態も <code>notEnrolled</code> にし、<code>KeyStoreError.Locked</code> はスマートフォンのロック解除を求めます。</li>
+<li>既定のタイムアウト（<code>null</code>）でコマンド呼び出しを<strong>1 回</strong>。結果がどうであれ 2 回目はありません。</li>
+<li>それ以外は何もしません。<strong>自動の <code>getState</code> はなく</strong>、再問い合わせの連鎖もありません。状態はユーザーが読み取りボタンで読みます。</li>
+</ol>
+<p>読み取りのタップも同じで、ステップ 3 が <code>getState(category)</code> になります。</p>
+
+<h3 id="sec-info-results">結果</h3>
+<table>
+<thead><tr><th>結果</th><th>意味</th><th>アプリの表示</th></tr></thead>
+<tbody>
+<tr><td><code>Success</code></td><td>車がコマンドを受け付けた</td><td>「成功」。状態は自動では読み<strong>ません</strong>。新しい状態は読み取りのタップの後にだけ表示されます。</td></tr>
+<tr><td><code>Uncertain(error)</code></td><td>車が実行したかもしれない: 時間内に応答がない（Infotainment がスリープ、または応答の消失）、ライブラリが繰り返した書き込みの失敗、または読めない応答</td><td>エラーの種類とともに「不確実」、車が実行したかもしれないこと、アプリは再送<strong>しない</strong>こと、<strong>空調を読む</strong>または<strong>充電を読む</strong>を押すことを伝える文。そのカテゴリに<strong>未確認</strong>の印が付きます。</td></tr>
+<tr><td><code>Failure(InfotainmentRejected)</code></td><td>車が拒否した</td><td>種類と「車が拒否しました」とともに「失敗」。車自身の文（<code>reason</code>）は表示も記録も<strong>しません</strong>。</td></tr>
+<tr><td><code>Failure(NoSession)</code>、<code>Failure(NotConnected)</code>、その他の <code>Failure</code></td><td>呼び出し順序またはリンク</td><td>エラーの種類とともに「失敗」。<code>KeyNotPaired</code> は登録状態も <code>notEnrolled</code> にします。</td></tr>
+<tr><td>NotSent</td><td>アプリがコマンドの前に止まった（スリープ、スリープ状態不明、状態の取得失敗、セッション失敗）</td><td>理由とともに「未送信」。スリープの場合は、スリープ解除ボタンへの案内。</td></tr>
+</tbody>
+</table>
+<p>読み取りのタップでは、<code>Success</code> なら読んだ値を表示し、<code>Uncertain</code> と <code>Failure</code> はライブラリが返したまま表示し（<code>16-lib-errors.md</code> "<code>getState</code> results"）、最後に読んだ値は経過時間とともに残り、自動再試行はありません。</p>
+<ul>
+<li><strong>再送しない。</strong>アプリは <code>Uncertain</code> の後も読み取りの後も、コマンドを自分で 2 回呼びません。カテゴリが未確認の間もボタンは有効のままです（ユーザーが決める）が、行は先に読むよう案内します。</li>
+<li><strong>未確認の印。</strong><code>Uncertain</code> になったコマンドの後、セクションは「空調の結果が未確認」または「充電の結果が未確認」を、対応する読み取りボタンとともに表示します。カテゴリの印は、そのカテゴリの <code>getState</code> が <code>Success</code> を返したとき、そのカテゴリの後のコマンドが <code>Success</code> を返したとき、または接続が変わったときに消えます。<code>Uncertain</code> の読み取りは印を保ちます。コマンドのその他の失敗は印を付けも消しもしません。</li>
+</ul>
+
+<h3 id="sec-info-readout">読み取り値の表示</h3>
+<p>値は画面にだけ表示されます（FR-112）。カテゴリごとの最後に成功した読み取り、その時刻と経過時間、応答の <code>timestamp</code> です。名前の決まったこれらのフィールドだけを読み、ないフィールドはダッシュで表示され、<code>0</code> は <code>0</code> のままです（<code>14-lib-reading-state.md</code> A8.3）。</p>
+<table>
+<thead><tr><th>カテゴリ</th><th>フィールド</th></tr></thead>
+<tbody>
+<tr><td>空調</td><td><code>is_climate_on</code>、<code>inside_temp_celsius</code>、<code>driver_temp_setting</code>、<code>timestamp</code></td></tr>
+<tr><td>充電</td><td><code>battery_level</code>、<code>charge_limit_soc</code>、<code>charger_power</code>、<code>charge_port_door_open</code>、<code>timestamp</code></td></tr>
+</tbody>
+</table>
+<p>読み取りの <code>timestamp</code> がそのカテゴリの前回の読み取りと同じなら、読み取り値の表示はタイムスタンプが変わっていないと伝えるので、新しい測定とは限りません（A8.3）。<strong>既知の欠落:</strong> <code>15-lib-commands.md</code> "Re-query" は、充電の開始または停止の後に見るフィールドとして <code>charge_state.charging_state</code> を挙げますが、マニュアルは Kotlin や Swift のアプリがその oneof ラッパーをどう読むかを述べていません。そのため読み取り値の表示はこれを省き、マニュアルが説明するまで、充電中の目に見えるサインとして <code>charger_power</code> を使います（ライブラリへの要望、#118）。</p>
+
+<h3 id="sec-info-late">接続の変更と遅れた結果</h3>
+<p>読み取り値、未確認の印、タップの結果は、それを生んだ<strong>接続</strong>（<code>Vehicle</code> インスタンス）に属します。接続が変わると（リンク切断、再接続、キーの変更）、読み取り値と印は消えます。接続が変わった<strong>後</strong>に届いた結果は捨てられます。読み取り値も、印も、登録状態や状態カードの更新もありません。結果行が 1 行これを記録し、コマンド名だけを書きます。接続が変わったため結果を捨てたこと、車が実行したかもしれないこと、再接続の後に状態を読むことです。</p>
+
+<h3 id="sec-info-log">ログと結果行</h3>
+<p>終わったタップごとに結果行を 1 行だけ残し、それ以外はありません（<code>observe</code> 行も、ファイルログもなし）。ボタンのラベル、結果、括弧内のエラーの種類（<code>Success</code> 以外）、所要時間で、例: <code>&lt;climate on label&gt;: &lt;uncertain word&gt; (Timeout(afterSend=true)) 5012 ms</code>。<code>Uncertain</code> と NotSent には固定の文が 1 つ付きます。行には<strong>値も、フィールド名も、車の文も、<code>error.message</code> も</strong>入りません（FR-112、<code>14-lib-reading-state.md</code> A8.3 "Do not log a result"）。エラーの種類は <code>ResponseTooLarge</code>（<code>ProtocolFault(RESPONSE_MTU_EXCEEDED)</code>）、<code>Timeout(afterSend=true|false)</code>、<code>NoSession</code>、それ以外はエラーのクラス名（例: <code>InfotainmentRejected</code>、<code>NotConnected</code>、<code>Locked</code>）です。所要時間は最初のライブラリ呼び出しからのタップ全体です。</p>
+
+<h3 id="sec-info-concurrency">同時に 1 つの呼び出し</h3>
+<p>すべての呼び出しはタブ自身の <code>exclusive { }</code> で実行されます。同時に 1 つで、処理中はすべてのボタンが無効になります。1 つが実行中の間の 2 回目のタップは何もせず、"busy" を記録します。ライブラリは Infotainment の呼び出しを直列化しないため、このガードが唯一のガードです。</p>
+<p>Android: <code>InfotainmentControl.kt</code>（純粋: <code>InfoCommand</code>、<code>InfotainmentRunner</code>、<code>InfotainmentErrors</code>、<code>InfoUiState</code> のリデューサーと読み取り値のマッピング）と <code>src/test/.../InfotainmentControlTest.kt</code>。状態は <code>KeyControlState</code> に、画面は <code>ui/KeyControlTab.kt</code> にあります。iOS: 同じ分け方で <code>KeyControl.swift</code> または新しい純粋ファイルに置き、SFR-021 と同様に偽のバックエンドを使います。</p>
 
 <h2 id="sec-impl">実装</h2>
 <table>
@@ -168,6 +236,7 @@
 <tbody>
 <tr><td>純粋なロジックとテスト</td><td><code>KeyControl.kt</code>、<code>src/test/.../KeyControlTest.kt</code></td><td><code>KeyControl.swift</code>、<code>Tests/KeyControlTests.swift</code>、<code>KeyReplacement.swift</code>、<code>Tests/KeyReplacementTests.swift</code>（SFR-020）、<code>EnrollmentProgress.swift</code>、<code>Tests/EnrollmentPopupTests.swift</code>（SFR-021）</td></tr>
 <tr><td>状態</td><td><code>KeyControlState.kt</code>（<code>MainViewModel</code> で生成）</td><td><code>KeyControlModel.swift</code>（<code>MonitorModel</code> で生成）</td></tr>
+<tr><td>Infotainment (SFR-025)</td><td><code>InfotainmentControl.kt</code>、<code>src/test/.../InfotainmentControlTest.kt</code></td><td>予定</td></tr>
 <tr><td>画面</td><td><code>ui/KeyControlTab.kt</code></td><td><code>Views/KeyControlTab.swift</code></td></tr>
 </tbody>
 </table>
@@ -205,6 +274,17 @@
 <li>待機中に<strong>キャンセル</strong>を押します: シートが停止中と表示した後、要求は取り消せないという注意とともにキャンセル済みを示し、以降 <code>sessionInfo</code> の要求はありません（Log タブ）。その後カードをかざして<strong>登録状態の確認</strong>を押すと <code>enrolled</code> になることがあります。</li>
 <li>シートを開いたまま Bluetooth を切るか離れます: シートがすぐ閉じ、結果行が待機を中断したと伝えます。</li>
 <li>流れが動いている間にシートを下に引きます: そのまま残ります。</li>
+</ol>
+
+<p>SFR-025、インフォテインメントの空調と充電（実車ではすべて未確認、#118。値ではなく、車がした動作を書きます）:</p>
+<ol start="21">
+<li>起きている車、登録済みのキー: インフォテインメントのボタン 6 つが有効です。Bluetooth を切ったとき、またはステップ 3 の前は無効です。</li>
+<li><strong>空調オン</strong>: 結果は「成功」で、<strong>空調を読む</strong>が <code>is_climate_on</code> を表示し、車自身の画面と一致します。続けて<strong>空調オフ</strong>を行い、もう一度読みます。</li>
+<li>ケーブルを接続した状態で<strong>充電開始</strong>と<strong>充電停止</strong>: 結果、続いて<strong>充電を読む</strong>（<code>charger_power</code>、<code>battery_level</code>）。車が表示したことを書きます。ケーブルがない場合は、車が返す結果の種類を書きます。</li>
+<li>車をスリープさせて<strong>空調オン</strong>をタップします: 「未送信、スリープ中」と出て、起こすことも、セッションもありません（Log タブにインフォテインメントの通信がない）。<strong>スリープ解除</strong>を押し、状態カードが起きていると表示するまで待ってから、もう一度タップします。</li>
+<li><code>Uncertain</code> を起こします（例: タップの直後に通信範囲の端まで歩く）: 行がエラーの種類とともに不確実と伝え、「未確認」の印が表示され、2 つ目のコマンドは送られず、<strong>空調を読む</strong>が成功すると印が消えます。</li>
+<li>コマンドの実行中にリンクを切ります: 遅れた結果は捨てられ（「破棄」の行が 1 行）、読み取り値が消えます。</li>
+<li>結果行をコピーします: コマンド名、結果、所要時間、エラーの種類だけが入っています。</li>
 </ol>
 
 <footer class="page-nav">
