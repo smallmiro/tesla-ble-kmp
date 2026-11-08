@@ -38,7 +38,7 @@ struct StateField: Equatable, Sendable {
 enum StateFault: Equatable, Sendable {
     /// `Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))`: 차가 요청을 받았고 응답이 너무 커서 데이터가 오지 않았다.
     case responseTooLarge
-    /// `Timeout`: `afterSend` 가 참이면 요청을 보낸 뒤 응답이 없었다. 거짓이면 보내기 전(또는 재시도를 기다리는 중)에 시간이 다했다.
+    /// `Timeout`: `afterSend` 가 참이면 첫 BLE 쓰기를 시작한 뒤 응답이 없었다(보냈을 수 있음). 거짓이면 쓰기를 시작하기 전(또는 차가 재시도를 요청한 뒤 기다리는 중)에 시간이 다했다. `TimeoutNote` 참고.
     case noReply(afterSend: Bool)
     /// `Failure(NoSession)`: 요청을 보내지 않았다(세션이 없거나 차가 캐시된 세션을 받아들이지 않았다).
     case noSession
@@ -61,8 +61,8 @@ enum StateFault: Equatable, Sendable {
             return "차량이 응답했지만 응답이 너무 커서 데이터가 오지 않았습니다(RESPONSE_MTU_EXCEEDED). 차량은 닿는 상태입니다"
         case .noReply(let afterSend):
             return afterSend
-                ? "요청을 보냈지만 시간 안에 응답이 없습니다(수면 중이거나, 응답이 사라졌거나, 링크가 끊겼을 수 있습니다). 값은 확인되지 않았습니다"
-                : "요청을 보내기 전, 또는 재시도를 기다리는 중에 시간이 다했습니다"
+                ? "시간 안에 응답이 없습니다(수면 중이거나, 응답이 사라졌거나, 링크가 끊겼을 수 있습니다). \(TimeoutNote.read(afterSend: true))"
+                : "시간이 다했습니다. \(TimeoutNote.read(afterSend: false))"
         case .noSession:
             return "Infotainment 세션이 없어 보내지 않았습니다. 다시 누르면 세션을 새로 시작합니다"
         case .other(let name):

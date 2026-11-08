@@ -67,6 +67,17 @@ extension StateFault {
     }
 }
 
+extension VehicleError {
+    /// 명령 결과 줄에 쓰는 문장: 라이브러리 `message` 에, `Timeout` 이면 `afterSend` 에 맞는 안내를 붙인다
+    /// (`16-lib-errors.md` `Timeout(afterSend)` 행: 참이면 보냈을 수 있음(`Uncertain`), 거짓이면 실행되지 않음(`Failure`)).
+    var commandResultText: String {
+        switch onEnum(of: self) {
+        case .timeout(let t): return TimeoutNote.line(message: message, timeoutAfterSend: t.afterSend)
+        default: return message
+        }
+    }
+}
+
 extension DiagnosticCategory {
     var stateCategory: StateCategory {
         switch self {
