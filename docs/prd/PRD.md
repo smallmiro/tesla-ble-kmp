@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | **v1.0 승인** (2026-09-26, D13 개정 포함). NFR-012 타임아웃 문구는 SDD D29에 맞춰 갱신. 주행·미디어·목적지 조사 결과 반영(2026-11-01, §3.2, FR-033, FR-091, §8, §9). `getState` 구현에 맞춘 문구 정정(2026-11-01, FR-033, FR-101). 연결 스캔 관찰 추가(2026-11-01, FR-038, #134). 연결 시간 초과 오류 구분(2026-11-01, FR-004, #140). 시간 초과의 "전송" 정의를 첫 BLE 쓰기 호출로 정정(2026-11-07, NFR-012, ADR-0010 H1). 쓰기 실패 뒤 새 사본 재인가 금지(2026-11-08, FR-101 예외, NFR-007, ADR-0010 개정). 공조·충전 명령의 공개 시그니처 확정(2026-11-08, FR-052, FR-061~083, M5 PR A, ADR-0002 개정) |
+| 상태 | **v1.0 승인** (2026-09-26, D13 개정 포함). NFR-012 타임아웃 문구는 SDD D29에 맞춰 갱신. 주행·미디어·목적지 조사 결과 반영(2026-11-01, §3.2, FR-033, FR-091, §8, §9). `getState` 구현에 맞춘 문구 정정(2026-11-01, FR-033, FR-101). 연결 스캔 관찰 추가(2026-11-01, FR-038, #134). 연결 시간 초과 오류 구분(2026-11-01, FR-004, #140). 시간 초과의 "전송" 정의를 첫 BLE 쓰기 호출로 정정(2026-11-07, NFR-012, ADR-0010 H1). 쓰기 실패 뒤 새 사본 재인가 금지(2026-11-08, FR-101 예외, NFR-007, ADR-0010 개정). 공조·충전 명령의 공개 시그니처 확정(2026-11-08, FR-052, FR-061~083, M5 PR A, ADR-0002 개정). `ping`과 차체·보안·미디어·SW 업데이트 명령의 공개 시그니처 확정(2026-11-08, FR-034, FR-051, FR-084~085, FR-090, FR-092, M5 PR B) |
 | 저장소 | `{{REPO_URL}}` (공개, Apache-2.0) |
 | 상위 문서 | `{{HANDOFF_FILE}}` §1~§5, §8, §10~§13 |
 | 정답 기준 | `{{REF_REPO_DIR}}` @ `{{REF_REPO_COMMIT}}` + `pkg/protocol/protocol.md` |
@@ -182,7 +182,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | FR-031 | `vehicleStatus()`: `InformationRequest{GET_STATUS}` → `VehicleStatus`(잠금, 도어 4, 프렁크·트렁크, 충전구, 톤노, 수면 상태, 탑승자). 인증·깨우기 불필요 | P0 | VCSEC | `BodyControllerState` | `05-command-catalog B`, `03-protocol §12` |
 | FR-032 | Whitelist 요약: 키 개수, 슬롯 비트마스크 (FR-025 하위) | P0 | VCSEC | `KeySummary` | `05-command-catalog B` |
 | FR-033 | `getState(category)`: 12개 카테고리(Charge, Climate, Drive, Location, Closures, ChargeSchedule, PreconditioningSchedule, TirePressure, Media, MediaDetail, SoftwareUpdate, ParentalControls)를 Wire 생성 타입으로 반환. Infotainment 세션과 깨어 있는 차가 필요하다(세션 시작과 깨우기는 호출자 몫). 카테고리 하나당 요청 하나. `RESPONSE_MTU_EXCEEDED`는 "실행됐을 수 있음"(Go `MayHaveSucceeded`)으로 분류하며, 조회에서는 데이터 없는 결과로 구분해 돌려준다. 다시 보내지 않고, 이 fault 때문에 세션을 지우거나 다시 연결하거나 깨우지 않는다(동봉된 세션정보의 일반 처리는 그대로)(#116). `Drive`에서 자주 일어날 수 있다(§8) | P0 | INFO | `GetState` | `05-command-catalog I`, `04-go-api-reference state.go`, `08-errors §8` |
-| FR-034 | `ping()`: 온라인+키 인식 확인 | P1 | INFO | `Ping` | `05-command-catalog I`, `00-agent-guide §5` |
+| FR-034 | `ping()`: 온라인+키 인식 확인. Go처럼 `ping_id = 1`인 인증 명령이며 아무것도 바꾸지 않고, 응답의 Ping 내용은 보지 않는다 | P1 | INFO | `Ping` | `05-command-catalog I`, `00-agent-guide §5` |
 | FR-035 | `Vehicle.events: Flow<VehicleEvent>`: 차량이 요청 없이 보낸 평문 VCSEC 브로드캐스트를 공개 이벤트로 낸다. 게이트: from `DOMAIN_VEHICLE_SECURITY`, to `DOMAIN_BROADCAST`, `request_uuid` 비어 있음, `signature_data`·`session_info` 없음. `vehicleStatus` → `Status`(`vehicleStatus()`와 같은 매핑), `authenticationRequest` → `AuthenticationRequest`(`requestedLevel`, `reasons`; 한 프레임에 둘 다 오면 둘 다), 그 밖·디코딩 실패 → `Unrecognized`. 해석 못 한 부분은 `unknownFields`(경로 문자열)와 받은 프레임 전체 `raw`(방어 복사, VIN 마스킹 없음 — 앱이 가림). 연결마다 hot, replay 0, `connection`이 `Disconnected`(이유 무관)가 되거나 `disconnect()`가 불리면 정상 완료. 디스패처 버퍼 64, 넘치면 새 프레임을 버리고 WARN(1·100·200…번째). 응답 매칭에서 버리는 판정은 원본과 같다. **FR-112의 좁은 예외:** 차량이 처음부터 평문 브로드캐스트로 보낸 프레임의 원본 바이트만 내보내며, 라이브러리가 복호화한 데이터는 어떤 경우에도 내보내지 않는다 | P1 | VCSEC | (없음 — 원본은 브로드캐스트를 버린다, `dispatcher.go:270-272`) | `14-lib-reading-state` B2·B3, `18-lib-troubleshooting` Observation log |
 | FR-036 | `VehicleStatus.gear`: VCSEC `VehicleStatus` 필드 7(`Gear_E`, TESLEMETRY-EXT)을 공개 `Gear`(`UNKNOWN`, `PARK`, `DRIVE`, `REVERSE`, `NEUTRAL`)로 노출. 없음 = `UNKNOWN`(proto3라 `GEAR_UNKNOWN`과 구별 불가), 스키마 밖 값도 `UNKNOWN`. 실차는 브로드캐스트로 확인, 조회 응답은 유력(144건 모두 포함) | P1 | VCSEC | (없음, TESLEMETRY-EXT 스키마) | `14-lib-reading-state` A2, B3.1 |
 | FR-038 | `Vehicle.scanObservation: ConnectScanObservation?`: `connect`가 스스로 돌린 스캔에서 링크를 연 광고에 대해 본 값을 낸다. `hitAfterMillis`(연결 시작부터 라이브러리가 그 광고를 받을 때까지, 앞선 시도와 대기 포함. 단조 시계라 벽시계 시각으로 되돌릴 수 없다), `rssi`(dBm, 플랫폼이 값을 주지 않으면 null), `openAttempt`(그 링크를 연 열기 시도 번호, 1부터. 1보다 커도 다시 스캔했다는 뜻은 아니다). 이 호출에 그 광고의 관찰값이 없으면 null(`scan`에서 받은 `target`을 스캔 없이 쓴 경우). 연결 하나의 고정값이며 `disconnect()` 뒤에도 읽을 수 있다. 실패한 연결에는 결과가 없고, `connect`가 스스로 돌린 스캔의 발견마다 관찰 로그(태그 `observe`, DEBUG) `[connect:scan-hit]` 한 줄을 남긴다. 광고 이름(VIN에서 나온 값)과 기기 식별자는 값과 로그 어디에도 담지 않는다(FR-112). 연결 동작과 오류는 바꾸지 않는다 | P1 | – | (없음 — 원본에 없는 관찰 값) | #134, `12-lib-getting-started` Connect scan observation, `18-lib-troubleshooting` Observation log |
@@ -204,17 +204,17 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 
 ### 5.6 Infotainment 제어: 차체
 
+Infotainment 명령(FR-034, FR-050~053, FR-060~085, FR-090~092)의 시그니처는 M5에서 확정했다(공조·충전 PR A, 나머지와 `ping` PR B, 2026-11-08). 모두 `suspend`이고 `VehicleResult<Unit>`을 돌려주며 마지막 인자는 `timeout: Duration? = null`이다. 매개변수 타입은 `:domain`의 `SeatPosition`(Go 좌석 9종 + `UNKNOWN`), `SeatClimateLevel`, `ClimateKeeperMode`, `ChargingPolicy`, `CabinOverheatProtectionTemperature`와 Wire 생성 타입 `ChargeSchedule`·`PreconditionSchedule`(ADR-0002 개정 2026-11-08), 그 밖에는 `Int`·`Float`·`Boolean`·`String`이다. 로컬 인자 검증은 Go에 있는 것만(FR-063 좌석, FR-075 출발 시각, FR-085 PIN, FR-090 볼륨) 하며, 실패하면 보내지 않고 `InvalidArgument`다.
+
 | ID | 요구사항 | P | 도메인 | Go | 근거 |
 |---|---|---|---|---|---|
 | FR-050 | `ventWindows()`, `closeWindows()` | P1 | INFO | `VentWindows`, `CloseWindows` | `05-command-catalog C` |
-| FR-051 | `setSunroof(level)` | P1 | INFO | `ChangeSunroofState` | 〃 |
+| FR-051 | `setSunroof(level: Int)` (절대 단계, 검사 없음. 0도 보낸다) | P1 | INFO | `ChangeSunroofState` | 〃 |
 | FR-052 | `openChargePort()`, `closeChargePort()` | P1 | INFO | `OpenChargePort`(= `ChargePortOpen`), `CloseChargePort`(= `ChargePortClose`) | 〃 |
 | FR-053 | `honkHorn()`, `flashLights()` | P1 | INFO | `HonkHorn`, `FlashLights` | 〃 |
 | FR-054 | `triggerHomelink(lat, lon)` | P2 | INFO | `TriggerHomelink` | 〃 |
 
 ### 5.7 Infotainment 제어: 공조
-
-공조·충전 명령(FR-052, FR-060~083)의 시그니처는 M5 PR A(2026-11-08)에서 확정했다. 모두 `suspend`이고 `VehicleResult<Unit>`을 돌려주며 마지막 인자는 `timeout: Duration? = null`이다. 매개변수 타입은 `:domain`의 `SeatPosition`(Go 좌석 9종 + `UNKNOWN`), `SeatClimateLevel`, `ClimateKeeperMode`, `ChargingPolicy`, `CabinOverheatProtectionTemperature`와 Wire 생성 타입 `ChargeSchedule`·`PreconditionSchedule`(ADR-0002 개정 2026-11-08)이다. 로컬 인자 검증은 Go에 있는 것만(FR-063 좌석, FR-075 출발 시각) 하며, 실패하면 보내지 않고 `InvalidArgument`다.
 
 | ID | 요구사항 | P | 도메인 | Go | 근거 |
 |---|---|---|---|---|---|
@@ -252,8 +252,8 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 
 | ID | 요구사항 | P | 도메인 | Go | 근거 |
 |---|---|---|---|---|---|
-| FR-084 | `setSentryMode(on)` | P1 | INFO | `SetSentryMode` | `05-command-catalog H` |
-| FR-085 | `enableValetMode(pin)`, `disableValetMode()` ("already off"는 성공), `resetValetPin()`. PIN은 4자리 숫자 검증 | P1 | INFO | `Enable/DisableValetMode`, `ResetValetPin` | 〃 |
+| FR-084 | `setSentryMode(enabled: Boolean)` | P1 | INFO | `SetSentryMode` | `05-command-catalog H` |
+| FR-085 | `enableValetMode(pin: String)`(PIN은 ASCII 숫자 정확히 네 개, 아니면 보내지 않고 `InvalidArgument`. PIN은 오류·로그에 남기지 않는다), `disableValetMode()`(차량 거부 사유가 "already off"로 끝나면 성공, 대소문자 구분), `resetValetPin()` | P1 | INFO | `Enable/DisableValetMode`, `ResetValetPin` | 〃 |
 | FR-086 | `clearPinToDrive()` (관리자 리셋). `SetPINToDrive`는 BLE 불가로 제외(§3.2) | P2 | INFO | `ClearPINToDrive` | 〃 |
 | FR-087 | 속도 제한 5종: `activateSpeedLimit(pin)`, `deactivateSpeedLimit(pin)`, `clearSpeedLimitPin(pin)`, `clearSpeedLimitPinAdmin()`, `setSpeedLimitMph(mph)` | P2 | INFO | `*SpeedLimit*` | 〃 |
 | FR-088 | 자녀 보호 5종: `parentalControlsActivate(pin)`, `Deactivate(pin)`, `EnableSetting(setting, on)`, `SetSpeedLimit(mph)`, `ClearPin()` | P2 | INFO | `ParentalControls*` | 〃 |
@@ -263,9 +263,9 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 
 | ID | 요구사항 | P | 도메인 | Go | 근거 |
 |---|---|---|---|---|---|
-| FR-090 | `volumeUp()`, `volumeDown()`, `setVolume(0..10)` | P1 | INFO | `VolumeUp/Down`, `SetVolume` | `05-command-catalog F` |
+| FR-090 | `volumeUp()`, `volumeDown()`, `setVolume(volume: Float)`(0~10, NaN도 거부 — Go와 다르다. 밖이면 보내지 않고 `InvalidArgument`) | P1 | INFO | `VolumeUp/Down`, `SetVolume` | `05-command-catalog F` |
 | FR-091 | `mediaNextTrack()`, `mediaPreviousTrack()`, `mediaNextFavorite()`, `mediaPreviousFavorite()`, `toggleMediaPlayback()`. 토글은 결과가 불확실하면 재전송하지 않고 `getState(Media)`로 확인한다(NFR-007) | P1 | INFO | `Media*` | 〃 |
-| FR-092 | `scheduleSoftwareUpdate(delay)`, `cancelSoftwareUpdate()` | P1 | INFO | `Schedule/CancelSoftwareUpdate` | `05-command-catalog G` |
+| FR-092 | `scheduleSoftwareUpdate(delaySeconds: Int)`(검사 없음), `cancelSoftwareUpdate()` | P1 | INFO | `Schedule/CancelSoftwareUpdate` | `05-command-catalog G` |
 | FR-093 | `setVehicleName(name)` | P2 | INFO | `SetVehicleName` | `05-command-catalog H` |
 | FR-094 | `getNearbyCharging()`: Go 원본은 응답 데이터를 버리고 오류만 반환. BLE로 데이터가 오는지 **미검증**. v1.1에서 응답 파싱 여부 결정 | P2 | INFO | `GetNearbyCharging` | `05-command-catalog I`, `04-go-api-reference infotainment.go` |
 
@@ -377,7 +377,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | M4 | 키 등록 + VCSEC 제어 | FR-022~024, FR-026~027, FR-040~047, FR-104, FR-110~111(VCSEC 부분, → SFR-001~002) | 페어링, 잠금, 해제, 트렁크 (실차는 사용자 확인) |
 | #91 (M4 뒤, M5 전) | 차량 브로드캐스트 이벤트, 기어, iOS 키 접근성 선택 (모니터 샘플의 선행 작업, 원래 M5 항목이던 `vehicle.events`를 앞당김) | FR-035, FR-036, FR-037 | FakeVehicle 시나리오 테스트·가짜 Keychain 테스트 PASS, 사용 문서 갱신. 실차·실기기 확인은 모니터 샘플로 |
 | #134 (M5와 별개, 빌드 18 분석의 링크 안정화) | `connect`의 스캔 발견 시각과 RSSI를 공개 API로 제공 | FR-038 | 가짜 커넥터 테스트 PASS, 사용 문서 갱신. 실차 확인은 모니터 샘플에서 |
-| M5 | Infotainment 제어 + GetState (P0/P1). **진행(2026-11-08):** `getState`(FR-033, #115)와 공조·충전 명령(FR-052, FR-060~083, PR A) 완료 — FakeVehicle 시험 통과, 실차 미확인(#118). 남은 것: `ping`(FR-034), 차체·보안·미디어·SW 업데이트(FR-050·051·053, FR-084~085, FR-090~092, PR B), 샘플의 공조·충전 항목(PR C) | FR-033~034, FR-050~053, FR-060~085, FR-090~092, FR-110~111(전체, → SFR-001~002) | P0/P1 항목 완료, 실차 체크리스트 전달 |
+| M5 | Infotainment 제어 + GetState (P0/P1). **진행(2026-11-08):** 라이브러리 명령 전부 완료 — `getState`(FR-033, #115), 공조·충전(FR-052, FR-060~083, PR A), `ping`과 차체·보안·미디어·SW 업데이트(FR-034, FR-050·051·053, FR-084~085, FR-090~092, PR B). FakeVehicle 시험 통과, 실차 미확인(#118). 남은 것: 샘플의 공조·충전 항목(PR C, FR-110~111 → SFR-001~002) | FR-033~034, FR-050~053, FR-060~085, FR-090~092, FR-110~111(전체, → SFR-001~002) | P0/P1 항목 완료, 실차 체크리스트 전달 |
 | M6 | 문서화, 배포 준비 | `{{LIB_DOCS_DIR}}` 완성, API 문서, NOTICE, mavenLocal/XCFramework 빌드. **마지막 과제**: GitHub Packages + SPM 배포 파이프라인(D13), 소비자용 PAT 설정 문서 | 문서 링크 검증, 배포 설정 |
 | v1.1 | P2 기능, BLE 목적지 설정 PoC(#119, 요구사항 아님, §3.2) | FR-054, FR-086~089, FR-093~094 | PoC는 실차 결과 기록과 지원 여부 판단 |
 
