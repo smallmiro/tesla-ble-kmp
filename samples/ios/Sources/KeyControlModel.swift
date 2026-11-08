@@ -21,6 +21,8 @@ final class KeyControlModel: ObservableObject {
     /// 새 것이 앞(위)에 온다. VIN 은 넣지 않는다.
     @Published private(set) var results: [ResultLine] = []
     @Published private(set) var status: StatusCard?
+    /// Infotainment 공조·충전(SFR-025)의 화면 상태: 결과 미확인 범주와 마지막 읽기. 연결이 바뀌면 비운다.
+    @Published private(set) var info = InfoUiState()
     /// 확인 대화상자를 기다리는 버튼(프렁크 열기, 원격 주행 허용).
     @Published var pendingConfirm: ControlButton?
     /// 키 등록 진행 팝업(SFR-021). `nil` 이면 보이지 않는다. 진행 중에는 닫을 수 없고(취소로 멈춘다), 끝나면 사용자가 닫는다.
@@ -64,6 +66,7 @@ final class KeyControlModel: ObservableObject {
         inputs.connected = connected
         inputs.hasKey = keyed
         status = nil // 상태 카드는 그 연결에서 읽은 것만 보여 준다
+        info = .afterConnectionChange // 읽은 값과 미확인 표시도 그 연결의 것이다
         if connected {
             needsCheck = true
             checkIfNeeded()
@@ -86,6 +89,7 @@ final class KeyControlModel: ObservableObject {
             generation += 1
             inputs.enrollment = .unknown // 키가 바뀌었다
             status = nil // 옛 키로 읽은 상태 카드와 등록 진행 줄은 새 키의 것이 아니다
+            info = .afterConnectionChange
             progress = []
             dismissEnrollmentPopup(because: "키가 바뀌어")
         }
@@ -286,6 +290,7 @@ final class KeyControlModel: ObservableObject {
             if outcome.dropsConnectionState {
                 generation += 1
                 status = nil
+                info = .afterConnectionChange
                 progress = []
             }
             if let enrollment = outcome.enrollmentAfter { inputs.enrollment = enrollment }
@@ -334,6 +339,65 @@ final class KeyControlModel: ObservableObject {
             }
             add(button.title, report.line, tone)
         }
+    }
+
+    // MARK: - 4단계 제어: Infotainment 공조·충전 (SFR-025)
+
+    /// Infotainment 버튼(명령과 읽기). 누른 시점에 4단계 규칙으로 다시 확인해 보낼 수 없으면 이유를 결과에 남기고 보내지 않는다.
+    /// 깨우지 않고, 자동으로 다시 보내지 않고, 끝난 뒤 `getState` 를 따로 부르지 않는다(`05-key-control-tab.md` §Infotainment controls).
+    func pressInfo(_ cmd: InfoCommand) {
+        if let why = InfotainmentControl.blockedReason(inputs) {
+            add(cmd.label, "보내지 않음 — \(why)", .warn)
+            return
+        }
+        Task { await runInfo(cmd) }
+    }
+
+    /// 누르기 한 번: `vehicleStatus()`(깨어 있을 때만 계속) → `startSession(INFOTAINMENT)` → 호출 한 번(`InfotainmentRunner`).
+    /// 연결이 바뀐 뒤 끝났으면 결과(값, 미확인 표시, 등록 상태, 상태 카드)는 버리고 "버렸다"는 줄만 남긴다.
+    func runInfo(_ cmd: InfoCommand) async {
+        await exclusive { [self] in
+            let gen = generation
+            guard let link = backend.openInfotainment() else {
+                add(cmd.label, "먼저 연결하세요", .warn)
+                return
+            }
+            if cmd.isRead {
+                let outcome = await InfotainmentRunner.run(
+                    readStatus: { await link.readStatus() },
+                    ensureSession: { await link.ensureSession() },
+                    call: { await link.read(cmd.category) }
+                )
+                let current = gen == generation
+                info = InfotainmentReducer.afterRead(info, cmd.category, outcome, current: current, at: Date())
+                finishInfo(cmd, outcome, current: current)
+            } else {
+                let outcome = await InfotainmentRunner.run(
+                    readStatus: { await link.readStatus() },
+                    ensureSession: { await link.ensureSession() },
+                    call: { await link.send(cmd) }
+                )
+                let current = gen == generation
+                info = InfotainmentReducer.afterCommand(info, cmd, outcome, current: current)
+                finishInfo(cmd, outcome, current: current)
+            }
+        }
+    }
+
+    private func finishInfo<Value>(_ cmd: InfoCommand, _ outcome: InfoOutcome<Value>, current: Bool) {
+        guard current else {
+            add(cmd.label, InfotainmentRunner.droppedText(cmd), .warn)
+            return
+        }
+        if let enrollment = outcome.enrollment { inputs.enrollment = enrollment }
+        if let card = outcome.status { status = card }
+        let tone: ResultLine.Tone
+        switch outcome.kind {
+        case .success: tone = .ok
+        case .uncertain, .notSent: tone = .warn
+        case .failure: tone = .fail
+        }
+        add(cmd.label, InfotainmentRunner.resultText(cmd, outcome), tone)
     }
 
     /// 상태 카드의 "상태 새로고침". `vehicleStatus()` 는 키 없이도 되고 차량을 깨우지 않는다.
