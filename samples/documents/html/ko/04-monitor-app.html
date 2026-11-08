@@ -43,7 +43,7 @@
 
 <div class="callout warn">
 <strong>Android와 iOS 구현 완료, 실기기 확인 대기</strong>
-<p>Android 앱(빌드 <code>0.3.0 (3)</code>)과 iOS 앱(빌드 <code>0.5.0 (25)</code>)은 구현되어 있고 단위 테스트를 통과했으며, 둘 다 실차 확인을 기다립니다. iOS의 백그라운드 재연결은 계획 Task 2 스파이크 전까지 확인되지 않았습니다. 필요한 라이브러리 API를 모두 쓸 수 있습니다: <code>Vehicle.events</code>(라이브러리 매뉴얼 12장 "브로드캐스트 이벤트", 14장 B2)와 iOS의 키 접근성 선택(13장 "휴대폰이 잠겨 있을 때 키 쓰기", FR-037).</p>
+<p>Android 앱(빌드 <code>0.3.0 (3)</code>)과 iOS 앱(빌드 <code>0.5.0 (26)</code>)은 구현되어 있고 단위 테스트를 통과했으며, 둘 다 실차 확인을 기다립니다. iOS의 백그라운드 재연결은 계획 Task 2 스파이크 전까지 확인되지 않았습니다. 필요한 라이브러리 API를 모두 쓸 수 있습니다: <code>Vehicle.events</code>(라이브러리 매뉴얼 12장 "브로드캐스트 이벤트", 14장 B2)와 iOS의 키 접근성 선택(13장 "휴대폰이 잠겨 있을 때 키 쓰기", FR-037).</p>
 </div>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
@@ -90,7 +90,7 @@
 </tbody>
 </table>
 <p>규칙은 작은 순수 타입입니다(<code>KeyNickname</code>: 자르기, 길이 확인, 제한. <code>KeyNicknameStore</code>: 주입한 <code>UserDefaults</code>에 저장, 조회, 삭제). 차량 없이 단위 테스트합니다(<code>Tests/KeyNicknameTests.swift</code>). 화면은 <code>samples/ios/README.md</code>의 실기기 확인 목록으로 확인합니다(SFR-019).</p>
-<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (25)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 예정, 같은 스펙.</p>
+<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (26)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 예정, 같은 스펙.</p>
 
 <h2 id="sec-state">상태 진단(SFR-023)</h2>
 <p>Query 탭에는 사람이 직접 <code>getState()</code>를 호출해 차량이 돌려주는 값을 읽는 수동 영역이 있습니다. 라이브러리 매뉴얼이 미확인으로 적어 둔 실차 사실(14장 A8.5)을 모으기 위한 것입니다: 범주마다 어떤 필드가 오는지, <code>speed</code>의 단위, 응답이 너무 큰지, 잠든 차가 어떻게 하는지. 제품 기능이 아닙니다. 주기적인 <code>getState</code>도, 자동 재시도도, <code>Location</code> 버튼도 없습니다.</p>
@@ -118,7 +118,7 @@
 </table>
 <p>로그. 끝난 누름마다 <code>query</code> 줄 하나만 남기고 다른 것은 남기지 않습니다: <code>call</code>은 <code>getState(DRIVE)</code>, <code>getState(MEDIA)</code>, <code>getState(MEDIA_DETAIL)</code>, <code>result</code>는 <code>Success</code>, <code>Uncertain</code>, <code>Failure</code>, <code>NotSent</code>, <code>summary</code>는 <code>durationMs=&lt;n&gt;</code>에 <code>error=&lt;종류&gt;</code> 또는 <code>reason=&lt;이유&gt;</code>가 붙은 것, <code>startedAt</code>은 그 누름의 첫 라이브러리 호출을 시작한 시각입니다. <strong>값도, 곡 제목도, 필드 이름도</strong> 로그에 가지 않습니다(FR-112, 14장 A8.3 "결과를 로그에 남기지 마세요"): 로그 줄은 그것들을 담을 자리가 없는 작은 값(<code>StateLogEntry</code>)으로 만들고, 요약이 로그로 가는 샘플의 <code>record</code> 도우미는 <code>getState</code>에 쓰지 않습니다. 오류 종류는 라이브러리의 타입 이름(<code>ResponseTooLarge</code>, <code>Timeout(afterSend=true)</code>, <code>NoSession</code>, 또는 클래스 이름)이며 <code>message</code>나 차량이 보낸 글은 쓰지 않습니다.</p>
 <p>부르는 라이브러리 호출과 매뉴얼 장: <code>vehicleStatus(timeout: nil)</code>(14장 A2), <code>startSession(domains:timeout:)</code>(14장 A8.2, 15장), <code>getState(category:timeout:)</code>와 <code>s.value as? VehicleData</code>, <code>KotlinInt?</code> 숫자, <code>getEpochSecond()</code>(14장 A8.3, 17장 "Swift: 생성된 타입"), 결과 처리와 크기 오류(16장 "<code>getState</code> 결과", "<code>getState</code>의 응답 크기 제한"). 순수 규칙(<code>StateDiagnostics</code>)과 화면 상태(가짜 링크를 쓰는 <code>StateDiagnosticsModel</code>)는 차량 없이 단위 테스트합니다(<code>Tests/StateDiagnosticsTests.swift</code>). 실기기 확인 목록은 <code>samples/ios/README.md</code>(SFR-023)에 있습니다.</p>
-<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (25)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 예정, 같은 스펙.</p>
+<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (26)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 예정, 같은 스펙.</p>
 
 <h2 id="sec-wide">넓은 화면과 접는 화면 (SFR-024)</h2>
 <p>앱은 접는 iPhone Duo에서 공식 Tesla 앱(4.62)이 쓰는 큰 화면 배치를 따릅니다. <strong>안쪽 화면</strong>에서는 두 영역을 보여 줍니다. 왼쪽은 이동 메뉴, 오른쪽은 늘 보이는 큰 차량과 아래쪽 빠른 동작입니다. <strong>바깥 화면</strong>은 보통의 폰 배치를 유지합니다. 샘플도 자기 화면으로 같은 일을 합니다. 크기 클래스와 쓸 수 있는 너비만 쓰므로 iPad나 분할 창에도 적용됩니다. 기기 모델, <code>UIScreen</code>, 방향, 힌지 각도는 보지 않고, iOS 27.1 접힘 API도 쓰지 않습니다.</p>
@@ -139,7 +139,7 @@
 </tbody>
 </table>
 <p>선택과 대응은 순수 로직이라 차량 없이 단위 테스트합니다(<code>Tests/DuoLayoutTests.swift</code>). 화면은 <code>samples/ios/README.md</code> 의 실기기 체크리스트(SFR-024)로 확인합니다. Simulator 앱 없이는 시뮬레이터를 접을 수 없어, 두 영역 배치는 iPad 시뮬레이터에서도 보았습니다. Duo 자체의 자세 변경은 실기기에서 확인합니다.</p>
-<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (25)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 지금은 해당 없음(접는 기기 대상 없음). 큰 화면 배치는 별도 요구사항이 됩니다.</p>
+<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (26)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 지금은 해당 없음(접는 기기 대상 없음). 큰 화면 배치는 별도 요구사항이 됩니다.</p>
 
 <h2 id="sec-bg">백그라운드 실행</h2>
 <table>

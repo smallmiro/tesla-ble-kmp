@@ -43,7 +43,7 @@
 
 <div class="callout warn">
 <strong>Android と iOS でビルド済み、実機確認待ち</strong>
-<p>Android ビルド <code>0.4.0 (4)</code>、iOS ビルド <code>0.5.0 (25)</code>。ステップの規則とコマンド実行器は単体テストで確認し、画面と車はこのページの末尾のチェックリストで確認します。インフォテインメントのセクション（SFR-025）は Android にだけ実装済みで、iOS は同じ仕様で予定しています。</p>
+<p>Android ビルド <code>0.4.0 (4)</code>、iOS ビルド <code>0.5.0 (26)</code>。ステップの規則とコマンド実行器は単体テストで確認し、画面と車はこのページの末尾のチェックリストで確認します。インフォテインメントのセクション（SFR-025）は両方に実装済みです。</p>
 </div>
 
 <div class="toc"><strong>このページの内容</strong><ol>
@@ -165,7 +165,7 @@
 <p><strong>吹き出しと操作(SFR-024、iOS)。</strong>広い画面(iPhone Duo の内側ディスプレイ)では、右の領域に車の写真の上中央のロックアイコン、左上の<strong>フランクを開く</strong>(小さな「開く」の下に太字の「フロント」)、右上の<strong>トランク開閉</strong>(「開閉」の下に太字の「トランク」)、下の行の<strong>スリープ解除</strong>と<strong>トランクを閉じる</strong>が並びます(<code>QuickControls</code>)。同じ <code>KeyControlModel.press</code> を呼ぶため、このページのルールはすべてそのまま当てはまります。ステップ 4 が有効であること(そうでなければ薄くし、同じオレンジのヒントを 1 回表示)、<strong>フランクを開く</strong>は先に確認すること、セッションを確認すること、コマンドは 1 回だけ送ること、続けて <code>vehicleStatus()</code> を呼ぶこと、<code>Uncertain</code> は再送しないこと。このタブが左の領域に開いている間は、確認ダイアログを右の領域が表示します(ここでは <code>ownsCommandDialog: false</code>)。そのためダイアログは 1 つだけです。最後の結果行は車の下に出ます。</p>
 
 <h2 id="sec-infotainment">インフォテインメントの操作 (SFR-025)</h2>
-<p>ステップ 4 の一番下、VCSEC グリッドと「他の車種」セクションの下にあるセクションで、タイトルは <strong>Infotainment (空調、充電)</strong> です。ライブラリの Infotainment コマンド（<code>15-lib-commands.md</code> "Implemented: Infotainment climate and charging"、M5。<strong>実車ではまだ確認していません</strong>、#118）と <code>getState</code>（<code>14-lib-reading-state.md</code> A8）を初めて使う場所です。Android は実装済みで、iOS は同じ仕様で予定しています。両アプリは同じ韓国語の UI ラベルを使い、下の表の行ごとに 1 つです（意味で記載）。正確な文字列は Android の <code>InfotainmentControl.kt</code> にある <code>InfoCommand</code> と <code>InfoCategory</code> にあり、iOS はそれをそのままコピーします（Android のテスト <code>buttonLabelsMatchTheIosSample</code> が固定します）。</p>
+<p>ステップ 4 の一番下、VCSEC グリッドと「他の車種」セクションの下にあるセクションで、タイトルは <strong>Infotainment (空調、充電)</strong> です。ライブラリの Infotainment コマンド（<code>15-lib-commands.md</code> "Implemented: Infotainment climate and charging"、M5。<strong>実車ではまだ確認していません</strong>、#118）と <code>getState</code>（<code>14-lib-reading-state.md</code> A8）を初めて使う場所です。Android は実装済み（<code>0.4.0 (4)</code>）で、iOS も実装済みです（<code>0.5.0 (26)</code>）。両アプリは同じ韓国語の UI ラベルを使い、下の表の行ごとに 1 つです（意味で記載）。正確な文字列は Android の <code>InfotainmentControl.kt</code> にある <code>InfoCommand</code> と <code>InfoCategory</code> にあり、iOS の <code>InfotainmentControl.swift</code> に同じ文字列があります（両方の単体テストが固定します）。</p>
 <table>
 <thead><tr><th>グループ</th><th>ボタン</th><th>呼び出し</th><th><code>Uncertain</code> のときに読む呼び出し</th></tr></thead>
 <tbody>
@@ -228,7 +228,7 @@
 
 <h3 id="sec-info-concurrency">同時に 1 つの呼び出し</h3>
 <p>すべての呼び出しはタブ自身の <code>exclusive { }</code> で実行されます。同時に 1 つで、処理中はすべてのボタンが無効になります。1 つが実行中の間の 2 回目のタップは何もせず、"busy" を記録します。ライブラリは Infotainment の呼び出しを直列化しないため、このガードが唯一のガードです。</p>
-<p>Android: <code>InfotainmentControl.kt</code>（純粋: <code>InfoCommand</code>、<code>InfotainmentRunner</code>、<code>InfotainmentErrors</code>、<code>InfoUiState</code> のリデューサーと読み取り値のマッピング）と <code>src/test/.../InfotainmentControlTest.kt</code>。状態は <code>KeyControlState</code> に、画面は <code>ui/KeyControlTab.kt</code> にあります。iOS: 同じ分け方で <code>KeyControl.swift</code> または新しい純粋ファイルに置き、SFR-021 と同様に偽のバックエンドを使います。</p>
+<p>Android: <code>InfotainmentControl.kt</code>（純粋: <code>InfoCommand</code>、<code>InfotainmentRunner</code>、<code>InfotainmentErrors</code>、<code>InfoUiState</code> のリデューサーと読み取り値のマッピング）と <code>src/test/.../InfotainmentControlTest.kt</code>。状態は <code>KeyControlState</code> に、画面は <code>ui/KeyControlTab.kt</code> にあります。iOS: <code>InfotainmentControl.swift</code>（純粋、同じ規則と同じ文言）、<code>InfotainmentLink.swift</code>（1 回の操作が 1 つの接続の <code>Vehicle</code> に対して行うライブラリ呼び出し 4 つ）、<code>KeyControlModel.pressInfo</code> / <code>runInfo</code>（状態、結果、遅れた結果を捨てる接続の世代）、<code>Views/KeyControlTab.swift</code> のセクションです。テストは SFR-021 と同様に偽の <code>KeyControlBackend</code> と偽の <code>InfotainmentLink</code> を使います。iOS は空調・充電の読み取り値を <code>TimelineView</code> で表示するので、モデルに触れずに経過時間が増えます。</p>
 
 <h2 id="sec-impl">実装</h2>
 <table>
@@ -236,7 +236,7 @@
 <tbody>
 <tr><td>純粋なロジックとテスト</td><td><code>KeyControl.kt</code>、<code>src/test/.../KeyControlTest.kt</code></td><td><code>KeyControl.swift</code>、<code>Tests/KeyControlTests.swift</code>、<code>KeyReplacement.swift</code>、<code>Tests/KeyReplacementTests.swift</code>（SFR-020）、<code>EnrollmentProgress.swift</code>、<code>Tests/EnrollmentPopupTests.swift</code>（SFR-021）</td></tr>
 <tr><td>状態</td><td><code>KeyControlState.kt</code>（<code>MainViewModel</code> で生成）</td><td><code>KeyControlModel.swift</code>（<code>MonitorModel</code> で生成）</td></tr>
-<tr><td>Infotainment (SFR-025)</td><td><code>InfotainmentControl.kt</code>、<code>src/test/.../InfotainmentControlTest.kt</code></td><td>予定</td></tr>
+<tr><td>Infotainment (SFR-025)</td><td><code>InfotainmentControl.kt</code>、<code>src/test/.../InfotainmentControlTest.kt</code></td><td><code>InfotainmentControl.swift</code>、<code>InfotainmentLink.swift</code>、<code>Tests/InfotainmentControlTests.swift</code>、<code>Tests/InfotainmentModelTests.swift</code></td></tr>
 <tr><td>画面</td><td><code>ui/KeyControlTab.kt</code></td><td><code>Views/KeyControlTab.swift</code></td></tr>
 </tbody>
 </table>

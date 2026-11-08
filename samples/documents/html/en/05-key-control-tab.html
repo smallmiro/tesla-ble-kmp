@@ -43,7 +43,7 @@
 
 <div class="callout warn">
 <strong>Built on Android and iOS, real-device check pending</strong>
-<p>Android build <code>0.4.0 (4)</code> and iOS build <code>0.5.0 (25)</code>. The step rules and the command runner are covered by unit tests; the screen and the car are checked with the checklist at the end of this page. The Infotainment section (SFR-025) is built on Android only; on iOS it is planned with the same spec.</p>
+<p>Android build <code>0.4.0 (4)</code> and iOS build <code>0.5.0 (26)</code>. The step rules and the command runner are covered by unit tests; the screen and the car are checked with the checklist at the end of this page. The Infotainment section (SFR-025) is built on both.</p>
 </div>
 
 <div class="toc"><strong>On this page</strong><ol>
@@ -165,7 +165,7 @@
 <p><strong>Callouts and actions (SFR-024, iOS).</strong> On a wide screen (iPhone Duo inner display) the right pane shows the lock icon centred above the car photo, <strong>Frunk open</strong> (small "Open" over bold "Front") top left, <strong>Trunk open/close</strong> ("Open/Close" over bold "Trunk") top right, and a bottom row with <strong>Wake up</strong> and <strong>Close trunk</strong> (<code>QuickControls</code>). They call the same <code>KeyControlModel.press</code>, so every rule on this page applies unchanged: step 4 must be on (otherwise they are dimmed and the same orange hint shows once), <strong>Frunk open</strong> asks first, a session is ensured, the command is sent once, <code>vehicleStatus()</code> follows, and <code>Uncertain</code> is never resent. The right pane shows the confirmation dialog while this tab is open in the left pane (<code>ownsCommandDialog: false</code> here), so there is only one dialog. The latest result line appears under the car.</p>
 
 <h2 id="sec-infotainment">Infotainment controls (SFR-025)</h2>
-<p>A section at the bottom of step 4, under the VCSEC grid and the "Other models" section, titled <strong>Infotainment (climate, charging)</strong>. It is the first use of the library's Infotainment commands (<code>15-lib-commands.md</code> "Implemented: Infotainment climate and charging", M5; <strong>not confirmed on a real car yet</strong>, #118) and of <code>getState</code> (<code>14-lib-reading-state.md</code> A8). Android is built; iOS is planned with the same spec. Both apps use the same Korean UI labels, one per row below (given by meaning); the exact strings are in <code>InfoCommand</code> and <code>InfoCategory</code> of the Android <code>InfotainmentControl.kt</code>, and iOS copies them (the Android test <code>buttonLabelsMatchTheIosSample</code> pins them).</p>
+<p>A section at the bottom of step 4, under the VCSEC grid and the "Other models" section, titled <strong>Infotainment (climate, charging)</strong>. It is the first use of the library's Infotainment commands (<code>15-lib-commands.md</code> "Implemented: Infotainment climate and charging", M5; <strong>not confirmed on a real car yet</strong>, #118) and of <code>getState</code> (<code>14-lib-reading-state.md</code> A8). Android is built (<code>0.4.0 (4)</code>); iOS is built (<code>0.5.0 (26)</code>). Both apps use the same Korean UI labels, one per row below (given by meaning); the exact strings are in <code>InfoCommand</code> and <code>InfoCategory</code> of the Android <code>InfotainmentControl.kt</code>, and the iOS <code>InfotainmentControl.swift</code> has the same strings (both unit tests pin them).</p>
 <table>
 <thead><tr><th>Group</th><th>Button</th><th>Call</th><th>If <code>Uncertain</code>, read with</th></tr></thead>
 <tbody>
@@ -228,7 +228,7 @@
 
 <h3 id="sec-info-concurrency">One call at a time</h3>
 <p>Every call runs through the tab's own <code>exclusive { }</code>: one at a time, all buttons off while busy. A second tap while one runs does nothing and logs "busy". The library does not serialize Infotainment calls, so this guard is the only one.</p>
-<p>Android: <code>InfotainmentControl.kt</code> (pure: <code>InfoCommand</code>, <code>InfotainmentRunner</code>, <code>InfotainmentErrors</code>, the <code>InfoUiState</code> reducer and the readout mapping) with <code>src/test/.../InfotainmentControlTest.kt</code>; the state is in <code>KeyControlState</code> and the screen in <code>ui/KeyControlTab.kt</code>. iOS: the same split, in <code>KeyControl.swift</code> or a new pure file, with a fake backend as for SFR-021.</p>
+<p>Android: <code>InfotainmentControl.kt</code> (pure: <code>InfoCommand</code>, <code>InfotainmentRunner</code>, <code>InfotainmentErrors</code>, the <code>InfoUiState</code> reducer and the readout mapping) with <code>src/test/.../InfotainmentControlTest.kt</code>; the state is in <code>KeyControlState</code> and the screen in <code>ui/KeyControlTab.kt</code>. iOS: <code>InfotainmentControl.swift</code> (pure, the same rules and sentences), <code>InfotainmentLink.swift</code> (the four library calls of one tap on one connection's <code>Vehicle</code>), <code>KeyControlModel.pressInfo</code> / <code>runInfo</code> (state, results, the connection generation that drops late results) and the section in <code>Views/KeyControlTab.swift</code>; tests with a fake <code>KeyControlBackend</code> and a fake <code>InfotainmentLink</code> as for SFR-021. The iOS shows the climate and charge readout with a <code>TimelineView</code>, so the age counts up without touching the model.</p>
 
 <h2 id="sec-impl">Implementation</h2>
 <table>
@@ -236,7 +236,7 @@
 <tbody>
 <tr><td>Pure logic and tests</td><td><code>KeyControl.kt</code>, <code>src/test/.../KeyControlTest.kt</code></td><td><code>KeyControl.swift</code>, <code>Tests/KeyControlTests.swift</code>; <code>KeyReplacement.swift</code>, <code>Tests/KeyReplacementTests.swift</code> (SFR-020); <code>EnrollmentProgress.swift</code>, <code>Tests/EnrollmentPopupTests.swift</code> (SFR-021)</td></tr>
 <tr><td>State</td><td><code>KeyControlState.kt</code> (made in <code>MainViewModel</code>)</td><td><code>KeyControlModel.swift</code> (made in <code>MonitorModel</code>)</td></tr>
-<tr><td>Infotainment (SFR-025)</td><td><code>InfotainmentControl.kt</code>, <code>src/test/.../InfotainmentControlTest.kt</code></td><td>planned</td></tr>
+<tr><td>Infotainment (SFR-025)</td><td><code>InfotainmentControl.kt</code>, <code>src/test/.../InfotainmentControlTest.kt</code></td><td><code>InfotainmentControl.swift</code>, <code>InfotainmentLink.swift</code>, <code>Tests/InfotainmentControlTests.swift</code>, <code>Tests/InfotainmentModelTests.swift</code></td></tr>
 <tr><td>Screen</td><td><code>ui/KeyControlTab.kt</code></td><td><code>Views/KeyControlTab.swift</code></td></tr>
 </tbody>
 </table>
