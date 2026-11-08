@@ -60,6 +60,9 @@ class KeyControlState(
 
     private val vehicle: Vehicle? get() = engine.currentVehicle()
 
+    /** 연결이나 키가 바뀔 때마다 올라간다([observe]). 진행 중인 Infotainment 호출의 결과가 낡았는지 가린다(SFR-025). */
+    private val generation = InfoGeneration()
+
     /** [body]를 한 번에 하나만 실행한다. 이미 진행 중이면 실행하지 않고 `false`. */
     suspend fun exclusive(body: suspend KeyControlState.() -> Unit): Boolean {
         if (busy.value) return false
@@ -125,6 +128,7 @@ class KeyControlState(
             Seen((link as? LinkState.Connected)?.vehicle, keyStatus.state == KeyState.READY, engine.currentKey()?.publicKey)
         }.distinctUntilChanged()
             .collectLatest { seen ->
+                generation.bump() // 연결이 바뀌었거나 같은 연결에서 키가 바뀌었다: 진행 중이던 Infotainment 호출의 결과는 낡았다
                 enrollment.value = Enrollment.UNKNOWN
                 info.value = InfoUiState.AFTER_CONNECTION_CHANGE // 읽은 값과 미확인 표시는 그 연결의 것이다
                 if (status.value?.vehicle !== seen.vehicle) status.value = null // 상태 카드는 그 연결에서 읽은 것만 보여 준다
@@ -278,19 +282,21 @@ class KeyControlState(
         launchExclusive(busyLine = cmd.label) { infoTap(cmd) }
     }
 
-    /** 누르기 한 번: `vehicleStatus()`(깨어 있을 때만 계속) → `startSession(INFOTAINMENT)` → 호출 한 번. 연결이 바뀐 뒤 끝났으면 결과를 버린다. */
+    /** 누르기 한 번: `vehicleStatus()`(깨어 있을 때만 계속) → `startSession(INFOTAINMENT)` → 호출 한 번. 연결이나 키가 바뀐 뒤 끝났으면 결과를 버린다. */
     suspend fun infoTap(cmd: InfoCommand) {
         val v = vehicle ?: return log("${cmd.label}: 먼저 연결하세요")
+        val startGeneration = generation.value
+        val isCurrent = { InfotainmentGuard.isCurrent(v, vehicle, startGeneration, generation.value) }
         val readStatus: suspend () -> VehicleResult<VehicleStatus> = { v.vehicleStatus() }
         val ensureSession: suspend () -> VehicleResult<Unit> = { v.startSession(setOf(VehicleDomain.INFOTAINMENT)) }
         if (cmd.isRead) {
             val outcome = InfotainmentRunner.run(readStatus, ensureSession, call = { v.getState(cmd.category.stateCategory) })
-            val current = vehicle === v
+            val current = isCurrent()
             info.value = InfotainmentReducer.afterRead(info.value, cmd.category, outcome, current, Instant.now())
             finishInfo(v, cmd, outcome, current)
         } else {
             val outcome = InfotainmentRunner.run(readStatus, ensureSession, call = { sendInfo(v, cmd) })
-            val current = vehicle === v
+            val current = isCurrent()
             info.value = InfotainmentReducer.afterCommand(info.value, cmd, outcome, current)
             finishInfo(v, cmd, outcome, current)
         }
