@@ -69,7 +69,7 @@
 <li><a href="#sec-slots">연결 슬롯과 끊긴 링크</a></li>
 <li><a href="#sec-swift-timeouts">Swift: 시간 제한</a></li>
 <li><a href="#sec-swift-generated">Swift: 생성된 타입(getState)</a></li>
-<li><a href="#sec-swift-commands">Swift: 명령 인자(공조와 충전)</a></li>
+<li><a href="#sec-swift-commands">Swift: 명령 인자(인포테인먼트 명령)</a></li>
 </ol></div>
 
 <h2 id="sec-support">지원 범위</h2>
@@ -198,14 +198,16 @@
 <li><code>.protocolFault</code> 안의 enum은 <code>MessageFault_E</code>입니다. 크기 상한 경우는 <code>.messagefaultErrorResponseMtuExceeded</code>입니다: <code>case .protocolFault(let p) where p.fault == .messagefaultErrorResponseMtuExceeded:</code>.</li>
 </ul>
 
-<h2 id="sec-swift-commands">Swift: 명령 인자(공조와 충전)</h2>
-<p>Swift에서 공조와 충전 명령을 호출하는 방법입니다(<a href="15-lib-commands.html#sec-cc">15. 명령</a>). 이 형태들은 프레임워크(디버그 시뮬레이터 프레임워크, 2026-11-08)를 대상으로 한 Swift 타입 검사를 통과했으며, Swift 프로그램에서 실행해 본 것은 아닙니다.</p>
+<h2 id="sec-swift-commands">Swift: 명령 인자(인포테인먼트 명령)</h2>
+<p>Swift에서 인포테인먼트 명령을 호출하는 방법입니다(<a href="15-lib-commands.html#sec-cc">15. 명령</a>). 이 형태들은 프레임워크(디버그 시뮬레이터 프레임워크, 2026-11-08)를 대상으로 한 Swift 타입 검사를 통과했으며, Swift 프로그램에서 실행해 본 것은 아닙니다.</p>
 <ul>
 <li>모든 인자를 넘기세요. <code>timeout:</code>도 포함합니다(<code>nil</code>은 설정 기본값 사용): <code>try await vehicle.climateOn(timeout: nil)</code>. 빠뜨리면 컴파일러가 <code>missing argument for parameter 'timeout' in call</code>을 보고합니다.</li>
 <li>인자용 enum은 진짜 Swift enum이므로 이를 대상으로 한 <code>switch</code>에는 <code>default</code>가 필요 없습니다: <code>SeatPosition</code>(<code>.unknown</code>, <code>.frontLeft</code>, <code>.frontRight</code>, <code>.secondRowLeft</code>, <code>.secondRowLeftBack</code>, <code>.secondRowCenter</code>, <code>.secondRowRight</code>, <code>.secondRowRightBack</code>, <code>.thirdRowLeft</code>, <code>.thirdRowRight</code>), <code>SeatClimateLevel</code>(<code>.off</code>, <code>.low</code>, <code>.med</code>, <code>.high</code>), <code>ClimateKeeperMode</code>(<code>.off</code>, <code>.on</code>, <code>.dog</code>, <code>.camp</code>), <code>CabinOverheatProtectionTemperature</code>(<code>.unspecified</code>, <code>.low</code>, <code>.medium</code>, <code>.high</code>), <code>ChargingPolicy</code>(<code>.off</code>, <code>.allDays</code>, <code>.weekdays</code>).</li>
 <li><code>setSeatHeater(levels:timeout:)</code>는 Swift 딕셔너리 <code>[SeatPosition: SeatClimateLevel]</code>를 받으며 리터럴도 됩니다: <code>try await vehicle.setSeatHeater(levels: [.frontLeft: .high, .secondRowCenter: .off], timeout: nil)</code>. 빈 <code>[:]</code>도 전송됩니다. Swift 딕셔너리에는 순서가 없지만, 라이브러리는 어쨌든 좌석을 <code>SeatPosition</code> 순서로 보냅니다.</li>
 <li><code>autoSeatAndClimate(seats:enabled:timeout:)</code>는 Swift 배열을 받습니다: <code>seats: [.frontLeft, .frontRight]</code>.</li>
-<li>숫자: <code>percent</code>, <code>amps</code>, 분 단위 값은 <code>Int32</code>, 일정 id는 <code>Int64</code>, 온도는 <code>Float</code>입니다. 일반 숫자 리터럴이 그대로 동작합니다. 예: <code>scheduleDeparture(departAtMinutes: 480, offPeakEndMinutes: 360, preconditioning: .allDays, offPeak: .weekdays, timeout: nil)</code>.</li>
+<li>숫자: <code>percent</code>, <code>amps</code>, 분 단위 값, 선루프 <code>level</code>, <code>delaySeconds</code>는 <code>Int32</code>, 일정 id는 <code>Int64</code>, 온도와 <code>volume</code>은 <code>Float</code>입니다. 일반 숫자 리터럴이 그대로 동작합니다. 예: <code>scheduleDeparture(departAtMinutes: 480, offPeakEndMinutes: 360, preconditioning: .allDays, offPeak: .weekdays, timeout: nil)</code>, <code>setVolume(volume: 5.5, timeout: nil)</code>, <code>setSunroof(level: 0, timeout: nil)</code>, <code>scheduleSoftwareUpdate(delaySeconds: 7200, timeout: nil)</code>.</li>
+<li>발레 PIN은 Swift <code>String</code>입니다: <code>enableValetMode(pin: pin, timeout: nil)</code>. 로그에 남기지 마세요.</li>
+<li><code>toggleMediaPlayback(timeout:)</code>이 불확실했다면 다시 보내지 말고 재생 상태를 읽으세요: <code>data.media_state?.media_playback_status == .playing</code>(<code>MediaPlaybackStatus</code>는 Swift enum입니다: <code>.playing</code>, <code>.paused</code>, <code>.stopped</code>).</li>
 <li><code>ChargeSchedule</code>과 <code>PreconditionSchedule</code>은 생성된 프로토콜 클래스입니다. Swift에는 기본 인자가 없으므로 모든 필드와 <code>unknownFields: OkioByteString.companion.EMPTY</code>를 넣어 만드세요. <code>ChargeSchedule()</code>은 <code>'init()' is unavailable</code>로 거부됩니다. 필드는 프로토콜 이름을 그대로 유지합니다:</li>
 </ul>
 <pre><code class="language-swift"><span class="k">let</span> schedule = <span class="t">ChargeSchedule</span>(

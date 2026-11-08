@@ -55,14 +55,13 @@
 </nav>
 <main class="content">
 <h1>15. 명령</h1>
-<p class="lead"><code>Vehicle</code>은 세션을 시작하고 끝낼 수 있으며, 보안 컨트롤러 명령 12가지(잠금, 트렁크, 깨우기)와 공조와 충전을 위한 인포테인먼트 명령 31가지를 보낼 수 있습니다. 나머지 인포테인먼트 명령(창문, 경적, 미디어 등)은 M5 후반에 추가됩니다. 이 페이지에 모두 정리합니다. <code>getState()</code>로 인포테인먼트 상태를 읽는 기능도 사용할 수 있습니다. <a href="14-lib-reading-state.html#sec-a-getstate">14. 차량 상태 조회</a>를 참고하세요.</p>
+<p class="lead"><code>Vehicle</code>은 세션을 시작하고 끝낼 수 있으며, 보안 컨트롤러 명령 12가지(잠금, 트렁크, 깨우기)와 인포테인먼트 명령 51가지를 보낼 수 있습니다: 공조, 충전과 전원, 창문과 선루프, 경적과 조명, 센트리와 발레 모드, 미디어, 소프트웨어 업데이트, <code>ping()</code>. 이 페이지에 모두 정리합니다. <code>getState()</code>로 인포테인먼트 상태를 읽는 기능도 사용할 수 있습니다. <a href="14-lib-reading-state.html#sec-a-getstate">14. 차량 상태 조회</a>를 참고하세요.</p>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
 <li><a href="#sec-now">현재 사용 가능</a></li>
 <li><a href="#sec-rules">모든 명령의 공통 동작</a></li>
 <li><a href="#sec-m4">보안 컨트롤러(M4)</a></li>
-<li><a href="#sec-cc">공조와 충전(M5)</a></li>
-<li><a href="#sec-m5">M5 예정: 나머지 인포테인먼트</a></li>
+<li><a href="#sec-cc">인포테인먼트(M5)</a></li>
 <li><a href="#sec-later">이후 계획</a></li>
 </ol></div>
 
@@ -112,8 +111,8 @@
 <li><code>sessions</code>는 실제 세션 상태를 따릅니다. 명령이 <code>NoSession</code>으로 끝나거나 세션 이벤트가 오면 라이브러리가 그 도메인을 다시 확인합니다. 차량이 더 이상 받아 주지 않는 캐시 세션(예: 다른 키의 캐시)은 첫 명령이 실패한 뒤 <code>None</code>으로 표시되며, <code>startSession</code>으로 복구합니다.</li>
 </ul>
 
-<h2 id="sec-cc">공조와 충전(M5)</h2>
-<p>31개 메서드는 모두 인포테인먼트 세션 위에서 인증되고, 선택 인자 <code>timeout</code>(기본 5초)을 받으며, <code>VehicleResult&lt;Unit&gt;</code>을 반환합니다. Go 원본과 마찬가지로 성공 응답에는 앱에 필요한 내용이 없습니다. 명령은 시뮬레이션한 차량을 대상으로 한 자동화 테스트로 확인했으며, <strong>실차에서 확인한 것은 아직 없습니다</strong>(#118).</p>
+<h2 id="sec-cc">인포테인먼트(M5)</h2>
+<p>51개 메서드(공조 12, 충전과 전원 19, 차체 5, 보안 4, 미디어 8, 소프트웨어 업데이트 2, <code>ping()</code>)는 모두 인포테인먼트 세션 위에서 인증되고, 선택 인자 <code>timeout</code>(기본 5초)을 받으며, <code>VehicleResult&lt;Unit&gt;</code>을 반환합니다. Go 원본과 마찬가지로 성공 응답에는 앱에 필요한 내용이 없습니다. 명령은 시뮬레이션한 차량을 대상으로 한 자동화 테스트로 확인했으며, <strong>실차에서 확인한 것은 아직 없습니다</strong>(#118).</p>
 
 <h3 id="sec-cc-order">보내기 전에</h3>
 <ol>
@@ -125,7 +124,7 @@
 <thead><tr><th>결과</th><th>의미</th><th>앱이 할 일</th></tr></thead>
 <tbody>
 <tr><td><span class="badge ok">Success</span></td><td>차량이 명령을 받아들임</td><td>새 상태를 보여 주려면 <code>getState</code>로 읽으세요(<a href="#sec-cc-requery">Uncertain 이후</a>)</td></tr>
-<tr><td><span class="badge warn">Uncertain</span></td><td>차량이 실행했을 수 있음: 시간 안에 응답이 없음(인포테인먼트가 잠들었거나 응답이 유실됨), 라이브러리가 다시 쓴 실패한 쓰기, 또는 읽을 수 없는 응답</td><td><strong>다시 보내지 마세요.</strong> <code>getState</code>로 상태를 읽고 그 결과로 판단하세요. 저전력 모드와 액세서리 전원은 다시 읽을 수 없습니다</td></tr>
+<tr><td><span class="badge warn">Uncertain</span></td><td>차량이 실행했을 수 있음: 시간 안에 응답이 없음(인포테인먼트가 잠들었거나 응답이 유실됨), 라이브러리가 다시 쓴 실패한 쓰기, 또는 읽을 수 없는 응답</td><td><strong>다시 보내지 마세요.</strong> <code>getState</code>로 상태를 읽고 그 결과로 판단하세요. 저전력 모드, 액세서리 전원, 경적, 조명은 다시 읽을 수 없습니다</td></tr>
 <tr><td><code>Failure(InvalidArgument)</code></td><td>보내기 전 검사가 실패했고 아무것도 보내지 않음</td><td>인자를 고치세요(<a href="#sec-cc-checks">다음 절</a>)</td></tr>
 <tr><td><code>Failure(InfotainmentRejected)</code></td><td>차량이 거부함</td><td>일반적인 메시지를 보여 주세요. <code>reason</code>은 차량이 보낸 문구이므로 로그에 남기지 마세요</td></tr>
 <tr><td><code>NoSession</code>, <code>NotConnected</code>, other errors</td><td>잘못된 순서로 호출했거나 연결이 끊어짐</td><td><a href="16-lib-errors.html">16. 에러 처리</a>를 참고하세요</td></tr>
@@ -139,9 +138,11 @@
 <tbody>
 <tr><td><code>setSeatCooler</code></td><td>앞좌석만: <code>FRONT_LEFT</code> 또는 <code>FRONT_RIGHT</code></td><td><code>invalid seat position for seat cooler: &lt;SEAT&gt;</code></td></tr>
 <tr><td><code>scheduleDeparture</code></td><td>출발 시간은 자정 이후 0~1440분(양 끝 포함)</td><td><code>invalid departure time: &lt;n&gt; minutes after midnight (expected 0..1440)</code></td></tr>
+<tr><td><code>enableValetMode</code></td><td>PIN은 ASCII 숫자 0–9 정확히 네 자리입니다. 다른 문자 체계의 숫자와 전각 숫자는 거부됩니다</td><td><code>PIN codes must be four digits</code>(Go 원본의 메시지이며, PIN 자체는 오류나 로그에 나타나지 않습니다)</td></tr>
+<tr><td><code>setVolume</code></td><td>볼륨은 0~10(양 끝 포함)이며 NaN이 아니어야 합니다</td><td><code>invalid volume (should be in [0, 10])</code>(Go 원본의 메시지이며, Go 원본은 NaN을 통과시키지만 이 라이브러리는 거부합니다)</td></tr>
 </tbody>
 </table>
-<p>나머지는 모두 받은 그대로 차량에 보내고 차량이 판단합니다: 온도, 충전 한도, 전류, 다른 시간, 일정 필드. <code>autoSeatAndClimate</code>는 Go 원본이 처리하지 않는 좌석을 조용히 빼 놓습니다.</p>
+<p>나머지는 모두 받은 그대로 차량에 보내고 차량이 판단합니다: 온도, 충전 한도, 전류, 다른 시간, 일정 필드, 선루프 위치, 소프트웨어 업데이트 지연 시간. <code>autoSeatAndClimate</code>는 Go 원본이 처리하지 않는 좌석을 조용히 빼 놓습니다.</p>
 
 <h3 id="sec-cc-types">인자 타입</h3>
 <table>
@@ -155,6 +156,7 @@
 <tr><td><code>ChargeSchedule</code>, <code>PreconditionSchedule</code></td><td>생성된 프로토콜 타입이며 받은 그대로 보냄. <code>id</code>는 부호 없는 64비트 수를 담은 <code>Long</code>이고, <code>Long.MAX_VALUE</code>보다 큰 id는 음수 <code>Long</code>이 됨</td><td>충전 및 사전 공조 일정 추가</td></tr>
 </tbody>
 </table>
+<p>나머지 명령은 평범한 값을 받습니다: <code>level: Int</code>(선루프), <code>enabled: Boolean</code>, <code>pin: String</code>, <code>volume: Float</code>, <code>delaySeconds: Int</code>.</p>
 <p>모든 시간은 차량 현지 시간 기준 자정 이후의 분입니다. <code>days_of_week</code>는 비트 마스크입니다. Go 명령줄 도구는 일요일 1, 월요일 2, 화요일 4, 수요일 8, 목요일 16, 금요일 32, 토요일 64를 쓰며(매일 127, 평일 62), 새 일정의 <code>id</code>로 현재 Unix 시간을 씁니다.</p>
 
 <h3 id="sec-cc-climate">공조</h3>
@@ -202,6 +204,62 @@
 </tbody>
 </table>
 
+<h3 id="sec-cc-body">차체</h3>
+<table>
+<thead><tr><th>메서드</th><th>요구사항</th><th>예시 페이로드(hex)</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><code>ventWindows()</code></td><td>FR-050</td><td><code>12059202021a00</code></td><td>창문을 환기 위치까지 엽니다</td></tr>
+<tr><td><code>closeWindows()</code></td><td>FR-050</td><td><code>12059202022200</code></td><td>창문을 닫습니다</td></tr>
+<tr><td><code>setSunroof(level)</code></td><td>FR-051</td><td><code>0</code> → <code>12058202020800</code></td><td>절대 위치이며 검사하지 않습니다. <code>0</code>도 보냅니다</td></tr>
+<tr><td><code>honkHorn()</code></td><td>FR-053</td><td><code>1203da0100</code></td><td>다시 읽을 수 없습니다</td></tr>
+<tr><td><code>flashLights()</code></td><td>FR-053</td><td><code>1203d20100</code></td><td>다시 읽을 수 없습니다</td></tr>
+</tbody>
+</table>
+
+<h3 id="sec-cc-security">보안</h3>
+<table>
+<thead><tr><th>메서드</th><th>요구사항</th><th>예시 페이로드(hex)</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><code>setSentryMode(enabled)</code></td><td>FR-084</td><td><code>true</code> → <code>1205f201020801</code></td><td>센트리 모드 켜기 또는 끄기</td></tr>
+<tr><td><code>enableValetMode(pin)</code></td><td>FR-085</td><td><code>"1234"</code> → <code>120bfa01080801120431323334</code></td><td>PIN은 ASCII 숫자 네 자리여야 합니다(<a href="#sec-cc-checks">검사</a>). 라이브러리는 PIN을 로그에 남기지 않으며, 앱도 남기지 마세요</td></tr>
+<tr><td><code>disableValetMode()</code></td><td>FR-085</td><td><code>1203fa0100</code></td><td>차량이 <code>already off</code>(대소문자 정확히 일치)로 끝나는 사유로 거부하면 결과는 <code>Success</code>입니다: 발레 모드가 이미 꺼져 있습니다. Go 원본은 이 규칙을 모든 오류에 적용하지만, 이 라이브러리는 차량의 거부에만 적용합니다</td></tr>
+<tr><td><code>resetValetPin()</code></td><td>FR-085</td><td><code>1203e20100</code></td><td>발레 PIN을 초기화합니다</td></tr>
+</tbody>
+</table>
+
+<h3 id="sec-cc-media">미디어</h3>
+<table>
+<thead><tr><th>메서드</th><th>요구사항</th><th>예시 페이로드(hex)</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><code>volumeUp()</code></td><td>FR-090</td><td><code>12058201020802</code></td><td>한 단계 올립니다</td></tr>
+<tr><td><code>volumeDown()</code></td><td>FR-090</td><td><code>12058201020801</code></td><td>한 단계 내립니다</td></tr>
+<tr><td><code>setVolume(volume)</code></td><td>FR-090</td><td><code>5.5</code> → <code>12088201051d0000b040</code></td><td>0~10이며, NaN은 거부됩니다(<a href="#sec-cc-checks">검사</a>). <code>0</code>도 보냅니다</td></tr>
+<tr><td><code>mediaNextTrack()</code></td><td>FR-091</td><td><code>12039a0100</code></td><td>다음 트랙</td></tr>
+<tr><td><code>mediaPreviousTrack()</code></td><td>FR-091</td><td><code>1203a20100</code></td><td>이전 트랙</td></tr>
+<tr><td><code>mediaNextFavorite()</code></td><td>FR-091</td><td><code>12038a0100</code></td><td>다음 즐겨찾기</td></tr>
+<tr><td><code>mediaPreviousFavorite()</code></td><td>FR-091</td><td><code>1203920100</code></td><td>이전 즐겨찾기</td></tr>
+<tr><td><code>toggleMediaPlayback()</code></td><td>FR-091</td><td><code>12027a00</code></td><td><strong>토글</strong>입니다: 두 번 보내면 처음 상태로 돌아옵니다. <code>Uncertain</code> 뒤에는 절대 다시 보내지 말고 <code>media_playback_status</code>를 읽으세요</td></tr>
+</tbody>
+</table>
+
+<h3 id="sec-cc-update">소프트웨어 업데이트</h3>
+<table>
+<thead><tr><th>메서드</th><th>요구사항</th><th>예시 페이로드(hex)</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><code>scheduleSoftwareUpdate(delaySeconds)</code></td><td>FR-092</td><td><code>7200</code> → <code>1206ea010308a038</code></td><td><code>delaySeconds</code>초 뒤에 업데이트를 시작합니다. 검사하지 않습니다. Go 원본은 duration을 받아 정수 초로 자릅니다</td></tr>
+<tr><td><code>cancelSoftwareUpdate()</code></td><td>FR-092</td><td><code>1203ca0100</code></td><td>예약된 업데이트를 취소합니다</td></tr>
+</tbody>
+</table>
+
+<h3 id="sec-cc-ping">Ping</h3>
+<table>
+<thead><tr><th>메서드</th><th>요구사항</th><th>예시 페이로드(hex)</th><th>비고</th></tr></thead>
+<tbody>
+<tr><td><code>ping()</code></td><td>FR-034</td><td><code>1205f202020801</code></td><td><code>ping_id</code> 1, Go 원본과 같습니다. 차량이 응답에 무엇을 담는지는 검사하지 않습니다</td></tr>
+</tbody>
+</table>
+<p><code>ping()</code>은 아무것도 바꾸지 않고 아무것도 읽지 않습니다. <code>Success</code>는 차량이 키를 알고 인포테인먼트가 응답했다는 뜻이며, 명령을 연달아 보내기 전의 가벼운 확인으로 쓸 수 있습니다. 모든 명령과 같은 인포테인먼트 세션과 깨어 있는 차량이 필요합니다. <code>Uncertain(Timeout)</code>은 응답이 없다는 뜻입니다(잠들었거나 유실됨). 아무것도 바꾸지 않으므로 앱은 <code>Uncertain</code> 뒤에 다시 호출해도 되며, 라이브러리가 스스로 다시 보내는 일은 없습니다. 데이터를 읽으려면 <code>getState</code>를 쓰세요.</p>
+
 <h3 id="sec-cc-requery">Uncertain 이후</h3>
 <p>다시 보내지 말고, 명령이 바꾸는 상태를 읽으세요. 필드 이름은 공식 프로토콜 정의에서 가져온 것이며, 명령이 실차에서 어떤 필드를 바꾸는지는 아직 확인되지 않았습니다(#118). 읽기 자체가 <code>Uncertain</code>으로 돌아올 수 있으며(인포테인먼트가 잠듦, 응답이 너무 큼), 그러면 이후 읽기가 성공할 때까지 명령의 결과는 알 수 없는 상태로 남습니다.</p>
 <table>
@@ -221,12 +279,23 @@
 <tr><td><code>openChargePort</code>, <code>closeChargePort</code></td><td>같음</td><td><code>charge_port_door_open</code></td></tr>
 <tr><td>충전 일정: 추가, 삭제, 일괄 삭제</td><td><code>getState(StateCategory.CHARGE_SCHEDULE)</code></td><td><code>charge_schedule_state.charge_schedules</code>: <code>id</code>를 찾아보세요</td></tr>
 <tr><td>사전 공조 일정: 추가, 삭제, 일괄 삭제</td><td><code>getState(StateCategory.PRECONDITIONING_SCHEDULE)</code></td><td><code>preconditioning_schedule_state.precondition_schedules</code></td></tr>
-<tr><td><code>setLowPowerMode</code>, <code>setKeepAccessoryPowerMode</code></td><td>없음</td><td>공식 차량 데이터에는 이 모드를 위한 필드가 없습니다. 결과를 알 수 없음으로 표시하고 다시 보내지 마세요</td></tr>
+<tr><td><code>ventWindows</code>, <code>closeWindows</code></td><td><code>getState(StateCategory.CLOSURES)</code></td><td><code>closures_state.window_open_driver_front</code>와 나머지 세 창문</td></tr>
+<tr><td><code>setSunroof</code></td><td>같음</td><td><code>sun_roof_percent_open</code>, <code>sun_roof_state</code></td></tr>
+<tr><td><code>setSentryMode</code></td><td>같음</td><td><code>sentry_mode_state</code></td></tr>
+<tr><td><code>enableValetMode</code>, <code>disableValetMode</code>, <code>resetValetPin</code></td><td>같음</td><td><code>valet_mode</code>, <code>valet_pin_needed</code></td></tr>
+<tr><td><code>volumeUp</code>, <code>volumeDown</code>, <code>setVolume</code></td><td><code>getState(StateCategory.MEDIA)</code></td><td><code>media_state.audio_volume</code></td></tr>
+<tr><td><code>mediaNextTrack</code>, <code>mediaPreviousTrack</code>, <code>mediaNextFavorite</code>, <code>mediaPreviousFavorite</code></td><td>같음</td><td><code>now_playing_title</code>, <code>now_playing_artist</code></td></tr>
+<tr><td><code>toggleMediaPlayback</code></td><td>같음</td><td><code>media_playback_status</code>(<code>Playing</code>, <code>Paused</code>, <code>Stopped</code>). <strong>토글을 다시 보내지 마세요</strong></td></tr>
+<tr><td><code>scheduleSoftwareUpdate</code>, <code>cancelSoftwareUpdate</code></td><td><code>getState(StateCategory.SOFTWARE_UPDATE)</code></td><td><code>software_update_state.status</code>, <code>scheduled_time_ms</code></td></tr>
+<tr><td><code>setLowPowerMode</code>, <code>setKeepAccessoryPowerMode</code>, <code>honkHorn</code>, <code>flashLights</code></td><td>없음</td><td>공식 차량 데이터에는 이 항목들을 위한 필드가 없습니다. 결과를 알 수 없음으로 표시하고 다시 보내지 마세요</td></tr>
+<tr><td><code>ping</code></td><td>없음</td><td>바뀐 것이 없습니다. 필요하면 <code>ping()</code>을 다시 호출하세요</td></tr>
 </tbody>
 </table>
+<p>이 필드 중 일부는 enum이나 숫자가 아니라 작은 래퍼 메시지입니다: <code>charging_state</code>, <code>off_peak_charging_times</code>, <code>climate_keeper_mode</code>, <code>sun_roof_state</code>, <code>sentry_mode_state</code>, <code>status</code>. Kotlin과 Swift에서 읽는 방법: <a href="14-lib-reading-state.html#sec-a-wrappers">14, A8.6</a>.</p>
 
 <h3 id="sec-cc-kotlin">Kotlin 예제</h3>
 <pre><code class="language-kotlin"><span class="k">import</span> com.tesla.generated.carserver.common.<span class="t">ChargeSchedule</span>
+<span class="k">import</span> com.tesla.generated.carserver.common.<span class="t">MediaPlaybackStatus</span>
 <span class="k">import</span> dev.mirolab.teslable.<span class="t">Vehicle</span>
 <span class="k">import</span> dev.mirolab.teslable.model.<span class="t">ChargingPolicy</span>
 <span class="k">import</span> dev.mirolab.teslable.model.<span class="t">SeatClimateLevel</span>
@@ -291,7 +360,39 @@
         }
         <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span> <span class="s">"schedule not sent or refused: ${added.error.message}"</span>
     }
-}</code></pre>
+}
+
+<span class="k">suspend</span> <span class="k">fun</span> <span class="f">togglePlayback</span>(vehicle: <span class="t">Vehicle</span>): <span class="t">String</span> =
+    <span class="k">when</span> (<span class="k">val</span> result = vehicle.<span class="f">toggleMediaPlayback</span>()) {
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> <span class="s">"toggled"</span>
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Uncertain</span> <span class="o">-&gt;</span> {
+            <span class="c">// A toggle run twice ends where it started. Never resend: read the state and let the user decide.</span>
+            <span class="k">val</span> state = vehicle.<span class="f">getState</span>(<span class="t">StateCategory</span>.<span class="t">MEDIA</span>)
+            <span class="k">when</span> ((state <span class="k">as</span>? <span class="t">VehicleResult</span>.<span class="t">Success</span>)<span class="o">?.</span>value<span class="o">?.</span>media_state<span class="o">?.</span>media_playback_status) {
+                <span class="t">MediaPlaybackStatus</span>.<span class="t">Playing</span> <span class="o">-&gt;</span> <span class="s">"playing"</span>
+                <span class="t">MediaPlaybackStatus</span>.<span class="t">Paused</span>, <span class="t">MediaPlaybackStatus</span>.<span class="t">Stopped</span> <span class="o">-&gt;</span> <span class="s">"not playing"</span>
+                <span class="n">null</span> <span class="o">-&gt;</span> <span class="s">"unknown, read again later"</span>
+            }
+        }
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span> <span class="s">"not sent or refused: ${result.error.message}"</span>
+    }
+
+<span class="k">suspend</span> <span class="k">fun</span> <span class="f">enterValetMode</span>(vehicle: <span class="t">Vehicle</span>, pin: <span class="t">String</span>): <span class="t">String</span> =
+    <span class="k">when</span> (<span class="k">val</span> result = vehicle.<span class="f">enableValetMode</span>(pin)) {
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> <span class="s">"valet mode on"</span>
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Uncertain</span> <span class="o">-&gt;</span> {
+            <span class="c">// The vehicle may have turned it on. Never resend: read the state.</span>
+            <span class="k">val</span> state = vehicle.<span class="f">getState</span>(<span class="t">StateCategory</span>.<span class="t">CLOSURES</span>)
+            <span class="k">val</span> on = (state <span class="k">as</span>? <span class="t">VehicleResult</span>.<span class="t">Success</span>)<span class="o">?.</span>value<span class="o">?.</span>closures_state<span class="o">?.</span>valet_mode
+            <span class="k">if</span> (on <span class="o">==</span> <span class="n">true</span>) <span class="s">"valet mode on"</span> <span class="k">else</span> <span class="s">"unknown, read again later"</span>
+        }
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span>
+            <span class="k">if</span> (result.error <span class="k">is</span> <span class="t">VehicleError</span>.<span class="t">InvalidArgument</span>) {
+                <span class="s">"the PIN must be four digits"</span> <span class="c">// the error never contains the PIN; do not log the PIN</span>
+            } <span class="k">else</span> {
+                <span class="s">"not sent or refused: ${result.error.message}"</span>
+            }
+    }</code></pre>
 
 <h3 id="sec-cc-swift">Swift 예제</h3>
 <p>Swift에서는 <code>timeout:</code>을 포함해 모든 인자를 넘깁니다. 일정은 모든 필드와 <code>unknownFields</code>로 만듭니다. 자세한 내용은 <a href="17-lib-platform-notes.html#sec-swift-commands">17. 플랫폼 노트</a>에 있습니다. 이 형태는 프레임워크를 대상으로 한 Swift 타입 검사를 통과했으며, Swift 프로그램에서 실행해 본 것은 아닙니다.</p>
@@ -356,18 +457,44 @@
     <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f):
         <span class="k">return</span> <span class="s">"schedule not sent or refused: \(f.error.message)"</span>
     }
-}</code></pre>
+}
 
-<h2 id="sec-m5">M5 예정: 나머지 인포테인먼트</h2>
-<table>
-<thead><tr><th>영역</th><th>예정 메서드</th><th>우선순위</th></tr></thead>
-<tbody>
-<tr><td>차체</td><td><code>ventWindows()</code>, <code>closeWindows()</code>, <code>setSunroof(level)</code>, <code>honkHorn()</code>, <code>flashLights()</code></td><td><span class="badge info">P1</span></td></tr>
-<tr><td>보안</td><td><code>setSentryMode(on)</code>, 발레 모드</td><td><span class="badge info">P1</span></td></tr>
-<tr><td>미디어와 업데이트</td><td>볼륨, 트랙, 즐겨찾기 제어, 소프트웨어 업데이트 예약 또는 취소</td><td><span class="badge info">P1</span></td></tr>
-<tr><td>상태</td><td><code>ping()</code></td><td><span class="badge info">P1</span></td></tr>
-</tbody>
-</table>
+<span class="k">func</span> <span class="f">togglePlayback</span>(vehicle: <span class="t">Vehicle</span>) <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="t">String</span> {
+    <span class="k">let</span> result = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">toggleMediaPlayback</span>(timeout: <span class="n">nil</span>)
+    <span class="k">switch</span> <span class="f">onEnum</span>(of: result) {
+    <span class="k">case</span> .success:
+        <span class="k">return</span> <span class="s">"toggled"</span>
+    <span class="k">case</span> .uncertain:
+        <span class="c">// A toggle run twice ends where it started. Never resend: read the state and let the user decide.</span>
+        <span class="k">let</span> state = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">getState</span>(category: .media, timeout: <span class="n">nil</span>)
+        <span class="k">guard</span> <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s) = <span class="f">onEnum</span>(of: state), <span class="k">let</span> data = s.value <span class="k">as</span>? <span class="t">VehicleData</span>,
+              <span class="k">let</span> status = data.media_state?.media_playback_status <span class="k">else</span> { <span class="k">return</span> <span class="s">"unknown, read again later"</span> }
+        <span class="k">return</span> status <span class="o">==</span> .playing ? <span class="s">"playing"</span> : <span class="s">"not playing"</span>
+    <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f):
+        <span class="k">return</span> <span class="s">"not sent or refused: \(f.error.message)"</span>
+    }
+}
+
+<span class="k">func</span> <span class="f">enterValetMode</span>(vehicle: <span class="t">Vehicle</span>, pin: <span class="t">String</span>) <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="t">String</span> {
+    <span class="k">let</span> result = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">enableValetMode</span>(pin: pin, timeout: <span class="n">nil</span>)
+    <span class="k">switch</span> <span class="f">onEnum</span>(of: result) {
+    <span class="k">case</span> .success:
+        <span class="k">return</span> <span class="s">"valet mode on"</span>
+    <span class="k">case</span> .uncertain:
+        <span class="c">// The vehicle may have turned it on. Never resend: read the state.</span>
+        <span class="k">let</span> state = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">getState</span>(category: .closures, timeout: <span class="n">nil</span>)
+        <span class="k">if</span> <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s) = <span class="f">onEnum</span>(of: state), <span class="k">let</span> data = s.value <span class="k">as</span>? <span class="t">VehicleData</span>,
+           data.closures_state?.valet_mode?.boolValue <span class="o">==</span> <span class="n">true</span> {
+            <span class="k">return</span> <span class="s">"valet mode on"</span>
+        }
+        <span class="k">return</span> <span class="s">"unknown, read again later"</span>
+    <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f):
+        <span class="k">if</span> <span class="k">case</span> .invalidArgument = <span class="f">onEnum</span>(of: f.error) {
+            <span class="k">return</span> <span class="s">"the PIN must be four digits"</span> <span class="c">// the error never contains the PIN; do not log the PIN</span>
+        }
+        <span class="k">return</span> <span class="s">"not sent or refused: \(f.error.message)"</span>
+    }
+}</code></pre>
 
 <h2 id="sec-later">이후 계획</h2>
 <p>v1.1 예정: HomeLink, PIN to Drive 해제, 속도 제한 모드, 자녀 보호, 게스트 모드, 차량 이름 변경, 주변 충전소. PIN to Drive 설정은 BLE로 할 수 없어 제외합니다. 모든 명령에 대응하는 Go 명령은 <a href="07-command-reference.html">7. 명령 레퍼런스</a>에 정리되어 있습니다.</p>

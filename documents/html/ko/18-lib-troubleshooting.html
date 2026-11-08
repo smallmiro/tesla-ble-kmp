@@ -62,6 +62,7 @@
 <li><a href="#sec-keys">키와 세션</a></li>
 <li><a href="#sec-pairing">페어링과 명령</a></li>
 <li><a href="#sec-getstate">getState로 상태 읽기</a></li>
+<li><a href="#sec-infotainment">인포테인먼트 명령</a></li>
 <li><a href="#sec-other">기타 메시지</a></li>
 <li><a href="#sec-budget">connect 시간 예산</a></li>
 <li><a href="#sec-no-source">출발지가 없는 프레임</a></li>
@@ -125,6 +126,22 @@
 <tr><td><code>getState(DRIVE)</code>가 <code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code>을 반환함</td><td>응답이 차량의 크기 상한을 넘었습니다. 목적지 이름이 길수록 더 잘 일어납니다. 차량이 사라지거나 잠든 것은 아닙니다</td><td>마지막 값을 경과 시간과 함께 유지하고, 짧은 간격으로 반복하지 말고 나중에 다시 조회하세요. 더 작은 조회는 없습니다(<a href="16-lib-errors.html#sec-size-limit">16. 에러 처리</a>)</td></tr>
 <tr><td><code>getState()</code>가 <code>Success</code>를 반환했지만 필드가 <code>null</code>임</td><td>차량이 그 필드를 보내지 않았거나, 응답에 <code>vehicleData</code>가 없었습니다</td><td>0이 아니라 "값 없음"으로 표시하세요(<a href="14-lib-reading-state.html#sec-a-reading">14, A8.3</a>). 실차가 어떤 필드를 보내는지는 아직 확인되지 않았습니다(#118)</td></tr>
 <tr><td><code>getState()</code>가 <code>Success</code>와 함께 같은 값을 또 반환함</td><td><code>Success</code>가 새 측정값의 증거는 아닙니다</td><td><code>timestamp</code>를 이전 응답과 비교하세요(<a href="14-lib-reading-state.html#sec-a-reading">14, A8.3</a>)</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-infotainment">인포테인먼트 명령</h2>
+<table>
+<thead><tr><th>증상</th><th>가능한 원인</th><th>할 일</th></tr></thead>
+<tbody>
+<tr><td>인포테인먼트 명령(<code>climateOn()</code>, <code>chargeStart()</code>, <code>honkHorn()</code>…)이 <code>NoSession</code>을 반환함</td><td>아직 인포테인먼트 세션이 없거나, 저장된 세션이 오래됨</td><td><code>startSession(setOf(VehicleDomain.INFOTAINMENT))</code>를 호출한 뒤 명령을 다시 보내세요: 아무것도 전송되지 않았습니다</td></tr>
+<tr><td>보안 컨트롤러 명령은 되는데, 모든 인포테인먼트 명령이 <code>Uncertain(Timeout(afterSend = true))</code>를 반환함</td><td>인포테인먼트가 잠들어 있음: 명령은 인포테인먼트를 깨우지 못하며, 저장된 세션은 수면에 대해 아무것도 알려 주지 않습니다</td><td><code>vehicleStatus()</code>를 읽고, <code>ASLEEP</code>이면 차량을 깨운 뒤 <code>AWAKE</code>를 기다리세요(<a href="14-lib-reading-state.html#sec-a-order">14, A8.2</a>). 명령을 다시 보내기 전에 상태를 읽으세요: 이미 실행되었을 수 있습니다</td></tr>
+<tr><td>명령이 <code>Uncertain</code>을 반환했고 앱이 재시도하려 함</td><td>차량이 실행했을 수 있음</td><td>절대 다시 보내지 마세요. 명령이 바꾸는 상태를 읽으세요(<a href="15-lib-commands.html#sec-cc-requery">15. 명령</a>). <code>toggleMediaPlayback</code>과 트렁크 토글은 두 번째 전송이 첫 번째를 되돌립니다. <code>honkHorn</code>, <code>flashLights</code>, <code>setLowPowerMode</code>, <code>setKeepAccessoryPowerMode</code>는 다시 읽을 수 없습니다: 결과를 알 수 없음으로 표시하세요</td></tr>
+<tr><td><code>enableValetMode(pin)</code>이 <code>InvalidArgument("PIN codes must be four digits")</code>를 반환함</td><td>PIN이 ASCII 숫자 정확히 네 자리가 아님. 예: 키보드로 입력한 전각 숫자나 다른 문자 체계의 숫자, 공백</td><td>숫자 전용 키보드를 제공하거나 호출 전에 입력을 변환하세요. PIN을 로그에 남기지 마세요</td></tr>
+<tr><td><code>setVolume(volume)</code>이 <code>InvalidArgument("invalid volume (should be in [0, 10])")</code>를 반환함</td><td>값이 0보다 작거나 10보다 크거나 NaN임(예: 범위를 제한하지 않은 슬라이더 값, 또는 0/0)</td><td>앱에서 값을 0–10으로 제한하세요</td></tr>
+<tr><td><code>setSeatCooler</code>가 <code>InvalidArgument("invalid seat position for seat cooler: …")</code>를, <code>scheduleDeparture</code>가 <code>InvalidArgument("invalid departure time: …")</code>를 반환함</td><td><code>FRONT_LEFT</code>나 <code>FRONT_RIGHT</code>가 아닌 좌석, 또는 자정 이후 0~1440분을 벗어난 출발 시간</td><td>인자를 고치세요(<a href="16-lib-errors.html#sec-invalid-argument">16. 에러 처리</a>)</td></tr>
+<tr><td>인포테인먼트 명령이 <code>Failure(InfotainmentRejected(reason))</code>을 반환함</td><td>차량이 거부함: 기능이 없거나, 현재 상태가 명령을 허용하지 않음(예: 주행 중)</td><td>일반적인 메시지를 보여 주세요. <code>reason</code>은 차량 자체의 문구이므로 로그에 남기지 마세요. <code>disableValetMode</code>는 <code>already off</code>로 끝나는 reason을 이미 <code>Success</code>로 바꿉니다</td></tr>
+<tr><td><code>addChargeSchedule</code>가 <code>InvalidArgument("message exceeds 1024 bytes")</code>를 반환함</td><td>일정 <code>name</code>이 너무 길어 메시지가 1024바이트를 넘음</td><td>더 짧은 이름을 쓰세요</td></tr>
+<tr><td>명령이 <code>Success</code>를 반환했는데 <code>getState</code>는 여전히 이전 값을 보여 줌</td><td>새 값이 아직 보고되지 않았거나, 명령이 바꾸는 필드가 그 필드가 아님(실차에서 확인되지 않음, #118)</td><td>조금 뒤에 다시 읽고 <code>timestamp</code>를 비교하세요</td></tr>
 </tbody>
 </table>
 

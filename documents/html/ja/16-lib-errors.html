@@ -120,12 +120,14 @@
 <tbody>
 <tr><td><code>setSeatCooler(level, seat)</code></td><td>前席のみ: <code>FRONT_LEFT</code> または <code>FRONT_RIGHT</code></td><td><code>invalid seat position for seat cooler: &lt;SEAT&gt;</code></td><td>セッションの確認より前なので、セッションがなくても返される</td></tr>
 <tr><td><code>scheduleDeparture(departAtMinutes, …)</code></td><td>出発時刻は午前 0 時から 0〜1440 分 (両端を含む)</td><td><code>invalid departure time: &lt;n&gt; minutes after midnight (expected 0..1440)</code></td><td>セッションの確認より前</td></tr>
+<tr><td><code>enableValetMode(pin)</code></td><td>PIN は ASCII の数字 0–9 のちょうど 4 桁です。ほかの文字体系の数字や全角数字は拒否されます</td><td><code>PIN codes must be four digits</code> (PIN 自体はエラーにもログにも現れません)</td><td>セッションの確認より前</td></tr>
+<tr><td><code>setVolume(volume)</code></td><td>音量は 0〜10 (両端を含む) で、NaN ではないこと</td><td><code>invalid volume (should be in [0, 10])</code></td><td>セッションの確認より前</td></tr>
 <tr><td><code>addKey</code>, <code>addKeyRequest</code> (as <code>PairingEvent.Failed</code>)</td><td>ロールが <code>KeyRole.UNKNOWN</code> ではない</td><td><code>role UNKNOWN cannot be enrolled</code></td><td>送信前 (<a href="13-lib-pairing.html">13. キーとペアリング</a>)</td></tr>
 <tr><td><code>connect(vin, key, target)</code></td><td><code>target</code> のアドバタイズが <code>vin</code> のものである</td><td><code>advertisement &lt;local name&gt; is not for this VIN</code></td><td>接続前</td></tr>
 <tr><td>任意のリクエスト</td><td>フレーム化したメッセージは最大 1024 バイトで、非常に長いスケジュールの <code>name</code> はこれを超える可能性がある</td><td><code>message exceeds 1024 bytes</code></td><td>Bluetooth 層で、セッションの確認の後</td></tr>
 </tbody>
 </table>
-<p>Go 原本は最初の 2 つに対して <code>invalid seat position</code> と <code>invalid departure time</code> を返します。ルールとチェックのタイミングは同じで、ここではメッセージだけが詳しくなっています。<code>detail</code> ではなくエラー型で判断してください。この文言は人とログのためのものです。</p>
+<p>Go 原本は最初の 2 つに対して <code>invalid seat position</code> と <code>invalid departure time</code> を返します。ルールとチェックのタイミングは同じで、ここではメッセージだけが詳しくなっています。PIN と音量のメッセージは Go 原本のものそのままです。Go 原本は NaN の音量を通しますが (2 つの比較がどちらも偽になるため)、このライブラリは拒否します。<code>detail</code> ではなくエラー型で判断してください。この文言は人とログのためのものです。</p>
 
 <h2 id="sec-getstate">getState の結果</h2>
 <p>クエリは車両の状態を何も変えません。したがって<strong>読み取りでの <code>Uncertain</code> は、確認できたデータがないという意味</strong>であり、コマンドが実行された可能性があるという意味ではありません。読み取りとコマンドは同じエラー型を共有するため、<code>mayHaveSucceeded</code> は引き続き true です。後から確認するものはありません。最後の値を保持し、後でもう一度問い合わせてください。再度の問い合わせは安全ですが、短い間隔で繰り返してはいけません。ライブラリは間隔を決めないので、アプリが選びます。</p>
@@ -228,7 +230,11 @@
 <tr><td>充電コマンド: <code>chargeStart</code>, <code>chargeStop</code>, <code>setChargeLimit</code>, <code>setChargingAmps</code>, <code>chargeStandardRange</code>, <code>chargeMaxRange</code>, <code>scheduleCharging</code>, <code>scheduleDeparture</code>, <code>clearScheduledDeparture</code>, <code>openChargePort</code>, <code>closeChargePort</code></td><td><code>getState(StateCategory.CHARGE)</code></td><td>対応する充電のフィールド</td></tr>
 <tr><td><code>addChargeSchedule</code>, <code>removeChargeSchedule</code>, <code>batchRemoveChargeSchedules</code></td><td><code>getState(StateCategory.CHARGE_SCHEDULE)</code></td><td>スケジュールの <code>id</code> が <code>charge_schedules</code> にあるか</td></tr>
 <tr><td><code>addPreconditionSchedule</code>, <code>removePreconditionSchedule</code>, <code>batchRemovePreconditionSchedules</code></td><td><code>getState(StateCategory.PRECONDITIONING_SCHEDULE)</code></td><td><code>precondition_schedules</code></td></tr>
-<tr><td><code>setLowPowerMode</code>, <code>setKeepAccessoryPowerMode</code></td><td>なし</td><td>公式の車両データにはこれらのモード用のフィールドがありません。結果は不明として表示し、再送しないでください</td></tr>
+<tr><td>ボディとセキュリティ: <code>ventWindows</code>, <code>closeWindows</code>, <code>setSunroof</code>, <code>setSentryMode</code>, <code>enableValetMode</code>, <code>disableValetMode</code>, <code>resetValetPin</code></td><td><code>getState(StateCategory.CLOSURES)</code></td><td>ウィンドウ、サンルーフ、セントリー、またはバレーのフィールド (<a href="15-lib-commands.html#sec-cc-requery">15. コマンド</a>)</td></tr>
+<tr><td>メディア: <code>volumeUp</code>, <code>volumeDown</code>, <code>setVolume</code>, <code>mediaNextTrack</code>, <code>mediaPreviousTrack</code>, <code>mediaNextFavorite</code>, <code>mediaPreviousFavorite</code>, <code>toggleMediaPlayback</code></td><td><code>getState(StateCategory.MEDIA)</code></td><td><code>audio_volume</code>, <code>now_playing_title</code>, <code>media_playback_status</code>。<strong><code>toggleMediaPlayback</code> は絶対に再送しないでください</strong>: 2 回送ると元の状態に戻ります</td></tr>
+<tr><td><code>scheduleSoftwareUpdate</code>, <code>cancelSoftwareUpdate</code></td><td><code>getState(StateCategory.SOFTWARE_UPDATE)</code></td><td><code>status</code>, <code>scheduled_time_ms</code></td></tr>
+<tr><td><code>setLowPowerMode</code>, <code>setKeepAccessoryPowerMode</code>, <code>honkHorn</code>, <code>flashLights</code></td><td>なし</td><td>公式の車両データには、これらのフィールドがありません。結果は不明として表示し、再送しないでください</td></tr>
+<tr><td><code>ping</code></td><td>なし</td><td>何も変えていないので、アプリが再度呼んでかまいません</td></tr>
 </tbody>
 </table>
 <p>インフォテインメントでは、読み取り自体が <code>Uncertain</code> で返ることがあります (インフォテインメントがスリープ、応答が大きすぎる、<a href="#sec-getstate">getState の結果</a>)。その場合は後の読み取りが成功するまでコマンドの結果は不明のままです。コマンドが実車でどのフィールドを変えるかはまだ確認していません (#118)。</p>

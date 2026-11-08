@@ -69,7 +69,7 @@
 <li><a href="#sec-slots">接続スロットとリンク切断</a></li>
 <li><a href="#sec-swift-timeouts">Swift: タイムアウト</a></li>
 <li><a href="#sec-swift-generated">Swift: 生成された型 (getState)</a></li>
-<li><a href="#sec-swift-commands">Swift: コマンドの引数 (空調と充電)</a></li>
+<li><a href="#sec-swift-commands">Swift: コマンドの引数 (インフォテインメントのコマンド)</a></li>
 </ol></div>
 
 <h2 id="sec-support">サポート範囲</h2>
@@ -198,14 +198,16 @@
 <li><code>.protocolFault</code> の中の enum は <code>MessageFault_E</code> です。サイズ上限のケースは <code>.messagefaultErrorResponseMtuExceeded</code> です: <code>case .protocolFault(let p) where p.fault == .messagefaultErrorResponseMtuExceeded:</code>。</li>
 </ul>
 
-<h2 id="sec-swift-commands">Swift: コマンドの引数 (空調と充電)</h2>
-<p>Swift から空調と充電のコマンドを呼び出す方法です (<a href="15-lib-commands.html#sec-cc">15. コマンド</a>)。これらの形はフレームワーク (デバッグ用シミュレーターフレームワーク、2026-11-08) に対する Swift の型チェックを通っていますが、Swift のプログラムで実行したものではありません。</p>
+<h2 id="sec-swift-commands">Swift: コマンドの引数 (インフォテインメントのコマンド)</h2>
+<p>Swift からインフォテインメントのコマンドを呼び出す方法です (<a href="15-lib-commands.html#sec-cc">15. コマンド</a>)。これらの形はフレームワーク (デバッグ用シミュレーターフレームワーク、2026-11-08) に対する Swift の型チェックを通っていますが、Swift のプログラムで実行したものではありません。</p>
 <ul>
 <li>すべての引数を渡してください。<code>timeout:</code> も含みます (<code>nil</code> は設定のデフォルトを使う): <code>try await vehicle.climateOn(timeout: nil)</code>。省略すると、コンパイラが <code>missing argument for parameter 'timeout' in call</code> を報告します。</li>
 <li>引数の enum は本物の Swift の enum なので、それに対する <code>switch</code> に <code>default</code> は不要です: <code>SeatPosition</code> (<code>.unknown</code>, <code>.frontLeft</code>, <code>.frontRight</code>, <code>.secondRowLeft</code>, <code>.secondRowLeftBack</code>, <code>.secondRowCenter</code>, <code>.secondRowRight</code>, <code>.secondRowRightBack</code>, <code>.thirdRowLeft</code>, <code>.thirdRowRight</code>)、<code>SeatClimateLevel</code> (<code>.off</code>, <code>.low</code>, <code>.med</code>, <code>.high</code>)、<code>ClimateKeeperMode</code> (<code>.off</code>, <code>.on</code>, <code>.dog</code>, <code>.camp</code>)、<code>CabinOverheatProtectionTemperature</code> (<code>.unspecified</code>, <code>.low</code>, <code>.medium</code>, <code>.high</code>)、<code>ChargingPolicy</code> (<code>.off</code>, <code>.allDays</code>, <code>.weekdays</code>)。</li>
 <li><code>setSeatHeater(levels:timeout:)</code> は Swift の辞書 <code>[SeatPosition: SeatClimateLevel]</code> を受け取り、リテラルも使えます: <code>try await vehicle.setSeatHeater(levels: [.frontLeft: .high, .secondRowCenter: .off], timeout: nil)</code>。空の <code>[:]</code> も送られます。Swift の辞書には順序がありませんが、ライブラリはいずれにしてもシートを <code>SeatPosition</code> の順に送ります。</li>
 <li><code>autoSeatAndClimate(seats:enabled:timeout:)</code> は Swift の配列を受け取ります: <code>seats: [.frontLeft, .frontRight]</code>。</li>
-<li>数値: <code>percent</code>、<code>amps</code>、分の値は <code>Int32</code>、スケジュールの id は <code>Int64</code>、温度は <code>Float</code> です。通常の数値リテラルがそのまま使えます。例: <code>scheduleDeparture(departAtMinutes: 480, offPeakEndMinutes: 360, preconditioning: .allDays, offPeak: .weekdays, timeout: nil)</code>。</li>
+<li>数値: <code>percent</code>、<code>amps</code>、分の値、サンルーフの <code>level</code>、<code>delaySeconds</code> は <code>Int32</code>、スケジュールの id は <code>Int64</code>、温度と <code>volume</code> は <code>Float</code> です。通常の数値リテラルがそのまま使えます。例: <code>scheduleDeparture(departAtMinutes: 480, offPeakEndMinutes: 360, preconditioning: .allDays, offPeak: .weekdays, timeout: nil)</code>、<code>setVolume(volume: 5.5, timeout: nil)</code>、<code>setSunroof(level: 0, timeout: nil)</code>、<code>scheduleSoftwareUpdate(delaySeconds: 7200, timeout: nil)</code>。</li>
+<li>バレーの PIN は Swift の <code>String</code> です: <code>enableValetMode(pin: pin, timeout: nil)</code>。ログに出さないでください。</li>
+<li><code>toggleMediaPlayback(timeout:)</code> が不確実だった場合は、再送せずに再生状態を読みます: <code>data.media_state?.media_playback_status == .playing</code> (<code>MediaPlaybackStatus</code> は Swift の enum です: <code>.playing</code>, <code>.paused</code>, <code>.stopped</code>)。</li>
 <li><code>ChargeSchedule</code> と <code>PreconditionSchedule</code> は生成されたプロトコルのクラスです。Swift にはデフォルト引数がないため、すべてのフィールドと <code>unknownFields: OkioByteString.companion.EMPTY</code> を渡して組み立ててください。<code>ChargeSchedule()</code> は <code>'init()' is unavailable</code> で拒否されます。フィールドはプロトコルの名前のままです:</li>
 </ul>
 <pre><code class="language-swift"><span class="k">let</span> schedule = <span class="t">ChargeSchedule</span>(
