@@ -104,10 +104,34 @@ public final class dev/mirolab/teslable/application/dispatcher/SessionState$Comp
 
 public final class dev/mirolab/teslable/application/infotainment/InfotainmentCommands {
 	public fun <init> (Ldev/mirolab/teslable/application/vehicle/SendWithRetry;)V
+	public final fun autoSeatAndClimate-exY8QGI (Ljava/util/List;ZJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun autoSeatAndClimate-exY8QGI$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Ljava/util/List;ZJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun climateOff-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun climateOff-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun climateOn-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun climateOn-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun execute-8Mi8wO0 (Lcom/tesla/generated/carserver/server/Action;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun execute-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Lcom/tesla/generated/carserver/server/Action;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun getState-8Mi8wO0 (Ldev/mirolab/teslable/model/StateCategory;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun getState-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Ldev/mirolab/teslable/model/StateCategory;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun setBioweaponDefenseMode-exY8QGI (ZZJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun setBioweaponDefenseMode-exY8QGI$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;ZZJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun setCabinOverheatProtection-exY8QGI (ZZJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun setCabinOverheatProtection-exY8QGI$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;ZZJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun setCabinOverheatProtectionTemperature-8Mi8wO0 (Ldev/mirolab/teslable/model/CabinOverheatProtectionTemperature;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun setCabinOverheatProtectionTemperature-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Ldev/mirolab/teslable/model/CabinOverheatProtectionTemperature;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun setClimateKeeperMode-exY8QGI (Ldev/mirolab/teslable/model/ClimateKeeperMode;ZJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun setClimateKeeperMode-exY8QGI$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Ldev/mirolab/teslable/model/ClimateKeeperMode;ZJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun setClimateTemp-exY8QGI (FFJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun setClimateTemp-exY8QGI$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;FFJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun setPreconditioningMax-exY8QGI (ZZJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun setPreconditioningMax-exY8QGI$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;ZZJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun setSeatCooler-exY8QGI (Ldev/mirolab/teslable/model/SeatClimateLevel;Ldev/mirolab/teslable/model/SeatPosition;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun setSeatCooler-exY8QGI$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Ldev/mirolab/teslable/model/SeatClimateLevel;Ldev/mirolab/teslable/model/SeatPosition;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun setSeatHeater-8Mi8wO0 (Ljava/util/Map;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun setSeatHeater-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Ljava/util/Map;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun setSteeringWheelHeater-8Mi8wO0 (ZJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun setSteeringWheelHeater-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;ZJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public final class dev/mirolab/teslable/application/infotainment/InfotainmentResponses {
