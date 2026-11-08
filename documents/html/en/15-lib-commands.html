@@ -79,7 +79,7 @@
 <ul>
 <li>Commands are encrypted and authenticated with AES-GCM over the domain's session and expire after 5 seconds.</li>
 <li>Temporary failures are retried every second automatically. A command that may already have run is <strong>never</strong> sent again.</li>
-<li>When a Bluetooth write fails and the library writes the same bytes again, the command is never signed again: an error for the repeated copy is not taken as the result, and the call returns <code>Uncertain(Timeout)</code> unless the answer to the first copy arrives in time. See <a href="16-lib-errors.html#sec-retry">16. Error Handling</a>.</li>
+<li>When a Bluetooth write fails and the library writes the same bytes again, the command is never signed again: an error that would mean a retry, or a refusal of the message itself (for example <code>KeyNotPaired</code>), is not taken as the result, and the call returns <code>Uncertain(Timeout)</code> unless an answer that settles it arrives in time (the late answer to the first copy, or the repeated copy's success when the first never arrived). See <a href="16-lib-errors.html#sec-retry">16. Error Handling</a>.</li>
 <li>Security-controller commands run one at a time per connection; infotainment commands may run side by side.</li>
 <li>An <code>Uncertain</code> result means: read the state, do not resend. See <a href="16-lib-errors.html">16. Error Handling</a>.</li>
 </ul>

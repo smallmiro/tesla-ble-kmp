@@ -24,7 +24,8 @@ These are implemented in the dispatcher (M2) and apply to every command:
 - Retried automatically at 1 s intervals while `error.shouldRetry()`; never resent when `mayHaveSucceeded`.
 - After a failed write that the library repeats with the same bytes, a command is never authorized again: a fault for
   the repeated copy (a retriable one, or any protocol-layer rejection such as `KeyNotPaired`) is not taken as the result,
-  and the call returns `Uncertain(Timeout(afterSend = true))` unless the first copy's reply arrives within `timeout`
+  and the call returns `Uncertain(Timeout(afterSend = true))` unless a reply that settles it arrives within `timeout`:
+  the first copy's late reply, or the repeated copy's success when the first never reached the vehicle
   (`16-lib-errors.md` §Retries and timeouts).
 - VCSEC commands are serialized per connection; Infotainment commands may run in parallel.
 - An `Uncertain` result means "query state, do not resend" (`16-lib-errors.md`).
