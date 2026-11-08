@@ -83,6 +83,8 @@ public class FakeVehicle(
     private val domains = ALL_DOMAINS.associateWith { DomainState() }
     private val receivedMessages = mutableListOf<RoutableMessage>()
     private var dropRemaining = 0
+    private var holdRemaining = 0
+    private val heldReplies = mutableListOf<Triple<DomainState, FakeTransport, ByteArray>>()
     private var sessionInfoRequestCount = 0
     private var connectableFlag = true
     private val presentKeyRequests = mutableListOf<ToVCSECMessage>()
@@ -150,6 +152,27 @@ public class FakeVehicle(
     /** 다음 [count]개 응답을 버린다(응답 유실 시나리오). */
     public fun dropNextReplies(count: Int) {
         dropRemaining += count
+    }
+
+    /**
+     * 다음 [count]개 응답을 보내지 않고 붙잡아 둔다(지연 응답 시나리오: 나중 요청의 응답이 먼저 도착한다). [releaseHeldReplies]가 붙잡은
+     * 순서대로 보낸다. [dropNextReplies]가 먼저 적용된다(버릴 응답은 붙잡지 않는다).
+     * @throws IllegalArgumentException [count]가 0 이하면 발생한다(소모될 때 1씩 줄고 `> 0`으로만 검사한다).
+     */
+    public fun holdNextReplies(count: Int) {
+        require(count > 0) { "count must be positive: $count" }
+        holdRemaining += count
+    }
+
+    /** 붙잡아 둔 응답을 붙잡은 순서대로 보내고 그 수를 돌려준다. 보낸 응답은 [replayLastResponse]의 대상이 된다. */
+    public fun releaseHeldReplies(): Int {
+        val released = heldReplies.toList()
+        heldReplies.clear()
+        for ((state, transport, bytes) in released) {
+            state.lastReply = transport to bytes
+            transport.deliver(bytes)
+        }
+        return released.size
     }
 
     /** 다음 명령들에 대한 응답 대본. 요청 하나에 리스트 하나(빈 리스트 = 응답 없음). 대본이 없으면 기본 응답 하나. */
@@ -381,6 +404,11 @@ public class FakeVehicle(
             return
         }
         val bytes = RoutableMessage.ADAPTER.encode(reply)
+        if (holdRemaining > 0) {
+            holdRemaining--
+            heldReplies += Triple(state, transport, bytes)
+            return
+        }
         state.lastReply = transport to bytes
         transport.deliver(bytes)
     }

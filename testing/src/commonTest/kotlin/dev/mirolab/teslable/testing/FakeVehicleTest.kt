@@ -411,6 +411,32 @@ class FakeVehicleTest {
         }
 
     @Test
+    fun holdsRepliesUntilReleasedInTheOrderTheyWereHeld() =
+        // 지연 응답 시나리오: 붙잡은 응답은 다음 응답보다 늦게, 붙잡은 순서대로 나간다. 드롭이 먼저 적용된다
+        runTest {
+            val c = client()
+            c.fake.script(
+                domain,
+                listOf(FakeVehicle.ScriptedReply(payload = "dropped".encodeToByteArray())),
+                listOf(FakeVehicle.ScriptedReply(payload = "first".encodeToByteArray())),
+                listOf(FakeVehicle.ScriptedReply(payload = "second".encodeToByteArray())),
+                listOf(FakeVehicle.ScriptedReply(payload = "third".encodeToByteArray())),
+            )
+            assertFailsWith<IllegalArgumentException> { c.fake.holdNextReplies(0) }
+            c.fake.dropNextReplies(1)
+            c.fake.holdNextReplies(2)
+            assertNull(c.exchange(c.command(domain, "ping".encodeToByteArray()))) // 드롭
+            assertNull(c.exchange(c.command(domain, "ping".encodeToByteArray()))) // 붙잡음
+            assertNull(c.exchange(c.command(domain, "ping".encodeToByteArray()))) // 붙잡음
+            val third = assertNotNull(c.exchange(c.command(domain, "ping".encodeToByteArray())))
+            assertContentEquals("third".encodeToByteArray(), assertNotNull(third.protobuf_message_as_bytes).toByteArray())
+            assertEquals(2, c.fake.releaseHeldReplies())
+            val released = listOf(c.transport.incoming.first(), c.transport.incoming.first()).map { RoutableMessage.ADAPTER.decode(it) }
+            assertEquals(listOf("first", "second"), released.map { assertNotNull(it.protobuf_message_as_bytes).utf8() })
+            assertEquals(0, c.fake.releaseHeldReplies())
+        }
+
+    @Test
     fun replaysLastResponseAndAttachesSessionInfoOnce() =
         runTest {
             val c = client()

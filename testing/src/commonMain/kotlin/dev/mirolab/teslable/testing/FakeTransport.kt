@@ -34,10 +34,12 @@ public class FakeTransport(
     private val stateFlow = MutableStateFlow<TransportState>(TransportState.Connected)
     private val sentMessages = mutableListOf<ByteArray>()
 
-    // 한 줄로 순서를 지킨다: afterWrite = false는 쓰기 전 실패(enqueueSendError), true는 쓰기를 부른 뒤의 실패(enqueueWriteError)
+    // 한 줄로 순서를 지킨다: afterWrite = false는 쓰기 전 실패(enqueueSendError), true는 쓰기를 부른 뒤의 실패(enqueueWriteError).
+    // reachesVehicle = true는 바이트를 차량에 넘긴 뒤의 실패(enqueueWriteErrorAfterDelivery)
     private class ScriptedError(
         val error: VehicleError,
         val afterWrite: Boolean,
+        val reachesVehicle: Boolean = false,
     )
 
     private val sendErrors = ArrayDeque<ScriptedError>()
@@ -96,6 +98,16 @@ public class FakeTransport(
         sendErrors.addLast(ScriptedError(error, afterWrite = true))
     }
 
+    /**
+     * 다음 [send]가 쓰기를 부르고 바이트를 차량([onSend])에 넘긴 **뒤** [error]로 끝나게 한다: 차량은 요청을 받아 처리했고 응답도 보낼 수
+     * 있지만, 쓰기 완료 통지가 실패한 경우(write-with-response의 응답 유실 등). [enqueueWriteError]와 달리 바이트가 차량에 닿는다 — 실패한
+     * 쓰기 뒤 같은 바이트를 다시 쓰는 경로(두 번째 사본은 차량의 재전송 검사가 거부한다)를 재현한다. [enqueueSendError]·[enqueueWriteError]와
+     * 한 큐를 써서 넣은 순서대로 소비된다. [writeGate]는 기다리지 않는다.
+     */
+    public fun enqueueWriteErrorAfterDelivery(error: VehicleError) {
+        sendErrors.addLast(ScriptedError(error, afterWrite = true, reachesVehicle = true))
+    }
+
     /** 응답을 버리기 시작한다(Go `Sleep`). */
     public fun sleep() {
         isAsleep = true
@@ -118,8 +130,9 @@ public class FakeTransport(
 
     /**
      * [preWriteGate] 대기, [ackRequests]와 [enqueueSendError]의 오류는 쓰기를 부르기 **전**이다(Go `dummyConnector.Send`처럼 아무것도
-     * 보내지 않는다). 그 밖에는 [onWriteInvoked]를 부른 뒤, [enqueueWriteError]의 오류면 그것으로 끝나고, 아니면 바이트를 차량([onSend])에
-     * 넘기고 [writeGate]를 기다린다 — 바이트는 쓰기를 부르는 순간 차량으로 간다.
+     * 보내지 않는다). 그 밖에는 [onWriteInvoked]를 부른 뒤, [enqueueWriteError]의 오류면 그것으로 끝나고, [enqueueWriteErrorAfterDelivery]의
+     * 오류면 바이트를 차량에 넘긴 뒤 그것으로 끝나고, 아니면 바이트를 차량([onSend])에 넘기고 [writeGate]를 기다린다 — 바이트는 쓰기를
+     * 부르는 순간 차량으로 간다.
      */
     override suspend fun send(
         message: ByteArray,
@@ -133,7 +146,10 @@ public class FakeTransport(
         if (scripted != null && !scripted.afterWrite) return scripted.error.toResult()
         onWriteInvoked()
         writesInvokedCount++
-        if (scripted != null) return scripted.error.toResult()
+        if (scripted != null) {
+            if (scripted.reachesVehicle) onSend?.invoke(message.copyOf())
+            return scripted.error.toResult()
+        }
         onSend?.invoke(message.copyOf())
         writeGate?.await()
         return VehicleResult.Success(Unit)
