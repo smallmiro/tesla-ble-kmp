@@ -34,8 +34,8 @@ import kotlin.time.Duration.Companion.milliseconds
 import kotlin.time.Duration.Companion.seconds
 
 /**
- * FR-052, FR-060~083: 공개 `Vehicle`의 공조·충전 명령. 페이로드 유도와 실패 경로는 `:application`의 `ClimateCommandsTest`·
- * `ChargeCommandsTest`·`InfotainmentCommandFailureTest`가 고정하고, 여기서는 파사드의 몫(메서드마다 맞는 명령으로 잇기, 기본/사용자
+ * FR-034, FR-050~053, FR-060~085, FR-090~092: 공개 `Vehicle`의 Infotainment 명령 51개. 페이로드 유도와 실패 경로는 `:application`의
+ * `*CommandsTest`·`InfotainmentCommandFailureTest`가 고정하고, 여기서는 파사드의 몫(메서드마다 맞는 명령으로 잇기, 기본/사용자
  * timeout, `NoSession`이면 세션 표시 맞추기)만 본다.
  */
 @OptIn(ExperimentalCoroutinesApi::class, InternalTeslableApi::class)
@@ -55,7 +55,7 @@ class VehicleInfotainmentCommandsTest {
         val call: suspend Vehicle.() -> VehicleResult<Unit>,
     )
 
-    /** PR A의 공개 명령 31개 전부. 인자마다 다른 바이트가 나오게 골라 메서드가 엉뚱한 명령에 이어지면 드러난다. */
+    /** 공개 Infotainment 명령 51개 전부. 인자마다 다른 바이트가 나오게 골라 메서드가 엉뚱한 명령에 이어지면 드러난다. */
     private val everyCall: List<Call> =
         listOf(
             Call("climateOn", "120452020801") { climateOn() },
@@ -102,6 +102,26 @@ class VehicleInfotainmentCommandsTest {
             },
             Call("openChargePort", "1203f20300") { openChargePort() },
             Call("closeChargePort", "1203ea0300") { closeChargePort() },
+            Call("ping", "1205f20202" + "0801") { ping() },
+            Call("ventWindows", "1205920202" + "1a00") { ventWindows() },
+            Call("closeWindows", "1205920202" + "2200") { closeWindows() },
+            Call("setSunroof", "1205820202" + "0800") { setSunroof(0) }, // 0도 absolute_level로 나간다
+            Call("honkHorn", "1203da0100") { honkHorn() },
+            Call("flashLights", "1203d20100") { flashLights() },
+            Call("setSentryMode", "1205f20102" + "0801") { setSentryMode(true) },
+            Call("enableValetMode", "120bfa0108" + "0801" + "120431323334") { enableValetMode("1234") },
+            Call("disableValetMode", "1203fa0100") { disableValetMode() },
+            Call("resetValetPin", "1203e20100") { resetValetPin() },
+            Call("volumeUp", "1205820102" + "0802") { volumeUp() },
+            Call("volumeDown", "1205820102" + "0801") { volumeDown() },
+            Call("setVolume", "1208820105" + "1d00000000") { setVolume(0.0f) }, // 0도 volume_absolute_float로 나간다
+            Call("mediaNextTrack", "12039a0100") { mediaNextTrack() },
+            Call("mediaPreviousTrack", "1203a20100") { mediaPreviousTrack() },
+            Call("mediaNextFavorite", "12038a0100") { mediaNextFavorite() },
+            Call("mediaPreviousFavorite", "1203920100") { mediaPreviousFavorite() },
+            Call("toggleMediaPlayback", "12027a00") { toggleMediaPlayback() },
+            Call("scheduleSoftwareUpdate", "1206ea0103" + "08a038") { scheduleSoftwareUpdate(7200) },
+            Call("cancelSoftwareUpdate", "1203ca0100") { cancelSoftwareUpdate() },
         )
 
     private fun TestScope.rig(
@@ -152,7 +172,7 @@ class VehicleInfotainmentCommandsTest {
     @Test
     fun everyCommandReachesTheVehicleAsItsOwnGoPayload() =
         runTest {
-            assertEquals(31, everyCall.size)
+            assertEquals(51, everyCall.size)
             val r = rig()
             val vehicle = r.connected()
             assertIs<VehicleResult.Success<Unit>>(vehicle.startSession(setOf(VehicleDomain.INFOTAINMENT), timeout = 1.seconds))
@@ -209,7 +229,7 @@ class VehicleInfotainmentCommandsTest {
 
     @Test
     fun invalidArgumentsAreRejectedBeforeAnythingIsSent() =
-        // 로컬 검증은 Go에 있는 것만: 좌석 쿨러는 앞좌석만, 출발 시각은 0..1440분
+        // 로컬 검증은 Go에 있는 것만: 좌석 쿨러는 앞좌석만, 출발 시각은 0..1440분, 발레 PIN은 ASCII 숫자 네 개, 볼륨은 0..10(NaN 거부는 Go와 다르다)
         runTest {
             val r = rig()
             val vehicle = r.connected()
@@ -222,6 +242,8 @@ class VehicleInfotainmentCommandsTest {
             assertIs<VehicleError.InvalidArgument>(
                 assertIs<VehicleResult.Failure>(vehicle.scheduleDeparture(1441, 0, ChargingPolicy.OFF, ChargingPolicy.OFF)).error,
             )
+            assertIs<VehicleError.InvalidArgument>(assertIs<VehicleResult.Failure>(vehicle.enableValetMode("123")).error)
+            assertIs<VehicleError.InvalidArgument>(assertIs<VehicleResult.Failure>(vehicle.setVolume(Float.NaN)).error)
 
             assertEquals(sentBefore, r.fake.received.size)
             assertEquals(SessionStatus.Ready(fromCache = false), vehicle.sessions.value[VehicleDomain.INFOTAINMENT]) // 표시는 그대로

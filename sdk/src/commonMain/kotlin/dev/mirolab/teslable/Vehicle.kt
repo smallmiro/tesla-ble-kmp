@@ -29,10 +29,10 @@ import kotlin.time.Duration
 
 /**
  * 연결된 차량(SDD §2.3). 연결 하나에 객체 하나 — [disconnect] 뒤에는 명령이 `Failure(NotConnected)`이고, 다시 쓰려면
- * `TeslaBle.connect`로 새로 연결한다(설계 구체화 13). M5가 Infotainment 제어·조회 메서드를 더한다(공조·충전 명령은 [climateOn]부터).
+ * `TeslaBle.connect`로 새로 연결한다(설계 구체화 13). Infotainment 명령(M5)의 공통 규칙은 [climateOn]에 있다.
  * 모든 `timeout`은 null이면 설정 기본값.
  */
-@Suppress("TooManyFunctions") // 공개 API 1:1 — 조회, 키, VCSEC 제어 12종, Infotainment 공조·충전 명령(M5)
+@Suppress("TooManyFunctions") // 공개 API 1:1 — 조회, 키, VCSEC 제어 12종, Infotainment 명령 51종(M5)
 public interface Vehicle {
     /** VIN. */
     public val vin: Vin
@@ -391,4 +391,102 @@ public interface Vehicle {
 
     /** 충전 포트 닫기 (FR-052). 규칙은 [climateOn]과 같다. 확인: `getState(CHARGE)`(`charge_port_door_open`). */
     public suspend fun closeChargePort(timeout: Duration? = null): VehicleResult<Unit>
+
+    /**
+     * 인증된 빈 명령 (FR-034). 아무것도 바꾸지 않는다. `Success`면 차량이 이 키를 알고 Infotainment가 답했다는 뜻이다. 규칙은
+     * [climateOn]과 같다(세션이 없으면 `NoSession`, 잠들어 있으면 `Uncertain(Timeout(afterSend = true))`). 상태를 바꾸지 않으므로
+     * `Uncertain` 뒤에 앱이 다시 불러도 된다. 라이브러리는 다시 보내지 않는다.
+     */
+    public suspend fun ping(timeout: Duration? = null): VehicleResult<Unit>
+
+    /** 창문 환기 (FR-050). 규칙은 [climateOn]과 같다. 확인: `getState(CLOSURES)`(`window_open_*`). */
+    public suspend fun ventWindows(timeout: Duration? = null): VehicleResult<Unit>
+
+    /** 창문 닫기 (FR-050). 규칙은 [climateOn]과 같다. 확인: `getState(CLOSURES)`(`window_open_*`). */
+    public suspend fun closeWindows(timeout: Duration? = null): VehicleResult<Unit>
+
+    /**
+     * 선루프 절대 단계 (FR-051). 값을 검사하지 않고(차량이 판단한다) 0도 보낸다. 규칙은 [climateOn]과 같다.
+     * 확인: `getState(CLOSURES)`(`sun_roof_percent_open`, `sun_roof_state`).
+     */
+    public suspend fun setSunroof(
+        level: Int,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 경적 (FR-053). 규칙은 [climateOn]과 같다. 되읽을 상태가 없으므로 `Uncertain`이면 다시 보내지 말고 결과를 모름으로 둔다. */
+    public suspend fun honkHorn(timeout: Duration? = null): VehicleResult<Unit>
+
+    /** 라이트 점멸 (FR-053). 규칙은 [climateOn]과 같다. 되읽을 상태가 없으므로 `Uncertain`이면 다시 보내지 말고 결과를 모름으로 둔다. */
+    public suspend fun flashLights(timeout: Duration? = null): VehicleResult<Unit>
+
+    /** 센트리 모드 (FR-084). 규칙은 [climateOn]과 같다. 확인: `getState(CLOSURES)`(`sentry_mode_state`). */
+    public suspend fun setSentryMode(
+        enabled: Boolean,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /**
+     * 발레 모드 켜기 (FR-085). [pin]은 ASCII 숫자(`0`~`9`) 정확히 네 개여야 하며, 아니면 보내지 않고
+     * `Failure(InvalidArgument("PIN codes must be four digits"))`다. 라이브러리는 PIN을 오류·로그에 남기지 않으며 앱도 남기지 않는다.
+     * 규칙은 [climateOn]과 같다. 확인: `getState(CLOSURES)`(`valet_mode`).
+     */
+    public suspend fun enableValetMode(
+        pin: String,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /**
+     * 발레 모드 끄기 (FR-085). 차량이 거부하며 준 사유가 "already off"로 끝나면(대소문자 구분) 이미 꺼진 것이므로 `Success`다.
+     * 규칙은 [climateOn]과 같다. 확인: `getState(CLOSURES)`(`valet_mode`).
+     */
+    public suspend fun disableValetMode(timeout: Duration? = null): VehicleResult<Unit>
+
+    /** 발레 PIN 초기화 (FR-085). 규칙은 [climateOn]과 같다. 확인: `getState(CLOSURES)`(`valet_pin_needed`). */
+    public suspend fun resetValetPin(timeout: Duration? = null): VehicleResult<Unit>
+
+    /** 볼륨 한 단계 올리기 (FR-090). 규칙은 [climateOn]과 같다. 확인: `getState(MEDIA)`(`audio_volume`). */
+    public suspend fun volumeUp(timeout: Duration? = null): VehicleResult<Unit>
+
+    /** 볼륨 한 단계 내리기 (FR-090). 규칙은 [climateOn]과 같다. 확인: `getState(MEDIA)`(`audio_volume`). */
+    public suspend fun volumeDown(timeout: Duration? = null): VehicleResult<Unit>
+
+    /**
+     * 볼륨 절대값 (FR-090). [volume]이 0..10 밖이거나 NaN이면 보내지 않고 `Failure(InvalidArgument("invalid volume (should be in
+     * [0, 10])"))`다. 0도 보낸다. 규칙은 [climateOn]과 같다. 확인: `getState(MEDIA)`(`audio_volume`).
+     */
+    public suspend fun setVolume(
+        volume: Float,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 다음 곡 (FR-091). 규칙은 [climateOn]과 같다. 확인: `getState(MEDIA)`(`now_playing_title`). */
+    public suspend fun mediaNextTrack(timeout: Duration? = null): VehicleResult<Unit>
+
+    /** 이전 곡 (FR-091). 규칙은 [climateOn]과 같다. 확인: `getState(MEDIA)`(`now_playing_title`). */
+    public suspend fun mediaPreviousTrack(timeout: Duration? = null): VehicleResult<Unit>
+
+    /** 다음 즐겨찾기 (FR-091). 규칙은 [climateOn]과 같다. 확인: `getState(MEDIA)`(`now_playing_title`). */
+    public suspend fun mediaNextFavorite(timeout: Duration? = null): VehicleResult<Unit>
+
+    /** 이전 즐겨찾기 (FR-091). 규칙은 [climateOn]과 같다. 확인: `getState(MEDIA)`(`now_playing_title`). */
+    public suspend fun mediaPreviousFavorite(timeout: Duration? = null): VehicleResult<Unit>
+
+    /**
+     * 재생·일시정지 토글 (FR-091). 두 번 실행되면 원래 상태로 돌아가므로 `Uncertain`이면 **절대 다시 보내지 말고**
+     * `getState(MEDIA)`(`media_playback_status`)로 확인한 뒤 판단한다. 규칙은 [climateOn]과 같다.
+     */
+    public suspend fun toggleMediaPlayback(timeout: Duration? = null): VehicleResult<Unit>
+
+    /**
+     * 소프트웨어 업데이트 예약 (FR-092). [delaySeconds] 초 뒤에 시작하며 값을 검사하지 않는다. 규칙은 [climateOn]과 같다.
+     * 확인: `getState(SOFTWARE_UPDATE)`(`status`, `scheduled_time_ms`).
+     */
+    public suspend fun scheduleSoftwareUpdate(
+        delaySeconds: Int,
+        timeout: Duration? = null,
+    ): VehicleResult<Unit>
+
+    /** 예약한 소프트웨어 업데이트 취소 (FR-092). 규칙은 [climateOn]과 같다. 확인: `getState(SOFTWARE_UPDATE)`(`status`). */
+    public suspend fun cancelSoftwareUpdate(timeout: Duration? = null): VehicleResult<Unit>
 }
