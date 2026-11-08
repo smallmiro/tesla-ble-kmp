@@ -43,7 +43,7 @@
 
 <div class="callout warn">
 <strong>Android와 iOS 구현 완료, 실기기 확인 대기</strong>
-<p>Android 빌드 <code>0.3.0 (3)</code>, iOS 빌드 <code>0.5.0 (25)</code>. 단계 규칙과 명령 실행기는 단위 테스트로 확인했고, 화면과 차는 이 페이지 끝의 체크리스트로 확인합니다.</p>
+<p>Android 빌드 <code>0.4.0 (4)</code>, iOS 빌드 <code>0.5.0 (25)</code>. 단계 규칙과 명령 실행기는 단위 테스트로 확인했고, 화면과 차는 이 페이지 끝의 체크리스트로 확인합니다. Infotainment 섹션(SFR-025)은 Android에만 구현되어 있고, iOS는 같은 스펙으로 예정되어 있습니다.</p>
 </div>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
@@ -54,17 +54,19 @@
 <li><a href="#sec-replace">키 삭제 후 다시 만들기</a></li>
 <li><a href="#sec-run">명령 실행</a></li>
 <li><a href="#sec-buttons">버튼</a></li>
+<li><a href="#sec-infotainment">인포테인먼트 제어</a></li>
 <li><a href="#sec-impl">구현</a></li>
 <li><a href="#sec-check">실차 체크리스트</a></li>
 </ol></div>
 
-<p>이 탭이 따르는 라이브러리 매뉴얼 장: 13장 "키가 등록되어 있는지 확인하기"와 "키 등록하기", 15장 "구현됨: VCSEC", 16장 "명령별 재조회", 14장(<code>vehicleStatus()</code>), 17장(Swift 인자).</p>
+<p>이 탭이 따르는 라이브러리 매뉴얼 장: 13장 "키가 등록되어 있는지 확인하기"와 "키 등록하기", 15장 "구현됨: VCSEC"와 "구현됨: Infotainment 공조와 충전"(SFR-025), 16장 "명령별 재조회"와 "<code>getState</code> 결과", 14장(<code>vehicleStatus()</code>와 A8 <code>getState</code>), 17장(Swift 인자).</p>
 
 <h2 id="sec-req">요구사항</h2>
 <table>
 <thead><tr><th>ID</th><th>앱이 하는 일</th></tr></thead>
 <tbody>
 <tr><td>SFR-018</td><td>Control 다음에 <strong>키·제어</strong> 탭. 네 단계를 각각 완료, 해야 함, 한 줄 힌트가 있는 막힘으로 표시합니다. (1) <strong>키</strong>: 모니터 키를 만들거나 불러옵니다. (2) <strong>연결</strong>: 저장된 VIN과 모니터의 연결을 씁니다. (3) <strong>등록</strong>: 등록을 요청하고(콘솔에 키 카드), 진행 줄을 보여 주며, 자동으로 확인합니다. (4) <strong>제어</strong>: 사용 가능한 VCSEC 명령의 버튼 그리드. 모든 명령은 먼저 VCSEC 세션이 있는지 확인한 뒤 한 번만 보내며, <code>Uncertain</code> 결과는 다시 보내지 않고 <code>vehicleStatus()</code> 재조회가 이어집니다. 상태 카드는 마지막 <code>vehicleStatus()</code>의 잠금, 트렁크, 프렁크, 절전 상태를 보여 줍니다.</td></tr>
+<tr><td>SFR-025</td><td>4단계의 Infotainment 섹션(VCSEC 그리드 아래): <strong>공조 켜기 / 끄기</strong>, <strong>충전 시작 / 중지</strong>, <strong>공조 상태 읽기 / 충전 상태 읽기</strong>(<code>getState(CLIMATE)</code>와 <code>getState(CHARGE)</code>, <code>Uncertain</code> 뒤의 재조회에도 씀). 켜지는 조건은 4단계와 같습니다. 한 번 누르면 <code>vehicleStatus()</code>(<code>AWAKE</code>일 때만 계속), <code>startSession(setOf(INFOTAINMENT))</code>, 그다음 호출 <strong>한 번</strong>입니다. <code>wakeUp()</code>은 절대 부르지 않고 아무것도 다시 보내지 않습니다. <code>Uncertain</code>은 있는 그대로 보여 주고, 읽기나 이후의 성공으로 확정될 때까지 그 카테고리를 "미확인"으로 표시합니다. 연결이 바뀐 뒤에 도착한 결과는 버립니다. 로그에는 명령, 결과, 소요 시간, 오류 유형만 남깁니다. 자세한 내용은 <a href="#sec-infotainment">인포테인먼트 제어</a>.</td></tr>
 </tbody>
 </table>
 
@@ -157,10 +159,76 @@
 <tr><td>Cybertruck</td><td>토노 열기/닫기/정지</td><td><code>openTonneau()</code>, <code>closeTonneau()</code>, <code>stopTonneau()</code></td><td>아니요</td></tr>
 </tbody>
 </table>
-<p>대화상자를 확인하면 4단계 규칙을 다시 검사합니다. 더 이상 맞지 않거나 다른 호출이 실행 중이면 아무것도 보내지 않고 이유를 결과 줄에 남깁니다. Model X와 Cybertruck 버튼은 접혀 있는 "다른 차종" 섹션에 있습니다. 인포테인먼트 명령(공조, 충전, 경적, 조명)은 M5를 기다리므로 보이지 않습니다. 탭에는 <strong>상태 새로고침</strong> 버튼이 있는 상태 카드(잠금, 트렁크, 프렁크, 절전, 마지막으로 읽은 시각)와, 최신 줄이 맨 위에 오고 시각이 붙으며 VIN이 없는 결과 목록도 있습니다. 상태 카드는 한 연결에 속합니다. 연결이 바뀌면 지워지고, 연결이 바뀐 뒤에 끝난 재조회는 카드를 바꾸지 않습니다.</p>
+<p>대화상자를 확인하면 4단계 규칙을 다시 검사합니다. 더 이상 맞지 않거나 다른 호출이 실행 중이면 아무것도 보내지 않고 이유를 결과 줄에 남깁니다. Model X와 Cybertruck 버튼은 접혀 있는 "다른 차종" 섹션에 있습니다. 인포테인먼트의 공조·충전 버튼은 그리드 아래의 별도 섹션에 있습니다(<a href="#sec-infotainment">인포테인먼트 제어</a>). 그 밖의 인포테인먼트 명령(경적, 조명, 창문, 미디어)은 M5의 나머지를 기다리므로 보이지 않습니다. 탭에는 <strong>상태 새로고침</strong> 버튼이 있는 상태 카드(잠금, 트렁크, 프렁크, 절전, 마지막으로 읽은 시각)와, 최신 줄이 맨 위에 오고 시각이 붙으며 VIN이 없는 결과 목록도 있습니다. 상태 카드는 한 연결에 속합니다. 연결이 바뀌면 지워지고, 연결이 바뀐 뒤에 끝난 재조회는 카드를 바꾸지 않습니다.</p>
 <p>이 탭의 모든 라이브러리 호출은 탭 자체의 <code>exclusive { }</code>로 한 번에 하나씩 실행되며, 호출이 실행되는 동안 버튼은 꺼집니다. Android에서는 뷰 모델의 스코프에서 실행되므로 탭을 바꾸거나 휴대폰을 회전해도 취소되지 않습니다. Control 탭에는 별도의 가드가 있고, 라이브러리가 연결마다 VCSEC 명령을 직렬화하므로 두 탭에서 누른 것이 전송 중에 뒤섞이지 않습니다.</p>
 
 <p><strong>말풍선과 동작(SFR-024, iOS).</strong> 넓은 화면(iPhone Duo 안쪽 화면)에서는 오른쪽 영역에 차량 사진 위 가운데의 잠금 아이콘, 왼쪽 위의 <strong>프렁크 열기</strong>(작은 "열기" 아래 굵은 "전면"), 오른쪽 위의 <strong>트렁크 열기/닫기</strong>("열기/닫기" 아래 굵은 "트렁크"), 아래 줄의 <strong>깨우기</strong>와 <strong>트렁크 닫기</strong>가 나옵니다(<code>QuickControls</code>). 같은 <code>KeyControlModel.press</code> 를 부르므로 이 페이지의 모든 규칙이 그대로 적용됩니다. 4단계가 켜져 있어야 하고(아니면 흐리게 하고 같은 주황색 안내 문구를 한 번 보임), <strong>프렁크 열기</strong> 는 먼저 묻고, 세션을 확인하고, 명령은 한 번만 보내고, 뒤에 <code>vehicleStatus()</code> 가 따르며, <code>Uncertain</code> 은 다시 보내지 않습니다. 이 탭이 왼쪽 영역에 열려 있는 동안에는 확인 창을 오른쪽 영역이 띄웁니다(여기서는 <code>ownsCommandDialog: false</code>). 그래서 창은 하나뿐입니다. 마지막 결과 줄은 차량 아래에 나옵니다.</p>
+
+<h2 id="sec-infotainment">인포테인먼트 제어 (SFR-025)</h2>
+<p>4단계의 맨 아래, VCSEC 그리드와 "다른 차종" 섹션 아래에 있는 섹션으로 제목은 <strong>Infotainment (공조, 충전)</strong>입니다. 라이브러리의 Infotainment 명령(<code>15-lib-commands.md</code> "Implemented: Infotainment climate and charging", M5. <strong>아직 실차에서 확인하지 않음</strong>, #118)과 <code>getState</code>(<code>14-lib-reading-state.md</code> A8)를 처음 쓰는 곳입니다. Android는 구현되어 있고 iOS는 같은 스펙으로 예정되어 있습니다. 두 앱은 같은 한국어 UI 라벨을 쓰며, 아래 표의 행마다 하나씩입니다(뜻으로 적음). 정확한 문자열은 Android <code>InfotainmentControl.kt</code>의 <code>InfoCommand</code>와 <code>InfoCategory</code>에 있고 iOS는 이를 그대로 복사합니다(Android 테스트 <code>buttonLabelsMatchTheIosSample</code>이 고정합니다).</p>
+<table>
+<thead><tr><th>그룹</th><th>버튼</th><th>호출</th><th><code>Uncertain</code>이면 읽는 호출</th></tr></thead>
+<tbody>
+<tr><td>공조</td><td>공조 켜기</td><td><code>climateOn()</code></td><td><code>getState(CLIMATE)</code></td></tr>
+<tr><td>공조</td><td>공조 끄기</td><td><code>climateOff()</code></td><td><code>getState(CLIMATE)</code></td></tr>
+<tr><td>공조</td><td>공조 상태 읽기</td><td><code>getState(CLIMATE)</code></td><td>-</td></tr>
+<tr><td>충전</td><td>충전 시작</td><td><code>chargeStart()</code></td><td><code>getState(CHARGE)</code></td></tr>
+<tr><td>충전</td><td>충전 중지</td><td><code>chargeStop()</code></td><td><code>getState(CHARGE)</code></td></tr>
+<tr><td>충전</td><td>충전 상태 읽기</td><td><code>getState(CHARGE)</code></td><td>-</td></tr>
+</tbody>
+</table>
+<p>여기에는 되돌릴 수 없는 것이 없으므로 확인 대화상자가 없습니다. 그룹 제목은 공조와 충전입니다.</p>
+
+<h3 id="sec-info-enable">버튼이 켜지는 조건</h3>
+<p>여섯 버튼은 <strong>4단계 규칙을 그대로</strong> 씁니다. 키 준비됨, 키를 가진 연결(<code>Vehicle.hasKey</code>), 등록 상태 <code>enrolled</code>, 그리고 이 탭의 라이브러리 호출이 실행 중이 아닐 것. 별도 규칙도, 캐시된 "세션 준비됨" 입력도 없습니다. 누르면 INFOTAINMENT 세션을 시작하므로 사용자가 먼저 세션을 시작할 일이 없습니다. 실행할 때 조건이 더는 맞지 않는 탭은 아무것도 보내지 않고 결과 줄이 이유를 알려 줍니다(VCSEC 버튼과 같은 문구).</p>
+
+<h3 id="sec-info-tap">한 번 누를 때의 순서</h3>
+<p><code>15-lib-commands.md</code> "Call order"와 <code>14-lib-reading-state.md</code> A8.2를 따르며 SFR-023과 같은 순서입니다.</p>
+<ol>
+<li>기본 타임아웃으로 <code>vehicleStatus()</code>. <code>sleepStatus == AWAKE</code>일 때만 계속합니다. <code>ASLEEP</code>, <code>UNKNOWN</code>, 또는 실패하거나 <code>Uncertain</code>인 조회는 누름을 <strong>NotSent</strong>로 끝냅니다. 세션을 시작하지 않고 아무것도 보내지 않으며 <strong><code>wakeUp()</code>은 절대 부르지 않습니다</strong>. 깨우는 것은 사용자의 결정입니다. 문 그룹의 <strong>깨우기</strong> 버튼을 누르고, <code>AWAKE</code>가 될 때까지 기다린 뒤 다시 누릅니다. 조회에 성공하면 상태 카드를 갱신합니다.</li>
+<li>기본 타임아웃으로 <code>startSession(setOf(INFOTAINMENT))</code>. 이미 <code>Ready</code>인 도메인은 요청 없이 성공합니다. <code>Failure</code>나 <code>Uncertain</code>이면 누름을 <strong>NotSent</strong>로 끝내며, <code>KeyNotPaired</code>는 등록 상태도 <code>notEnrolled</code>로 바꾸고 <code>KeyStoreError.Locked</code>는 휴대폰 잠금 해제를 요청합니다.</li>
+<li>기본 타임아웃(<code>null</code>)으로 명령 호출 <strong>한 번</strong>. 결과가 무엇이든 두 번째 호출은 없습니다.</li>
+<li>그 밖에는 없습니다. <strong>자동 <code>getState</code>가 없고</strong> 재조회 사슬도 없습니다. 상태는 사용자가 읽기 버튼으로 읽습니다.</li>
+</ol>
+<p>읽기 누름은 같고, 3단계가 <code>getState(category)</code>입니다.</p>
+
+<h3 id="sec-info-results">결과</h3>
+<table>
+<thead><tr><th>결과</th><th>의미</th><th>앱이 보여 주는 것</th></tr></thead>
+<tbody>
+<tr><td><code>Success</code></td><td>차가 명령을 받아들임</td><td>"성공". 상태를 자동으로 읽지 <strong>않습니다</strong>. 새 상태는 읽기를 누른 뒤에만 나타납니다.</td></tr>
+<tr><td><code>Uncertain(error)</code></td><td>차가 실행했을 수 있음: 제때 응답 없음(Infotainment가 잠들었거나 응답을 잃음), 라이브러리가 반복한 쓰기 실패, 또는 읽을 수 없는 응답</td><td>오류 유형과 함께 "불확실", 차가 실행했을 수 있고 앱은 다시 보내지 <strong>않으며</strong> <strong>공조 상태 읽기</strong> 또는 <strong>충전 상태 읽기</strong>를 누르라는 문장. 그 카테고리에 <strong>미확인</strong> 표시가 붙습니다.</td></tr>
+<tr><td><code>Failure(InfotainmentRejected)</code></td><td>차가 거부함</td><td>유형과 "차가 거부했습니다"와 함께 "실패". 차 자체의 문구(<code>reason</code>)는 보이거나 기록하지 <strong>않습니다</strong>.</td></tr>
+<tr><td><code>Failure(NoSession)</code>, <code>Failure(NotConnected)</code>, 그 밖의 <code>Failure</code></td><td>호출 순서 또는 링크</td><td>오류 유형과 함께 "실패". <code>KeyNotPaired</code>는 등록 상태도 <code>notEnrolled</code>로 바꿉니다.</td></tr>
+<tr><td>NotSent</td><td>앱이 명령 전에 멈춤(잠듦, 절전 상태 모름, 상태 조회 실패, 세션 실패)</td><td>이유와 함께 "보내지 않음". 잠든 경우에는 깨우기 버튼 안내.</td></tr>
+</tbody>
+</table>
+<p>읽기 누름은 <code>Success</code>이면 읽은 값을 보여 주고, <code>Uncertain</code>과 <code>Failure</code>는 라이브러리가 돌려준 그대로 보여 주며(<code>16-lib-errors.md</code> "<code>getState</code> results"), 마지막 읽은 값은 나이와 함께 남고, 자동 재시도는 없습니다.</p>
+<ul>
+<li><strong>다시 보내지 않음.</strong> 앱은 <code>Uncertain</code> 뒤에도, 읽은 뒤에도 명령을 스스로 두 번 부르지 않습니다. 카테고리가 미확인인 동안에도 버튼은 켜져 있지만(사용자가 결정), 줄은 먼저 읽으라고 안내합니다.</li>
+<li><strong>미확인 표시.</strong> <code>Uncertain</code>인 명령 뒤에 섹션은 "공조 결과 미확인" 또는 "충전 결과 미확인"을 해당 읽기 버튼과 함께 보여 줍니다. 카테고리의 표시는 그 카테고리의 <code>getState</code>가 <code>Success</code>를 돌려줄 때, 그 카테고리의 이후 명령이 <code>Success</code>를 돌려줄 때, 또는 연결이 바뀔 때 지워집니다. <code>Uncertain</code>인 읽기는 표시를 유지합니다. 명령의 다른 실패는 표시를 켜지도 지우지도 않습니다.</li>
+</ul>
+
+<h3 id="sec-info-readout">읽은 값 표시</h3>
+<p>값은 화면에만 보입니다(FR-112). 카테고리별 마지막 성공한 읽기, 그 시각과 나이, 응답의 <code>timestamp</code>입니다. 이름이 정해진 이 필드만 읽으며, 없는 필드는 대시로 보이고 <code>0</code>은 <code>0</code> 그대로입니다(<code>14-lib-reading-state.md</code> A8.3).</p>
+<table>
+<thead><tr><th>카테고리</th><th>필드</th></tr></thead>
+<tbody>
+<tr><td>공조</td><td><code>is_climate_on</code>, <code>inside_temp_celsius</code>, <code>driver_temp_setting</code>, <code>timestamp</code></td></tr>
+<tr><td>충전</td><td><code>battery_level</code>, <code>charge_limit_soc</code>, <code>charger_power</code>, <code>charge_port_door_open</code>, <code>timestamp</code></td></tr>
+</tbody>
+</table>
+<p>읽기의 <code>timestamp</code>가 그 카테고리의 이전 읽기와 같으면 읽은 값 표시는 타임스탬프가 바뀌지 않았다고 알리므로 새 측정이라고 단정할 수 없습니다(A8.3). <strong>알려진 공백:</strong> <code>15-lib-commands.md</code> "Re-query"는 충전 시작이나 중지 뒤에 볼 필드로 <code>charge_state.charging_state</code>를 들지만, 매뉴얼은 Kotlin이나 Swift 앱이 그 oneof 래퍼를 어떻게 읽는지 말하지 않습니다. 그래서 읽은 값 표시는 이를 빼고, 매뉴얼이 설명할 때까지 충전 중이라는 눈에 보이는 신호로 <code>charger_power</code>를 씁니다(라이브러리 요청, #118).</p>
+
+<h3 id="sec-info-late">연결 변경과 늦은 결과</h3>
+<p>읽은 값, 미확인 표시, 누름의 결과는 그것을 만든 <strong>연결</strong>(<code>Vehicle</code> 인스턴스)에 속합니다. 연결이 바뀌면(링크 끊김, 재연결, 키 변경) 읽은 값과 표시가 지워집니다. 연결이 바뀐 <strong>뒤에</strong> 도착한 결과는 버려집니다. 읽은 값도, 표시도, 등록 상태나 상태 카드 갱신도 없습니다. 결과 줄 하나가 이를 기록하며 명령 이름만 적습니다. 연결이 바뀌어 결과를 버렸고, 차가 실행했을 수 있으니 다시 연결한 뒤 상태를 읽으라는 내용입니다.</p>
+
+<h3 id="sec-info-log">로그와 결과 줄</h3>
+<p>끝난 누름마다 결과 줄 하나만 남기고 그 밖에는 없습니다(<code>observe</code> 줄도, 파일 로그도 없음). 버튼 라벨, 결과, 괄호 안의 오류 유형(<code>Success</code>가 아니면), 소요 시간이며 예: <code>&lt;climate on label&gt;: &lt;uncertain word&gt; (Timeout(afterSend=true)) 5012 ms</code>. <code>Uncertain</code>과 NotSent는 고정 문장 하나가 붙습니다. 줄에는 <strong>값도, 필드 이름도, 차량 문구도, <code>error.message</code>도</strong> 들어가지 않습니다(FR-112, <code>14-lib-reading-state.md</code> A8.3 "Do not log a result"). 오류 유형은 <code>ResponseTooLarge</code>(<code>ProtocolFault(RESPONSE_MTU_EXCEEDED)</code>), <code>Timeout(afterSend=true|false)</code>, <code>NoSession</code>, 그 밖에는 오류의 클래스 이름(예: <code>InfotainmentRejected</code>, <code>NotConnected</code>, <code>Locked</code>)입니다. 소요 시간은 첫 라이브러리 호출부터 누름 전체입니다.</p>
+
+<h3 id="sec-info-concurrency">한 번에 호출 하나</h3>
+<p>모든 호출은 탭 자체의 <code>exclusive { }</code>로 실행됩니다. 한 번에 하나이고, 바쁜 동안 모든 버튼이 꺼집니다. 하나가 실행되는 동안 두 번째로 누르면 아무 일도 하지 않고 "busy"를 기록합니다. 라이브러리는 Infotainment 호출을 직렬화하지 않으므로 이 가드가 유일한 가드입니다.</p>
+<p>Android: <code>InfotainmentControl.kt</code>(순수: <code>InfoCommand</code>, <code>InfotainmentRunner</code>, <code>InfotainmentErrors</code>, <code>InfoUiState</code> 리듀서와 읽은 값 매핑)와 <code>src/test/.../InfotainmentControlTest.kt</code>. 상태는 <code>KeyControlState</code>에, 화면은 <code>ui/KeyControlTab.kt</code>에 있습니다. iOS: 같은 구분으로 <code>KeyControl.swift</code> 또는 새 순수 파일에 두고, SFR-021처럼 가짜 백엔드를 씁니다.</p>
 
 <h2 id="sec-impl">구현</h2>
 <table>
@@ -168,6 +236,7 @@
 <tbody>
 <tr><td>순수 로직과 테스트</td><td><code>KeyControl.kt</code>, <code>src/test/.../KeyControlTest.kt</code></td><td><code>KeyControl.swift</code>, <code>Tests/KeyControlTests.swift</code>; <code>KeyReplacement.swift</code>, <code>Tests/KeyReplacementTests.swift</code> (SFR-020); <code>EnrollmentProgress.swift</code>, <code>Tests/EnrollmentPopupTests.swift</code> (SFR-021)</td></tr>
 <tr><td>상태</td><td><code>KeyControlState.kt</code>(<code>MainViewModel</code>에서 생성)</td><td><code>KeyControlModel.swift</code>(<code>MonitorModel</code>에서 생성)</td></tr>
+<tr><td>Infotainment (SFR-025)</td><td><code>InfotainmentControl.kt</code>, <code>src/test/.../InfotainmentControlTest.kt</code></td><td>예정</td></tr>
 <tr><td>화면</td><td><code>ui/KeyControlTab.kt</code></td><td><code>Views/KeyControlTab.swift</code></td></tr>
 </tbody>
 </table>
@@ -205,6 +274,17 @@
 <li>기다리는 중에 <strong>취소</strong>를 누릅니다: 시트가 멈추는 중이라고 알린 뒤 요청은 되돌릴 수 없다는 안내와 함께 취소됨을 보이고, 이후 <code>sessionInfo</code> 요청이 없습니다(Log 탭). 그 뒤 카드를 대고 <strong>등록 상태 확인</strong>을 누르면 <code>enrolled</code>가 나올 수 있습니다.</li>
 <li>시트가 열린 채 블루투스를 끄거나 멀어집니다: 시트가 바로 닫히고 결과 줄이 기다리기를 중단했다고 알립니다.</li>
 <li>흐름이 도는 동안 시트를 아래로 끌어 봅니다: 그대로 남습니다.</li>
+</ol>
+
+<p>SFR-025, Infotainment 공조와 충전(실차에서는 모두 미확인, #118. 값이 아니라 차가 한 동작을 적습니다):</p>
+<ol start="21">
+<li>깨어 있는 차, 등록된 키: Infotainment 버튼 여섯 개가 켜져 있습니다. 블루투스를 끄거나 3단계 전에는 꺼져 있습니다.</li>
+<li><strong>공조 켜기</strong>: 결과가 "성공"이고, <strong>공조 상태 읽기</strong>가 <code>is_climate_on</code>을 보여 주며, 차의 자체 화면과 일치합니다. 이어서 <strong>공조 끄기</strong>를 하고 다시 읽습니다.</li>
+<li>케이블을 연결한 채 <strong>충전 시작</strong>과 <strong>충전 중지</strong>: 결과, 그다음 <strong>충전 상태 읽기</strong>(<code>charger_power</code>, <code>battery_level</code>). 차가 보여 준 것을 적습니다. 케이블이 없으면 차가 돌려주는 결과 유형을 적습니다.</li>
+<li>차가 잠들게 두고 <strong>공조 켜기</strong>를 누릅니다: "보내지 않음, 잠듦"이 나오고 깨우기도 세션도 없습니다(Log 탭에 Infotainment 통신이 없음). <strong>깨우기</strong>를 누르고 상태 카드가 깨어 있음이 될 때까지 기다린 뒤 다시 누릅니다.</li>
+<li><code>Uncertain</code>을 일으킵니다(예: 누른 직후 통신 범위 끝까지 걸어감): 줄이 오류 유형과 함께 불확실이라고 알리고, "미확인" 표시가 나타나고, 두 번째 명령은 보내지 않으며, <strong>공조 상태 읽기</strong>가 성공하면 표시가 지워집니다.</li>
+<li>명령이 실행되는 동안 링크를 끊습니다: 늦은 결과는 버려지고("버림" 줄 하나) 읽은 값이 지워집니다.</li>
+<li>결과 줄을 복사합니다: 명령 이름, 결과, 소요 시간, 오류 유형만 들어 있습니다.</li>
 </ol>
 
 <footer class="page-nav">

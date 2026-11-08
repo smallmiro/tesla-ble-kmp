@@ -48,8 +48,8 @@
 </ol></div>
 
 <h2 id="sec-android">Android</h2>
-<p>모니터 앱입니다(<a href="04-monitor-app.html">4. 모니터 앱</a>, SFR-010~SFR-018). 탭 다섯 개와 포그라운드 서비스로 이루어져 있습니다. 빌드 <code>0.3.0 (3)</code>, 단위 테스트는 통과했고 실기기 확인은 대기 중입니다.</p>
-<p>Gradle 모듈 <code>:samples:android</code>, 패키지와 애플리케이션 ID는 <code>dev.mirolab.teslable.sample</code>, <code>minSdk</code>는 31입니다. <code>MainActivity.kt</code>는 탭과 권한 요청을 담당하고 화면이 보이는 동안 화면을 켜 둡니다. <code>MonitorService.kt</code>와 <code>MonitorEngine.kt</code>가 서비스, 연결, 이벤트, 조회, 로그를 운영합니다. <code>SampleState.kt</code>는 Control 탭의 상태를 보관하고 모든 동작을 <code>exclusive { }</code>로 실행하므로 라이브러리 호출은 한 번에 하나만 실행됩니다. <code>KeyControl.kt</code>(순수 단계 규칙과 명령 실행기), <code>KeyControlState.kt</code>(탭 상태), <code>Enrollment.kt</code>(페어링과 확인, 두 탭이 공유)가 키·제어 탭을 이룹니다. 탭 화면은 <code>ui/</code>에 있습니다. 단위 테스트(<code>KeyControlTest</code> 포함)는 <code>src/test/</code>에 있고 <code>./gradlew :samples:android:testDebugUnitTest</code>로 실행합니다.</p>
+<p>모니터 앱입니다(<a href="04-monitor-app.html">4. 모니터 앱</a>, SFR-010~SFR-018). 탭 다섯 개와 포그라운드 서비스로 이루어져 있습니다. 빌드 <code>0.4.0 (4)</code>, 단위 테스트는 통과했고 실기기 확인은 대기 중입니다.</p>
+<p>Gradle 모듈 <code>:samples:android</code>, 패키지와 애플리케이션 ID는 <code>dev.mirolab.teslable.sample</code>, <code>minSdk</code>는 31입니다. <code>MainActivity.kt</code>는 탭과 권한 요청을 담당하고 화면이 보이는 동안 화면을 켜 둡니다. <code>MonitorService.kt</code>와 <code>MonitorEngine.kt</code>가 서비스, 연결, 이벤트, 조회, 로그를 운영합니다. <code>SampleState.kt</code>는 Control 탭의 상태를 보관하고 모든 동작을 <code>exclusive { }</code>로 실행하므로 라이브러리 호출은 한 번에 하나만 실행됩니다. <code>KeyControl.kt</code>(순수 단계 규칙과 명령 실행기), <code>InfotainmentControl.kt</code>(Infotainment 공조·충전 버튼의 순수 규칙, 실행기, 읽은 값 표시, SFR-025), <code>KeyControlState.kt</code>(탭 상태), <code>Enrollment.kt</code>(페어링과 확인, 두 탭이 공유)가 키·제어 탭을 이룹니다. 탭 화면은 <code>ui/</code>에 있습니다. 단위 테스트(<code>KeyControlTest</code>와 <code>InfotainmentControlTest</code> 포함)는 <code>src/test/</code>에 있고 <code>./gradlew :samples:android:testDebugUnitTest</code>로 실행합니다.</p>
 <table>
 <thead><tr><th>탭</th><th>내용</th></tr></thead>
 <tbody>
@@ -57,7 +57,7 @@
 <tr><td>Query</td><td><code>vehicleStatus()</code>, <code>keySummary()</code>, <code>listKeys()</code>를 30초마다(변경 가능) 조회, 결과와 시각, 세션, "지금 조회"</td></tr>
 <tr><td>Log</td><td>줄 수, 인식하지 못한 이벤트 수, 마지막 줄들, 파일 경로, 메모와 Mark, 새 파일</td></tr>
 <tr><td>Control</td><td>예전의 단일 화면(아래). 모니터의 연결과 키를 사용합니다</td></tr>
-<tr><td>키·제어</td><td>네 단계(키, 연결, 등록, 제어), VCSEC 명령 버튼 그리드, 상태 카드, 결과 (<a href="05-key-control-tab.html">5. 키·제어 탭</a>)</td></tr>
+<tr><td>키·제어</td><td>네 단계(키, 연결, 등록, 제어), VCSEC 명령 버튼 그리드, 인포테인먼트 섹션(공조 켜기/끄기, 충전 시작/중지, 공조·충전 상태 읽기, SFR-025), 상태 카드, 결과 (<a href="05-key-control-tab.html">5. 키·제어 탭</a>)</td></tr>
 </tbody>
 </table>
 <p>Control 탭:</p>
