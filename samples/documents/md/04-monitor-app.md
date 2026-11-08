@@ -1,6 +1,6 @@
 # Monitor App (SFR-010 to SFR-017)
 
-Status: **Android implemented** (build `0.3.0 (3)`) and **iOS implemented** (build `0.5.0 (26)`); unit tests and builds
+Status: **Android implemented** (build `0.4.0 (4)`) and **iOS implemented** (build `0.5.0 (26)`); unit tests and builds
 pass, **real-device checks pending** for both (iOS background reconnect is unconfirmed until the plan Task 2 spike).
 Issue #91. The library APIs it needs are available: `Vehicle.events`
 (`12-lib-getting-started.md` §Broadcast events, `14-lib-reading-state.md` B2) and the key accessibility `KeyAccessibility`
