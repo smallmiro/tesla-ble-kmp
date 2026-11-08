@@ -6,16 +6,16 @@ control buttons.
 
 ## Android (`samples/android`)
 
-The monitor app (`04-monitor-app.md`, SFR-010 to SFR-018): five tabs and a foreground service. Build `0.3.0 (3)`; unit
+The monitor app (`04-monitor-app.md`, SFR-010 to SFR-018): five tabs and a foreground service. Build `0.4.0 (4)`; unit
 tests pass, real-device check pending.
 
 - Module `:samples:android`, package and application id `dev.mirolab.teslable.sample`, `minSdk` 31.
 - Files: see `04-monitor-app.md` §Android implementation. `MainActivity.kt` (tabs, permissions, `FLAG_KEEP_SCREEN_ON` while
   visible), `MonitorService.kt` and `MonitorEngine.kt` (service, connection, events, queries, logs), `SampleState.kt` (Control
   tab state; every action runs through `exclusive { }` so only one library call runs at a time), `KeyControl.kt` (Key & Control
-  step rules and command runner, pure), `KeyControlState.kt` (Key & Control tab state), `Enrollment.kt` (pair + confirm helper
+  step rules and command runner, pure), `InfotainmentControl.kt` (Infotainment climate and charging rules, runner, readout, pure, SFR-025), `KeyControlState.kt` (Key & Control tab state), `Enrollment.kt` (pair + confirm helper
   shared by both tabs), `ui/*Tab.kt`.
-- Tests: `src/test/` (`VinMaskTest`, `LogWriterTest`, `ConnectionLoopTest`, `LiveStateTest`, `KeyControlTest`), run with
+- Tests: `src/test/` (`VinMaskTest`, `LogWriterTest`, `ConnectionLoopTest`, `LiveStateTest`, `KeyControlTest`, `InfotainmentControlTest`), run with
   `./gradlew :samples:android:testDebugUnitTest`.
 
 | Tab | Contents |
@@ -24,7 +24,7 @@ tests pass, real-device check pending.
 | Query | `vehicleStatus()`, `keySummary()`, `listKeys()` every 30 s (changeable), results with outcome and time, sessions, "query now" |
 | Log | Line counts, unrecognized count, last lines, file path, memo and Mark, new file |
 | Control | The former single screen (below). Uses the monitor's connection and key |
-| Key & Control | Four steps (key, connect, enroll, control) and a button grid of the VCSEC commands, status card, results (`05-key-control-tab.md`) |
+| Key & Control | Four steps (key, connect, enroll, control) and a button grid of the VCSEC commands, an Infotainment section (climate on/off, charge start/stop, read climate / charge; SFR-025), status card, results (`05-key-control-tab.md`) |
 
 Control tab (the former single screen):
 

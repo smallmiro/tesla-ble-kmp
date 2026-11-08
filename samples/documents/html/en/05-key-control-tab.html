@@ -43,7 +43,7 @@
 
 <div class="callout warn">
 <strong>Built on Android and iOS, real-device check pending</strong>
-<p>Android build <code>0.3.0 (3)</code> and iOS build <code>0.5.0 (25)</code>. The step rules and the command runner are covered by unit tests; the screen and the car are checked with the checklist at the end of this page.</p>
+<p>Android build <code>0.4.0 (4)</code> and iOS build <code>0.5.0 (25)</code>. The step rules and the command runner are covered by unit tests; the screen and the car are checked with the checklist at the end of this page. The Infotainment section (SFR-025) is built on Android only; on iOS it is planned with the same spec.</p>
 </div>
 
 <div class="toc"><strong>On this page</strong><ol>
@@ -54,17 +54,19 @@
 <li><a href="#sec-replace">Delete and recreate the key</a></li>
 <li><a href="#sec-run">Running a command</a></li>
 <li><a href="#sec-buttons">Buttons</a></li>
+<li><a href="#sec-infotainment">Infotainment controls</a></li>
 <li><a href="#sec-impl">Implementation</a></li>
 <li><a href="#sec-check">Real-car checklist</a></li>
 </ol></div>
 
-<p>Library manual chapters this tab follows: 13 "Checking whether a key is enrolled" and "Enrolling a key", 15 "Implemented: VCSEC", 16 "Per-command re-query", 14 (<code>vehicleStatus()</code>) and 17 (Swift arguments).</p>
+<p>Library manual chapters this tab follows: 13 "Checking whether a key is enrolled" and "Enrolling a key", 15 "Implemented: VCSEC" and "Implemented: Infotainment climate and charging" (SFR-025), 16 "Per-command re-query" and "<code>getState</code> results", 14 (<code>vehicleStatus()</code> and A8 <code>getState</code>) and 17 (Swift arguments).</p>
 
 <h2 id="sec-req">Requirement</h2>
 <table>
 <thead><tr><th>ID</th><th>What the app does</th></tr></thead>
 <tbody>
 <tr><td>SFR-018</td><td>A <strong>Key &amp; Control</strong> tab after Control. Four steps, each marked done, to do or blocked with a one-line hint: (1) <strong>Key</strong>: create or load the monitor key; (2) <strong>Connect</strong>: uses the saved VIN and the monitor's connection; (3) <strong>Enroll</strong>: request enrollment (key card on the console), progress lines, automatic confirmation; (4) <strong>Control</strong>: a grid of buttons for the available VCSEC commands. Every command first makes sure a VCSEC session exists and is then sent once; an <code>Uncertain</code> result is never resent and is followed by a <code>vehicleStatus()</code> re-query. A status card shows lock, trunk, frunk and sleep from the last <code>vehicleStatus()</code>.</td></tr>
+<tr><td>SFR-025</td><td>An Infotainment section in step 4, after the VCSEC grid: <strong>climate on / off</strong>, <strong>charge start / stop</strong> and <strong>read climate / read charge</strong> (<code>getState(CLIMATE)</code> and <code>getState(CHARGE)</code>, also the re-query after <code>Uncertain</code>). The enabling rule is the one of step 4. One tap is: <code>vehicleStatus()</code> (only <code>AWAKE</code> goes on), <code>startSession(setOf(INFOTAINMENT))</code>, then <strong>one</strong> call. <code>wakeUp()</code> is never called and nothing is resent. <code>Uncertain</code> is shown as it is, and the category is marked "unconfirmed" until a read or a later success settles it. A result that arrives after the connection changed is dropped. The log keeps only the command, the outcome, the duration and the error type. Details in <a href="#sec-infotainment">Infotainment controls</a>.</td></tr>
 </tbody>
 </table>
 
@@ -157,10 +159,76 @@
 <tr><td>Cybertruck</td><td>Tonneau open / close / stop</td><td><code>openTonneau()</code>, <code>closeTonneau()</code>, <code>stopTonneau()</code></td><td>No</td></tr>
 </tbody>
 </table>
-<p>Confirming a dialog checks the step 4 rule again; if it no longer holds, or another call is running, nothing is sent and a result line says why. The Model X and Cybertruck buttons sit in a collapsed "Other models" section. Infotainment commands (climate, charging, horn, lights) wait for M5 and are not shown. The tab also has a status card (lock, trunk, frunk, sleep and the time of the last read) with a <strong>Refresh status</strong> button, and a result list with the newest line first, time stamped and without the VIN. The status card belongs to one connection: it is cleared when the connection changes, and a re-query that ends after the connection changed does not update it.</p>
+<p>Confirming a dialog checks the step 4 rule again; if it no longer holds, or another call is running, nothing is sent and a result line says why. The Model X and Cybertruck buttons sit in a collapsed "Other models" section. The Infotainment climate and charging buttons are a separate section below the grid (<a href="#sec-infotainment">Infotainment controls</a>); the other Infotainment commands (horn, lights, windows, media) wait for the rest of M5 and are not shown. The tab also has a status card (lock, trunk, frunk, sleep and the time of the last read) with a <strong>Refresh status</strong> button, and a result list with the newest line first, time stamped and without the VIN. The status card belongs to one connection: it is cleared when the connection changes, and a re-query that ends after the connection changed does not update it.</p>
 <p>All library calls of this tab run one at a time through the tab's own <code>exclusive { }</code>, and the buttons are disabled while a call runs. On Android they run in the view model's scope, so switching tabs or rotating the phone does not cancel them. The Control tab has its own guard; the library serializes VCSEC commands per connection, so presses on both tabs cannot interleave on the wire.</p>
 
 <p><strong>Callouts and actions (SFR-024, iOS).</strong> On a wide screen (iPhone Duo inner display) the right pane shows the lock icon centred above the car photo, <strong>Frunk open</strong> (small "Open" over bold "Front") top left, <strong>Trunk open/close</strong> ("Open/Close" over bold "Trunk") top right, and a bottom row with <strong>Wake up</strong> and <strong>Close trunk</strong> (<code>QuickControls</code>). They call the same <code>KeyControlModel.press</code>, so every rule on this page applies unchanged: step 4 must be on (otherwise they are dimmed and the same orange hint shows once), <strong>Frunk open</strong> asks first, a session is ensured, the command is sent once, <code>vehicleStatus()</code> follows, and <code>Uncertain</code> is never resent. The right pane shows the confirmation dialog while this tab is open in the left pane (<code>ownsCommandDialog: false</code> here), so there is only one dialog. The latest result line appears under the car.</p>
+
+<h2 id="sec-infotainment">Infotainment controls (SFR-025)</h2>
+<p>A section at the bottom of step 4, under the VCSEC grid and the "Other models" section, titled <strong>Infotainment (climate, charging)</strong>. It is the first use of the library's Infotainment commands (<code>15-lib-commands.md</code> "Implemented: Infotainment climate and charging", M5; <strong>not confirmed on a real car yet</strong>, #118) and of <code>getState</code> (<code>14-lib-reading-state.md</code> A8). Android is built; iOS is planned with the same spec. Both apps use the same Korean UI labels, one per row below (given by meaning); the exact strings are in <code>InfoCommand</code> and <code>InfoCategory</code> of the Android <code>InfotainmentControl.kt</code>, and iOS copies them (the Android test <code>buttonLabelsMatchTheIosSample</code> pins them).</p>
+<table>
+<thead><tr><th>Group</th><th>Button</th><th>Call</th><th>If <code>Uncertain</code>, read with</th></tr></thead>
+<tbody>
+<tr><td>Climate</td><td>Climate on</td><td><code>climateOn()</code></td><td><code>getState(CLIMATE)</code></td></tr>
+<tr><td>Climate</td><td>Climate off</td><td><code>climateOff()</code></td><td><code>getState(CLIMATE)</code></td></tr>
+<tr><td>Climate</td><td>Read climate</td><td><code>getState(CLIMATE)</code></td><td>-</td></tr>
+<tr><td>Charging</td><td>Charge start</td><td><code>chargeStart()</code></td><td><code>getState(CHARGE)</code></td></tr>
+<tr><td>Charging</td><td>Charge stop</td><td><code>chargeStop()</code></td><td><code>getState(CHARGE)</code></td></tr>
+<tr><td>Charging</td><td>Read charge</td><td><code>getState(CHARGE)</code></td><td>-</td></tr>
+</tbody>
+</table>
+<p>No confirmation dialog, because nothing here is irreversible. The groups are titled Climate and Charging.</p>
+
+<h3 id="sec-info-enable">When the buttons are enabled</h3>
+<p>The six buttons use <strong>exactly the step 4 rule</strong>: key ready, connected with a key (<code>Vehicle.hasKey</code>), enrollment <code>enrolled</code>, and no library call of this tab running. There is no separate rule and no cached "session is ready" input: the tap starts the INFOTAINMENT session, so the user never starts a session first. A tap whose conditions no longer hold when it runs sends nothing, and the result line says why (the same text as for the VCSEC buttons).</p>
+
+<h3 id="sec-info-tap">Order of one tap</h3>
+<p>It follows <code>15-lib-commands.md</code> "Call order" and <code>14-lib-reading-state.md</code> A8.2, and is the same order as SFR-023:</p>
+<ol>
+<li><code>vehicleStatus()</code> with the default timeout. Only <code>sleepStatus == AWAKE</code> goes on. <code>ASLEEP</code>, <code>UNKNOWN</code> or a failed or <code>Uncertain</code> read ends the tap as <strong>NotSent</strong>: no session is started, nothing is sent, and <strong><code>wakeUp()</code> is never called</strong>. Waking is the user's decision: the <strong>Wake up</strong> button of the Doors group, then wait for <code>AWAKE</code>, then tap again. A successful read refreshes the status card.</li>
+<li><code>startSession(setOf(INFOTAINMENT))</code> with the default timeout. A domain that is already <code>Ready</code> succeeds without a request. <code>Failure</code> or <code>Uncertain</code> ends the tap as <strong>NotSent</strong>; <code>KeyNotPaired</code> also sets the enrollment to <code>notEnrolled</code>, and <code>KeyStoreError.Locked</code> asks to unlock the phone.</li>
+<li><strong>One</strong> command call with the default timeout (<code>null</code>). Never a second one, whatever the result.</li>
+<li>Nothing else: <strong>no automatic <code>getState</code></strong> and no re-query chain. The user reads the state with the read buttons.</li>
+</ol>
+<p>A read tap is the same, with <code>getState(category)</code> as step 3.</p>
+
+<h3 id="sec-info-results">Results</h3>
+<table>
+<thead><tr><th>Result</th><th>Meaning</th><th>What the app shows</th></tr></thead>
+<tbody>
+<tr><td><code>Success</code></td><td>The car accepted the command</td><td>"succeeded". The state is <strong>not</strong> read automatically: the new state appears only after a read tap.</td></tr>
+<tr><td><code>Uncertain(error)</code></td><td>The car may have run it: no reply in time (Infotainment asleep or the reply was lost), a failed write the library repeated, or an unreadable reply</td><td>"uncertain" with the error type and the sentence that the car may have run it, that the app does <strong>not</strong> resend, and to press <strong>Read climate</strong> or <strong>Read charge</strong>. The category is marked <strong>unconfirmed</strong>.</td></tr>
+<tr><td><code>Failure(InfotainmentRejected)</code></td><td>The car refused</td><td>"failed" with the type and "the car refused it". The car's own text (<code>reason</code>) is <strong>not</strong> shown or logged.</td></tr>
+<tr><td><code>Failure(NoSession)</code>, <code>Failure(NotConnected)</code>, other <code>Failure</code></td><td>Call order or link</td><td>"failed" with the error type. <code>KeyNotPaired</code> also sets the enrollment to <code>notEnrolled</code>.</td></tr>
+<tr><td>NotSent</td><td>The app stopped before the command (asleep, sleep unknown, status read failed, session failed)</td><td>"not sent" with the reason; for asleep, a pointer to the Wake up button.</td></tr>
+</tbody>
+</table>
+<p>For a read tap, <code>Success</code> shows the readout; <code>Uncertain</code> and <code>Failure</code> are shown as the library returned them (<code>16-lib-errors.md</code> "<code>getState</code> results"), the last readout stays with its age, and there is no automatic retry.</p>
+<ul>
+<li><strong>Never resend.</strong> The app never calls a command a second time by itself, not after <code>Uncertain</code> and not after a read. The buttons stay enabled while a category is unconfirmed (the user decides), but the line says to read first.</li>
+<li><strong>Unconfirmed marker.</strong> After an <code>Uncertain</code> command the section shows "climate result unconfirmed" or "charge result unconfirmed" with the matching read button next to it. The marker of a category is cleared when a <code>getState</code> of that category returns <code>Success</code>, when a later command of that category returns <code>Success</code>, or when the connection changes. An <code>Uncertain</code> read keeps it. Other failures of a command neither set nor clear it.</li>
+</ul>
+
+<h3 id="sec-info-readout">Readout</h3>
+<p>Values are shown on screen only (FR-112): the last successful read per category, its time and age, and the reply's <code>timestamp</code>. Only these named fields are read; a missing field shows as a dash and <code>0</code> stays <code>0</code> (<code>14-lib-reading-state.md</code> A8.3).</p>
+<table>
+<thead><tr><th>Category</th><th>Fields</th></tr></thead>
+<tbody>
+<tr><td>Climate</td><td><code>is_climate_on</code>, <code>inside_temp_celsius</code>, <code>driver_temp_setting</code>, <code>timestamp</code></td></tr>
+<tr><td>Charge</td><td><code>battery_level</code>, <code>charge_limit_soc</code>, <code>charger_power</code>, <code>charge_port_door_open</code>, <code>timestamp</code></td></tr>
+</tbody>
+</table>
+<p>If the <code>timestamp</code> of a read equals the one of the previous read of that category, the readout says the timestamp did not change, so it is not necessarily a new measurement (A8.3). <strong>Known gap:</strong> <code>15-lib-commands.md</code> "Re-query" names <code>charge_state.charging_state</code> as the field to look at after charge start or stop, but the manual does not say how a Kotlin or Swift app reads that oneof wrapper. The readout therefore leaves it out and uses <code>charger_power</code> as the visible sign of charging until the manual describes it (library request, #118).</p>
+
+<h3 id="sec-info-late">Connection change and late results</h3>
+<p>The readouts, the unconfirmed markers and the result of a tap belong to the <strong>connection</strong> (the <code>Vehicle</code> instance) that produced them. When the connection changes (link loss, reconnect, key change) the readouts and markers are cleared. A result that arrives <strong>after</strong> the connection changed is dropped: no readout, no marker, no update of the enrollment or the status card. One result line records it and names the command only: the result was dropped because the connection changed, the car may have run it, read the state after reconnecting.</p>
+
+<h3 id="sec-info-log">Log and result lines</h3>
+<p>One result line per finished tap and nothing else (no <code>observe</code> line, no file log): the button label, the result, the error type in parentheses (unless <code>Success</code>) and the duration, for example <code>&lt;climate on label&gt;: &lt;uncertain word&gt; (Timeout(afterSend=true)) 5012 ms</code>. <code>Uncertain</code> and NotSent add one fixed sentence. <strong>No value, no field name, no vehicle text and no <code>error.message</code></strong> goes into the line (FR-112, <code>14-lib-reading-state.md</code> A8.3 "Do not log a result"). The error types are <code>ResponseTooLarge</code> (<code>ProtocolFault(RESPONSE_MTU_EXCEEDED)</code>), <code>Timeout(afterSend=true|false)</code>, <code>NoSession</code>, and otherwise the class name of the error (for example <code>InfotainmentRejected</code>, <code>NotConnected</code>, <code>Locked</code>). The duration is the whole tap, from the first library call.</p>
+
+<h3 id="sec-info-concurrency">One call at a time</h3>
+<p>Every call runs through the tab's own <code>exclusive { }</code>: one at a time, all buttons off while busy. A second tap while one runs does nothing and logs "busy". The library does not serialize Infotainment calls, so this guard is the only one.</p>
+<p>Android: <code>InfotainmentControl.kt</code> (pure: <code>InfoCommand</code>, <code>InfotainmentRunner</code>, <code>InfotainmentErrors</code>, the <code>InfoUiState</code> reducer and the readout mapping) with <code>src/test/.../InfotainmentControlTest.kt</code>; the state is in <code>KeyControlState</code> and the screen in <code>ui/KeyControlTab.kt</code>. iOS: the same split, in <code>KeyControl.swift</code> or a new pure file, with a fake backend as for SFR-021.</p>
 
 <h2 id="sec-impl">Implementation</h2>
 <table>
@@ -168,6 +236,7 @@
 <tbody>
 <tr><td>Pure logic and tests</td><td><code>KeyControl.kt</code>, <code>src/test/.../KeyControlTest.kt</code></td><td><code>KeyControl.swift</code>, <code>Tests/KeyControlTests.swift</code>; <code>KeyReplacement.swift</code>, <code>Tests/KeyReplacementTests.swift</code> (SFR-020); <code>EnrollmentProgress.swift</code>, <code>Tests/EnrollmentPopupTests.swift</code> (SFR-021)</td></tr>
 <tr><td>State</td><td><code>KeyControlState.kt</code> (made in <code>MainViewModel</code>)</td><td><code>KeyControlModel.swift</code> (made in <code>MonitorModel</code>)</td></tr>
+<tr><td>Infotainment (SFR-025)</td><td><code>InfotainmentControl.kt</code>, <code>src/test/.../InfotainmentControlTest.kt</code></td><td>planned</td></tr>
 <tr><td>Screen</td><td><code>ui/KeyControlTab.kt</code></td><td><code>Views/KeyControlTab.swift</code></td></tr>
 </tbody>
 </table>
@@ -205,6 +274,16 @@
 <li>Press <strong>Cancel</strong> while waiting: the sheet says it is stopping, then cancelled with the note that the request cannot be recalled; no further <code>sessionInfo</code> requests (Log tab). Tap the card afterwards, then <strong>Check enrollment</strong>: it may show <code>enrolled</code>.</li>
 <li>Turn Bluetooth off or walk away while the sheet is open: the sheet closes at once and a result line says the waiting was stopped.</li>
 <li>While the flow runs, swipe the sheet down: it stays.</li>
+</ol>
+<p>SFR-025, Infotainment climate and charging (everything is unconfirmed on a real car, #118; write what the car did, not values):</p>
+<ol start="21">
+<li>Awake car, enrolled key: the six Infotainment buttons are on; with Bluetooth off, or before step 3, they are off.</li>
+<li><strong>Climate on</strong>: the result is "succeeded"; <strong>Read climate</strong> shows <code>is_climate_on</code>; the car's own screen agrees. Then <strong>Climate off</strong> and read again.</li>
+<li><strong>Charge start</strong> and <strong>Charge stop</strong> with a cable connected: the result, then <strong>Read charge</strong> (<code>charger_power</code>, <code>battery_level</code>); note what the car showed. Without a cable: note the result type the car returns.</li>
+<li>Let the car fall asleep and tap <strong>Climate on</strong>: "not sent, asleep", no wake and no session (the Log tab shows no Infotainment traffic). Press <strong>Wake up</strong>, wait until the status card says awake, tap again.</li>
+<li>Force an <code>Uncertain</code> (for example walk to the edge of range right after the tap): the line says uncertain with the error type, the "unconfirmed" marker shows, no second command is sent, and <strong>Read climate</strong> clears it when it succeeds.</li>
+<li>Drop the link while a command runs: the late result is dropped (one "dropped" line) and the readouts are cleared.</li>
+<li>Copy the result lines: they contain command names, outcomes, durations and error types only.</li>
 </ol>
 
 <footer class="page-nav">
