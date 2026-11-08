@@ -1,7 +1,9 @@
 // Ported from vehicle-command@a4b43c1 pkg/vehicle/infotainment.go (Apache-2.0) — getCarServerResponse, executeCarServerAction;
-// pkg/vehicle/state.go GetState; pkg/vehicle/climate.go (command methods; builders in ClimateActions.kt)
+// pkg/vehicle/state.go GetState; pkg/vehicle/climate.go, charge.go (command methods; builders in ClimateActions.kt, ChargeActions.kt)
 package dev.mirolab.teslable.application.infotainment
 
+import com.tesla.generated.carserver.common.ChargeSchedule
+import com.tesla.generated.carserver.common.PreconditionSchedule
 import com.tesla.generated.carserver.server.Action
 import com.tesla.generated.carserver.server.Response
 import com.tesla.generated.carserver.server.VehicleAction
@@ -11,6 +13,7 @@ import com.tesla.generated.universalmessage.RoutableMessage
 import dev.mirolab.teslable.application.dispatcher.valueOr
 import dev.mirolab.teslable.application.vehicle.SendWithRetry
 import dev.mirolab.teslable.model.CabinOverheatProtectionTemperature
+import dev.mirolab.teslable.model.ChargingPolicy
 import dev.mirolab.teslable.model.ClimateKeeperMode
 import dev.mirolab.teslable.model.SeatClimateLevel
 import dev.mirolab.teslable.model.SeatPosition
@@ -142,6 +145,117 @@ public class InfotainmentCommands(
         temperature: CabinOverheatProtectionTemperature,
         timeout: Duration = send.commandTimeout,
     ): VehicleResult<Unit> = command(ClimateActions.cabinOverheatProtectionTemperature(temperature), timeout)
+
+    /** 충전 시작(FR-070). Go `ChargeStart`. */
+    public suspend fun chargeStart(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(ChargeActions.chargeStart(), timeout)
+
+    /** 충전 중지(FR-070). Go `ChargeStop`. */
+    public suspend fun chargeStop(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(ChargeActions.chargeStop(), timeout)
+
+    /** 충전 한도(%)(FR-071). Go `ChangeChargeLimit`. 값을 검사하지 않는다(Go와 같다). */
+    public suspend fun setChargeLimit(
+        percent: Int,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ChargeActions.chargeLimit(percent), timeout)
+
+    /** 충전 전류(A)(FR-072). Go `SetChargingAmps`. 값을 검사하지 않는다(Go와 같다). */
+    public suspend fun setChargingAmps(
+        amps: Int,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ChargeActions.chargingAmps(amps), timeout)
+
+    /** 표준 범위 충전(FR-073). Go `ChargeStandardRange`. */
+    public suspend fun chargeStandardRange(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(ChargeActions.chargeStandardRange(), timeout)
+
+    /** 최대 범위 충전(FR-073). Go `ChargeMaxRange`. */
+    public suspend fun chargeMaxRange(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(ChargeActions.chargeMaxRange(), timeout)
+
+    /** 예약 충전(FR-074). Go `ScheduleCharging`. [minutesAfterMidnight]는 차량 현지 자정 뒤 분이며 검사하지 않는다(Go와 같다). */
+    public suspend fun scheduleCharging(
+        enabled: Boolean,
+        minutesAfterMidnight: Int,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ChargeActions.scheduleCharging(enabled, minutesAfterMidnight), timeout)
+
+    /**
+     * 예약 출발(FR-075). Go `ScheduleDeparture`. 시각은 차량 현지 자정 뒤 분이다. [departAtMinutes]가 0..1440 밖이면 보내지 않고
+     * `Failure(InvalidArgument)`이고, [offPeakEndMinutes]는 검사하지 않는다(Go와 같다).
+     */
+    public suspend fun scheduleDeparture(
+        departAtMinutes: Int,
+        offPeakEndMinutes: Int,
+        preconditioning: ChargingPolicy,
+        offPeak: ChargingPolicy,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ChargeActions.scheduleDeparture(departAtMinutes, offPeakEndMinutes, preconditioning, offPeak), timeout)
+
+    /** 예약 출발 해제(FR-075). Go `ClearScheduledDeparture`. */
+    public suspend fun clearScheduledDeparture(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(ChargeActions.clearScheduledDeparture(), timeout)
+
+    /** 저전력 모드(FR-076). Go `SetLowPowerMode`. */
+    public suspend fun setLowPowerMode(
+        enabled: Boolean,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ChargeActions.lowPowerMode(enabled), timeout)
+
+    /** 액세서리 전원 유지(FR-077). Go `SetKeepAccessoryPowerMode`. */
+    public suspend fun setKeepAccessoryPowerMode(
+        enabled: Boolean,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ChargeActions.keepAccessoryPowerMode(enabled), timeout)
+
+    /** 충전 일정 추가(FR-078). Go `AddChargeSchedule`. [schedule]을 그대로 보낸다. */
+    public suspend fun addChargeSchedule(
+        schedule: ChargeSchedule,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ChargeActions.addChargeSchedule(schedule), timeout)
+
+    /** 충전 일정 삭제(FR-079). Go `RemoveChargeSchedule`. [id]는 Wire uint64 표현이다. */
+    public suspend fun removeChargeSchedule(
+        id: Long,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ChargeActions.removeChargeSchedule(id), timeout)
+
+    /** 종류별 충전 일정 일괄 삭제(FR-080). Go `BatchRemoveChargeSchedules`. */
+    public suspend fun batchRemoveChargeSchedules(
+        home: Boolean,
+        work: Boolean,
+        other: Boolean,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ChargeActions.batchRemoveChargeSchedules(home, work, other), timeout)
+
+    /** 사전 공조 일정 추가(FR-081). Go `AddPreconditionSchedule`. [schedule]을 그대로 보낸다. */
+    public suspend fun addPreconditionSchedule(
+        schedule: PreconditionSchedule,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ChargeActions.addPreconditionSchedule(schedule), timeout)
+
+    /** 사전 공조 일정 삭제(FR-082). Go `RemovePreconditionSchedule`. [id]는 Wire uint64 표현이다. */
+    public suspend fun removePreconditionSchedule(
+        id: Long,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ChargeActions.removePreconditionSchedule(id), timeout)
+
+    /** 종류별 사전 공조 일정 일괄 삭제(FR-083). Go `BatchRemovePreconditionSchedules`. */
+    public suspend fun batchRemovePreconditionSchedules(
+        home: Boolean,
+        work: Boolean,
+        other: Boolean,
+        timeout: Duration = send.commandTimeout,
+    ): VehicleResult<Unit> = command(ChargeActions.batchRemovePreconditionSchedules(home, work, other), timeout)
+
+    /** 충전 포트 열기(FR-052). Go `OpenChargePort`(= `ChargePortOpen`). */
+    public suspend fun openChargePort(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(ChargeActions.openChargePort(), timeout)
+
+    /** 충전 포트 닫기(FR-052). Go `CloseChargePort`(= `ChargePortClose`). */
+    public suspend fun closeChargePort(timeout: Duration = send.commandTimeout): VehicleResult<Unit> =
+        command(ChargeActions.closeChargePort(), timeout)
 
     /** Go `executeCarServerAction`: [vehicleAction]을 `Action`에 담아 [execute]로 보내고, 성공 응답의 내용은 버린다. */
     private suspend fun command(
