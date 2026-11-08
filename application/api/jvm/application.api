@@ -130,10 +130,16 @@ public final class dev/mirolab/teslable/application/infotainment/InfotainmentCom
 	public static synthetic fun climateOn-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun closeChargePort-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun closeChargePort-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun closeWindows-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun closeWindows-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun execute-8Mi8wO0 (Lcom/tesla/generated/carserver/server/Action;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun execute-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Lcom/tesla/generated/carserver/server/Action;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun flashLights-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun flashLights-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun getState-8Mi8wO0 (Ldev/mirolab/teslable/model/StateCategory;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun getState-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Ldev/mirolab/teslable/model/StateCategory;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun honkHorn-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun honkHorn-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun openChargePort-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun openChargePort-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun removeChargeSchedule-8Mi8wO0 (JJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -170,6 +176,10 @@ public final class dev/mirolab/teslable/application/infotainment/InfotainmentCom
 	public static synthetic fun setSeatHeater-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Ljava/util/Map;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun setSteeringWheelHeater-8Mi8wO0 (ZJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun setSteeringWheelHeater-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;ZJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun setSunroof-8Mi8wO0 (IJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun setSunroof-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;IJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun ventWindows-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun ventWindows-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public final class dev/mirolab/teslable/application/infotainment/InfotainmentResponses {
