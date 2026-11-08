@@ -132,6 +132,10 @@ public final class dev/mirolab/teslable/application/infotainment/InfotainmentCom
 	public static synthetic fun closeChargePort-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun closeWindows-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun closeWindows-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun disableValetMode-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun disableValetMode-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun enableValetMode-8Mi8wO0 (Ljava/lang/String;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun enableValetMode-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Ljava/lang/String;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun execute-8Mi8wO0 (Lcom/tesla/generated/carserver/server/Action;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun execute-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Lcom/tesla/generated/carserver/server/Action;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun flashLights-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -146,6 +150,8 @@ public final class dev/mirolab/teslable/application/infotainment/InfotainmentCom
 	public static synthetic fun removeChargeSchedule-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun removePreconditionSchedule-8Mi8wO0 (JJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun removePreconditionSchedule-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun resetValetPin-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun resetValetPin-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun scheduleCharging-exY8QGI (ZIJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun scheduleCharging-exY8QGI$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;ZIJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun scheduleDeparture-myKFqkg (IILdev/mirolab/teslable/model/ChargingPolicy;Ldev/mirolab/teslable/model/ChargingPolicy;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -174,6 +180,8 @@ public final class dev/mirolab/teslable/application/infotainment/InfotainmentCom
 	public static synthetic fun setSeatCooler-exY8QGI$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Ldev/mirolab/teslable/model/SeatClimateLevel;Ldev/mirolab/teslable/model/SeatPosition;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun setSeatHeater-8Mi8wO0 (Ljava/util/Map;JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun setSeatHeater-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Ljava/util/Map;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun setSentryMode-8Mi8wO0 (ZJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun setSentryMode-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;ZJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun setSteeringWheelHeater-8Mi8wO0 (ZJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun setSteeringWheelHeater-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;ZJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun setSunroof-8Mi8wO0 (IJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
