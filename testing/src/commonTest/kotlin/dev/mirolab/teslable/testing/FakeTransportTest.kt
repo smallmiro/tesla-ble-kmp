@@ -128,6 +128,24 @@ class FakeTransportTest {
         }
 
     @Test
+    fun aWriteErrorAfterDeliveryHandsTheBytesToTheVehicleThenFails() =
+        runTest {
+            // 쓰기 완료 통지만 실패한 경우: 차량은 바이트를 받아 처리했고(응답도 보낼 수 있다) 전송은 오류를 돌려준다. 같은 큐를 쓴다
+            val transport = FakeTransport()
+            val events = mutableListOf<String>()
+            transport.onSend = { events += "vehicle:${it.single()}" }
+            transport.enqueueWriteErrorAfterDelivery(VehicleError.TransportError.WriteFailed("ack lost"))
+            transport.enqueueWriteError(VehicleError.TransportError.WriteFailed("not delivered"))
+            val first = transport.send(byteArrayOf(1)) { events += "write" }
+            assertEquals(VehicleResult.Failure(VehicleError.TransportError.WriteFailed("ack lost")), first)
+            val second = transport.send(byteArrayOf(2)) { events += "write" }
+            assertEquals(VehicleResult.Failure(VehicleError.TransportError.WriteFailed("not delivered")), second)
+            assertIs<VehicleResult.Success<Unit>>(transport.send(byteArrayOf(3)) { events += "write" })
+            assertEquals(listOf("write", "vehicle:1", "write", "write", "vehicle:3"), events)
+            assertEquals(3, transport.writesInvoked)
+        }
+
+    @Test
     fun gatesHoldTheSendBeforeOrAfterTheWrite() =
         runTest {
             // preWriteGate: 쓰기를 부르기 전 대기. writeGate: 차량이 바이트를 받은 뒤 쓰기 완료를 미룬다
