@@ -1,3 +1,4 @@
+// goTestValidPinCasesKeepTheirVerdicts ports vehicle-command@a4b43c1 pkg/vehicle/security_test.go TestValidPIN (Apache-2.0)
 package dev.mirolab.teslable.application.infotainment
 
 import com.tesla.generated.universalmessage.Domain

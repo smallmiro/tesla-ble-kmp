@@ -210,6 +210,23 @@ class VehicleInfotainmentCommandsTest {
         }
 
     @Test
+    fun everyCommandWithoutATimeoutUsesTheConfiguredCommandTimeout() =
+        // 리뷰 m1: 파사드 메서드 하나라도 고정 시간을 넘기면 드러나도록 51개 전부를 timeout 없이 부른다. 잠든 Infotainment라 매번 설정값에서 끝난다
+        runTest {
+            val r = rig(config = TeslaBleConfig(commandTimeout = 2.seconds))
+            val vehicle = r.connected()
+            assertIs<VehicleResult.Success<Unit>>(vehicle.startSession(setOf(VehicleDomain.INFOTAINMENT), timeout = 1.seconds))
+            r.fake.sleep(setOf(infotainment))
+            val timedOut = VehicleResult.Uncertain(VehicleError.Timeout(afterSend = true))
+
+            for (call in everyCall) {
+                val started = testTimeSource.markNow()
+                assertEquals(timedOut, call.call(vehicle), call.name)
+                assertEquals(2.seconds, started.elapsedNow(), call.name)
+            }
+        }
+
+    @Test
     fun noSessionResultOfEveryCommandReconcilesTheInfotainmentStatus() =
         // SDD "세션 표시": 사건이 유실돼도 NoSession 결과가 표시를 맞춘다. 메서드마다 새 차량으로 보아 모든 메서드가 INFOTAINMENT를 맞추는지 본다
         runTest {
