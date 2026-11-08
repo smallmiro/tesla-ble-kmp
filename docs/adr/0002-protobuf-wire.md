@@ -67,3 +67,28 @@ Square Wire 7.0.4. Gradle 플러그인이 `:domain` commonMain에 Kotlin을 생�
 
 ### 대안
 - 공식 필드만 담은 수기 모델: 필드가 200여 개이고 펌웨어에 따라 늘어나며, 래핑하면 손실과 지연이 생긴다(SDD §2.3). 기각.
+
+## 개정 (2026-11-08): 명령 입력의 Wire 일정 타입
+
+| 항목 | 내용 |
+|---|---|
+| 상태 | **채택** (2026-11-08, M5 Infotainment 계획의 결정 기록 "일정", Claude·Codex 협의) |
+| 관련 | `{{PRD_FILE}}` FR-078~083, `{{SDD_FILE}}` §2.1·§2.3·§7.3, `{{PLANS_DIR}}2026-11-08-m5-infotainment.md`, `{{LIB_DOCS_DIR}}15-lib-commands.md`·`17-lib-platform-notes.md` |
+
+### 맥락
+지금까지 공개 API에 드러난 Wire 생성 타입은 반환값(`VehicleData`, 2026-11-01 개정)뿐이었다. Go `AddChargeSchedule(*ChargeSchedule)`·`AddPreconditionSchedule(*PreconditionSchedule)`는 proto 타입의 별칭(`type ChargeSchedule = carserver.ChargeSchedule`, `charge.go:21-23`)을 그대로 받는다(`charge.go:25`, `:64`). 일정 추가 명령을 Go와 1:1로 옮기면 생성 타입이 **입력**이 된다. 생성자의 기본 인자는 Kotlin에만 있고 Swift에는 넘어가지 않는다.
+
+### 결정
+1. **입력으로 받는다.** `addChargeSchedule(schedule: ChargeSchedule)`, `addPreconditionSchedule(schedule: PreconditionSchedule)`는 `com.tesla.generated.carserver.common`의 Wire 생성 타입을 받아 `addChargeScheduleAction`·`addPreconditionScheduleAction`에 그대로 담는다(Go와 같다). 필드를 검사하거나 고치지 않는다(Go도 검사하지 않는다). 두 메시지는 공식 proto와 스냅샷이 같아 `TESLEMETRY-EXT` 필드가 없다.
+2. **id는 Wire의 uint64 표현인 `Long`이다.** `removeChargeSchedule(id: Long)`, `removePreconditionSchedule(id: Long)`도 같다. `Long.MAX_VALUE`보다 큰 id는 음수 `Long`으로 넘긴다(비트는 같다).
+3. **Swift는 전체 생성자를 쓴다.** Swift에서는 모든 필드와 `unknownFields: OkioByteString.companion.EMPTY`를 넘기는 생성자만 쓸 수 있고 `ChargeSchedule()`은 `'init()' is unavailable`이다. 2026-11-08 Swift typecheck(시뮬레이터용 디버그 프레임워크)로 확인한 형태를 사용 문서 `17-lib-platform-notes.md`에 적는다. Swift 전용 생성 함수는 지금 두지 않는다.
+
+### 결과
+- 생성 타입이 입력 API가 된다. 스냅샷 갱신으로 두 메시지가 바뀌면 입력 API의 호환성도 바뀐다(`apiDump`로 드러난다, 2026-10-18 개정 "결과").
+- `unknownFields`도 받은 그대로 나간다(Go의 proto 메시지도 모르는 필드를 그대로 직렬화한다).
+- Swift 호출은 인자가 12개(`ChargeSchedule`)·9개(`PreconditionSchedule`)인 생성자를 쓴다. 필드 이름은 proto 이름 그대로다(`days_of_week`, `start_time`). 불편하면 Swift 전용 생성 함수를 나중에 더할 수 있다(호환되는 추가).
+- 조회 결과 `ChargeScheduleState.charge_schedules`·`PreconditioningScheduleState.precondition_schedules`도 같은 타입이라, Kotlin에서는 읽은 일정을 `copy`로 고쳐 다시 보낼 수 있다.
+
+### 대안
+- 수기 일정 값 객체: Go와의 1:1이 깨지고 변환 코드와 필드 누락 위험이 생긴다. Swift의 긴 생성자 문제는 수기 생성자로 옮겨 갈 뿐이다. 기각.
+- Swift 전용 생성 함수를 지금 추가: 기본값을 정할 근거(실차 사용 경험)가 없다. 보류.
