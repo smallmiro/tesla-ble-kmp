@@ -62,6 +62,7 @@
 <li><a href="#sec-keys">キーとセッション</a></li>
 <li><a href="#sec-pairing">ペアリングとコマンド</a></li>
 <li><a href="#sec-getstate">getState での状態の読み取り</a></li>
+<li><a href="#sec-infotainment">インフォテインメントのコマンド</a></li>
 <li><a href="#sec-other">その他のメッセージ</a></li>
 <li><a href="#sec-budget">connect の制限時間</a></li>
 <li><a href="#sec-no-source">送信元のないフレーム</a></li>
@@ -125,6 +126,22 @@
 <tr><td><code>getState(DRIVE)</code> が <code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code> を返す</td><td>応答が車両のサイズ上限を超えています。目的地の名前が長いほど起きやすくなります。車両がいなくなったりスリープしたりしたわけではありません</td><td>最後の値を経過時間とともに保持し、短い間隔で繰り返さず、後でもう一度問い合わせます。より小さいクエリはありません (<a href="16-lib-errors.html#sec-size-limit">16. エラー処理</a>)</td></tr>
 <tr><td><code>getState()</code> が <code>Success</code> を返すが、フィールドが <code>null</code></td><td>車両がそのフィールドを送らなかった、または応答に <code>vehicleData</code> がありませんでした</td><td>0 ではなく「値なし」と表示してください (<a href="14-lib-reading-state.html#sec-a-reading">14、A8.3</a>)。実車がどのフィールドを送るかはまだ確認されていません (#118)</td></tr>
 <tr><td><code>getState()</code> が <code>Success</code> で同じ値をまた返す</td><td><code>Success</code> は新しい測定値の証拠ではありません</td><td><code>timestamp</code> を前回の応答と比較してください (<a href="14-lib-reading-state.html#sec-a-reading">14、A8.3</a>)</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-infotainment">インフォテインメントのコマンド</h2>
+<table>
+<thead><tr><th>症状</th><th>考えられる原因</th><th>対処</th></tr></thead>
+<tbody>
+<tr><td>インフォテインメントのコマンド (<code>climateOn()</code>, <code>chargeStart()</code>, <code>honkHorn()</code>…) が <code>NoSession</code> を返す</td><td>インフォテインメントのセッションがまだないか、保存済みのセッションが古い</td><td><code>startSession(setOf(VehicleDomain.INFOTAINMENT))</code> を呼んでから、コマンドをもう一度送ります: 何も送信されていません</td></tr>
+<tr><td>セキュリティコントローラーのコマンドは動くのに、すべてのインフォテインメントのコマンドが <code>Uncertain(Timeout(afterSend = true))</code> を返す</td><td>インフォテインメントがスリープしている: コマンドでは起こせず、保存済みのセッションはスリープについて何も教えてくれません</td><td><code>vehicleStatus()</code> を読み、<code>ASLEEP</code> なら車両を起こして <code>AWAKE</code> を待ちます (<a href="14-lib-reading-state.html#sec-a-order">14, A8.2</a>)。コマンドを再送する前に状態を読みます: すでに実行されている可能性があります</td></tr>
+<tr><td>コマンドが <code>Uncertain</code> を返し、アプリが再試行しようとしている</td><td>車両が実行した可能性がある</td><td>絶対に再送しないでください。コマンドが変える状態を読みます (<a href="15-lib-commands.html#sec-cc-requery">15. コマンド</a>)。<code>toggleMediaPlayback</code> とトランクのトグルは、2 回目の送信が 1 回目を打ち消します。<code>honkHorn</code>, <code>flashLights</code>, <code>setLowPowerMode</code>, <code>setKeepAccessoryPowerMode</code> は読み戻せません: 結果は不明として表示します</td></tr>
+<tr><td><code>enableValetMode(pin)</code> が <code>InvalidArgument("PIN codes must be four digits")</code> を返す</td><td>PIN が ASCII の数字ちょうど 4 桁ではない。例: キーボードで入力した全角数字やほかの文字体系の数字、スペース</td><td>数字専用のキーボードを用意するか、呼び出す前に入力を変換します。PIN をログに出さないでください</td></tr>
+<tr><td><code>setVolume(volume)</code> が <code>InvalidArgument("invalid volume (should be in [0, 10])")</code> を返す</td><td>値が 0 未満、10 超、または NaN (例: 範囲を制限していないスライダーの値、または 0/0)</td><td>アプリで値を 0–10 に制限します</td></tr>
+<tr><td><code>setSeatCooler</code> が <code>InvalidArgument("invalid seat position for seat cooler: …")</code> を、<code>scheduleDeparture</code> が <code>InvalidArgument("invalid departure time: …")</code> を返す</td><td><code>FRONT_LEFT</code> か <code>FRONT_RIGHT</code> 以外のシート、または午前 0 時から 0〜1440 分の範囲外の出発時刻</td><td>引数を直します (<a href="16-lib-errors.html#sec-invalid-argument">16. エラー処理</a>)</td></tr>
+<tr><td>インフォテインメントのコマンドが <code>Failure(InfotainmentRejected(reason))</code> を返す</td><td>車両が拒否した: 機能がないか、現在の状態がコマンドを許さない (例: 走行中)</td><td>汎用のメッセージを表示します。<code>reason</code> は車両自身の文言なのでログに出さないでください。<code>disableValetMode</code> は <code>already off</code> で終わる reason をすでに <code>Success</code> に変えます</td></tr>
+<tr><td><code>addChargeSchedule</code> が <code>InvalidArgument("message exceeds 1024 bytes")</code> を返す</td><td>スケジュールの <code>name</code> が長すぎて、メッセージが 1024 バイトを超える</td><td>もっと短い名前を使います</td></tr>
+<tr><td>コマンドは <code>Success</code> を返したのに、<code>getState</code> はまだ古い値を示す</td><td>新しい値がまだ報告されていないか、コマンドが変えるフィールドがそのフィールドではない (実車では未確認、#118)</td><td>少し後にもう一度読み、<code>timestamp</code> を比べます</td></tr>
 </tbody>
 </table>
 

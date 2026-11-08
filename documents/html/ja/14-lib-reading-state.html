@@ -59,7 +59,7 @@
 
 <div class="callout warn">
 <strong>現在の実装範囲</strong>
-<p>A 部のクエリは、<code>getState()</code>（A8）を含めて実装済みです。これは M5 の残りより先に入りました。FakeVehicle のテストで確認しており、まだ実車では確認していません。車両のブロードキャスト（B 部）は <code>vehicle.events</code> でアプリに届き（B2）、観察ログでも引き続き見られます。</p>
+<p>A 部のクエリは、<code>getState()</code>（A8）を含めて実装済みです。FakeVehicle のテストで確認しており、まだ実車では確認していません。車両のブロードキャスト（B 部）は <code>vehicle.events</code> でアプリに届き（B2）、観察ログでも引き続き見られます。</p>
 </div>
 
 <div class="toc"><strong>このページの内容</strong><ol>
@@ -99,7 +99,7 @@
 <li>車両は接続ごとに VCSEC リクエストを 1 つずつ処理します。別のクエリを待つ必要があるクエリは、タイムアウトの一部を待機に使います。<code>getState()</code> はインフォテインメントに送られ、そのキューでは待ちません。</li>
 <li>これらはクエリです。<code>Uncertain</code> の結果は、コマンドが実行された可能性があるという意味ではなく、確認できたデータがないという意味なので、再度問い合わせても安全です。ただし、短い間隔で繰り返してはいけません (<a href="16-lib-errors.html#sec-getstate">16. エラー処理</a> を参照)。</li>
 <li>他の Bluetooth クライアントが動作している間は、クエリに応答がまったく返らないことがあり、最も多いのは <code>listKeys()</code> です (<a href="16-lib-errors.html#sec-other-client">16. エラー処理</a>)。</li>
-<li>制御ペイロード（ロック、トランク、ウェイクアップ）は <a href="15-lib-commands.html">15. コマンド</a> にあります。</li>
+<li>制御ペイロード（ロック、トランク、ウェイクアップ、空調、充電、メディア、そのほかのインフォテインメントのコマンド）は <a href="15-lib-commands.html">15. コマンド</a> にあります。</li>
 </ul>
 
 <h2 id="sec-a-transport">A1. 要求の届き方</h2>
@@ -295,7 +295,7 @@
 <p><code>InformationRequestType</code> には <code>GET_TOKEN</code> 1、<code>GET_COUNTER</code> 2、<code>GET_EPHEMERAL_PUBLIC_KEY</code> 3、<code>GET_SESSION_DATA</code> 4、<code>GET_PERSONALIZATION_INFO</code> 7、<code>GET_KEYSTATUS_INFO</code> 8、<code>GET_ACTIVE_KEY</code> 9、<code>GET_CAPABILITIES</code> 16（Teslemetry のみ）も定義されています。ライブラリはどれも送らず、API もありません。<code>getState(category)</code> はこれらには含まれず、インフォテインメントに送られます（A8）。</p>
 
 <h2 id="sec-a-getstate">A8. getState(category)</h2>
-<p><code>getState</code> は、バッテリー、空調、速度、位置など、インフォテインメントの 12 カテゴリのうち 1 つを読みます。M5 の残りより先に入り、FakeVehicle のテストで確認しています。<strong>この節の内容は、まだ実車では何も確認されていません</strong> (<a href="#sec-a-unconfirmed">A8.5</a>)。</p>
+<p><code>getState</code> は、バッテリー、空調、速度、位置など、インフォテインメントの 12 カテゴリのうち 1 つを読みます。FakeVehicle のテストで確認しています。<strong>この節の内容は、まだ実車では何も確認されていません</strong> (<a href="#sec-a-unconfirmed">A8.5</a>)。</p>
 <pre><code class="language-kotlin"><span class="k">suspend</span> <span class="k">fun</span> <span class="f">getState</span>(category: <span class="t">StateCategory</span>, timeout: <span class="t">Duration</span>? = <span class="n">null</span>): <span class="t">VehicleResult</span>&lt;<span class="t">VehicleData</span>&gt;
 </code></pre>
 <table>
@@ -357,6 +357,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <li><code>wakeUp()</code> が <code>Success</code> を返したのは VCSEC がコマンドを受け付けたという意味で、インフォテインメントが起動したという意味ではありません。<code>AWAKE</code> になるのを待ってから、インフォテインメントのセッションを開始します。起こした直後でも車両が busy を返すことがあり、ライブラリはこれをタイムアウトの範囲内で再試行するため、起こした後の最初のクエリには長めの <code>timeout</code> が必要なことがあります。</li>
 <li><strong>保存済みのセッションはスリープ状態とは無関係です。</strong>インフォテインメントがスリープしていても、<code>startSession</code> は車両に尋ねずに成功し、<code>sessions</code> には <code>Ready(fromCache = true)</code> と表示されます。その場合、最初のクエリはタイムアウトすることがあります。代わりに <code>sleepStatus</code> を読んでください。</li>
 <li>起こすかどうかはアプリが決めます。ライブラリが代わりに起こすことはありません。</li>
+<li><code>ping()</code> (<a href="15-lib-commands.html#sec-cc-ping">15. コマンド</a>) は、何も変えず、データも返さないコマンドです。<code>Success</code> は、キーとインフォテインメントのセッションが動いていることを示します。<code>getState</code> と同じセッションと、起きている車両が必要です。</li>
 </ul>
 <pre><code class="language-kotlin"><span class="k">import</span> dev.mirolab.teslable.<span class="t">Vehicle</span>
 <span class="k">import</span> dev.mirolab.teslable.model.*
@@ -406,6 +407,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <li><strong><code>Success</code> は新しい測定値の証拠ではありません。</strong><code>timestamp</code> を前回の応答と比較してください。動いていなければ、値を最新のものとして表示しないでください。<code>null</code> の場合は判断できません。<code>timestamp</code> は Wire の <code>Instant</code> で、<code>getEpochSecond()</code> は共通の Kotlin と Swift のどちらでも使えます。</li>
 <li>速度、出力、オドメーターは <code>DRIVE</code> にしかなく、この応答は車両のサイズ上限を超えることがあります (<a href="16-lib-errors.html#sec-size-limit">16. エラー処理</a>)。リアルタイムの速度は保証されず、ほかの取得元もありません。</li>
 <li>Wire は proto の名前をそのまま保つため、フィールドは <code>drive_state</code>、<code>speed_float</code>、<code>charge_state</code> のようになり、手書きのモデルの camelCase とは異なります。生成された型は <code>com.tesla.generated.*</code> にあります。</li>
+<li><strong>一部の状態は enum ではなくラッパーメッセージです</strong>: <code>charging_state</code>、<code>climate_keeper_mode</code>、<code>sentry_mode_state</code> などは、値を表す空のメンバーを 1 つ持ちます (<a href="#sec-a-wrappers">A8.6</a>)。</li>
 <li><strong>結果をログに出さないでください</strong>。<code>toString()</code> も同様です。<code>VehicleData</code> には位置と目的地が入ることがあります。ライブラリはこれをログに出さないので、アプリも出すべきではありません。</li>
 </ul>
 <pre><code class="language-kotlin"><span class="k">import</span> com.tesla.generated.universalmessage.<span class="t">MessageFault_E</span>
@@ -505,6 +507,87 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <li>起こすのにどのくらいかかるか、そしてスリープ中のインフォテインメントコンピューターがリクエストをどう扱うか。テストは応答がない場合としてモデル化しています。実車が代わりに busy を返す場合、ライブラリはタイムアウトまで再試行し、結果は <code>Failure(Timeout(afterSend = false))</code> になることがあります (<a href="16-lib-errors.html#sec-getstate">16. エラー処理</a>)。</li>
 <li>サイズ上限がファームウェアごとにどう動作するか、そして自分の <code>getState</code> でエラーがどう届くか。他のクライアント宛ての応答では平文の <code>signedMessageStatus</code> で届きました (有力、<a href="16-lib-errors.html#sec-size-limit">16、応答サイズ上限</a>)。</li>
 </ul>
+
+<h3 id="sec-a-wrappers">A8.6 ラッパーフィールド: 状態、モード、ステータス</h3>
+<p>enum のように見える一部のフィールドは、すべてのメンバーが空 (<code>Void</code>) で、1 つの <code>oneof</code> に属する小さな Wire メッセージです。Wire はメンバーごとに null 許容のプロパティを作り、<code>null</code> でないものがその値です。ラッパーが <code>null</code> の場合や、メンバーが 1 つも設定されていない場合は、車両が値を送っていません (またはこのライブラリのスキーマが知らないメンバーを送っています)。ラッパーを文字列や enum の値と比較しないでください。</p>
+<table>
+<thead><tr><th>フィールド (カテゴリ)</th><th>Wire の型</th><th>メンバー (Kotlin と Swift のプロパティ名)</th><th>備考</th></tr></thead>
+<tbody>
+<tr><td><code>charge_state.charging_state</code> (<code>CHARGE</code>)</td><td><code>ChargeState.ChargingState</code></td><td><code>Unknown</code>, <code>Disconnected</code>, <code>NoPower</code>, <code>Starting</code>, <code>Charging</code>, <code>Complete</code>, <code>Stopped</code>, <code>Calibrating</code></td><td><code>chargeStart</code> と <code>chargeStop</code> の後に読みます (<a href="15-lib-commands.html#sec-cc-requery">15. コマンド</a>)</td></tr>
+<tr><td><code>charge_state.preconditioning_times</code>, <code>charge_state.off_peak_charging_times</code> (<code>CHARGE</code>)</td><td><code>PreconditioningTimes</code>, <code>OffPeakChargingTimes</code></td><td><code>all_week</code>, <code>weekdays</code></td><td><code>scheduleDeparture</code> が設定した曜日。オフのポリシーがどう報告されるかは確認されていません</td></tr>
+<tr><td><code>climate_state.climate_keeper_mode</code> (<code>CLIMATE</code>)</td><td><code>ClimateState.ClimateKeeperMode</code></td><td><code>Unknown</code>, <code>Off</code>, <code>On</code>, <code>Dog</code>, <code>Party</code></td><td>コマンドの enum は <code>CAMP</code> ですが、状態ではそのメンバーを <code>Party</code> と呼びます。同じモードかどうかは確認されていません</td></tr>
+<tr><td><code>climate_state.defrost_mode</code> (<code>CLIMATE</code>)</td><td><code>ClimateState.DefrostMode</code></td><td><code>Off</code>, <code>Normal</code>, <code>Max</code></td><td></td></tr>
+<tr><td><code>closures_state.sun_roof_state</code> (<code>CLOSURES</code>)</td><td><code>ClosuresState.SunRoofState</code></td><td><code>Unknown</code>, <code>Calibrating</code>, <code>Closed</code>, <code>Open</code>, <code>Moving</code>, <code>Vent</code></td><td>サンルーフのある車両でのみ設定されます</td></tr>
+<tr><td><code>closures_state.sentry_mode_state</code> (<code>CLOSURES</code>)</td><td><code>ClosuresState.SentryModeState</code></td><td><code>Off</code>, <code>Idle</code>, <code>Armed</code>, <code>Aware</code>, <code>Panic</code>, <code>Quiet</code></td><td>セントリーモードに対応している場合のみ設定されます</td></tr>
+<tr><td><code>software_update_state.status</code> (<code>SOFTWARE_UPDATE</code>)</td><td><code>SoftwareUpdateState.SoftwareUpdateStatus</code></td><td><code>Unknown</code>, <code>Installing</code>, <code>Scheduled</code>, <code>Available</code>, <code>DownloadingWifiWait</code>, <code>Downloading</code></td><td></td></tr>
+<tr><td><code>drive_state.shift_state</code> (<code>DRIVE</code>)</td><td><code>ShiftState</code></td><td><code>CarServer_Invalid</code> (<code>Invalid</code> in the proto), <code>P</code>, <code>R</code>, <code>N</code>, <code>D</code>, <code>SNA</code></td><td><a href="17-lib-platform-notes.html#sec-swift-generated">17. プラットフォームノート</a></td></tr>
+</tbody>
+</table>
+<p>値のように使うほかのフィールドは、直接読む通常の null 許容の値です。たとえば <code>charge_port_door_open</code> (<code>Boolean?</code>)、<code>scheduled_charging_mode</code> (enum <code>ChargeState.ScheduledChargingMode?</code>)、<code>media_playback_status</code> (enum <code>MediaPlaybackStatus?</code>)、そして <code>seat_heater_*</code> と <code>seat_fan_front_*</code> の数値 (<code>Int?</code>: proto の <code>SeatHeaterLevel_E</code> と <code>SeatCoolingLevel_E</code> が並べるとおり、0 オフ、1 低、2 中、3 高) があります。</p>
+<pre><code class="language-kotlin"><span class="k">import</span> com.tesla.generated.carserver.vehicle.<span class="t">ChargeState</span>
+<span class="k">import</span> com.tesla.generated.carserver.vehicle.<span class="t">ClimateState</span>
+<span class="k">import</span> dev.mirolab.teslable.<span class="t">Vehicle</span>
+<span class="k">import</span> dev.mirolab.teslable.model.<span class="t">StateCategory</span>
+<span class="k">import</span> dev.mirolab.teslable.model.<span class="t">VehicleResult</span>
+
+<span class="c">// The member that is not null is the value. null (wrapper or every member) means the vehicle did not send it.</span>
+<span class="k">fun</span> <span class="f">chargingStateName</span>(state: <span class="t">ChargeState</span>.<span class="t">ChargingState</span>?): <span class="t">String</span>? =
+    <span class="k">when</span> {
+        state <span class="o">==</span> <span class="n">null</span> <span class="o">-&gt;</span> <span class="n">null</span>
+        state.<span class="t">Charging</span> <span class="o">!=</span> <span class="n">null</span> <span class="o">-&gt;</span> <span class="s">"charging"</span>
+        state.<span class="t">Starting</span> <span class="o">!=</span> <span class="n">null</span> <span class="o">-&gt;</span> <span class="s">"starting"</span>
+        state.<span class="t">Complete</span> <span class="o">!=</span> <span class="n">null</span> <span class="o">-&gt;</span> <span class="s">"complete"</span>
+        state.<span class="t">Stopped</span> <span class="o">!=</span> <span class="n">null</span> <span class="o">-&gt;</span> <span class="s">"stopped"</span>
+        state.<span class="t">Disconnected</span> <span class="o">!=</span> <span class="n">null</span> <span class="o">-&gt;</span> <span class="s">"disconnected"</span>
+        state.<span class="t">NoPower</span> <span class="o">!=</span> <span class="n">null</span> <span class="o">-&gt;</span> <span class="s">"no power"</span>
+        state.<span class="t">Calibrating</span> <span class="o">!=</span> <span class="n">null</span> <span class="o">-&gt;</span> <span class="s">"calibrating"</span>
+        state.<span class="t">Unknown</span> <span class="o">!=</span> <span class="n">null</span> <span class="o">-&gt;</span> <span class="s">"unknown"</span>
+        <span class="k">else</span> <span class="o">-&gt;</span> <span class="n">null</span> <span class="c">// no member set, or one this library's schema does not know</span>
+    }
+
+<span class="k">suspend</span> <span class="k">fun</span> <span class="f">isCharging</span>(vehicle: <span class="t">Vehicle</span>): <span class="t">Boolean</span>? {
+    <span class="k">val</span> result = vehicle.<span class="f">getState</span>(<span class="t">StateCategory</span>.<span class="t">CHARGE</span>)
+    <span class="k">if</span> (result !<span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span>) <span class="k">return</span> <span class="n">null</span> <span class="c">// keep the last value (16-lib-errors.md §getState results)</span>
+    <span class="k">val</span> charging = result.value.charge_state<span class="o">?.</span>charging_state <span class="o">?:</span> <span class="k">return</span> <span class="n">null</span> <span class="c">// not sent</span>
+    <span class="k">return</span> charging.<span class="t">Charging</span> <span class="o">!=</span> <span class="n">null</span>
+}
+
+<span class="k">fun</span> <span class="f">climateKeeperOn</span>(mode: <span class="t">ClimateState</span>.<span class="t">ClimateKeeperMode</span>?): <span class="t">Boolean</span>? =
+    <span class="k">when</span> {
+        mode <span class="o">==</span> <span class="n">null</span> <span class="o">-&gt;</span> <span class="n">null</span>
+        mode.<span class="t">Off</span> <span class="o">!=</span> <span class="n">null</span> <span class="o">-&gt;</span> <span class="n">false</span>
+        mode.<span class="t">On</span> <span class="o">!=</span> <span class="n">null</span> <span class="o">||</span> mode.<span class="t">Dog</span> <span class="o">!=</span> <span class="n">null</span> <span class="o">||</span> mode.<span class="t">Party</span> <span class="o">!=</span> <span class="n">null</span> <span class="o">-&gt;</span> <span class="n">true</span>
+        <span class="k">else</span> <span class="o">-&gt;</span> <span class="n">null</span> <span class="c">// Unknown, or no member set</span>
+    }
+</code></pre>
+<p>Swift ではラッパーは、同じ名前のオプショナルのメンバーを持つクラスに見えます。この形はフレームワークに対する Swift の型チェックを通りますが、Swift のプログラムでは実行していません。</p>
+<pre><code class="language-swift"><span class="k">func</span> <span class="f">chargingStateName</span>(_ state: <span class="t">ChargeState</span>.<span class="t">ChargingState</span>?) <span class="o">-&gt;</span> <span class="t">String</span>? {
+    <span class="k">guard</span> <span class="k">let</span> state = state <span class="k">else</span> { <span class="k">return</span> <span class="n">nil</span> }
+    <span class="k">if</span> state.<span class="t">Charging</span> <span class="o">!=</span> <span class="n">nil</span> { <span class="k">return</span> <span class="s">"charging"</span> }
+    <span class="k">if</span> state.<span class="t">Starting</span> <span class="o">!=</span> <span class="n">nil</span> { <span class="k">return</span> <span class="s">"starting"</span> }
+    <span class="k">if</span> state.<span class="t">Complete</span> <span class="o">!=</span> <span class="n">nil</span> { <span class="k">return</span> <span class="s">"complete"</span> }
+    <span class="k">if</span> state.<span class="t">Stopped</span> <span class="o">!=</span> <span class="n">nil</span> { <span class="k">return</span> <span class="s">"stopped"</span> }
+    <span class="k">if</span> state.<span class="t">Disconnected</span> <span class="o">!=</span> <span class="n">nil</span> { <span class="k">return</span> <span class="s">"disconnected"</span> }
+    <span class="k">if</span> state.<span class="t">NoPower</span> <span class="o">!=</span> <span class="n">nil</span> { <span class="k">return</span> <span class="s">"no power"</span> }
+    <span class="k">if</span> state.<span class="t">Calibrating</span> <span class="o">!=</span> <span class="n">nil</span> { <span class="k">return</span> <span class="s">"calibrating"</span> }
+    <span class="k">if</span> state.<span class="t">Unknown</span> <span class="o">!=</span> <span class="n">nil</span> { <span class="k">return</span> <span class="s">"unknown"</span> }
+    <span class="k">return</span> <span class="n">nil</span> <span class="c">// no member set, or one this library's schema does not know</span>
+}
+
+<span class="k">func</span> <span class="f">isCharging</span>(vehicle: <span class="t">Vehicle</span>) <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="t">Bool</span>? {
+    <span class="k">let</span> result = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">getState</span>(category: .charge, timeout: <span class="n">nil</span>)
+    <span class="k">guard</span> <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s) = <span class="f">onEnum</span>(of: result), <span class="k">let</span> data = s.value <span class="k">as</span>? <span class="t">VehicleData</span> <span class="k">else</span> { <span class="k">return</span> <span class="n">nil</span> }
+    <span class="k">guard</span> <span class="k">let</span> charging = data.charge_state?.charging_state <span class="k">else</span> { <span class="k">return</span> <span class="n">nil</span> } <span class="c">// not sent</span>
+    <span class="k">return</span> charging.<span class="t">Charging</span> <span class="o">!=</span> <span class="n">nil</span>
+}
+
+<span class="k">func</span> <span class="f">climateKeeperOn</span>(_ mode: <span class="t">ClimateState</span>.<span class="t">ClimateKeeperMode</span>?) <span class="o">-&gt;</span> <span class="t">Bool</span>? {
+    <span class="k">guard</span> <span class="k">let</span> mode = mode <span class="k">else</span> { <span class="k">return</span> <span class="n">nil</span> }
+    <span class="k">if</span> mode.<span class="t">Off</span> <span class="o">!=</span> <span class="n">nil</span> { <span class="k">return</span> <span class="n">false</span> }
+    <span class="k">if</span> mode.<span class="t">On</span> <span class="o">!=</span> <span class="n">nil</span> <span class="o">||</span> mode.<span class="t">Dog</span> <span class="o">!=</span> <span class="n">nil</span> <span class="o">||</span> mode.<span class="t">Party</span> <span class="o">!=</span> <span class="n">nil</span> { <span class="k">return</span> <span class="n">true</span> }
+    <span class="k">return</span> <span class="n">nil</span> <span class="c">// Unknown, or no member set</span>
+}
+</code></pre>
 
 <h2 id="sec-status">結果の型</h2>
 <table>
