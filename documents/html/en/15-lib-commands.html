@@ -253,12 +253,22 @@
     <span class="k">return</span> <span class="s">"climate on"</span>
 }
 
-<span class="k">suspend</span> <span class="k">fun</span> <span class="f">planCharging</span>(vehicle: <span class="t">Vehicle</span>, scheduleId: <span class="t">Long</span>, latitude: <span class="t">Float</span>, longitude: <span class="t">Float</span>) {
-    vehicle.<span class="f">setChargeLimit</span>(<span class="n">80</span>)
+<span class="k">suspend</span> <span class="k">fun</span> <span class="f">planCharging</span>(vehicle: <span class="t">Vehicle</span>, scheduleId: <span class="t">Long</span>, latitude: <span class="t">Float</span>, longitude: <span class="t">Float</span>): <span class="t">String</span> {
     <span class="c">// Leave at 08:00, off-peak charging ends at 06:00 (minutes after the vehicle's local midnight).</span>
-    <span class="k">val</span> departure = vehicle.<span class="f">scheduleDeparture</span>(<span class="n">480</span>, <span class="n">360</span>, <span class="t">ChargingPolicy</span>.<span class="t">ALL_DAYS</span>, <span class="t">ChargingPolicy</span>.<span class="t">WEEKDAYS</span>)
-    <span class="k">if</span> (departure <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">&amp;&amp;</span> departure.error <span class="k">is</span> <span class="t">VehicleError</span>.<span class="t">InvalidArgument</span>) {
-        <span class="k">return</span> <span class="c">// departAtMinutes outside 0..1440; nothing was sent</span>
+    <span class="k">when</span> (<span class="k">val</span> departure = vehicle.<span class="f">scheduleDeparture</span>(<span class="n">480</span>, <span class="n">360</span>, <span class="t">ChargingPolicy</span>.<span class="t">ALL_DAYS</span>, <span class="t">ChargingPolicy</span>.<span class="t">WEEKDAYS</span>)) {
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> <span class="t">Unit</span>
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Uncertain</span> <span class="o">-&gt;</span> {
+            <span class="c">// The vehicle may have stored it. Never resend: read the state and stop here.</span>
+            <span class="k">val</span> state = vehicle.<span class="f">getState</span>(<span class="t">StateCategory</span>.<span class="t">CHARGE</span>)
+            <span class="k">val</span> departAt = (state <span class="k">as</span>? <span class="t">VehicleResult</span>.<span class="t">Success</span>)<span class="o">?.</span>value<span class="o">?.</span>charge_state<span class="o">?.</span>scheduled_departure_time_minutes
+            <span class="k">return</span> <span class="k">if</span> (departAt <span class="o">==</span> <span class="n">480</span>) <span class="s">"departure set, schedule not added"</span> <span class="k">else</span> <span class="s">"unknown, read again later"</span>
+        }
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span>
+            <span class="k">return</span> <span class="k">if</span> (departure.error <span class="k">is</span> <span class="t">VehicleError</span>.<span class="t">InvalidArgument</span>) {
+                <span class="s">"departure time outside 0..1440 minutes; nothing was sent"</span>
+            } <span class="k">else</span> {
+                <span class="s">"not sent or refused: ${departure.error.message}"</span>
+            }
     }
     <span class="k">val</span> schedule =
         <span class="t">ChargeSchedule</span>(
@@ -271,7 +281,16 @@
             latitude = latitude,
             longitude = longitude,
         )
-    vehicle.<span class="f">addChargeSchedule</span>(schedule)
+    <span class="k">return</span> <span class="k">when</span> (<span class="k">val</span> added = vehicle.<span class="f">addChargeSchedule</span>(schedule)) {
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> <span class="s">"departure and schedule set"</span>
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Uncertain</span> <span class="o">-&gt;</span> {
+            <span class="c">// Never resend: look for the id in the charge schedules.</span>
+            <span class="k">val</span> state = vehicle.<span class="f">getState</span>(<span class="t">StateCategory</span>.<span class="t">CHARGE_SCHEDULE</span>)
+            <span class="k">val</span> schedules = (state <span class="k">as</span>? <span class="t">VehicleResult</span>.<span class="t">Success</span>)<span class="o">?.</span>value<span class="o">?.</span>charge_schedule_state<span class="o">?.</span>charge_schedules.<span class="f">orEmpty</span>()
+            <span class="k">if</span> (schedules.<span class="f">any</span> { it.id <span class="o">==</span> scheduleId }) <span class="s">"departure and schedule set"</span> <span class="k">else</span> <span class="s">"schedule unknown, read again later"</span>
+        }
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span> <span class="s">"schedule not sent or refused: ${added.error.message}"</span>
+    }
 }</code></pre>
 
 <h3 id="sec-cc-swift">Swift example</h3>
@@ -297,18 +316,46 @@
     <span class="k">return</span> <span class="s">"climate on"</span>
 }
 
-<span class="k">func</span> <span class="f">planCharging</span>(vehicle: <span class="t">Vehicle</span>, scheduleId: <span class="t">Int64</span>, latitude: <span class="t">Float</span>, longitude: <span class="t">Float</span>) <span class="k">async</span> <span class="k">throws</span> {
-    _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">setChargeLimit</span>(percent: <span class="n">80</span>, timeout: <span class="n">nil</span>)
+<span class="k">func</span> <span class="f">planCharging</span>(vehicle: <span class="t">Vehicle</span>, scheduleId: <span class="t">Int64</span>, latitude: <span class="t">Float</span>, longitude: <span class="t">Float</span>) <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="t">String</span> {
+    <span class="c">// Leave at 08:00, off-peak charging ends at 06:00 (minutes after the vehicle's local midnight).</span>
     <span class="k">let</span> departure = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">scheduleDeparture</span>(
         departAtMinutes: <span class="n">480</span>, offPeakEndMinutes: <span class="n">360</span>, preconditioning: .allDays, offPeak: .weekdays, timeout: <span class="n">nil</span>)
-    <span class="k">if</span> <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f) = <span class="f">onEnum</span>(of: departure), <span class="k">case</span> .invalidArgument = <span class="f">onEnum</span>(of: f.error) {
-        <span class="k">return</span> <span class="c">// departAtMinutes outside 0..1440; nothing was sent</span>
+    <span class="k">switch</span> <span class="f">onEnum</span>(of: departure) {
+    <span class="k">case</span> .success:
+        <span class="k">break</span>
+    <span class="k">case</span> .uncertain:
+        <span class="c">// The vehicle may have stored it. Never resend: read the state and stop here.</span>
+        <span class="k">let</span> state = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">getState</span>(category: .charge, timeout: <span class="n">nil</span>)
+        <span class="k">if</span> <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s) = <span class="f">onEnum</span>(of: state), <span class="k">let</span> data = s.value <span class="k">as</span>? <span class="t">VehicleData</span>,
+           data.charge_state?.scheduled_departure_time_minutes?.int32Value <span class="o">==</span> <span class="n">480</span> {
+            <span class="k">return</span> <span class="s">"departure set, schedule not added"</span>
+        }
+        <span class="k">return</span> <span class="s">"unknown, read again later"</span>
+    <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f):
+        <span class="k">if</span> <span class="k">case</span> .invalidArgument = <span class="f">onEnum</span>(of: f.error) {
+            <span class="k">return</span> <span class="s">"departure time outside 0..1440 minutes; nothing was sent"</span>
+        }
+        <span class="k">return</span> <span class="s">"not sent or refused: \(f.error.message)"</span>
     }
     <span class="k">let</span> schedule = <span class="t">ChargeSchedule</span>(
         id: scheduleId, name: <span class="s">"Home"</span>, days_of_week: <span class="n">127</span>, start_enabled: <span class="n">true</span>, start_time: <span class="n">120</span>,
         end_enabled: <span class="n">false</span>, end_time: <span class="n">0</span>, one_time: <span class="n">false</span>, enabled: <span class="n">true</span>,
         latitude: latitude, longitude: longitude, unknownFields: <span class="t">OkioByteString</span>.companion.<span class="t">EMPTY</span>)
-    _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">addChargeSchedule</span>(schedule: schedule, timeout: <span class="n">nil</span>)
+    <span class="k">let</span> added = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">addChargeSchedule</span>(schedule: schedule, timeout: <span class="n">nil</span>)
+    <span class="k">switch</span> <span class="f">onEnum</span>(of: added) {
+    <span class="k">case</span> .success:
+        <span class="k">return</span> <span class="s">"departure and schedule set"</span>
+    <span class="k">case</span> .uncertain:
+        <span class="c">// Never resend: look for the id in the charge schedules.</span>
+        <span class="k">let</span> state = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">getState</span>(category: .chargeSchedule, timeout: <span class="n">nil</span>)
+        <span class="k">if</span> <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s) = <span class="f">onEnum</span>(of: state), <span class="k">let</span> data = s.value <span class="k">as</span>? <span class="t">VehicleData</span>,
+           (data.charge_schedule_state?.charge_schedules <span class="o">??</span> []).<span class="f">contains</span>(<span class="k">where</span>: { $<span class="n">0</span>.id <span class="o">==</span> scheduleId }) {
+            <span class="k">return</span> <span class="s">"departure and schedule set"</span>
+        }
+        <span class="k">return</span> <span class="s">"schedule unknown, read again later"</span>
+    <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f):
+        <span class="k">return</span> <span class="s">"schedule not sent or refused: \(f.error.message)"</span>
+    }
 }</code></pre>
 
 <h2 id="sec-m5">Coming in M5: the rest of infotainment</h2>

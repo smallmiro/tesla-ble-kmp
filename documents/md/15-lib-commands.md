@@ -215,12 +215,22 @@ suspend fun warmUp(vehicle: Vehicle): String {
     return "climate on"
 }
 
-suspend fun planCharging(vehicle: Vehicle, scheduleId: Long, latitude: Float, longitude: Float) {
-    vehicle.setChargeLimit(80)
+suspend fun planCharging(vehicle: Vehicle, scheduleId: Long, latitude: Float, longitude: Float): String {
     // Leave at 08:00, off-peak charging ends at 06:00 (minutes after the vehicle's local midnight).
-    val departure = vehicle.scheduleDeparture(480, 360, ChargingPolicy.ALL_DAYS, ChargingPolicy.WEEKDAYS)
-    if (departure is VehicleResult.Failure && departure.error is VehicleError.InvalidArgument) {
-        return // departAtMinutes outside 0..1440; nothing was sent
+    when (val departure = vehicle.scheduleDeparture(480, 360, ChargingPolicy.ALL_DAYS, ChargingPolicy.WEEKDAYS)) {
+        is VehicleResult.Success -> Unit
+        is VehicleResult.Uncertain -> {
+            // The vehicle may have stored it. Never resend: read the state and stop here.
+            val state = vehicle.getState(StateCategory.CHARGE)
+            val departAt = (state as? VehicleResult.Success)?.value?.charge_state?.scheduled_departure_time_minutes
+            return if (departAt == 480) "departure set, schedule not added" else "unknown, read again later"
+        }
+        is VehicleResult.Failure ->
+            return if (departure.error is VehicleError.InvalidArgument) {
+                "departure time outside 0..1440 minutes; nothing was sent"
+            } else {
+                "not sent or refused: ${departure.error.message}"
+            }
     }
     val schedule =
         ChargeSchedule(
@@ -233,7 +243,16 @@ suspend fun planCharging(vehicle: Vehicle, scheduleId: Long, latitude: Float, lo
             latitude = latitude,
             longitude = longitude,
         )
-    vehicle.addChargeSchedule(schedule)
+    return when (val added = vehicle.addChargeSchedule(schedule)) {
+        is VehicleResult.Success -> "departure and schedule set"
+        is VehicleResult.Uncertain -> {
+            // Never resend: look for the id in the charge schedules.
+            val state = vehicle.getState(StateCategory.CHARGE_SCHEDULE)
+            val schedules = (state as? VehicleResult.Success)?.value?.charge_schedule_state?.charge_schedules.orEmpty()
+            if (schedules.any { it.id == scheduleId }) "departure and schedule set" else "schedule unknown, read again later"
+        }
+        is VehicleResult.Failure -> "schedule not sent or refused: ${added.error.message}"
+    }
 }
 ```
 
@@ -264,18 +283,46 @@ func warmUp(vehicle: Vehicle) async throws -> String {
     return "climate on"
 }
 
-func planCharging(vehicle: Vehicle, scheduleId: Int64, latitude: Float, longitude: Float) async throws {
-    _ = try await vehicle.setChargeLimit(percent: 80, timeout: nil)
+func planCharging(vehicle: Vehicle, scheduleId: Int64, latitude: Float, longitude: Float) async throws -> String {
+    // Leave at 08:00, off-peak charging ends at 06:00 (minutes after the vehicle's local midnight).
     let departure = try await vehicle.scheduleDeparture(
         departAtMinutes: 480, offPeakEndMinutes: 360, preconditioning: .allDays, offPeak: .weekdays, timeout: nil)
-    if case .failure(let f) = onEnum(of: departure), case .invalidArgument = onEnum(of: f.error) {
-        return // departAtMinutes outside 0..1440; nothing was sent
+    switch onEnum(of: departure) {
+    case .success:
+        break
+    case .uncertain:
+        // The vehicle may have stored it. Never resend: read the state and stop here.
+        let state = try await vehicle.getState(category: .charge, timeout: nil)
+        if case .success(let s) = onEnum(of: state), let data = s.value as? VehicleData,
+           data.charge_state?.scheduled_departure_time_minutes?.int32Value == 480 {
+            return "departure set, schedule not added"
+        }
+        return "unknown, read again later"
+    case .failure(let f):
+        if case .invalidArgument = onEnum(of: f.error) {
+            return "departure time outside 0..1440 minutes; nothing was sent"
+        }
+        return "not sent or refused: \(f.error.message)"
     }
     let schedule = ChargeSchedule(
         id: scheduleId, name: "Home", days_of_week: 127, start_enabled: true, start_time: 120,
         end_enabled: false, end_time: 0, one_time: false, enabled: true,
         latitude: latitude, longitude: longitude, unknownFields: OkioByteString.companion.EMPTY)
-    _ = try await vehicle.addChargeSchedule(schedule: schedule, timeout: nil)
+    let added = try await vehicle.addChargeSchedule(schedule: schedule, timeout: nil)
+    switch onEnum(of: added) {
+    case .success:
+        return "departure and schedule set"
+    case .uncertain:
+        // Never resend: look for the id in the charge schedules.
+        let state = try await vehicle.getState(category: .chargeSchedule, timeout: nil)
+        if case .success(let s) = onEnum(of: state), let data = s.value as? VehicleData,
+           (data.charge_schedule_state?.charge_schedules ?? []).contains(where: { $0.id == scheduleId }) {
+            return "departure and schedule set"
+        }
+        return "schedule unknown, read again later"
+    case .failure(let f):
+        return "schedule not sent or refused: \(f.error.message)"
+    }
 }
 ```
 
