@@ -50,14 +50,25 @@ public class VcsecCommands internal constructor(
         done: VcsecResponses.TerminalTest,
         flags: Int = SendWithRetry.DEFAULT_FLAGS,
         timeout: Duration = timeouts.commandTimeout,
-    ): VehicleResult<FromVCSECMessage> {
-        val payloadCopy = payload.toByteString()
-        return withAttemptTimeout(timeout) { setAfterSend ->
+    ): VehicleResult<FromVCSECMessage> = perform(Request(payload.toByteString(), auth, done, flags), timeout)
+
+    /** 시도마다 같은 요청 내용. [payload]는 첫 시도 전에 한 번 얼린 사본이다. */
+    private class Request(
+        val payload: ByteString,
+        val auth: AuthMethod,
+        val done: VcsecResponses.TerminalTest,
+        val flags: Int,
+    )
+
+    private suspend fun perform(
+        request: Request,
+        timeout: Duration,
+    ): VehicleResult<FromVCSECMessage> =
+        withAttemptTimeout(timeout) { setAfterSend ->
             serial.withLock {
-                retryWhileRetriable(dispatcher.retryInterval) { attempt(payloadCopy, auth, done, flags, setAfterSend) }
+                retryWhileRetriable(dispatcher.retryInterval) { attempt(request, setAfterSend) }
             }
         }
-    }
 
     /**
      * Go `getReceiver` + [VcsecResponses.readUntil]. [afterSend]는 요청의 첫 BLE 쓰기를 부른 때부터(전송 재시도 동안에도) 응답 처리를
@@ -65,22 +76,19 @@ public class VcsecCommands internal constructor(
      * 재시도 대기 중 만료는 `Failure`다(Go `vcsec.go:98-100`).
      */
     private suspend fun attempt(
-        payload: ByteString,
-        auth: AuthMethod,
-        done: VcsecResponses.TerminalTest,
-        flags: Int,
+        request: Request,
         afterSend: (Boolean) -> Unit,
     ): VehicleResult<FromVCSECMessage> {
         afterSend(false)
         val message =
             RoutableMessage(
                 to_destination = Destination(domain = Domain.DOMAIN_VEHICLE_SECURITY),
-                protobuf_message_as_bytes = payload,
-                flags = flags,
+                protobuf_message_as_bytes = request.payload,
+                flags = request.flags,
             )
-        val pending = dispatcher.send(message, auth, timeouts.commandLifetime) { afterSend(true) }.valueOr { return it.toResult() }
+        val pending = dispatcher.send(message, request.auth, timeouts.commandLifetime) { afterSend(true) }.valueOr { return it.toResult() }
         afterSend(true) // 넘겨준 요청은 쓰기를 부른 요청이다(알리지 않는 전송 구현에 대비)
-        val result = pending.use { VcsecResponses.readUntil(it, done) }
+        val result = pending.use { VcsecResponses.readUntil(it, request.done) }
         afterSend(false)
         return result
     }

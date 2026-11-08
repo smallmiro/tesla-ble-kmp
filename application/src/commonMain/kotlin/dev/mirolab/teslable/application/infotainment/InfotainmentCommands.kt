@@ -6,6 +6,7 @@ import com.tesla.generated.carserver.server.Action
 import com.tesla.generated.carserver.server.Response
 import com.tesla.generated.carserver.vehicle.VehicleData
 import com.tesla.generated.universalmessage.Domain
+import com.tesla.generated.universalmessage.RoutableMessage
 import dev.mirolab.teslable.application.dispatcher.valueOr
 import dev.mirolab.teslable.application.vehicle.SendWithRetry
 import dev.mirolab.teslable.model.StateCategory
@@ -22,8 +23,10 @@ public class InfotainmentCommands(
     public suspend fun execute(
         action: Action,
         timeout: Duration = send.commandTimeout,
-    ): VehicleResult<Response> {
-        val sent = send.send(Domain.DOMAIN_INFOTAINMENT, action.encode(), AuthMethod.GCM, timeout = timeout)
+    ): VehicleResult<Response> = interpret(send.send(Domain.DOMAIN_INFOTAINMENT, action.encode(), AuthMethod.GCM, timeout = timeout))
+
+    /** Go `getCarServerResponse`의 해석: 전송·프로토콜 오류는 그대로, 응답이면 `CarServer.Response`로. */
+    private fun interpret(sent: VehicleResult<RoutableMessage>): VehicleResult<Response> {
         val reply = sent.valueOr { return it.toResult() }
         return InfotainmentResponses.interpret(reply.protobuf_message_as_bytes?.toByteArray())
     }
