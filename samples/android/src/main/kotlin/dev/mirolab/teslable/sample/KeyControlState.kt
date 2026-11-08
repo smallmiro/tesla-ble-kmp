@@ -55,6 +55,9 @@ class KeyControlState(
     /** 확인 창을 기다리는 명령. */
     val pendingConfirm = mutableStateOf<KeyCommand?>(null)
 
+    /** Infotainment 공조·충전(SFR-025)의 화면 상태: 결과 미확인 범주와 마지막 읽기. 연결이 바뀌면 비운다. */
+    val info = mutableStateOf(InfoUiState())
+
     private val vehicle: Vehicle? get() = engine.currentVehicle()
 
     /** [body]를 한 번에 하나만 실행한다. 이미 진행 중이면 실행하지 않고 `false`. */
@@ -123,6 +126,7 @@ class KeyControlState(
         }.distinctUntilChanged()
             .collectLatest { seen ->
                 enrollment.value = Enrollment.UNKNOWN
+                info.value = InfoUiState.AFTER_CONNECTION_CHANGE // 읽은 값과 미확인 표시는 그 연결의 것이다
                 if (status.value?.vehicle !== seen.vehicle) status.value = null // 상태 카드는 그 연결에서 읽은 것만 보여 준다
                 if (seen.vehicle?.hasKey == true && seen.keyReady) {
                     // 연결 직후엔 모니터의 첫 조회가 VCSEC을 쓰고 있어 시간이 넘을 수 있다: 모르겠으면 5초 뒤 한 번 더 확인한다.
@@ -261,6 +265,60 @@ class KeyControlState(
             KeyCommand.OPEN_TONNEAU -> v.openTonneau()
             KeyCommand.CLOSE_TONNEAU -> v.closeTonneau()
             KeyCommand.STOP_TONNEAU -> v.stopTonneau()
+        }
+
+    // --- 4 제어: Infotainment 공조·충전 (SFR-025) ------------------------------------------------------------------------
+
+    /**
+     * Infotainment 버튼(명령과 읽기). 누른 시점에 4단계 규칙으로 다시 확인해 보낼 수 없으면 이유를 결과에 남기고 보내지 않는다.
+     * 깨우지 않고, 자동으로 다시 보내지 않고, 끝난 뒤 `getState`를 따로 부르지 않는다(`05-key-control-tab.md` §Infotainment controls).
+     */
+    fun requestInfo(cmd: InfoCommand) {
+        InfotainmentControl.blockedReason(inputsNow())?.let { return log("${cmd.label}: 보내지 않음 — $it") }
+        launchExclusive(busyLine = cmd.label) { infoTap(cmd) }
+    }
+
+    /** 누르기 한 번: `vehicleStatus()`(깨어 있을 때만 계속) → `startSession(INFOTAINMENT)` → 호출 한 번. 연결이 바뀐 뒤 끝났으면 결과를 버린다. */
+    suspend fun infoTap(cmd: InfoCommand) {
+        val v = vehicle ?: return log("${cmd.label}: 먼저 연결하세요")
+        val readStatus: suspend () -> VehicleResult<VehicleStatus> = { v.vehicleStatus() }
+        val ensureSession: suspend () -> VehicleResult<Unit> = { v.startSession(setOf(VehicleDomain.INFOTAINMENT)) }
+        if (cmd.isRead) {
+            val outcome = InfotainmentRunner.run(readStatus, ensureSession, call = { v.getState(cmd.category.stateCategory) })
+            val current = vehicle === v
+            info.value = InfotainmentReducer.afterRead(info.value, cmd.category, outcome, current, Instant.now())
+            finishInfo(v, cmd, outcome, current)
+        } else {
+            val outcome = InfotainmentRunner.run(readStatus, ensureSession, call = { sendInfo(v, cmd) })
+            val current = vehicle === v
+            info.value = InfotainmentReducer.afterCommand(info.value, cmd, outcome, current)
+            finishInfo(v, cmd, outcome, current)
+        }
+    }
+
+    /** 연결이 그대로면 등록 상태와 상태 카드를 맞추고 결과 줄을 남긴다. 아니면 결과는 버리고 "버렸다"는 줄만 남긴다. */
+    private fun finishInfo(
+        v: Vehicle,
+        cmd: InfoCommand,
+        outcome: InfoOutcome<*>,
+        current: Boolean,
+    ) {
+        if (!current) return log(InfotainmentRunner.droppedLine(cmd))
+        outcome.enrollment?.let { enrollment.value = it }
+        outcome.status?.let { status.value = StatusSnapshot(it, Instant.now(), v) }
+        log(InfotainmentRunner.resultLine(cmd, outcome))
+    }
+
+    private suspend fun sendInfo(
+        v: Vehicle,
+        cmd: InfoCommand,
+    ): VehicleResult<Unit> =
+        when (cmd) {
+            InfoCommand.CLIMATE_ON -> v.climateOn()
+            InfoCommand.CLIMATE_OFF -> v.climateOff()
+            InfoCommand.CHARGE_START -> v.chargeStart()
+            InfoCommand.CHARGE_STOP -> v.chargeStop()
+            InfoCommand.READ_CLIMATE, InfoCommand.READ_CHARGE -> error("읽기 버튼은 getState 로 보낸다")
         }
 
     /** 키 없이 연결된 경우(2단계 버튼): 연결을 끊고 다시 연결한다. [connect]는 화면이 넘긴 "연결" 동작(권한, 서비스 시작 포함). */

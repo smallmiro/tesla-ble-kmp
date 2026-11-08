@@ -28,6 +28,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import dev.mirolab.teslable.sample.InfoCategory
+import dev.mirolab.teslable.sample.InfoCommand
+import dev.mirolab.teslable.sample.InfoReading
+import dev.mirolab.teslable.sample.InfotainmentControl
 import dev.mirolab.teslable.sample.KeyCommand
 import dev.mirolab.teslable.sample.KeyControlState
 import dev.mirolab.teslable.sample.KeyControlSteps
@@ -37,6 +41,7 @@ import dev.mirolab.teslable.sample.LinkText
 import dev.mirolab.teslable.sample.MonitorEngine
 import dev.mirolab.teslable.sample.StepStatus
 import dev.mirolab.teslable.sample.StepView
+import java.time.Instant
 
 private const val GRID_COLUMNS = 2
 
@@ -92,6 +97,7 @@ fun KeyControlTab(
             ControlGrid(enabled = steps.control.buttonEnabled, onPress = { cmd ->
                 if (cmd.confirm != null) state.pendingConfirm.value = cmd else state.requestCommand(cmd)
             })
+            InfotainmentSection(state, enabled = InfotainmentControl.enabled(inputs))
         }
 
         StatusCard(state, refreshEnabled = KeyControlSteps.refreshEnabled(connected, state.busy.value), onRefresh = {
@@ -172,6 +178,57 @@ private fun GroupButtons(
         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             row.forEach { cmd -> Button(enabled = enabled, onClick = { onPress(cmd) }, modifier = Modifier.weight(1f)) { Text(cmd.label) } }
             repeat(GRID_COLUMNS - row.size) { Spacer(Modifier.weight(1f)) }
+        }
+    }
+}
+
+/**
+ * Infotainment 공조·충전(SFR-025): 범주마다 명령 둘과 읽기 버튼, 결과 미확인 표시, 마지막 읽기. 버튼 활성 규칙은 4단계와 같다.
+ * 값은 화면에만 보이고 결과 줄에는 가지 않는다.
+ */
+@Composable
+private fun InfotainmentSection(
+    state: KeyControlState,
+    enabled: Boolean,
+) {
+    val now by rememberNow()
+    val info = state.info.value
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        SectionTitle("Infotainment (공조·충전)")
+        InfoCategory.entries.forEach { category ->
+            SectionTitle(category.title)
+            InfoCommand.entries.filter { it.category == category }.chunked(GRID_COLUMNS).forEach { row ->
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    row.forEach { cmd ->
+                        val modifier = Modifier.weight(1f)
+                        if (cmd.isRead) {
+                            OutlinedButton(enabled = enabled, onClick = { state.requestInfo(cmd) }, modifier = modifier) { Text(cmd.label) }
+                        } else {
+                            Button(enabled = enabled, onClick = { state.requestInfo(cmd) }, modifier = modifier) { Text(cmd.label) }
+                        }
+                    }
+                    repeat(GRID_COLUMNS - row.size) { Spacer(Modifier.weight(1f)) }
+                }
+            }
+            if (category in info.unconfirmed) {
+                Text("${category.unconfirmedText} — '${category.readLabel}'로 확인하세요(다시 보내지 않습니다)", color = MaterialTheme.colorScheme.error)
+            }
+            info.readings[category]?.let { Readout(it, now) }
+        }
+    }
+}
+
+@Composable
+private fun Readout(
+    reading: InfoReading,
+    now: Instant,
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        reading.fields.forEach { MonoSmall("${it.label}: ${it.value}") }
+        MonoSmall("timestamp: ${reading.timestampSeconds ?: "—"}")
+        Text("읽은 시각 ${formatClock(reading.at)} (${formatAgo(reading.at, now)})", style = MaterialTheme.typography.bodySmall)
+        if (reading.sameTimestampAsPrevious) {
+            Text("timestamp가 그대로입니다: 새로 잰 값이라고 단정할 수 없습니다", style = MaterialTheme.typography.bodySmall)
         }
     }
 }
