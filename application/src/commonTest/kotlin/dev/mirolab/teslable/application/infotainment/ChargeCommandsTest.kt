@@ -120,6 +120,26 @@ class ChargeCommandsTest {
         }
 
     @Test
+    fun scheduleDepartureWithOnePolicyOffSendsOnlyTheOtherPart() =
+        // charge.go:219-251: 두 정책은 따로 대응한다. OFF인 쪽만 하위 메시지가 빠지고 다른 쪽은 그대로 들어간다(양쪽 방향)
+        runTest {
+            val h = dispatcherHarness()
+            val c = connected(h)
+            h.assertSends(
+                listOf(
+                    // 12 0c | d2 02 09 | 08 01 | 10 e003 (480) | 1a 02 0a00 (사전 공조 all_week) — 오프피크(4) 없음, 종료 0분 생략
+                    "120cd202090801" + "10e003" + "1a020a00" to {
+                        c.scheduleDeparture(480, 0, ChargingPolicy.ALL_DAYS, ChargingPolicy.OFF)
+                    },
+                    // 12 0f | d2 02 0c | 08 01 | 10 e003 | 22 02 1200 (오프피크 weekdays) | 28 e802 (360) — 사전 공조(3) 없음
+                    "120fd2020c0801" + "10e003" + "22021200" + "28e802" to {
+                        c.scheduleDeparture(480, 360, ChargingPolicy.OFF, ChargingPolicy.WEEKDAYS)
+                    },
+                ),
+            )
+        }
+
+    @Test
     fun scheduleDepartureOutsideTheDayIsRejectedWithoutSending() =
         // charge.go:216-218: departAt < 0 || departAt > 24h면 executeCarServerAction 전에 "invalid departure time"으로 끝난다
         runTest {
