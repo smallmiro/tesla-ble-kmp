@@ -437,4 +437,79 @@ internal class DefaultVehicle(
 
     override suspend fun closeChargePort(timeout: Duration?): VehicleResult<Unit> =
         session.infotainment.closeChargePort(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun ping(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.ping(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun ventWindows(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.ventWindows(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun closeWindows(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.closeWindows(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun setSunroof(
+        level: Int,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment.setSunroof(level, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun honkHorn(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.honkHorn(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun flashLights(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.flashLights(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun setSentryMode(
+        enabled: Boolean,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment.setSentryMode(enabled, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun enableValetMode(
+        pin: String,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment.enableValetMode(pin, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun disableValetMode(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.disableValetMode(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun resetValetPin(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.resetValetPin(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun volumeUp(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.volumeUp(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun volumeDown(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.volumeDown(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun setVolume(
+        volume: Float,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment.setVolume(volume, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun mediaNextTrack(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.mediaNextTrack(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun mediaPreviousTrack(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.mediaPreviousTrack(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun mediaNextFavorite(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.mediaNextFavorite(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun mediaPreviousFavorite(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.mediaPreviousFavorite(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun toggleMediaPlayback(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.toggleMediaPlayback(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun scheduleSoftwareUpdate(
+        delaySeconds: Int,
+        timeout: Duration?,
+    ): VehicleResult<Unit> =
+        session.infotainment.scheduleSoftwareUpdate(delaySeconds, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
+
+    override suspend fun cancelSoftwareUpdate(timeout: Duration?): VehicleResult<Unit> =
+        session.infotainment.cancelSoftwareUpdate(timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)
 }
