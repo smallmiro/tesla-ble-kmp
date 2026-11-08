@@ -9,7 +9,7 @@ These pages describe the code on `main`. They are maintained by agents: every PR
 public API or milestone status updates the affected `1x-lib-*.md` page **and** the matching HTML page in `ko/`, `en/`
 and `ja/` in the same PR (AGENTS.md §3 rule 13).
 
-## Status (M4, plus `getState()` ahead of the rest of M5)
+## Status (M4, plus `getState()` and the climate and charging commands of M5)
 
 | Area | State | Page |
 |---|---|---|
@@ -21,7 +21,8 @@ and `ja/` in the same PR (AGENTS.md §3 rule 13).
 | Key accessibility for a locked iPhone: `KeyAccessibility`, `VehicleKey.accessibility`, `getOrCreate(alias, policy, accessibility)`, `KeyStoreError.Locked` (FR-037, ADR-0014; issue #91). `startSession()` also returns `Locked`, without retrying, when the phone lock blocks a key read earlier, and that cache restore keeps the cache (issue #96) | Done (unit tests with fakes; the Keychain round trip, the Secure Enclave error on a locked iPhone and use on a locked iPhone are checked later on a device) | `13-lib-pairing.md` §Key accessibility, `16-lib-errors.md`, `17-lib-platform-notes.md` §Key storage |
 | Infotainment state query `getState(category)`, 12 categories (FR-033, #115, #116; ahead of the rest of M5) | Done (checked with FakeVehicle tests; real-vehicle check pending, #118) | `14-lib-reading-state.md` A8, `16-lib-errors.md` §`getState` results |
 | Connect scan observation `Vehicle.scanObservation` (`ConnectScanObservation`: time to the scan hit, RSSI, open attempt) and the `[connect:scan-hit]` observation log line (FR-038, #134, not part of M5) | Done (checked with fake connector tests; real-vehicle check pending) | `12-lib-getting-started.md` §Connect scan observation, `18-lib-troubleshooting.md` §Observation log (development) |
-| Infotainment control and `ping()` (M5) | **Not implemented** | `15-lib-commands.md` |
+| Infotainment climate and charging commands: 31 `Vehicle` methods, from `climateOn()` to `addChargeSchedule()` (FR-052, FR-060–083; M5) | Done (checked with FakeVehicle tests and a Swift typecheck; real-vehicle check pending, #118) | `15-lib-commands.md` §Implemented: Infotainment climate and charging, `16-lib-errors.md` §Invalid arguments, `17-lib-platform-notes.md` §Swift: command arguments |
+| The rest of the Infotainment control (windows, sunroof, horn, lights, sentry, valet, media, software update) and `ping()` (M5) | **Not implemented** | `15-lib-commands.md` §Planned |
 | Packaging: GitHub Packages + Swift Package Manager (M6) | **Not implemented** | this page, "Installation" |
 
 Do not document or call an API that is listed as not implemented. Planned names come from `docs/prd/PRD.md` and may
@@ -56,6 +57,7 @@ Not published yet (M6 adds GitHub Packages + SPM). Build from source:
 | Handle keys (create, look up, delete, check enrollment) | `13-lib-pairing.md`, `17-lib-platform-notes.md` §Key storage |
 | Use the key while the phone is locked (iOS key accessibility, `KeyStoreError.Locked`) | `13-lib-pairing.md` §Key accessibility, `16-lib-errors.md`, `17-lib-platform-notes.md` §Key storage |
 | Know which commands exist and which are planned | `15-lib-commands.md` |
+| Send climate or charging commands (call order, re-query after `Uncertain`, Kotlin / Swift) | `15-lib-commands.md` §Implemented: Infotainment climate and charging, `16-lib-errors.md` §Per-command re-query, `17-lib-platform-notes.md` §Swift: command arguments |
 | Map a `VehicleError` to app behaviour, understand retries | `16-lib-errors.md` |
 | Android permissions, iOS `Info.plist`, backup rules, session cache location | `17-lib-platform-notes.md` |
 | Diagnose scan, connect, pairing or session problems | `18-lib-troubleshooting.md` |
@@ -70,8 +72,8 @@ Not published yet (M6 adds GitHub Packages + SPM). Build from source:
 | `12-lib-getting-started.md` | End-to-end flow and full Kotlin / Swift examples |
 | `13-lib-pairing.md` | `VehicleKeyStore`, `KeyPolicy`, `KeyProtection`, `KeyAccessibility` (locked phone), public key bytes, enrollment check, `addKeyRequest` and `PairingEvent`, `sessionInfo`, `addKey`, `removeKey` |
 | `14-lib-reading-state.md` | Part A, data you request: `vehicleStatus()`, `keySummary()`, `listKeys()`, `sessionInfo()` with protocol payloads and enum tables, and `getState()` (A8). Part B, data the vehicle broadcasts (confirmed on a real car) and how `vehicle.events` delivers it, result types, wake behaviour |
-| `15-lib-commands.md` | Session API, the implemented VCSEC control commands (method ↔ FR ↔ payload) and the planned Infotainment table |
-| `16-lib-errors.md` | `VehicleResult`, `VehicleError` hierarchy, transport and key store errors, retry and timeouts, `getState` results, response size limit, reply authenticity |
-| `17-lib-platform-notes.md` | Android / iOS requirements, key storage, session cache, clocks, connection slots |
+| `15-lib-commands.md` | Session API, the implemented VCSEC control commands and Infotainment climate and charging commands (method ↔ FR ↔ payload, call order, local checks, re-query, Kotlin / Swift examples) and the planned Infotainment table |
+| `16-lib-errors.md` | `VehicleResult`, `VehicleError` hierarchy, invalid arguments, transport and key store errors, retry and timeouts, per-command re-query, `getState` results, response size limit, reply authenticity |
+| `17-lib-platform-notes.md` | Android / iOS requirements, key storage, session cache, clocks, connection slots, Swift timeouts, generated types and command arguments |
 | `18-lib-troubleshooting.md` | Symptom → cause → action table, debug logging |
 | `19-lib-architecture.md` | Contributor summary: modules, command path, concurrency, adapters |
