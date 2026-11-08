@@ -124,7 +124,55 @@ struct KeyControlTab: View {
                 .padding(.top, 8)
             }
             .font(.subheadline)
-            Text("공조·충전·경적·조명은 M5 이후에 추가됩니다.").font(.caption).foregroundStyle(.secondary)
+            infotainmentSection(enabled: InfotainmentControl.enabled(model.inputs))
+            Text("경적·조명·창문·미디어 등 나머지 Infotainment 명령은 M5에서 이어서 추가됩니다.").font(.caption).foregroundStyle(.secondary)
+        }
+    }
+
+    // MARK: - Infotainment 공조·충전 (SFR-025)
+
+    /// 범주마다 명령 둘과 읽기 버튼, 결과 미확인 표시, 마지막 읽기. 버튼 활성 규칙은 4단계와 같고 확인 창은 없다. 값은 화면에만 보이고 결과 줄에는 가지 않는다.
+    private func infotainmentSection(enabled: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Divider()
+            Text(InfotainmentControl.sectionTitle).font(.subheadline.weight(.semibold))
+            ForEach(InfoCategory.allCases, id: \.self) { category in
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(category.title).font(.footnote.weight(.semibold)).foregroundStyle(.secondary)
+                    LazyVGrid(columns: Self.columns, spacing: 10) {
+                        ForEach(InfoCommand.allCases.filter { $0.category == category }) { cmd in
+                            Button { model.pressInfo(cmd) } label: {
+                                VStack(spacing: 6) {
+                                    Image(systemName: cmd.symbol).font(.title3)
+                                    Text(cmd.label).font(.footnote).multilineTextAlignment(.center)
+                                }
+                                .frame(maxWidth: .infinity, minHeight: 64)
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(!enabled)
+                        }
+                    }
+                    if model.info.unconfirmed.contains(category) {
+                        Text("\(category.unconfirmedText) — '\(category.readLabel)'로 확인하세요(다시 보내지 않습니다)")
+                            .font(.footnote).foregroundStyle(.red)
+                    }
+                    if let reading = model.info.readings[category] { readout(reading) }
+                }
+            }
+        }
+    }
+
+    private func readout(_ reading: InfoReading) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            ForEach(reading.fields, id: \.label) { MonoSmall("\($0.label): \($0.value)") }
+            MonoSmall("timestamp: \(reading.timestampText)")
+            TimelineView(.periodic(from: .now, by: 1)) { context in
+                Text("읽은 시각 \(Formatting.clockText(reading.at)) (\(Formatting.ago(since: reading.at, now: context.date)))")
+                    .font(.caption).foregroundStyle(.secondary)
+            }
+            if reading.sameTimestampAsPrevious {
+                Text("timestamp가 그대로입니다: 새로 잰 값이라고 단정할 수 없습니다").font(.caption).foregroundStyle(.secondary)
+            }
         }
     }
 

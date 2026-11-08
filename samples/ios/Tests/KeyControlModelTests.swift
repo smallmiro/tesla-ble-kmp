@@ -31,6 +31,9 @@ final class FakeKeyControlBackend: KeyControlBackend, @unchecked Sendable {
     func ensureVcsecSession() async -> SessionOutcome { .ready }
     func send(_ button: ControlButton) async -> CommandOutcome { .success }
     func statusCard() async -> RequeryOutcome { RequeryOutcome(text: "ok", card: nil) }
+    /// 시험이 끼우는 Infotainment 호출 묶음(SFR-025). 없으면 연결이 없는 것처럼 `nil`.
+    var infotainment: InfotainmentLink?
+    func openInfotainment() -> InfotainmentLink? { infotainment }
 }
 
 /// 한 번 열리는 문(시험이 흐름을 멈췄다가 풀어 준다).

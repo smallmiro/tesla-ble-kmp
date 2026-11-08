@@ -13,6 +13,8 @@ protocol KeyControlBackend: Sendable {
     func ensureVcsecSession() async -> SessionOutcome
     func send(_ button: ControlButton) async -> CommandOutcome
     func statusCard() async -> RequeryOutcome
+    /// 지금 연결의 Infotainment 호출 묶음(SFR-025). 연결이 없으면 `nil`.
+    func openInfotainment() -> InfotainmentLink?
 }
 
 /// `ensureKey()` 의 결과(Kotlin 키 객체 없이).
@@ -52,4 +54,5 @@ struct LiveKeyControlBackend: KeyControlBackend {
     func ensureVcsecSession() async -> SessionOutcome { await client.ensureVcsecSession() }
     func send(_ button: ControlButton) async -> CommandOutcome { await client.send(button) }
     func statusCard() async -> RequeryOutcome { await client.statusCard() }
+    func openInfotainment() -> InfotainmentLink? { engine.currentVehicle().map { LiveInfotainmentLink(box: VehicleBox(vehicle: $0)) } }
 }

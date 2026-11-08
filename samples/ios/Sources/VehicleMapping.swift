@@ -136,3 +136,84 @@ enum StateFields {
         return nil
     }
 }
+
+// MARK: - Infotainment 공조·충전 (SFR-025)
+
+extension VehicleError {
+    /// 결과 줄과 `InfoOutcome.errorType` 에 가는 유일한 오류 정보: **종류 이름**(`message` 는 쓰지 않는다, FR-112).
+    /// `ResponseTooLarge`, `Timeout(afterSend=…)`, 그 밖에는 클래스 이름(`NoSession`, `NotConnected`, `Locked`, `InfotainmentRejected` …).
+    var infotainmentTypeName: String {
+        switch onEnum(of: self) {
+        case .protocolFault(let p):
+            return p.fault == .messagefaultErrorResponseMtuExceeded ? InfotainmentErrors.responseTooLarge : "ProtocolFault"
+        case .timeout(let t): return InfotainmentErrors.timeout(afterSend: t.afterSend)
+        case .keyNotPaired: return InfotainmentErrors.keyNotPaired
+        case .keyStoreError(let k):
+            switch onEnum(of: k) {
+            case .locked: return InfotainmentErrors.locked
+            case .hardwareUnavailable: return "HardwareUnavailable"
+            case .keyNotFound: return "KeyNotFound"
+            case .platformFailure: return "PlatformFailure"
+            }
+        case .transportError(let t):
+            switch onEnum(of: t) {
+            case .bluetoothOff: return "BluetoothOff"
+            case .connectFailed: return "ConnectFailed"
+            case .disconnected: return "Disconnected"
+            case .maxConnectionsExceeded: return "MaxConnectionsExceeded"
+            case .permissionDenied: return "PermissionDenied"
+            case .scanTimeout: return "ScanTimeout"
+            case .writeFailed: return "WriteFailed"
+            }
+        case .noSession: return "NoSession"
+        case .notConnected: return "NotConnected"
+        case .infotainmentRejected: return "InfotainmentRejected"
+        case .badResponse: return "BadResponse"
+        case .busy: return "Busy"
+        case .insufficientPrivileges: return "InsufficientPrivileges"
+        case .invalidArgument: return "InvalidArgument"
+        case .keychainRejected: return "KeychainRejected"
+        case .requiresKey: return "RequiresKey"
+        case .unknownFault: return "UnknownFault"
+        case .unknownKeychainCode: return "UnknownKeychainCode"
+        case .unknownResponse: return "UnknownResponse"
+        case .unknownVcsecError: return "UnknownVcsecError"
+        case .vcsecRejected: return "VcsecRejected"
+        }
+    }
+}
+
+extension InfoCategory {
+    var stateCategory: StateCategory {
+        switch self {
+        case .climate: return .climate
+        case .charge: return .charge
+        }
+    }
+}
+
+/// `VehicleData` 에서 이름 붙은 필드만 꺼낸다(`14-lib-reading-state.md` A8.3 의 Swift 형태: 숫자는 `KotlinInt?` 등으로 온다).
+/// `charge_state.charging_state` 는 읽지 않는다(`05-key-control-tab.md` §Readout 의 알려진 공백).
+enum InfoFields {
+    static func extract(_ category: InfoCategory, from data: VehicleData) -> InfoValues {
+        switch category {
+        case .climate:
+            let c = data.climate_state
+            return .climate(InfoClimateValues(
+                isClimateOn: c?.is_climate_on?.boolValue,
+                insideTempCelsius: c?.inside_temp_celsius?.floatValue,
+                driverTempSetting: c?.driver_temp_setting?.floatValue,
+                timestamp: c?.timestamp?.getEpochSecond()
+            ))
+        case .charge:
+            let c = data.charge_state
+            return .charge(InfoChargeValues(
+                batteryLevel: c?.battery_level.map { Int($0.int32Value) },
+                chargeLimitSoc: c?.charge_limit_soc.map { Int($0.int32Value) },
+                chargerPower: c?.charger_power.map { Int($0.int32Value) },
+                chargePortDoorOpen: c?.charge_port_door_open?.boolValue,
+                timestamp: c?.timestamp?.getEpochSecond()
+            ))
+        }
+    }
+}
