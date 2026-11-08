@@ -55,37 +55,50 @@ public class SendWithRetry(
         if (domain == Domain.DOMAIN_VEHICLE_SECURITY) {
             return VehicleResult.Failure(VehicleError.InvalidArgument("VCSEC commands must go through VcsecCommands"))
         }
-        val payloadCopy = payload.toByteString()
-        return withAttemptTimeout(timeout) { setAfterSend ->
-            retryWhileRetriable(dispatcher.retryInterval) { trySend(domain, payloadCopy, auth, flags, setAfterSend) }
-        }
+        return perform(Request(domain, payload.toByteString(), auth, flags), timeout)
     }
 
+    /** 시도마다 같은 요청 내용. [payload]는 첫 시도 전에 한 번 얼린 사본이다. */
+    private class Request(
+        val domain: Domain,
+        val payload: ByteString,
+        val auth: AuthMethod,
+        val flags: Int,
+    )
+
+    private suspend fun perform(
+        request: Request,
+        timeout: Duration,
+    ): VehicleResult<RoutableMessage> =
+        withAttemptTimeout(timeout) { setAfterSend ->
+            retryWhileRetriable(dispatcher.retryInterval) { trySend(request, setAfterSend) }
+        }
+
     /**
-     * Go `trySend` + `getReceiver`. [afterSend]는 요청의 첫 BLE 쓰기를 부른 때부터(전송 재시도 동안에도) 응답을 받을 때까지 true다 —
+     * Go `trySend` + `getReceiver`. [afterSend]는 요청의 첫 BLE 쓰기를 부른 때부터(전송 재시도 동안에도) 응답을 받아 분류할 때까지 true다 —
      * 그사이 취소되면 true로 남아 `Uncertain`이 된다. 응답을 받으면 false로 돌아가므로 재시도 대기 중 만료는 `Failure`다(Go `vehicle.go:250-252`).
      */
     private suspend fun trySend(
-        domain: Domain,
-        payload: ByteString,
-        auth: AuthMethod,
-        flags: Int,
+        request: Request,
         afterSend: (Boolean) -> Unit,
     ): VehicleResult<RoutableMessage> {
         afterSend(false)
         val message =
             RoutableMessage(
-                to_destination = Destination(domain = domain),
-                protobuf_message_as_bytes = payload,
-                flags = flags,
+                to_destination = Destination(domain = request.domain),
+                protobuf_message_as_bytes = request.payload,
+                flags = request.flags,
             )
-        val pending = dispatcher.send(message, auth, timeouts.commandLifetime) { afterSend(true) }.valueOr { return it.toResult() }
+        val pending = dispatcher.send(message, request.auth, timeouts.commandLifetime) { afterSend(true) }.valueOr { return it.toResult() }
         afterSend(true) // 넘겨준 요청은 쓰기를 부른 요청이다(알리지 않는 전송 구현에 대비)
-        val response = pending.use { it.receive() }
+        val result = pending.use { reply(it.receive()) }
         afterSend(false)
-        ResponseClassifier.protocolError(response)?.let { return it.toResult() }
-        return VehicleResult.Success(response)
+        return result
     }
+
+    /** Go `trySend`의 `protocol.GetError(response)`: 프로토콜 계층 오류면 그 오류, 아니면 응답 그대로. */
+    private fun reply(response: RoutableMessage): VehicleResult<RoutableMessage> =
+        ResponseClassifier.protocolError(response)?.toResult() ?: VehicleResult.Success(response)
 
     /** 상수. */
     public companion object {
