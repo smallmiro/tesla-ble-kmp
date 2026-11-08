@@ -195,10 +195,10 @@ actor BleClient {
             let result = try await call(vehicle)
             switch onEnum(of: result) {
             case .success: line = "\(title): 성공"
-            case .failure(let f): line = "\(title) 실패: \(f.error.message)"
+            case .failure(let f): line = "\(title) 실패: \(f.error.commandResultText)"
             case .uncertain(let u):
                 let status = await statusText()
-                line = "\(title) 불확실: \(u.error.message) → 재조회: \(status)"
+                line = "\(title) 불확실: \(u.error.commandResultText) → 재조회: \(status)"
             }
         } catch { line = "\(title) 오류: \(error)" }
         return "\(line) [\(String(format: "%.1f", Date().timeIntervalSince(started)))초]"
@@ -308,8 +308,8 @@ actor BleClient {
             }
             switch onEnum(of: result) {
             case .success: return .success
-            case .failure(let f): return .failure(f.error.message, keyNotPaired: f.error is VehicleErrorKeyNotPaired)
-            case .uncertain(let u): return .uncertain(u.error.message)
+            case .failure(let f): return .failure(f.error.commandResultText, keyNotPaired: f.error is VehicleErrorKeyNotPaired)
+            case .uncertain(let u): return .uncertain(u.error.commandResultText)
             }
         } catch { return .failure("\(error)") }
     }
@@ -332,8 +332,8 @@ actor BleClient {
             let result = try await call(vehicle)
             switch onEnum(of: result) {
             case .success(let s): return "\(title): \(String(describing: s.value))"
-            case .uncertain(let u): return "\(title) 불확실: \(u.error.message)"
-            case .failure(let f): return "\(title) 실패: \(f.error.message)"
+            case .uncertain(let u): return "\(title) 불확실: \(u.error.commandResultText)"
+            case .failure(let f): return "\(title) 실패: \(f.error.commandResultText)"
             }
         } catch { return "\(title) 오류: \(error)" }
     }
