@@ -10,10 +10,10 @@ Scope: everything the library can read from the vehicle over BLE, in two parts.
   confirmed on a real car. The library delivers the plain VCSEC broadcasts through `Vehicle.events` (`Flow<VehicleEvent>`,
   FR-035, B2); they still never reach a pending request, and the observation log still shows them.
 
-**`getState()` is available** (A8), ahead of the rest of M5. It is checked with FakeVehicle tests, not yet on a real
-vehicle (A8.5, #118). Go original: VCSEC queries in `05-command-catalog.md` §B and `03-protocol.md` §11–12; `getState` in
-`05-command-catalog.md` §I and `03-protocol.md` §10, §13; transport in `02-ble-transport.md`. Control payloads (lock, trunk,
-wake) are in `15-lib-commands.md`.
+**`getState()` is available** (A8). It is checked with FakeVehicle tests, not yet on a real vehicle (A8.5, #118). Go
+original: VCSEC queries in `05-command-catalog.md` §B and `03-protocol.md` §11–12; `getState` in `05-command-catalog.md`
+§I and `03-protocol.md` §10, §13; transport in `02-ble-transport.md`. Control payloads (lock, trunk, wake, climate,
+charging, media and the other Infotainment commands) are in `15-lib-commands.md`.
 
 Status labels used in Part B: **Confirmed** = seen on a real vehicle (results note, see Provenance);
 **Likely** = consistent and repeated in real-car logs, but not reproduced in a controlled scenario;
@@ -276,8 +276,8 @@ library sends none of them and has no API for them.
 
 ## A8. `getState(category)` (Infotainment)
 
-Available (FR-033, #115, #116), ahead of the rest of M5. It is checked with FakeVehicle tests; **nothing in this section
-is confirmed on a real vehicle yet** (A8.5).
+Available (FR-033, #115, #116). It is checked with FakeVehicle tests; **nothing in this section is confirmed on a real
+vehicle yet** (A8.5).
 
 ```kotlin
 suspend fun getState(category: StateCategory, timeout: Duration? = null): VehicleResult<VehicleData>
@@ -349,6 +349,8 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
   `Ready(fromCache = true)` even while Infotainment sleeps; the first query can then time out (`09-recipes.md`). Read
   `sleepStatus` instead.
 - Waking is the app's decision. The library never does it for you.
+- `ping()` (`15-lib-commands.md` §Ping) is a command that changes nothing and returns no data. `Success` shows that the
+  key and the Infotainment session work. It needs the same session and awake vehicle as `getState`.
 
 ```kotlin
 import dev.mirolab.teslable.Vehicle
@@ -413,6 +415,8 @@ can watch `sleepStatus` in `vehicle.events` (`VehicleEvent.Status`, B2).
   (`16-lib-errors.md` §Response size limit). Real-time speed is not guaranteed, and there is no other source for it.
 - Wire keeps proto names, so fields are `drive_state`, `speed_float`, `charge_state`, unlike the camelCase hand-written
   models. Generated types are in `com.tesla.generated.*`.
+- **Some states are wrapper messages, not enums**: `charging_state`, `climate_keeper_mode`, `sentry_mode_state` and
+  others carry one empty member that names the value (A8.6).
 - **Do not log a result**, `toString()` included. A `VehicleData` can hold the location and the destination. The library
   does not log it, and neither should the app (FR-112).
 
@@ -521,6 +525,99 @@ which Go `GetState` points to (`state.go:66-67`):
   `Failure(Timeout(afterSend = false))` (`16-lib-errors.md` §`getState` results).
 - How the size limit behaves per firmware, and how the fault arrives on our own `getState`. In replies to another client it
   came in plaintext `signedMessageStatus` (Likely, `16-lib-errors.md` §Response size limit).
+
+### A8.6 Wrapper fields: state, mode and status
+
+Some fields that look like enums are small Wire messages with a `oneof type` of empty (`Void`) members. Wire makes every
+member a nullable property, and the one that is not `null` is the value. If the wrapper is `null`, or none of its members
+is set, the vehicle did not send the value (or sent a member this library's schema does not know). Never compare a
+wrapper with a string or an enum value.
+
+| Field (category) | Wire type | Members (property names in Kotlin and Swift) | Notes |
+|---|---|---|---|
+| `charge_state.charging_state` (`CHARGE`) | `ChargeState.ChargingState` | `Unknown`, `Disconnected`, `NoPower`, `Starting`, `Charging`, `Complete`, `Stopped`, `Calibrating` | Read after `chargeStart`, `chargeStop` (`15-lib-commands.md` §Re-query) |
+| `charge_state.preconditioning_times`, `charge_state.off_peak_charging_times` (`CHARGE`) | `PreconditioningTimes`, `OffPeakChargingTimes` | `all_week`, `weekdays` | The days of `scheduleDeparture`; how a policy that is off is reported is not confirmed |
+| `climate_state.climate_keeper_mode` (`CLIMATE`) | `ClimateState.ClimateKeeperMode` | `Unknown`, `Off`, `On`, `Dog`, `Party` | The command enum says `CAMP`; the state names that member `Party`. That they mean the same mode is not confirmed |
+| `climate_state.defrost_mode` (`CLIMATE`) | `ClimateState.DefrostMode` | `Off`, `Normal`, `Max` | |
+| `closures_state.sun_roof_state` (`CLOSURES`) | `ClosuresState.SunRoofState` | `Unknown`, `Calibrating`, `Closed`, `Open`, `Moving`, `Vent` | Only set when a sunroof is installed |
+| `closures_state.sentry_mode_state` (`CLOSURES`) | `ClosuresState.SentryModeState` | `Off`, `Idle`, `Armed`, `Aware`, `Panic`, `Quiet` | Only set where sentry mode is supported |
+| `software_update_state.status` (`SOFTWARE_UPDATE`) | `SoftwareUpdateState.SoftwareUpdateStatus` | `Unknown`, `Installing`, `Scheduled`, `Available`, `DownloadingWifiWait`, `Downloading` | |
+| `drive_state.shift_state` (`DRIVE`) | `ShiftState` | `CarServer_Invalid` (proto `Invalid`), `P`, `R`, `N`, `D`, `SNA` | `17-lib-platform-notes.md` §Swift: generated types |
+
+Other value-like fields are plain nullable values read directly: for example `charge_port_door_open` (`Boolean?`),
+`scheduled_charging_mode` (enum `ChargeState.ScheduledChargingMode?`), `media_playback_status` (enum
+`MediaPlaybackStatus?`), and the `seat_heater_*` and `seat_fan_front_*` integers (`Int?`, 0 off, 1 low, 2 medium,
+3 high, as the proto's `SeatHeaterLevel_E` and `SeatCoolingLevel_E` list them).
+
+```kotlin
+import com.tesla.generated.carserver.vehicle.ChargeState
+import com.tesla.generated.carserver.vehicle.ClimateState
+import dev.mirolab.teslable.Vehicle
+import dev.mirolab.teslable.model.StateCategory
+import dev.mirolab.teslable.model.VehicleResult
+
+// The member that is not null is the value. null (wrapper or every member) means the vehicle did not send it.
+fun chargingStateName(state: ChargeState.ChargingState?): String? =
+    when {
+        state == null -> null
+        state.Charging != null -> "charging"
+        state.Starting != null -> "starting"
+        state.Complete != null -> "complete"
+        state.Stopped != null -> "stopped"
+        state.Disconnected != null -> "disconnected"
+        state.NoPower != null -> "no power"
+        state.Calibrating != null -> "calibrating"
+        state.Unknown != null -> "unknown"
+        else -> null // no member set, or one this library's schema does not know
+    }
+
+suspend fun isCharging(vehicle: Vehicle): Boolean? {
+    val result = vehicle.getState(StateCategory.CHARGE)
+    if (result !is VehicleResult.Success) return null // keep the last value (16-lib-errors.md §getState results)
+    val charging = result.value.charge_state?.charging_state ?: return null // not sent
+    return charging.Charging != null
+}
+
+fun climateKeeperOn(mode: ClimateState.ClimateKeeperMode?): Boolean? =
+    when {
+        mode == null -> null
+        mode.Off != null -> false
+        mode.On != null || mode.Dog != null || mode.Party != null -> true
+        else -> null // Unknown, or no member set
+    }
+```
+
+Swift sees the wrapper as a class with optional members of the same names. This form passes a Swift typecheck against
+the framework; it has not run in a Swift program.
+
+```swift
+func chargingStateName(_ state: ChargeState.ChargingState?) -> String? {
+    guard let state = state else { return nil }
+    if state.Charging != nil { return "charging" }
+    if state.Starting != nil { return "starting" }
+    if state.Complete != nil { return "complete" }
+    if state.Stopped != nil { return "stopped" }
+    if state.Disconnected != nil { return "disconnected" }
+    if state.NoPower != nil { return "no power" }
+    if state.Calibrating != nil { return "calibrating" }
+    if state.Unknown != nil { return "unknown" }
+    return nil // no member set, or one this library's schema does not know
+}
+
+func isCharging(vehicle: Vehicle) async throws -> Bool? {
+    let result = try await vehicle.getState(category: .charge, timeout: nil)
+    guard case .success(let s) = onEnum(of: result), let data = s.value as? VehicleData else { return nil }
+    guard let charging = data.charge_state?.charging_state else { return nil } // not sent
+    return charging.Charging != nil
+}
+
+func climateKeeperOn(_ mode: ClimateState.ClimateKeeperMode?) -> Bool? {
+    guard let mode = mode else { return nil }
+    if mode.Off != nil { return false }
+    if mode.On != nil || mode.Dog != nil || mode.Party != nil { return true }
+    return nil // Unknown, or no member set
+}
+```
 
 ## `VehicleStatus` (public model)
 

@@ -1,10 +1,9 @@
 # Commands
 
-Scope: on `main` the session calls are `startSession()` and `disconnect()`, and the 12 VCSEC control commands (M4) and
-the 31 Infotainment climate and charging commands (M5) are implemented. The Infotainment query `getState(category)`
-landed ahead of the rest of M5: `14-lib-reading-state.md` A8. **The rest of the Infotainment control (body, security,
-media, software update) and `ping()` are not implemented yet**; their table below is copied from `docs/prd/PRD.md` §5 and
-names may change when they land. Go original for every command: `05-command-catalog.md`.
+Scope: on `main` the session calls are `startSession()` and `disconnect()`, the 12 VCSEC control commands (M4) and the
+51 Infotainment commands of M5 (climate, charging and power, body, security, media, software update, `ping()`) are
+implemented. The Infotainment query `getState(category)` is in `14-lib-reading-state.md` A8. Go original for every
+command: `05-command-catalog.md`.
 
 ## Implemented
 
@@ -67,9 +66,10 @@ the toggles `openTrunk()` / `actuateTrunk()`.
 accordingly. A session restored from the cache that the vehicle no longer accepts (for example the cache was stored for
 another vehicle's key) shows `None` after the first command fails with `NoSession`; `startSession` recovers it.
 
-## Implemented: Infotainment climate and charging (M5)
+## Implemented: Infotainment (M5)
 
-All 31 methods are authenticated with AES-GCM over the INFOTAINMENT session, return `VehicleResult<Unit>` and take
+All 51 methods (climate 12, charging and power 19, body 5, security 4, media 8, software update 2, `ping()`) are
+authenticated with AES-GCM over the INFOTAINMENT session, return `VehicleResult<Unit>` and take
 `timeout: Duration? = null` last (`null` uses `commandTimeout`, 5 s). The success reply's content is dropped, as in Go.
 They are checked with FakeVehicle tests; **none is confirmed on a real vehicle yet** (#118).
 
@@ -100,9 +100,12 @@ even without a session, and nothing is sent:
 |---|---|---|
 | `setSeatCooler` | `seat` is `FRONT_LEFT` or `FRONT_RIGHT` | `invalid seat position for seat cooler: <SEAT>` (for example `…: SECOND_ROW_LEFT`) |
 | `scheduleDeparture` | `departAtMinutes` is in `0..1440` (both ends allowed) | `invalid departure time: <n> minutes after midnight (expected 0..1440)` |
+| `enableValetMode` | `pin` is exactly four ASCII digits `0`–`9` (other scripts' digits and full-width digits are rejected) | `PIN codes must be four digits` (Go `ErrInvalidPIN`; the PIN itself is never in an error or a log) |
+| `setVolume` | `volume` is in `0..10` and not NaN | `invalid volume (should be in [0, 10])` (Go's text; Go lets NaN through, this library rejects it) |
 
 Everything else is sent as given and the vehicle decides: temperatures, charge limit, amps, the other times, schedule
-fields. `autoSeatAndClimate` drops seats the Go original does not handle, without an error (§Climate).
+fields, the sunroof level, the software update delay. `autoSeatAndClimate` drops seats the Go original does not handle,
+without an error (§Climate).
 
 ### Parameter types
 
@@ -114,6 +117,9 @@ fields. `autoSeatAndClimate` drops seats the Go original does not handle, withou
 | `CabinOverheatProtectionTemperature` | `UNSPECIFIED`, `LOW`, `MEDIUM`, `HIGH` (wire values 0–3 of `ClimateState.CopActivationTemp`) | `setCabinOverheatProtectionTemperature` |
 | `ChargingPolicy` | `OFF` (that part is not sent), `ALL_DAYS`, `WEEKDAYS` | `scheduleDeparture` |
 | `ChargeSchedule`, `PreconditionSchedule` | Wire generated types in `com.tesla.generated.carserver.common`, sent as given (ADR-0002, revised 2026-11-08). `id` is the uint64 in a `Long`; an id above `Long.MAX_VALUE` is a negative `Long` | `addChargeSchedule`, `addPreconditionSchedule` |
+
+The other commands take plain values: `level: Int` (sunroof), `enabled: Boolean`, `pin: String`, `volume: Float`,
+`delaySeconds: Int`.
 
 Times are minutes after midnight in the vehicle's local time: `minutesAfterMidnight`, `departAtMinutes`,
 `offPeakEndMinutes`, and the schedules' `start_time`, `end_time`, `precondition_time`. `days_of_week` is a bitmask; the
@@ -161,6 +167,56 @@ Friday 32, Saturday 64 (every day 127, weekdays 62). The Go CLI uses the current
 | `openChargePort()` | FR-052 | `1203f20300` | Go `OpenChargePort` (= `ChargePortOpen`) |
 | `closeChargePort()` | FR-052 | `1203ea0300` | Go `CloseChargePort` (= `ChargePortClose`) |
 
+### Body
+
+| Method | FR | Example payload (`CarServer.Action`, hex) | Notes |
+|---|---|---|---|
+| `ventWindows()` | FR-050 | `12059202021a00` | `vehicleControlWindowAction{vent}` |
+| `closeWindows()` | FR-050 | `12059202022200` | `vehicleControlWindowAction{close}` |
+| `setSunroof(level: Int)` | FR-051 | `0` → `12058202020800` | Absolute level, no check. `0` is still sent (`absolute_level` is a oneof member) |
+| `honkHorn()` | FR-053 | `1203da0100` | Cannot be read back (§Re-query) |
+| `flashLights()` | FR-053 | `1203d20100` | Cannot be read back (§Re-query) |
+
+### Security
+
+| Method | FR | Example payload (`CarServer.Action`, hex) | Notes |
+|---|---|---|---|
+| `setSentryMode(enabled: Boolean)` | FR-084 | `true` → `1205f201020801` | |
+| `enableValetMode(pin: String)` | FR-085 | `"1234"` → `120bfa01080801120431323334` | The PIN must be four ASCII digits (§Local checks). The library never logs it; the app should not either |
+| `disableValetMode()` | FR-085 | `1203fa0100` | A refusal whose reason ends with `already off` (case-sensitive) is `Success`: valet mode is off already. Go checks that suffix on any error; the library on the vehicle's refusal only |
+| `resetValetPin()` | FR-085 | `1203e20100` | |
+
+### Media
+
+| Method | FR | Example payload (`CarServer.Action`, hex) | Notes |
+|---|---|---|---|
+| `volumeUp()` | FR-090 | `12058201020802` | `volume_delta` +1 (sint32) |
+| `volumeDown()` | FR-090 | `12058201020801` | `volume_delta` −1 |
+| `setVolume(volume: Float)` | FR-090 | `5.5` → `12088201051d0000b040` | `0..10`, NaN refused (§Local checks). `0` is still sent |
+| `mediaNextTrack()` | FR-091 | `12039a0100` | |
+| `mediaPreviousTrack()` | FR-091 | `1203a20100` | |
+| `mediaNextFavorite()` | FR-091 | `12038a0100` | |
+| `mediaPreviousFavorite()` | FR-091 | `1203920100` | |
+| `toggleMediaPlayback()` | FR-091 | `12027a00` | A **toggle**: run twice, it ends where it started. After `Uncertain` never resend; read `media_playback_status` |
+
+### Software update
+
+| Method | FR | Example payload (`CarServer.Action`, hex) | Notes |
+|---|---|---|---|
+| `scheduleSoftwareUpdate(delaySeconds: Int)` | FR-092 | `7200` → `1206ea010308a038` | Starts the update after `delaySeconds`; no check. Go takes a `time.Duration` and truncates it to seconds |
+| `cancelSoftwareUpdate()` | FR-092 | `1203ca0100` | |
+
+### Ping
+
+| Method | FR | Example payload (`CarServer.Action`, hex) | Notes |
+|---|---|---|---|
+| `ping()` | FR-034 | `1205f202020801` | `ping{ping_id: 1}`, as Go. The reply's `Ping` is not inspected |
+
+`ping()` changes nothing and reads nothing. `Success` means the vehicle knows the key and Infotainment answered, which
+makes it a cheap check before a series of commands. It needs the same INFOTAINMENT session and awake vehicle as every
+command; `Uncertain(Timeout(afterSend = true))` means no reply (asleep or lost). Because it changes nothing, the app may
+call it again after `Uncertain`; the library never resends it by itself. To read data, use `getState`.
+
 ### Re-query
 
 After `Uncertain`, never resend: read the state the command changes. The field names are the official proto names; which
@@ -183,12 +239,26 @@ reply too large): then the command's result stays unknown until a later read suc
 | `openChargePort`, `closeChargePort` | same | `charge_port_door_open` |
 | `addChargeSchedule`, `removeChargeSchedule`, `batchRemoveChargeSchedules` | `getState(StateCategory.CHARGE_SCHEDULE)` | `charge_schedule_state.charge_schedules` (the same `ChargeSchedule` type; look for the `id`) |
 | `addPreconditionSchedule`, `removePreconditionSchedule`, `batchRemovePreconditionSchedules` | `getState(StateCategory.PRECONDITIONING_SCHEDULE)` | `preconditioning_schedule_state.precondition_schedules` |
-| `setLowPowerMode`, `setKeepAccessoryPowerMode` | None | The official `VehicleData` has no field for these modes. Show the result as unknown; do not resend |
+| `ventWindows`, `closeWindows` | `getState(StateCategory.CLOSURES)` | `closures_state.window_open_driver_front` (and the other three windows) |
+| `setSunroof` | same | `sun_roof_percent_open`, `sun_roof_state` |
+| `setSentryMode` | same | `sentry_mode_state` |
+| `enableValetMode`, `disableValetMode`, `resetValetPin` | same | `valet_mode`, `valet_pin_needed` |
+| `volumeUp`, `volumeDown`, `setVolume` | `getState(StateCategory.MEDIA)` | `media_state.audio_volume` |
+| `mediaNextTrack`, `mediaPreviousTrack`, `mediaNextFavorite`, `mediaPreviousFavorite` | same | `now_playing_title`, `now_playing_artist` |
+| `toggleMediaPlayback` | same | `media_playback_status` (`Playing`, `Paused`, `Stopped`). **Never resend the toggle** |
+| `scheduleSoftwareUpdate`, `cancelSoftwareUpdate` | `getState(StateCategory.SOFTWARE_UPDATE)` | `software_update_state.status`, `scheduled_time_ms` |
+| `setLowPowerMode`, `setKeepAccessoryPowerMode`, `honkHorn`, `flashLights` | None | The official `VehicleData` has no field for these. Show the result as unknown; do not resend |
+| `ping` | None | Nothing changed; call `ping()` again if needed |
+
+Some of these fields are wrapper messages, not enums or numbers: `charging_state`, `off_peak_charging_times`,
+`climate_keeper_mode`, `sun_roof_state`, `sentry_mode_state`, `status`. How to read them in Kotlin and Swift:
+`14-lib-reading-state.md` A8.6.
 
 ### Kotlin example
 
 ```kotlin
 import com.tesla.generated.carserver.common.ChargeSchedule
+import com.tesla.generated.carserver.common.MediaPlaybackStatus
 import dev.mirolab.teslable.Vehicle
 import dev.mirolab.teslable.model.ChargingPolicy
 import dev.mirolab.teslable.model.SeatClimateLevel
@@ -254,6 +324,38 @@ suspend fun planCharging(vehicle: Vehicle, scheduleId: Long, latitude: Float, lo
         is VehicleResult.Failure -> "schedule not sent or refused: ${added.error.message}"
     }
 }
+
+suspend fun togglePlayback(vehicle: Vehicle): String =
+    when (val result = vehicle.toggleMediaPlayback()) {
+        is VehicleResult.Success -> "toggled"
+        is VehicleResult.Uncertain -> {
+            // A toggle run twice ends where it started. Never resend: read the state and let the user decide.
+            val state = vehicle.getState(StateCategory.MEDIA)
+            when ((state as? VehicleResult.Success)?.value?.media_state?.media_playback_status) {
+                MediaPlaybackStatus.Playing -> "playing"
+                MediaPlaybackStatus.Paused, MediaPlaybackStatus.Stopped -> "not playing"
+                null -> "unknown, read again later"
+            }
+        }
+        is VehicleResult.Failure -> "not sent or refused: ${result.error.message}"
+    }
+
+suspend fun enterValetMode(vehicle: Vehicle, pin: String): String =
+    when (val result = vehicle.enableValetMode(pin)) {
+        is VehicleResult.Success -> "valet mode on"
+        is VehicleResult.Uncertain -> {
+            // The vehicle may have turned it on. Never resend: read the state.
+            val state = vehicle.getState(StateCategory.CLOSURES)
+            val on = (state as? VehicleResult.Success)?.value?.closures_state?.valet_mode
+            if (on == true) "valet mode on" else "unknown, read again later"
+        }
+        is VehicleResult.Failure ->
+            if (result.error is VehicleError.InvalidArgument) {
+                "the PIN must be four digits" // the error never contains the PIN; do not log the PIN
+            } else {
+                "not sent or refused: ${result.error.message}"
+            }
+    }
 ```
 
 ### Swift example
@@ -324,19 +426,47 @@ func planCharging(vehicle: Vehicle, scheduleId: Int64, latitude: Float, longitud
         return "schedule not sent or refused: \(f.error.message)"
     }
 }
+
+func togglePlayback(vehicle: Vehicle) async throws -> String {
+    let result = try await vehicle.toggleMediaPlayback(timeout: nil)
+    switch onEnum(of: result) {
+    case .success:
+        return "toggled"
+    case .uncertain:
+        // A toggle run twice ends where it started. Never resend: read the state and let the user decide.
+        let state = try await vehicle.getState(category: .media, timeout: nil)
+        guard case .success(let s) = onEnum(of: state), let data = s.value as? VehicleData,
+              let status = data.media_state?.media_playback_status else { return "unknown, read again later" }
+        return status == .playing ? "playing" : "not playing"
+    case .failure(let f):
+        return "not sent or refused: \(f.error.message)"
+    }
+}
+
+func enterValetMode(vehicle: Vehicle, pin: String) async throws -> String {
+    let result = try await vehicle.enableValetMode(pin: pin, timeout: nil)
+    switch onEnum(of: result) {
+    case .success:
+        return "valet mode on"
+    case .uncertain:
+        // The vehicle may have turned it on. Never resend: read the state.
+        let state = try await vehicle.getState(category: .closures, timeout: nil)
+        if case .success(let s) = onEnum(of: state), let data = s.value as? VehicleData,
+           data.closures_state?.valet_mode?.boolValue == true {
+            return "valet mode on"
+        }
+        return "unknown, read again later"
+    case .failure(let f):
+        if case .invalidArgument = onEnum(of: f.error) {
+            return "the PIN must be four digits" // the error never contains the PIN; do not log the PIN
+        }
+        return "not sent or refused: \(f.error.message)"
+    }
+}
 ```
 
-## Planned: the rest of Infotainment (M5)
+## Deferred to v1.1
 
-| FR | Methods | Priority |
-|---|---|---|
-| FR-034 | `ping()` | P1 |
-| FR-050 | `ventWindows()`, `closeWindows()` | P1 |
-| FR-051 | `setSunroof(level)` | P1 |
-| FR-053 | `honkHorn()`, `flashLights()` | P1 |
-| FR-084, FR-085 | `setSentryMode(on)`, valet mode | P1 |
-| FR-090–092 | Volume, media controls, software update schedule / cancel | P1 |
-
-Deferred to v1.1 (P2): FR-054 `triggerHomelink`, FR-086 `clearPinToDrive`, FR-087 speed limit, FR-088 parental
+P2 items: FR-054 `triggerHomelink`, FR-086 `clearPinToDrive`, FR-087 speed limit, FR-088 parental
 controls, FR-089 guest mode, FR-093 `setVehicleName`, FR-094 `getNearbyCharging`. `SetPINToDrive` is not possible over
 BLE and is excluded.

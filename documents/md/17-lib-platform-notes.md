@@ -1,6 +1,6 @@
 # Platform Notes (Android / iOS)
 
-Scope: M3, plus the Swift form of `getState` (FR-033) and of the climate and charging commands (M5). Items not yet confirmed on a real device are marked so. Go original BLE behaviour: `02-ble-transport.md`.
+Scope: M3, plus the Swift form of `getState` (FR-033) and of the Infotainment commands (M5). Items not yet confirmed on a real device are marked so. Go original BLE behaviour: `02-ble-transport.md`.
 
 ## Support
 
@@ -196,11 +196,10 @@ in a Swift program.
 - The enum in `.protocolFault` is `MessageFault_E`. The size limit case is `.messagefaultErrorResponseMtuExceeded`:
   `case .protocolFault(let p) where p.fault == .messagefaultErrorResponseMtuExceeded:`.
 
-## Swift: command arguments (climate and charging)
+## Swift: command arguments (Infotainment commands)
 
-The climate and charging commands (`15-lib-commands.md` §Implemented: Infotainment climate and charging) as Swift sees
-them. These forms pass a Swift typecheck against the framework (debug simulator framework, 2026-11-08); they have not
-run in a Swift program.
+The Infotainment commands (`15-lib-commands.md` §Implemented: Infotainment) as Swift sees them. These forms pass a
+Swift typecheck against the framework (debug simulator framework, 2026-11-08); they have not run in a Swift program.
 
 - Pass every argument, including `timeout:` (`nil` for the config default):
   `try await vehicle.climateOn(timeout: nil)`. Without it the compiler reports
@@ -214,9 +213,15 @@ run in a Swift program.
   `try await vehicle.setSeatHeater(levels: [.frontLeft: .high, .secondRowCenter: .off], timeout: nil)`. An empty `[:]`
   is sent too. Swift dictionaries have no order; the library sends the seats in `SeatPosition` declaration order anyway.
 - `autoSeatAndClimate(seats:enabled:timeout:)` takes a Swift array: `seats: [.frontLeft, .frontRight]`.
-- Numbers: `percent`, `amps` and the minutes are `Int32`, schedule ids `Int64`, temperatures `Float`; integer and
-  decimal literals work. `scheduleDeparture(departAtMinutes: 480, offPeakEndMinutes: 360, preconditioning: .allDays,
-  offPeak: .weekdays, timeout: nil)`.
+- Numbers: `percent`, `amps`, the minutes, the sunroof `level` and `delaySeconds` are `Int32`, schedule ids `Int64`,
+  temperatures and `volume` `Float`; integer and decimal literals work. `scheduleDeparture(departAtMinutes: 480,
+  offPeakEndMinutes: 360, preconditioning: .allDays, offPeak: .weekdays, timeout: nil)`,
+  `setVolume(volume: 5.5, timeout: nil)`, `setSunroof(level: 0, timeout: nil)`,
+  `scheduleSoftwareUpdate(delaySeconds: 7200, timeout: nil)`.
+- The valet PIN is a Swift `String`: `enableValetMode(pin: pin, timeout: nil)`. Do not log it.
+- After an uncertain `toggleMediaPlayback(timeout:)`, read the playback state instead of sending it again:
+  `data.media_state?.media_playback_status == .playing` (`MediaPlaybackStatus` is a Swift enum: `.playing`, `.paused`,
+  `.stopped`).
 - `ChargeSchedule` and `PreconditionSchedule` are Wire generated classes. Swift gets no default arguments, so build them
   with every field plus `unknownFields: OkioByteString.companion.EMPTY`. `ChargeSchedule()` is rejected with
   `'init()' is unavailable`. The fields keep their proto names:
