@@ -1,7 +1,7 @@
 import Foundation
 
 // `Timeout(afterSend)` 를 사람에게 설명하는 문구(SFR-018 명령 결과, SFR-023 상태 진단). 라이브러리(Kotlin) 타입이 없는 순수 규칙이다.
-// 정본: `documents/md/16-lib-errors.md` 의 `Timeout(afterSend)` 행, §Retries and timeouts, §"Sent" means the write was started (ADR-0010).
+// 정본: `{{LIB_DOCS_DIR}}16-lib-errors.md` 의 `Timeout(afterSend)` 행, §Retries and timeouts, §"Sent" means the write was started (ADR-0010).
 //   - `afterSend == true`: 요청의 첫 BLE 쓰기가 시작된 뒤에 시간이 다했다. `Uncertain` 이고 `mayHaveSucceeded == true`.
 //     명령은 차가 실행했을 수 있으므로 다시 보내지 않고 상태를 다시 조회한다. 백그라운드에서는 쓰기가 느려 이렇게 끝나는 일이 늘 수 있다.
 //   - `afterSend == false`: 쓰기를 시작하기 전(앞선 명령·링크를 기다리는 중, 보내기 전 확인), 또는 차가 재시도를 요청한 뒤 기다리는 중에
