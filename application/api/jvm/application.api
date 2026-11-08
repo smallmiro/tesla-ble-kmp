@@ -144,6 +144,14 @@ public final class dev/mirolab/teslable/application/infotainment/InfotainmentCom
 	public static synthetic fun getState-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;Ldev/mirolab/teslable/model/StateCategory;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun honkHorn-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun honkHorn-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun mediaNextFavorite-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun mediaNextFavorite-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun mediaNextTrack-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun mediaNextTrack-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun mediaPreviousFavorite-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun mediaPreviousFavorite-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun mediaPreviousTrack-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun mediaPreviousTrack-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun openChargePort-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun openChargePort-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun removeChargeSchedule-8Mi8wO0 (JJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
@@ -186,8 +194,16 @@ public final class dev/mirolab/teslable/application/infotainment/InfotainmentCom
 	public static synthetic fun setSteeringWheelHeater-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;ZJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun setSunroof-8Mi8wO0 (IJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun setSunroof-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;IJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun setVolume-8Mi8wO0 (FJLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun setVolume-8Mi8wO0$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;FJLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun toggleMediaPlayback-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun toggleMediaPlayback-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 	public final fun ventWindows-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
 	public static synthetic fun ventWindows-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun volumeDown-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun volumeDown-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
+	public final fun volumeUp-VtjQ1oo (JLkotlin/coroutines/Continuation;)Ljava/lang/Object;
+	public static synthetic fun volumeUp-VtjQ1oo$default (Ldev/mirolab/teslable/application/infotainment/InfotainmentCommands;JLkotlin/coroutines/Continuation;ILjava/lang/Object;)Ljava/lang/Object;
 }
 
 public final class dev/mirolab/teslable/application/infotainment/InfotainmentResponses {
