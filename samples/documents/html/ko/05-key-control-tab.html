@@ -138,7 +138,7 @@
 <ol>
 <li><code>ensureSession</code>은 <code>startSession(setOf(VCSEC))</code>입니다. 이미 <code>Ready</code>인 도메인은 요청 없이 성공합니다. <code>Failure</code>(또는 <code>Uncertain</code>)이면 명령을 <strong>보내지 않고</strong> 재조회도 하지 않으며, 결과 줄에 이유를 보여 줍니다. <code>KeyNotPaired</code>는 등록 상태를 <code>notEnrolled</code>로 바꾸고, <code>KeyStoreError.Locked</code>는 휴대폰 잠금 해제를 요청합니다.</li>
 <li><code>command</code>는 정확히 한 번 호출합니다.</li>
-<li><code>Success</code>는 "성공"을, <code>Failure</code>는 메시지와 함께 "실패"를, <code>Uncertain</code>은 메시지와 함께 "불확실"을 보여 주며 다시 보내지 않습니다. 오류가 <code>Timeout</code>이면 메시지 뒤에 <code>16-lib-errors.md</code>(<code>Timeout(afterSend)</code> 행)의 문장이 붙습니다: <code>afterSend = true</code>는 보냈을 수 있고 차가 실행했을 수 있으니 상태를 다시 조회하라고 말하며 백그라운드에서는 BLE 쓰기가 느려질 수 있다고 덧붙이고, <code>afterSend = false</code>는 실행되지 않았다(쓰기를 시작하기 전이거나 재시도를 기다리다 시간이 다함)고 말합니다. 어느 쪽이든 재조회가 따릅니다.</li>
+<li><code>Success</code>는 "성공"을, <code>Failure</code>는 메시지와 함께 "실패"를, <code>Uncertain</code>은 메시지와 함께 "불확실"을 보여 주며 다시 보내지 않습니다. 오류가 <code>Timeout</code>이면 메시지 뒤에 <code>16-lib-errors.md</code>(<code>Timeout(afterSend)</code> 행)의 문장이 붙습니다: <code>afterSend = true</code>는 보냈을 수 있고 차가 실행했을 수 있으니 상태를 다시 조회하라고 말하며 백그라운드에서는 BLE 쓰기가 느려질 수 있다고 덧붙이고, <code>afterSend = false</code>는 실행되지 않았다(쓰기를 시작하기 전이거나, 재시도를 기다리다 또는 핸드셰이크 중에 시간이 다함)고 말합니다. 어느 쪽이든 재조회가 따릅니다.</li>
 <li><code>requery</code>(<code>vehicleStatus()</code>)는 명령 뒤에 항상 실행됩니다. <code>Success</code> 뒤에는 상태 카드를 갱신하고, <code>Uncertain</code> 뒤에는 매뉴얼이 요구하는 재조회입니다. 재조회가 실패하면 같은 결과 줄에 덧붙입니다.</li>
 </ol>
 

@@ -138,7 +138,7 @@
 <ol>
 <li><code>ensureSession</code> は <code>startSession(setOf(VCSEC))</code> です。すでに <code>Ready</code> のドメインは、要求なしで成功します。<code>Failure</code>（または <code>Uncertain</code>）のときはコマンドを<strong>送らず</strong>、再照会もせず、結果行に理由を表示します。<code>KeyNotPaired</code> は登録状態を <code>notEnrolled</code> にし、<code>KeyStoreError.Locked</code> はスマートフォンのロック解除を求めます。</li>
 <li><code>command</code> はちょうど 1 回呼ばれます。</li>
-<li><code>Success</code> は「成功」、<code>Failure</code> はメッセージ付きで「失敗」、<code>Uncertain</code> はメッセージ付きで「不確実」と表示し、再送はしません。エラーが <code>Timeout</code> のときは、メッセージの後に <code>16-lib-errors.md</code>（<code>Timeout(afterSend)</code> の行）の文が付きます: <code>afterSend = true</code> は送った可能性があり車が実行したかもしれないので状態をもう一度問い合わせるよう伝え、バックグラウンドでは BLE の書き込みが遅くなることがあると添えます。<code>afterSend = false</code> は実行されていない（書き込みを始める前、または再試行の待機で時間切れ）ことを伝えます。どちらの場合も再問い合わせが続きます。</li>
+<li><code>Success</code> は「成功」、<code>Failure</code> はメッセージ付きで「失敗」、<code>Uncertain</code> はメッセージ付きで「不確実」と表示し、再送はしません。エラーが <code>Timeout</code> のときは、メッセージの後に <code>16-lib-errors.md</code>（<code>Timeout(afterSend)</code> の行）の文が付きます: <code>afterSend = true</code> は送った可能性があり車が実行したかもしれないので状態をもう一度問い合わせるよう伝え、バックグラウンドでは BLE の書き込みが遅くなることがあると添えます。<code>afterSend = false</code> は実行されていない（書き込みを始める前、再試行の待機、またはハンドシェイクで時間切れ）ことを伝えます。どちらの場合も再問い合わせが続きます。</li>
 <li><code>requery</code>（<code>vehicleStatus()</code>）は、コマンドの後に必ず実行されます。<code>Success</code> の後は状態カードを更新し、<code>Uncertain</code> の後はマニュアルが求める再問い合わせになります。再問い合わせが失敗した場合は、同じ結果行に追記します。</li>
 </ol>
 
