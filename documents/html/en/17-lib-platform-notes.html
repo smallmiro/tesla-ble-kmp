@@ -69,7 +69,7 @@
 <li><a href="#sec-slots">Connection slots and dropped links</a></li>
 <li><a href="#sec-swift-timeouts">Swift: timeouts</a></li>
 <li><a href="#sec-swift-generated">Swift: generated types (getState)</a></li>
-<li><a href="#sec-swift-commands">Swift: command arguments (climate and charging)</a></li>
+<li><a href="#sec-swift-commands">Swift: command arguments (infotainment commands)</a></li>
 </ol></div>
 
 <h2 id="sec-support">Support</h2>
@@ -198,14 +198,16 @@
 <li>The enum in <code>.protocolFault</code> is <code>MessageFault_E</code>. The size limit case is <code>.messagefaultErrorResponseMtuExceeded</code>: <code>case .protocolFault(let p) where p.fault == .messagefaultErrorResponseMtuExceeded:</code>.</li>
 </ul>
 
-<h2 id="sec-swift-commands">Swift: command arguments (climate and charging)</h2>
-<p>How Swift calls the climate and charging commands (<a href="15-lib-commands.html#sec-cc">15. Commands</a>). These forms pass a Swift typecheck against the framework (the debug simulator framework, 2026-11-08); they have not run in a Swift program.</p>
+<h2 id="sec-swift-commands">Swift: command arguments (infotainment commands)</h2>
+<p>How Swift calls the infotainment commands (<a href="15-lib-commands.html#sec-cc">15. Commands</a>). These forms pass a Swift typecheck against the framework (the debug simulator framework, 2026-11-08); they have not run in a Swift program.</p>
 <ul>
 <li>Pass every argument, including <code>timeout:</code> (<code>nil</code> uses the config default): <code>try await vehicle.climateOn(timeout: nil)</code>. Without it the compiler reports <code>missing argument for parameter 'timeout' in call</code>.</li>
 <li>The argument enums are real Swift enums, so a <code>switch</code> over them needs no <code>default</code>: <code>SeatPosition</code> (<code>.unknown</code>, <code>.frontLeft</code>, <code>.frontRight</code>, <code>.secondRowLeft</code>, <code>.secondRowLeftBack</code>, <code>.secondRowCenter</code>, <code>.secondRowRight</code>, <code>.secondRowRightBack</code>, <code>.thirdRowLeft</code>, <code>.thirdRowRight</code>), <code>SeatClimateLevel</code> (<code>.off</code>, <code>.low</code>, <code>.med</code>, <code>.high</code>), <code>ClimateKeeperMode</code> (<code>.off</code>, <code>.on</code>, <code>.dog</code>, <code>.camp</code>), <code>CabinOverheatProtectionTemperature</code> (<code>.unspecified</code>, <code>.low</code>, <code>.medium</code>, <code>.high</code>), <code>ChargingPolicy</code> (<code>.off</code>, <code>.allDays</code>, <code>.weekdays</code>).</li>
 <li><code>setSeatHeater(levels:timeout:)</code> takes a Swift dictionary <code>[SeatPosition: SeatClimateLevel]</code>, and a literal works: <code>try await vehicle.setSeatHeater(levels: [.frontLeft: .high, .secondRowCenter: .off], timeout: nil)</code>. An empty <code>[:]</code> is sent too. Swift dictionaries have no order; the library sends the seats in the order of <code>SeatPosition</code> anyway.</li>
 <li><code>autoSeatAndClimate(seats:enabled:timeout:)</code> takes a Swift array: <code>seats: [.frontLeft, .frontRight]</code>.</li>
-<li>Numbers: <code>percent</code>, <code>amps</code> and the minutes are <code>Int32</code>, schedule ids <code>Int64</code>, temperatures <code>Float</code>; plain number literals work, as in <code>scheduleDeparture(departAtMinutes: 480, offPeakEndMinutes: 360, preconditioning: .allDays, offPeak: .weekdays, timeout: nil)</code>.</li>
+<li>Numbers: <code>percent</code>, <code>amps</code>, the minutes, the sunroof <code>level</code> and <code>delaySeconds</code> are <code>Int32</code>, schedule ids <code>Int64</code>, temperatures and <code>volume</code> <code>Float</code>; plain number literals work, as in <code>scheduleDeparture(departAtMinutes: 480, offPeakEndMinutes: 360, preconditioning: .allDays, offPeak: .weekdays, timeout: nil)</code>, <code>setVolume(volume: 5.5, timeout: nil)</code>, <code>setSunroof(level: 0, timeout: nil)</code> and <code>scheduleSoftwareUpdate(delaySeconds: 7200, timeout: nil)</code>.</li>
+<li>The valet PIN is a Swift <code>String</code>: <code>enableValetMode(pin: pin, timeout: nil)</code>. Do not log it.</li>
+<li>After an uncertain <code>toggleMediaPlayback(timeout:)</code>, read the playback state instead of sending it again: <code>data.media_state?.media_playback_status == .playing</code> (<code>MediaPlaybackStatus</code> is a Swift enum: <code>.playing</code>, <code>.paused</code>, <code>.stopped</code>).</li>
 <li><code>ChargeSchedule</code> and <code>PreconditionSchedule</code> are generated protocol classes. Swift gets no default arguments, so build them with every field plus <code>unknownFields: OkioByteString.companion.EMPTY</code>. <code>ChargeSchedule()</code> is rejected with <code>'init()' is unavailable</code>. The fields keep their protocol names:</li>
 </ul>
 <pre><code class="language-swift"><span class="k">let</span> schedule = <span class="t">ChargeSchedule</span>(

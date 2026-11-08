@@ -55,14 +55,13 @@
 </nav>
 <main class="content">
 <h1>15. Commands</h1>
-<p class="lead">A <code>Vehicle</code> can start and end sessions, send the twelve security-controller commands (locks, trunks, wake-up) and send the 31 infotainment commands for climate and charging. The rest of the infotainment commands (windows, horn, media and more) arrive later in M5. This page lists all of them. Reading infotainment state with <code>getState()</code> is available too: see <a href="14-lib-reading-state.html#sec-a-getstate">14. Reading Vehicle State</a>.</p>
+<p class="lead">A <code>Vehicle</code> can start and end sessions, send the twelve security-controller commands (locks, trunks, wake-up) and send the 51 infotainment commands: climate, charging and power, windows and sunroof, horn and lights, sentry and valet mode, media, software updates and <code>ping()</code>. This page lists all of them. Reading infotainment state with <code>getState()</code> is available too: see <a href="14-lib-reading-state.html#sec-a-getstate">14. Reading Vehicle State</a>.</p>
 
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#sec-now">Available today</a></li>
 <li><a href="#sec-rules">How every command behaves</a></li>
 <li><a href="#sec-m4">Security controller (M4)</a></li>
-<li><a href="#sec-cc">Climate and charging (M5)</a></li>
-<li><a href="#sec-m5">Coming in M5: the rest of infotainment</a></li>
+<li><a href="#sec-cc">Infotainment (M5)</a></li>
 <li><a href="#sec-later">Later</a></li>
 </ol></div>
 
@@ -112,8 +111,8 @@
 <li><code>sessions</code> follows the real session state. When a command ends with <code>NoSession</code>, or a session event arrives, the library re-checks that domain. A cached session the car no longer accepts (for example the cache belonged to another key) shows <code>None</code> after the first command fails; <code>startSession</code> recovers it.</li>
 </ul>
 
-<h2 id="sec-cc">Climate and charging (M5)</h2>
-<p>All 31 methods are authenticated over the infotainment session, take an optional <code>timeout</code> (default 5 seconds) and return <code>VehicleResult&lt;Unit&gt;</code>. The car's answer to a success carries nothing the app needs, as in the Go original. The commands are checked with automated tests against a simulated car; <strong>none has been checked on a real car yet</strong> (#118).</p>
+<h2 id="sec-cc">Infotainment (M5)</h2>
+<p>All 51 methods (climate 12, charging and power 19, body 5, security 4, media 8, software update 2, and <code>ping()</code>) are authenticated over the infotainment session, take an optional <code>timeout</code> (default 5 seconds) and return <code>VehicleResult&lt;Unit&gt;</code>. The car's answer to a success carries nothing the app needs, as in the Go original. The commands are checked with automated tests against a simulated car; <strong>none has been checked on a real car yet</strong> (#118).</p>
 
 <h3 id="sec-cc-order">Before you send</h3>
 <ol>
@@ -125,7 +124,7 @@
 <thead><tr><th>Result</th><th>Meaning</th><th>What your app does</th></tr></thead>
 <tbody>
 <tr><td><span class="badge ok">Success</span></td><td>The car accepted the command</td><td>To show the new state, read it with <code>getState</code> (<a href="#sec-cc-requery">After Uncertain</a>)</td></tr>
-<tr><td><span class="badge warn">Uncertain</span></td><td>The car may have done it: no answer in time (infotainment asleep, answer lost), a failed write the library repeated, or an unreadable answer</td><td><strong>Never send it again.</strong> Read the state with <code>getState</code> and decide from what it shows. Low power mode and accessory power cannot be read back</td></tr>
+<tr><td><span class="badge warn">Uncertain</span></td><td>The car may have done it: no answer in time (infotainment asleep, answer lost), a failed write the library repeated, or an unreadable answer</td><td><strong>Never send it again.</strong> Read the state with <code>getState</code> and decide from what it shows. Low power mode, accessory power, the horn and the lights cannot be read back</td></tr>
 <tr><td><code>Failure(InvalidArgument)</code></td><td>A check before sending failed, and nothing was sent</td><td>Fix the argument (<a href="#sec-cc-checks">next section</a>)</td></tr>
 <tr><td><code>Failure(InfotainmentRejected)</code></td><td>The car refused</td><td>Show a generic message. <code>reason</code> is the car's own text; do not log it</td></tr>
 <tr><td><code>NoSession</code>, <code>NotConnected</code>, other errors</td><td>Called in the wrong order, or the link is gone</td><td>See <a href="16-lib-errors.html">16. Error Handling</a></td></tr>
@@ -139,9 +138,11 @@
 <tbody>
 <tr><td><code>setSeatCooler</code></td><td>Front seats only: <code>FRONT_LEFT</code> or <code>FRONT_RIGHT</code></td><td><code>invalid seat position for seat cooler: &lt;SEAT&gt;</code></td></tr>
 <tr><td><code>scheduleDeparture</code></td><td>The departure time is 0 to 1440 minutes after midnight, both ends included</td><td><code>invalid departure time: &lt;n&gt; minutes after midnight (expected 0..1440)</code></td></tr>
+<tr><td><code>enableValetMode</code></td><td>The PIN is exactly four ASCII digits 0–9. Digits from other scripts and full-width digits are refused</td><td><code>PIN codes must be four digits</code> (the Go original's message; the PIN itself never appears in an error or a log)</td></tr>
+<tr><td><code>setVolume</code></td><td>The volume is 0 to 10, both ends included, and not NaN</td><td><code>invalid volume (should be in [0, 10])</code> (the Go original's message; the Go original lets NaN through, this library refuses it)</td></tr>
 </tbody>
 </table>
-<p>Everything else goes to the car as given, and the car decides: temperatures, charge limit, current, the other times and the schedule fields. <code>autoSeatAndClimate</code> quietly leaves out the seats the Go original does not handle.</p>
+<p>Everything else goes to the car as given, and the car decides: temperatures, charge limit, current, the other times, the schedule fields, the sunroof position and the software update delay. <code>autoSeatAndClimate</code> quietly leaves out the seats the Go original does not handle.</p>
 
 <h3 id="sec-cc-types">Argument types</h3>
 <table>
@@ -155,6 +156,7 @@
 <tr><td><code>ChargeSchedule</code>, <code>PreconditionSchedule</code></td><td>Generated protocol types, sent as given. The <code>id</code> is a <code>Long</code> holding an unsigned 64-bit number; an id above <code>Long.MAX_VALUE</code> is a negative <code>Long</code></td><td>Adding charge and precondition schedules</td></tr>
 </tbody>
 </table>
+<p>The other commands take plain values: <code>level: Int</code> (sunroof), <code>enabled: Boolean</code>, <code>pin: String</code>, <code>volume: Float</code> and <code>delaySeconds: Int</code>.</p>
 <p>All times are minutes after midnight in the car's local time. <code>days_of_week</code> is a bit mask; the Go command-line tool uses Sunday 1, Monday 2, Tuesday 4, Wednesday 8, Thursday 16, Friday 32 and Saturday 64 (every day 127, weekdays 62), and takes the current Unix time as a new schedule's <code>id</code>.</p>
 
 <h3 id="sec-cc-climate">Climate</h3>
@@ -202,6 +204,62 @@
 </tbody>
 </table>
 
+<h3 id="sec-cc-body">Body</h3>
+<table>
+<thead><tr><th>Method</th><th>Requirement</th><th>Example payload (hex)</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td><code>ventWindows()</code></td><td>FR-050</td><td><code>12059202021a00</code></td><td>Opens the windows to the vent position</td></tr>
+<tr><td><code>closeWindows()</code></td><td>FR-050</td><td><code>12059202022200</code></td><td>Closes the windows</td></tr>
+<tr><td><code>setSunroof(level)</code></td><td>FR-051</td><td><code>0</code> → <code>12058202020800</code></td><td>An absolute position, not checked. <code>0</code> is sent too</td></tr>
+<tr><td><code>honkHorn()</code></td><td>FR-053</td><td><code>1203da0100</code></td><td>Cannot be read back</td></tr>
+<tr><td><code>flashLights()</code></td><td>FR-053</td><td><code>1203d20100</code></td><td>Cannot be read back</td></tr>
+</tbody>
+</table>
+
+<h3 id="sec-cc-security">Security</h3>
+<table>
+<thead><tr><th>Method</th><th>Requirement</th><th>Example payload (hex)</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td><code>setSentryMode(enabled)</code></td><td>FR-084</td><td><code>true</code> → <code>1205f201020801</code></td><td>Sentry mode on or off</td></tr>
+<tr><td><code>enableValetMode(pin)</code></td><td>FR-085</td><td><code>"1234"</code> → <code>120bfa01080801120431323334</code></td><td>The PIN must be four ASCII digits (<a href="#sec-cc-checks">checks</a>). The library never logs it, and neither should your app</td></tr>
+<tr><td><code>disableValetMode()</code></td><td>FR-085</td><td><code>1203fa0100</code></td><td>If the car refuses with a reason that ends in <code>already off</code> (exact case), the result is <code>Success</code>: valet mode is off already. The Go original applies this rule to any error; this library only to the car's refusal</td></tr>
+<tr><td><code>resetValetPin()</code></td><td>FR-085</td><td><code>1203e20100</code></td><td>Resets the valet PIN</td></tr>
+</tbody>
+</table>
+
+<h3 id="sec-cc-media">Media</h3>
+<table>
+<thead><tr><th>Method</th><th>Requirement</th><th>Example payload (hex)</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td><code>volumeUp()</code></td><td>FR-090</td><td><code>12058201020802</code></td><td>One step up</td></tr>
+<tr><td><code>volumeDown()</code></td><td>FR-090</td><td><code>12058201020801</code></td><td>One step down</td></tr>
+<tr><td><code>setVolume(volume)</code></td><td>FR-090</td><td><code>5.5</code> → <code>12088201051d0000b040</code></td><td>0 to 10; NaN is refused (<a href="#sec-cc-checks">checks</a>). <code>0</code> is sent too</td></tr>
+<tr><td><code>mediaNextTrack()</code></td><td>FR-091</td><td><code>12039a0100</code></td><td>Next track</td></tr>
+<tr><td><code>mediaPreviousTrack()</code></td><td>FR-091</td><td><code>1203a20100</code></td><td>Previous track</td></tr>
+<tr><td><code>mediaNextFavorite()</code></td><td>FR-091</td><td><code>12038a0100</code></td><td>Next favourite</td></tr>
+<tr><td><code>mediaPreviousFavorite()</code></td><td>FR-091</td><td><code>1203920100</code></td><td>Previous favourite</td></tr>
+<tr><td><code>toggleMediaPlayback()</code></td><td>FR-091</td><td><code>12027a00</code></td><td>A <strong>toggle</strong>: sent twice, it ends where it started. After <code>Uncertain</code>, never send it again; read <code>media_playback_status</code></td></tr>
+</tbody>
+</table>
+
+<h3 id="sec-cc-update">Software update</h3>
+<table>
+<thead><tr><th>Method</th><th>Requirement</th><th>Example payload (hex)</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td><code>scheduleSoftwareUpdate(delaySeconds)</code></td><td>FR-092</td><td><code>7200</code> → <code>1206ea010308a038</code></td><td>Starts the update after <code>delaySeconds</code> seconds; not checked. The Go original takes a duration and cuts it to whole seconds</td></tr>
+<tr><td><code>cancelSoftwareUpdate()</code></td><td>FR-092</td><td><code>1203ca0100</code></td><td>Cancels a scheduled update</td></tr>
+</tbody>
+</table>
+
+<h3 id="sec-cc-ping">Ping</h3>
+<table>
+<thead><tr><th>Method</th><th>Requirement</th><th>Example payload (hex)</th><th>Note</th></tr></thead>
+<tbody>
+<tr><td><code>ping()</code></td><td>FR-034</td><td><code>1205f202020801</code></td><td><code>ping_id</code> 1, as in the Go original. What the car puts in its answer is not checked</td></tr>
+</tbody>
+</table>
+<p><code>ping()</code> changes nothing and reads nothing. <code>Success</code> means the car knows the key and infotainment answered, which makes it a cheap check before a series of commands. It needs the same infotainment session and awake car as every command; <code>Uncertain(Timeout)</code> means no answer (asleep or lost). Because it changes nothing, your app may call it again after <code>Uncertain</code>; the library never resends it by itself. To read data, use <code>getState</code>.</p>
+
 <h3 id="sec-cc-requery">After Uncertain</h3>
 <p>Never resend: read the state the command changes. The field names come from the official protocol definitions; which field a command changes on a real car is not confirmed yet (#118). The read itself can come back <code>Uncertain</code> (infotainment asleep, answer too large); then the command's result stays unknown until a later read succeeds.</p>
 <table>
@@ -221,12 +279,23 @@
 <tr><td><code>openChargePort</code>, <code>closeChargePort</code></td><td>same</td><td><code>charge_port_door_open</code></td></tr>
 <tr><td>Charge schedules: add, remove, batch remove</td><td><code>getState(StateCategory.CHARGE_SCHEDULE)</code></td><td><code>charge_schedule_state.charge_schedules</code>: look for the <code>id</code></td></tr>
 <tr><td>Precondition schedules: add, remove, batch remove</td><td><code>getState(StateCategory.PRECONDITIONING_SCHEDULE)</code></td><td><code>preconditioning_schedule_state.precondition_schedules</code></td></tr>
-<tr><td><code>setLowPowerMode</code>, <code>setKeepAccessoryPowerMode</code></td><td>None</td><td>The official vehicle data has no field for these modes. Show the result as unknown and do not resend</td></tr>
+<tr><td><code>ventWindows</code>, <code>closeWindows</code></td><td><code>getState(StateCategory.CLOSURES)</code></td><td><code>closures_state.window_open_driver_front</code> and the other three windows</td></tr>
+<tr><td><code>setSunroof</code></td><td>same</td><td><code>sun_roof_percent_open</code>, <code>sun_roof_state</code></td></tr>
+<tr><td><code>setSentryMode</code></td><td>same</td><td><code>sentry_mode_state</code></td></tr>
+<tr><td><code>enableValetMode</code>, <code>disableValetMode</code>, <code>resetValetPin</code></td><td>same</td><td><code>valet_mode</code>, <code>valet_pin_needed</code></td></tr>
+<tr><td><code>volumeUp</code>, <code>volumeDown</code>, <code>setVolume</code></td><td><code>getState(StateCategory.MEDIA)</code></td><td><code>media_state.audio_volume</code></td></tr>
+<tr><td><code>mediaNextTrack</code>, <code>mediaPreviousTrack</code>, <code>mediaNextFavorite</code>, <code>mediaPreviousFavorite</code></td><td>same</td><td><code>now_playing_title</code>, <code>now_playing_artist</code></td></tr>
+<tr><td><code>toggleMediaPlayback</code></td><td>same</td><td><code>media_playback_status</code> (<code>Playing</code>, <code>Paused</code>, <code>Stopped</code>). <strong>Never send the toggle again</strong></td></tr>
+<tr><td><code>scheduleSoftwareUpdate</code>, <code>cancelSoftwareUpdate</code></td><td><code>getState(StateCategory.SOFTWARE_UPDATE)</code></td><td><code>software_update_state.status</code>, <code>scheduled_time_ms</code></td></tr>
+<tr><td><code>setLowPowerMode</code>, <code>setKeepAccessoryPowerMode</code>, <code>honkHorn</code>, <code>flashLights</code></td><td>None</td><td>The official vehicle data has no field for these. Show the result as unknown and do not resend</td></tr>
+<tr><td><code>ping</code></td><td>None</td><td>Nothing changed; call <code>ping()</code> again if needed</td></tr>
 </tbody>
 </table>
+<p>Some of these fields are small wrapper messages, not enums or numbers: <code>charging_state</code>, <code>off_peak_charging_times</code>, <code>climate_keeper_mode</code>, <code>sun_roof_state</code>, <code>sentry_mode_state</code> and <code>status</code>. How to read them in Kotlin and Swift: <a href="14-lib-reading-state.html#sec-a-wrappers">14, A8.6</a>.</p>
 
 <h3 id="sec-cc-kotlin">Kotlin example</h3>
 <pre><code class="language-kotlin"><span class="k">import</span> com.tesla.generated.carserver.common.<span class="t">ChargeSchedule</span>
+<span class="k">import</span> com.tesla.generated.carserver.common.<span class="t">MediaPlaybackStatus</span>
 <span class="k">import</span> dev.mirolab.teslable.<span class="t">Vehicle</span>
 <span class="k">import</span> dev.mirolab.teslable.model.<span class="t">ChargingPolicy</span>
 <span class="k">import</span> dev.mirolab.teslable.model.<span class="t">SeatClimateLevel</span>
@@ -291,7 +360,39 @@
         }
         <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span> <span class="s">"schedule not sent or refused: ${added.error.message}"</span>
     }
-}</code></pre>
+}
+
+<span class="k">suspend</span> <span class="k">fun</span> <span class="f">togglePlayback</span>(vehicle: <span class="t">Vehicle</span>): <span class="t">String</span> =
+    <span class="k">when</span> (<span class="k">val</span> result = vehicle.<span class="f">toggleMediaPlayback</span>()) {
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> <span class="s">"toggled"</span>
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Uncertain</span> <span class="o">-&gt;</span> {
+            <span class="c">// A toggle run twice ends where it started. Never resend: read the state and let the user decide.</span>
+            <span class="k">val</span> state = vehicle.<span class="f">getState</span>(<span class="t">StateCategory</span>.<span class="t">MEDIA</span>)
+            <span class="k">when</span> ((state <span class="k">as</span>? <span class="t">VehicleResult</span>.<span class="t">Success</span>)<span class="o">?.</span>value<span class="o">?.</span>media_state<span class="o">?.</span>media_playback_status) {
+                <span class="t">MediaPlaybackStatus</span>.<span class="t">Playing</span> <span class="o">-&gt;</span> <span class="s">"playing"</span>
+                <span class="t">MediaPlaybackStatus</span>.<span class="t">Paused</span>, <span class="t">MediaPlaybackStatus</span>.<span class="t">Stopped</span> <span class="o">-&gt;</span> <span class="s">"not playing"</span>
+                <span class="n">null</span> <span class="o">-&gt;</span> <span class="s">"unknown, read again later"</span>
+            }
+        }
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span> <span class="s">"not sent or refused: ${result.error.message}"</span>
+    }
+
+<span class="k">suspend</span> <span class="k">fun</span> <span class="f">enterValetMode</span>(vehicle: <span class="t">Vehicle</span>, pin: <span class="t">String</span>): <span class="t">String</span> =
+    <span class="k">when</span> (<span class="k">val</span> result = vehicle.<span class="f">enableValetMode</span>(pin)) {
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Success</span> <span class="o">-&gt;</span> <span class="s">"valet mode on"</span>
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Uncertain</span> <span class="o">-&gt;</span> {
+            <span class="c">// The vehicle may have turned it on. Never resend: read the state.</span>
+            <span class="k">val</span> state = vehicle.<span class="f">getState</span>(<span class="t">StateCategory</span>.<span class="t">CLOSURES</span>)
+            <span class="k">val</span> on = (state <span class="k">as</span>? <span class="t">VehicleResult</span>.<span class="t">Success</span>)<span class="o">?.</span>value<span class="o">?.</span>closures_state<span class="o">?.</span>valet_mode
+            <span class="k">if</span> (on <span class="o">==</span> <span class="n">true</span>) <span class="s">"valet mode on"</span> <span class="k">else</span> <span class="s">"unknown, read again later"</span>
+        }
+        <span class="k">is</span> <span class="t">VehicleResult</span>.<span class="t">Failure</span> <span class="o">-&gt;</span>
+            <span class="k">if</span> (result.error <span class="k">is</span> <span class="t">VehicleError</span>.<span class="t">InvalidArgument</span>) {
+                <span class="s">"the PIN must be four digits"</span> <span class="c">// the error never contains the PIN; do not log the PIN</span>
+            } <span class="k">else</span> {
+                <span class="s">"not sent or refused: ${result.error.message}"</span>
+            }
+    }</code></pre>
 
 <h3 id="sec-cc-swift">Swift example</h3>
 <p>Swift passes every argument, including <code>timeout:</code>. Schedules are built with every field plus <code>unknownFields</code>; the details are in <a href="17-lib-platform-notes.html#sec-swift-commands">17. Platform Notes</a>. This form passes a Swift typecheck against the framework; it has not run in a Swift program.</p>
@@ -356,18 +457,44 @@
     <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f):
         <span class="k">return</span> <span class="s">"schedule not sent or refused: \(f.error.message)"</span>
     }
-}</code></pre>
+}
 
-<h2 id="sec-m5">Coming in M5: the rest of infotainment</h2>
-<table>
-<thead><tr><th>Area</th><th>Planned methods</th><th>Priority</th></tr></thead>
-<tbody>
-<tr><td>Body</td><td><code>ventWindows()</code>, <code>closeWindows()</code>, <code>setSunroof(level)</code>, <code>honkHorn()</code>, <code>flashLights()</code></td><td><span class="badge info">P1</span></td></tr>
-<tr><td>Security</td><td><code>setSentryMode(on)</code>, valet mode</td><td><span class="badge info">P1</span></td></tr>
-<tr><td>Media and updates</td><td>Volume, track and favourite controls, schedule or cancel a software update</td><td><span class="badge info">P1</span></td></tr>
-<tr><td>Status</td><td><code>ping()</code></td><td><span class="badge info">P1</span></td></tr>
-</tbody>
-</table>
+<span class="k">func</span> <span class="f">togglePlayback</span>(vehicle: <span class="t">Vehicle</span>) <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="t">String</span> {
+    <span class="k">let</span> result = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">toggleMediaPlayback</span>(timeout: <span class="n">nil</span>)
+    <span class="k">switch</span> <span class="f">onEnum</span>(of: result) {
+    <span class="k">case</span> .success:
+        <span class="k">return</span> <span class="s">"toggled"</span>
+    <span class="k">case</span> .uncertain:
+        <span class="c">// A toggle run twice ends where it started. Never resend: read the state and let the user decide.</span>
+        <span class="k">let</span> state = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">getState</span>(category: .media, timeout: <span class="n">nil</span>)
+        <span class="k">guard</span> <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s) = <span class="f">onEnum</span>(of: state), <span class="k">let</span> data = s.value <span class="k">as</span>? <span class="t">VehicleData</span>,
+              <span class="k">let</span> status = data.media_state?.media_playback_status <span class="k">else</span> { <span class="k">return</span> <span class="s">"unknown, read again later"</span> }
+        <span class="k">return</span> status <span class="o">==</span> .playing ? <span class="s">"playing"</span> : <span class="s">"not playing"</span>
+    <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f):
+        <span class="k">return</span> <span class="s">"not sent or refused: \(f.error.message)"</span>
+    }
+}
+
+<span class="k">func</span> <span class="f">enterValetMode</span>(vehicle: <span class="t">Vehicle</span>, pin: <span class="t">String</span>) <span class="k">async</span> <span class="k">throws</span> <span class="o">-&gt;</span> <span class="t">String</span> {
+    <span class="k">let</span> result = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">enableValetMode</span>(pin: pin, timeout: <span class="n">nil</span>)
+    <span class="k">switch</span> <span class="f">onEnum</span>(of: result) {
+    <span class="k">case</span> .success:
+        <span class="k">return</span> <span class="s">"valet mode on"</span>
+    <span class="k">case</span> .uncertain:
+        <span class="c">// The vehicle may have turned it on. Never resend: read the state.</span>
+        <span class="k">let</span> state = <span class="k">try</span> <span class="k">await</span> vehicle.<span class="f">getState</span>(category: .closures, timeout: <span class="n">nil</span>)
+        <span class="k">if</span> <span class="k">case</span> .<span class="f">success</span>(<span class="k">let</span> s) = <span class="f">onEnum</span>(of: state), <span class="k">let</span> data = s.value <span class="k">as</span>? <span class="t">VehicleData</span>,
+           data.closures_state?.valet_mode?.boolValue <span class="o">==</span> <span class="n">true</span> {
+            <span class="k">return</span> <span class="s">"valet mode on"</span>
+        }
+        <span class="k">return</span> <span class="s">"unknown, read again later"</span>
+    <span class="k">case</span> .<span class="f">failure</span>(<span class="k">let</span> f):
+        <span class="k">if</span> <span class="k">case</span> .invalidArgument = <span class="f">onEnum</span>(of: f.error) {
+            <span class="k">return</span> <span class="s">"the PIN must be four digits"</span> <span class="c">// the error never contains the PIN; do not log the PIN</span>
+        }
+        <span class="k">return</span> <span class="s">"not sent or refused: \(f.error.message)"</span>
+    }
+}</code></pre>
 
 <h2 id="sec-later">Later</h2>
 <p>Planned for v1.1: HomeLink, clearing PIN to Drive, speed limit mode, parental controls, guest mode, renaming the car and nearby chargers. Setting PIN to Drive is not possible over BLE and is left out. The Go equivalents of every command are listed in <a href="07-command-reference.html">7. Command Reference</a>.</p>

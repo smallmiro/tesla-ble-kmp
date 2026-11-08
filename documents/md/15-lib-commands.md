@@ -86,7 +86,7 @@ They are checked with FakeVehicle tests; **none is confirmed on a real vehicle y
 | Result | Meaning | App action |
 |---|---|---|
 | `Success(Unit)` | The vehicle accepted the command | To show the new state, read it with `getState` (§Re-query) |
-| `Uncertain(error)` | The vehicle may have run it: no reply in time (Infotainment asleep, reply lost), a failed write the library repeated, an unreadable reply | **Never resend.** Read the state with `getState` (§Re-query) and decide from what it shows. `setLowPowerMode` and `setKeepAccessoryPowerMode` cannot be read back |
+| `Uncertain(error)` | The vehicle may have run it: no reply in time (Infotainment asleep, reply lost), a failed write the library repeated, an unreadable reply | **Never resend.** Read the state with `getState` (§Re-query) and decide from what it shows. `setLowPowerMode`, `setKeepAccessoryPowerMode`, `honkHorn` and `flashLights` cannot be read back |
 | `Failure(InvalidArgument(detail))` | A local check failed and nothing was sent (§Local checks) | Fix the argument |
 | `Failure(InfotainmentRejected(reason))` | The vehicle refused (`actionStatus ERROR`) | Show a generic message. `reason` is the vehicle's own text; do not log it |
 | `Failure(NoSession)`, `Failure(NotConnected)`, other errors | Call order or link | `16-lib-errors.md` |
