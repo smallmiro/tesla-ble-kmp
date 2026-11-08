@@ -157,7 +157,7 @@ cleared when the connection changes, and a re-query that ends after the connecti
 A section at the bottom of step 4, under the VCSEC grid and the "Other models" section, titled **Infotainment (climate,
 charging)**. It is the first use of the library's Infotainment commands (`15-lib-commands.md` §Implemented: Infotainment
 climate and charging, M5; **not confirmed on a real vehicle yet**, #118) and of `getState` (`14-lib-reading-state.md` A8).
-Android built; iOS: planned, same spec. Both apps use the same Korean UI labels, one per row below (given by meaning); the exact strings are in `InfoCommand` and `InfoCategory` of the Android `InfotainmentControl.kt`, and iOS copies them (the Android test `buttonLabelsMatchTheIosSample` pins them).
+Android built (`0.4.0 (4)`); iOS built (`0.5.0 (26)`). Both apps use the same Korean UI labels, one per row below (given by meaning); the exact strings are in `InfoCommand` and `InfoCategory` of the Android `InfotainmentControl.kt`, and the iOS `InfotainmentControl.swift` has the same strings (both unit tests pin them).
 
 | Group | Button (meaning of the Korean UI label) | Call | If `Uncertain`, read with |
 |---|---|---|---|
@@ -255,7 +255,7 @@ one runs does nothing and logs "busy". Infotainment calls are not serialized by 
 
 Android: `InfotainmentControl.kt` (pure: `InfoCommand`, `InfotainmentRunner`, `InfotainmentErrors`, `InfoUiState`
 reducer, readout mapping), `Tests/InfotainmentControlTest.kt`; the state in `KeyControlState`, the screen in
-`ui/KeyControlTab.kt`. iOS: the same split, in `KeyControl.swift` or a new pure file, with a fake backend as for SFR-021.
+`ui/KeyControlTab.kt`. iOS: `InfotainmentControl.swift` (pure, the same rules and sentences), `InfotainmentLink.swift` (the four library calls of one tap on one connection's `Vehicle`), `KeyControlModel.pressInfo` / `runInfo` (state, results, the connection generation that drops late results), the section in `Views/KeyControlTab.swift`; tests with a fake `KeyControlBackend` and a fake `InfotainmentLink` as for SFR-021. The iOS shows the climate and charge readout with a `TimelineView`, so the age counts up without touching the model.
 
 ## Concurrency
 
@@ -270,7 +270,7 @@ cannot interleave on the wire.
 |---|---|---|
 | Pure logic + tests | `KeyControl.kt` (`KeyControlSteps`, `KeyControlRunner`, `Enrollment`), `src/test/.../KeyControlTest.kt` | `KeyControl.swift`, `Tests/KeyControlTests.swift`; `KeyReplacement.swift`, `Tests/KeyReplacementTests.swift` (SFR-020); `EnrollmentProgress.swift`, `Tests/EnrollmentPopupTests.swift` (SFR-021) |
 | State | `KeyControlState.kt` (made in `MainViewModel`) | `KeyControlModel.swift` (made in `MonitorModel`) |
-| Infotainment (SFR-025) | `InfotainmentControl.kt`, `src/test/.../InfotainmentControlTest.kt` | planned |
+| Infotainment (SFR-025) | `InfotainmentControl.kt`, `src/test/.../InfotainmentControlTest.kt` | `InfotainmentControl.swift`, `InfotainmentLink.swift`, `Tests/InfotainmentControlTests.swift`, `Tests/InfotainmentModelTests.swift` |
 | Screen | `ui/KeyControlTab.kt` | `Views/KeyControlTab.swift` |
 
 Both apps use the monitor's connection and the monitor key (`teslable-monitor`): `MonitorEngine.ensureKey()`,

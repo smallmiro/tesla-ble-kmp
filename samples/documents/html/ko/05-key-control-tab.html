@@ -43,7 +43,7 @@
 
 <div class="callout warn">
 <strong>Android와 iOS 구현 완료, 실기기 확인 대기</strong>
-<p>Android 빌드 <code>0.4.0 (4)</code>, iOS 빌드 <code>0.5.0 (25)</code>. 단계 규칙과 명령 실행기는 단위 테스트로 확인했고, 화면과 차는 이 페이지 끝의 체크리스트로 확인합니다. Infotainment 섹션(SFR-025)은 Android에만 구현되어 있고, iOS는 같은 스펙으로 예정되어 있습니다.</p>
+<p>Android 빌드 <code>0.4.0 (4)</code>, iOS 빌드 <code>0.5.0 (26)</code>. 단계 규칙과 명령 실행기는 단위 테스트로 확인했고, 화면과 차는 이 페이지 끝의 체크리스트로 확인합니다. Infotainment 섹션(SFR-025)은 둘 다 구현되어 있습니다.</p>
 </div>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
@@ -165,7 +165,7 @@
 <p><strong>말풍선과 동작(SFR-024, iOS).</strong> 넓은 화면(iPhone Duo 안쪽 화면)에서는 오른쪽 영역에 차량 사진 위 가운데의 잠금 아이콘, 왼쪽 위의 <strong>프렁크 열기</strong>(작은 "열기" 아래 굵은 "전면"), 오른쪽 위의 <strong>트렁크 열기/닫기</strong>("열기/닫기" 아래 굵은 "트렁크"), 아래 줄의 <strong>깨우기</strong>와 <strong>트렁크 닫기</strong>가 나옵니다(<code>QuickControls</code>). 같은 <code>KeyControlModel.press</code> 를 부르므로 이 페이지의 모든 규칙이 그대로 적용됩니다. 4단계가 켜져 있어야 하고(아니면 흐리게 하고 같은 주황색 안내 문구를 한 번 보임), <strong>프렁크 열기</strong> 는 먼저 묻고, 세션을 확인하고, 명령은 한 번만 보내고, 뒤에 <code>vehicleStatus()</code> 가 따르며, <code>Uncertain</code> 은 다시 보내지 않습니다. 이 탭이 왼쪽 영역에 열려 있는 동안에는 확인 창을 오른쪽 영역이 띄웁니다(여기서는 <code>ownsCommandDialog: false</code>). 그래서 창은 하나뿐입니다. 마지막 결과 줄은 차량 아래에 나옵니다.</p>
 
 <h2 id="sec-infotainment">인포테인먼트 제어 (SFR-025)</h2>
-<p>4단계의 맨 아래, VCSEC 그리드와 "다른 차종" 섹션 아래에 있는 섹션으로 제목은 <strong>Infotainment (공조, 충전)</strong>입니다. 라이브러리의 Infotainment 명령(<code>15-lib-commands.md</code> "Implemented: Infotainment climate and charging", M5. <strong>아직 실차에서 확인하지 않음</strong>, #118)과 <code>getState</code>(<code>14-lib-reading-state.md</code> A8)를 처음 쓰는 곳입니다. Android는 구현되어 있고 iOS는 같은 스펙으로 예정되어 있습니다. 두 앱은 같은 한국어 UI 라벨을 쓰며, 아래 표의 행마다 하나씩입니다(뜻으로 적음). 정확한 문자열은 Android <code>InfotainmentControl.kt</code>의 <code>InfoCommand</code>와 <code>InfoCategory</code>에 있고 iOS는 이를 그대로 복사합니다(Android 테스트 <code>buttonLabelsMatchTheIosSample</code>이 고정합니다).</p>
+<p>4단계의 맨 아래, VCSEC 그리드와 "다른 차종" 섹션 아래에 있는 섹션으로 제목은 <strong>Infotainment (공조, 충전)</strong>입니다. 라이브러리의 Infotainment 명령(<code>15-lib-commands.md</code> "Implemented: Infotainment climate and charging", M5. <strong>아직 실차에서 확인하지 않음</strong>, #118)과 <code>getState</code>(<code>14-lib-reading-state.md</code> A8)를 처음 쓰는 곳입니다. Android는 구현되어 있고(<code>0.4.0 (4)</code>) iOS도 구현되어 있습니다(<code>0.5.0 (26)</code>). 두 앱은 같은 한국어 UI 라벨을 쓰며, 아래 표의 행마다 하나씩입니다(뜻으로 적음). 정확한 문자열은 Android <code>InfotainmentControl.kt</code>의 <code>InfoCommand</code>와 <code>InfoCategory</code>에 있고, iOS <code>InfotainmentControl.swift</code>에 같은 문자열이 있습니다(두 단위 테스트가 고정합니다).</p>
 <table>
 <thead><tr><th>그룹</th><th>버튼</th><th>호출</th><th><code>Uncertain</code>이면 읽는 호출</th></tr></thead>
 <tbody>
@@ -228,7 +228,7 @@
 
 <h3 id="sec-info-concurrency">한 번에 호출 하나</h3>
 <p>모든 호출은 탭 자체의 <code>exclusive { }</code>로 실행됩니다. 한 번에 하나이고, 바쁜 동안 모든 버튼이 꺼집니다. 하나가 실행되는 동안 두 번째로 누르면 아무 일도 하지 않고 "busy"를 기록합니다. 라이브러리는 Infotainment 호출을 직렬화하지 않으므로 이 가드가 유일한 가드입니다.</p>
-<p>Android: <code>InfotainmentControl.kt</code>(순수: <code>InfoCommand</code>, <code>InfotainmentRunner</code>, <code>InfotainmentErrors</code>, <code>InfoUiState</code> 리듀서와 읽은 값 매핑)와 <code>src/test/.../InfotainmentControlTest.kt</code>. 상태는 <code>KeyControlState</code>에, 화면은 <code>ui/KeyControlTab.kt</code>에 있습니다. iOS: 같은 구분으로 <code>KeyControl.swift</code> 또는 새 순수 파일에 두고, SFR-021처럼 가짜 백엔드를 씁니다.</p>
+<p>Android: <code>InfotainmentControl.kt</code>(순수: <code>InfoCommand</code>, <code>InfotainmentRunner</code>, <code>InfotainmentErrors</code>, <code>InfoUiState</code> 리듀서와 읽은 값 매핑)와 <code>src/test/.../InfotainmentControlTest.kt</code>. 상태는 <code>KeyControlState</code>에, 화면은 <code>ui/KeyControlTab.kt</code>에 있습니다. iOS: <code>InfotainmentControl.swift</code>(순수, 같은 규칙과 같은 문장), <code>InfotainmentLink.swift</code>(한 연결의 <code>Vehicle</code>에 하는 한 번 누르기의 라이브러리 호출 넷), <code>KeyControlModel.pressInfo</code> / <code>runInfo</code>(상태, 결과, 늦은 결과를 버리는 연결 세대), <code>Views/KeyControlTab.swift</code>의 섹션입니다. 시험은 SFR-021처럼 가짜 <code>KeyControlBackend</code>와 가짜 <code>InfotainmentLink</code>를 씁니다. iOS는 공조·충전 읽은 값을 <code>TimelineView</code>로 보여 주어, 모델을 건드리지 않고 경과 시간이 올라갑니다.</p>
 
 <h2 id="sec-impl">구현</h2>
 <table>
@@ -236,7 +236,7 @@
 <tbody>
 <tr><td>순수 로직과 테스트</td><td><code>KeyControl.kt</code>, <code>src/test/.../KeyControlTest.kt</code></td><td><code>KeyControl.swift</code>, <code>Tests/KeyControlTests.swift</code>; <code>KeyReplacement.swift</code>, <code>Tests/KeyReplacementTests.swift</code> (SFR-020); <code>EnrollmentProgress.swift</code>, <code>Tests/EnrollmentPopupTests.swift</code> (SFR-021)</td></tr>
 <tr><td>상태</td><td><code>KeyControlState.kt</code>(<code>MainViewModel</code>에서 생성)</td><td><code>KeyControlModel.swift</code>(<code>MonitorModel</code>에서 생성)</td></tr>
-<tr><td>Infotainment (SFR-025)</td><td><code>InfotainmentControl.kt</code>, <code>src/test/.../InfotainmentControlTest.kt</code></td><td>예정</td></tr>
+<tr><td>Infotainment (SFR-025)</td><td><code>InfotainmentControl.kt</code>, <code>src/test/.../InfotainmentControlTest.kt</code></td><td><code>InfotainmentControl.swift</code>, <code>InfotainmentLink.swift</code>, <code>Tests/InfotainmentControlTests.swift</code>, <code>Tests/InfotainmentModelTests.swift</code></td></tr>
 <tr><td>화면</td><td><code>ui/KeyControlTab.kt</code></td><td><code>Views/KeyControlTab.swift</code></td></tr>
 </tbody>
 </table>
