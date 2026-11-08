@@ -79,6 +79,7 @@
 <ul>
 <li>명령은 도메인 세션 위에서 AES-GCM으로 암호화, 인증되며 5초 후 만료됩니다.</li>
 <li>일시적 실패는 1초마다 자동으로 재시도합니다. 이미 실행되었을 수 있는 명령은 <strong>절대</strong> 다시 보내지 않습니다.</li>
+<li>블루투스 쓰기가 실패해 라이브러리가 같은 바이트를 다시 쓴 경우, 명령은 다시 서명되지 않습니다. 다시 쓴 사본에 대한 오류는 결과로 받아들이지 않으며, 첫 사본에 대한 응답이 시간 안에 오지 않으면 호출은 <code>Uncertain(Timeout)</code>을 반환합니다. <a href="16-lib-errors.html#sec-retry">16. 에러 처리</a>를 참고하세요.</li>
 <li>보안 컨트롤러 명령은 연결마다 한 번에 하나씩 실행되고, 인포테인먼트 명령은 동시에 실행될 수 있습니다.</li>
 <li><code>Uncertain</code> 결과는 상태를 읽고 재전송하지 말라는 뜻입니다. <a href="16-lib-errors.html">16. 에러 처리</a>를 참고하세요.</li>
 </ul>
@@ -105,7 +106,7 @@
 </table>
 <ul>
 <li>예상되는 실패: <code>NoSession</code>, <code>NotConnected</code>, <code>InsufficientPrivileges</code>(예: Vehicle Monitor 키이거나 차량 상태가 허용하지 않는 경우), <code>VcsecRejected</code>, <code>UnknownVcsecError</code>.</li>
-<li><code>Uncertain</code>은 차량이 실행했을 수 있다는 뜻입니다. <strong>다시 보내지 말고</strong> <code>vehicleStatus()</code>로 잠금 상태와 개폐부를 읽으세요. 토글인 <code>openTrunk()</code>, <code>actuateTrunk()</code>에서 특히 중요합니다. <a href="16-lib-errors.html#sec-requery">16. 에러 처리</a>를 참고하세요.</li>
+<li><code>Uncertain</code>은 차량이 실행했을 수 있다는 뜻이며, 쓰기가 실패해 라이브러리가 같은 바이트를 다시 쓴 경우에도 마찬가지입니다. <strong>다시 보내지 말고</strong> <code>vehicleStatus()</code>로 잠금 상태와 개폐부를 읽으세요. 토글인 <code>openTrunk()</code>, <code>actuateTrunk()</code>에서 특히 중요합니다. <a href="16-lib-errors.html#sec-requery">16. 에러 처리</a>를 참고하세요.</li>
 <li><code>sessions</code>는 실제 세션 상태를 따릅니다. 명령이 <code>NoSession</code>으로 끝나거나 세션 이벤트가 오면 라이브러리가 그 도메인을 다시 확인합니다. 차량이 더 이상 받아 주지 않는 캐시 세션(예: 다른 키의 캐시)은 첫 명령이 실패한 뒤 <code>None</code>으로 표시되며, <code>startSession</code>으로 복구합니다.</li>
 </ul>
 

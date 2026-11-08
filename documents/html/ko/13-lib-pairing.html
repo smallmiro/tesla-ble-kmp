@@ -197,7 +197,7 @@
 <ul>
 <li><code>role</code>의 기본값은 <code>KeyRole.OWNER</code>, <code>formFactor</code>의 기본값은 <code>platformKeyFormFactor()</code>입니다. Android는 <code>ANDROID_DEVICE</code>, iOS는 <code>IOS_DEVICE</code>, JVM(테스트)은 <code>CLOUD_KEY</code>입니다.</li>
 <li>Swift에서는 Kotlin의 기본 인자를 쓸 수 없습니다. 모든 인자(<code>role:</code>, <code>formFactor:</code>, <code>timeout:</code>)를 직접 넘기세요. 예: <code>formFactor: .iosDevice</code>.</li>
-<li><code>addKey</code>와 <code>removeKey</code>는 <code>InsufficientPrivileges</code>(연결의 키가 키 관리 권한이 없는 경우, 예: Driver 키), <code>KeychainRejected(code)</code>(예: <code>WHITELIST_FULL</code>), <code>NoSession</code>, <code>InvalidArgument</code>(<code>role = UNKNOWN</code>)로 실패할 수 있습니다. <code>Uncertain</code>은 차량의 키 목록이 바뀌었을 수 있다는 뜻입니다. <code>listKeys()</code>로 확인하고 다시 보내지 마세요.</li>
+<li><code>addKey</code>와 <code>removeKey</code>는 <code>InsufficientPrivileges</code>(연결의 키가 키 관리 권한이 없는 경우, 예: Driver 키), <code>KeychainRejected(code)</code>(예: <code>WHITELIST_FULL</code>), <code>NoSession</code>, <code>InvalidArgument</code>(<code>role = UNKNOWN</code>)로 실패할 수 있습니다. <code>Uncertain</code>은 차량의 키 목록이 바뀌었을 수 있다는 뜻입니다. <code>listKeys()</code>로 확인하고 다시 보내지 마세요. 쓰기가 실패해 라이브러리가 같은 바이트를 다시 쓴 경우에는 <code>InsufficientPrivileges</code>나 <code>KeyNotPaired</code> 같은 거부가(자기 키를 지우면 다시 쓴 사본의 키를 차량이 알 수 없게 됩니다) <code>Failure</code>가 아니라 <code>Uncertain(Timeout)</code>으로 돌아옵니다.</li>
 </ul>
 
 <h2 id="sec-events">페어링 이벤트</h2>
