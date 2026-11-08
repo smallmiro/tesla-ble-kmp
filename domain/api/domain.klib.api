@@ -1593,6 +1593,44 @@ final enum class dev.mirolab.teslable.model/AuthenticationReason : kotlin/Enum<d
     final fun values(): kotlin/Array<dev.mirolab.teslable.model/AuthenticationReason> // dev.mirolab.teslable.model/AuthenticationReason.values|values#static(){}[0]
 }
 
+final enum class dev.mirolab.teslable.model/CabinOverheatProtectionTemperature : kotlin/Enum<dev.mirolab.teslable.model/CabinOverheatProtectionTemperature> { // dev.mirolab.teslable.model/CabinOverheatProtectionTemperature|null[0]
+    enum entry HIGH // dev.mirolab.teslable.model/CabinOverheatProtectionTemperature.HIGH|null[0]
+    enum entry LOW // dev.mirolab.teslable.model/CabinOverheatProtectionTemperature.LOW|null[0]
+    enum entry MEDIUM // dev.mirolab.teslable.model/CabinOverheatProtectionTemperature.MEDIUM|null[0]
+    enum entry UNSPECIFIED // dev.mirolab.teslable.model/CabinOverheatProtectionTemperature.UNSPECIFIED|null[0]
+
+    final val entries // dev.mirolab.teslable.model/CabinOverheatProtectionTemperature.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.mirolab.teslable.model/CabinOverheatProtectionTemperature> // dev.mirolab.teslable.model/CabinOverheatProtectionTemperature.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.mirolab.teslable.model/CabinOverheatProtectionTemperature // dev.mirolab.teslable.model/CabinOverheatProtectionTemperature.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.mirolab.teslable.model/CabinOverheatProtectionTemperature> // dev.mirolab.teslable.model/CabinOverheatProtectionTemperature.values|values#static(){}[0]
+}
+
+final enum class dev.mirolab.teslable.model/ChargingPolicy : kotlin/Enum<dev.mirolab.teslable.model/ChargingPolicy> { // dev.mirolab.teslable.model/ChargingPolicy|null[0]
+    enum entry ALL_DAYS // dev.mirolab.teslable.model/ChargingPolicy.ALL_DAYS|null[0]
+    enum entry OFF // dev.mirolab.teslable.model/ChargingPolicy.OFF|null[0]
+    enum entry WEEKDAYS // dev.mirolab.teslable.model/ChargingPolicy.WEEKDAYS|null[0]
+
+    final val entries // dev.mirolab.teslable.model/ChargingPolicy.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.mirolab.teslable.model/ChargingPolicy> // dev.mirolab.teslable.model/ChargingPolicy.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.mirolab.teslable.model/ChargingPolicy // dev.mirolab.teslable.model/ChargingPolicy.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.mirolab.teslable.model/ChargingPolicy> // dev.mirolab.teslable.model/ChargingPolicy.values|values#static(){}[0]
+}
+
+final enum class dev.mirolab.teslable.model/ClimateKeeperMode : kotlin/Enum<dev.mirolab.teslable.model/ClimateKeeperMode> { // dev.mirolab.teslable.model/ClimateKeeperMode|null[0]
+    enum entry CAMP // dev.mirolab.teslable.model/ClimateKeeperMode.CAMP|null[0]
+    enum entry DOG // dev.mirolab.teslable.model/ClimateKeeperMode.DOG|null[0]
+    enum entry OFF // dev.mirolab.teslable.model/ClimateKeeperMode.OFF|null[0]
+    enum entry ON // dev.mirolab.teslable.model/ClimateKeeperMode.ON|null[0]
+
+    final val entries // dev.mirolab.teslable.model/ClimateKeeperMode.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.mirolab.teslable.model/ClimateKeeperMode> // dev.mirolab.teslable.model/ClimateKeeperMode.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.mirolab.teslable.model/ClimateKeeperMode // dev.mirolab.teslable.model/ClimateKeeperMode.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.mirolab.teslable.model/ClimateKeeperMode> // dev.mirolab.teslable.model/ClimateKeeperMode.values|values#static(){}[0]
+}
+
 final enum class dev.mirolab.teslable.model/ClosureState : kotlin/Enum<dev.mirolab.teslable.model/ClosureState> { // dev.mirolab.teslable.model/ClosureState|null[0]
     enum entry AJAR // dev.mirolab.teslable.model/ClosureState.AJAR|null[0]
     enum entry CLOSED // dev.mirolab.teslable.model/ClosureState.CLOSED|null[0]
@@ -1667,6 +1705,38 @@ final enum class dev.mirolab.teslable.model/LockState : kotlin/Enum<dev.mirolab.
 
     final fun valueOf(kotlin/String): dev.mirolab.teslable.model/LockState // dev.mirolab.teslable.model/LockState.valueOf|valueOf#static(kotlin.String){}[0]
     final fun values(): kotlin/Array<dev.mirolab.teslable.model/LockState> // dev.mirolab.teslable.model/LockState.values|values#static(){}[0]
+}
+
+final enum class dev.mirolab.teslable.model/SeatClimateLevel : kotlin/Enum<dev.mirolab.teslable.model/SeatClimateLevel> { // dev.mirolab.teslable.model/SeatClimateLevel|null[0]
+    enum entry HIGH // dev.mirolab.teslable.model/SeatClimateLevel.HIGH|null[0]
+    enum entry LOW // dev.mirolab.teslable.model/SeatClimateLevel.LOW|null[0]
+    enum entry MED // dev.mirolab.teslable.model/SeatClimateLevel.MED|null[0]
+    enum entry OFF // dev.mirolab.teslable.model/SeatClimateLevel.OFF|null[0]
+
+    final val entries // dev.mirolab.teslable.model/SeatClimateLevel.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.mirolab.teslable.model/SeatClimateLevel> // dev.mirolab.teslable.model/SeatClimateLevel.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.mirolab.teslable.model/SeatClimateLevel // dev.mirolab.teslable.model/SeatClimateLevel.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.mirolab.teslable.model/SeatClimateLevel> // dev.mirolab.teslable.model/SeatClimateLevel.values|values#static(){}[0]
+}
+
+final enum class dev.mirolab.teslable.model/SeatPosition : kotlin/Enum<dev.mirolab.teslable.model/SeatPosition> { // dev.mirolab.teslable.model/SeatPosition|null[0]
+    enum entry FRONT_LEFT // dev.mirolab.teslable.model/SeatPosition.FRONT_LEFT|null[0]
+    enum entry FRONT_RIGHT // dev.mirolab.teslable.model/SeatPosition.FRONT_RIGHT|null[0]
+    enum entry SECOND_ROW_CENTER // dev.mirolab.teslable.model/SeatPosition.SECOND_ROW_CENTER|null[0]
+    enum entry SECOND_ROW_LEFT // dev.mirolab.teslable.model/SeatPosition.SECOND_ROW_LEFT|null[0]
+    enum entry SECOND_ROW_LEFT_BACK // dev.mirolab.teslable.model/SeatPosition.SECOND_ROW_LEFT_BACK|null[0]
+    enum entry SECOND_ROW_RIGHT // dev.mirolab.teslable.model/SeatPosition.SECOND_ROW_RIGHT|null[0]
+    enum entry SECOND_ROW_RIGHT_BACK // dev.mirolab.teslable.model/SeatPosition.SECOND_ROW_RIGHT_BACK|null[0]
+    enum entry THIRD_ROW_LEFT // dev.mirolab.teslable.model/SeatPosition.THIRD_ROW_LEFT|null[0]
+    enum entry THIRD_ROW_RIGHT // dev.mirolab.teslable.model/SeatPosition.THIRD_ROW_RIGHT|null[0]
+    enum entry UNKNOWN // dev.mirolab.teslable.model/SeatPosition.UNKNOWN|null[0]
+
+    final val entries // dev.mirolab.teslable.model/SeatPosition.entries|#static{}entries[0]
+        final fun <get-entries>(): kotlin.enums/EnumEntries<dev.mirolab.teslable.model/SeatPosition> // dev.mirolab.teslable.model/SeatPosition.entries.<get-entries>|<get-entries>#static(){}[0]
+
+    final fun valueOf(kotlin/String): dev.mirolab.teslable.model/SeatPosition // dev.mirolab.teslable.model/SeatPosition.valueOf|valueOf#static(kotlin.String){}[0]
+    final fun values(): kotlin/Array<dev.mirolab.teslable.model/SeatPosition> // dev.mirolab.teslable.model/SeatPosition.values|values#static(){}[0]
 }
 
 final enum class dev.mirolab.teslable.model/SleepStatus : kotlin/Enum<dev.mirolab.teslable.model/SleepStatus> { // dev.mirolab.teslable.model/SleepStatus|null[0]
