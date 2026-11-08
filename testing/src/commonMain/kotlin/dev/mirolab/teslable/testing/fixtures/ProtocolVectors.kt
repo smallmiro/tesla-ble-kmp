@@ -84,6 +84,42 @@ public object ProtocolVectors {
     /** 03-protocol.md §8.2.1: flags = 2 일 때 AES-GCM 인증 태그 (hex). */
     public const val HVAC_TAG_FLAGS2: String = "c228e0ff64991481db3a7bbc133696c5"
 
+    /** 03-protocol.md §8.2.1 "Resulting RoutableMessage"의 `from_destination.routing_address` (hex). */
+    public const val HVAC_ROUTING_ADDRESS: String = "2c907bd76c640d360b3027dc7404efde"
+
+    /** 03-protocol.md §8.2.1 "Resulting RoutableMessage"의 `uuid` (hex). */
+    public const val HVAC_UUID: String = "58406580528b6a5301391800b4fe9b99"
+
+    /**
+     * 03-protocol.md §8.2.1 "Resulting RoutableMessage" 전체를 손으로 인코딩한 hex(185바이트, 합성 — 실차 캡처가 아니다).
+     * 필드 순서는 Go protobuf-go의 출력 순서다: oneof가 아닌 필드를 번호순으로(to_destination 6, from_destination 7, uuid 51, flags 52)
+     * 먼저, 그다음 oneof `payload`(protobuf_message_as_bytes 10), `sub_sigData`(signature_data 13). Wire는 선언 순서(6, 7, 10, 13, 51, 52)로
+     * 쓰므로 바이트 배열로는 비교하지 않고 디코딩한 메시지와 길이로 비교한다(10-porting-guide.md §11 2단계). [LIST_KEYS_TX]의 uuid가 payload보다
+     * 앞에 오는 것도 같은 규칙이다.
+     *
+     * - `32 02 08 03`: to_destination{domain: INFOTAINMENT}
+     * - `3a 12 12 10 …`: from_destination{routing_address: [HVAC_ROUTING_ADDRESS]}
+     * - `9a 03 10 …`: uuid [HVAC_UUID]
+     * - `a0 03 02`: flags 2
+     * - `52 06 …`: protobuf_message_as_bytes [HVAC_CIPHERTEXT]
+     * - `6a 80 01`: signature_data(128바이트){signer_identity{public_key: [CLIENT_PUBLIC_KEY]}, AES_GCM_Personalized_data{epoch [EPOCH],
+     *   nonce [HVAC_NONCE], counter 7 (`18 07`), expires_at 2655 (fixed32 `25 5f0a0000`), tag [HVAC_TAG_FLAGS2]}}
+     */
+    public const val HVAC_ON_TX: String =
+        "32020803" +
+            "3a121210" + HVAC_ROUTING_ADDRESS +
+            "9a0310" + HVAC_UUID +
+            "a00302" +
+            "5206" + HVAC_CIPHERTEXT +
+            "6a8001" +
+            "0a430a41" + CLIENT_PUBLIC_KEY +
+            "2a39" +
+            "0a10" + EPOCH +
+            "120c" + HVAC_NONCE +
+            "1807" +
+            "255f0a0000" +
+            "2a10" + HVAC_TAG_FLAGS2
+
     /** PoC 보조 케이스: flags = 0 이면 TAG_FLAGS 생략 (reference/poc/PocTest.kt) */
     public const val HVAC_METADATA_FLAGS0: String =
         "000105010103021135594a333031323334353637383941424303104c463f9cc0d3d26906e982ed224adde6" +
