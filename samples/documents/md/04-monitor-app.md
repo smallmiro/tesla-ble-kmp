@@ -1,6 +1,6 @@
 # Monitor App (SFR-010 to SFR-017)
 
-Status: **Android implemented** (build `0.3.0 (3)`) and **iOS implemented** (build `0.5.0 (24)`); unit tests and builds
+Status: **Android implemented** (build `0.3.0 (3)`) and **iOS implemented** (build `0.5.0 (25)`); unit tests and builds
 pass, **real-device checks pending** for both (iOS background reconnect is unconfirmed until the plan Task 2 spike).
 Issue #91. The library APIs it needs are available: `Vehicle.events`
 (`12-lib-getting-started.md` §Broadcast events, `14-lib-reading-state.md` B2) and the key accessibility `KeyAccessibility`
@@ -57,7 +57,7 @@ The rules are a small pure type (`KeyNickname`: trim, length check, clamp; `KeyN
 injected `UserDefaults`) that is unit tested without a vehicle (`Tests/KeyNicknameTests.swift`). The screen is checked
 with the real-device checklist in `samples/ios/README.md` (SFR-019).
 
-Status: iOS built (`0.5.0 (24)`), unit tests pass, real-device check pending. Android: planned, same spec.
+Status: iOS built (`0.5.0 (25)`), unit tests pass, real-device check pending. Android: planned, same spec.
 
 ## State diagnostics (SFR-023)
 
@@ -71,7 +71,7 @@ and no button for `Location`.
 | Where | Query tab, under the periodic-query section: three buttons **Drive**, **Media**, **MediaDetail**, the last result, and a separate **send to a sleeping car (experiment)** section |
 | Enabling | A connection made with a key (`Vehicle.hasKey`), a key the Key & Control tab has confirmed as enrolled, and `sleepStatus == AWAKE` from the latest successful `vehicleStatus()` (the monitor's poll, or the re-read of the last tap). `ASLEEP`, `UNKNOWN` and "not read yet" keep the buttons off, and the reason is shown under them. Buttons are also off while a query runs |
 | Order of one tap | (1) `vehicleStatus(timeout: null)`: anything but `AWAKE` ends the tap with **NotSent**. (2) `startSession(setOf(INFOTAINMENT), timeout: null)`: the library sends nothing when the session is already `Ready` (`14-lib-reading-state.md` A8.2: `getState` never starts a session). (3) one `getState(category, timeout: null)`. The default timeout is used (`16-lib-errors.md` §Retries and timeouts) |
-| Results | `Success`, `Uncertain` and `Failure` as the library returns them, plus **NotSent** when the app stops before sending (asleep, sleep unknown, `vehicleStatus()` failed, session failed). Each has its own sentence: a size fault says the car answered, a timeout says nothing came back, `NoSession` says nothing was sent. No automatic retry. After `Failure(NoSession)` (a cached session the car no longer accepts, A8.2) the next tap starts a new session; the sample does not do it by itself |
+| Results | `Success`, `Uncertain` and `Failure` as the library returns them, plus **NotSent** when the app stops before sending (asleep, sleep unknown, `vehicleStatus()` failed, session failed). Each has its own sentence: a size fault says the car answered, a timeout says nothing came back, `NoSession` says nothing was sent. A `Timeout` sentence follows `16-lib-errors.md` (`Timeout(afterSend)` row): `afterSend = true` says it may have been sent (`Uncertain`, the first BLE write had started), that the value was not confirmed and that a query changes nothing so it can be asked again, and notes that BLE writes can be slow in the background; `afterSend = false` says it was not executed (no write had started, or the car had asked for a retry and the wait ran out; `Failure`). No automatic retry. After `Failure(NoSession)` (a cached session the car no longer accepts, A8.2) the next tap starts a new session; the sample does not do it by itself |
 | Waking | The screen **never calls `wakeUp()`** and says "does not call `wakeUp()`", not "does not wake the car": what the Infotainment handshake does to a sleeping car is unconfirmed |
 | Sleeping-car experiment | A button with its own category choice and a confirmation dialog that says the car may wake. After the confirmation it skips **only the sleep check**; it still needs a connection and an enrolled key, runs the same session step and sends one `getState`. It never calls `wakeUp()`. Intended for one recorded try |
 | Overlap | The tab refuses to start while the key is being replaced or while another tab (Control, Key & Control) runs a call, and while a query runs the key cannot be replaced (`KeyOperationGate`). A second tap while a query runs does nothing |
@@ -97,7 +97,7 @@ Library calls and manual pages: `vehicleStatus(timeout: nil)` (14 A2), `startSes
 §Response size limit on `getState`). The pure rules (`StateDiagnostics`) and the screen state (`StateDiagnosticsModel`, with a fake link) are unit tested
 without a vehicle (`Tests/StateDiagnosticsTests.swift`); the real-device checklist is in `samples/ios/README.md` (SFR-023).
 
-Status: iOS built (`0.5.0 (24)`), unit tests pass, real-device check pending. Android: planned, same spec.
+Status: iOS built (`0.5.0 (25)`), unit tests pass, real-device check pending. Android: planned, same spec.
 
 ## Wide and foldable screens (SFR-024)
 
@@ -126,7 +126,7 @@ checked with the real-device checklist in `samples/ios/README.md` (SFR-024). The
 Simulator app, so the two-pane layout was also looked at on an iPad simulator; the posture change on the Duo itself
 is a real-device check.
 
-Status: iOS built (`0.5.0 (24)`), unit tests pass, real-device check pending. Android: not applicable today (no foldable target); a large-screen layout would be a separate requirement.
+Status: iOS built (`0.5.0 (25)`), unit tests pass, real-device check pending. Android: not applicable today (no foldable target); a large-screen layout would be a separate requirement.
 
 ## Background
 

@@ -121,7 +121,7 @@ the racing connects) is on the device checklist.
    (`15-lib-commands.md`). On `Failure` (or `Uncertain`) the command is **not sent** and nothing is re-queried; the result line says why, and `KeyNotPaired`
    sets enrollment to `notEnrolled`. `KeyStoreError.Locked` says to unlock the phone.
 2. `command` is called exactly once.
-3. `Success` → "succeeded"; `Failure` → "failed: <message>"; `Uncertain` → "uncertain: <message>", never resent.
+3. `Success` → "succeeded"; `Failure` → "failed: <message>"; `Uncertain` → "uncertain: <message>", never resent. When the error is `Timeout`, the message is followed by a sentence from `16-lib-errors.md` (`Timeout(afterSend)` row, `TimeoutNote`): `afterSend = true` says it may have been sent and the car may have run it, so read the state again, plus a note that BLE writes can be slow in the background; `afterSend = false` says it was not executed (no write had started, or the wait for a retry ran out). The re-query of step 4 follows either way.
 4. `requery` = `vehicleStatus()` always runs after the command; a failed re-query is added to the same result line (also after `Success`, to refresh the status card;
    after `Uncertain` it is the re-query the manual requires).
 
