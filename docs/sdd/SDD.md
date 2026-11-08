@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | **v1.0 승인** (2026-09-26). 2026-11-08 개정: 쓰기 실패 뒤 새 사본 금지(D29, §3.3, §3.4, §6, §9.3, §12, ADR-0010) |
+| 상태 | **v1.0 승인** (2026-09-26). 2026-11-08 개정: 쓰기 실패 뒤 새 사본 금지(D29, §3.3, §3.4, §6, §9.3, §12, ADR-0010). 2026-11-08 개정: M5 PR A 공조·충전 명령(§1.3, §2.1~§2.3, §7.3, §9.2, §12, ADR-0002 개정) |
 | 상위 문서 | `{{PRD_FILE}}` (FR/NFR), `{{HANDOFF_FILE}}` §4, §6, §7 |
 | 정답 기준 | `{{REF_REPO_DIR}}` @ `{{REF_REPO_COMMIT}}` + `pkg/protocol/protocol.md` |
 | 1차 가이드 | `{{MANUAL_DIR}}` (`01-architecture`, `02-ble-transport`, `03-protocol`, `08-errors`, `10-porting-guide`) |
@@ -88,7 +88,7 @@ Go SDK의 BLE 경로(`pkg/connector/ble` → `internal/dispatcher` → `internal
 | `pkg/protocol/key.go` | 173 | `:domain` `port/EcdhPrivateKey.kt`, `PublicKey.kt` | 파일 로딩은 포팅하지 않음. 65바이트 검증만 |
 | `pkg/vehicle/vehicle.go` | 275 | `:application` `vehicle/VehicleSession.kt`, `SendWithRetry.kt`, `CommandTimeouts.kt` | `Send`, `trySend`, `StartSession`, `SessionInfo`, `Wakeup` |
 | `pkg/vehicle/vcsec.go`, `security.go`(VCSEC 부분), `state.go`(`BodyControllerState`) | ~450 | `:application` `vcsec/VcsecResponses.kt`, `VcsecCommands.kt`(M2: `unmarshalVCSECResponse`, `readUntil`, `getVCSECResult`; 명령 빌더는 M4), `keys/KeyManagement.kt`, `pairing/Pairing.kt` | `unmarshalVCSECResponse`, `readUntil`, 종료 판정, `addKeyPayload`, `SendAddKeyRequestWithRole` |
-| `pkg/vehicle/infotainment.go`, `climate.go`, `charge.go`, `actions.go`, `security.go`(INFO 부분), `state.go`(`GetState`) | ~1,200 | `:application` `infotainment/InfotainmentResponses.kt`, `InfotainmentCommands.kt`(M2: `getCarServerResponse`) (그 밖의 영역별 파일은 M4~M5) | `getCarServerResponse`, 명령별 `Action` 조립 |
+| `pkg/vehicle/infotainment.go`, `climate.go`, `charge.go`, `actions.go`, `security.go`(INFO 부분), `state.go`(`GetState`) | ~1,200 | `:application` `infotainment/InfotainmentResponses.kt`, `InfotainmentCommands.kt`(M2: `getCarServerResponse`), `ClimateActions.kt`·`ChargeActions.kt`(M5 PR A: 공조·충전 `VehicleAction` 빌더) (그 밖의 영역별 파일은 M5 PR B) | `getCarServerResponse`, 명령별 `Action` 조립 |
 | `pkg/cache/cache.go`, `session.go` `CacheEntry` | 113+ | `:domain` `port/SessionCache.kt`, `cache/CachedSession.kt`, `cache/SessionCacheCodec.kt` + `:adapter-storage` `storage/InMemorySessionCache.kt` + `:application` `cache/SessionCacheSync.kt` | 포맷은 자체(D26) |
 | `internal/authentication/verifier.go` | 328 | `:testing` `TestVerifier.kt`(M1, GCM 경로만), `FakeVehicle.kt`(M2, 도메인마다 `TestVerifier` 하나를 감싼다) | 차량 측 검증·응답 암호화 재현 |
 | `internal/log` | – | `:domain` `port/TeslaLogger.kt` | Go `internal/log`(Error/Warning/Info/Debug) → `LogLevel`, `TeslaLogger` 함수형 인터페이스, 기본 `NoOp` |
@@ -113,6 +113,19 @@ public class Epoch(bytes: ByteArray)                    // 16바이트
 ```
 
 `Vin`·`LocalName`은 `value class`가 아닌 일반 `class`다(value class는 Kotlin/Native ObjC 헤더에서 기반 타입으로 지워져 `export(:domain)`으로 Swift에 타입으로 남지 않는다).
+
+**명령 매개변수 enum** (M5 PR A, `dev.mirolab.teslable.model`, Go 상수와 같은 순서)
+
+```kotlin
+public enum class SeatPosition { UNKNOWN, FRONT_LEFT, FRONT_RIGHT, SECOND_ROW_LEFT, SECOND_ROW_LEFT_BACK, SECOND_ROW_CENTER,
+                                 SECOND_ROW_RIGHT, SECOND_ROW_RIGHT_BACK, THIRD_ROW_LEFT, THIRD_ROW_RIGHT }   // Go SeatPosition. _BACK = 등받이
+public enum class SeatClimateLevel { OFF, LOW, MED, HIGH }          // Go Level. 히터는 단계마다 Void 멤버, 쿨러는 Go처럼 level + 1(OFF 1 … HIGH 4)
+public enum class ClimateKeeperMode { OFF, ON, DOG, CAMP }          // Go ClimateKeeperMode
+public enum class ChargingPolicy { OFF, ALL_DAYS, WEEKDAYS }        // Go ChargingPolicy. OFF는 하위 메시지를 보내지 않는다
+public enum class CabinOverheatProtectionTemperature { UNSPECIFIED, LOW, MEDIUM, HIGH }   // ClimateState.CopActivationTemp 0~3(Go는 Level 캐스트, §12)
+```
+
+와이어 값은 `:application` 빌더가 명시적 `when`으로 대응한다(선언 순서를 와이어 값으로 쓰지 않는다). 일정 입력은 Wire 생성 타입 `ChargeSchedule`·`PreconditionSchedule`(`com.tesla.generated.carserver.common`)을 그대로 받는다(ADR-0002 개정 2026-11-08).
 
 **프로토콜 코어** (Go 대응은 §1.3)
 
@@ -237,7 +250,7 @@ public fun interface TeslaLogger {                           // 기본 NoOp
 | `SendWithRetry` | 응답 하나를 기다리는 명령(Infotainment, 세션정보 등). `shouldRetry()` 오류면 `retryInterval` 후 새 counter·nonce로 재인가해 재전송. 시간 초과는 요청의 첫 BLE 쓰기를 부른 뒤면(쓰기가 끝나지 않았거나 전송 재시도 중이어도) `Uncertain(Timeout(afterSend=true))`, 그 전·재시도 대기 중이면 `Failure(Timeout(afterSend=false))`(D29, 2026-11-07 개정). 쓰기를 부른 뒤 실패해 같은 바이트를 다시 보낸 요청은 재시도할 오류·프로토콜 계층 거부로 새 사본을 보내지 않는다(`awaitOutcome`, 2026-11-08 개정). `query`(내부)는 반복해도 안전한 조회용으로 이 규칙에서 빠진다(`getState`) | `vehicle.go` `Send`, `trySend` |
 | `VcsecCommands` | 페이로드를 VCSEC로 보내고 `VcsecResponses.readUntil`로 종료까지 읽는다. 한 연결의 VCSEC 명령은 인스턴스 안 `Mutex`로 직렬화(FR-049) — 생성자가 `internal`이라 `VehicleSession`이 연결마다 정확히 하나만 만든다. `execute`는 명령으로 다룬다: 쓰기를 부른 뒤 실패해 같은 바이트를 다시 보낸 요청은 `awaitOutcome`으로 결과를 정하지 않는 응답을 건너뛰고 새 사본을 보내지 않는다. `query`(내부)는 반복해도 안전한 정보 요청용(`VehicleInfoQueries`)으로 이 규칙에서 빠진다(2026-11-08, §6) | `vcsec.go` `getVCSECResult` |
 | `VcsecResponses` | `interpret`(Go `unmarshalVCSECResponse`): 프로토콜 오류 → payload 종류 → 파싱 → `nominalError` → `commandStatus` 순 해석. `readUntil`(Go `readUntil`). `TerminalTest` 3종: `FIRST_MESSAGE`, `COMMAND_STATUS_ABSENT`, `WHITELIST_OPERATION_COMPLETE` | `vcsec.go` `unmarshalVCSECResponse`, `readUntil`, `isWhitelistOperationComplete` |
-| `InfotainmentCommands` | `Action`을 Infotainment에 GCM으로 보내고 단일 응답을 `InfotainmentResponses.interpret`로 해석. M5가 명령별 빌더를 더한다. `execute`는 `SendWithRetry.send`(명령), `getState`는 `SendWithRetry.query`(반복해도 안전한 조회, 2026-11-08 §6)로 보낸다 | `infotainment.go` `executeCarServerAction` |
+| `InfotainmentCommands` | `Action`을 Infotainment에 GCM으로 보내고 단일 응답을 `InfotainmentResponses.interpret`로 해석. `execute`는 `SendWithRetry.send`(명령), `getState`는 `SendWithRetry.query`(반복해도 안전한 조회, 2026-11-08 §6)로 보낸다. 공조·충전 명령 메서드 31개(M5 PR A, FR-052·FR-060~083)는 internal 빌더 `ClimateActions`·`ChargeActions`(Go `climate.go`·`charge.go`의 `VehicleAction` 조립과 1:1)가 만든 `VehicleAction`을 `Action`에 담아 `execute`로 보내고 성공 응답의 내용은 버린다(`Success(Unit)`, Go `executeCarServerAction`). 로컬 검증(좌석 쿨러 좌석, 출발 시각)에 실패하면 보내기 전에 `Failure(InvalidArgument)`다 | `infotainment.go` `executeCarServerAction`, `climate.go`, `charge.go` |
 | `InfotainmentResponses` | `interpret`(Go `getCarServerResponse`): 파싱 실패 → `BadResponse(mayHaveSucceeded=true)`; `actionStatus.result == ERROR` → `InfotainmentRejected`; 그 외(모르는 값 포함)는 성공 | `infotainment.go` `getCarServerResponse` |
 | `SessionCacheSync` | `load(dispatcher)`: `SessionCache.load` → `Dispatcher.loadSessions`. `store(dispatcher)`: `Dispatcher.exportSessions` → `SessionCache.store`(세션이 없으면 빈 목록도 저장). 저장 시점은 핸드셰이크 완료·`disconnect()`·세션정보 갱신(`SessionEvent.Updated`, M3)이다(§3.4/§7.1). 오래된 캐시 제외의 결정 수단은 동기 플래그 `SessionState.isReportedStale`(이벤트 발행 전에 설정)이고 `Dispatcher.exportSessions`가 그 세션을 건너뛴다. `markStale(domain)`·`StaleCache` 이벤트는 더 이른 재저장을 일으킬 뿐이며(이후 `store`도 그 도메인을 뺀다), 이벤트 저장 실패는 WARN 로그만 남기고 전파하지 않는다 | `NewVehicle`(캐시 로드), `UpdateCachedSessions` |
 | `VehicleSession` | `connect()`(캐시 복원 + 수신 시작), `startSession(domains, timeout)`(재시도 + 성공 시 캐시 저장), `disconnect()`(캐시 저장 1회 + `Dispatcher.close`). `handshake`/`send`/`vcsec`/`infotainment`를 조립해 들고 있다 | `vehicle.go` `NewVehicle`, `Connect`, `StartSession`, `Disconnect` |
@@ -306,7 +319,26 @@ public interface Vehicle {
     // VCSEC 제어 (FR-040~047, M4): lock, unlock, wakeUp, remoteDrive, autoSecureVehicle, openTrunk, actuateTrunk, closeTrunk,
     // openFrunk, openTonneau, closeTonneau, stopTonneau — 모두 suspend + VehicleResult<Unit>
     public suspend fun lock(timeout: Duration? = null): VehicleResult<Unit>
-    // Infotainment 제어 (FR-050~094, M5): PRD §5의 메서드명 그대로
+    // Infotainment 공조 (FR-060~069, M5 PR A) — 모두 suspend + VehicleResult<Unit>, 마지막 인자 timeout: Duration? = null
+    public suspend fun climateOn(timeout: Duration? = null): VehicleResult<Unit>                                   // climateOff도 같은 모양
+    public suspend fun setSeatHeater(levels: Map<SeatPosition, SeatClimateLevel>, timeout: Duration? = null): VehicleResult<Unit>
+    public suspend fun setClimateTemp(driverCelsius: Float, passengerCelsius: Float, timeout: Duration? = null): VehicleResult<Unit>
+    public suspend fun setSeatCooler(level: SeatClimateLevel, seat: SeatPosition, timeout: Duration? = null): VehicleResult<Unit>   // 앞좌석만
+    // setSteeringWheelHeater(enabled), autoSeatAndClimate(seats: List<SeatPosition>, enabled), setPreconditioningMax(enabled, manualOverride),
+    // setClimateKeeperMode(mode: ClimateKeeperMode, manualOverride), setBioweaponDefenseMode(enabled, manualOverride),
+    // setCabinOverheatProtection(enabled, fanOnly), setCabinOverheatProtectionTemperature(temperature: CabinOverheatProtectionTemperature)
+
+    // Infotainment 충전·전원 (FR-052, FR-070~083, M5 PR A) — 같은 모양
+    public suspend fun scheduleDeparture(departAtMinutes: Int, offPeakEndMinutes: Int, preconditioning: ChargingPolicy, offPeak: ChargingPolicy,
+                                         timeout: Duration? = null): VehicleResult<Unit>                           // 출발 시각 0..1440분
+    public suspend fun addChargeSchedule(schedule: ChargeSchedule, timeout: Duration? = null): VehicleResult<Unit>  // Wire 생성 타입(ADR-0002 개정 2026-11-08)
+    public suspend fun addPreconditionSchedule(schedule: PreconditionSchedule, timeout: Duration? = null): VehicleResult<Unit>
+    // chargeStart(), chargeStop(), setChargeLimit(percent: Int), setChargingAmps(amps: Int), chargeStandardRange(), chargeMaxRange(),
+    // scheduleCharging(enabled, minutesAfterMidnight: Int), clearScheduledDeparture(), setLowPowerMode(enabled), setKeepAccessoryPowerMode(enabled),
+    // removeChargeSchedule(id: Long), batchRemoveChargeSchedules(home, work, other), removePreconditionSchedule(id: Long),
+    // batchRemovePreconditionSchedules(home, work, other), openChargePort(), closeChargePort()
+
+    // 나머지 Infotainment 제어 (FR-050·051·053, FR-084~085, FR-090~092, M5 PR B): PRD §5의 메서드명 그대로
     ...
 }
 
@@ -314,7 +346,8 @@ public interface Vehicle {
 ```
 
 - 모든 `timeout: Duration? = null`은 `TeslaBleConfig.commandTimeout`을 기본으로 쓴다.
-- **구현 범위(M4와 앞당긴 항목):** `Vehicle`에는 `vin`, `hasKey`, `connection`, `sessions`, `startSession`, `disconnect`, `vehicleStatus`, `keySummary`, `listKeys`(M3)와 `sessionInfo`, `addKeyRequest`, `addKey`, `removeKey`, VCSEC 제어 12종(M4), `events`(#91, FR-035), `getState`(M5의 나머지보다 먼저, FR-033, #115)가 있다. 위 코드 블록의 나머지(`ping`, Infotainment 제어)는 M5 설계이며 아직 없다.
+- **구현 범위(M4와 앞당긴 항목):** `Vehicle`에는 `vin`, `hasKey`, `connection`, `sessions`, `startSession`, `disconnect`, `vehicleStatus`, `keySummary`, `listKeys`(M3)와 `sessionInfo`, `addKeyRequest`, `addKey`, `removeKey`, VCSEC 제어 12종(M4), `events`(#91, FR-035), `getState`(M5의 나머지보다 먼저, FR-033, #115), 공조·충전 명령 31종(M5 PR A, FR-052·FR-060~083)이 있다. 위 코드 블록의 나머지(`ping`, 차체·보안·미디어·소프트웨어 업데이트 명령)는 M5 PR B 설계이며 아직 없다.
+- **Infotainment 명령(M5 PR A):** `DefaultVehicle`은 VCSEC 명령과 같은 모양으로 `session.infotainment.<명령>(…, timeout ?: config.commandTimeout).reconciling(VehicleDomain.INFOTAINMENT)`를 부른다. 세션을 시작하거나 차를 깨우지 않는다(세션이 없으면 `NoSession`, 잠든 Infotainment는 `Uncertain(Timeout(afterSend = true))`). 로컬 검증은 Go에 있는 것만(좌석 쿨러 좌석, 출발 시각 0..1440분) 하며 세션 확인보다 먼저다. Swift는 모든 인자를 넘기고, 좌석 히터는 Swift 딕셔너리를 그대로 받으며, 일정은 Wire 전체 생성자 + `unknownFields`로 만든다(`{{LIB_DOCS_DIR}}17-lib-platform-notes.md`).
 - **브로드캐스트 이벤트(FR-035):** `events`는 `Dispatcher.plainBroadcasts`(`DefaultVehicle` 생성자 인자 `broadcasts`로 받는다)를 `VcsecBroadcasts.events`로 바꿔 낸다. 모델은 `:domain`의 `VehicleEvent`(sealed: `Status(status)`, `AuthenticationRequest(requestedLevel, reasons)`, `Unrecognized`; 공통 `raw`(받은 `RoutableMessage` 프레임 전체, 읽을 때마다 사본, VIN 마스킹 없음)·`unknownFields`(경로 문자열))와 `AuthenticationLevel`, `AuthenticationReason`. 수집할 때마다 구독 하나(`channelFlow` 안에서 `UNDISPATCHED`로 구독, replay 0). 끝 신호는 `combine(connection, closed)`: `connection`이 `Disconnected`(이유 무관)이거나 `disconnect()`가 `closed`를 세우면, 먼저 온 쪽에서 구독만 취소하고 채널을 닫아 **정상 완료**한다(앱의 수집 코루틴은 취소되지 않는다). 이미 끝난 연결에서 수집하면 바로 끝난다. 그 순간 넘겨주지 못한 프레임은 버려질 수 있다. 버퍼는 `RENDEZVOUS`라 느린 수집자를 위한 버퍼는 디스패처의 64개 하나뿐이다. 재연결 판단은 `connection`으로 한다(아래 링크 손실 규칙 그대로).
 - **세션 표시:** `sessions`는 사건만 따르지 않고 `VehicleSession.isReady(domain)`을 원천으로 한다. 세션 사건(`Updated`/`StaleCache`)은 신호일 뿐이라 그 도메인을 다시 맞추고, 명령이 `NoSession`으로 끝나도 다시 맞춘다(사건이 유실돼도 회복). 핸드셰이크 중(`Handshaking`)이거나 `disconnect()` 뒤에는 건드리지 않는다. 이 연결의 키로 한 `sessionInfo`가 세션을 만들면 `Ready(fromCache = false)`로 보이고, 다른 차량 키로 저장된 오래된 캐시는 첫 명령이 `NoSession`으로 끝난 뒤 `None`으로 바뀐다.
 - **링크 손실:** BLE 링크가 끊기면 전송은 수신 흐름을 닫고 `connection`을 `Disconnected`로 바꾸며(M3에서 전송 자원은 풀린다), 진행 중이던 명령은 `Uncertain`/`NotConnected`로 끝난다. 세션 키와 스코프는 앱이 `Vehicle.disconnect()`를 불러야 풀린다. `connect`가 늦게 실패하거나 취소돼도 전송과 스코프를 풀고 다시 던진다.
@@ -573,7 +606,9 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 | `VehicleEvent`(`Status`, `AuthenticationRequest`, `Unrecognized`), `AuthenticationLevel`, `AuthenticationReason` | 평문 브로드캐스트의 `FromVCSECMessage.vehicleStatus`(1)·`authenticationRequest`(3, TESLEMETRY-EXT) | FR-035. `raw`는 받은 프레임 전체(방어 복사, VIN 마스킹 없음), `unknownFields`는 경로 문자열. `equals`/`hashCode`는 `raw` 내용 기준, `toString`은 `raw` 길이만. 토큰(20 B)은 필드가 아니다(`raw`에 있음). 스키마 밖 `requestedLevel`·`reasons` 값은 `UNKNOWN`(이유는 아는 값 뒤) |
 | `SessionInfoSummary` | `Signatures.SessionInfo` | status, counter, epoch(hex), clockTime |
 | `VehicleData` | `CarServer.VehicleData` (Wire) | 그대로 노출 |
-| `KeyRole`, `KeyFormFactor`, `StateCategory`, `SeatPosition`, `Level`, `ClimateKeeperMode`, `ChargingPolicy` 등 | 각 enum | Go의 상수와 같은 값 |
+| `KeyRole`, `KeyFormFactor`, `StateCategory`, `SeatPosition`, `SeatClimateLevel`(Go `Level`), `ClimateKeeperMode`, `ChargingPolicy` 등 | 각 enum | Go의 상수와 같은 값. 명령의 와이어 값은 빌더가 명시적 `when`으로 대응 |
+| `CabinOverheatProtectionTemperature` | `ClimateState.CopActivationTemp` | Go는 `Level`을 캐스트한다. 와이어 값 0~3은 같다(§12) |
+| `ChargeSchedule`, `PreconditionSchedule` (입력) | `CarServer.ChargeSchedule`, `PreconditionSchedule` (Wire) | 그대로 받아 보낸다. `id`는 uint64를 담은 `Long`(ADR-0002 개정 2026-11-08) |
 
 ---
 
@@ -668,7 +703,8 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 - 수집: 사용자가 실차에서 `tesla-control -ble -vin $VIN -debug <cmd>`로 TX/RX hex를 얻는다(M3 이후 제공). 명령: `list-keys`, `body-controller-state`, `session-info … vcsec`, `lock`, `unlock`, `climate-on`, `state charge`.
 - 마스킹: VIN 17자는 `5YJ30123456789ABC`(테스트 VIN)로 치환하되 **바이트 길이가 같으므로** TLV 길이는 유지. 실제 키·세션 정보가 있는 캡처는 커밋하지 않는다(비밀 스캔 게이트).
 - 저장: `{{FIXTURES_DIR}}` 아래 Kotlin `object` 상수(`GoldenFixtures.ListKeysTx = "3202…"`).
-- 검증: 랜덤 필드(uuid, routing_address, nonce)를 `FixedRandom`으로 주입해 인코딩 바이트가 TX와 일치하는지, RX를 디코딩해 기대 필드가 나오는지 확인.
+- 검증: 랜덤 필드(uuid, routing_address, nonce)를 `FixedRandom`으로 주입해 TX와 같은 메시지인지, RX를 디코딩해 기대 필드가 나오는지 확인. `RoutableMessage`는 바이트 배열이 아니라 디코딩한 메시지(필드마다)와 길이로 비교한다: protobuf-go는 oneof가 아닌 필드(6, 7, 51, 52)를 먼저, oneof(`payload` 10, `sub_sigData` 13)를 나중에 쓰고, Wire는 선언 순서(6, 7, 10, 13, 51, 52)로 쓴다(`LIST_KEYS_TX`에서 uuid가 payload보다 앞인 이유, `10-porting-guide §11` 2단계). 안쪽 평문(`CarServer.Action`)은 M5 PR A 명령에서 두 순서가 같아 바이트로 비교한다(Codex 확인 2026-11-08).
+- 합성 골든(M5 PR A, 2026-11-08): climate-on은 `protocol.md` §8.2.1의 결과 메시지 전체(`ProtocolVectors.HVAC_ON_TX`, 공개 테스트 키·고정 nonce, 세션정보는 age 0 캐시 복원으로 주입), state charge는 요청 평문과 손으로 인코딩한 응답(`InfotainmentVectors`). 실차 캡처 골든은 #118 실차 항목으로 남는다.
 
 ### 9.3 FakeVehicle (`:testing`)
 
@@ -826,6 +862,9 @@ HANDOFF ↔ 원본 불일치는 `{{PRD_FILE}}` 부록 A에 있다. 매뉴얼의 
 - 인증 없는 VCSEC 조회에서 응답에 기대한 필드가 없으면 `BadResponse("missing …")`다(Go `BodyControllerState`/`KeySummary`/`KeyInfoBySlot`은 nil, nil). `listKeys`는 첫 슬롯 실패를 돌려준다(Go `list-keys`는 실패 슬롯을 출력하고 계속한다). Wire가 모르는 잠금·개폐·역할·형태 값은 `UNKNOWN`이다(Wire 기본값으로 보이지 않게 `unknownFields`로 판별).
 - 다른 공개키로 물은 `sessionInfo`(`Dispatcher.querySessionInfo`)의 응답 세션정보는 이 연결의 세션에 반영하지 않는다(`PendingRequest.acceptsSessionInfo = false`). Go는 반영을 시도하고 태그 불일치를 경고한다 — 캐시 복원 세션을 오래된 것으로 오판하는 것을 막는다. 이 연결의 키로 물으면 Go와 같이 반영한다.
 - 기기 잠금으로 개인키를 쓸 수 없을 때(FR-037, #96, ADR-0014): 키가 `KeyLockedException`을 던지면 `Signer`·`SessionState`는 값으로 바꾸지 않고 전파하고, 디스패처가 그 응답을 받은 요청에 표시해 `HandshakeFlow`가 첫 응답 직후 `Failure(KeyStoreError.Locked)`로 끝낸다(차량이 응답에 실은 오류가 먼저). `retryWhileRetriable`은 `Locked`를 되풀이하지 않는다. 캐시 복원은 그 항목만 건너뛰고 캐시를 지우지 않는다(§7.1). Go는 키 `Exchange` 오류를 구별하지 않는다: 핸드셰이크는 "Session info error"를 남기고 `RetryInterval`마다 재전송하다 데드라인으로 끝나고, `LoadCache`는 전체 실패한다. 응답은 ECDH 전이라 인증되지 않았지만 Locked는 이 기기의 사실이고 응답의 상태는 쓰지 않는다.
+- `setSeatHeater`는 좌석을 `SeatPosition` 선언 순서로 정렬해 담는다. Go `SetSeatHeater`는 맵 순회 순서로 담아(`climate.go:162`, Go 맵은 순서가 정해지지 않는다) 좌석이 둘 이상이면 바이트가 실행마다 달라진다. 원소 집합은 같고 이 라이브러리의 바이트만 결정적이다(공개 `Map`은 Swift 브리지에서 순서를 보장하지 않는다, M5 계획 결정 기록).
+- `setCabinOverheatProtectionTemperature`는 전용 enum `CabinOverheatProtectionTemperature`(UNSPECIFIED, LOW, MEDIUM, HIGH)를 받는다. Go는 좌석 단계 `Level`을 `ClimateState_CopActivationTemp`로 캐스트한다(`climate.go:237-243`, `LevelOff` → Unspecified). 와이어 값 0~3은 같다. `UNSPECIFIED`가 기능을 끈다고 문서화하지 않는다(실차 의미 미확인).
+- 인자 검증 오류의 문구: 앞좌석이 아닌 좌석의 `setSeatCooler`는 `InvalidArgument("invalid seat position for seat cooler: <SEAT>")`, 0..1440분 밖의 출발 시각인 `scheduleDeparture`는 `InvalidArgument("invalid departure time: <n> minutes after midnight (expected 0..1440)")`다. Go는 `invalid seat position`·`invalid departure time`만 돌려준다(`climate.go:19`, `charge.go:217`). 검사 조건과 시점(보내기 전, 세션 확인보다 먼저)은 Go와 같다. 출발 시각은 Go `time.Duration`(0~24h) 대신 분(`Int`)으로 받으므로 경계 1440분은 Go의 24h와 같다.
 
 ### 알려진 한계 (원본과 같은 동작)
 

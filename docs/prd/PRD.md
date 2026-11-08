@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | **v1.0 승인** (2026-09-26, D13 개정 포함). NFR-012 타임아웃 문구는 SDD D29에 맞춰 갱신. 주행·미디어·목적지 조사 결과 반영(2026-11-01, §3.2, FR-033, FR-091, §8, §9). `getState` 구현에 맞춘 문구 정정(2026-11-01, FR-033, FR-101). 연결 스캔 관찰 추가(2026-11-01, FR-038, #134). 연결 시간 초과 오류 구분(2026-11-01, FR-004, #140). 시간 초과의 "전송" 정의를 첫 BLE 쓰기 호출로 정정(2026-11-07, NFR-012, ADR-0010 H1). 쓰기 실패 뒤 새 사본 재인가 금지(2026-11-08, FR-101 예외, NFR-007, ADR-0010 개정) |
+| 상태 | **v1.0 승인** (2026-09-26, D13 개정 포함). NFR-012 타임아웃 문구는 SDD D29에 맞춰 갱신. 주행·미디어·목적지 조사 결과 반영(2026-11-01, §3.2, FR-033, FR-091, §8, §9). `getState` 구현에 맞춘 문구 정정(2026-11-01, FR-033, FR-101). 연결 스캔 관찰 추가(2026-11-01, FR-038, #134). 연결 시간 초과 오류 구분(2026-11-01, FR-004, #140). 시간 초과의 "전송" 정의를 첫 BLE 쓰기 호출로 정정(2026-11-07, NFR-012, ADR-0010 H1). 쓰기 실패 뒤 새 사본 재인가 금지(2026-11-08, FR-101 예외, NFR-007, ADR-0010 개정). 공조·충전 명령의 공개 시그니처 확정(2026-11-08, FR-052, FR-061~083, M5 PR A, ADR-0002 개정) |
 | 저장소 | `{{REPO_URL}}` (공개, Apache-2.0) |
 | 상위 문서 | `{{HANDOFF_FILE}}` §1~§5, §8, §10~§13 |
 | 정답 기준 | `{{REF_REPO_DIR}}` @ `{{REF_REPO_COMMIT}}` + `pkg/protocol/protocol.md` |
@@ -208,43 +208,45 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 |---|---|---|---|---|---|
 | FR-050 | `ventWindows()`, `closeWindows()` | P1 | INFO | `VentWindows`, `CloseWindows` | `05-command-catalog C` |
 | FR-051 | `setSunroof(level)` | P1 | INFO | `ChangeSunroofState` | 〃 |
-| FR-052 | `openChargePort()`, `closeChargePort()` | P1 | INFO | `OpenChargePort`, `CloseChargePort` | 〃 |
+| FR-052 | `openChargePort()`, `closeChargePort()` | P1 | INFO | `OpenChargePort`(= `ChargePortOpen`), `CloseChargePort`(= `ChargePortClose`) | 〃 |
 | FR-053 | `honkHorn()`, `flashLights()` | P1 | INFO | `HonkHorn`, `FlashLights` | 〃 |
 | FR-054 | `triggerHomelink(lat, lon)` | P2 | INFO | `TriggerHomelink` | 〃 |
 
 ### 5.7 Infotainment 제어: 공조
 
+공조·충전 명령(FR-052, FR-060~083)의 시그니처는 M5 PR A(2026-11-08)에서 확정했다. 모두 `suspend`이고 `VehicleResult<Unit>`을 돌려주며 마지막 인자는 `timeout: Duration? = null`이다. 매개변수 타입은 `:domain`의 `SeatPosition`(Go 좌석 9종 + `UNKNOWN`), `SeatClimateLevel`, `ClimateKeeperMode`, `ChargingPolicy`, `CabinOverheatProtectionTemperature`와 Wire 생성 타입 `ChargeSchedule`·`PreconditionSchedule`(ADR-0002 개정 2026-11-08)이다. 로컬 인자 검증은 Go에 있는 것만(FR-063 좌석, FR-075 출발 시각) 하며, 실패하면 보내지 않고 `InvalidArgument`다.
+
 | ID | 요구사항 | P | 도메인 | Go | 근거 |
 |---|---|---|---|---|---|
 | FR-060 | `climateOn()`, `climateOff()` | P0 | INFO | `ClimateOn/Off` | `05-command-catalog D` |
-| FR-061 | `setSeatHeater(map<Seat, Level>)` (좌석 9종, 레벨 OFF/LOW/MED/HIGH) | P1 | INFO | `SetSeatHeater` | 〃 |
-| FR-062 | `setClimateTemp(driverC, passengerC)` (섭씨) | P0 | INFO | `ChangeClimateTemp` | 〃 |
-| FR-063 | `setSeatCooler(level, seat)` (앞좌석만) | P1 | INFO | `SetSeatCooler` | 〃 |
-| FR-064 | `setSteeringWheelHeater(on)` | P1 | INFO | `SetSteeringWheelHeater` | 〃 |
-| FR-065 | `autoSeatAndClimate(seats, on)` | P1 | INFO | `AutoSeatAndClimate` | 〃 |
-| FR-066 | `setPreconditioningMax(on, manualOverride)` | P1 | INFO | `SetPreconditioningMax` | 〃 |
-| FR-067 | `setClimateKeeperMode(mode, override)` (OFF/ON/DOG/CAMP) | P1 | INFO | `SetClimateKeeperMode` | 〃 |
-| FR-068 | `setBioweaponDefenseMode(on, manualOverride)` | P1 | INFO | `SetBioweaponDefenseMode` | 〃 |
-| FR-069 | `setCabinOverheatProtection(on, fanOnly)`, `setCabinOverheatProtectionTemperature(level)` | P1 | INFO | `SetCabinOverheatProtection(+Temperature)` | 〃 |
+| FR-061 | `setSeatHeater(levels: Map<SeatPosition, SeatClimateLevel>)` (좌석 9종 + `UNKNOWN`, 단계 OFF/LOW/MED/HIGH. 좌석 선언 순서로 보내고 빈 맵도 보낸다) | P1 | INFO | `SetSeatHeater` | 〃 |
+| FR-062 | `setClimateTemp(driverCelsius: Float, passengerCelsius: Float)` (섭씨, 범위 검사 없음) | P0 | INFO | `ChangeClimateTemp` | 〃 |
+| FR-063 | `setSeatCooler(level: SeatClimateLevel, seat: SeatPosition)` (앞좌석만. 그 밖의 좌석은 보내지 않고 `InvalidArgument`) | P1 | INFO | `SetSeatCooler` | 〃 |
+| FR-064 | `setSteeringWheelHeater(enabled: Boolean)` | P1 | INFO | `SetSteeringWheelHeater` | 〃 |
+| FR-065 | `autoSeatAndClimate(seats: List<SeatPosition>, enabled: Boolean)` (`UNKNOWN`·`FRONT_LEFT`·`FRONT_RIGHT`만 보내고 나머지 좌석은 오류 없이 뺀다) | P1 | INFO | `AutoSeatAndClimate` | 〃 |
+| FR-066 | `setPreconditioningMax(enabled: Boolean, manualOverride: Boolean)` | P1 | INFO | `SetPreconditioningMax` | 〃 |
+| FR-067 | `setClimateKeeperMode(mode: ClimateKeeperMode, manualOverride: Boolean)` (OFF/ON/DOG/CAMP) | P1 | INFO | `SetClimateKeeperMode` | 〃 |
+| FR-068 | `setBioweaponDefenseMode(enabled: Boolean, manualOverride: Boolean)` | P1 | INFO | `SetBioweaponDefenseMode` | 〃 |
+| FR-069 | `setCabinOverheatProtection(enabled: Boolean, fanOnly: Boolean)`, `setCabinOverheatProtectionTemperature(temperature: CabinOverheatProtectionTemperature)` (UNSPECIFIED/LOW/MEDIUM/HIGH, 와이어 값 0~3) | P1 | INFO | `SetCabinOverheatProtection(+Temperature)` | 〃 |
 
 ### 5.8 Infotainment 제어: 충전·전원
 
 | ID | 요구사항 | P | 도메인 | Go | 근거 |
 |---|---|---|---|---|---|
 | FR-070 | `chargeStart()`, `chargeStop()` | P0 | INFO | `ChargeStart/Stop` | `05-command-catalog E` |
-| FR-071 | `setChargeLimit(percent)` | P0 | INFO | `ChangeChargeLimit` | 〃 |
-| FR-072 | `setChargingAmps(amps)` | P0 | INFO | `SetChargingAmps` | 〃 |
+| FR-071 | `setChargeLimit(percent: Int)` (범위 검사 없음) | P0 | INFO | `ChangeChargeLimit` | 〃 |
+| FR-072 | `setChargingAmps(amps: Int)` (범위 검사 없음) | P0 | INFO | `SetChargingAmps` | 〃 |
 | FR-073 | `chargeStandardRange()`, `chargeMaxRange()` | P1 | INFO | `ChargeStandardRange`, `ChargeMaxRange` | 〃 |
-| FR-074 | `scheduleCharging(enabled, minutesAfterMidnight)` | P1 | INFO | `ScheduleCharging` | 〃 |
-| FR-075 | `scheduleDeparture(departAt, offPeakEnd, precondPolicy, offPeakPolicy)`, `clearScheduledDeparture()` | P1 | INFO | `ScheduleDeparture`, `ClearScheduledDeparture` | 〃 |
-| FR-076 | `setLowPowerMode(on)` | P1 | INFO | `SetLowPowerMode` | 〃 |
-| FR-077 | `setKeepAccessoryPowerMode(on)` | P1 | INFO | `SetKeepAccessoryPowerMode` | 〃 |
-| FR-078 | `addChargeSchedule(schedule)` | P1 | INFO | `AddChargeSchedule` | 〃 |
-| FR-079 | `removeChargeSchedule(id)` | P1 | INFO | `RemoveChargeSchedule` | 〃 |
-| FR-080 | `batchRemoveChargeSchedules(home, work, other)` | P1 | INFO | `BatchRemoveChargeSchedules` | 〃 |
-| FR-081 | `addPreconditionSchedule(schedule)` | P1 | INFO | `AddPreconditionSchedule` | 〃 |
-| FR-082 | `removePreconditionSchedule(id)` | P1 | INFO | `RemovePreconditionSchedule` | 〃 |
-| FR-083 | `batchRemovePreconditionSchedules(home, work, other)` | P1 | INFO | `BatchRemovePreconditionSchedules` | 〃 |
+| FR-074 | `scheduleCharging(enabled: Boolean, minutesAfterMidnight: Int)` (차량 현지 자정 뒤 분, 검사 없음) | P1 | INFO | `ScheduleCharging` | 〃 |
+| FR-075 | `scheduleDeparture(departAtMinutes: Int, offPeakEndMinutes: Int, preconditioning: ChargingPolicy, offPeak: ChargingPolicy)`(자정 뒤 분. 출발 시각이 0~1440 밖이면 보내지 않고 `InvalidArgument`, 오프피크 종료 시각은 검사 없음. 정책 OFF/ALL_DAYS/WEEKDAYS), `clearScheduledDeparture()` | P1 | INFO | `ScheduleDeparture`, `ClearScheduledDeparture` | 〃 |
+| FR-076 | `setLowPowerMode(enabled: Boolean)` | P1 | INFO | `SetLowPowerMode` | 〃 |
+| FR-077 | `setKeepAccessoryPowerMode(enabled: Boolean)` | P1 | INFO | `SetKeepAccessoryPowerMode` | 〃 |
+| FR-078 | `addChargeSchedule(schedule: ChargeSchedule)` (Wire 생성 타입을 그대로 보낸다) | P1 | INFO | `AddChargeSchedule` | 〃 |
+| FR-079 | `removeChargeSchedule(id: Long)` (uint64를 담은 `Long`) | P1 | INFO | `RemoveChargeSchedule` | 〃 |
+| FR-080 | `batchRemoveChargeSchedules(home: Boolean, work: Boolean, other: Boolean)` | P1 | INFO | `BatchRemoveChargeSchedules` | 〃 |
+| FR-081 | `addPreconditionSchedule(schedule: PreconditionSchedule)` (Wire 생성 타입을 그대로 보낸다) | P1 | INFO | `AddPreconditionSchedule` | 〃 |
+| FR-082 | `removePreconditionSchedule(id: Long)` (uint64를 담은 `Long`) | P1 | INFO | `RemovePreconditionSchedule` | 〃 |
+| FR-083 | `batchRemovePreconditionSchedules(home: Boolean, work: Boolean, other: Boolean)` | P1 | INFO | `BatchRemovePreconditionSchedules` | 〃 |
 
 ### 5.9 Infotainment 제어: 보안·모드
 
@@ -375,7 +377,7 @@ Go 열은 `{{REF_REPO_DIR}}pkg/vehicle` 메서드명(포팅 대응). 근거 열�
 | M4 | 키 등록 + VCSEC 제어 | FR-022~024, FR-026~027, FR-040~047, FR-104, FR-110~111(VCSEC 부분, → SFR-001~002) | 페어링, 잠금, 해제, 트렁크 (실차는 사용자 확인) |
 | #91 (M4 뒤, M5 전) | 차량 브로드캐스트 이벤트, 기어, iOS 키 접근성 선택 (모니터 샘플의 선행 작업, 원래 M5 항목이던 `vehicle.events`를 앞당김) | FR-035, FR-036, FR-037 | FakeVehicle 시나리오 테스트·가짜 Keychain 테스트 PASS, 사용 문서 갱신. 실차·실기기 확인은 모니터 샘플로 |
 | #134 (M5와 별개, 빌드 18 분석의 링크 안정화) | `connect`의 스캔 발견 시각과 RSSI를 공개 API로 제공 | FR-038 | 가짜 커넥터 테스트 PASS, 사용 문서 갱신. 실차 확인은 모니터 샘플에서 |
-| M5 | Infotainment 제어 + GetState (P0/P1) | FR-033~034, FR-050~053, FR-060~085, FR-090~092, FR-110~111(전체, → SFR-001~002) | P0/P1 항목 완료, 실차 체크리스트 전달 |
+| M5 | Infotainment 제어 + GetState (P0/P1). **진행(2026-11-08):** `getState`(FR-033, #115)와 공조·충전 명령(FR-052, FR-060~083, PR A) 완료 — FakeVehicle 시험 통과, 실차 미확인(#118). 남은 것: `ping`(FR-034), 차체·보안·미디어·SW 업데이트(FR-050·051·053, FR-084~085, FR-090~092, PR B), 샘플의 공조·충전 항목(PR C) | FR-033~034, FR-050~053, FR-060~085, FR-090~092, FR-110~111(전체, → SFR-001~002) | P0/P1 항목 완료, 실차 체크리스트 전달 |
 | M6 | 문서화, 배포 준비 | `{{LIB_DOCS_DIR}}` 완성, API 문서, NOTICE, mavenLocal/XCFramework 빌드. **마지막 과제**: GitHub Packages + SPM 배포 파이프라인(D13), 소비자용 PAT 설정 문서 | 문서 링크 검증, 배포 설정 |
 | v1.1 | P2 기능, BLE 목적지 설정 PoC(#119, 요구사항 아님, §3.2) | FR-054, FR-086~089, FR-093~094 | PoC는 실차 결과 기록과 지원 여부 판단 |
 
