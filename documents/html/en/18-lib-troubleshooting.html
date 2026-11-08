@@ -62,6 +62,7 @@
 <li><a href="#sec-keys">Keys and sessions</a></li>
 <li><a href="#sec-pairing">Pairing and commands</a></li>
 <li><a href="#sec-getstate">Reading state with getState</a></li>
+<li><a href="#sec-infotainment">Infotainment commands</a></li>
 <li><a href="#sec-other">Other messages</a></li>
 <li><a href="#sec-budget">The connect time budget</a></li>
 <li><a href="#sec-no-source">Frames without a source</a></li>
@@ -125,6 +126,22 @@
 <tr><td><code>getState(DRIVE)</code> returns <code>Uncertain(ProtocolFault(RESPONSE_MTU_EXCEEDED))</code></td><td>The reply is over the car's size limit; a long destination name makes this more likely. The car is not gone or asleep</td><td>Keep the last value with its age and ask again later, not in a tight loop. There is no smaller query (<a href="16-lib-errors.html#sec-size-limit">16. Error Handling</a>)</td></tr>
 <tr><td><code>getState()</code> returns <code>Success</code>, but a field is <code>null</code></td><td>The car did not send that field, or the reply had no <code>vehicleData</code></td><td>Show "no value", never 0 (<a href="14-lib-reading-state.html#sec-a-reading">14, A8.3</a>). Which fields a real car sends is not confirmed yet (#118)</td></tr>
 <tr><td><code>getState()</code> returns <code>Success</code> with the same values again</td><td><code>Success</code> is not proof of a new measurement</td><td>Compare <code>timestamp</code> with the previous reply (<a href="14-lib-reading-state.html#sec-a-reading">14, A8.3</a>)</td></tr>
+</tbody>
+</table>
+
+<h2 id="sec-infotainment">Infotainment commands</h2>
+<table>
+<thead><tr><th>Symptom</th><th>Likely cause</th><th>What to do</th></tr></thead>
+<tbody>
+<tr><td>An infotainment command (<code>climateOn()</code>, <code>chargeStart()</code>, <code>honkHorn()</code>…) returns <code>NoSession</code></td><td>No infotainment session yet, or the saved session is stale</td><td>Call <code>startSession(setOf(VehicleDomain.INFOTAINMENT))</code>, then send the command again: nothing was sent</td></tr>
+<tr><td>Every infotainment command returns <code>Uncertain(Timeout(afterSend = true))</code>, while security-controller commands work</td><td>Infotainment is asleep: commands never wake it, and a saved session says nothing about sleep</td><td>Read <code>vehicleStatus()</code>; if it is <code>ASLEEP</code>, wake the car and wait for <code>AWAKE</code> (<a href="14-lib-reading-state.html#sec-a-order">14, A8.2</a>). Read the state before sending the command again: it may have run</td></tr>
+<tr><td>A command returns <code>Uncertain</code> and your app wants to retry</td><td>The car may have run it</td><td>Never resend. Read the state the command changes (<a href="15-lib-commands.html#sec-cc-requery">15. Commands</a>). For <code>toggleMediaPlayback</code> and the trunk toggles a second send undoes the first. <code>honkHorn</code>, <code>flashLights</code>, <code>setLowPowerMode</code> and <code>setKeepAccessoryPowerMode</code> cannot be read back: show the result as unknown</td></tr>
+<tr><td><code>enableValetMode(pin)</code> returns <code>InvalidArgument("PIN codes must be four digits")</code></td><td>The PIN is not exactly four ASCII digits, for example full-width digits or digits from another script typed on the keyboard, or a space</td><td>Offer a digits-only keyboard or convert the input before calling. Never log the PIN</td></tr>
+<tr><td><code>setVolume(volume)</code> returns <code>InvalidArgument("invalid volume (should be in [0, 10])")</code></td><td>The value is below 0, above 10 or NaN (for example a slider value that was not clamped, or 0/0)</td><td>Clamp the value to 0–10 in your app</td></tr>
+<tr><td><code>setSeatCooler</code> returns <code>InvalidArgument("invalid seat position for seat cooler: …")</code>, <code>scheduleDeparture</code> returns <code>InvalidArgument("invalid departure time: …")</code></td><td>A seat other than <code>FRONT_LEFT</code> or <code>FRONT_RIGHT</code>; a departure outside 0 to 1440 minutes after midnight</td><td>Fix the argument (<a href="16-lib-errors.html#sec-invalid-argument">16. Error Handling</a>)</td></tr>
+<tr><td>An infotainment command returns <code>Failure(InfotainmentRejected(reason))</code></td><td>The car refused: the feature is missing, or its state does not allow the command (for example while driving)</td><td>Show a generic message; <code>reason</code> is the car's own text, so do not log it. <code>disableValetMode</code> already turns a reason that ends in <code>already off</code> into <code>Success</code></td></tr>
+<tr><td><code>addChargeSchedule</code> returns <code>InvalidArgument("message exceeds 1024 bytes")</code></td><td>The schedule <code>name</code> is so long that the message would go over 1024 bytes</td><td>Use a shorter name</td></tr>
+<tr><td>A command returns <code>Success</code>, but <code>getState</code> still shows the old value</td><td>The new value may not be reported yet, or the field is not the one the command changes (not confirmed on a real car, #118)</td><td>Read again a little later and compare <code>timestamp</code></td></tr>
 </tbody>
 </table>
 
