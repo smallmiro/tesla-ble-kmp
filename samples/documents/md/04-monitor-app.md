@@ -1,6 +1,6 @@
 # Monitor App (SFR-010 to SFR-017)
 
-Status: **Android implemented** (build `0.4.0 (4)`) and **iOS implemented** (build `0.5.0 (26)`); unit tests and builds
+Status: **Android implemented** (build `0.4.0 (4)`) and **iOS implemented** (build `0.5.0 (27)`); unit tests and builds
 pass, **real-device checks pending** for both (iOS background reconnect is unconfirmed until the plan Task 2 spike).
 Issue #91. The library APIs it needs are available: `Vehicle.events`
 (`12-lib-getting-started.md` §Broadcast events, `14-lib-reading-state.md` B2) and the key accessibility `KeyAccessibility`
@@ -57,14 +57,14 @@ The rules are a small pure type (`KeyNickname`: trim, length check, clamp; `KeyN
 injected `UserDefaults`) that is unit tested without a vehicle (`Tests/KeyNicknameTests.swift`). The screen is checked
 with the real-device checklist in `samples/ios/README.md` (SFR-019).
 
-Status: iOS built (`0.5.0 (26)`), unit tests pass, real-device check pending. Android: planned, same spec.
+Status: iOS built (`0.5.0 (27)`), unit tests pass, real-device check pending. Android: planned, same spec.
 
 ## State diagnostics (SFR-023)
 
 The Query tab has a manual area where a person calls `getState()` and reads what the car returns. It exists to collect real-car
 facts that `14-lib-reading-state.md` A8.5 lists as unconfirmed (which fields a category carries, the unit of `speed`, whether a
 reply is too large, what a sleeping car does). It is not a product feature: there is no periodic `getState` and no automatic
-retry. Since build 26 there is one button for each of the 12 `StateCategory` values (A8.1); a tap asks for one category, never
+retry. Since build 27 there is one button for each of the 12 `StateCategory` values (A8.1); a tap asks for one category, never
 several.
 
 | Rule | Detail |
@@ -115,9 +115,9 @@ Error types are the library's type names (`ResponseTooLarge`, `Timeout(afterSend
 Library calls and manual pages: `vehicleStatus(timeout: nil)` (14 A2), `startSession(domains:timeout:)` (14 A8.2, 15), `getState(category:timeout:)` and
 `s.value as? VehicleData`, `KotlinInt?` numbers, `getEpochSecond()` (14 A8.3, 17 §Swift: generated types), the coordinate choice (14 A8.4), result handling and the size fault (16 §`getState` results,
 §Response size limit on `getState`). The pure rules (`StateDiagnostics`, `StateCategoryFields`, the coordinate rule `LocationRule`) and the screen state (`StateDiagnosticsModel`, with a fake link) are unit tested
-without a vehicle (`Tests/StateDiagnosticsTests.swift`, `Tests/StateCategoriesTests.swift`); the real-device checklist is in `samples/ios/README.md` (SFR-023, "additional categories" for the nine added in build 26).
+without a vehicle (`Tests/StateDiagnosticsTests.swift`, `Tests/StateCategoriesTests.swift`); the real-device checklist is in `samples/ios/README.md` (SFR-023, "additional categories" for the nine added in build 27).
 
-Status: iOS built (`0.5.0 (26)`), unit tests pass, real-device check pending. Android: planned, same spec.
+Status: iOS built (`0.5.0 (27)`), unit tests pass, real-device check pending. Android: planned, same spec.
 
 ## Wide and foldable screens (SFR-024)
 
@@ -146,7 +146,7 @@ checked with the real-device checklist in `samples/ios/README.md` (SFR-024). The
 Simulator app, so the two-pane layout was also looked at on an iPad simulator; the posture change on the Duo itself
 is a real-device check.
 
-Status: iOS built (`0.5.0 (26)`), unit tests pass, real-device check pending. Android: not applicable today (no foldable target); a large-screen layout would be a separate requirement.
+Status: iOS built (`0.5.0 (27)`), unit tests pass, real-device check pending. Android: not applicable today (no foldable target); a large-screen layout would be a separate requirement.
 
 ## Background
 
@@ -302,7 +302,7 @@ Files in `samples/ios/Sources/` (tests in `samples/ios/Tests/`, names as in the 
 | `KeyReplacement.swift`, `Tests/KeyReplacementTests.swift` | Delete and recreate the monitor key (SFR-020, `05-key-control-tab.md`): `KeyReplacer` (order, locked and failure rules), `KeyReplaceOutcome`, the confirmation text; pure and unit tested. `MonitorEngine.replaceKey()` runs it against `ble.keys` |
 | `EnrollmentProgress.swift`, `Tests/EnrollmentPopupTests.swift` | Enrollment progress popup (SFR-021, `05-key-control-tab.md`): `EnrollmentUpdate` (what `BleClient.pair` reports) and `EnrollmentPopup` (phases, rows, texts, buttons, remaining time); pure and unit tested |
 | `StateDiagnostics.swift`, `Tests/StateDiagnosticsTests.swift` | State diagnostics (SFR-023, §State diagnostics): pure rules (`StateDiagnostics`: button enabling, value texts, `StateOutcome` sentences, `StateLogEntry`), the `StateLink` / `StateDiagnosticsBackend` seam to the library, and `StateDiagnosticsModel` (one query at a time, drops late results, refuses while a key operation runs). `MonitorEngine.swift` has the live `StateLink` (`vehicleStatus`, `startSession`, `getState`); `VehicleMapping.swift` and `VehicleMappingCategories.swift` turn a `VehicleData` into the named fields; `Views/QueryTab.swift` draws it |
-| `StateCategoryFields.swift`, `Tests/StateCategoriesTests.swift` | The nine categories added in build 26 (SFR-023): value structs, Korean labels and units, `—` for absent, the coordinate rule `LocationRule` (A8.4), tire warning text, schedule summaries, and `presentKeys` (the field names the log gets). No library types, so it is unit tested without a vehicle |
+| `StateCategoryFields.swift`, `Tests/StateCategoriesTests.swift` | The nine categories added in build 27 (SFR-023): value structs, Korean labels and units, `—` for absent, the coordinate rule `LocationRule` (A8.4), tire warning text, schedule summaries, and `presentKeys` (the field names the log gets). No library types, so it is unit tested without a vehicle |
 | `KeyControlBackend.swift`, `Tests/KeyControlModelTests.swift`, `Tests/KeyOperationGateTests.swift` | `KeyControlBackend`: everything `KeyControlModel` asks of the library and the engine (a fake in tests); `KeyOperationGate` and `KeyHandleCache` guard the key replacement across tabs (`KeyReplacement.swift`) |
 | `ContentView.swift`, `Views/` | Phone layout: `TabView` Live / Query / Log / Control / Key & Control; wide layout: `Views/TwoPaneView.swift` (SFR-024); `isIdleTimerDisabled` follows `scenePhase == .active` |
 | `DuoLayout.swift`, `Tests/DuoLayoutTests.swift`, `ScreenContinuity.swift`, `Tests/ScreenContinuityTests.swift`, `HomeSummary.swift`, `Tests/HomeSummaryTests.swift`, `Views/TwoPaneView.swift` | Wide and foldable screens (SFR-024, §Wide and foldable screens): pure `DuoLayout.mode` / `leftPaneWidth`, `AppNavigation` (one selection for both layouts), `QuickControls` (car callouts and action row); `ScreenContinuity` (open sheets and memo that survive a layout change, and `vinKnownChanged`: the VIN sheet opens by itself only when the VIN goes from unknown to known, so a right pane rebuilt on every tab change does not reopen it); `HomeSummary` (pure texts of the first screen: lock callout, Drive speed, header, menu, status rows, footer); `TwoPaneView` (left menu, right Tesla-style Live home) |

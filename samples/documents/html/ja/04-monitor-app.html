@@ -43,7 +43,7 @@
 
 <div class="callout warn">
 <strong>Android と iOS は実装済み、実機確認待ち</strong>
-<p>Android アプリ（ビルド <code>0.4.0 (4)</code>）と iOS アプリ（ビルド <code>0.5.0 (26)</code>）は実装済みで、単体テストは通過しています。どちらも実車での確認を待っています。iOS がバックグラウンドで再接続するかどうかは、計画の Task 2 のスパイクまで未確認です。必要なライブラリ API はすべて使えます: <code>Vehicle.events</code>（ライブラリマニュアル 12 章「ブロードキャストイベント」、14 章 B2）と iOS のキーアクセシビリティの選択（13 章「スマートフォンのロック中にキーを使う」、FR-037）。</p>
+<p>Android アプリ（ビルド <code>0.4.0 (4)</code>）と iOS アプリ（ビルド <code>0.5.0 (27)</code>）は実装済みで、単体テストは通過しています。どちらも実車での確認を待っています。iOS がバックグラウンドで再接続するかどうかは、計画の Task 2 のスパイクまで未確認です。必要なライブラリ API はすべて使えます: <code>Vehicle.events</code>（ライブラリマニュアル 12 章「ブロードキャストイベント」、14 章 B2）と iOS のキーアクセシビリティの選択（13 章「スマートフォンのロック中にキーを使う」、FR-037）。</p>
 </div>
 
 <div class="toc"><strong>このページの内容</strong><ol>
@@ -90,10 +90,10 @@
 </tbody>
 </table>
 <p>ルールは小さな純粋な型です（<code>KeyNickname</code>: 削る、長さの確認、切り詰め。<code>KeyNicknameStore</code>: 注入した <code>UserDefaults</code> への保存、取得、削除）。車両なしで単体テストします（<code>Tests/KeyNicknameTests.swift</code>）。画面は <code>samples/ios/README.md</code> の実機確認リストで確認します（SFR-019）。</p>
-<p><strong>状態:</strong> iOS ビルド済み（<code>0.5.0 (26)</code>）、単体テストは通過、実機確認待ち。Android: 予定、同じ仕様。</p>
+<p><strong>状態:</strong> iOS ビルド済み（<code>0.5.0 (27)</code>）、単体テストは通過、実機確認待ち。Android: 予定、同じ仕様。</p>
 
 <h2 id="sec-state">状態診断（SFR-023）</h2>
-<p>Query タブには、人が <code>getState()</code> を呼んで車両が返す値を読む手動の領域があります。ライブラリマニュアルが未確認として挙げている実車の事実（14 章 A8.5）を集めるためのものです: カテゴリごとにどのフィールドが来るか、<code>speed</code> の単位、応答が大きすぎないか、眠っている車がどう振る舞うか。製品機能ではありません。定期的な <code>getState</code> も、自動の再試行もありません。ビルド 26 から <code>StateCategory</code> の 12 個の値それぞれにボタンが 1 つずつあり（A8.1）、1 回のタップで求めるのは 1 つのカテゴリで、複数をまとめて求めることはありません。</p>
+<p>Query タブには、人が <code>getState()</code> を呼んで車両が返す値を読む手動の領域があります。ライブラリマニュアルが未確認として挙げている実車の事実（14 章 A8.5）を集めるためのものです: カテゴリごとにどのフィールドが来るか、<code>speed</code> の単位、応答が大きすぎないか、眠っている車がどう振る舞うか。製品機能ではありません。定期的な <code>getState</code> も、自動の再試行もありません。ビルド 27 から <code>StateCategory</code> の 12 個の値それぞれにボタンが 1 つずつあり（A8.1）、1 回のタップで求めるのは 1 つのカテゴリで、複数をまとめて求めることはありません。</p>
 <table>
 <thead><tr><th>ルール</th><th>内容</th></tr></thead>
 <tbody>
@@ -126,8 +126,8 @@
 </table>
 <p>フィールドの下に、画面は「受信したフィールド」を並べます: 車が実際に送った proto のフィールド名です。この一覧はログに入るものと同じです。</p>
 <p>ログ。終わったタップごとに <code>query</code> 行を 1 本だけ残し、ほかは残しません: <code>call</code> は Kotlin の定数名を使った <code>getState(&lt;CATEGORY&gt;)</code>（<code>DRIVE</code>、<code>CHARGE</code>、<code>TIRE_PRESSURE</code>、...）、<code>result</code> は <code>Success</code>、<code>Uncertain</code>、<code>Failure</code>、<code>NotSent</code>、<code>summary</code> は <code>durationMs=&lt;n&gt;</code> に <code>error=&lt;種類&gt;</code> または <code>reason=&lt;理由&gt;</code> を付けたもので、<code>Success</code> のときは <code>present=[&lt;フィールド名&gt;]</code> も付き、<code>startedAt</code> はそのタップの最初のライブラリ呼び出しを始めた時刻です。<strong>値も、座標も、位置の名前も、曲名も</strong>ログには届きません（FR-112、14 章 A8.3「結果をログに残さない」）: ログ行は、自由な文がフィールド名の一覧だけという小さな値（<code>StateLogEntry</code>）から作り、要約がログに行くサンプルの <code>record</code> ヘルパーは <code>getState</code> には使いません。<code>present</code> の名前は、サンプルが読む proto フィールド 1 つ 1 つに対応するサンプルの固定定数で、車が送ったものだけが入ります（<code>native_latitude</code>、<code>heading</code>、<code>location_name</code>、...）。名前は、そのフィールドがあったことだけを示します。空の <code>present=[]</code> は、応答にそれらが 1 つもなかった <code>Success</code> です。応答サイズ、試行番号、<code>auth=</code> はこの行ではなく、ライブラリの <code>observe</code> 行（<code>[reply:infotainment] &lt;N&gt;B ... attempt=&lt;n&gt; auth=&lt;value&gt;</code>、18 章「観測ログ」）にあります。サンプルは <code>getState</code> 応答の <code>unknownFields</code> をログに残しません: Wire はそれを生のバイト列として保持し、マニュアルがそのパス形式を示すのはブロードキャストイベントだけです（B2.3）。エラーの種類はライブラリの型名（<code>ResponseTooLarge</code>、<code>Timeout(afterSend=true)</code>、<code>NoSession</code>、またはクラス名）で、<code>message</code> や車両が送った文は使いません。</p>
-<p>使うライブラリ呼び出しとマニュアルの章: <code>vehicleStatus(timeout: nil)</code>（14 章 A2）、<code>startSession(domains:timeout:)</code>（14 章 A8.2、15 章）、<code>getState(category:timeout:)</code> と <code>s.value as? VehicleData</code>、<code>KotlinInt?</code> の数値、<code>getEpochSecond()</code>（14 章 A8.3、17 章「Swift: 生成された型」）、座標の選び方（14 章 A8.4）、結果の扱いとサイズエラー（16 章「<code>getState</code> の結果」「<code>getState</code> の応答サイズ制限」）。純粋なルール（<code>StateDiagnostics</code>、<code>StateCategoryFields</code>、座標のルール <code>LocationRule</code>）と画面状態（偽のリンクを使う <code>StateDiagnosticsModel</code>）は車両なしで単体テストします（<code>Tests/StateDiagnosticsTests.swift</code>、<code>Tests/StateCategoriesTests.swift</code>）。実機確認リストは <code>samples/ios/README.md</code>（SFR-023、ビルド 26 で加えた 9 つは "additional categories"）にあります。</p>
-<p><strong>状態:</strong> iOS ビルド済み（<code>0.5.0 (26)</code>）、単体テストは通過、実機確認待ち。Android: 予定、同じ仕様。</p>
+<p>使うライブラリ呼び出しとマニュアルの章: <code>vehicleStatus(timeout: nil)</code>（14 章 A2）、<code>startSession(domains:timeout:)</code>（14 章 A8.2、15 章）、<code>getState(category:timeout:)</code> と <code>s.value as? VehicleData</code>、<code>KotlinInt?</code> の数値、<code>getEpochSecond()</code>（14 章 A8.3、17 章「Swift: 生成された型」）、座標の選び方（14 章 A8.4）、結果の扱いとサイズエラー（16 章「<code>getState</code> の結果」「<code>getState</code> の応答サイズ制限」）。純粋なルール（<code>StateDiagnostics</code>、<code>StateCategoryFields</code>、座標のルール <code>LocationRule</code>）と画面状態（偽のリンクを使う <code>StateDiagnosticsModel</code>）は車両なしで単体テストします（<code>Tests/StateDiagnosticsTests.swift</code>、<code>Tests/StateCategoriesTests.swift</code>）。実機確認リストは <code>samples/ios/README.md</code>（SFR-023、ビルド 27 で加えた 9 つは "additional categories"）にあります。</p>
+<p><strong>状態:</strong> iOS ビルド済み（<code>0.5.0 (27)</code>）、単体テストは通過、実機確認待ち。Android: 予定、同じ仕様。</p>
 
 <h2 id="sec-wide">広い画面と折りたたみ画面 (SFR-024)</h2>
 <p>アプリは、折りたたみ式の iPhone Duo で公式 Tesla アプリ(4.62)が使う大画面レイアウトに合わせます。<strong>内側ディスプレイ</strong>では 2 つの領域を表示します。左はナビゲーションメニュー、右は常に見える大きな車両と、下に並ぶクイック操作です。<strong>外側ディスプレイ</strong>は通常のフォンレイアウトのままです。サンプルも自分の画面で同じことをします。使うのはサイズクラスと使える幅だけなので、iPad や分割ウィンドウにも当てはまります。機種、<code>UIScreen</code>、向き、ヒンジの角度は見ず、iOS 27.1 の折りたたみ API も使いません。</p>
@@ -148,7 +148,7 @@
 </tbody>
 </table>
 <p>判定と対応は純粋なロジックなので、車両なしで単体テストします(<code>Tests/DuoLayoutTests.swift</code>)。画面は <code>samples/ios/README.md</code> の実機チェックリスト(SFR-024)で確認します。Simulator アプリがないとシミュレータを折りたためないため、2 領域のレイアウトは iPad シミュレータでも確認しました。Duo 本体での姿勢変更は実機で確認します。</p>
-<p><strong>状態:</strong> iOS 実装済み(<code>0.5.0 (26)</code>)、単体テスト合格、実機確認待ち。Android: 現時点では対象外(折りたたみ端末の対象なし)。大画面レイアウトは別の要件になります。</p>
+<p><strong>状態:</strong> iOS 実装済み(<code>0.5.0 (27)</code>)、単体テスト合格、実機確認待ち。Android: 現時点では対象外(折りたたみ端末の対象なし)。大画面レイアウトは別の要件になります。</p>
 
 <h2 id="sec-bg">バックグラウンドでの動作</h2>
 <table>
@@ -264,7 +264,7 @@
 <tr><td><code>KeyReplacement.swift</code>、<code>Tests/KeyReplacementTests.swift</code></td><td>モニターキーの削除と再作成（SFR-020、<a href="05-key-control-tab.html#sec-replace">5. キー＆コントロールタブ</a>）: <code>KeyReplacer</code>（順序、ロックと失敗の規則）、<code>KeyReplaceOutcome</code>、確認の文言。純粋なロジックで、単体テストします。<code>MonitorEngine.replaceKey()</code> が <code>ble.keys</code> に対して実行します。</td></tr>
 <tr><td><code>EnrollmentProgress.swift</code>、<code>Tests/EnrollmentPopupTests.swift</code></td><td>登録の進行ポップアップ（SFR-021、<a href="05-key-control-tab.html#sec-popup">5. キー＆コントロールタブ</a>）: <code>EnrollmentUpdate</code>（<code>BleClient.pair</code> が知らせること）と <code>EnrollmentPopup</code>（段階、行、文言、ボタン、残り時間）。純粋なロジックで、単体テストします。</td></tr>
 <tr><td><code>StateDiagnostics.swift</code>、<code>Tests/StateDiagnosticsTests.swift</code></td><td>状態診断（SFR-023、<a href="#sec-state">状態診断</a>）: 純粋なルール（<code>StateDiagnostics</code>: ボタンのオン条件、値の文言、<code>StateOutcome</code> の文、<code>StateLogEntry</code>）、ライブラリとの継ぎ目 <code>StateLink</code> / <code>StateDiagnosticsBackend</code>、そして <code>StateDiagnosticsModel</code>（問い合わせは一度に 1 つ、遅れた結果は捨てる、キー操作中は拒否）。<code>MonitorEngine.swift</code> に実物の <code>StateLink</code>（<code>vehicleStatus</code>、<code>startSession</code>、<code>getState</code>）があり、<code>VehicleMapping.swift</code> と <code>VehicleMappingCategories.swift</code> が <code>VehicleData</code> を名前付きのフィールドに変え、<code>Views/QueryTab.swift</code> が描画します。</td></tr>
-<tr><td><code>StateCategoryFields.swift</code>、<code>Tests/StateCategoriesTests.swift</code></td><td>ビルド 26 で加えた 9 カテゴリ（SFR-023）: 値の構造体、韓国語のラベルと単位、ない値は <code>—</code>、座標のルール <code>LocationRule</code>（A8.4）、タイヤ警告の文言、スケジュールのまとめ、そして <code>presentKeys</code>（ログに入るフィールド名）。ライブラリの型を持たないので、車両なしで単体テストします。</td></tr>
+<tr><td><code>StateCategoryFields.swift</code>、<code>Tests/StateCategoriesTests.swift</code></td><td>ビルド 27 で加えた 9 カテゴリ（SFR-023）: 値の構造体、韓国語のラベルと単位、ない値は <code>—</code>、座標のルール <code>LocationRule</code>（A8.4）、タイヤ警告の文言、スケジュールのまとめ、そして <code>presentKeys</code>（ログに入るフィールド名）。ライブラリの型を持たないので、車両なしで単体テストします。</td></tr>
 <tr><td><code>KeyControlBackend.swift</code>、<code>Tests/KeyControlModelTests.swift</code>、<code>Tests/KeyOperationGateTests.swift</code></td><td><code>KeyControlBackend</code>: <code>KeyControlModel</code> がライブラリとエンジンに頼むすべて（テストでは偽物）。<code>KeyOperationGate</code> と <code>KeyHandleCache</code> がタブをまたいでキーの置き換えを守ります（<code>KeyReplacement.swift</code>）。</td></tr>
 <tr><td><code>KeyControl.swift</code>、<code>KeyControlModel.swift</code>、<code>Views/KeyControlTab.swift</code></td><td>キー＆コントロールタブ（<a href="05-key-control-tab.html">5. キー＆コントロールタブ</a>）。純粋なステップ規則とコマンド実行部、タブの状態と画面。ライブラリの呼び出しは <code>BleClient</code> を通ります。</td></tr>
 <tr><td><code>ContentView.swift</code>, <code>Views/</code></td><td>フォンレイアウト: Live、Query、Log、Control、キー＆コントロール の <code>TabView</code>。広いレイアウト: <code>Views/TwoPaneView.swift</code>(SFR-024)。<code>isIdleTimerDisabled</code> は <code>scenePhase == .active</code> に従います。</td></tr>
