@@ -63,12 +63,13 @@ Status: iOS built (`0.5.0 (26)`), unit tests pass, real-device check pending. An
 
 The Query tab has a manual area where a person calls `getState()` and reads what the car returns. It exists to collect real-car
 facts that `14-lib-reading-state.md` A8.5 lists as unconfirmed (which fields a category carries, the unit of `speed`, whether a
-reply is too large, what a sleeping car does). It is not a product feature: there is no periodic `getState`, no automatic retry
-and no button for `Location`.
+reply is too large, what a sleeping car does). It is not a product feature: there is no periodic `getState` and no automatic
+retry. Since build 26 there is one button for each of the 12 `StateCategory` values (A8.1); a tap asks for one category, never
+several.
 
 | Rule | Detail |
 |---|---|
-| Where | Query tab, under the periodic-query section: three buttons **Drive**, **Media**, **MediaDetail**, the last result, and a separate **send to a sleeping car (experiment)** section |
+| Where | Query tab, under the periodic-query section: twelve buttons (**Drive**, **Media**, **MediaDetail**, **Charge**, **Climate**, **Location**, **Closures**, **TirePressure**, **SoftwareUpdate**, **ChargeSchedule**, **PreconditioningSchedule**, **ParentalControls**), the last result, and a separate **send to a sleeping car (experiment)** section with the same twelve in a menu |
 | Enabling | A connection made with a key (`Vehicle.hasKey`), a key the Key & Control tab has confirmed as enrolled, and `sleepStatus == AWAKE` from the latest successful `vehicleStatus()` (the monitor's poll, or the re-read of the last tap). `ASLEEP`, `UNKNOWN` and "not read yet" keep the buttons off, and the reason is shown under them. Buttons are also off while a query runs |
 | Order of one tap | (1) `vehicleStatus(timeout: null)`: anything but `AWAKE` ends the tap with **NotSent**. (2) `startSession(setOf(INFOTAINMENT), timeout: null)`: the library sends nothing when the session is already `Ready` (`14-lib-reading-state.md` A8.2: `getState` never starts a session). (3) one `getState(category, timeout: null)`. The default timeout is used (`16-lib-errors.md` §Retries and timeouts) |
 | Results | `Success`, `Uncertain` and `Failure` as the library returns them, plus **NotSent** when the app stops before sending (asleep, sleep unknown, `vehicleStatus()` failed, session failed). Each has its own sentence: a size fault says the car answered, a timeout says nothing came back, `NoSession` says nothing was sent. A `Timeout` sentence follows `16-lib-errors.md` (`Timeout(afterSend)` row): `afterSend = true` says it may have been sent (`Uncertain`, the first BLE write had started), that the value was not confirmed and that a query changes nothing so it can be asked again, and notes that BLE writes can be slow in the background; `afterSend = false` says it was not executed (no write had started, or the car had asked for a retry and the wait ran out, or the handshake timed out; `Failure`). No automatic retry. After `Failure(NoSession)` (a cached session the car no longer accepts, A8.2) the next tap starts a new session; the sample does not do it by itself |
@@ -78,24 +79,42 @@ and no button for `Location`.
 | Connection change | The result and the sleep state belong to the connection that read them. When the connection changes the result is cleared, the sleep state goes back to `UNKNOWN`, and a result that arrives late from the old connection is dropped (not shown, not logged) |
 
 Fields shown. Only these named fields are read; `DriveState` also has route and destination fields and the app never reads
-them, and `Location` has no button. Absent is `—` and `0` stays `0` (`14-lib-reading-state.md` A8.3).
+them. Absent is `—` and `0` stays `0` (`14-lib-reading-state.md` A8.3). A unit is printed only where the proto states it
+(`*_celsius`, `bar`, `mph`, `meters`, `battery_level`, `*_perc`, `minutes_*`, `*_sec`, `*_ms`); every other number is the raw value
+followed by "(unit unconfirmed)", for example the range fields, `charger_power`, the set temperatures, `heading` and `gps_as_of`
+(A8.5). Timestamps are shown as local time followed by the epoch seconds.
 
 | Category | Fields |
 |---|---|
 | Drive | `speed` and `speed_float` as the raw number followed by "(unit unconfirmed)", never converted to km/h or mph (A8.5); `shift_state` (the member of the `ShiftState` oneof that is set: `P`, `R`, `N`, `D`, `SNA`); `power`; `odometer_in_hundredths_of_a_mile` (raw); `timestamp` (epoch seconds, to tell a fresh reading from a repeated one, A8.3) |
 | Media | `media_playback_status`, `audio_volume`, `now_playing_title` (the track title is on screen only), `timestamp` |
 | MediaDetail | `now_playing_duration`, `now_playing_elapsed`, `timestamp`. The title is in `MediaState`, not here |
+| Charge | `battery_level`, `usable_battery_level` (%); `battery_range`, `est_battery_range`, `ideal_battery_range` (unit unconfirmed); `charging_state` (the member of the oneof that is set, with a Korean word); `charger_power` (unit unconfirmed), `charger_voltage` (V), `charger_actual_current`, `charger_pilot_current` (A); `minutes_to_full_charge`; `charge_limit_soc` (%); `charge_port_door_open`; `charge_port_latch`; `timestamp` |
+| Climate | `inside_temp_celsius`, `outside_temp_celsius` (°C); `driver_temp_setting`, `passenger_temp_setting` (unit unconfirmed: the proto does not name it); `is_climate_on`, `is_auto_conditioning_on`, `is_preconditioning`, `battery_heater`, `fan_status`, the two defrosters, `seat_heater_left`/`right` (0 off, 1 low, 2 medium, 3 high), `climate_keeper_mode`, `timestamp` |
+| Location | The coordinate by the A8.4 rule: `native_latitude`/`native_longitude` first with `native_type`; if absent, `latitude`/`longitude`, or `corrected_*` first when `native_type` is GCJ; `geo_latitude`/`geo_longitude` instead when `estimated_to_raw_distance` is at least 100 m (the proto gives no threshold, 100 m is the sample's own value to adjust on a real car) and the screen says so. Also the source of the chosen pair, the raw `geo_*` pair, `estimated_to_raw_distance` (m), `estimated_gps_valid`, `heading`, `gps_as_of`, `timestamp`, `location_name`, `homelink_nearby`. **Screen only** (see Log) |
+| Closures | `door_open_*` (four doors, `trunk_front`, `trunk_rear`), `window_open_*` (four), `sun_roof_state`, `sun_roof_percent_open`, `locked`, `sentry_mode_state`, `sentry_mode_available`, `is_user_present`, `timestamp`; a missing sunroof or sentry is `—` |
+| TirePressure | A warning summary naming each wheel and kind; per wheel (front left, front right, rear left, rear right) the pressure in bar, `tpms_last_seen_pressure_time_*` and the hard and soft warnings; recommended front and rear pressure (`tpms_rcp_*_value`, bar); `timestamp`. The `re1`/`re2` axle fields are `TESLEMETRY-EXT` and are not read |
+| SoftwareUpdate | `status` (the member of the oneof that is set), `version`, `download_perc`, `install_perc`, `scheduled_time_ms` (shown as a time), `expected_duration_sec`, `timestamp` |
+| ChargeSchedule, PreconditioningSchedule | A compact summary: the number of schedules, how many are enabled, how many are one-time, `next_schedule`, whether the `*_schedule_window` is set, the maximum number, and for the charge schedule `charge_buffer` and `show_schedule_complete_state`. An empty list reads "0 (none or not sent by the car)" because the library returns an empty list for both (A8.3). **The name and the latitude/longitude of a schedule are never read** |
+| ParentalControls | `parental_controls_active`, `parental_controls_pin_set`, whether the settings message is present, `speed_limit_enabled`, the three limits (mph, named in the proto), `chill_acceleration_enabled`, `require_safety_settings_enabled`, `curfew_enabled`, `curfew_start_time`, `curfew_end_time` (unit unconfirmed), `timestamp`. The `TESLEMETRY-EXT` blocked flags are not read |
 
-Log. One `query` line per finished tap, nothing else: `call` is `getState(DRIVE)`, `getState(MEDIA)` or `getState(MEDIA_DETAIL)`,
-`result` is `Success`, `Uncertain`, `Failure` or `NotSent`, `summary` is `durationMs=<n>` plus `error=<type>` or `reason=<why>`, and
-`startedAt` is the time the first library call of the tap started. **No value, no track title, no field name** reaches the log (FR-112, `14-lib-reading-state.md`
-A8.3 "Do not log a result"): the log line is built from a small value (`StateLogEntry`) that has no place for them, and the sample's `record` helper (whose summary
-goes to the log) is not used for `getState`. Error types are the library's type names (`ResponseTooLarge`, `Timeout(afterSend=true)`, `NoSession`, or the class name), never `message` or the vehicle's own text.
+Under the fields the screen lists "received fields": the proto field names the car actually sent. The list is the same one the log gets.
+
+Log. One `query` line per finished tap, nothing else: `call` is `getState(<CATEGORY>)` with the Kotlin constant name (`DRIVE`, `CHARGE`, `TIRE_PRESSURE`, ...),
+`result` is `Success`, `Uncertain`, `Failure` or `NotSent`, `summary` is `durationMs=<n>` plus `error=<type>` or `reason=<why>`, and on `Success`
+`present=[<field names>]`, and `startedAt` is the time the first library call of the tap started. **No value, no coordinate, no location name, no track title** reaches
+the log (FR-112, `14-lib-reading-state.md` A8.3 "Do not log a result"): the log line is built from a small value (`StateLogEntry`) whose only free text is
+the list of field names, and the sample's `record` helper (whose summary goes to the log) is not used for `getState`. `present` names are fixed constants of the
+sample, one for each proto field it reads and the car sent (`native_latitude`, `heading`, `location_name`, ...); a name says only that a field was there. An empty
+`present=[]` is a `Success` whose reply had none of them. The reply size, the attempt number and `auth=` are in the library's `observe` line
+(`[reply:infotainment] <N>B ... attempt=<n> auth=<value>`, `18-lib-troubleshooting.md` §Observation log), not in this line. The sample does not log the
+`unknownFields` of a `getState` reply: Wire keeps them as raw bytes and the manual gives no path form for them (only for broadcast events, B2.3).
+Error types are the library's type names (`ResponseTooLarge`, `Timeout(afterSend=true)`, `NoSession`, or the class name), never `message` or the vehicle's own text.
 
 Library calls and manual pages: `vehicleStatus(timeout: nil)` (14 A2), `startSession(domains:timeout:)` (14 A8.2, 15), `getState(category:timeout:)` and
-`s.value as? VehicleData`, `KotlinInt?` numbers, `getEpochSecond()` (14 A8.3, 17 §Swift: generated types), result handling and the size fault (16 §`getState` results,
-§Response size limit on `getState`). The pure rules (`StateDiagnostics`) and the screen state (`StateDiagnosticsModel`, with a fake link) are unit tested
-without a vehicle (`Tests/StateDiagnosticsTests.swift`); the real-device checklist is in `samples/ios/README.md` (SFR-023).
+`s.value as? VehicleData`, `KotlinInt?` numbers, `getEpochSecond()` (14 A8.3, 17 §Swift: generated types), the coordinate choice (14 A8.4), result handling and the size fault (16 §`getState` results,
+§Response size limit on `getState`). The pure rules (`StateDiagnostics`, `StateCategoryFields`, the coordinate rule `LocationRule`) and the screen state (`StateDiagnosticsModel`, with a fake link) are unit tested
+without a vehicle (`Tests/StateDiagnosticsTests.swift`, `Tests/StateCategoriesTests.swift`); the real-device checklist is in `samples/ios/README.md` (SFR-023, "additional categories" for the nine added in build 26).
 
 Status: iOS built (`0.5.0 (26)`), unit tests pass, real-device check pending. Android: planned, same spec.
 
@@ -173,7 +192,7 @@ Field notes (both apps write the same names and order, except the iOS-only addit
   A connection that stayed up for 10 seconds or more restarts the wait at 2 seconds.
 - `query.summary` for `vehicleStatus` uses the same form as `event.summary` of a `Status`. It has no public keys or VINs.
 - `query` lines with `call` `getState(<CATEGORY>)` (iOS only, SFR-023, §State diagnostics) come from a manual tap, not from the poll. `result` is
-  `Success`, `Uncertain`, `Failure` or `NotSent`; `summary` is `durationMs=<n>` and, unless `Success`, `error=<type>` or `reason=<why>`. They never carry values.
+  `Success`, `Uncertain`, `Failure` or `NotSent`; `summary` is `durationMs=<n>` and, unless `Success`, `error=<type>` or `reason=<why>`, and on `Success` `present=[<field names>]`. They never carry values, coordinates or names.
 
 Additions since build 18 (iOS only; #128, from the build 18 link-health analysis). New fields are added at the end of a line and
 new lines use a new `kind`, so a parser that ignores unknown keys and kinds keeps working. Android does not write them yet; the
@@ -281,7 +300,8 @@ Files in `samples/ios/Sources/` (tests in `samples/ios/Tests/`, names as in the 
 | `KeyNickname.swift`, `Tests/KeyNicknameTests.swift` | Local key nickname (SFR-019, §Key nickname): `KeyNickname` (trim, 32-character check, input clamp) and `KeyNicknameStore` (set / get / remove over an injected `UserDefaults`), pure and unit tested; the Control tab key list (`SampleModel.swift`, `Views/ControlTab.swift`) shows and edits it |
 | `KeyReplacement.swift`, `Tests/KeyReplacementTests.swift` | Delete and recreate the monitor key (SFR-020, `05-key-control-tab.md`): `KeyReplacer` (order, locked and failure rules), `KeyReplaceOutcome`, the confirmation text; pure and unit tested. `MonitorEngine.replaceKey()` runs it against `ble.keys` |
 | `EnrollmentProgress.swift`, `Tests/EnrollmentPopupTests.swift` | Enrollment progress popup (SFR-021, `05-key-control-tab.md`): `EnrollmentUpdate` (what `BleClient.pair` reports) and `EnrollmentPopup` (phases, rows, texts, buttons, remaining time); pure and unit tested |
-| `StateDiagnostics.swift`, `Tests/StateDiagnosticsTests.swift` | State diagnostics (SFR-023, §State diagnostics): pure rules (`StateDiagnostics`: button enabling, value texts, `StateOutcome` sentences, `StateLogEntry`), the `StateLink` / `StateDiagnosticsBackend` seam to the library, and `StateDiagnosticsModel` (one query at a time, drops late results, refuses while a key operation runs). `MonitorEngine.swift` has the live `StateLink` (`vehicleStatus`, `startSession`, `getState`); `VehicleMapping.swift` turns a `VehicleData` into the named fields; `Views/QueryTab.swift` draws it |
+| `StateDiagnostics.swift`, `Tests/StateDiagnosticsTests.swift` | State diagnostics (SFR-023, §State diagnostics): pure rules (`StateDiagnostics`: button enabling, value texts, `StateOutcome` sentences, `StateLogEntry`), the `StateLink` / `StateDiagnosticsBackend` seam to the library, and `StateDiagnosticsModel` (one query at a time, drops late results, refuses while a key operation runs). `MonitorEngine.swift` has the live `StateLink` (`vehicleStatus`, `startSession`, `getState`); `VehicleMapping.swift` and `VehicleMappingCategories.swift` turn a `VehicleData` into the named fields; `Views/QueryTab.swift` draws it |
+| `StateCategoryFields.swift`, `Tests/StateCategoriesTests.swift` | The nine categories added in build 26 (SFR-023): value structs, Korean labels and units, `—` for absent, the coordinate rule `LocationRule` (A8.4), tire warning text, schedule summaries, and `presentKeys` (the field names the log gets). No library types, so it is unit tested without a vehicle |
 | `KeyControlBackend.swift`, `Tests/KeyControlModelTests.swift`, `Tests/KeyOperationGateTests.swift` | `KeyControlBackend`: everything `KeyControlModel` asks of the library and the engine (a fake in tests); `KeyOperationGate` and `KeyHandleCache` guard the key replacement across tabs (`KeyReplacement.swift`) |
 | `ContentView.swift`, `Views/` | Phone layout: `TabView` Live / Query / Log / Control / Key & Control; wide layout: `Views/TwoPaneView.swift` (SFR-024); `isIdleTimerDisabled` follows `scenePhase == .active` |
 | `DuoLayout.swift`, `Tests/DuoLayoutTests.swift`, `ScreenContinuity.swift`, `Tests/ScreenContinuityTests.swift`, `HomeSummary.swift`, `Tests/HomeSummaryTests.swift`, `Views/TwoPaneView.swift` | Wide and foldable screens (SFR-024, §Wide and foldable screens): pure `DuoLayout.mode` / `leftPaneWidth`, `AppNavigation` (one selection for both layouts), `QuickControls` (car callouts and action row); `ScreenContinuity` (open sheets and memo that survive a layout change, and `vinKnownChanged`: the VIN sheet opens by itself only when the VIN goes from unknown to known, so a right pane rebuilt on every tab change does not reopen it); `HomeSummary` (pure texts of the first screen: lock callout, Drive speed, header, menu, status rows, footer); `TwoPaneView` (left menu, right Tesla-style Live home) |
@@ -342,4 +362,4 @@ iOS only (the full runbook with expected results is in `samples/ios/README.md` �
 8. Handshake on a locked iPhone with the monitor key (plan Task 11); if creating a Secure Enclave key fails while the phone
    is locked, copy the exact error text.
 9. Background: lock the phone, leave and come back; read the `link` lines to see whether iOS reconnected on its own (the
-   spike result, plan Task 2).
+   spike result, plan Task 2). ␤NL␤

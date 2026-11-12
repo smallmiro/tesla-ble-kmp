@@ -254,14 +254,14 @@ Control 탭의 **키 등록 요청**은 예전처럼 결과 줄만 남기고 팝
 빌드 26(`TeslableSampleDevice`, 버전 0.5.0)을 설치한다. **Query** 탭 아래쪽의 **상태 진단**에서 사람이 직접 `getState()` 를 부른다.
 규칙은 `samples/documents/md/04-monitor-app.md` §State diagnostics. 사용 문서: `14-lib-reading-state.md` A8.1~A8.3, A8.5, `16-lib-errors.md` §`getState` results, §Response size limit on `getState`, `17-lib-platform-notes.md` §Swift: generated types.
 눌렀을 때만 한 번 보낸다(순서: `vehicleStatus()` → `startSession(INFOTAINMENT)` → `getState`). 자동 재시도와 주기 조회는 없고 `wakeUp()` 을 호출하지 않는다.
-**값은 화면에만 나오고 로그에는 범주·결과·소요 시간·오류 종류만 남는다**(Log 탭 `query` 줄 `getState(DRIVE)` 꼴). 그래서 값(속도, 기어, 곡 제목 등)은 사람이 화면에서 옮겨 적는다. 위치와 경로 값은 앱이 읽지 않는다.
+**값은 화면에만 나오고 로그에는 범주·결과·소요 시간·오류 종류와, 성공이면 차가 보낸 필드의 이름(`present=[…]`)만 남는다**(Log 탭 `query` 줄 `getState(DRIVE)` 꼴). 그래서 값(속도, 기어, 곡 제목, 위치 좌표 등)은 사람이 화면에서 옮겨 적는다. `Drive` 의 위치와 경로 값은 앱이 읽지 않는다. 버튼은 12개(`StateCategory` 전부)이고, 기존 셋 말고 나머지 9개는 아래 "추가 카테고리 확인(빌드 26)"에서 확인한다.
 시뮬레이터에는 블루투스가 없으므로 아래는 모두 실기기·실차에서만 확인한다. **주행 중 조작은 동승자가 한다.**
 
 기록은 첫 줄에 차량 화면에서 옮겨 적은 **펌웨어, 모델, 앱 빌드(26)** 를 쓰고, 이어서 확인마다 화면의 결과 줄(결과 종류, 시각, 소요 시간, 값)을 적는다. VIN은 적지 않는다.
 
 | # | 확인 | 할 일 | 기대 |
 |---|---|---|---|
-| S1 | 버튼이 꺼지는 조건 | 연결 전, 키를 등록하기 전, 차가 잠든 뒤(Live 탭 수면이 `ASLEEP`)에 Query 탭을 본다 | 세 버튼이 꺼져 있고 그 아래에 이유가 있다(연결 안 됨 / 등록된 키 필요 / 수면 중 / 수면 상태 모름). `UNKNOWN` 일 때도 꺼진다. 연결·등록·`AWAKE` 가 모두 되면 켜진다 |
+| S1 | 버튼이 꺼지는 조건 | 연결 전, 키를 등록하기 전, 차가 잠든 뒤(Live 탭 수면이 `ASLEEP`)에 Query 탭을 본다 | 12개 범주 버튼이 모두 꺼져 있고 그 아래에 이유가 있다(연결 안 됨 / 등록된 키 필요 / 수면 중 / 수면 상태 모름). `UNKNOWN` 일 때도 꺼진다. 연결·등록·`AWAKE` 가 모두 되면 켜진다 |
 | S2 | Drive, 정차 | 차를 깨운 상태로 정차해 **Drive** | 결과가 한 줄로 나온다: `Success` 이면 `speed: 0 (단위 미확인)`, `shift_state: P` 등. 차량이 보내지 않은 필드는 `—`(0이 아니다). 소요 시간(ms)이 보인다. 위치·목적지 행은 없다 |
 | S3 | Media | 곡을 재생한 채, 멈춘 채 각각 **Media** | `media_playback_status`, `audio_volume`, 곡 제목이 화면에 보인다. Log 탭의 `getState(MEDIA)` 줄에는 곡 제목도 값도 없다 |
 | S4 | MediaDetail | 곡 재생 중 **MediaDetail** | `now_playing_duration`, `now_playing_elapsed` 와 `timestamp`. 제목 행은 없다(제목은 Media 쪽) |
@@ -271,7 +271,7 @@ Control 탭의 **키 등록 요청**은 예전처럼 결과 줄만 남기고 팝
 | S8 | 연결이 바뀜 | 조회를 누른 직후 차에서 멀어지거나 Control 탭에서 연결 끊기 | 결과 칸이 비고 Log 탭에 그 조회의 `getState` 줄이 없다. 다시 연결한 뒤에도 옛 결과가 나타나지 않고, 다음 주기 조회(`vehicleStatus`)가 끝난 뒤에 버튼이 켜진다 |
 | S9 | 다른 탭과 겹침 | 키·제어 탭에서 "키 삭제 후 다시 만들기"의 확인 창을 연 채(또는 Control 탭 명령 진행 중) Query 탭에서 버튼 | 조회가 시작되지 않고 "다른 키 동작이 진행 중이라…" 문구가 나온다. 키는 바뀌지 않는다. 조회 중에 키 삭제 후 다시 만들기를 누르면 시작되지 않고, 조회가 끝난 뒤 다시 누르면 시작된다 |
 | S10 | 잠든 차 실험(1회) | 차가 잠든 것(`ASLEEP`)을 Live 탭에서 확인 → 일반 버튼이 꺼져 있음 → 범주를 고르고 **잠든 차에 보내기(실험)** → 확인 창 | 창에 "이 요청 때문에 차가 깨어날 수 있습니다. wakeUp() 은 호출하지 않습니다"가 있다. **보내기** 뒤 결과(Uncertain/Failure/Success 중 무엇인지, 소요 시간)와, 그 뒤 Live 탭 수면 값이 바뀌었는지를 적는다. 깨우기 버튼은 누르지 않는다 |
-| S11 | 로그에 값이 없음 | S2~S10 뒤 **Log 탭 마지막 줄 복사**(또는 로그 pull) | `getState(...)` 줄은 `call`, `result`, `summary`(`durationMs=…`, `error=…` 또는 `reason=…`), `startedAt` 뿐이다. `getState` 의 값(`speed`, `shift_state`, `now_playing…`, `audio_volume`, `odometer…`, 위치)은 어느 줄에도 없다(곡 제목으로 검색해도 0건). **`vehicleStatus()` 와 방송 줄의 VCSEC `gear=` 는 설계상 로그에 남는다**(`getState` 값이 아니다) |
+| S11 | 로그에 값이 없음 | S2~S10 뒤 **Log 탭 마지막 줄 복사**(또는 로그 pull) | `getState(...)` 줄은 `call`, `result`, `summary`(`durationMs=…`, `error=…` 또는 `reason=…`, 성공이면 `present=[필드 이름…]`), `startedAt` 뿐이다. `present` 에는 필드 이름만 있고 값은 없다. `getState` 의 값(`speed`, `shift_state`, `now_playing…`, `audio_volume`, `odometer…`, 위치)은 어느 줄에도 없다(곡 제목으로 검색해도 0건). **`vehicleStatus()` 와 방송 줄의 VCSEC `gear=` 는 설계상 로그에 남는다**(`getState` 값이 아니다) |
 | S12 | `timestamp` | 같은 상태에서 같은 버튼을 연속으로 두 번 | 두 `timestamp`(epoch 초)가 같은지 다른지 적는다(`Success` 가 새 측정이라는 증거가 아니다, A8.3) |
 
 ## iPhone Duo 확인 (SFR-024, 빌드 26)
@@ -355,6 +355,33 @@ Xcode 27.2 `iPhone Duo` 프로필 기준으로 **바깥 화면 466 x 678pt, 안�
 - 명령 결과 줄(키·제어, Control)에서 `Timeout(afterSend=true)` 이면 "보냈을 수 있음 — 차가 실행했을 수 있으니 상태를 다시 조회하세요. 앱이 백그라운드에 있으면 BLE 쓰기가 느려져 시간이 다할 수 있습니다"가 보이고, 재조회 결과가 같은 줄 끝에 붙는다(다시 보내지 않았다).
 - `afterSend=false` 이면 "실행되지 않았습니다: …"가 보인다(쓰기를 시작하기 전, 또는 차가 재시도를 요청한 뒤 기다리던 중).
 - 앱을 백그라운드에 둔 채 폰을 잠갔다 풀기를 10분 반복해 두면(명령은 보내지 않는다) 주기 조회의 타임아웃이 자연스럽게 나올 수 있다(보고서 N4).
+
+## 추가 카테고리 확인 (SFR-023, 빌드 26)
+
+빌드 26(`TeslableSampleDevice`, 버전 0.5.0)을 설치한다. Query 탭 **상태 진단**에 `Drive`, `Media`, `MediaDetail` 말고 **9개 버튼**이 더 생겼다: `Charge`, `Climate`, `Location`, `Closures`, `TirePressure`, `SoftwareUpdate`, `ChargeSchedule`, `PreconditioningSchedule`, `ParentalControls`. 한 번 누를 때 범주 하나만 보내고(합친 요청 없음) 자동 조회는 없다. 규칙: `samples/documents/md/04-monitor-app.md` §State diagnostics. 사용 문서: `14-lib-reading-state.md` A8.1(범주 표), A8.3(없는 값은 0이 아니다, 결과를 로그에 남기지 않는다), A8.4(위치 좌표), `16-lib-errors.md` §`getState` results, §Response size limit on `getState`.
+
+**위 "다음 수집 순서"(#118)의 N1 규칙을 그대로 지킨다**: 다른 BLE 앱과 Tesla 앱을 완전히 종료하고, 차는 직접 깨우고, 폰은 잠금을 푼 채 앱을 앞 화면에 두고, Live 탭 수면이 `AWAKE` 일 때만 누른다. `wakeUp()` 을 부르는 버튼은 없다. 차가 잠들면 버튼이 꺼진다.
+
+**먼저 `Drive`, `Media`, `MediaDetail` 로 연결이 정상인지 한 번씩 본 뒤**(이미 #118 순서를 끝냈다면 생략), 아래 순서로 **각 범주를 한 번씩** 누른다. 누르기 전에 Log 탭에 Mark를 남긴다(예: `cat CHARGE`). 같은 범주를 되풀이하지 않는다(응답 크기와 `Uncertain` 비율을 보려면 별도 수집으로 한다).
+
+| 순서 | Mark | 누를 버튼 | 화면 값을 차량 화면·타이어 표시와 맞춰 본다 |
+|---|---|---|---|
+| 1 | `cat CHARGE` | Charge | **배터리 잔량(%)** 이 차량 화면 배터리 %와 같은가. 충전 상태, 충전 한도(%), 충전 포트 문/걸쇠. 충전 중이면 충전 전력·전압·전류와 완충까지(분). **주행 가능 거리**는 단위가 확인되지 않았다(`단위 미확인`). 차량 화면의 거리 숫자와 같은 값인지, 마일인지 km인지 적는다 |
+| 2 | `cat CLIMATE` | Climate | **실내·실외 온도(°C)** 가 차량 화면과 같은가. 설정 온도는 단위가 확인되지 않았다(`단위 미확인`): 차량 화면의 설정 온도와 같은 숫자인지 적는다. 공조 켜짐, 배터리 히터, 시트 히터 |
+| 3 | `cat LOCATION` | Location | **위도·경도**가 지금 차 위치와 맞는가(지도 앱과 비교, 소수 6자리). 좌표 출처 줄에 `native_*` 인지 `latitude/longitude` 인지, 좌표계(WGS/GCJ)가 보인다. 방향, `gps_as_of`(단위 미확인: 시각과 같은 에폭 초인지), 위치 이름. **좌표와 위치 이름은 화면에만 있다**: Log 탭에는 `present=[…]` 필드 이름만 나와야 한다. 화면을 캡처하면 위치가 담기니 공유하지 않는다 |
+| 4 | `cat CLOSURES` | Closures | 문, 창문, 프렁크/트렁크의 열림·닫힘이 실제와 같은가(문 하나를 열어 두고 한 번 더 누르는 것은 선택). 잠금, 센트리 모드, 운전자 존재가 차량 화면과 같은가. 선루프가 없는 차는 선루프 줄이 `—` |
+| 5 | `cat TIRE` | TirePressure | **네 바퀴 압력(bar)** 이 차량 화면의 타이어 압력(차량이 psi 로 보이면 환산해서)과 맞는가. 바퀴마다 마지막 수신 시각, 하드/소프트 경고, 권장 압력(앞/뒤). 경고 요약 줄이 실제 경고 표시와 같은가 |
+| 6 | `cat SWUPDATE` | SoftwareUpdate | **업데이트 상태**와 **버전**이 차량 화면의 소프트웨어 항목과 같은가(업데이트가 없으면 상태나 버전이 `—` 일 수 있다). 다운로드·설치 % |
+| 7 | `cat CHGSCHED` | ChargeSchedule | 일정 수, 활성 일정 수, 다음 일정 있음. 차량 화면의 충전 일정 개수와 같은가. 일정 이름과 위치는 앱이 읽지 않는다 |
+| 8 | `cat PRECOND` | PreconditioningSchedule | 일정 수, 활성 일정 수, 다음 일정 있음. 차량 화면의 예약 공조와 같은가 |
+| 9 | `cat PARENTAL` | ParentalControls | 자녀 보호 활성, PIN 설정됨, 속도 제한(mph). 기능을 쓰지 않는 차는 대부분 `—` 일 수 있다 |
+
+각 버튼마다 적는다: **결과 종류**(`Success` / `Uncertain` / `Failure`), **소요 시간(ms)**, 화면의 **받은 필드** 줄, 값이 차량 화면과 **맞았는지**(맞음 / 다름 + 어떻게 다른지), `—` 로 남은 필드. 그리고:
+- **응답 크기**: Log 탭 `observe` 줄(`[reply:infotainment] <N>B …`)의 크기를 적는다. `Uncertain` 과 "응답이 너무 커서…(RESPONSE_MTU_EXCEEDED)" 가 나온 범주는 **그 사실과 범주 이름**을 적는다(앱은 다시 보내지 않는다). 더 작은 요청은 없다(`16-lib-errors.md` §Response size limit).
+- **시간 초과**(`Uncertain(Timeout)` 또는 `Failure(Timeout)`): 화면 문구 그대로 옮겨 적고, 다시 누른 결과를 적는다.
+- **값이 없는 범주**(`Success` 인데 받은 필드가 `없음`): "빈 응답" 으로 적는다. 0이나 정상으로 읽지 않는다.
+- **로그 확인**: 끝난 뒤 Log 탭 `query` 줄에 좌표, 위치 이름, 압력, 버전 같은 값이 **없는지**(`present=[…]` 의 필드 이름만 있는지) 본다. `grep '"kind":"query"' samples/logs/ios/<날짜>/logs/*.jsonl | grep -E '[0-9]+\.[0-9]{4,}'` 가 0건인지 확인한다(소수점 좌표 모양. 관찰 줄의 다른 숫자는 이 확인과 상관없다).
+- 끝나면 `tools/samples/pull-monitor-logs.sh ios` 로 로그를 가져와 `samples/logs/` 에 두고(커밋 금지) `protocol-analyst` 에게 넘긴다. 범주별 `present=[…]` 로 어떤 필드를 차가 실제로 보내는지 볼 수 있다.
 
 ## 링크 안정화 시나리오 (#124 N1~N6, 빌드 26)
 
