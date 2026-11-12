@@ -89,11 +89,21 @@ extension DiagnosticCategory {
         case .drive: return .drive
         case .media: return .media
         case .mediaDetail: return .mediaDetail
+        case .charge: return .charge
+        case .climate: return .climate
+        case .location: return .location
+        case .closures: return .closures
+        case .tirePressure: return .tirePressure
+        case .softwareUpdate: return .softwareUpdate
+        case .chargeSchedule: return .chargeSchedule
+        case .preconditioningSchedule: return .preconditioningSchedule
+        case .parentalControls: return .parentalControls
         }
     }
 }
 
-/// `VehicleData` 에서 화면에 보일 이름 붙은 필드만 꺼낸다. 위치와 경로 필드는 `DriveState` 에 있어도 읽지 않는다.
+/// `VehicleData` 에서 화면에 보일 이름 붙은 필드만 꺼낸다. `DriveState` 의 위치·경로 필드는 읽지 않는다.
+/// 나머지 9개 범주는 `VehicleMappingCategories.swift` 에 있다.
 /// `getState` 의 값은 여기서 `StateField` 로만 나가고, 로그 쪽(`StateLogEntry`)으로는 흐르지 않는다(FR-112).
 enum StateFields {
     static func extract(_ category: DiagnosticCategory, from data: VehicleData) -> [StateField] {
@@ -123,6 +133,16 @@ enum StateFields {
                 elapsed: m?.now_playing_elapsed.map { Int($0.int32Value) },
                 timestamp: m?.timestamp.map { $0.getEpochSecond() }
             ))
+        case .charge: return StateCategoryFields.fields(charge: chargeValues(data.charge_state))
+        case .climate: return StateCategoryFields.fields(climate: climateValues(data.climate_state))
+        case .location: return StateCategoryFields.fields(location: locationValues(data.location_state))
+        case .closures: return StateCategoryFields.fields(closures: closuresValues(data.closures_state))
+        case .tirePressure: return StateCategoryFields.fields(tire: tireValues(data.tire_pressure_state))
+        case .softwareUpdate: return StateCategoryFields.fields(update: updateValues(data.software_update_state))
+        case .chargeSchedule: return StateCategoryFields.fields(chargeSchedule: chargeScheduleValues(data.charge_schedule_state))
+        case .preconditioningSchedule:
+            return StateCategoryFields.fields(preconditioningSchedule: preconditioningValues(data.preconditioning_schedule_state))
+        case .parentalControls: return StateCategoryFields.fields(parental: parentalValues(data.parental_controls_state))
         }
     }
 

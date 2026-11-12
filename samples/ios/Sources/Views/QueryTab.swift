@@ -44,7 +44,7 @@ struct QueryTab: View {
     }
 }
 
-/// 상태 진단(SFR-023): Drive / Media / MediaDetail 버튼, 결과, 잠든 차 시험.
+/// 상태 진단(SFR-023): `StateCategory` 12개 버튼(범주 하나씩), 결과, 잠든 차 시험.
 /// 조회는 버튼을 누를 때만 한 번 하고 자동으로 다시 하지 않는다. `wakeUp()` 을 호출하지 않는다. 값은 이 화면에만 나온다.
 private struct StateDiagnosticsSection: View {
     @ObservedObject var model: StateDiagnosticsModel
@@ -54,14 +54,15 @@ private struct StateDiagnosticsSection: View {
 
     var body: some View {
         Section("상태 진단 (getState)") {
-            Text("누를 때만 getState() 를 한 번 보냅니다. 자동 재시도와 주기 조회는 없고 wakeUp() 을 호출하지 않습니다. 보내기 전에 vehicleStatus() 로 수면 상태를 다시 읽고 AWAKE 일 때만 보냅니다. 값은 이 화면에만 나오고, 로그에는 범주·결과·소요 시간·오류 종류만 남습니다.")
+            Text("누를 때만 getState() 를 범주 하나로 한 번 보냅니다. 자동 재시도와 주기 조회는 없고 wakeUp() 을 호출하지 않습니다. 보내기 전에 vehicleStatus() 로 수면 상태를 다시 읽고 AWAKE 일 때만 보냅니다. 값(위치 좌표와 위치 이름 포함)은 이 화면에만 나오고, 로그에는 범주·결과·소요 시간·오류 종류와 차가 보낸 필드의 이름만 남습니다.")
                 .font(.footnote)
-            HStack {
+            LazyVGrid(columns: [GridItem(.adaptive(minimum: 104), spacing: 8)], spacing: 8) {
                 ForEach(DiagnosticCategory.allCases) { category in
-                    Button(category.title) { Task { await model.run(category, ignoringSleep: false) } }
-                        .buttonStyle(.bordered)
-                        .disabled(!StateDiagnostics.buttonsEnabled(model.inputs))
-                        .frame(maxWidth: .infinity)
+                    Button { Task { await model.run(category, ignoringSleep: false) } } label: {
+                        Text(category.title).font(.footnote).lineLimit(1).minimumScaleFactor(0.6).frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(!StateDiagnostics.buttonsEnabled(model.inputs))
                 }
             }
             if let running = model.running {
@@ -83,6 +84,11 @@ private struct StateDiagnosticsSection: View {
                 ForEach(reading.fields, id: \.label) { field in
                     MonoSmall("\(field.label): \(field.value)")
                 }
+                if reading.outcome == .success {
+                    // 로그의 `present=[…]` 와 같은 목록(이름만). 값은 위 줄에만 있다.
+                    Text("받은 필드: \(reading.presentKeys.isEmpty ? "없음 (필드 없는 응답)" : reading.presentKeys.joined(separator: ", "))")
+                        .font(.caption2).foregroundStyle(.secondary)
+                }
             } else {
                 Text("아직 조회하지 않았습니다. 연결이 바뀌면 결과를 비웁니다").font(.footnote)
             }
@@ -93,7 +99,7 @@ private struct StateDiagnosticsSection: View {
             Picker("범주", selection: $experimentCategory) {
                 ForEach(DiagnosticCategory.allCases) { Text($0.title).tag($0) }
             }
-            .pickerStyle(.segmented)
+            .pickerStyle(.menu)
             Button("잠든 차에 보내기(실험)") { confirmExperiment = true }
                 .disabled(!StateDiagnostics.experimentEnabled(model.inputs))
         }

@@ -111,7 +111,7 @@ final class StateDiagnosticsRulesTests: XCTestCase {
         let line = LogLine.stateQuery(ts: "00:00:02.000", entry: reading.logEntry, startedAt: "00:00:01.679").toJSON()
         XCTAssertFalse(line.contains(secret), "the title is shown on the screen only")
         XCTAssertFalse(line.contains("PLAYING"))
-        XCTAssertFalse(line.contains("audio_volume"))
+        XCTAssertTrue(line.contains("present=[media_playback_status, audio_volume, now_playing_title, timestamp]"), "names of the fields that came, no values")
         XCTAssertTrue(line.contains("\"kind\":\"query\""))
         XCTAssertTrue(line.contains("getState(MEDIA)"))
         XCTAssertTrue(line.contains("Success"))

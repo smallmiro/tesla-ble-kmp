@@ -139,7 +139,8 @@ struct LogLine: Sendable {
     }
 
     /// `getState` 진단 한 번(SFR-023). `kind` 는 `query` 이고 `call` 은 `getState(DRIVE)` 꼴이다.
-    /// 인자는 `StateLogEntry`(범주, 결과, 소요 시간, 오류 종류)뿐이다: 값과 곡 제목은 이 줄로 올 길이 없다(FR-112).
+    /// 인자는 `StateLogEntry`(범주, 결과, 소요 시간, 오류 종류, 성공이면 차가 보낸 필드의 이름)뿐이다:
+    /// 값, 좌표, 위치 이름, 곡 제목은 이 줄로 올 길이 없다(`14-lib-reading-state.md` A8.3, FR-112).
     static func stateQuery(ts: String, entry: StateLogEntry, startedAt: String? = nil) -> LogLine {
         query(ts: ts, call: "getState(\(entry.category.logName))", result: entry.outcome, summary: entry.summary, startedAt: startedAt)
     }
