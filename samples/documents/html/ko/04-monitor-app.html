@@ -43,7 +43,7 @@
 
 <div class="callout warn">
 <strong>Android와 iOS 구현 완료, 실기기 확인 대기</strong>
-<p>Android 앱(빌드 <code>0.4.0 (4)</code>)과 iOS 앱(빌드 <code>0.5.0 (26)</code>)은 구현되어 있고 단위 테스트를 통과했으며, 둘 다 실차 확인을 기다립니다. iOS의 백그라운드 재연결은 계획 Task 2 스파이크 전까지 확인되지 않았습니다. 필요한 라이브러리 API를 모두 쓸 수 있습니다: <code>Vehicle.events</code>(라이브러리 매뉴얼 12장 "브로드캐스트 이벤트", 14장 B2)와 iOS의 키 접근성 선택(13장 "휴대폰이 잠겨 있을 때 키 쓰기", FR-037).</p>
+<p>Android 앱(빌드 <code>0.4.0 (4)</code>)과 iOS 앱(빌드 <code>0.5.0 (27)</code>)은 구현되어 있고 단위 테스트를 통과했으며, 둘 다 실차 확인을 기다립니다. iOS의 백그라운드 재연결은 계획 Task 2 스파이크 전까지 확인되지 않았습니다. 필요한 라이브러리 API를 모두 쓸 수 있습니다: <code>Vehicle.events</code>(라이브러리 매뉴얼 12장 "브로드캐스트 이벤트", 14장 B2)와 iOS의 키 접근성 선택(13장 "휴대폰이 잠겨 있을 때 키 쓰기", FR-037).</p>
 </div>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
@@ -90,10 +90,10 @@
 </tbody>
 </table>
 <p>규칙은 작은 순수 타입입니다(<code>KeyNickname</code>: 자르기, 길이 확인, 제한. <code>KeyNicknameStore</code>: 주입한 <code>UserDefaults</code>에 저장, 조회, 삭제). 차량 없이 단위 테스트합니다(<code>Tests/KeyNicknameTests.swift</code>). 화면은 <code>samples/ios/README.md</code>의 실기기 확인 목록으로 확인합니다(SFR-019).</p>
-<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (26)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 예정, 같은 스펙.</p>
+<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (27)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 예정, 같은 스펙.</p>
 
 <h2 id="sec-state">상태 진단(SFR-023)</h2>
-<p>Query 탭에는 사람이 직접 <code>getState()</code>를 호출해 차량이 돌려주는 값을 읽는 수동 영역이 있습니다. 라이브러리 매뉴얼이 미확인으로 적어 둔 실차 사실(14장 A8.5)을 모으기 위한 것입니다: 범주마다 어떤 필드가 오는지, <code>speed</code>의 단위, 응답이 너무 큰지, 잠든 차가 어떻게 하는지. 제품 기능이 아닙니다. 주기적인 <code>getState</code>도, 자동 재시도도 없습니다. 빌드 26부터 <code>StateCategory</code> 값 12개마다 버튼이 하나씩 있으며(A8.1), 한 번 누르면 한 범주만 요청하고 여러 범주를 한꺼번에 요청하지 않습니다.</p>
+<p>Query 탭에는 사람이 직접 <code>getState()</code>를 호출해 차량이 돌려주는 값을 읽는 수동 영역이 있습니다. 라이브러리 매뉴얼이 미확인으로 적어 둔 실차 사실(14장 A8.5)을 모으기 위한 것입니다: 범주마다 어떤 필드가 오는지, <code>speed</code>의 단위, 응답이 너무 큰지, 잠든 차가 어떻게 하는지. 제품 기능이 아닙니다. 주기적인 <code>getState</code>도, 자동 재시도도 없습니다. 빌드 27부터 <code>StateCategory</code> 값 12개마다 버튼이 하나씩 있으며(A8.1), 한 번 누르면 한 범주만 요청하고 여러 범주를 한꺼번에 요청하지 않습니다.</p>
 <table>
 <thead><tr><th>규칙</th><th>내용</th></tr></thead>
 <tbody>
@@ -126,8 +126,8 @@
 </table>
 <p>필드 아래에 화면은 "받은 필드"를 나열합니다: 차가 실제로 보낸 proto 필드 이름입니다. 이 목록은 로그가 받는 것과 같습니다.</p>
 <p>로그. 끝난 누름마다 <code>query</code> 줄 하나만 남기고 다른 것은 남기지 않습니다: <code>call</code>은 Kotlin 상수 이름을 쓴 <code>getState(&lt;CATEGORY&gt;)</code>(<code>DRIVE</code>, <code>CHARGE</code>, <code>TIRE_PRESSURE</code>, ...), <code>result</code>는 <code>Success</code>, <code>Uncertain</code>, <code>Failure</code>, <code>NotSent</code>, <code>summary</code>는 <code>durationMs=&lt;n&gt;</code>에 <code>error=&lt;종류&gt;</code> 또는 <code>reason=&lt;이유&gt;</code>가 붙은 것이고 <code>Success</code>이면 <code>present=[&lt;필드 이름&gt;]</code>도 붙으며, <code>startedAt</code>은 그 누름의 첫 라이브러리 호출을 시작한 시각입니다. <strong>값도, 좌표도, 위치 이름도, 곡 제목도</strong> 로그에 가지 않습니다(FR-112, 14장 A8.3 "결과를 로그에 남기지 마세요"): 로그 줄은 자유 문장이 필드 이름 목록뿐인 작은 값(<code>StateLogEntry</code>)으로 만들고, 요약이 로그로 가는 샘플의 <code>record</code> 도우미는 <code>getState</code>에 쓰지 않습니다. <code>present</code>의 이름은 샘플이 읽는 proto 필드 하나하나에 대응하는 샘플의 고정 상수이며 차가 보낸 것만 들어갑니다(<code>native_latitude</code>, <code>heading</code>, <code>location_name</code>, ...). 이름은 그 필드가 있었다는 사실만 말합니다. 빈 <code>present=[]</code>는 응답에 그 필드가 하나도 없었던 <code>Success</code>입니다. 응답 크기, 시도 번호, <code>auth=</code>는 이 줄이 아니라 라이브러리의 <code>observe</code> 줄(<code>[reply:infotainment] &lt;N&gt;B ... attempt=&lt;n&gt; auth=&lt;value&gt;</code>, 18장 "관찰 로그")에 있습니다. 샘플은 <code>getState</code> 응답의 <code>unknownFields</code>를 로그에 남기지 않습니다: Wire는 그것을 원시 바이트로 보관하고 매뉴얼은 그 경로 형식을 브로드캐스트 이벤트에만 줍니다(B2.3). 오류 종류는 라이브러리의 타입 이름(<code>ResponseTooLarge</code>, <code>Timeout(afterSend=true)</code>, <code>NoSession</code>, 또는 클래스 이름)이며 <code>message</code>나 차량이 보낸 글은 쓰지 않습니다.</p>
-<p>부르는 라이브러리 호출과 매뉴얼 장: <code>vehicleStatus(timeout: nil)</code>(14장 A2), <code>startSession(domains:timeout:)</code>(14장 A8.2, 15장), <code>getState(category:timeout:)</code>와 <code>s.value as? VehicleData</code>, <code>KotlinInt?</code> 숫자, <code>getEpochSecond()</code>(14장 A8.3, 17장 "Swift: 생성된 타입"), 좌표 선택(14장 A8.4), 결과 처리와 크기 오류(16장 "<code>getState</code> 결과", "<code>getState</code>의 응답 크기 제한"). 순수 규칙(<code>StateDiagnostics</code>, <code>StateCategoryFields</code>, 좌표 규칙 <code>LocationRule</code>)과 화면 상태(가짜 링크를 쓰는 <code>StateDiagnosticsModel</code>)는 차량 없이 단위 테스트합니다(<code>Tests/StateDiagnosticsTests.swift</code>, <code>Tests/StateCategoriesTests.swift</code>). 실기기 확인 목록은 <code>samples/ios/README.md</code>(SFR-023, 빌드 26에서 더한 아홉 개는 "additional categories")에 있습니다.</p>
-<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (26)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 예정, 같은 스펙.</p>
+<p>부르는 라이브러리 호출과 매뉴얼 장: <code>vehicleStatus(timeout: nil)</code>(14장 A2), <code>startSession(domains:timeout:)</code>(14장 A8.2, 15장), <code>getState(category:timeout:)</code>와 <code>s.value as? VehicleData</code>, <code>KotlinInt?</code> 숫자, <code>getEpochSecond()</code>(14장 A8.3, 17장 "Swift: 생성된 타입"), 좌표 선택(14장 A8.4), 결과 처리와 크기 오류(16장 "<code>getState</code> 결과", "<code>getState</code>의 응답 크기 제한"). 순수 규칙(<code>StateDiagnostics</code>, <code>StateCategoryFields</code>, 좌표 규칙 <code>LocationRule</code>)과 화면 상태(가짜 링크를 쓰는 <code>StateDiagnosticsModel</code>)는 차량 없이 단위 테스트합니다(<code>Tests/StateDiagnosticsTests.swift</code>, <code>Tests/StateCategoriesTests.swift</code>). 실기기 확인 목록은 <code>samples/ios/README.md</code>(SFR-023, 빌드 27에서 더한 아홉 개는 "additional categories")에 있습니다.</p>
+<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (27)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 예정, 같은 스펙.</p>
 
 <h2 id="sec-wide">넓은 화면과 접는 화면 (SFR-024)</h2>
 <p>앱은 접는 iPhone Duo에서 공식 Tesla 앱(4.62)이 쓰는 큰 화면 배치를 따릅니다. <strong>안쪽 화면</strong>에서는 두 영역을 보여 줍니다. 왼쪽은 이동 메뉴, 오른쪽은 늘 보이는 큰 차량과 아래쪽 빠른 동작입니다. <strong>바깥 화면</strong>은 보통의 폰 배치를 유지합니다. 샘플도 자기 화면으로 같은 일을 합니다. 크기 클래스와 쓸 수 있는 너비만 쓰므로 iPad나 분할 창에도 적용됩니다. 기기 모델, <code>UIScreen</code>, 방향, 힌지 각도는 보지 않고, iOS 27.1 접힘 API도 쓰지 않습니다.</p>
@@ -148,7 +148,7 @@
 </tbody>
 </table>
 <p>선택과 대응은 순수 로직이라 차량 없이 단위 테스트합니다(<code>Tests/DuoLayoutTests.swift</code>). 화면은 <code>samples/ios/README.md</code> 의 실기기 체크리스트(SFR-024)로 확인합니다. Simulator 앱 없이는 시뮬레이터를 접을 수 없어, 두 영역 배치는 iPad 시뮬레이터에서도 보았습니다. Duo 자체의 자세 변경은 실기기에서 확인합니다.</p>
-<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (26)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 지금은 해당 없음(접는 기기 대상 없음). 큰 화면 배치는 별도 요구사항이 됩니다.</p>
+<p><strong>상태:</strong> iOS 구현 완료(<code>0.5.0 (27)</code>), 단위 테스트 통과, 실기기 확인 대기. Android: 지금은 해당 없음(접는 기기 대상 없음). 큰 화면 배치는 별도 요구사항이 됩니다.</p>
 
 <h2 id="sec-bg">백그라운드 실행</h2>
 <table>
@@ -264,7 +264,7 @@
 <tr><td><code>KeyReplacement.swift</code>, <code>Tests/KeyReplacementTests.swift</code></td><td>모니터 키 삭제 후 다시 만들기(SFR-020, <a href="05-key-control-tab.html#sec-replace">5. 키·제어 탭</a>): <code>KeyReplacer</code>(순서, 잠금·실패 규칙), <code>KeyReplaceOutcome</code>, 확인 문구. 순수 로직이며 단위 테스트합니다. <code>MonitorEngine.replaceKey()</code>가 <code>ble.keys</code>에 대해 실행합니다.</td></tr>
 <tr><td><code>EnrollmentProgress.swift</code>, <code>Tests/EnrollmentPopupTests.swift</code></td><td>등록 진행 팝업(SFR-021, <a href="05-key-control-tab.html#sec-popup">5. 키·제어 탭</a>): <code>EnrollmentUpdate</code>(<code>BleClient.pair</code>가 알리는 것)와 <code>EnrollmentPopup</code>(단계, 줄, 문구, 버튼, 남은 시간). 순수 로직이며 단위 테스트합니다.</td></tr>
 <tr><td><code>StateDiagnostics.swift</code>, <code>Tests/StateDiagnosticsTests.swift</code></td><td>상태 진단(SFR-023, <a href="#sec-state">상태 진단</a>): 순수 규칙(<code>StateDiagnostics</code>: 버튼 켜기, 값 문구, <code>StateOutcome</code> 문장, <code>StateLogEntry</code>), 라이브러리와의 이음매 <code>StateLink</code> / <code>StateDiagnosticsBackend</code>, 그리고 <code>StateDiagnosticsModel</code>(한 번에 조회 하나, 늦은 결과 버림, 키 동작 중에는 거부). <code>MonitorEngine.swift</code>에 실제 <code>StateLink</code>(<code>vehicleStatus</code>, <code>startSession</code>, <code>getState</code>)가 있고, <code>VehicleMapping.swift</code>와 <code>VehicleMappingCategories.swift</code>가 <code>VehicleData</code>를 이름 붙은 필드로 바꾸며, <code>Views/QueryTab.swift</code>가 그립니다.</td></tr>
-<tr><td><code>StateCategoryFields.swift</code>, <code>Tests/StateCategoriesTests.swift</code></td><td>빌드 26에서 더한 아홉 범주(SFR-023): 값 구조체, 한국어 라벨과 단위, 없는 값은 <code>—</code>, 좌표 규칙 <code>LocationRule</code>(A8.4), 타이어 경고 문구, 일정 요약, 그리고 <code>presentKeys</code>(로그에 가는 필드 이름). 라이브러리 타입이 없어 차량 없이 단위 테스트합니다.</td></tr>
+<tr><td><code>StateCategoryFields.swift</code>, <code>Tests/StateCategoriesTests.swift</code></td><td>빌드 27에서 더한 아홉 범주(SFR-023): 값 구조체, 한국어 라벨과 단위, 없는 값은 <code>—</code>, 좌표 규칙 <code>LocationRule</code>(A8.4), 타이어 경고 문구, 일정 요약, 그리고 <code>presentKeys</code>(로그에 가는 필드 이름). 라이브러리 타입이 없어 차량 없이 단위 테스트합니다.</td></tr>
 <tr><td><code>KeyControlBackend.swift</code>, <code>Tests/KeyControlModelTests.swift</code>, <code>Tests/KeyOperationGateTests.swift</code></td><td><code>KeyControlBackend</code>: <code>KeyControlModel</code>이 라이브러리와 엔진에 요청하는 모든 것(시험에서는 가짜). <code>KeyOperationGate</code>와 <code>KeyHandleCache</code>는 탭을 가로질러 키 교체를 지킵니다(<code>KeyReplacement.swift</code>).</td></tr>
 <tr><td><code>KeyControl.swift</code>, <code>KeyControlModel.swift</code>, <code>Views/KeyControlTab.swift</code></td><td>키·제어 탭(<a href="05-key-control-tab.html">5. 키·제어 탭</a>): 순수 단계 규칙과 명령 실행기, 탭 상태와 화면. 라이브러리 호출은 <code>BleClient</code>를 거칩니다.</td></tr>
 <tr><td><code>ContentView.swift</code>, <code>Views/</code></td><td>폰 배치: Live, Query, Log, Control, 키·제어의 <code>TabView</code>. 넓은 배치: <code>Views/TwoPaneView.swift</code>(SFR-024). <code>isIdleTimerDisabled</code> 는 <code>scenePhase == .active</code> 를 따릅니다.</td></tr>
