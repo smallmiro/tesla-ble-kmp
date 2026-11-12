@@ -4,9 +4,12 @@ import Foundation
 // 이 파일은 라이브러리(Kotlin) 타입이 없는 순수 규칙과 화면 상태다. 규칙의 정본: `samples/documents/md/04-monitor-app.md` §State diagnostics.
 // 라이브러리 호출 순서의 정본: `documents/md/14-lib-reading-state.md` A8.2(`getState` 는 세션을 만들지도 차를 깨우지도 않는다).
 
-/// 진단 버튼. `Location` 은 넣지 않는다(위치 값을 다룰 이유가 없다).
+/// 진단 버튼. `StateCategory` 12개 전부이고 순서는 `14-lib-reading-state.md` A8.1 의 표가 아니라 화면 순서다(기존 셋이 앞).
+/// 한 번에 한 범주만 보낸다(여러 범주를 합친 요청은 없다, A8).
 enum DiagnosticCategory: String, CaseIterable, Sendable, Identifiable {
     case drive, media, mediaDetail
+    case charge, climate, location, closures, tirePressure, softwareUpdate
+    case chargeSchedule, preconditioningSchedule, parentalControls
 
     var id: Self { self }
 
@@ -15,6 +18,15 @@ enum DiagnosticCategory: String, CaseIterable, Sendable, Identifiable {
         case .drive: return "Drive"
         case .media: return "Media"
         case .mediaDetail: return "MediaDetail"
+        case .charge: return "Charge"
+        case .climate: return "Climate"
+        case .location: return "Location"
+        case .closures: return "Closures"
+        case .tirePressure: return "TirePressure"
+        case .softwareUpdate: return "SoftwareUpdate"
+        case .chargeSchedule: return "ChargeSchedule"
+        case .preconditioningSchedule: return "PreconditioningSchedule"
+        case .parentalControls: return "ParentalControls"
         }
     }
 
@@ -24,14 +36,31 @@ enum DiagnosticCategory: String, CaseIterable, Sendable, Identifiable {
         case .drive: return "DRIVE"
         case .media: return "MEDIA"
         case .mediaDetail: return "MEDIA_DETAIL"
+        case .charge: return "CHARGE"
+        case .climate: return "CLIMATE"
+        case .location: return "LOCATION"
+        case .closures: return "CLOSURES"
+        case .tirePressure: return "TIRE_PRESSURE"
+        case .softwareUpdate: return "SOFTWARE_UPDATE"
+        case .chargeSchedule: return "CHARGE_SCHEDULE"
+        case .preconditioningSchedule: return "PRECONDITIONING_SCHEDULE"
+        case .parentalControls: return "PARENTAL_CONTROLS"
         }
     }
 }
 
 /// 화면에 보이는 한 줄. 값은 화면에만 간다(로그와 `observe` 줄로는 가지 않는다, FR-112).
+/// `presentKeys` 는 이 줄을 만든 proto 필드 중 **차가 보낸 것**의 이름이다(이름만, 값 아님). 로그에는 이 이름만 간다.
 struct StateField: Equatable, Sendable {
     let label: String
     let value: String
+    let presentKeys: [String]
+
+    init(label: String, value: String, presentKeys: [String] = []) {
+        self.label = label
+        self.value = value
+        self.presentKeys = presentKeys
+    }
 }
 
 /// 조회가 끝나지 않은 이유. 오류 문구는 **종류**만 담는다(차량이 보낸 글은 담지 않는다).
@@ -127,23 +156,35 @@ enum StateOutcome: Equatable, Sendable {
     }
 }
 
-/// 로그에 남는 것의 전부: 범주, 결과, 소요 시간, 오류 종류. 값과 곡 제목은 담을 자리가 없다.
+/// 로그에 남는 것의 전부: 범주, 결과, 소요 시간, 오류 종류, (성공이면) 차가 보낸 필드의 **이름**. 값은 담을 자리가 없다.
+/// 위치·경로·곡 제목 같은 값은 이 타입으로 올 길이 없다(`14-lib-reading-state.md` A8.3 "Do not log a result", FR-112).
 struct StateLogEntry: Equatable, Sendable {
     let category: DiagnosticCategory
     let outcome: String
     /// `error` 또는 `reason`, 그리고 그 값. 성공이면 `nil`.
     let detail: (key: String, value: String)?
     let durationMs: Int
+    /// 성공한 응답에서 차가 보낸 필드 이름. 성공이 아니면 `nil`(줄에 넣지 않는다). 빈 배열은 "필드 없는 응답".
+    let present: [String]?
+
+    init(category: DiagnosticCategory, outcome: String, detail: (key: String, value: String)?, durationMs: Int, present: [String]? = nil) {
+        self.category = category
+        self.outcome = outcome
+        self.detail = detail
+        self.durationMs = durationMs
+        self.present = present
+    }
 
     static func == (lhs: StateLogEntry, rhs: StateLogEntry) -> Bool {
         lhs.category == rhs.category && lhs.outcome == rhs.outcome && lhs.durationMs == rhs.durationMs
-            && lhs.detail?.key == rhs.detail?.key && lhs.detail?.value == rhs.detail?.value
+            && lhs.detail?.key == rhs.detail?.key && lhs.detail?.value == rhs.detail?.value && lhs.present == rhs.present
     }
 
-    /// 로그 줄의 `summary`.
+    /// 로그 줄의 `summary`. 예: `durationMs=210 present=[battery_level, charging_state]`.
     var summary: String {
         var text = "durationMs=\(durationMs)"
         if let detail { text += " \(detail.key)=\(detail.value)" }
+        if let present { text += " present=\(LogLine.listText(present))" }
         return text
     }
 }
@@ -156,15 +197,19 @@ struct StateReading: Equatable, Sendable {
     let durationMs: Int
     let fields: [StateField]
 
-    /// 로그용 요약. `fields` 는 여기를 지나가지 않는다.
+    /// 차가 보낸 필드의 이름(이름만). 화면의 "받은 필드"와 로그의 `present` 가 이것이다.
+    var presentKeys: [String] { StateCategoryFields.presentKeys(fields) }
+
+    /// 로그용 요약. `fields` 의 값은 여기를 지나가지 않는다. 필드 이름(`presentKeys`)만 간다.
     var logEntry: StateLogEntry {
         let detail: (key: String, value: String)?
+        var present: [String]?
         switch outcome {
-        case .success: detail = nil
+        case .success: detail = nil; present = presentKeys
         case .uncertain(let f), .failure(let f): detail = ("error", f.logName)
         case .notSent(let r): detail = ("reason", r.logName)
         }
-        return StateLogEntry(category: category, outcome: outcome.kind, detail: detail, durationMs: durationMs)
+        return StateLogEntry(category: category, outcome: outcome.kind, detail: detail, durationMs: durationMs, present: present)
     }
 }
 
@@ -278,31 +323,36 @@ enum StateDiagnostics {
 
     static func fields(drive v: DriveValues) -> [StateField] {
         [
-            StateField(label: "speed", value: speedText(v.speed)),
-            StateField(label: "speed_float", value: v.speedFloat.map { "\(number($0)) (\(unitUnknown))" } ?? absent),
-            StateField(label: "shift_state", value: v.shift ?? absent),
-            StateField(label: "power", value: text(v.power)),
-            StateField(label: "odometer_in_hundredths_of_a_mile", value: text(v.odometer)),
-            StateField(label: "timestamp", value: v.timestamp.map { String($0) } ?? absent),
+            named("speed", speedText(v.speed), v.speed != nil),
+            named("speed_float", v.speedFloat.map { "\(number($0)) (\(unitUnknown))" } ?? absent, v.speedFloat != nil),
+            named("shift_state", v.shift ?? absent, v.shift != nil),
+            named("power", text(v.power), v.power != nil),
+            named("odometer_in_hundredths_of_a_mile", text(v.odometer), v.odometer != nil),
+            named("timestamp", v.timestamp.map { String($0) } ?? absent, v.timestamp != nil),
         ]
     }
 
     /// 곡 제목(`now_playing_title`)은 화면에만 나온다. 로그로는 `StateLogEntry` 를 거치지 않고는 나갈 길이 없다.
     static func fields(media v: MediaValues) -> [StateField] {
         [
-            StateField(label: "media_playback_status", value: v.playback ?? absent),
-            StateField(label: "audio_volume", value: v.volume.map(number) ?? absent),
-            StateField(label: "now_playing_title", value: v.title ?? absent),
-            StateField(label: "timestamp", value: v.timestamp.map { String($0) } ?? absent),
+            named("media_playback_status", v.playback ?? absent, v.playback != nil),
+            named("audio_volume", v.volume.map(number) ?? absent, v.volume != nil),
+            named("now_playing_title", v.title ?? absent, v.title != nil),
+            named("timestamp", v.timestamp.map { String($0) } ?? absent, v.timestamp != nil),
         ]
     }
 
     static func fields(detail v: MediaDetailValues) -> [StateField] {
         [
-            StateField(label: "now_playing_duration", value: text(v.duration)),
-            StateField(label: "now_playing_elapsed", value: text(v.elapsed)),
-            StateField(label: "timestamp", value: v.timestamp.map { String($0) } ?? absent),
+            named("now_playing_duration", text(v.duration), v.duration != nil),
+            named("now_playing_elapsed", text(v.elapsed), v.elapsed != nil),
+            named("timestamp", v.timestamp.map { String($0) } ?? absent, v.timestamp != nil),
         ]
+    }
+
+    /// 이 세 범주의 줄은 라벨이 곧 proto 필드 이름이다. 차가 보냈으면 그 이름이 `presentKeys` 에 간다.
+    private static func named(_ name: String, _ value: String, _ present: Bool) -> StateField {
+        StateField(label: name, value: value, presentKeys: present ? [name] : [])
     }
 
     private static func text(_ n: Int?) -> String { n.map { String($0) } ?? absent }
