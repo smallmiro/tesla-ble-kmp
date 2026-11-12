@@ -218,8 +218,8 @@ final class StateCategoriesTests: XCTestCase {
         XCTAssertEqual(value(fields, "주행 가능 거리 (ideal_battery_range)"), "—")
         XCTAssertEqual(value(fields, "충전 상태"), "충전 중 (Charging)")
         XCTAssertEqual(value(fields, "충전 전력"), "11 (단위 미확인)")
-        XCTAssertEqual(value(fields, "충전 전압"), "230 V")
-        XCTAssertEqual(value(fields, "충전 전류 (실제)"), "16 A")
+        XCTAssertEqual(value(fields, "충전 전압"), "230 (단위 미확인)", "the proto does not state the unit of voltage or current")
+        XCTAssertEqual(value(fields, "충전 전류 (실제)"), "16 (단위 미확인)")
         XCTAssertEqual(value(fields, "완충까지"), "95분")
         XCTAssertEqual(value(fields, "충전 한도"), "80%")
         XCTAssertEqual(value(fields, "충전 포트 문"), "열림")
@@ -288,12 +288,65 @@ final class StateCategoriesTests: XCTestCase {
         XCTAssertTrue(StateCategoryFields.presentKeys(fields).isEmpty)
     }
 
-    func testScheduleRowsNeverCarryTheScheduleNameOrLocation() {
-        var v = ScheduleValues()
-        v.count = 1; v.enabledCount = 1
-        let fields = StateCategoryFields.fields(chargeSchedule: v, zone: TimeZone(identifier: "UTC")!)
-        for f in fields {
-            XCTAssertFalse(f.label.contains("이름") || f.label.contains("위치") || f.label.contains("위도"), f.label)
+    /// 일정의 이름과 위치는 읽지 않는다. 값 묶음에 담을 자리가 없다는 것으로 못 박는다(VehicleMappingCategories 는 개수와 켜짐 여부만 센다).
+    func testScheduleValuesHaveNoPlaceForTheScheduleNameOrLocation() {
+        let names = Mirror(reflecting: ScheduleValues()).children.compactMap(\.label)
+        XCTAssertFalse(names.isEmpty)
+        for name in names {
+            XCTAssertFalse(name.lowercased().contains("name") || name.lowercased().contains("lat") || name.lowercased().contains("lon"), name)
+        }
+    }
+
+    func testRowLabelsAreUniqueWithinEachCategory() {
+        // 화면이 라벨을 줄의 id 로 쓴다.
+        let utc = TimeZone(identifier: "UTC")!
+        let sets: [[StateField]] = [
+            StateCategoryFields.fields(charge: ChargeValues(), zone: utc), StateCategoryFields.fields(climate: ClimateValues(), zone: utc),
+            StateCategoryFields.fields(location: LocationValues(), zone: utc), StateCategoryFields.fields(closures: ClosuresValues(), zone: utc),
+            StateCategoryFields.fields(tire: TireValues(), zone: utc), StateCategoryFields.fields(update: SoftwareUpdateValues(), zone: utc),
+            StateCategoryFields.fields(chargeSchedule: ScheduleValues(), zone: utc),
+            StateCategoryFields.fields(preconditioningSchedule: ScheduleValues(), zone: utc),
+            StateCategoryFields.fields(parental: ParentalValues(), zone: utc),
+        ]
+        for fields in sets {
+            let labels = fields.map(\.label)
+            XCTAssertEqual(Set(labels).count, labels.count, "\(labels)")
+        }
+    }
+
+    func testPresentKeysOfOtherCategoriesListOnlyWhatCame() {
+        let utc = TimeZone(identifier: "UTC")!
+        var closures = ClosuresValues()
+        closures.locked = false; closures.sunRoof = "Closed"
+        XCTAssertEqual(StateCategoryFields.presentKeys(StateCategoryFields.fields(closures: closures, zone: utc)), ["sun_roof_state", "locked"])
+        var update = SoftwareUpdateValues()
+        update.version = "x"; update.installPerc = 0
+        XCTAssertEqual(StateCategoryFields.presentKeys(StateCategoryFields.fields(update: update, zone: utc)), ["version", "install_perc"])
+        var parental = ParentalValues()
+        parental.hasSettings = true; parental.active = false; parental.currentLimitMph = 0
+        XCTAssertEqual(
+            StateCategoryFields.presentKeys(StateCategoryFields.fields(parental: parental, zone: utc)),
+            ["parental_controls_active", "parental_controls_settings", "current_limit_mph"]
+        )
+        var location = LocationValues()
+        location.nativeLatitude = 1; location.nativeLongitude = 2; location.latitude = 3; location.nativeType = "WGS"
+        let keys = StateCategoryFields.presentKeys(StateCategoryFields.fields(location: location, zone: utc))
+        XCTAssertEqual(keys, ["native_latitude", "native_longitude", "latitude", "native_type"], "the log lists every field that came, not only the chosen pair")
+    }
+
+    func testRawGpsWithALargeGapButNoPairFallsThroughToNative() {
+        var v = LocationValues()
+        v.nativeLatitude = 37.5; v.nativeLongitude = 127.0
+        v.geoLatitude = 35.1; v.estimatedToRawDistance = 5000 // geo longitude missing
+        XCTAssertEqual(LocationRule.pick(v)?.source, "native_latitude/native_longitude")
+    }
+
+    func testPresentNamesAreLoggedOnlyForASuccess() {
+        let fields = [StateField(label: "x", value: "1", presentKeys: ["battery_level"])]
+        for outcome in [StateOutcome.failure(.noSession), .uncertain(.responseTooLarge), .notSent(.asleep)] {
+            let entry = StateReading(category: .charge, outcome: outcome, at: Date(), durationMs: 1, fields: fields).logEntry
+            XCTAssertNil(entry.present, "\(outcome)")
+            XCTAssertFalse(entry.summary.contains("present"), "\(outcome)")
         }
     }
 

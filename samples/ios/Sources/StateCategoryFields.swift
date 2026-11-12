@@ -6,8 +6,11 @@ import Foundation
 //
 // 규칙
 // - 차가 보내지 않은 값은 `—`. 0 으로 바꾸지 않는다.
-// - 단위는 proto 가 말한 것만 붙인다(이름에 celsius·mph, 주석에 bar·meters, `battery_level`·`*_perc` 의 %, `minutes_*`, `*_sec`).
-//   그 밖은 `(단위 미확인)` 이다(`14-lib-reading-state.md` A8.5: 실차에서 확인된 것이 없다).
+// - 단위는 proto 가 말했거나 이름이 분명히 말하는 것만 붙인다(이름에 celsius·mph·`*_ms`·`*_sec`·`minutes_*`, 주석에 bar·meters,
+//   이름상 백분율인 `battery_level`·`usable_battery_level`·`charge_limit_soc`·`*_perc`·`*_percent_open` 의 %).
+//   그 밖은 `(단위 미확인)` 이다: 주행 가능 거리, 충전 전력·전압·전류, 설정 온도, 방향 등(`14-lib-reading-state.md` A8.5: 실차에서 확인된 것이 없다).
+// - oneof 메시지(`Void` 멤버들)에서 멤버가 하나도 없이 온 것은 값 없음(`—`)으로 읽는다. 중첩 메시지의 일반 값(일정 항목의 `enabled`)은
+//   없음과 false 를 가를 수 없다(A8.3).
 // - 로그로 가는 것은 `presentKeys`(차가 보낸 필드의 이름)뿐이다. 값, 좌표, 위치 이름, 일정 이름은 어디에도 남기지 않는다.
 
 // MARK: - 공통 형식
@@ -190,6 +193,7 @@ enum LocationRule {
             PickedCoordinate(latitude: $0, longitude: $1, source: "corrected_latitude/corrected_longitude", system: "GCJ", reason: nil)
         }
         // native 가 없으면 차의 지역(native_type)으로 어느 클라이언트인지 가른다: GCJ 차는 corrected 가 먼저.
+        // 이것은 샘플의 추정이다. A8.4 는 "클라이언트의 좌표계"를 말하는데 샘플에는 그 설정이 없고, native 가 없으면 native_type 도 없을 가능성이 크다.
         return v.nativeType == "GCJ" ? (corrected ?? plain) : (plain ?? corrected)
     }
 
@@ -272,9 +276,9 @@ enum StateCategoryFields {
             row("주행 가능 거리 (ideal_battery_range)", "ideal_battery_range", v.idealBatteryRange) { StateFormat.rawDecimal($0, digits: 2) },
             row("충전 상태", "charging_state", v.chargingState) { StateFormat.named($0, chargingStates) },
             row("충전 전력", "charger_power", v.chargerPower) { StateFormat.rawInt($0) },
-            row("충전 전압", "charger_voltage", v.chargerVoltage) { StateFormat.int($0, suffix: " V") },
-            row("충전 전류 (실제)", "charger_actual_current", v.chargerActualCurrent) { StateFormat.int($0, suffix: " A") },
-            row("충전 전류 (파일럿)", "charger_pilot_current", v.chargerPilotCurrent) { StateFormat.int($0, suffix: " A") },
+            row("충전 전압", "charger_voltage", v.chargerVoltage) { StateFormat.rawInt($0) },
+            row("충전 전류 (실제)", "charger_actual_current", v.chargerActualCurrent) { StateFormat.rawInt($0) },
+            row("충전 전류 (파일럿)", "charger_pilot_current", v.chargerPilotCurrent) { StateFormat.rawInt($0) },
             row("완충까지", "minutes_to_full_charge", v.minutesToFullCharge) { StateFormat.int($0, suffix: "분") },
             row("충전 한도", "charge_limit_soc", v.chargeLimitSoc) { StateFormat.int($0, suffix: "%") },
             row("충전 포트 문", "charge_port_door_open", v.chargePortDoorOpen) { StateFormat.yesNo($0, yes: "열림", no: "닫힘") },
