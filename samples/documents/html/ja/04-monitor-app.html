@@ -295,7 +295,7 @@
 <li><strong>ログファイル。</strong> 規則は Android と同じです（10 進の MB、削除は書き込み中のファイルを消さない、名前は 1 秒ずらす、4096 行のキュー、書き込みエラーはその行を捨てて数え、次の行でファイルを開き直す）。行は届くたびにファイルへ書きます（バッファリングなし）。ファイルは <code>Documents/logs/</code> にあり、ファイル保護は既定のままです（最初のロック解除後に読み取れます）。</li>
 <li><strong>画面の点灯。</strong> <code>isIdleTimerDisabled</code> はシーンがアクティブな間だけ true で、バックグラウンドと非アクティブのときはシステムの既定に戻ります。</li>
 <li><strong>バックグラウンド。</strong> iOS がアプリを動かし続けている間は、同じループがバックグラウンドでも動きます。リンクが切れた後に iOS がアプリを起こしてスキャンと再接続をさせるかどうかは<strong>未確認</strong>です（計画 Task 2 のスパイク）。iOS がアプリを一時停止している間はループは動かず、2 つの <code>link</code> 行の間隔でその長さが分かります。</li>
-<li><strong>取り出し。</strong> <code>tools/samples/pull-monitor-logs.sh ios [--device &lt;id&gt;]</code> は、実機ビルド（<code>dev.mirolab.TeslableSampleDevice</code>）の <code>Documents/logs</code> を <code>xcrun devicectl device copy from</code> で <code>samples/logs/ios/&lt;date&gt;/</code> にコピーします。</li>
+<li><strong>取り出し。</strong> <code>tools/samples/pull-monitor-logs.sh ios [--device &lt;id&gt;]</code> は、実機ビルド（<code>dev.mirolab.TeslableSampleDevice</code>）の <code>Documents/logs</code> を <code>xcrun devicectl device copy from</code> で <code>samples/logs/ios/&lt;date&gt;/</code> にコピーします。<code>--new</code> を付けると、<code>samples/logs/ios/</code> の下に同じ名前・サイズで存在しない <code>monitor-*.jsonl</code> だけを取り出します。新しいファイルは今日の日付フォルダに入れ、電話で大きくなったファイルは元の場所に上書きし、取り出したパスを出力します。続けて <code>python3 -I tools/analysis/monitor_summary.py &lt;files&gt;</code> で要約します。この要約は <code>getState</code> の要約を出力しません。</li>
 <li><strong>バージョン。</strong> <code>project.yml</code> には <code>MARKETING_VERSION 0.5.0</code> と <code>CURRENT_PROJECT_VERSION 12</code> があります。実機での確認ラウンドごとにビルド番号を上げてください。</li>
 </ul>
 
