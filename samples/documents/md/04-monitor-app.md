@@ -345,6 +345,9 @@ How it behaves, where the design left room:
   gap between two `link` lines shows how long that was.
 - **Pulling.** `tools/samples/pull-monitor-logs.sh ios [--device <id>]` copies `Documents/logs` of the device build
   (`dev.mirolab.TeslableSampleDevice`) with `xcrun devicectl device copy from` into `samples/logs/ios/<date>/`.
+  `--new` pulls only the `monitor-*.jsonl` files not already under `samples/logs/ios/` with the same name and size: new files
+  go to today's folder, a file that grew on the phone is overwritten where it was, and the pulled paths are printed.
+  `python3 -I tools/analysis/monitor_summary.py <files>` then summarises them without printing `getState` summaries.
 - **Version.** `project.yml` has `MARKETING_VERSION 0.5.0` and `CURRENT_PROJECT_VERSION 12`; raise the build number for
   every real-device round.
 

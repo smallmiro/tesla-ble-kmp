@@ -9,9 +9,9 @@ Owner: `protocol-analyst`. Output: a report in `{{ANALYSIS_DIR}}`. Never edits c
 
 ## Steps
 
-1. **Get the logs.** Pull from a connected phone into `{{SAMPLE_LOGS_DIR}}` (git-ignored) with the pull script described
-   in the monitor app spec (`{{SAMPLES_DOCS_DIR}}`). Never copy logs anywhere that is committed.
-2. **Inventory** with a short script (stdlib Python, `python3 -I`): sessions and time span, count per line kind
+1. **Get the logs.** Usually already pulled by the `collect-monitor-logs` skill (`tools/samples/pull-monitor-logs.sh ios --new`)
+   into `{{SAMPLE_LOGS_DIR}}` (git-ignored). Never copy logs anywhere that is committed.
+2. **Inventory.** Start with `python3 -I tools/analysis/monitor_summary.py <files>`, then add a short script (stdlib Python, `python3 -I`) for: sessions and time span, count per line kind
    (`event`, `observe`, `query`, `link`, `mark`, and on iOS `app` with `event` = `scenePhase`, `protectedData`, `start`), count per event type, `unrecognized` count, disconnects and reconnect
    attempts, gaps in reception. Read whole files only after this summary tells you where to look.
    Newer iOS logs add `query.startedAt` (request start; `ts` is when the result arrived), `app` lines for the scene phase, the phone

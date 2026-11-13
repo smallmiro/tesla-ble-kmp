@@ -15,6 +15,7 @@
 | 작업 공간 | `using-git-worktrees`: 작업 단위마다 짧게 쓰고 바로 병합 | – |
 | 구현 | `subagent-driven-development` + `test-driven-development`. 구현 서브에이전트는 `library-developer` | 코드 |
 | 예제(샘플 앱) 개발 | 구현과 같은 스킬 + `sample-from-lib-docs`. 서브에이전트는 `android-developer`/`ios-developer`, API 부족은 `library-api-request`. 지침 `{{SAMPLES_DIR}}AGENTS.md`, 스펙 `{{SAMPLES_DOCS_INDEX}}`. 단 기준 문서는 Go 매뉴얼이 아니라 `{{LIB_DOCS_DIR}}` 의 `11-lib-*`~`19-lib-*`(`AGENTS.md` 절대 규칙 14). 문서에 없는 동작이 필요하면 예제에서 우회하지 말고 문서를 먼저 고치거나 라이브러리 작업으로 올림 | `{{SAMPLES_DIR}}`, `{{SAMPLES_DOCS_DIR}}`, `{{SAMPLES_DOCS_HTML_DIR}}` |
+| 로그 수집 | `collect-monitor-logs` (명령 `/collect-logs`): 새 로그만 가져와 요약하고 분석을 맡김 | `{{SAMPLE_LOGS_DIR}}` (git-ignored) |
 | 로그 분석 | `analyze-monitor-logs`. 서브에이전트는 `protocol-analyst`(보고서만, 문서 반영은 `library-developer`) | `{{ANALYSIS_DIR}}` |
 | 디버깅 | `systematic-debugging`: 가설을 세우기 전에 원본 Go 코드와 대조 | – |
 | 문서 갱신 (머지 조건) | 직접 작성. 이번 작업으로 바뀐 내용을 `{{LIB_DOCS_DIR}}`(에이전트용 MD, 영어)와 `{{LIB_DOCS_HTML_DIR}}`(사람용 HTML, ko/en/ja)에 반영 (`AGENTS.md` 절대 규칙 13). 절차는 `lib-docs-sync` 스킬. HTML은 영어판을 먼저 쓰고 ko/ja는 같은 마크업으로 번역(`docs-translator`) | `{{LIB_DOCS_DIR}}`, `{{LIB_DOCS_HTML_DIR}}` |
