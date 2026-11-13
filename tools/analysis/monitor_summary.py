@@ -50,11 +50,12 @@ def summarize(path):
                 if result != "Success":
                     s["non_success"].append((_hms(ts), call, result, _safe_reason(call, str(o.get("summary", "")))))
             elif kind == "mark":
-                s["marks"].append((_hms(ts), str(o.get("text") or o.get("label") or o.get("note") or "")))
+                s["marks"].append((_hms(ts), str(o.get("memo", ""))))
             elif kind == "link" and o.get("state") in ("connected", "disconnected"):
                 detail = o.get("reason") or (f"rssi={o['rssi']}" if "rssi" in o else "")
                 s["links"].append((_hms(ts), o["state"], detail))
-            elif kind == "observe" and "other" in json.dumps(o):
+            elif kind == "observe" and ", other)" in str(o.get("line", "")):
+                # 다른 클라이언트에게 간 프레임: `address(16B, other)` (04-monitor-app §Log format).
                 s["other_frames"] += 1
     s["calls"] = {k: dict(v) for k, v in s["calls"].items()}
     s["results"] = dict(s["results"])

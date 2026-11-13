@@ -20,7 +20,10 @@ date_dir="$(date +%Y-%m-%d)"
 warn_if_vin() {
   # 가려지지 않은 VIN 모양(17자, 영문 대문자 1개 이상)이 있으면 알린다. (가려진 값은 * 가 들어 있어 걸리지 않는다.
   # 원시 바이트 hex 는 소문자라서 숫자만 17자 이어진 조각은 VIN 으로 보지 않는다.)
-  if grep -rhoE '[A-HJ-NPR-Z0-9]{17}' "$1" | grep -q '[A-HJ-NPR-Z]'; then
+  # 파이프에서 grep -q 가 일찍 끝나면 pipefail 때문에 경고를 놓치므로, 후보를 먼저 다 모은 뒤 검사한다.
+  local candidates
+  candidates="$(grep -rhoE '[A-HJ-NPR-Z0-9]{17}' "$1" || true)"
+  if printf '%s\n' "$candidates" | grep '[A-HJ-NPR-Z]' >/dev/null; then
     echo "WARNING: a 17-character VIN-like string is in the pulled logs; do not share them before checking" >&2
   fi
 }
@@ -118,13 +121,21 @@ PY
       exit 0
     fi
     mkdir -p "$dest"
+    # 받은 파일은 그때그때 경로를 출력한다. 한 파일이 실패해도 나머지는 계속 받고, 끝에 실패로 끝낸다
+    # (이미 받은 파일은 다음 --new 에서 제외되므로 경로를 놓치면 분석에서 빠진다).
+    failed=0
     while IFS=$'\t' read -r rel target; do
-      xcrun devicectl device copy from --device "$device" \
+      if xcrun devicectl device copy from --device "$device" \
         --domain-type appDataContainer --domain-identifier "$bundle_id" \
-        --source "Documents/logs/$rel" --destination "$target" >/dev/null
-      warn_if_vin "$target"
+        --source "Documents/logs/$rel" --destination "$target" >/dev/null; then
+        echo "$target"
+        warn_if_vin "$target"
+      else
+        echo "failed to pull $rel" >&2
+        failed=1
+      fi
     done <<< "$wanted"
-    printf '%s\n' "$wanted" | cut -f2
+    exit "$failed"
     ;;
   *)
     echo "usage: $0 android | ios [--device <id>] [--new]" >&2
