@@ -63,6 +63,16 @@ exit_if_violations() {
 
 has_match() { [ -e "$1" ]; } # 글롭이 하나라도 맞으면 참
 
+# 빌드한 Mac의 경로(홈 폴더와 그 안의 사용자 이름, 저장소 위치)를 찾는 grep -F 패턴. 배포 파일 어디에도 없어야 한다.
+leak_args=(-e "/Users/" -e "$ROOT")
+case "$HOME" in "" | "/") ;; *) leak_args+=(-e "$HOME") ;; esac
+# 위반 메시지에 사용자 이름을 다시 찍지 않도록 홈 폴더를 ~ 로 바꿔 출력한다.
+mask_home() {
+  local text="$1" tilde="~"
+  case "$HOME" in "" | "/") ;; *) text="${text//"$HOME"/$tilde}" ;; esac
+  printf '%s' "$text"
+}
+
 remove_outputs
 work_tmp="$(mktemp -d)"
 
@@ -148,17 +158,13 @@ grep -q -x -F 'Teslable.xcframework/Info.plist' <<< "$entries" || violate "zip h
 # 빌드한 Mac의 절대 경로(홈 폴더와 그 안의 사용자 이름, 저장소 위치)가 배포 파일 어디에도 없어야 한다.
 # zip을 풀어 모든 파일의 바이트를 본다(바이너리의 디버그 정보 포함).
 ditto -x -k "$OUT_ZIP" "$work_tmp/unzipped"
-leak_args=(-e "/Users/" -e "$ROOT")
-case "$HOME" in "" | "/") ;; *) leak_args+=(-e "$HOME") ;; esac
-tilde="~"
 leaky_files="$(grep -r -l -a -F "${leak_args[@]}" "$work_tmp/unzipped" || true)"
 while IFS= read -r f; do
   [ -n "$f" ] || continue
   # strings 는 ar 아카이브를 멤버 단위로 읽어 멤버 밖 바이트를 건너뛴다. 출력 가능한 바이트 묶음을 직접 잘라 grep 과 같은 범위를 본다.
   hits="$(LC_ALL=C tr -c '[:print:]' '\n' < "$f" | grep -F "${leak_args[@]}" || true)"
   n="$(grep -c . <<< "$hits" || true)"
-  sample="$(head -2 <<< "$hits" | tr '\n' ' ')"
-  case "$HOME" in "" | "/") ;; *) sample="${sample//"$HOME"/$tilde}" ;; esac
+  sample="$(mask_home "$(head -2 <<< "$hits" | tr '\n' ' ')")"
   violate "${f#"$work_tmp/unzipped"/}: $n build-machine path string(s), e.g. $sample"
 done <<< "$leaky_files"
 exit_if_violations "$OUT_ZIP"
