@@ -8,7 +8,7 @@
 #       (시뮬레이터 슬라이스에 x86_64 없음: Apple Silicon Mac 전용)
 #     - 각 슬라이스 Teslable.framework/Info.plist MinimumOSVersion = 16.0 (NFR-009)
 #     - 각 슬라이스 Modules/Teslable.swiftmodule/*.swiftinterface 존재 (Swift library evolution)
-#     - 각 슬라이스 바이너리가 정적 라이브러리(ar 아카이브)
+#     - 각 슬라이스 바이너리가 정적 라이브러리(ar 아카이브)이고 clang 모듈 breadcrumb(*.pcm)가 0개 (SKIE produceDistributableFramework())
 #     - zip 안의 항목이 모두 Teslable.xcframework/ 아래이고 ._* AppleDouble·__MACOSX 항목이 없음
 #     - zip 안 어느 파일에도 빌드한 Mac의 경로(/Users/, $HOME, 저장소 루트)가 없음 (사용자 이름·폴더 구조 노출 방지)
 #   산출물 (tools/release 의 다른 스크립트가 쓴다):
@@ -116,6 +116,16 @@ for id in $SLICES; do
   magic="$(head -c 7 "$fw/Teslable" 2>/dev/null)" || magic=""
   if [ "$magic" != '!<arch>' ]; then
     violate "$id: Teslable.framework/Teslable is not a static library (ar archive)"
+  fi
+  # *.pcm = swiftc 가 정적 프레임워크 디버그 정보에 남기는 clang 모듈 캐시 breadcrumb. SKIE produceDistributableFramework()
+  # (noClangModuleBreadcrumbsInStaticFrameworks)가 켜져 있으면 0개다. library evolution 은 XCFramework에서 SKIE가 스스로 켜므로
+  # .swiftinterface 검사만으로는 이 설정이 빠진 것을 잡지 못한다.
+  if [ -f "$fw/Teslable" ]; then
+    pcm="$(LC_ALL=C tr -c '[:print:]' '\n' < "$fw/Teslable" | grep -F '.pcm' || true)"
+    if [ -n "$pcm" ]; then
+      npcm="$(grep -c . <<< "$pcm")"
+      violate "$id: Teslable.framework/Teslable has $npcm clang module breadcrumb(s) (*.pcm): SKIE produceDistributableFramework() is off"
+    fi
   fi
 done
 exit_if_violations "$SRC_XCF"
