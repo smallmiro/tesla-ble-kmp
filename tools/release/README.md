@@ -75,6 +75,11 @@ changed since the zip was built (only `Package.swift` may differ). Then it:
 
 It ends with `RELEASED v1.0.0`.
 
+**Finish `publish.sh` promptly.** From the tag push on, the tag's `Package.swift` points at a release URL that returns
+404 until the asset is public, so anyone resolving that version in the meantime fails. If you abandon a version after its
+tag was pushed, delete the tag on `origin` and locally (`git push origin :refs/tags/vX.Y.Z` and `git tag -d vX.Y.Z`),
+and never reuse that version for different bytes: a new zip needs a new version.
+
 ### Running publish.sh again
 
 `publish.sh` can be run again after any failure; it looks at what exists and skips finished steps.
