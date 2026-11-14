@@ -15,14 +15,19 @@ installation (the iOS Swift package, the Android source build), all 73 Vehicle m
 call examples, result models, all 12 getState field schemas, and the existing library chapters. The API reference is searchable;
 the browser print dialog can save the full document as PDF. Implementation and real-vehicle verification status are distinguished.
 
-The English agent companion is [11-lib-user-guide.md](md/11-lib-user-guide.md). To refresh the generated guide after
-updating the source APIs or maintained library chapters, run:
+The English agent companion is [11-lib-user-guide.md](md/11-lib-user-guide.md). The guide is generated: do not edit
+it by hand. After changing chapters 11–19 (Markdown, or HTML in any language), a public Kotlin API file under `sdk/` or
+`domain/`, or the generator itself, regenerate it and commit the result with that change:
 
 ```bash
 python3 tools/docs/build-library-guide.py
 tools/ci/highlight-manual-code.sh
 tools/ci/check-manual-i18n.sh
 ```
+
+The same sources always give the same bytes (the guide has no commit or date stamp). `tools/ci/check-manual-i18n.sh`,
+step 7 of `tools/ci/verify.sh`, rebuilds the guide in a temporary folder and fails with `user guide is stale` when the
+committed files differ.
 
 ## Two manuals
 
@@ -62,7 +67,8 @@ documents/
 │       ├── 07-command-reference.html # command reference
 │       ├── 08-http-proxy.html     # HTTP proxy
 │       ├── 09-errors-troubleshooting.html
-│       └── 11-lib-overview.html … 19-lib-architecture.html   # tesla-ble-kmp library manual
+│       ├── 11-lib-overview.html … 19-lib-architecture.html   # tesla-ble-kmp library manual
+│       └── 11-lib-user-guide.html # generated single-page guide (tools/docs/build-library-guide.py)
 └── md/                            # for AI agents (English)
     ├── README.md                  # entry point: reading order and per-task file list
     ├── 00-agent-guide.md          # working rules, invariants, quick reference card
@@ -84,7 +90,8 @@ documents/
     ├── 16-lib-errors.md           # VehicleResult, VehicleError, retries, timeouts
     ├── 17-lib-platform-notes.md   # Android / iOS setup, storage, clocks, slots
     ├── 18-lib-troubleshooting.md  # symptom -> cause -> action, logging
-    └── 19-lib-architecture.md     # contributor summary
+    ├── 19-lib-architecture.md     # contributor summary
+    └── 11-lib-user-guide.md       # generated companion of the single-page guide
 ```
 
 ## Upstream references (vehicle-command reference)
