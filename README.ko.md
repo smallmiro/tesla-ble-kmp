@@ -29,7 +29,7 @@
 
 ## 설치 (iOS)
 
-Xcode에서 **File > Add Package Dependencies…**를 선택하고
+Xcode에서 **File > Add Package Dependencies…** 를 선택하고
 
 ```
 https://github.com/smallmiro/tesla-ble-kmp
