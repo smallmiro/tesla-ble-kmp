@@ -50,20 +50,25 @@ final class ConsumerSmokeTests: XCTestCase {
         // Kotlin objects are not Sendable in Swift 6 mode; this test is their only user, so opt out for the Task hand-off.
         nonisolated(unsafe) let vin = try XCTUnwrap(Vin.companion.parseOrNull(value: "5YJS0000000000000"))   // masked test VIN
         nonisolated(unsafe) let ble = self.ble!
-        let scan = Task { () -> String? in
+        let scan = Task { () -> String in
             for await event in ble.scan(vin: vin) {
                 switch onEnum(of: event) {
                 case .found: return "found"
                 case .failed: return "failed"
                 }
             }
-            return nil   // the Flow ended without a value
+            return Task.isCancelled ? "timeout" : "ended"   // cancelled by the watchdog, or the Flow completed without a value
         }
         // The caller owns the time limit (12-lib-getting-started.md: "set a time limit by cancelling the Task").
         let watchdog = Task { try await Task.sleep(nanoseconds: 15_000_000_000); scan.cancel() }
         let first = await scan.value
         watchdog.cancel()
-        XCTAssertNotNil(first, "scan(vin:) gave no first value within 15 s")
+        switch first {
+        case "found", "failed": break
+        case "timeout": XCTFail("scan(vin:) gave no value before the 15 s deadline")
+        case "ended": XCTFail("scan(vin:) ended without giving a value")
+        default: XCTFail("unexpected result: \(String(describing: first))")
+        }
     }
 
     // SKIE turns the sealed VehicleResult into an enum behind onEnum(of:). No default: the compiler proves every case is handled.
