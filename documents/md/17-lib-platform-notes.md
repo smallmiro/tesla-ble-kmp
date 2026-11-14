@@ -54,6 +54,16 @@ the background as unconfirmed:
 - Swift package (`11-lib-overview.md` §Installation): a **static** `Teslable.xcframework` with exactly two slices,
   `ios-arm64` (devices) and `ios-arm64-simulator` (simulator, arm64 only), minimum iOS 16.0. Being static, the library
   code is linked into the app binary.
+- Embedded stub: Xcode embeds the package's framework in the app as `YourApp.app/Frameworks/Teslable.framework` (a
+  Swift package needs no setting for this; it is what Embed & Sign does for a framework added by hand). For a static
+  framework Xcode removes the static library from the embedded copy and injects an empty stub binary (about 33 KB) so
+  the bundle stays valid for the App Store. This is Xcode's intended behaviour, the same for any static binary package:
+  the code is linked into the app binary, and the app never loads the stub. Do not remove it. App Store acceptance is
+  expected but **not yet verified** by this project (no upload made). Checked with Xcode 27.2 (2026-11-14).
+- Crash reports: no separate dSYM ships with the package. The Kotlin debug info is inside the static library, and the
+  app's Release build copies it into the app's dSYM (`YourApp.app.dSYM`), so Kotlin frames symbolicate with file and
+  line (inlined frames included) from the app's dSYM alone. Upload the app's dSYM as usual. Checked with a Release
+  archive of the release check's consumer app (Xcode 27.2).
 - **Simulator: Apple Silicon Mac only.** There is no `x86_64` simulator slice, so an Intel Mac can build for a device
   but cannot run the library in the simulator. A simulator build that also builds `x86_64` fails to link
   (`ld: symbol(s) not found for architecture x86_64`, after `ignoring file … found architecture 'arm64', required
