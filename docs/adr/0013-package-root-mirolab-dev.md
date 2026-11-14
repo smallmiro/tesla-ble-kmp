@@ -15,7 +15,7 @@ PRD D14(Phase 1 Q5-b)는 소유 도메인이 없어서 패키지 루트를 `io.g
 - iOS 샘플 `bundleIdPrefix` → `dev.mirolab`, `PRODUCT_BUNDLE_IDENTIFIER` → `dev.mirolab.TeslableSampleDevice`
 - iOS Keychain 서비스 이름과 Secure Enclave 태그 접두사 → `dev.mirolab.teslable.key`, `dev.mirolab.teslable.session`, `dev.mirolab.teslable.key.`
 
-저장소 URL(`{{REPO_URL}}`)과 GitHub Packages 주소(`{{PACKAGES_MAVEN_URL}}`)는 GitHub 계정 기준이라 그대로 둔다.
+저장소 URL(`{{REPO_URL}}`)과 GitHub Packages 주소(당시 키 `PACKAGES_MAVEN_URL`)는 GitHub 계정 기준이라 그대로 둔다. (2026-11-14 주: ADR-0017이 GitHub Packages를 배포 채널에서 빼면서 그 키를 지웠다. Android는 Maven Central `dev.mirolab` 네임스페이스로 간다.)
 Android Keystore 별칭(`teslable.key:` / `teslable.wrap:`)과 Android 세션 캐시 경로(`filesDir/teslable/sessions`)는 패키지 이름과 무관한 값이라 바꾸지 않는다.
 
 ## 결과
