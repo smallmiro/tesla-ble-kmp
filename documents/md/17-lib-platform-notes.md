@@ -152,7 +152,9 @@ checked on a real iPhone yet, so treat the library behaviour in the background a
   timeout there is `Failure(Timeout(afterSend = false))` because nothing was sent.
 - The guarantee assumes the cache write succeeds and that the app holds **one live connection per vehicle and key**. If
   a write fails, the library logs it, sends the request anyway and the old behaviour can return once. Two connections
-  to the same vehicle with the same key, or another app using the same key, are not protected.
+  to the same vehicle with the same key, or another app using the same key, are not protected. This includes a dropped
+  link: call `disconnect()` on the old `Vehicle` and let it return before you `connect` again, because its final cache
+  write could otherwise land after the new connection's reservation and lower it.
 
 ## Clocks
 

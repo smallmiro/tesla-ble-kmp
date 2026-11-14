@@ -185,8 +185,9 @@ For an app it changes three things:
 - A process that ended without `disconnect()` no longer makes the next process's first request draw
   `INVALID_TOKEN_OR_COUNTER` and a resend about 1.2 s later (`18-lib-troubleshooting.md` lists what can still cause it).
 - The cache write counts against the call's `timeout`. A timeout during it is `Failure(Timeout(afterSend = false))`:
-  nothing was sent and no counter was used. If the cache write fails, the request is still sent and a `WARN` is logged.
-  If the connection is closing, the call returns `Failure(NotConnected)` without sending.
+  nothing was sent and no counter was used. If the cache throws, the request is still sent and a `WARN` is logged. The
+  built-in caches never throw: they log a failed write (`WARN`, tag `cache`) and the library counts it as stored for the
+  next 16 requests. If the connection is closing, the call returns `Failure(NotConnected)` without sending.
 - A session that has used the last counter (`0xFFFFFFFF`, not expected in practice) returns `Failure(NoSession)` without
   sending; call `startSession()` and send again. Go retries that local rollover until the deadline.
 
