@@ -1,63 +1,182 @@
 # tesla-ble-kmp
 
-Tesla 공식 Go SDK [`teslamotors/vehicle-command`](https://github.com/teslamotors/vehicle-command)의 **BLE 경로**를
-**Kotlin Multiplatform(Android + iOS)** 으로 포팅하는 라이브러리입니다.
-서버, Fleet API, OAuth 없이 스마트폰이 차량과 BLE로 직접 통신합니다(키 등록, 상태 조회, 제어).
+**English** | [한국어](README.ko.md)
 
-> 비공식 커뮤니티 프로젝트입니다. Tesla, Inc.와 관련이 없습니다.
-> Unofficial community port of Tesla's `vehicle-command` BLE protocol to Kotlin Multiplatform. Not affiliated with Tesla, Inc.
+Talk to a Tesla over Bluetooth LE from an iPhone or Android app, with no server: a Kotlin Multiplatform port of the BLE
+path of Tesla's Go SDK [`teslamotors/vehicle-command`](https://github.com/teslamotors/vehicle-command).
 
-## 현재 상태
+License: [Apache-2.0](LICENSE)
 
-| 단계 | 상태 |
+> Unofficial community project. Not affiliated with, endorsed by or supported by Tesla, Inc.
+
+## Features
+
+- Scan for a vehicle by VIN and connect over BLE. No Fleet API, no OAuth, no server, no telemetry: the library makes
+  no network calls.
+- Phone key in secure hardware (iOS Secure Enclave, Android StrongBox or TEE), with a software fallback for simulators
+  and emulators. Enroll it on the car with the key card.
+- Read state: `vehicleStatus()` without a key, and `getState()` for 12 Infotainment categories (battery, climate,
+  drive, location…).
+- Commands: lock, unlock, trunk and the other VCSEC commands, and 51 Infotainment commands (climate, charging, windows,
+  media, software update…).
+- Live broadcasts from the car (`vehicle.events`), and a session cache so the next launch skips the handshake.
+- Every call returns a value (`Success`, `Uncertain` or `Failure`), so an app can tell "the car may have done it"
+  from "it did not happen".
+
+## Status
+
+| Platform | Status |
 |---|---|
-| Phase 0 준비 | 완료 (2026-09-26) |
-| Phase 1 PRD | 승인 (2026-09-26) |
-| Phase 2 SDD / Phase 3 계획 | 완료 (2026-09-26) |
-| 구현 (M0~M6) | M0 · M1 · M2 완료 (2026-09-27) · M3 완료 (iOS 실차 확인 2026-10-18, Android 실기기는 미확인) · M4 완료 (실차 확인 대기) · M5 진행 중 (`vehicle.events`, `getState` 먼저 구현, 실차 확인 대기) |
+| iOS | **Available** through Swift Package Manager, version `1.0.0` (iOS 16 or later) |
+| Android | **Coming soon.** Development is complete, but testing on real Android devices is not finished yet. Please wait for the Maven Central release. Until then you can [build from source](documents/md/12-lib-getting-started.md#android-and-jvm-build-from-source) |
 
-M0 골격이 `main`에 있습니다 — 라이브러리 모듈 7개 + 샘플 앱 2개, 프로토콜 코어(TLV, 세션 키, AES-GCM, 프레이밍)가 `protocol.md` 테스트 벡터를 JVM과 iOS 시뮬레이터에서 통과합니다. 원본 PoC는 참고용으로 [`reference/poc/`](reference/poc/)에 남아 있습니다. M2로 디스패처·세션 계층(`:application`)과 `FakeVehicle`이 들어왔고, Go `dispatcher_test`/`vehicle_test`/`vcsec_test` 포팅본과 시나리오 7종이 JVM·iOS 시뮬레이터에서 통과합니다. M3로 BLE 스캔·연결(Kable), 키 보관소(Android Keystore / iOS Secure Enclave·Keychain), 세션 캐시, 공개 파사드(`TeslaBle`/`Vehicle`: 스캔, 연결, 키 목록, VehicleStatus)와 샘플 앱 화면이 들어왔습니다. **M3는 완료됐고 iOS 실차 확인을 마쳤습니다**(2026-10-18, Model Y, Android 실기기는 미확인). M4로 키 등록과 VCSEC 제어 명령(잠금, 해제, 트렁크 등)이 들어왔습니다(실차 확인 대기). M5 가운데 `vehicle.events`와 `getState` 12개 카테고리를 먼저 구현했습니다(실차 확인 대기, `getState`는 #118). 다음은 M5의 나머지인 Infotainment 제어 명령과 `ping()`입니다.
+Some features pass the fake-vehicle tests but are not confirmed on a real car yet, notably the Infotainment commands
+and `getState()`: the checklist is issue [#118](https://github.com/smallmiro/tesla-ble-kmp/issues/118). The state of
+every area is in the "Status" table of [`documents/md/11-lib-overview.md`](documents/md/11-lib-overview.md).
 
-## 문서
+## Installation (iOS)
 
-모든 경로의 정본은 [`docs/PATHS.md`](docs/PATHS.md)입니다. 문서와 지침은 경로를 `{{키}}`로 참조합니다.
+In Xcode choose **File > Add Package Dependencies…**, enter
 
-| 문서 | 내용 |
+```
+https://github.com/smallmiro/tesla-ble-kmp
+```
+
+pick the dependency rule **Up to Next Major Version** from `1.0.0`, and add the `Teslable` product to your app target.
+
+In a `Package.swift`:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/smallmiro/tesla-ble-kmp", from: "1.0.0"),
+],
+targets: [
+    .target(name: "MyApp", dependencies: [.product(name: "Teslable", package: "tesla-ble-kmp")]),
+]
+```
+
+Requirements:
+
+- iOS 16 or later.
+- `NSBluetoothAlwaysUsageDescription` in `Info.plist`. The first scan shows the Bluetooth permission prompt.
+- A static framework, with an arm64 slice for devices and an arm64 slice for the simulator. Use the simulator on an
+  Apple Silicon Mac; for a simulator build of every architecture (for example Release) set
+  `EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64`.
+- The simulator has no Bluetooth: scanning and connecting need a real iPhone. On the simulator the key store works in a
+  signed app (ad-hoc signing is enough).
+
+CocoaPods is not supported (the CocoaPods trunk is read-only from 2026-12-02).
+
+More: [Installation](documents/md/11-lib-overview.md#installation) and
+[platform notes](documents/md/17-lib-platform-notes.md#ios).
+
+## Quick start (Swift)
+
+Swift gets no default arguments from Kotlin, so every argument is passed, including `timeout: nil` and
+`options: ConnectOptions(timeout: nil)`. SKIE turns `suspend` functions into `async throws`, `Flow` into
+`AsyncSequence`, and sealed results into enums for `switch onEnum(of:)`. This is the example from
+[Getting started](documents/md/12-lib-getting-started.md#swift-ios):
+
+```swift
+import Teslable
+
+let ble = TeslaBle.companion.create(
+    platform: PlatformContext(),
+    config: TeslaBleConfig.companion.default(logger: DebugLogger())
+)
+
+func run(vinText: String) async {
+    guard let vin = Vin.companion.parseOrNull(value: vinText) else { return }   // bad format
+
+    // 1) Key
+    var key: VehicleKey?
+    do {
+        let result = try await ble.keys.getOrCreate(alias: VehicleKeyStoreCompanion.shared.DEFAULT_ALIAS, policy: .preferHardware)
+        switch onEnum(of: result) {
+        case .success(let s): key = s.value as? VehicleKey
+        case .uncertain(let u): print("uncertain: \(u.error.message)")
+        case .failure(let f): print("failure: \(f.error.message)")
+        }
+    } catch { print("error: \(error)") }
+
+    // 2) Scan (stop at the first advertisement; set a time limit by cancelling the Task)
+    for await event in ble.scan(vin: vin) {
+        switch onEnum(of: event) {
+        case .found(let f): print("\(f.advertisement.localName.value) rssi=\(f.advertisement.rssi)")
+        case .failed(let e): print("scan failed: \(e.error.message)")
+        }
+        break
+    }
+
+    // 3) Connect and query
+    do {
+        let connected = try await ble.connect(vin: vin, key: key, target: nil, options: ConnectOptions(timeout: nil))
+        switch onEnum(of: connected) {
+        case .success(let s):
+            guard let vehicle = s.value as? Vehicle else { return }
+            let status = try await vehicle.vehicleStatus(timeout: nil)
+            switch onEnum(of: status) {
+            case .success(let v): print("status: \(String(describing: v.value))")
+            case .uncertain(let u): print("uncertain: \(u.error.message)")   // query again, do not resend
+            case .failure(let f): print("failure: \(f.error.message)")
+            }
+            try await vehicle.disconnect()
+        case .uncertain(let u): print("uncertain: \(u.error.message)")
+        case .failure(let f): print("failure: \(f.error.message)")
+        }
+    } catch { print("error: \(error)") }
+}
+```
+
+`DebugLogger()` is for development builds only. Next: pairing a new key (`documents/md/13-lib-pairing.md`), commands
+(`documents/md/15-lib-commands.md`) and error handling (`documents/md/16-lib-errors.md`).
+
+## Android
+
+**Coming soon.** Development is complete, but testing on real Android devices is not finished yet, so there is no
+Android package yet. Please wait for the Maven Central release. Until then, build the library from source inside this
+repository's Gradle build: [Getting started, "Android and JVM: build from source"](documents/md/12-lib-getting-started.md#android-and-jvm-build-from-source).
+
+## Documentation
+
+| Document | For |
 |---|---|
-| [`HANDOFF.md`](HANDOFF.md) | 착수 메타 프롬프트: 결정 사항, 범위, 프로토콜 핵심 사실, 마일스톤 |
-| [`docs/prd/PRD.md`](docs/prd/PRD.md) | 제품 요구사항 (FR/NFR, 우선순위, 릴리스 계획) |
-| [`docs/sdd/SDD.md`](docs/sdd/SDD.md) · [`docs/adr/`](docs/adr/) | 설계 문서 · 아키텍처 결정 기록 |
-| [`docs/superpowers/plans/`](docs/superpowers/plans/) | 로드맵 · 마일스톤 구현 계획 |
-| [`AGENTS.md`](AGENTS.md) · [`CLAUDE.md`](CLAUDE.md) | 코딩 에이전트 공통 지침 / Claude Code 전용 지침 |
-| [`docs/workflow.md`](docs/workflow.md) | 개발 표준: TDD, Tidy First, 헥사고날 아키텍처, 브랜치·검증 게이트·DoD |
-| [`documents/md/`](documents/md/README.md) · [`documents/html/`](documents/html/index.html) | 개발 매뉴얼 (에이전트용 MD는 영어 / 사람용 HTML은 한국어·영어·일본어). `vehicle-command` Go 참고 문서(00~10, 읽기 전용)와 이 라이브러리의 사용 문서(11~19) |
-| `docs/handoff/` | 세션 인계 노트 |
-| [`documents/md/11-lib-overview.md`](documents/md/11-lib-overview.md) · [`documents/html/en/11-lib-overview.html`](documents/html/en/11-lib-overview.html) | 라이브러리 사용 문서 (앱 개발자용) |
+| [`documents/md/11-lib-overview.md`](documents/md/11-lib-overview.md) | Library manual, entry point (Markdown, English): status, installation, which page to read |
+| [`documents/html/en/11-lib-overview.html`](documents/html/en/11-lib-overview.html) ([한국어](documents/html/ko/11-lib-overview.html), [日本語](documents/html/ja/11-lib-overview.html)) | The same manual for people, as static HTML pages: open them in a browser from a clone |
+| [`documents/html/en/11-lib-user-guide.html`](documents/html/en/11-lib-user-guide.html) ([한국어](documents/html/ko/11-lib-user-guide.html), [日本語](documents/html/ja/11-lib-user-guide.html)), [`documents/md/11-lib-user-guide.md`](documents/md/11-lib-user-guide.md) | The complete user guide in one offline page: setup, every method with parameters and examples, result types, all `getState` schemas |
+| [`documents/md/12-lib-getting-started.md`](documents/md/12-lib-getting-started.md) | Adding the library, the whole flow in Kotlin and Swift |
+| [`tools/release/README.md`](tools/release/README.md) | How a version is released (maintainers) |
 
-## 구성
+## Contributing
 
-- `:domain` 순수 Kotlin 프로토콜 모델 (RoutableMessage, Session, Metadata TLV, SlidingWindow, 포트)
-- `:application` Dispatcher, Vehicle 유스케이스
-- `:adapter-ble` Kable · `:adapter-crypto` Android Keystore / iOS Security.framework · `:adapter-storage` 세션 캐시
-- `:sdk` 공개 파사드 (`suspend` + `Flow`, iOS는 SKIE로 Swift async/await)
-- `:testing` 테스트 픽스처 (`protocol.md` 벡터, `FixedRandom`, `TestCrypto`, 테스트 소스셋 전용)
-- `samples/android` (Compose), `samples/ios` (SwiftUI, XcodeGen)
+Contributions follow [`AGENTS.md`](AGENTS.md) (written in Korean; it is the rule book for people and coding agents):
 
-패키지 루트: `dev.mirolab.teslable`. 최소 지원: Android API 31, iOS 16.
-빌드·검증 명령은 [`AGENTS.md`](AGENTS.md) §6 참조.
+- Write the failing test first. Keep structural changes and behaviour changes in separate commits (`struct:` before
+  `feat:`). `main` is always green.
+- Run [`tools/ci/verify.sh`](tools/ci/verify.sh) on a Mac before you push or merge: it is the local gate and replaces CI
+  (ADR-0012). Fill in the [pull request template](.github/pull_request_template.md); a pull request needs a passing
+  `verify.sh`, an AI code review and updated library docs, and is merged with a rebase merge (no squash).
+- The source of truth for protocol behaviour is `vehicle-command` at commit `a4b43c1` and its `pkg/protocol/protocol.md`.
+- Do not read or copy code from AGPL-licensed implementations (for example `yoziru/tesla-ble`).
+- Every path is defined once in [`docs/PATHS.md`](docs/PATHS.md); documents refer to paths by `{{KEY}}`.
 
-## 배포 (예정, M6)
+Modules: `:domain` (protocol model and ports, pure Kotlin), `:application` (dispatcher, sessions), `:adapter-ble`
+(Kable), `:adapter-crypto` (Android Keystore, iOS Security framework), `:adapter-storage` (session cache), `:sdk`
+(public facade; Swift through SKIE), `:testing` (test fixtures). Sample apps: `samples/android` (Compose) and
+`samples/ios` (SwiftUI, XcodeGen). Package root `dev.mirolab.teslable`.
 
-- Android/KMP: GitHub Packages Maven 레지스트리 `https://maven.pkg.github.com/smallmiro/tesla-ble-kmp` (받을 때 `read:packages` 권한의 GitHub 토큰 필요)
-- iOS: Swift Package Manager (`Package.swift` + GitHub Release XCFramework)
+| Document | Contents |
+|---|---|
+| [`HANDOFF.md`](HANDOFF.md) | Project brief: decisions, scope, protocol facts, milestones |
+| [`docs/prd/PRD.md`](docs/prd/PRD.md) | Requirements (FR/NFR, release plan) |
+| [`docs/sdd/SDD.md`](docs/sdd/SDD.md), [`docs/adr/`](docs/adr/) | Design and architecture decision records |
+| [`docs/workflow.md`](docs/workflow.md) | Development standard: TDD, Tidy First, branches, verification gate, definition of done |
+| [`documents/md/README.md`](documents/md/README.md) | Development manual for agents: the Go `vehicle-command` reference (`00`–`10`) and this library's manual (`11`–`19`) |
 
-## 기여
+The planning and design documents in `docs/` are written in Korean; the library manual has English, Korean and
+Japanese editions.
 
-- 규칙은 [`AGENTS.md`](AGENTS.md)를 따릅니다. 실패 테스트 먼저, 구조 변경과 동작 변경 분리, `main`은 항상 Green.
-- PR은 [템플릿](.github/pull_request_template.md)을 채우고, `tools/ci/verify.sh` 통과 + AI 코드 리뷰 통과 후 rebase merge 합니다.
-- 동작의 정답 기준은 `vehicle-command` 커밋 `a4b43c1`과 `pkg/protocol/protocol.md`입니다.
-- AGPL 라이선스 구현체(예: `yoziru/tesla-ble`)의 코드는 열람하거나 복사하지 않습니다.
+## License
 
-## 라이선스
-
-[Apache License 2.0](LICENSE). 원본 저작권 고지는 [`NOTICE`](NOTICE)를 참조하세요.
+[Apache License 2.0](LICENSE). This project ports code from Tesla's `vehicle-command` (Apache-2.0); see
+[`NOTICE`](NOTICE) for the attribution.
