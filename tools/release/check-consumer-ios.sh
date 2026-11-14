@@ -6,6 +6,7 @@
 #     tools/release/check-consumer-ios.sh --remote <version> 게시된 릴리스 검사: build-xcframework.sh를 부르지 않고 build/release/ 를 건드리지 않는다.
 #                                                            소비자를 임시 폴더로 복사해 패키지 의존을 https://github.com/smallmiro/tesla-ble-kmp
 #                                                            exact: <version> 으로 바꿔 빌드한다. 그 버전이 없으면 바로 실패한다.
+#                                                            <version> 은 X.Y.Z 만 받는다 (prepare.sh·publish.sh 와 같은 release-lib.sh 규칙)
 #   검사 (하나라도 실패하면 exit 1):
 #     1) xcodegen generate
 #     2) xcodebuild build -destination 'generic/platform=iOS'                      기기용 링크 (CryptoKit·Swift 런타임 심볼 누락 확인)
@@ -22,8 +23,11 @@ if [ "$(uname -s)" != "Darwin" ]; then
 fi
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
+SCRIPT_NAME="check-consumer-ios"
+# REPO_URL 과 check_version(X.Y.Z, prepare.sh·publish.sh 와 같은 규칙)을 쓴다. 다른 함수는 부르지 않는다.
+# shellcheck source=tools/release/release-lib.sh
+. "$ROOT/tools/release/release-lib.sh"
 CONSUMER_SRC="$ROOT/tools/release/consumer-ios"
-REPO_URL="https://github.com/smallmiro/tesla-ble-kmp"
 SIM_DESTINATION="platform=iOS Simulator,name=iPhone 17"
 LOCAL_XCF="$ROOT/build/release/Teslable.xcframework"
 
@@ -52,9 +56,7 @@ if [ -n "$remote_version" ] && [ "$no_build" -eq 1 ]; then
   echo "check-consumer-ios: --no-build does not apply to --remote (remote never builds)" >&2
   usage
 fi
-if [ -n "$remote_version" ] && ! printf '%s' "$remote_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-+][0-9A-Za-z.+-]+)?$'; then
-  fail "--remote version must look like 1.0.0 (SemVer, no leading v): got '$remote_version'"
-fi
+[ -z "$remote_version" ] || check_version "$remote_version"
 
 command -v xcodegen >/dev/null 2>&1 || fail "xcodegen not found (brew install xcodegen)"
 [ -f "$CONSUMER_SRC/project.yml" ] || fail "missing $CONSUMER_SRC/project.yml"

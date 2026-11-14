@@ -13,8 +13,8 @@ The iOS library ships as a static `Teslable.xcframework` in a zip attached to a 
 | `check-consumer-ios.sh` | Builds an isolated consumer app (`consumer-ios/`) that links the XCFramework through SwiftPM: device build, a Release device archive whose app dSYM must hold the Kotlin debug info, and 4 simulator tests. No arguments: rebuilds first. `--no-build`: uses `build/release/`. `--remote <version>`: uses the published package. |
 | `prepare.sh <version>` | Release phase 1: a branch with one commit that writes `Package.swift`. |
 | `publish.sh <version>` | Release phase 2: tag, GitHub Release, remote checks. |
-| `release-lib.sh` | Values and functions shared by `prepare.sh` and `publish.sh` (sourced, not run). |
-| `test_release_scripts.sh` | Offline tests of `prepare.sh` and `publish.sh` (temporary git repositories, stand-ins for `gh`, `curl` and the build scripts). Part of `tools/ci/verify.sh`. |
+| `release-lib.sh` | Values and functions shared by `prepare.sh` and `publish.sh` (sourced, not run). `check-consumer-ios.sh` takes the repository URL and the `X.Y.Z` version check from it too. |
+| `test_release_scripts.sh` | Offline tests of `prepare.sh` and `publish.sh` (temporary git repositories, stand-ins for `gh`, `curl` and the build scripts), plus the argument checks of `check-consumer-ios.sh`. Part of `tools/ci/verify.sh`. |
 
 ## Requirements
 

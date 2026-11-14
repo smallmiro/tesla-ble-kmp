@@ -1,6 +1,7 @@
 # shellcheck shell=bash
 # tools/release/release-lib.sh — prepare.sh 와 publish.sh 가 함께 쓰는 값과 함수 (ADR-0017). 실행하지 않고 source 한다.
 #   부르는 쪽이 먼저 정한다: SCRIPT_NAME (메시지 머리말), WORK_TMP (임시 폴더, 끝나면 지운다). 현재 폴더는 저장소 루트.
+#   check-consumer-ios.sh 도 source 하지만 REPO_URL 과 check_version 만 쓴다 (SCRIPT_NAME 만 정한다).
 #   bash 3.2 (macOS 기본) 에서 돈다: 연관 배열, mapfile, ${var,,} 를 쓰지 않고, 빈 배열을 펼치지 않는다.
 
 # shellcheck disable=SC2034 # 아래 값 중 일부는 이 파일을 source 하는 스크립트만 쓴다
