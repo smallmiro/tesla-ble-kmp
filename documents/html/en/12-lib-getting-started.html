@@ -55,9 +55,10 @@
 </nav>
 <main class="content">
 <h1>12. Getting Started with the Library</h1>
-<p class="lead">Walks through the whole flow: create the library, get a key, find the car, connect, read its state and disconnect. The last two sections show pairing a new key and sending the first command (M4), and receiving the car's broadcasts.</p>
+<p class="lead">Starts with adding the library to your app, then walks through the whole flow: create the library, get a key, find the car, connect, read its state and disconnect. The last two sections show pairing a new key and sending the first command (M4), and receiving the car's broadcasts.</p>
 
 <div class="toc"><strong>On this page</strong><ol>
+<li><a href="#sec-install">Add the library</a></li>
 <li><a href="#sec-flow">The flow</a></li>
 <li><a href="#sec-rules">Five rules</a></li>
 <li><a href="#sec-kotlin">Kotlin (Android)</a></li>
@@ -67,6 +68,49 @@
 <li><a href="#sec-events">Broadcast events</a></li>
 <li><a href="#sec-next">Next steps</a></li>
 </ol></div>
+
+<h2 id="sec-install">Add the library</h2>
+<h3>iOS: Swift Package Manager</h3>
+<ol class="steps">
+<li>In Xcode choose <strong>File &gt; Add Package Dependencies…</strong> and enter <code>https://github.com/smallmiro/tesla-ble-kmp</code>.</li>
+<li>Choose the dependency rule <strong>Up to Next Major Version</strong> from <code>1.0.0</code>, and add the library product <code>Teslable</code> to your app target.</li>
+<li>Set the app's deployment target to iOS 16.0 or later, and add <code>NSBluetoothAlwaysUsageDescription</code> to <code>Info.plist</code> (<a href="17-lib-platform-notes.html#sec-ios">Platform Notes</a>).</li>
+<li>Use the simulator on an Apple Silicon Mac. If a simulator build builds every architecture, for example a Release build, set <code>EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64</code> on the app target.</li>
+<li>Write <code>import Teslable</code> and continue with <a href="#sec-swift">Swift (iOS)</a> below.</li>
+</ol>
+<p>A Swift package that depends on the library:</p>
+<pre><code class="language-swift"><span class="c">// swift-tools-version:5.9</span>
+<span class="k">import</span> <span class="t">PackageDescription</span>
+
+<span class="k">let</span> package = <span class="t">Package</span>(
+    name: <span class="s">"VehicleFeature"</span>,
+    platforms: [.<span class="f">iOS</span>(.v16)],
+    products: [.<span class="f">library</span>(name: <span class="s">"VehicleFeature"</span>, targets: [<span class="s">"VehicleFeature"</span>])],
+    dependencies: [
+        .<span class="f">package</span>(url: <span class="s">"https://github.com/smallmiro/tesla-ble-kmp"</span>, from: <span class="s">"1.0.0"</span>),
+    ],
+    targets: [
+        .<span class="f">target</span>(name: <span class="s">"VehicleFeature"</span>, dependencies: [.<span class="f">product</span>(name: <span class="s">"Teslable"</span>, package: <span class="s">"tesla-ble-kmp"</span>)]),
+    ]
+)</code></pre>
+<ul>
+<li>The package has one product, <code>Teslable</code>: a static XCFramework for devices (<code>ios-arm64</code>) and for the simulator on Apple Silicon Macs (<code>ios-arm64-simulator</code>). There is nothing to build from source.</li>
+<li>In <code>.product(name:package:)</code>, <code>package</code> is the identity taken from the URL, <code>tesla-ble-kmp</code>, not the package name.</li>
+<li><strong>Up to Next Major Version</strong> accepts 1.x releases only; a release that breaks the public API is a new major version.</li>
+<li>The sample app in this repository does not use the package: it links a framework built from source (<code>samples/ios/README.md</code>).</li>
+<li>CocoaPods is not supported.</li>
+</ul>
+<h3>Android and JVM: build from source</h3>
+<p>Not published yet: development is complete, the check on a real Android device is not finished, and Maven Central comes in stage 2 of M6. Until then, the verified way is an app module inside this repository's Gradle build that depends on <code>:sdk</code>. Copying the <code>:sdk</code> folder alone does not build, because it needs the other library modules and the build plugins.</p>
+<pre><code class="language-bash"><span class="f">git</span> clone https://github.com/smallmiro/tesla-ble-kmp
+<span class="f">cd</span> tesla-ble-kmp
+./gradlew :sdk:assemble
+./gradlew :samples:android:assembleDebug</code></pre>
+<pre><code class="language-kotlin"><span class="c">// build.gradle.kts of an app module included in this repository's settings.gradle.kts</span>
+<span class="f">dependencies</span> {
+    <span class="f">implementation</span>(<span class="f">project</span>(<span class="s">":sdk"</span>))
+}</code></pre>
+<p>Set the app's <code>minSdk</code> to 31 or higher. Permissions and backup rules: <a href="17-lib-platform-notes.html#sec-android">Platform Notes</a>.</p>
 
 <h2 id="sec-flow">The flow</h2>
 <ol class="steps">

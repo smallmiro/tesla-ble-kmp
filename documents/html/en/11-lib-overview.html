@@ -67,7 +67,7 @@
 </ol></div>
 
 <h2 id="sec-status">What works today</h2>
-<p>The library is built milestone by milestone. These pages describe the code on <code>main</code>, which is at <strong>M4</strong>, plus the broadcast events and the key accessibility choice from issue #91, and the library part of M5: <code>getState()</code> and all 51 infotainment commands.</p>
+<p>The library is built milestone by milestone. These pages describe the code on <code>main</code>: <strong>M0 to M5</strong> (the protocol core, scanning and connecting, keys and pairing, reading state with <code>getState()</code> and all 51 infotainment commands), the broadcast events and the key accessibility choice from issue #91, and <strong>stage 1 of M6</strong>: the iOS Swift package.</p>
 <table>
 <thead><tr><th>Area</th><th>Milestone</th><th>State</th><th>Page</th></tr></thead>
 <tbody>
@@ -82,7 +82,8 @@
 <tr><td>Saved session counter reserved before use: after the app ended without <code>disconnect()</code>, the first request of the next launch is no longer refused once (FR-017, ADR-0016; no API change)</td><td>H17 (not part of M5)</td><td><span class="badge ok">Done</span> checked with FakeVehicle tests; real-vehicle check pending</td><td><a href="17-lib-platform-notes.html#sec-cache">17</a>, <a href="19-lib-architecture.html#sec-cache">19</a>, <a href="16-lib-errors.html">16</a></td></tr>
 <tr><td>Infotainment commands: 51 methods for climate, charging and power, the charge port, windows and sunroof, horn and lights, sentry and valet mode, media, software updates and <code>ping()</code> (FR-034, FR-050–053, FR-060–085, FR-090–092)</td><td>M5</td><td><span class="badge ok">Done</span> checked with FakeVehicle tests and a Swift typecheck; real-vehicle check pending (#118)</td><td><a href="15-lib-commands.html#sec-cc">15</a>, <a href="16-lib-errors.html#sec-invalid-argument">16</a>, <a href="17-lib-platform-notes.html#sec-swift-commands">17</a></td></tr>
 <tr><td>Climate and charging in the sample apps (SFR-001, SFR-002, SFR-025)</td><td>M5</td><td><span class="badge ok">Done</span> Android and iOS sample unit tests; real-device check pending (#118)</td><td>Sample app specification (<code>samples/documents/</code>)</td></tr>
-<tr><td>Packages: GitHub Packages and Swift Package Manager</td><td>M6</td><td><span class="badge warn">Planned</span></td><td><a href="#sec-install">Installation</a></td></tr>
+<tr><td>Package for iOS: Swift Package Manager, a static <code>Teslable.xcframework</code> attached to a GitHub Release (ADR-0017)</td><td>M6 stage 1</td><td><span class="badge ok">Done</span> first release <code>1.0.0</code> pending; checked with an isolated consumer app (device build and simulator tests)</td><td><a href="#sec-install">Installation</a>, <a href="12-lib-getting-started.html#sec-install">12</a>, <a href="17-lib-platform-notes.html#sec-ios">17</a></td></tr>
+<tr><td>Packages for Android and JVM: Maven Central</td><td>M6 stage 2</td><td><span class="badge warn">Planned</span> development is complete, but the check on a real Android device is not finished. Build from source until then</td><td><a href="#sec-install">Installation</a></td></tr>
 </tbody>
 </table>
 <div class="callout warn">
@@ -95,24 +96,50 @@
 <li>Android 12 (API 31) or later and iOS 16 or later. The app is expected to be in the foreground.</li>
 <li>A JVM target exists for tests and experiments. Its keys and session cache live in memory only.</li>
 <li>Package root <code>dev.mirolab.teslable</code>: the facade in <code>dev.mirolab.teslable</code>, values and results in <code>dev.mirolab.teslable.model</code>, the key store, scanning and logging in <code>dev.mirolab.teslable.port</code>. Wire generated protocol types are in <code>com.tesla.generated.*</code>, for example <code>com.tesla.generated.carserver.vehicle.VehicleData</code>.</li>
-<li>The iOS framework is <code>Teslable</code>. Swift sees Kotlin through SKIE (<code>async</code> functions, <code>AsyncSequence</code>, <code>onEnum(of:)</code>).</li>
+<li>The iOS framework is <code>Teslable</code>. Swift sees Kotlin through SKIE (<code>async</code> functions, <code>AsyncSequence</code>, <code>onEnum(of:)</code>). It ships as a Swift package: a static XCFramework for devices (<code>ios-arm64</code>) and for the simulator on Apple Silicon Macs (<code>ios-arm64-simulator</code>).</li>
+<li>Android and JVM are not published yet (Maven Central in stage 2 of M6). Build them from source.</li>
 </ul>
 
 <h2 id="sec-install">Installation</h2>
-<p>The library is not published yet; M6 adds GitHub Packages and Swift Package Manager. For now, build it from source:</p>
+<h3>iOS: Swift Package Manager</h3>
+<p>The iOS library is a Swift package. The <code>Package.swift</code> at the root of the repository points at a static <code>Teslable.xcframework</code> attached to each GitHub Release, so the package URL is the repository URL.</p>
+<ol class="steps">
+<li>In Xcode choose <strong>File &gt; Add Package Dependencies…</strong> and enter <code>https://github.com/smallmiro/tesla-ble-kmp</code>.</li>
+<li>Choose the dependency rule <strong>Up to Next Major Version</strong> from <code>1.0.0</code>, and add the product <code>Teslable</code> to your app target.</li>
+<li>Write <code>import Teslable</code> in your Swift code.</li>
+</ol>
+<p>In a <code>Package.swift</code>, use these two lines:</p>
+<pre><code class="language-swift">.<span class="f">package</span>(url: <span class="s">"https://github.com/smallmiro/tesla-ble-kmp"</span>, from: <span class="s">"1.0.0"</span>)
+<span class="c">// in the target's dependencies:</span>
+.<span class="f">product</span>(name: <span class="s">"Teslable"</span>, package: <span class="s">"tesla-ble-kmp"</span>)</code></pre>
+<ul>
+<li><strong>Requirements:</strong> iOS 16 or later, and <code>NSBluetoothAlwaysUsageDescription</code> in <code>Info.plist</code>. The framework is static.</li>
+<li><strong>Simulator:</strong> Apple Silicon Macs only. A simulator build of every architecture, such as a Release build, needs <code>EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64</code>. See <a href="17-lib-platform-notes.html#sec-ios">17. Platform Notes</a>.</li>
+<li><strong>Versions</strong> follow semantic versioning: a release that breaks the public API is a new major version, so <strong>Up to Next Major Version</strong> takes only compatible releases.</li>
+<li><strong>CocoaPods is not supported.</strong> The CocoaPods trunk is read-only from 2026-12-02.</li>
+</ul>
+<p>Step by step, with a complete package manifest: <a href="12-lib-getting-started.html#sec-install">12. Getting Started</a>.</p>
+
+<h3>Build from source (Android, JVM, contributors)</h3>
+<p>Android and JVM are not published yet. Development is complete, but the check on a real Android device is not finished; Maven Central comes in stage 2 of M6. Until then, build inside this repository's Gradle build (<a href="12-lib-getting-started.html#sec-install">12. Getting Started</a>):</p>
 <table>
 <thead><tr><th>Target</th><th>Command</th></tr></thead>
 <tbody>
 <tr><td>Android / JVM</td><td><code>./gradlew :sdk:assemble</code></td></tr>
-<tr><td>iOS simulator framework</td><td><code>./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64</code></td></tr>
+<tr><td>iOS simulator framework, for work on the library and the sample app</td><td><code>./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64</code></td></tr>
 <tr><td>Sample apps</td><td><code>samples/android</code> (Gradle module), <code>samples/ios</code> (<code>xcodegen generate</code>, see <code>samples/ios/README.md</code>)</td></tr>
 </tbody>
 </table>
+<div class="callout warn">
+<strong>Real-vehicle check pending</strong>
+<p>Version 1.0.0 includes features that pass the FakeVehicle tests but are not confirmed on a real car yet, notably the infotainment commands and <code>getState()</code> (checklist: issue #118). Android has not been checked on a real device yet. The table in <a href="#sec-status">What works today</a> gives the state of each area.</p>
+</div>
 
 <h2 id="sec-map">Which page to read</h2>
 <table>
 <thead><tr><th>You want to…</th><th>Read</th></tr></thead>
 <tbody>
+<tr><td>Add the library to your app (iOS Swift package, Android source build)</td><td><a href="#sec-install">Installation</a>, <a href="12-lib-getting-started.html#sec-install">12. Getting Started</a>, <a href="17-lib-platform-notes.html#sec-ios">17. Platform Notes</a></td></tr>
 <tr><td>Scan, connect and show the vehicle state in an app</td><td><a href="12-lib-getting-started.html">12. Getting Started</a>, <a href="14-lib-reading-state.html">14. Reading Vehicle State</a></td></tr>
 <tr><td>Show live state from the car's broadcasts</td><td><a href="12-lib-getting-started.html#sec-events">12. Getting Started</a>, <a href="14-lib-reading-state.html#sec-b-library">14. Reading Vehicle State</a></td></tr>
 <tr><td>Read infotainment state with <code>getState</code> (battery, climate, speed, location…)</td><td><a href="14-lib-reading-state.html#sec-a-getstate">14. Reading Vehicle State</a>, <a href="16-lib-errors.html#sec-getstate">16. Error Handling</a>, <a href="17-lib-platform-notes.html#sec-swift-generated">17. Platform Notes</a></td></tr>

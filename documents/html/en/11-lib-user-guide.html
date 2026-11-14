@@ -452,7 +452,7 @@ main.content { min-width:0; width:100%; max-width:none; margin:0; padding:36px 4
 <a class="skip-link" href="#guide-top">Tesla BLE KMP User Guide</a>
 <header class="guide-header"><strong>Teslable / BLE SDK</strong><div class="languages"><a href="../ko/11-lib-user-guide.html" lang="ko">한국어</a><a href="../en/11-lib-user-guide.html" lang="en" aria-current="page">English</a><a href="../ja/11-lib-user-guide.html" lang="ja">日本語</a></div><button id="print-guide" type="button">Print / save PDF</button></header>
 <div class="guide-layout"><nav class="guide-nav" aria-label="Contents"><strong>Contents</strong><a href="#setup">Installation and project setup</a><a href="#api">Method-by-method API reference</a><a href="#models">Classes and returned data structures</a><a href="#schemas">Full getState field schemas</a><a href="#ch11">11. Library Overview</a><a href="#ch12">12. Getting Started with the Library</a><a href="#ch13">13. Keys and Pairing</a><a href="#ch14">14. Reading Vehicle State</a><a href="#ch15">15. Commands</a><a href="#ch16">16. Error Handling</a><a href="#ch17">17. Platform Notes</a><a href="#ch18">18. Troubleshooting</a><a href="#ch19">19. Architecture</a></nav>
-<main class="content" id="guide-top"><div class="guide-intro"><h1>Tesla BLE KMP User Guide</h1><p class="lead">From installation to key enrollment, state queries and every control API. Instructions and examples for app developers in one document.</p><p class="guide-meta">M6 stage 1 (iOS Swift package) · Android 12+ · iOS 16+<br>Source revision: <code>aaca9cd</code><br>Styles and scripts are embedded for offline use. Switching languages requires the other language files.</p></div>
+<main class="content" id="guide-top"><div class="guide-intro"><h1>Tesla BLE KMP User Guide</h1><p class="lead">From installation to key enrollment, state queries and every control API. Instructions and examples for app developers in one document.</p><p class="guide-meta">M6 stage 1 (iOS Swift package) · Android 12+ · iOS 16+<br>Source revision: <code>3b3f2d9</code><br>Styles and scripts are embedded for offline use. Switching languages requires the other language files.</p></div>
 <section class="chapter" id="setup"><h2>Installation and project setup</h2><p>The iOS library is published as a Swift package from version 1.0.0. Android and JVM are not published yet (Maven Central comes later): build them from a source checkout and do not invent Maven coordinates. CocoaPods is not supported. Dependency downloads need Internet access during a build; vehicle communication uses BLE only.</p>
 <h3>iOS: Swift Package Manager</h3><p>In Xcode choose File &gt; Add Package Dependencies, enter the URL below, choose the dependency rule Up to Next Major Version from 1.0.0, and add the Teslable product to the app target. In a Package.swift, add the package to dependencies and the product to the dependencies of your target.</p><pre><code class="language-swift">.<span class="f">package</span>(url: <span class="s">"https://github.com/smallmiro/tesla-ble-kmp"</span>, from: <span class="s">"1.0.0"</span>)
 .<span class="f">product</span>(name: <span class="s">"Teslable"</span>, package: <span class="s">"tesla-ble-kmp"</span>)</code></pre><p>Requirements: iOS 16 or later and NSBluetoothAlwaysUsageDescription in Info.plist. The framework is static, with an arm64 device slice and an arm64 simulator slice only: use the simulator on an Apple Silicon Mac, and set EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64 for simulator builds of every architecture (for example Release). The simulator has no Bluetooth, so scanning and connecting need a real iPhone, and its Keychain needs a signed app (ad-hoc signing is enough). Details are in <a href="#ch17">Platform notes</a> and <a href="#ch18">Troubleshooting</a>.</p><p>Then import Teslable. Swift gets no Kotlin default-argument overloads, so pass every argument, including timeout: nil. Use withSeconds and Timeouts for time limits. Full Swift examples are in <a href="#ch12">Getting started</a> and <a href="#ch17">Platform notes</a>. The configuration below does not log.</p><pre><code class="language-swift"><span class="k">import</span> <span class="t">Teslable</span>
@@ -2688,7 +2688,7 @@ message PreconditionSchedule {
 </ol></div>
 
 <h3 id="ch11-sec-status">What works today</h3>
-<p>The library is built milestone by milestone. These pages describe the code on <code>main</code>, which is at <strong>M4</strong>, plus the broadcast events and the key accessibility choice from issue #91, and the library part of M5: <code>getState()</code> and all 51 infotainment commands.</p>
+<p>The library is built milestone by milestone. These pages describe the code on <code>main</code>: <strong>M0 to M5</strong> (the protocol core, scanning and connecting, keys and pairing, reading state with <code>getState()</code> and all 51 infotainment commands), the broadcast events and the key accessibility choice from issue #91, and <strong>stage 1 of M6</strong>: the iOS Swift package.</p>
 <table>
 <thead><tr><th>Area</th><th>Milestone</th><th>State</th><th>Page</th></tr></thead>
 <tbody>
@@ -2703,7 +2703,8 @@ message PreconditionSchedule {
 <tr><td>Saved session counter reserved before use: after the app ended without <code>disconnect()</code>, the first request of the next launch is no longer refused once (FR-017, ADR-0016; no API change)</td><td>H17 (not part of M5)</td><td><span class="badge ok">Done</span> checked with FakeVehicle tests; real-vehicle check pending</td><td><a href="#ch17-sec-cache">17</a>, <a href="#ch19-sec-cache">19</a>, <a href="#ch16">16</a></td></tr>
 <tr><td>Infotainment commands: 51 methods for climate, charging and power, the charge port, windows and sunroof, horn and lights, sentry and valet mode, media, software updates and <code>ping()</code> (FR-034, FR-050–053, FR-060–085, FR-090–092)</td><td>M5</td><td><span class="badge ok">Done</span> checked with FakeVehicle tests and a Swift typecheck; real-vehicle check pending (#118)</td><td><a href="#ch15-sec-cc">15</a>, <a href="#ch16-sec-invalid-argument">16</a>, <a href="#ch17-sec-swift-commands">17</a></td></tr>
 <tr><td>Climate and charging in the sample apps (SFR-001, SFR-002, SFR-025)</td><td>M5</td><td><span class="badge ok">Done</span> Android and iOS sample unit tests; real-device check pending (#118)</td><td>Sample app specification (<code>samples/documents/</code>)</td></tr>
-<tr><td>Packages: GitHub Packages and Swift Package Manager</td><td>M6</td><td><span class="badge warn">Planned</span></td><td><a href="#ch11-sec-install">Installation</a></td></tr>
+<tr><td>Package for iOS: Swift Package Manager, a static <code>Teslable.xcframework</code> attached to a GitHub Release (ADR-0017)</td><td>M6 stage 1</td><td><span class="badge ok">Done</span> first release <code>1.0.0</code> pending; checked with an isolated consumer app (device build and simulator tests)</td><td><a href="#ch11-sec-install">Installation</a>, <a href="#ch12-sec-install">12</a>, <a href="#ch17-sec-ios">17</a></td></tr>
+<tr><td>Packages for Android and JVM: Maven Central</td><td>M6 stage 2</td><td><span class="badge warn">Planned</span> development is complete, but the check on a real Android device is not finished. Build from source until then</td><td><a href="#ch11-sec-install">Installation</a></td></tr>
 </tbody>
 </table>
 <div class="callout warn">
@@ -2716,24 +2717,50 @@ message PreconditionSchedule {
 <li>Android 12 (API 31) or later and iOS 16 or later. The app is expected to be in the foreground.</li>
 <li>A JVM target exists for tests and experiments. Its keys and session cache live in memory only.</li>
 <li>Package root <code>dev.mirolab.teslable</code>: the facade in <code>dev.mirolab.teslable</code>, values and results in <code>dev.mirolab.teslable.model</code>, the key store, scanning and logging in <code>dev.mirolab.teslable.port</code>. Wire generated protocol types are in <code>com.tesla.generated.*</code>, for example <code>com.tesla.generated.carserver.vehicle.VehicleData</code>.</li>
-<li>The iOS framework is <code>Teslable</code>. Swift sees Kotlin through SKIE (<code>async</code> functions, <code>AsyncSequence</code>, <code>onEnum(of:)</code>).</li>
+<li>The iOS framework is <code>Teslable</code>. Swift sees Kotlin through SKIE (<code>async</code> functions, <code>AsyncSequence</code>, <code>onEnum(of:)</code>). It ships as a Swift package: a static XCFramework for devices (<code>ios-arm64</code>) and for the simulator on Apple Silicon Macs (<code>ios-arm64-simulator</code>).</li>
+<li>Android and JVM are not published yet (Maven Central in stage 2 of M6). Build them from source.</li>
 </ul>
 
 <h3 id="ch11-sec-install">Installation</h3>
-<p>The library is not published yet; M6 adds GitHub Packages and Swift Package Manager. For now, build it from source:</p>
+<h4>iOS: Swift Package Manager</h4>
+<p>The iOS library is a Swift package. The <code>Package.swift</code> at the root of the repository points at a static <code>Teslable.xcframework</code> attached to each GitHub Release, so the package URL is the repository URL.</p>
+<ol class="steps">
+<li>In Xcode choose <strong>File &gt; Add Package Dependencies…</strong> and enter <code>https://github.com/smallmiro/tesla-ble-kmp</code>.</li>
+<li>Choose the dependency rule <strong>Up to Next Major Version</strong> from <code>1.0.0</code>, and add the product <code>Teslable</code> to your app target.</li>
+<li>Write <code>import Teslable</code> in your Swift code.</li>
+</ol>
+<p>In a <code>Package.swift</code>, use these two lines:</p>
+<pre><code class="language-swift">.<span class="f">package</span>(url: <span class="s">"https://github.com/smallmiro/tesla-ble-kmp"</span>, from: <span class="s">"1.0.0"</span>)
+<span class="c">// in the target's dependencies:</span>
+.<span class="f">product</span>(name: <span class="s">"Teslable"</span>, package: <span class="s">"tesla-ble-kmp"</span>)</code></pre>
+<ul>
+<li><strong>Requirements:</strong> iOS 16 or later, and <code>NSBluetoothAlwaysUsageDescription</code> in <code>Info.plist</code>. The framework is static.</li>
+<li><strong>Simulator:</strong> Apple Silicon Macs only. A simulator build of every architecture, such as a Release build, needs <code>EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64</code>. See <a href="#ch17-sec-ios">17. Platform Notes</a>.</li>
+<li><strong>Versions</strong> follow semantic versioning: a release that breaks the public API is a new major version, so <strong>Up to Next Major Version</strong> takes only compatible releases.</li>
+<li><strong>CocoaPods is not supported.</strong> The CocoaPods trunk is read-only from 2026-12-02.</li>
+</ul>
+<p>Step by step, with a complete package manifest: <a href="#ch12-sec-install">12. Getting Started</a>.</p>
+
+<h4>Build from source (Android, JVM, contributors)</h4>
+<p>Android and JVM are not published yet. Development is complete, but the check on a real Android device is not finished; Maven Central comes in stage 2 of M6. Until then, build inside this repository's Gradle build (<a href="#ch12-sec-install">12. Getting Started</a>):</p>
 <table>
 <thead><tr><th>Target</th><th>Command</th></tr></thead>
 <tbody>
 <tr><td>Android / JVM</td><td><code>./gradlew :sdk:assemble</code></td></tr>
-<tr><td>iOS simulator framework</td><td><code>./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64</code></td></tr>
+<tr><td>iOS simulator framework, for work on the library and the sample app</td><td><code>./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64</code></td></tr>
 <tr><td>Sample apps</td><td><code>samples/android</code> (Gradle module), <code>samples/ios</code> (<code>xcodegen generate</code>, see <code>samples/ios/README.md</code>)</td></tr>
 </tbody>
 </table>
+<div class="callout warn">
+<strong>Real-vehicle check pending</strong>
+<p>Version 1.0.0 includes features that pass the FakeVehicle tests but are not confirmed on a real car yet, notably the infotainment commands and <code>getState()</code> (checklist: issue #118). Android has not been checked on a real device yet. The table in <a href="#ch11-sec-status">What works today</a> gives the state of each area.</p>
+</div>
 
 <h3 id="ch11-sec-map">Which page to read</h3>
 <table>
 <thead><tr><th>You want to…</th><th>Read</th></tr></thead>
 <tbody>
+<tr><td>Add the library to your app (iOS Swift package, Android source build)</td><td><a href="#ch11-sec-install">Installation</a>, <a href="#ch12-sec-install">12. Getting Started</a>, <a href="#ch17-sec-ios">17. Platform Notes</a></td></tr>
 <tr><td>Scan, connect and show the vehicle state in an app</td><td><a href="#ch12">12. Getting Started</a>, <a href="#ch14">14. Reading Vehicle State</a></td></tr>
 <tr><td>Show live state from the car's broadcasts</td><td><a href="#ch12-sec-events">12. Getting Started</a>, <a href="#ch14-sec-b-library">14. Reading Vehicle State</a></td></tr>
 <tr><td>Read infotainment state with <code>getState</code> (battery, climate, speed, location…)</td><td><a href="#ch14-sec-a-getstate">14. Reading Vehicle State</a>, <a href="#ch16-sec-getstate">16. Error Handling</a>, <a href="#ch17-sec-swift-generated">17. Platform Notes</a></td></tr>
@@ -2757,9 +2784,10 @@ message PreconditionSchedule {
 </section>
 <section class="chapter" id="ch12">
 <h2>12. Getting Started with the Library</h2>
-<p class="lead">Walks through the whole flow: create the library, get a key, find the car, connect, read its state and disconnect. The last two sections show pairing a new key and sending the first command (M4), and receiving the car's broadcasts.</p>
+<p class="lead">Starts with adding the library to your app, then walks through the whole flow: create the library, get a key, find the car, connect, read its state and disconnect. The last two sections show pairing a new key and sending the first command (M4), and receiving the car's broadcasts.</p>
 
 <div class="toc"><strong>On this page</strong><ol>
+<li><a href="#ch12-sec-install">Add the library</a></li>
 <li><a href="#ch12-sec-flow">The flow</a></li>
 <li><a href="#ch12-sec-rules">Five rules</a></li>
 <li><a href="#ch12-sec-kotlin">Kotlin (Android)</a></li>
@@ -2769,6 +2797,49 @@ message PreconditionSchedule {
 <li><a href="#ch12-sec-events">Broadcast events</a></li>
 <li><a href="#ch12-sec-next">Next steps</a></li>
 </ol></div>
+
+<h3 id="ch12-sec-install">Add the library</h3>
+<h4>iOS: Swift Package Manager</h4>
+<ol class="steps">
+<li>In Xcode choose <strong>File &gt; Add Package Dependencies…</strong> and enter <code>https://github.com/smallmiro/tesla-ble-kmp</code>.</li>
+<li>Choose the dependency rule <strong>Up to Next Major Version</strong> from <code>1.0.0</code>, and add the library product <code>Teslable</code> to your app target.</li>
+<li>Set the app's deployment target to iOS 16.0 or later, and add <code>NSBluetoothAlwaysUsageDescription</code> to <code>Info.plist</code> (<a href="#ch17-sec-ios">Platform Notes</a>).</li>
+<li>Use the simulator on an Apple Silicon Mac. If a simulator build builds every architecture, for example a Release build, set <code>EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64</code> on the app target.</li>
+<li>Write <code>import Teslable</code> and continue with <a href="#ch12-sec-swift">Swift (iOS)</a> below.</li>
+</ol>
+<p>A Swift package that depends on the library:</p>
+<pre><code class="language-swift"><span class="c">// swift-tools-version:5.9</span>
+<span class="k">import</span> <span class="t">PackageDescription</span>
+
+<span class="k">let</span> package = <span class="t">Package</span>(
+    name: <span class="s">"VehicleFeature"</span>,
+    platforms: [.<span class="f">iOS</span>(.v16)],
+    products: [.<span class="f">library</span>(name: <span class="s">"VehicleFeature"</span>, targets: [<span class="s">"VehicleFeature"</span>])],
+    dependencies: [
+        .<span class="f">package</span>(url: <span class="s">"https://github.com/smallmiro/tesla-ble-kmp"</span>, from: <span class="s">"1.0.0"</span>),
+    ],
+    targets: [
+        .<span class="f">target</span>(name: <span class="s">"VehicleFeature"</span>, dependencies: [.<span class="f">product</span>(name: <span class="s">"Teslable"</span>, package: <span class="s">"tesla-ble-kmp"</span>)]),
+    ]
+)</code></pre>
+<ul>
+<li>The package has one product, <code>Teslable</code>: a static XCFramework for devices (<code>ios-arm64</code>) and for the simulator on Apple Silicon Macs (<code>ios-arm64-simulator</code>). There is nothing to build from source.</li>
+<li>In <code>.product(name:package:)</code>, <code>package</code> is the identity taken from the URL, <code>tesla-ble-kmp</code>, not the package name.</li>
+<li><strong>Up to Next Major Version</strong> accepts 1.x releases only; a release that breaks the public API is a new major version.</li>
+<li>The sample app in this repository does not use the package: it links a framework built from source (<code>samples/ios/README.md</code>).</li>
+<li>CocoaPods is not supported.</li>
+</ul>
+<h4>Android and JVM: build from source</h4>
+<p>Not published yet: development is complete, the check on a real Android device is not finished, and Maven Central comes in stage 2 of M6. Until then, the verified way is an app module inside this repository's Gradle build that depends on <code>:sdk</code>. Copying the <code>:sdk</code> folder alone does not build, because it needs the other library modules and the build plugins.</p>
+<pre><code class="language-bash"><span class="f">git</span> clone https://github.com/smallmiro/tesla-ble-kmp
+<span class="f">cd</span> tesla-ble-kmp
+./gradlew :sdk:assemble
+./gradlew :samples:android:assembleDebug</code></pre>
+<pre><code class="language-kotlin"><span class="c">// build.gradle.kts of an app module included in this repository's settings.gradle.kts</span>
+<span class="f">dependencies</span> {
+    <span class="f">implementation</span>(<span class="f">project</span>(<span class="s">":sdk"</span>))
+}</code></pre>
+<p>Set the app's <code>minSdk</code> to 31 or higher. Permissions and backup rules: <a href="#ch17-sec-android">Platform Notes</a>.</p>
 
 <h3 id="ch12-sec-flow">The flow</h3>
 <ol class="steps">
@@ -4705,7 +4776,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 </section>
 <section class="chapter" id="ch17">
 <h2>17. Platform Notes</h2>
-<p class="lead">What an Android or iOS app has to set up, where the library keeps keys and sessions, a few platform behaviours worth knowing, and how Swift calls the library. Items not yet confirmed on a real device say so.</p>
+<p class="lead">What an Android or iOS app has to set up, what the iOS Swift package contains, where the library keeps keys and sessions, a few platform behaviours worth knowing, and how Swift calls the library. Items not yet confirmed on a real device say so.</p>
 
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#ch17-sec-support">Support</a></li>
@@ -4756,11 +4827,16 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <ul>
 <li>Add <code>NSBluetoothAlwaysUsageDescription</code> to <code>Info.plist</code>. <strong>The first scan shows the permission prompt</strong>; if the user declines, calls return <code>PermissionDenied</code>.</li>
 <li>Create the library with <code>PlatformContext()</code>.</li>
-<li>The simulator has no Bluetooth. Scanning and connecting can only be tried on a real iPhone.</li>
+<li>The Swift package (<a href="#ch11-sec-install">Installation</a>) contains a <strong>static</strong> <code>Teslable.xcframework</code> with exactly two slices: <code>ios-arm64</code> for devices and <code>ios-arm64-simulator</code> for the simulator (arm64 only), for iOS 16.0 or later. Being static, the library code is linked into your app binary.</li>
+<li>The simulator has no Bluetooth. Scanning and connecting can only be tried on a real iPhone. On the simulator, <code>scan(vin)</code> reports one <code>ScanEvent.Failed</code> right away with <code>ConnectFailed</code> and the reason <code>IllegalStateException: This device doesn't support the Bluetooth low energy central or client role</code> (seen with Xcode 27.2), not <code>BluetoothOff</code> or <code>PermissionDenied</code>. <code>connect</code> without a <code>target</code> fails the same way at once. The reason is text for people and logs: do not branch on it. The key store does work on the simulator, in a signed app (see <a href="#ch17-sec-keys">Key storage</a>).</li>
 <li>iOS has no MTU negotiation API; the library uses the write length the system picks. The observed block length on a real iPhone is 512. The response characteristic supports both notifications and indications; the Kable default subscription (notify) was confirmed on a real car (ADR-0003).</li>
 <li>Swift calls Kotlin through SKIE: <code>suspend</code> functions become <code>async throws</code>, <code>Flow</code> becomes <code>AsyncSequence</code>, sealed types work with <code>switch onEnum(of:)</code>, and companion members are reached through <code>.companion</code>.</li>
 <li>In Swift the public <code>VehicleStatus</code> is named <code>VehicleStatus_</code>, because a generated VCSEC message type already takes the plain name. Results of <code>vehicleStatus()</code> and <code>VehicleEvent.Status.status</code> have this type.</li>
 </ul>
+<div class="callout warn">
+<strong>Simulator: Apple Silicon Macs only</strong>
+<p>The Swift package has no <code>x86_64</code> simulator slice. An Intel Mac can build the app for a device but cannot run the library in the simulator. A simulator build that also builds <code>x86_64</code> fails to link with <code>ld: symbol(s) not found for architecture x86_64</code>, after warnings that the <code>Teslable</code> files were built for <code>arm64</code>. A Release build for the simulator builds every architecture, so set <code>EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64</code> on the app target. Debug builds that build only the active architecture, the Xcode default, are not affected on an Apple Silicon Mac. Checked with Xcode 27.2.</p>
+</div>
 
 <h3 id="ch17-sec-ios-bg">iOS background use by the sample</h3>
 <p>The library is supported in the foreground (see Support). The iOS sample's monitor app declares <code>UIBackgroundModes: [bluetooth-central]</code> and runs the same reconnect loop as the Android sample. It has <strong>not</strong> been checked on a real iPhone yet, so treat the library's behaviour in the background as unconfirmed.</p>
@@ -4786,6 +4862,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <li>On iOS, a failed Secure Enclave lookup is reported as an error, not as "no key", so a working key is never overwritten by mistake.</li>
 <li>There is no API to export a private key.</li>
 <li>Key handles are released automatically. On iOS each key object holds one Security framework reference (<code>SecKeyRef</code>). It is released once neither the app nor a connected <code>Vehicle</code> uses the key any more and the Kotlin/Native garbage collector has run. There is nothing to close, and reading the key again does not pile up handles.</li>
+<li>On the simulator the Keychain works only in a <strong>code-signed app</strong>. Ad-hoc signing is enough (<code>CODE_SIGN_IDENTITY = -</code>, shown in Xcode as "Sign to Run Locally"). An unsigned build (<code>CODE_SIGNING_ALLOWED = NO</code>) has no Keychain access, and the key store returns <code>PlatformFailure</code> with <code>keychain status -34018</code> (<code>errSecMissingEntitlement</code>). The release check of the Swift package signs its simulator test this way.</li>
 </ul>
 <h4>Using the key while the phone is locked</h4>
 <p>Each key has an accessibility setting, <code>VehicleKey.accessibility</code>. How to choose it and switch keys is in <a href="#ch13-sec-accessibility">13. Keys and Pairing</a>.</p>
@@ -4883,7 +4960,7 @@ _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class=
 </section>
 <section class="chapter" id="ch18">
 <h2>18. Troubleshooting</h2>
-<p class="lead">Common problems with scanning, connecting, keys, pairing, commands and <code>getState</code>, what usually causes them, and what to do. A development-only observation log is described at the end.</p>
+<p class="lead">Common problems with scanning, connecting, keys, pairing, commands, <code>getState</code> and the iOS simulator, what usually causes them, and what to do. A development-only observation log is described at the end.</p>
 
 <div class="toc"><strong>On this page</strong><ol>
 <li><a href="#ch18-sec-scan">Scanning and connecting</a></li>
@@ -4905,7 +4982,8 @@ _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class=
 <tbody>
 <tr><td><code>PermissionDenied</code></td><td>Bluetooth permission missing or declined</td><td>Android: request <code>BLUETOOTH_SCAN</code> and <code>BLUETOOTH_CONNECT</code> at runtime. iOS: add <code>NSBluetoothAlwaysUsageDescription</code>; if declined, send the user to Settings</td></tr>
 <tr><td><code>BluetoothOff</code></td><td>Bluetooth is off</td><td>Ask the user to turn it on</td></tr>
-<tr><td>The scan finds nothing, connecting ends with <code>ScanTimeout</code></td><td>Out of range, wrong VIN, or the iOS simulator</td><td>Move closer, check the VIN (the car is matched by a name derived from it), use a real device</td></tr>
+<tr><td>The scan finds nothing, connecting ends with <code>ScanTimeout</code></td><td>Out of range or wrong VIN</td><td>Move closer, check the VIN (the car is matched by a name derived from it)</td></tr>
+<tr><td>On the iOS simulator, the scan reports <code>ConnectFailed</code> at once with the reason <code>IllegalStateException: This device doesn't support the Bluetooth low energy central or client role</code>, and connecting fails the same way</td><td>The simulator has no Bluetooth, and iOS reports that the device cannot act as a Bluetooth central. It is not reported as <code>BluetoothOff</code> or <code>PermissionDenied</code></td><td>Use a real iPhone for scanning and connecting. Do not tell the user that Bluetooth is off, and do not retry in a loop (<a href="#ch17-sec-ios">Platform Notes</a>)</td></tr>
 <tr><td>Connecting ends with <code>ConnectFailed</code>, and the reason says the connection did not complete before the deadline</td><td><code>vehicle found</code> in the reason: the library's own scan found the car (its <code>[connect:scan-hit]</code> line shows the discovery), but the link did not open in time. <code>remembered target</code> in the reason: no scan ran, so nothing shows the car is still there. A remembered <code>target</code> that is out of range reports <code>ConnectFailed</code>, not <code>ScanTimeout</code>. <code>ScanTimeout</code> always means no advertisement was found</td><td>Try again. After a remembered <code>target</code>, connect without it so that a scan runs. If it repeats while the car is in range, report the log lines</td></tr>
 <tr><td><code>MaxConnectionsExceeded</code></td><td>The car already has three Bluetooth connections</td><td>Disconnect another phone or app, and always call <code>disconnect()</code> in yours</td></tr>
 <tr><td><code>ConnectFailed</code> keeps coming back</td><td>Weak signal or a busy car</td><td>The library already retries for 30 seconds; try again later</td></tr>
@@ -4991,6 +5069,8 @@ _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class=
 <tr><td><code>WARN</code> <code>Dropping plain broadcast because the broadcast buffer is full</code></td><td>A collector of <code>vehicle.events</code> fell more than 64 frames behind</td><td>Keep the collector light and move slow work to another coroutine (<a href="#ch16-sec-events">16. Error Handling</a>)</td></tr>
 <tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, values read as <code>UNKNOWN</code></td><td>Newer car firmware</td><td>Check for a library update</td></tr>
 <tr><td>A Keychain test fails with -25291 on the simulator</td><td>Plain Kotlin/Native test binaries cannot use the Keychain</td><td>Check Keychain behaviour in the sample app instead</td></tr>
+<tr><td>On the iOS simulator, the key store returns <code>PlatformFailure</code> with <code>keychain status -34018</code> (<code>errSecMissingEntitlement</code>)</td><td>The app is not code-signed (for example <code>CODE_SIGNING_ALLOWED = NO</code>), so it has no Keychain access</td><td>Sign the app; ad-hoc signing is enough (<code>CODE_SIGN_IDENTITY = -</code>, "Sign to Run Locally"). See <a href="#ch17-sec-keys">Platform Notes</a></td></tr>
+<tr><td>Xcode, simulator build: <code>ld: symbol(s) not found for architecture x86_64</code>, after warnings that the <code>Teslable</code> files were built for <code>arm64</code>, not <code>x86_64</code></td><td>The Swift package's simulator slice is arm64 only, and this build also builds <code>x86_64</code> (a Release build builds every architecture)</td><td>Set <code>EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64</code> on the app target. On an Intel Mac use a device: the simulator cannot run the library (<a href="#ch17-sec-ios">Platform Notes</a>)</td></tr>
 </tbody>
 </table>
 
