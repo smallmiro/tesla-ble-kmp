@@ -41,3 +41,7 @@ samples/logs/
 
 # Release artifacts from tools/release/build-xcframework.sh (ADR-0017): the checksummed zip is uploaded as is, never committed
 build/release/
+
+# SwiftPM and Xcode output once tools/release/prepare.sh puts Package.swift at the repository root (ADR-0017)
+.build/
+.swiftpm/
