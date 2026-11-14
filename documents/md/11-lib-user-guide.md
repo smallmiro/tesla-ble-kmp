@@ -3223,6 +3223,7 @@ and `ja/` in the same PR (AGENTS.md §3 rule 13).
 | Key accessibility for a locked iPhone: `KeyAccessibility`, `VehicleKey.accessibility`, `getOrCreate(alias, policy, accessibility)`, `KeyStoreError.Locked` (FR-037, ADR-0014; issue #91). `startSession()` also returns `Locked`, without retrying, when the phone lock blocks a key read earlier, and that cache restore keeps the cache (issue #96) | Done (unit tests with fakes; the Keychain round trip, the Secure Enclave error on a locked iPhone and use on a locked iPhone are checked later on a device) | `13-lib-pairing.md` §Key accessibility, `16-lib-errors.md`, `17-lib-platform-notes.md` §Key storage |
 | Infotainment state query `getState(category)`, 12 categories (FR-033, #115, #116; ahead of the rest of M5) | Done (checked with FakeVehicle tests; real-vehicle check pending, #118) | `14-lib-reading-state.md` A8, `16-lib-errors.md` §`getState` results |
 | Connect scan observation `Vehicle.scanObservation` (`ConnectScanObservation`: time to the scan hit, RSSI, open attempt) and the `[connect:scan-hit]` observation log line (FR-038, #134, not part of M5) | Done (checked with fake connector tests; real-vehicle check pending) | `12-lib-getting-started.md` §Connect scan observation, `18-lib-troubleshooting.md` §Observation log (development) |
+| Session cache counter reservation: the cached anti-replay counter is stored before it is used, so the first request after a process ended without `disconnect()` is no longer refused once (FR-017, ADR-0016, issue H17; no API change) | Done (checked with FakeVehicle tests; real-vehicle check pending, analysis scenario N10) | `17-lib-platform-notes.md` §Session cache, `19-lib-architecture.md` §Session cache, `16-lib-errors.md` §Retries and timeouts |
 | Infotainment commands: 51 `Vehicle` methods for climate, charging and power, charge port, body, security, media, software update and `ping()` (FR-034, FR-050–053, FR-060–085, FR-090–092; M5) | Done (checked with FakeVehicle tests and a Swift typecheck; real-vehicle check pending, #118) | `15-lib-commands.md` §Implemented: Infotainment, `16-lib-errors.md` §Invalid arguments, `17-lib-platform-notes.md` §Swift: command arguments |
 | Sample apps: climate and charging in the samples (M5, SFR-001, SFR-002, SFR-025) | Done (Android and iOS sample unit tests; real-device check pending, #118) | `samples/documents/md/05-key-control-tab.md` |
 | Packaging: GitHub Packages + Swift Package Manager (M6) | **Not implemented** | this page, "Installation" |
@@ -5492,7 +5493,7 @@ run the first one.
 | A **command** whose write was started and failed, so the same bytes went out again, gets a reply that would start a new attempt (any error in the first row) or any protocol-layer rejection: `ProtocolFault` with any code except `RESPONSE_MTU_EXCEEDED` (including `REPEATED_COUNTER`), `KeyNotPaired`, `InsufficientPrivileges`, `UnknownFault` | **No new copy is authorized.** The reply may answer a duplicate of a copy the vehicle already ran (the vehicle rejects a repeated counter with `INVALID_TOKEN_OR_COUNTER`). The library logs a `WARN` (tag `Dispatcher`) with `possible duplicate` and keeps waiting on the same request until a reply settles it: a success (the first copy's late reply, or the repeated copy's own when the first never arrived), an application-level rejection (`VcsecRejected`, `KeychainRejected`, `InfotainmentRejected`) or a `mayHaveSucceeded` error (`RESPONSE_MTU_EXCEEDED`, an unparsable reply) ends the call as usual. With no such reply the result is `Uncertain(Timeout(afterSend = true))` when `timeout` runs out. Commands: every VCSEC command, `addKey()`, `removeKey()`, and every Infotainment command (M5) |
 | The same for a **read**: `vehicleStatus()`, `keySummary()`, `listKeys()`, `getState()` | Retried as in the first row (a new request or a new copy). A read changes nothing on the vehicle, so running it twice is harmless |
 | `mayHaveSucceeded` errors (timeout after the request's write was started, `RESPONSE_MTU_EXCEEDED`, unparsable VCSEC or Infotainment response) | **Never resent automatically** (prevents running a toggle twice). Returned as `Uncertain`; query state again |
-| Timeout (`timeout`, default 5 s) before the request's first BLE write was started: waiting for the previous VCSEC command, waiting for the link to be free (another request is being written), or a check before writing (`listKeys()` with no time left) | `Failure(Timeout(afterSend = false))` |
+| Timeout (`timeout`, default 5 s) before the request's first BLE write was started: waiting for the previous VCSEC command, storing the session cache's counter reservation (ADR-0016), waiting for the link to be free (another request is being written), or a check before writing (`listKeys()` with no time left) | `Failure(Timeout(afterSend = false))` |
 | Timeout while waiting to retry after a reply that asked for a retry (busy, `WAIT`, expired, …) | `Failure(Timeout(afterSend = false))` |
 | Timeout after the request's first BLE write was started: the write had not completed, it failed and the library was resending, or the response did not come | `Uncertain(Timeout(afterSend = true))` |
 | Handshake timeout (`handshakeTimeout`, default 20 s) | `Failure(Timeout(afterSend = false))`; no session, no side effect |
@@ -5528,6 +5529,21 @@ this path: it may answer the duplicate (removing your own key, for example, make
 Without a failed write nothing changes: when the vehicle answers with a fault and fresh session info, for example on the
 first request with a cached session that is out of step, the library applies it and retries as in the first row. The Go
 original never gets here, because its BLE connector ends the command on the failed write.
+
+**Counter reservation in the session cache (ADR-0016, 2026-11-14).** Before an authenticated request uses an
+anti-replay counter the session cache does not hold yet, the library writes a reservation (16 counters ahead) to the
+cache and only then authorizes and writes the request. This happens before the first authenticated request of a
+connection and then once per 16 requests; reads and commands are treated alike, unauthenticated requests never write.
+For an app it changes three things:
+
+- A process that ended without `disconnect()` no longer makes the next process's first request draw
+  `INVALID_TOKEN_OR_COUNTER` and a resend about 1.2 s later (`18-lib-troubleshooting.md` lists what can still cause it).
+- The cache write counts against the call's `timeout`. A timeout during it is `Failure(Timeout(afterSend = false))`:
+  nothing was sent and no counter was used. If the cache throws, the request is still sent and a `WARN` is logged. The
+  built-in caches never throw: they log a failed write (`WARN`, tag `cache`) and the library counts it as stored for the
+  next 16 requests. If the connection is closing, the call returns `Failure(NotConnected)` without sending.
+- A session that has used the last counter (`0xFFFFFFFF`, not expected in practice) returns `Failure(NoSession)` without
+  sending; call `startSession()` and send again. Go retries that local rollover until the deadline.
 
 ## Per-command re-query (FR-102)
 
@@ -5780,6 +5796,21 @@ checked on a real iPhone yet, so treat the library behaviour in the background a
   writes nothing to the cache until that domain has a session again, so a disconnect while locked keeps the cache.
   Exception: if another restored session turned out stale in the same connection, the cache is rewritten without the
   stale entry (and without the blocked one), and the rest of that connection stores as usual.
+- **The app process may end without `disconnect()`** (force quit, the system ending a suspended app, a crash); on iOS
+  this is the usual way a process ends. The library writes the cached anti-replay counter before it uses it (a
+  reservation 16 counters ahead, ADR-0016), so the first authenticated request of the next process is accepted at once,
+  without a handshake and without a refusal. Before this change (builds up to 2026-11-14) that request was refused once
+  with `INVALID_TOKEN_OR_COUNTER` and fresh session info, and the library applied it and resent it, which added about
+  1.2 s; the result was still `Success` and the refused copy did not run. A cache entry written by such an older build
+  can still cause that once after the upgrade.
+- The reservation costs one cache write (an app file write on Android, a Keychain write on iOS) before the first
+  authenticated request of each connection and then one per 16 requests. It counts against that call's `timeout`; a
+  timeout there is `Failure(Timeout(afterSend = false))` because nothing was sent.
+- The guarantee assumes the cache write succeeds and that the app holds **one live connection per vehicle and key**. If
+  a write fails, the library logs it, sends the request anyway and the old behaviour can return once. Two connections
+  to the same vehicle with the same key, or another app using the same key, are not protected. This includes a dropped
+  link: call `disconnect()` on the old `Vehicle` and let it return before you `connect` again, because its final cache
+  write could otherwise land after the new connection's reservation and lower it.
 
 ## Clocks
 
@@ -5915,6 +5946,11 @@ Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 | `startSession()` → `Timeout` only while the iPhone is locked; `WARN` `Session info error: MESSAGEFAULT_ERROR_BAD_PARAMETER: invalid public key` or `invalid cache: …: invalid public key` | iOS reported the locked Secure Enclave ECDH with an error other than OSStatus -25308 (the library's mapping is not yet confirmed on a device) | Report the iOS version and the log lines. Meanwhile read the key with `get(alias)` right before connecting (that read returns `Locked`), or use an `AFTER_FIRST_UNLOCK` key |
 | `WARN` `Keychain did not report the protection class of key <alias>; reporting WHEN_UNLOCKED` (tag `keystore`) | The Keychain returned no protection class for the stored key (not expected) | The key reports `WHEN_UNLOCKED`. Report it with the iOS version |
 | First command after restoring a cached session fails with `TIME_EXPIRED` and then succeeds | Device slept, monotonic clock lagged | Nothing; the library resyncs from the attached session info and retries |
+| First authenticated request after a relaunch is refused with `INVALID_TOKEN_OR_COUNTER` and fresh session info, then succeeds about 1.2 s later | The cached counter was behind the vehicle. Since ADR-0016 the library stores the counter before using it, so a process ending without `disconnect()` (force quit, iOS ending a suspended app, a crash) no longer causes this. Remaining causes: a cache entry written by an older build (once after the upgrade), a cache write that failed (the two rows below), another connection or app using the same key | Nothing to repair: the refused copy did not run and the result is `Success`. Keep one live connection per vehicle and key, and let `disconnect()` of a dropped connection return before connecting again. If it repeats, look for the `WARN` lines in the two rows below |
+| `WARN` (tag `Dispatcher`) `Sending on <domain> with a counter the session cache does not cover …`, often after `WARN` (tag `VehicleSession`) `Failed to store the counter reservation for <domain>: …` or `INFO` `Keeping the session cache: …` | The counter reservation could not be written before the request (a custom `TeslaBleConfig.sessionCache` threw, or the cache is being kept because the phone lock blocked a restore, FR-037). The request was sent anyway | Nothing for this request. After an unclean exit the next process's first request may be refused once (row above). If the cache keeps failing, check the app's `TeslaBleConfig.sessionCache` implementation or storage |
+| `WARN` (tag `cache`) `Failed to store session cache: …` | The built-in cache could not write (file system, Keychain status). It logs and returns, so the library counts the reservation as stored and the next 16 authenticated requests use counters the cache may not hold | Nothing for these requests. After an unclean exit the next process's first request may be refused once (two rows above). If it repeats, check free storage or the Keychain status in the line |
+| `connect` restores no session for a domain; `WARN` (tag `Dispatcher`) `invalid cache: <domain>: anti-replay counter exhausted` | The cached counter has fewer than 16 values left before `0xFFFFFFFF` (not expected in practice) | Nothing: `startSession()` handshakes and starts from the vehicle's counter |
+| An authenticated call → `NoSession` after `WARN` (tag `Dispatcher`) `The anti-replay counter for <domain> is exhausted; startSession() starts a new session` | The session used the last counter `0xFFFFFFFF` (not expected in practice) | Call `startSession(setOf(domain))`, then send again: nothing was sent |
 | `addKeyRequest` ends with `TimedOut` | The card was not tapped, or the on-screen confirmation was not given in time (default 60 s), or the reply was not recognized | Ask the user to tap the key card on the center console and confirm on the screen, then check `sessionInfo(publicKey, INFOTAINMENT)`. It may still have been enrolled |
 | `addKeyRequest` emits `Rejected(KeychainRejected(WHITELIST_FULL))` or another `KeychainRejected` code | The vehicle refused: key list full, no permission to add, … | Remove an unused key on the vehicle's touchscreen or with `removeKey`; see `16-lib-errors.md` |
 | `addKeyRequest` emits `Unknown(raw)` | A reply format not seen before (real-vehicle behaviour is not verified yet, ADR-0009) | Report `raw` as hex (no VIN) and what the car did |
@@ -6234,7 +6270,8 @@ collector's coroutine.
 - **One VCSEC command at a time per connection** (serialization lock). Time spent waiting for the previous command
   counts against that command's timeout. **Infotainment commands may run in parallel.**
 - Each domain (VCSEC / INFOTAINMENT) has one session state. Its internal lock guards only encrypt, decrypt and session
-  info updates, so lock waits are short and bounded.
+  info updates, so lock waits are short and bounded. The session cache write that reserves counters (§Session cache)
+  happens outside that lock, in the caller's coroutine, before the request's BLE write.
 - The handshake (sessions for both domains) runs per domain in parallel; if one fails the other is cancelled.
 - Commands, handshakes and connections each have a timeout. Timeouts and retry rules: `16-lib-errors.md`.
 
@@ -6260,6 +6297,37 @@ connection can send commands without a new handshake. The cache belongs to the c
 caches of other keys are ignored and deleted. It is stored when a handshake completes, when session info is updated,
 and on disconnect (wired up by the facade in M3). Private keys, session encryption keys and raw VINs are never stored.
 Corrupted entries or entries with unrecognized values are skipped and the rest restored.
+
+**Counter reservation (ADR-0016, issue H17; differs from Go).** The cached counter is written *before* it is used, so a
+process that ends without `disconnect()` (force quit, the system ending a suspended app, a crash) does not leave the
+next process a counter the vehicle has already accepted.
+
+- Invariant: a cache entry's counter is at least the highest counter used in that epoch, provided the write succeeded.
+- Before an authenticated request uses a counter the cache does not hold yet, the dispatcher stores a reservation for
+  that domain only (current counter + 16, stopping at `0xFFFFFFFF`) and then encrypts. One write covers the next 16
+  requests. The coverage check and the encryption run in one critical section of the domain's session state; if
+  parallel requests use up a fresh reservation, or the signer or epoch changed while it was being written, the
+  dispatcher reserves again. No store ever writes a counter below the stored reservation, including the store on
+  disconnect.
+- A reservation belongs to one signer and its epoch: a new or replaced session, an invalidated (stale) session or an
+  epoch change voids it; session info for the same epoch keeps it.
+- The reservation write runs in the caller's coroutine before the BLE write (inside the VCSEC lock for VCSEC
+  requests), never on the receive coroutine and never under the session state's lock. If it cannot be stored (the
+  FR-037 lock keep declined the write, or the cache threw), the request is sent as before and a `WARN` is logged. A
+  write the cache only logged as failed (the built-in caches do this) counts as stored. A connection that is closing
+  returns `NotConnected` without using a counter.
+- Exhaustion: a cached entry whose counter is above `0xFFFFFFFF` − 16 is not restored (the domain handshakes). A live
+  session that has used `0xFFFFFFFF` makes the next authenticated call fail with `NoSession`; `startSession()` then
+  builds a new signer from the vehicle's session info, only for the same vehicle public key. If the vehicle never
+  accepted that last counter, the new signer starts from the vehicle's lower counter in the same epoch (none of the
+  skipped counters was accepted). Until then the old signer still decrypts replies to requests already sent.
+- Not covered: a failed write that the cache adapter only logged, another signer using the same key (another app, a
+  second live connection to the same VIN with the same key in this process, or an old dropped connection whose
+  `disconnect()` runs after a new connection reserved; the facade does not prevent that), and a cache entry written by
+  a build before this change (its first request can still be refused once and recovered).
+- Cost: one cache write before the first authenticated request of a connection and then one per 16 requests; the
+  vehicle sees a counter jump of usually 16 or less on the first request after an unclean exit or a reconnect. The Go
+  verifier accepts forward jumps (`internal/authentication/window.go`); a real-car check is pending.
 
 ## Protobuf schema
 

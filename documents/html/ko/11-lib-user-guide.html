@@ -452,7 +452,7 @@ main.content { min-width:0; width:100%; max-width:none; margin:0; padding:36px 4
 <a class="skip-link" href="#guide-top">Tesla BLE KMP 사용 가이드</a>
 <header class="guide-header"><strong>Teslable / BLE SDK</strong><div class="languages"><a href="../ko/11-lib-user-guide.html" lang="ko" aria-current="page">한국어</a><a href="../en/11-lib-user-guide.html" lang="en">English</a><a href="../ja/11-lib-user-guide.html" lang="ja">日本語</a></div><button id="print-guide" type="button">인쇄 / PDF 저장</button></header>
 <div class="guide-layout"><nav class="guide-nav" aria-label="목차"><strong>목차</strong><a href="#setup">설치와 프로젝트 설정</a><a href="#api">메서드별 API 레퍼런스</a><a href="#models">클래스와 반환 데이터 구조</a><a href="#schemas">getState 전체 필드 스키마</a><a href="#ch11">11. 라이브러리 개요</a><a href="#ch12">12. 라이브러리 시작하기</a><a href="#ch13">13. 키와 페어링</a><a href="#ch14">14. 차량 상태 조회</a><a href="#ch15">15. 명령</a><a href="#ch16">16. 에러 처리</a><a href="#ch17">17. 플랫폼 노트</a><a href="#ch18">18. 문제 해결</a><a href="#ch19">19. 아키텍처</a></nav>
-<main class="content" id="guide-top"><div class="guide-intro"><h1>Tesla BLE KMP 사용 가이드</h1><p class="lead">소스 빌드부터 키 등록, 상태 조회, 모든 제어 API까지. 앱을 만드는 데 필요한 설명과 예제를 한 문서에 모았습니다.</p><p class="guide-meta">M5 구현 기준 · Android 12+ · iOS 16+<br>문서 기준 커밋: <code>a1f9afb</code><br>이 파일은 스타일과 스크립트를 포함해 오프라인으로 열 수 있습니다. 언어 전환에는 다른 언어의 파일이 필요합니다.</p></div>
+<main class="content" id="guide-top"><div class="guide-intro"><h1>Tesla BLE KMP 사용 가이드</h1><p class="lead">소스 빌드부터 키 등록, 상태 조회, 모든 제어 API까지. 앱을 만드는 데 필요한 설명과 예제를 한 문서에 모았습니다.</p><p class="guide-meta">M5 구현 기준 · Android 12+ · iOS 16+<br>문서 기준 커밋: <code>f7e9853</code><br>이 파일은 스타일과 스크립트를 포함해 오프라인으로 열 수 있습니다. 언어 전환에는 다른 언어의 파일이 필요합니다.</p></div>
 <section class="chapter" id="setup"><h2>설치와 프로젝트 설정</h2><p>현재 Maven 아티팩트와 SPM 패키지는 배포 전(M6)입니다. 임의 버전의 implementation 좌표나 SPM URL을 사용하지 말고, 소스 체크아웃에서 빌드하세요. 빌드 시 의존성 다운로드에는 인터넷이 필요하지만 차량 통신은 BLE만 사용합니다.</p>
 <h3>준비물과 소스 빌드</h3><p>Git, JDK 17 툴체인(Gradle이 자동 확보), Android SDK 37 및 Android API 31 이상 기기가 필요합니다. iOS는 macOS, Xcode, 명령줄 도구와 실제 iPhone(iOS 16+)을 준비하세요. 시뮬레이터는 컴파일·테스트용이며 BLE가 없습니다. 저장소의 Gradle Wrapper와 고정 의존성 버전을 사용하세요.</p>
 <h3>Android 앱에 연결</h3><p>현재 검증된 방식은 전체 소스의 Gradle 빌드 안에서 앱 모듈이 :sdk를 의존하는 것입니다. 기존 Android 샘플로 먼저 빌드한 후, 같은 빌드에 앱 모듈을 추가하고 아래 의존성을 넣으세요. :sdk 폴더만 복사하면 내부 모듈과 빌드 플러그인이 없어 빌드할 수 없습니다.</p><pre><code class="language-bash"><span class="f">git</span> clone https://github.com/smallmiro/tesla-ble-kmp
@@ -2701,6 +2701,7 @@ message PreconditionSchedule {
 <tr><td>잠긴 iPhone을 위한 키 접근성: <code>KeyAccessibility</code>, <code>VehicleKey.accessibility</code>, <code>KeyStoreError.Locked</code>. 앞서 읽어 둔 키를 폰 잠금이 막으면 <code>startSession()</code>도 다시 시도하지 않고 <code>Locked</code>를 돌려주며, 저장된 세션은 지켜진다(#96)</td><td>#91 (M5 이전)</td><td><span class="badge ok">완료</span> 단위 테스트와 가짜 객체로 확인. 키체인 왕복, 잠긴 iPhone에서 Secure Enclave가 내는 오류, 잠긴 iPhone에서의 사용은 나중에 실기기에서 확인</td><td><a href="#ch13-sec-accessibility">13</a>, <a href="#ch16">16</a>, <a href="#ch17-sec-keys">17</a></td></tr>
 <tr><td>인포테인먼트 상태 조회 <code>getState(category)</code>, 12개 카테고리</td><td>M5 (나머지보다 먼저)</td><td><span class="badge ok">완료</span> FakeVehicle 테스트로 확인. 실차 확인 전(#118)</td><td><a href="#ch14-sec-a-getstate">14</a>, <a href="#ch16-sec-getstate">16</a></td></tr>
 <tr><td>연결 스캔 관찰 <code>Vehicle.scanObservation</code>(스캔 발견까지 걸린 시간, 신호 세기, 열기 시도 번호)과 관찰 로그 <code>[connect:scan-hit]</code> 줄(FR-038)</td><td>#134 (M5와 별개)</td><td><span class="badge ok">완료</span> 가짜 커넥터 테스트로 확인, 실차 확인 대기</td><td><a href="#ch12-sec-scan-observation">12</a>, <a href="#ch18-sec-observe">18</a></td></tr>
+<tr><td>저장된 세션 카운터를 사용하기 전에 예약: 앱이 <code>disconnect()</code> 없이 끝난 뒤, 다음 실행의 첫 요청이 더 이상 한 번 거부되지 않습니다(FR-017, ADR-0016, API 변경 없음)</td><td>H17 (M5와 별개)</td><td><span class="badge ok">완료</span> FakeVehicle 테스트로 확인, 실차 확인 대기</td><td><a href="#ch17-sec-cache">17</a>, <a href="#ch19-sec-cache">19</a>, <a href="#ch16">16</a></td></tr>
 <tr><td>인포테인먼트 명령: 공조, 충전과 전원, 충전 포트, 창문과 선루프, 경적과 조명, 센트리와 발레 모드, 미디어, 소프트웨어 업데이트, <code>ping()</code>까지 51개 메서드(FR-034, FR-050–053, FR-060–085, FR-090–092)</td><td>M5</td><td><span class="badge ok">완료</span> FakeVehicle 테스트와 Swift 타입 검사로 확인. 실차 확인 전(#118)</td><td><a href="#ch15-sec-cc">15</a>, <a href="#ch16-sec-invalid-argument">16</a>, <a href="#ch17-sec-swift-commands">17</a></td></tr>
 <tr><td>샘플 앱의 공조와 충전(SFR-001, SFR-002, SFR-025)</td><td>M5</td><td><span class="badge ok">완료</span> Android와 iOS 샘플 단위 테스트로 확인. 실기기 확인 전(#118)</td><td>샘플 앱 스펙(<code>samples/documents/</code>)</td></tr>
 <tr><td>패키지: GitHub Packages와 Swift Package Manager</td><td>M6</td><td><span class="badge warn">예정</span></td><td><a href="#ch11-sec-install">설치</a></td></tr>
@@ -4627,7 +4628,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <tr><td>쓰기가 실패해 같은 바이트가 다시 나간 <strong>명령</strong>이 재시도를 뜻하는 오류, 또는 메시지 자체에 대한 거부("응답이 너무 큼"을 뺀 모든 차량 오류 코드, 알 수 없는 키, 권한 부족)를 받음</td><td><strong>새 사본에 서명하지 않습니다.</strong> 그 응답은 차량이 이미 실행한 사본의 중복에 대한 것일 수 있습니다. 라이브러리는 경고(<code>possible duplicate</code>)를 로그에 남기고 같은 요청에서 계속 기다립니다. 성공(대개 첫 사본에 대한 늦은 응답), 명령 자체(보안 컨트롤러 또는 인포테인먼트)의 거부, 너무 큰 응답, 읽을 수 없는 응답은 평소처럼 호출을 끝내며, 시간 안에 오지 않으면 결과는 <code>Uncertain(Timeout)</code>입니다</td></tr>
 <tr><td><strong>조회</strong>(<code>vehicleStatus()</code>, <code>keySummary()</code>, <code>listKeys()</code>, <code>getState()</code>)도 같은 경우</td><td>첫 행처럼 재시도합니다. 조회는 차량에서 아무것도 바꾸지 않으므로 두 번 실행해도 해가 없습니다</td></tr>
 <tr><td>차량이 동작했을 수 있는 오류(응답 없음, 읽을 수 없는 응답)</td><td>토글 명령이 두 번 실행되지 않도록 절대 재전송하지 않습니다. <code>Uncertain</code>을 반환합니다</td></tr>
-<tr><td>요청의 첫 블루투스 쓰기가 시작되기 전에 시간 제한이 지남: 앞선 보안 컨트롤러 명령을 기다리는 중, 링크가 비기를 기다리는 중, 또는 쓰기 전 검사</td><td><code>Failure(Timeout)</code></td></tr>
+<tr><td>요청의 첫 블루투스 쓰기가 시작되기 전에 시간 제한이 지남: 앞선 보안 컨트롤러 명령을 기다리는 중, 세션 캐시에 카운터 예약을 저장하는 중, 링크가 비기를 기다리는 중, 또는 쓰기 전 검사</td><td><code>Failure(Timeout)</code></td></tr>
 <tr><td>차량이 재시도를 요청한 뒤(busy, wait, 만료…) 재시도를 기다리는 중에 시간 제한이 지남</td><td><code>Failure(Timeout)</code></td></tr>
 <tr><td>첫 블루투스 쓰기가 시작된 뒤에 시간 제한이 지남: 쓰기가 아직 끝나지 않았거나, 실패해서 라이브러리가 다시 보내는 중이거나, 응답이 아직 오지 않음</td><td><code>Uncertain(Timeout)</code></td></tr>
 <tr><td>핸드셰이크의 시간 제한이 지남</td><td><code>Failure(Timeout)</code>. 세션이 만들어지지 않았고 바뀐 것은 없습니다</td></tr>
@@ -4646,6 +4647,12 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 </table>
 <p><strong>"보냄"은 쓰기가 시작되었다는 뜻입니다(2026-11-07 변경).</strong> 명령이나 조회는 휴대폰이 쓰기를 확인한 때가 아니라 첫 블루투스 쓰기가 시작된 순간부터 보냈을 수 있는 것으로 봅니다. 쓰기가 실패해도 이것은 되돌아가지 않습니다. 라이브러리는 같은 바이트를 다시 보내며, 그 재전송 중에 시간 제한이 지나도 여전히 <code>Uncertain</code>입니다. 이 변경 전에는 쓰기가 아직 진행 중일 때 시간 제한이 지나면, 차량이 이미 요청을 받았을 수 있는데도 <code>Failure(Timeout)</code>("timed out before sending")으로 보고했습니다. 실제 차량에서 한 번 있었던 일입니다. iPhone 앱이 백그라운드에 있을 때 <code>listKeys()</code> 요청이 9.65초 뒤에 끝났고(제한은 5초), 그 요청에 대한 차량의 응답이 9밀리초 뒤에 도착했습니다. Go 원본은 블루투스 쓰기에서 기한을 무시하므로 이런 경우를 만나지 않습니다. 앱이 할 일은 그대로입니다. <code>Failure(Timeout)</code>은 아무것도 실행되지 않았다는 뜻이고 <code>Uncertain(Timeout)</code>은 실행되었을 수 있다는 뜻이므로, 명령을 다시 보내기 전에 상태를 읽으세요. 휴대폰이 쓰기를 늦게 끝낼 때(예: 백그라운드) <code>Failure(Timeout)</code>은 줄고 <code>Uncertain(Timeout)</code>은 늘어납니다.</p>
 <p><strong>쓰기가 실패한 뒤에는 새 사본을 만들지 않음(2026-11-08 변경).</strong> 실패했다고 보고된 쓰기도 차량에 닿았을 수 있습니다. 차량이 그 첫 사본을 실행했고 응답이 사라졌다면, 라이브러리가 다시 쓴 사본은 같은 카운터를 담고 있어 차량이 리플레이로 보고 거부합니다. 이 변경 전에는 라이브러리가 그 거부를 재시도 사유로 받아들여 새 카운터로 새 사본에 서명했고, 차량이 명령을 두 번 실행할 수 있었습니다. <code>openTrunk()</code> 같은 토글은 처음 상태로 돌아갔을 것입니다. 이제 쓰기가 실패한 명령은 새 사본을 보내지 않습니다. 결과를 정하는 응답(대개 첫 사본에 대한 늦은 응답)이 올 때까지 같은 요청에서 계속 기다리고, 시간 제한까지 오지 않으면 <code>Uncertain(Timeout)</code>을 반환합니다. 앱은 다른 <code>Uncertain</code>과 같게 처리합니다. 상태를 읽고 다시 보내지 마세요. 같은 이유로 <code>KeyNotPaired</code>나 <code>InsufficientPrivileges</code> 같은 메시지 거부는 이 경로에서 <code>Failure</code>로 보고되지 않습니다. 중복에 대한 것일 수 있기 때문입니다(예를 들어 자기 키를 지우면 다시 쓴 사본의 키를 차량이 알 수 없게 됩니다). 쓰기 실패가 없으면 달라지는 것이 없습니다. 차량이 오류와 새 세션 정보로 답하면, 예를 들어 저장된 세션이 어긋난 상태에서 보낸 첫 요청에서는, 라이브러리가 이를 적용하고 첫 행처럼 재시도합니다. Go 원본은 쓰기 실패에서 포기하므로 이 경우에 이르지 않습니다.</p>
+<p><strong>저장된 카운터는 사용하기 전에 예약함(2026-11-14 변경, ADR-0016).</strong> 서명된 요청마다 차량이 한 번만 받아들이는 리플레이 방지 카운터가 들어갑니다. 서명된 요청이 세션 캐시에 아직 없는 카운터를 쓰기 전에, 라이브러리는 16개 앞선 값을 예약으로 저장하고 그다음에야 요청에 서명해 씁니다. 이 저장은 연결의 첫 서명된 요청 전에, 그리고 그 뒤 16개 요청마다 한 번 일어나며, 서명하지 않는 요청은 아무것도 저장하지 않습니다. 앱에는 세 가지가 달라집니다.</p>
+<ul>
+<li>앱이 <code>disconnect()</code> 없이 끝났더라도, 다음 실행의 첫 요청이 더 이상 한 번 거부된 뒤 약 1.2초 후에 다시 보내지지 않습니다(<a href="#ch18">문제 해결</a>에 아직 원인이 될 수 있는 경우가 있습니다).</li>
+<li>예약 저장도 호출의 시간 제한에 포함됩니다. 저장 중 시간 초과는 <code>Failure(Timeout)</code>이며, 아무것도 보내지 않았고 카운터도 쓰지 않았습니다. 캐시가 예외를 던지면 요청은 그래도 보내지고 경고가 남습니다. 내장 캐시는 예외를 던지지 않습니다. 실패한 쓰기를 로그(태그 <code>cache</code>의 경고)로만 남기고, 라이브러리는 그것을 다음 16개 요청 동안 저장된 것으로 셉니다. 연결이 닫히는 중이면 호출은 보내지 않고 <code>Failure(NotConnected)</code>를 반환합니다.</li>
+<li>마지막 카운터(<code>0xFFFFFFFF</code>, 실제로는 예상되지 않음)까지 쓴 세션은 보내지 않고 <code>Failure(NoSession)</code>을 반환합니다. <code>startSession()</code>을 호출한 뒤 다시 보내세요. Go 원본은 시간 제한까지 계속 재시도합니다.</li>
+</ul>
 
 <h3 id="ch16-sec-requery">Uncertain 뒤에 읽을 것</h3>
 <p><code>Uncertain</code> 뒤에는 절대 다시 보내지 마세요. 명령이 바꾸는 상태를 읽으세요.</p>
@@ -4808,6 +4815,9 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <li>세션은 키 하나에 속합니다. 키가 바뀌거나 차량 쪽 상태가 앞서 나가면, 다음 연결에서 이전 세션을 버립니다.</li>
 <li>캐시가 없거나 오래된 것은 오류가 아닙니다. 라이브러리는 그냥 새 세션을 시작합니다.</li>
 <li>폰 잠금이 키를 막아 복원하지 못한 저장된 세션(iOS)은 오래된 것이 아닙니다. 차량의 그 부분에 다시 세션이 생길 때까지 라이브러리는 캐시에 아무것도 쓰지 않으므로, 휴대폰이 잠긴 동안 연결을 끊어도 저장된 세션은 남습니다. 예외: 같은 연결에서 복원한 다른 세션이 오래된 것으로 판명되면 라이브러리는 그 세션을 빼고 캐시를 다시 쓰며, 막혔던 세션도 함께 빠집니다(차량의 그 부분은 다음에 새로 핸드셰이크합니다).</li>
+<li><strong>앱이 <code>disconnect()</code> 없이 끝날 수 있습니다</strong>: 사용자가 강제 종료하거나, 정지된 사이에 시스템이 종료하거나, 크래시가 납니다. iOS에서는 앱이 보통 이렇게 끝납니다. 라이브러리는 리플레이 방지 카운터를 사용하기 전에 저장하므로(16개 앞선 값을 예약, ADR-0016), 다음 실행의 첫 서명된 요청은 핸드셰이크도 거부도 없이 바로 받아들여집니다. 이 변경 전(2026-11-14까지의 빌드)에는 차량이 그 요청을 invalid-counter fault와 새 세션 정보로 한 번 거부했고, 라이브러리가 그것을 적용해 요청을 다시 보내 약 1.2초가 더 걸렸습니다. 결과는 여전히 <code>Success</code>였고 거부된 사본은 실행되지 않았습니다. 그런 이전 빌드가 저장한 캐시는 업그레이드 뒤 한 번 더 이 일을 일으킬 수 있습니다.</li>
+<li>예약에는 연결마다 첫 서명된 요청 전에, 그 뒤에는 16개 요청마다 캐시 쓰기 한 번(Android는 파일 쓰기, iOS는 키체인 쓰기)이 듭니다. 그 호출의 시간 제한에 포함되며, 이때의 시간 초과는 아무것도 보내지 않았으므로 <code>Failure(Timeout)</code>입니다.</li>
+<li>이는 캐시 쓰기가 성공하고 앱이 <strong>차량과 키마다 살아 있는 연결을 하나만</strong> 유지한다는 전제입니다. 쓰기가 실패하면 라이브러리는 로그를 남기고 요청을 그대로 보내며, 예전 동작이 한 번 돌아올 수 있습니다. 같은 키로 같은 차량에 연결을 둘 만들거나 다른 앱이 같은 키를 쓰는 경우는 보호되지 않습니다. 끊어진 링크도 여기에 해당합니다. 이전 <code>Vehicle</code>의 <code>disconnect()</code>를 호출해 그것이 반환된 뒤에 다시 연결하세요. 그렇지 않으면 그 마지막 캐시 쓰기가 새 연결의 예약보다 늦게 기록되어 예약을 낮출 수 있습니다.</li>
 </ul>
 
 <h3 id="ch17-sec-clock">시계</h3>
@@ -4919,6 +4929,11 @@ _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class=
 <tr><td>iPhone이 잠겨 있을 때만 <code>startSession()</code>이 시간 초과되고, <code>WARN</code> 줄 <code>Session info error: MESSAGEFAULT_ERROR_BAD_PARAMETER: invalid public key</code>나 <code>invalid cache: …: invalid public key</code>가 남음</td><td>iOS가 잠긴 Secure Enclave 키를 라이브러리가 기대하는 오류(-25308)가 아닌 다른 오류로 알림(실기기에서는 아직 확인하지 않음)</td><td>iOS 버전과 로그 줄을 함께 알려 주세요. 그동안은 연결 직전에 키 보관소에서 키를 다시 읽거나(그러면 <code>Locked</code>가 반환됩니다) <code>AFTER_FIRST_UNLOCK</code> 키를 씁니다</td></tr>
 <tr><td><code>WARN</code> <code>Keychain did not report the protection class of key &lt;alias&gt;; reporting WHEN_UNLOCKED</code></td><td>Keychain이 저장된 키의 보호 방식을 알려 주지 않음(예상하지 않은 경우)</td><td>키는 <code>WHEN_UNLOCKED</code>로 보고됩니다. iOS 버전과 함께 알려 주세요</td></tr>
 <tr><td>오래 잠든 뒤 첫 명령이 실패하고 재시도는 성공</td><td>휴대폰이 잠든 동안 시계가 멈춤</td><td>할 일 없음. 라이브러리가 알아서 다시 동기화함</td></tr>
+<tr><td>재실행 뒤 첫 서명된 요청이 <code>INVALID_TOKEN_OR_COUNTER</code>와 새 세션 정보로 거부되고, 약 1.2초 뒤에 성공함</td><td>저장된 카운터가 차량보다 뒤처져 있었음. ADR-0016 이후 라이브러리는 카운터를 사용하기 전에 저장하므로, <code>disconnect()</code> 없이 끝난 앱(강제 종료, iOS가 정지된 앱을 종료, 크래시)은 더 이상 이를 일으키지 않음. 아직 원인이 될 수 있는 경우: 이전 빌드가 저장한 캐시(업그레이드 뒤 한 번), 실패한 캐시 쓰기(아래 두 행), 같은 키를 쓰는 다른 연결이나 앱</td><td>고칠 것은 없습니다. 거부된 사본은 실행되지 않았고 결과는 <code>Success</code>입니다. 차량과 키마다 살아 있는 연결을 하나만 두고, 끊어진 연결의 <code>disconnect()</code>가 반환된 뒤에 다시 연결하세요. 반복되면 아래 두 행의 경고를 찾아보세요</td></tr>
+<tr><td><code>WARN</code> 줄(태그 <code>Dispatcher</code>) <code>Sending on &lt;domain&gt; with a counter the session cache does not cover …</code>, 흔히 그 앞에 <code>Failed to store the counter reservation for &lt;domain&gt;: …</code>(태그 <code>VehicleSession</code>)나 <code>Keeping the session cache: …</code>가 남음</td><td>요청 전에 카운터 예약을 저장하지 못함(직접 구현한 <code>TeslaBleConfig.sessionCache</code>가 예외를 던졌거나, 폰 잠금이 복원을 막아 캐시를 그대로 두는 중). 요청은 그래도 보냄</td><td>이 요청에는 할 일이 없습니다. 앱이 <code>disconnect()</code> 없이 끝난 뒤에는 다음 실행의 첫 요청이 한 번 거부될 수 있습니다(위 행). 저장이 계속 실패하면 <code>TeslaBleConfig.sessionCache</code>나 저장소를 확인하세요</td></tr>
+<tr><td><code>WARN</code> 줄(태그 <code>cache</code>) <code>Failed to store session cache: …</code></td><td>내장 캐시가 쓰지 못함(파일 시스템, 키체인 상태). 로그만 남기고 반환하므로 라이브러리는 예약을 저장된 것으로 세고, 이어지는 서명된 요청 16개는 캐시에 없을 수 있는 카운터를 씀</td><td>이 요청들에는 할 일이 없습니다. 앱이 <code>disconnect()</code> 없이 끝난 뒤에는 다음 실행의 첫 요청이 한 번 거부될 수 있습니다(위 두 행). 반복되면 남은 저장 공간이나 그 줄의 키체인 상태를 확인하세요</td></tr>
+<tr><td>연결할 때 차량의 한 부분에 저장된 세션이 복원되지 않고, <code>WARN</code> 줄 <code>invalid cache: &lt;domain&gt;: anti-replay counter exhausted</code>가 남음</td><td>저장된 카운터에서 <code>0xFFFFFFFF</code>까지 남은 값이 16개 미만(실제로는 예상되지 않음)</td><td>할 일 없음. <code>startSession()</code>이 핸드셰이크를 하고 차량의 카운터에서 시작합니다</td></tr>
+<tr><td><code>WARN</code> 줄 <code>The anti-replay counter for &lt;domain&gt; is exhausted; startSession() starts a new session</code> 뒤에 서명된 호출이 <code>NoSession</code>을 반환함</td><td>세션이 마지막 카운터 <code>0xFFFFFFFF</code>까지 씀(실제로는 예상되지 않음)</td><td>차량의 그 부분에 <code>startSession()</code>을 호출한 뒤 다시 보내세요. 아무것도 보내지 않았습니다</td></tr>
 </tbody>
 </table>
 
@@ -5173,7 +5188,7 @@ _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class=
 <ul>
 <li><strong>연결마다 수신 코루틴은 정확히 하나.</strong> 수신 코루틴은 다른 코루틴을 기다리지 않고, 논블로킹 <code>trySend</code>로 데이터를 넘깁니다(브로드캐스트는 <code>tryEmit</code>이므로 느린 <code>events</code> 수집자가 응답을 늦추지 못합니다). 유일한 대기는 새 수신 코루틴이 이전 코루틴의 종료를 기다리는 것입니다.</li>
 <li><strong>연결마다 VCSEC 명령은 한 번에 하나.</strong> 이전 명령을 기다리는 시간도 시간 제한에 포함됩니다. Infotainment 명령은 병렬로 실행될 수 있습니다.</li>
-<li>도메인마다 세션 상태가 하나 있습니다. 그 잠금은 암호화, 복호화, 세션 갱신에만 걸리므로 대기 시간이 짧습니다.</li>
+<li>도메인마다 세션 상태가 하나 있습니다. 그 잠금은 암호화, 복호화, 세션 갱신에만 걸리므로 대기 시간이 짧습니다. 카운터를 예약하는 캐시 쓰기(세션 캐시 참고)는 그 잠금 밖에서, 호출자의 코루틴에서, 요청의 블루투스 쓰기 전에 일어납니다.</li>
 <li>두 도메인의 핸드셰이크는 병렬로 실행되며, 하나가 실패하면 다른 하나는 취소됩니다.</li>
 <li>명령, 핸드셰이크, 연결은 각자 시간 제한을 가집니다. <a href="#ch16-sec-retry">16. 에러 처리</a>를 참고하세요.</li>
 </ul>
@@ -5186,6 +5201,20 @@ _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class=
 
 <h3 id="ch19-sec-cache">세션 캐시</h3>
 <p>세션은 작은 바이너리 형식(버전 1)으로 저장되어, 다음 연결에서 새 핸드셰이크 없이 명령을 보낼 수 있게 합니다. 세션은 클라이언트 키(공개키의 SHA-1)에 묶이며, 다른 키의 세션은 무시되고 삭제됩니다. 핸드셰이크가 끝날 때, 세션 정보가 바뀔 때, 연결을 끊을 때 저장합니다. 개인키, 세션 암호화 키, 원본 VIN은 절대 저장하지 않습니다. 손상되었거나 인식할 수 없는 항목은 건너뛰고 나머지를 복원합니다.</p>
+<p><strong>카운터 예약(ADR-0016, Go와 다름).</strong> 저장하는 리플레이 방지 카운터는 사용하기 <em>전에</em> 기록되므로, <code>disconnect()</code> 없이 끝난 앱(강제 종료, 시스템이 정지된 앱을 종료, 크래시)이 다음 실행에 차량이 이미 받아들인 카운터를 남기지 않습니다. Go 명령줄 도구는 종료할 때 실제 카운터를 저장하는데, 이는 정상 종료에서만 통합니다.</p>
+<table>
+<thead><tr><th>항목</th><th>규칙</th></tr></thead>
+<tbody>
+<tr><td>약속</td><td>캐시 쓰기가 성공했다면, 저장된 항목의 카운터는 그 epoch에서 쓴 가장 높은 카운터 이상입니다</td></tr>
+<tr><td>쓰는 때</td><td>서명된 요청이 캐시에 아직 없는 카운터를 쓰기 전: 라이브러리는 차량의 그 부분의 카운터에 16을 더한 값(<code>0xFFFFFFFF</code>에서 멈춤)을 저장하고 그다음에 서명합니다. 한 번의 쓰기가 다음 16개 요청을 덮습니다. 확인과 서명은 세션 상태의 잠금 아래에서 일어나며, 병렬 요청이 새 예약을 다 쓰거나 쓰는 동안 세션이나 epoch가 바뀌면 다시 예약합니다</td></tr>
+<tr><td>다른 저장</td><td>저장된 예약보다 낮은 카운터는 절대 쓰지 않습니다. 연결을 끊을 때의 저장도 같습니다</td></tr>
+<tr><td>유효 범위</td><td>예약은 세션 하나와 그 epoch에 속합니다. 새 세션, 교체된 세션, 오래된 세션이나 epoch 변경이 예약을 끝내며, 같은 epoch의 세션 정보는 예약을 유지합니다</td></tr>
+<tr><td>쓰기가 실패할 때</td><td>요청은 예전처럼 보내지고 경고가 남습니다. 캐시가 실패했다고 로그만 남긴 쓰기(내장 캐시가 그렇게 합니다)는 저장된 것으로 셉니다. 닫히는 중인 연결은 카운터를 쓰지 않고 <code>NotConnected</code>를 반환합니다</td></tr>
+<tr><td>카운터 한계</td><td>남은 카운터가 16개 미만인 저장 항목은 복원하지 않습니다(핸드셰이크가 뒤따릅니다). <code>0xFFFFFFFF</code>를 쓴 세션은 다음 서명된 호출에 <code>NoSession</code>으로 답하며, <code>startSession()</code>이 새 세션을 만들며, 같은 차량 키에서만 가능합니다. 차량이 그 마지막 카운터를 받아들이지 않았다면, 새 세션은 같은 epoch에서 차량의 더 낮은 카운터부터 시작합니다(건너뛴 카운터는 하나도 받아들여지지 않았습니다). 그때까지는 이전 세션이 이미 보낸 요청의 응답을 계속 복호화합니다</td></tr>
+<tr><td>보호되지 않는 경우</td><td>캐시가 로그만 남긴 실패한 쓰기, 같은 키를 쓰는 다른 앱이나 두 번째 살아 있는 연결(새 연결이 예약한 뒤에 <code>disconnect()</code>가 끝나는, 끊어진 이전 연결 포함), 이전 빌드가 저장한 캐시(그 첫 요청은 아직 한 번 거부된 뒤 복구될 수 있음)</td></tr>
+<tr><td>비용</td><td>연결의 첫 서명된 요청 전에 캐시 쓰기 한 번, 그 뒤에는 16개 요청마다 한 번. 비정상 종료나 재연결 뒤 첫 요청에서 차량이 보는 카운터는 보통 16 이하로 점프합니다. Go 참조 구현은 앞으로의 점프를 받아들이며, 실차 확인은 대기 중입니다</td></tr>
+</tbody>
+</table>
 
 <h3 id="ch19-sec-proto">프로토콜 정의</h3>
 <p><code>:domain</code> 모듈은 Wire 7.0.4로 <code>.proto</code> 파일 9개에서 Kotlin을 생성합니다. 2026-10-18부터 이 파일들은 고정된 커밋(<code>e6f7afb1</code>, Apache-2.0)의 Teslemetry/tesla-protocol을 수정 없이 복사한 것입니다. 이 스냅샷에는 공식 vehicle-command 정의와 <code>TESLEMETRY-EXT</code>로 표시된 추가분이 들어 있으며, 일부는 <code>UNCONFIRMED</code>나 <code>name unverified</code>로도 표시되어 있습니다. 출처는 <code>NOTICE</code>와 <code>PROTO_SOURCE.md</code>에 적혀 있습니다.</p>
