@@ -37,6 +37,11 @@ skie {
     build {
         produceDistributableFramework()
     }
+    // SKIE는 기본으로 빌드마다 사용 통계를 모아 Mixpanel로 보낸다(skieUploadAnalytics* 태스크). 텔레메트리 금지(AGENTS.md 규칙 6)에
+    // 따라 수집과 업로드를 모두 끈다.
+    analytics {
+        enabled.set(false)
+    }
 }
 
 detekt { config.setFrom(files("$rootDir/config/detekt/detekt.yml", "$rootDir/config/detekt/detekt-adapter.yml")) }
