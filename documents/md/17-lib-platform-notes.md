@@ -140,6 +140,19 @@ checked on a real iPhone yet, so treat the library behaviour in the background a
   writes nothing to the cache until that domain has a session again, so a disconnect while locked keeps the cache.
   Exception: if another restored session turned out stale in the same connection, the cache is rewritten without the
   stale entry (and without the blocked one), and the rest of that connection stores as usual.
+- **The app process may end without `disconnect()`** (force quit, the system ending a suspended app, a crash); on iOS
+  this is the usual way a process ends. The library writes the cached anti-replay counter before it uses it (a
+  reservation 16 counters ahead, ADR-0016), so the first authenticated request of the next process is accepted at once,
+  without a handshake and without a refusal. Before this change (builds up to 2026-11-14) that request was refused once
+  with `INVALID_TOKEN_OR_COUNTER` and fresh session info, and the library applied it and resent it, which added about
+  1.2 s; the result was still `Success` and the refused copy did not run. A cache entry written by such an older build
+  can still cause that once after the upgrade.
+- The reservation costs one cache write (an app file write on Android, a Keychain write on iOS) before the first
+  authenticated request of each connection and then one per 16 requests. It counts against that call's `timeout`; a
+  timeout there is `Failure(Timeout(afterSend = false))` because nothing was sent.
+- The guarantee assumes the cache write succeeds and that the app holds **one live connection per vehicle and key**. If
+  a write fails, the library logs it, sends the request anyway and the old behaviour can return once. Two connections
+  to the same vehicle with the same key, or another app using the same key, are not protected.
 
 ## Clocks
 
