@@ -33,10 +33,10 @@ internal fun interface CounterReservation {
     /** [reserve]의 결과. */
     enum class Outcome {
         /** 다음 counter가 확정한 예약 안에 있다. 디스패처는 다시 인가한다(그사이 다른 전송이 예약을 다 썼으면 또 부른다). */
-        COVERED,
+        RESERVED,
 
         /** 예약을 쓰지 못했다(기기 잠금 보존으로 쓰지 않음, 저장 실패). 디스패처는 WARN을 남기고 예약 없이 인가한다(이전 동작). */
-        NOT_COVERED,
+        NOT_RESERVED,
 
         /** 연결이 닫히는 중이다. 디스패처는 counter를 쓰지 않고 `NotConnected`로 끝낸다. */
         CLOSING,
@@ -45,8 +45,8 @@ internal fun interface CounterReservation {
 
 /**
  * `Dispatcher.authorize`의 인가(Go `session.authorize`): [reservation]이 있으면 캐시가 다음 counter를 덮을 때까지 예약을 늘린 뒤에만
- * 암호화한다. [CounterReservation.Outcome.COVERED] 뒤에도 덮이지 않았으면(동시 전송이 그 예약을 다 썼으면) 다시 예약하고, 예약을 쓰지
- * 못했을 때([CounterReservation.Outcome.NOT_COVERED])만 WARN을 남기고 예약 없이 인가한다(이전 동작). 닫히는 중이면 counter를 쓰지 않고
+ * 암호화한다. [CounterReservation.Outcome.RESERVED] 뒤에도 덮이지 않았으면(동시 전송이 그 예약을 다 썼으면) 다시 예약하고, 예약을 쓰지
+ * 못했을 때([CounterReservation.Outcome.NOT_RESERVED])만 WARN을 남기고 예약 없이 인가한다(이전 동작). 닫히는 중이면 counter를 쓰지 않고
  * `NotConnected`. 결과: 세션 없음(닫힘·무효화·counter 소진)은 [VehicleError.NoSession], 그 밖의 fault는 공개 오류.
  */
 internal suspend fun SessionState.authorizeReserving(
@@ -60,11 +60,11 @@ internal suspend fun SessionState.authorizeReserving(
     while (reservation != null && result.needsReservation()) {
         result =
             when (reservation.reserve(domain)) {
-                CounterReservation.Outcome.COVERED -> {
+                CounterReservation.Outcome.RESERVED -> {
                     authorizeNow(message, lifetime, requireReservation = true)
                 }
 
-                CounterReservation.Outcome.NOT_COVERED -> {
+                CounterReservation.Outcome.NOT_RESERVED -> {
                     logger.log(LogLevel.WARN, TAG) {
                         "Sending on $domain with a counter the session cache does not cover " +
                             "(the reservation was not stored); after an unclean exit the vehicle may refuse it once"
@@ -108,7 +108,7 @@ private fun SignerResult<RoutableMessage>.needsReservation(): Boolean =
     this is SignerResult.Fault && detail == SessionState.RESERVATION_NEEDED
 
 /** 캐시에 쓸 도메인 하나: [SessionState.CacheExport]와 그 도메인. */
-internal class CacheExport(
+internal class DomainCacheExport(
     val domain: Domain,
     val state: SessionState.CacheExport,
 ) {
@@ -120,14 +120,14 @@ internal class CacheExport(
  * `SessionCacheSync`가 캐시에 쓸 내용. [Dispatcher.exportSessions]와 같은 도메인을 내보내되(오래된 캐시로 판정된 세션은 빼고), 각
  * counter는 이미 확정한 예약보다 낮지 않고 [extend] 도메인만 예약 폭만큼 앞선다([SessionState.exportForCache]).
  */
-internal suspend fun Dispatcher.exportForCache(extend: Domain?): List<CacheExport> =
+internal suspend fun Dispatcher.exportForCache(extend: Domain?): List<DomainCacheExport> =
     Dispatcher.ALL_DOMAINS.mapNotNull { domain ->
         val session = session(domain) ?: return@mapNotNull null
-        if (session.isReportedStale) null else session.exportForCache(domain == extend)?.let { CacheExport(domain, it) }
+        if (session.isReportedStale) null else session.exportForCache(domain == extend)?.let { DomainCacheExport(domain, it) }
     }
 
 /** [exportForCache]로 내보내 실제로 캐시에 쓴 항목만 넘긴다: 그 counter까지를 확정한 예약으로 기억한다. */
-internal suspend fun Dispatcher.commitReservations(written: List<CacheExport>) {
+internal suspend fun Dispatcher.commitReservations(written: List<DomainCacheExport>) {
     for (entry in written) session(entry.domain)?.commitReservation(entry.state)
 }
 
