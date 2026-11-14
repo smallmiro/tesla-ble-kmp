@@ -55,7 +55,7 @@
 </nav>
 <main class="content">
 <h1>18. トラブルシューティング</h1>
-<p class="lead">スキャン、接続、キー、ペアリング、コマンド、<code>getState</code> で起きやすい問題と、その原因および対処法です。最後に開発用の観察ログを説明します。</p>
+<p class="lead">スキャン、接続、キー、ペアリング、コマンド、<code>getState</code>、iOS シミュレーターで起きやすい問題と、その原因および対処法です。最後に開発用の観察ログを説明します。</p>
 
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-scan">スキャンと接続</a></li>
@@ -77,7 +77,8 @@
 <tbody>
 <tr><td><code>PermissionDenied</code></td><td>Bluetooth 権限がない、または拒否された</td><td>Android: 実行時に <code>BLUETOOTH_SCAN</code> と <code>BLUETOOTH_CONNECT</code> を要求します。iOS: <code>NSBluetoothAlwaysUsageDescription</code> を追加します。拒否された場合はユーザーを設定に誘導します</td></tr>
 <tr><td><code>BluetoothOff</code></td><td>Bluetooth がオフ</td><td>オンにするようユーザーに依頼します</td></tr>
-<tr><td>スキャンで何も見つからず、接続が <code>ScanTimeout</code> で終わる</td><td>範囲外、VIN の誤り、または iOS シミュレーター</td><td>車両に近づく、VIN を確認する (車両は VIN から導出した名前で照合されます)、実機を使う</td></tr>
+<tr><td>スキャンで何も見つからず、接続が <code>ScanTimeout</code> で終わる</td><td>範囲外、または VIN の誤り</td><td>車両に近づく、VIN を確認する (車両は VIN から導出した名前で照合されます)</td></tr>
+<tr><td>iOS シミュレーターで、スキャンがすぐに理由 <code>IllegalStateException: This device doesn't support the Bluetooth low energy central or client role</code> とともに <code>ConnectFailed</code> を報告し、接続も同じ形で失敗する</td><td>シミュレーターには Bluetooth がなく、iOS はこのデバイスが Bluetooth のセントラルとして動作できないと報告します。<code>BluetoothOff</code> や <code>PermissionDenied</code> としては報告されません</td><td>スキャンと接続は実機の iPhone で行う。ユーザーに Bluetooth がオフだと伝えたり、ループで再試行したりしない (<a href="17-lib-platform-notes.html#sec-ios">プラットフォームノート</a>)</td></tr>
 <tr><td>接続が <code>ConnectFailed</code> で終わり、理由に期限内に接続を完了できなかったとある</td><td>理由に <code>vehicle found</code> とあれば、ライブラリのスキャンが車両を見つけましたが (その <code>[connect:scan-hit]</code> 行が発見を示します)、リンクが期限内に開きませんでした。理由に <code>remembered target</code> とあれば、スキャンを実行していないため、車両がまだそこにあるかはわかりません。範囲外にある記憶済みの <code>target</code> は <code>ConnectFailed</code> を返し、<code>ScanTimeout</code> にはなりません。<code>ScanTimeout</code> は常にアドバタイズが見つからなかったことを意味します</td><td>もう一度試す。記憶済みの <code>target</code> で失敗した場合は、スキャンが実行されるようにそれを渡さずに接続する。車両が範囲内にあるのに繰り返す場合はログ行を報告する</td></tr>
 <tr><td><code>MaxConnectionsExceeded</code></td><td>車両にすでに 3 つの Bluetooth 接続がある</td><td>別のスマートフォンやアプリを切断し、自分のアプリでは必ず <code>disconnect()</code> を呼びます</td></tr>
 <tr><td><code>ConnectFailed</code> が繰り返し返る</td><td>電波が弱い、または車両がビジー</td><td>ライブラリはすでに 30 秒間リトライしています。時間をおいてもう一度試します</td></tr>
@@ -163,6 +164,8 @@
 <tr><td><code>WARN</code> <code>Dropping plain broadcast because the broadcast buffer is full</code></td><td><code>vehicle.events</code> の収集側がフレーム 64 個より多く遅れた</td><td>収集処理は軽くし、遅い処理は別のコルーチンに移します (<a href="16-lib-errors.html#sec-events">16. エラー処理</a>)</td></tr>
 <tr><td><code>UnknownFault</code>、<code>UnknownKeychainCode</code>、<code>UNKNOWN</code> として読まれる値</td><td>新しい車両ファームウェア</td><td>ライブラリのアップデートを確認します</td></tr>
 <tr><td>シミュレーターでキーチェーンのテストが -25291 で失敗する</td><td>素の Kotlin/Native テストバイナリはキーチェーンを使えない</td><td>代わりにサンプルアプリでキーチェーンの動作を確認します</td></tr>
+<tr><td>iOS シミュレーターで、キーストアが <code>keychain status -34018</code> (<code>errSecMissingEntitlement</code>) とともに <code>PlatformFailure</code> を返す</td><td>アプリがコード署名されていない (例: <code>CODE_SIGNING_ALLOWED = NO</code>) ため、キーチェーンにアクセスできない</td><td>アプリに署名する。アドホック署名で十分です (<code>CODE_SIGN_IDENTITY = -</code>、"Sign to Run Locally")。<a href="17-lib-platform-notes.html#sec-keys">プラットフォームノート</a>を参照</td></tr>
+<tr><td>Xcode のシミュレーター向けビルド: <code>Teslable</code> のファイルが <code>x86_64</code> ではなく <code>arm64</code> 用にビルドされているという警告の後に <code>ld: symbol(s) not found for architecture x86_64</code></td><td>Swift パッケージのシミュレータースライスは arm64 のみで、このビルドは <code>x86_64</code> もビルドしている (Release ビルドはすべてのアーキテクチャをビルドする)</td><td>アプリのターゲットに <code>EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64</code> を設定する。Intel Mac では実機を使う: シミュレーターはライブラリを実行できません (<a href="17-lib-platform-notes.html#sec-ios">プラットフォームノート</a>)</td></tr>
 </tbody>
 </table>
 

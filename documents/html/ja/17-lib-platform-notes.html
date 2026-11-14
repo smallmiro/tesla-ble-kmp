@@ -55,7 +55,7 @@
 </nav>
 <main class="content">
 <h1>17. プラットフォームノート</h1>
-<p class="lead">Android や iOS のアプリで設定すべきこと、ライブラリがキーとセッションを保存する場所、知っておくべきいくつかのプラットフォーム固有の動作、Swift からライブラリを呼び出す方法をまとめます。実機でまだ確認していない項目はその旨を記載しています。</p>
+<p class="lead">Android や iOS のアプリで設定すべきこと、iOS の Swift パッケージの中身、ライブラリがキーとセッションを保存する場所、知っておくべきいくつかのプラットフォーム固有の動作、Swift からライブラリを呼び出す方法をまとめます。実機でまだ確認していない項目はその旨を記載しています。</p>
 
 <div class="toc"><strong>このページの内容</strong><ol>
 <li><a href="#sec-support">サポート範囲</a></li>
@@ -106,11 +106,16 @@
 <ul>
 <li><code>Info.plist</code> に <code>NSBluetoothAlwaysUsageDescription</code> を追加します。<strong>最初のスキャンで権限ダイアログが表示されます</strong>。ユーザーが拒否すると、呼び出しは <code>PermissionDenied</code> を返します。</li>
 <li>ライブラリは <code>PlatformContext()</code> で作成します。</li>
-<li>シミュレーターには Bluetooth がありません。スキャンと接続は実機の iPhone でのみ試せます。</li>
+<li>Swift パッケージ (<a href="11-lib-overview.html#sec-install">インストール</a>) には<strong>静的な</strong> <code>Teslable.xcframework</code> が含まれ、スライスはちょうど 2 つです。実機用の <code>ios-arm64</code> とシミュレーター用の <code>ios-arm64-simulator</code> (arm64 のみ) で、対象は iOS 16.0 以降です。静的なので、ライブラリのコードはアプリのバイナリにリンクされます。</li>
+<li>シミュレーターには Bluetooth がありません。スキャンと接続は実機の iPhone でのみ試せます。シミュレーターでは、<code>scan(vin)</code> がすぐに <code>ScanEvent.Failed</code> を 1 つ報告します。エラーは <code>ConnectFailed</code>、理由は <code>IllegalStateException: This device doesn't support the Bluetooth low energy central or client role</code> です (Xcode 27.2 で確認)。<code>BluetoothOff</code> や <code>PermissionDenied</code> ではありません。<code>target</code> なしの <code>connect</code> もすぐに同じ形で失敗します。理由は人とログのためのテキストなので、その値で分岐しないでください。キーストアは、署名されたアプリならシミュレーターでも動作します (<a href="#sec-keys">キーの保存</a>を参照)。</li>
 <li>iOS には MTU ネゴシエーションの API がないため、ライブラリはシステムが選んだ書き込み長を使います。実機の iPhone で観測したブロック長は 512 です。応答キャラクタリスティックは通知 (notification) と指示 (indication) の両方に対応し、Kable 既定の購読 (notify) が実車で動作することを確認しました (ADR-0003)。</li>
 <li>Swift は SKIE を通して Kotlin を呼び出します。<code>suspend</code> 関数は <code>async throws</code> に、<code>Flow</code> は <code>AsyncSequence</code> になり、sealed 型は <code>switch onEnum(of:)</code> で扱えます。companion メンバーには <code>.companion</code> を通してアクセスします。</li>
 <li>Swift では公開の <code>VehicleStatus</code> は <code>VehicleStatus_</code> という名前になります。生成された VCSEC メッセージ型がそのままの名前を使っているためです。<code>vehicleStatus()</code> の結果と <code>VehicleEvent.Status.status</code> がこの型です。</li>
 </ul>
+<div class="callout warn">
+<strong>シミュレーター: Apple Silicon Mac のみ</strong>
+<p>Swift パッケージには <code>x86_64</code> のシミュレータースライスがありません。Intel Mac ではアプリを実機向けにビルドできますが、シミュレーターでライブラリを実行することはできません。<code>x86_64</code> もビルドするシミュレーター向けビルドは、<code>Teslable</code> のファイルが <code>arm64</code> 用にビルドされているという警告の後、<code>ld: symbol(s) not found for architecture x86_64</code> でリンクに失敗します。シミュレーター向けの Release ビルドはすべてのアーキテクチャをビルドするため、アプリのターゲットに <code>EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64</code> を設定してください。Xcode の既定のようにアクティブなアーキテクチャだけをビルドする Debug ビルドは、Apple Silicon Mac では影響を受けません。Xcode 27.2 で確認しました。</p>
+</div>
 
 <h2 id="sec-ios-bg">サンプルアプリの iOS バックグラウンド利用</h2>
 <p>ライブラリはフォアグラウンドでの利用をサポートします（サポート範囲を参照）。iOS サンプルのモニターアプリは <code>UIBackgroundModes: [bluetooth-central]</code> を宣言し、Android サンプルと同じ再接続ループを実行します。まだ実機の iPhone では<strong>確認していない</strong>ため、バックグラウンドでのライブラリの動作は未確認として扱ってください。</p>
@@ -136,6 +141,7 @@
 <li>iOS では、Secure Enclave の検索失敗は「キーなし」ではなくエラーとして報告されるため、正常なキーが誤って上書きされることはありません。</li>
 <li>秘密鍵をエクスポートする API はありません。</li>
 <li>キーのハンドルは自動的に解放されます。iOS では、キーのオブジェクトごとに Security フレームワークの参照 (<code>SecKeyRef</code>) を 1 つ持ちます。この参照は、アプリも接続した <code>Vehicle</code> もそのキーを使わなくなり、Kotlin/Native のガベージコレクタが動いた後に解放されます。閉じるものはなく、キーを読み直してもハンドルはたまりません。</li>
+<li>シミュレーターでは、キーチェーンは<strong>コード署名されたアプリ</strong>でのみ動作します。アドホック署名で十分です (<code>CODE_SIGN_IDENTITY = -</code>、Xcode では "Sign to Run Locally")。署名なしのビルド (<code>CODE_SIGNING_ALLOWED = NO</code>) はキーチェーンにアクセスできず、キーストアは <code>keychain status -34018</code> (<code>errSecMissingEntitlement</code>) とともに <code>PlatformFailure</code> を返します。Swift パッケージのリリース検査は、シミュレーターのテストをこの方法で署名します。</li>
 </ul>
 <h3>スマートフォンのロック中にキーを使う</h3>
 <p>キーごとにアクセシビリティ設定 <code>VehicleKey.accessibility</code> があります。選び方とキーを切り替える手順は <a href="13-lib-pairing.html#sec-accessibility">13. キーとペアリング</a> にあります。</p>

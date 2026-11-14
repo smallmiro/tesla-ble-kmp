@@ -67,7 +67,7 @@
 </ol></div>
 
 <h2 id="sec-status">現在できること</h2>
-<p>ライブラリはマイルストーンごとに作られています。これらのページは <code>main</code> のコードを説明しており、現在は <strong>M4</strong> の段階で、issue #91 のブロードキャストイベントとキーアクセシビリティの選択、そして M5 のライブラリ部分である <code>getState()</code> とインフォテインメントのコマンド 51 個が加わっています。</p>
+<p>ライブラリはマイルストーンごとに作られています。これらのページは <code>main</code> のコードを説明しています。<strong>M0 から M5</strong> (プロトコルのコア、スキャンと接続、キーとペアリング、<code>getState()</code> による状態の読み取りとインフォテインメントのコマンド 51 個すべて)、issue #91 のブロードキャストイベントとキーアクセシビリティの選択、そして <strong>M6 の第 1 段階</strong>である iOS の Swift パッケージを含みます。</p>
 <table>
 <thead><tr><th>領域</th><th>マイルストーン</th><th>状態</th><th>ページ</th></tr></thead>
 <tbody>
@@ -82,7 +82,8 @@
 <tr><td>保存済みセッションのカウンターを使う前に予約: アプリが <code>disconnect()</code> なしで終了した後、次回起動の最初のリクエストが 1 回拒否されることはなくなりました (FR-017, ADR-0016, API の変更なし)</td><td>H17 (M5 とは別)</td><td><span class="badge ok">完了</span> FakeVehicle のテストで確認済み、実車確認は未実施</td><td><a href="17-lib-platform-notes.html#sec-cache">17</a>, <a href="19-lib-architecture.html#sec-cache">19</a>, <a href="16-lib-errors.html">16</a></td></tr>
 <tr><td>インフォテインメントのコマンド: 空調、充電と電源、充電ポート、ウィンドウとサンルーフ、ホーンとライト、セントリーとバレーモード、メディア、ソフトウェアアップデート、<code>ping()</code> まで 51 メソッド (FR-034, FR-050–053, FR-060–085, FR-090–092)</td><td>M5</td><td><span class="badge ok">完了</span> FakeVehicle のテストと Swift の型チェックで確認。実車での確認はこれから (#118)</td><td><a href="15-lib-commands.html#sec-cc">15</a>, <a href="16-lib-errors.html#sec-invalid-argument">16</a>, <a href="17-lib-platform-notes.html#sec-swift-commands">17</a></td></tr>
 <tr><td>サンプルアプリの空調と充電 (SFR-001, SFR-002, SFR-025)</td><td>M5</td><td><span class="badge ok">完了</span> Android と iOS のサンプルの単体テストで確認。実機での確認はこれから (#118)</td><td>サンプルアプリ仕様 (<code>samples/documents/</code>)</td></tr>
-<tr><td>パッケージ: GitHub Packages と Swift Package Manager</td><td>M6</td><td><span class="badge warn">予定</span></td><td><a href="#sec-install">インストール</a></td></tr>
+<tr><td>iOS 用パッケージ: Swift Package Manager、GitHub Release に添付する静的な <code>Teslable.xcframework</code> (ADR-0017)</td><td>M6 第 1 段階</td><td><span class="badge ok">完了</span> 最初のリリース <code>1.0.0</code> は保留中。独立したコンシューマーアプリで確認 (実機ビルドとシミュレーターのテスト)</td><td><a href="#sec-install">インストール</a>, <a href="12-lib-getting-started.html#sec-install">12</a>, <a href="17-lib-platform-notes.html#sec-ios">17</a></td></tr>
+<tr><td>Android と JVM 用パッケージ: Maven Central</td><td>M6 第 2 段階</td><td><span class="badge warn">予定</span> 開発は完了していますが、実際の Android 端末での確認が終わっていません。それまではソースからビルドしてください</td><td><a href="#sec-install">インストール</a></td></tr>
 </tbody>
 </table>
 <div class="callout warn">
@@ -95,24 +96,50 @@
 <li>Android 12 (API 31) 以降と iOS 16 以降に対応します。アプリはフォアグラウンドにあることを前提とします。</li>
 <li>テストや実験用に JVM ターゲットもあります。そのキーとセッションキャッシュはメモリ上にのみ保持されます。</li>
 <li>パッケージのルートは <code>dev.mirolab.teslable</code> です。ファサードは <code>dev.mirolab.teslable</code>、値と結果は <code>dev.mirolab.teslable.model</code>、キーストア、スキャン、ログは <code>dev.mirolab.teslable.port</code> にあります。Wire が生成したプロトコルの型は <code>com.tesla.generated.*</code> にあります。例: <code>com.tesla.generated.carserver.vehicle.VehicleData</code>。</li>
-<li>iOS フレームワーク名は <code>Teslable</code> です。Swift からは SKIE を通して Kotlin が見えます (<code>async</code> 関数、<code>AsyncSequence</code>、<code>onEnum(of:)</code>)。</li>
+<li>iOS フレームワーク名は <code>Teslable</code> です。Swift からは SKIE を通して Kotlin が見えます (<code>async</code> 関数、<code>AsyncSequence</code>、<code>onEnum(of:)</code>)。Swift パッケージとして提供され、実機用 (<code>ios-arm64</code>) と Apple Silicon Mac のシミュレーター用 (<code>ios-arm64-simulator</code>) の静的 XCFramework です。</li>
+<li>Android と JVM はまだ公開されていません (M6 の第 2 段階で Maven Central)。ソースからビルドしてください。</li>
 </ul>
 
 <h2 id="sec-install">インストール</h2>
-<p>ライブラリはまだ公開されていません。M6 で GitHub Packages と Swift Package Manager に対応します。現時点ではソースからビルドしてください:</p>
+<h3>iOS: Swift Package Manager</h3>
+<p>iOS のライブラリは Swift パッケージです。リポジトリのルートにある <code>Package.swift</code> が、各 GitHub Release に添付された静的な <code>Teslable.xcframework</code> を指しているため、パッケージの URL はリポジトリの URL と同じです。</p>
+<ol class="steps">
+<li>Xcode で <strong>File &gt; Add Package Dependencies…</strong> を選び、<code>https://github.com/smallmiro/tesla-ble-kmp</code> を入力します。</li>
+<li>依存ルールに <code>1.0.0</code> からの <strong>Up to Next Major Version</strong> を選び、アプリのターゲットにプロダクト <code>Teslable</code> を追加します。</li>
+<li>Swift のコードに <code>import Teslable</code> と書きます。</li>
+</ol>
+<p><code>Package.swift</code> では次の 2 行を使います。</p>
+<pre><code class="language-swift">.<span class="f">package</span>(url: <span class="s">"https://github.com/smallmiro/tesla-ble-kmp"</span>, from: <span class="s">"1.0.0"</span>)
+<span class="c">// ターゲットの dependencies に追加:</span>
+.<span class="f">product</span>(name: <span class="s">"Teslable"</span>, package: <span class="s">"tesla-ble-kmp"</span>)</code></pre>
+<ul>
+<li><strong>要件:</strong> iOS 16 以降と、<code>Info.plist</code> の <code>NSBluetoothAlwaysUsageDescription</code>。フレームワークは静的です。</li>
+<li><strong>シミュレーター:</strong> Apple Silicon Mac のみ。Release ビルドのようにすべてのアーキテクチャをビルドするシミュレーター向けビルドには <code>EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64</code> が必要です。<a href="17-lib-platform-notes.html#sec-ios">17. プラットフォームノート</a>を参照してください。</li>
+<li><strong>バージョン</strong>はセマンティックバージョニングに従います。公開 API を壊すリリースは新しいメジャーバージョンになるため、<strong>Up to Next Major Version</strong> は互換性のあるリリースだけを取り込みます。</li>
+<li><strong>CocoaPods はサポートしません。</strong> CocoaPods trunk は 2026-12-02 から読み取り専用になります。</li>
+</ul>
+<p>手順の詳細と完全なパッケージマニフェスト: <a href="12-lib-getting-started.html#sec-install">12. ライブラリ入門</a>。</p>
+
+<h3>ソースからビルド (Android、JVM、コントリビューター)</h3>
+<p>Android と JVM はまだ公開されていません。開発は完了していますが、実際の Android 端末での確認が終わっておらず、Maven Central は M6 の第 2 段階で提供します。それまでは、このリポジトリの Gradle ビルドの中でビルドしてください (<a href="12-lib-getting-started.html#sec-install">12. ライブラリ入門</a>):</p>
 <table>
 <thead><tr><th>ターゲット</th><th>コマンド</th></tr></thead>
 <tbody>
 <tr><td>Android / JVM</td><td><code>./gradlew :sdk:assemble</code></td></tr>
-<tr><td>iOS シミュレーター用フレームワーク</td><td><code>./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64</code></td></tr>
+<tr><td>iOS シミュレーター用フレームワーク (ライブラリとサンプルアプリの開発用)</td><td><code>./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64</code></td></tr>
 <tr><td>サンプルアプリ</td><td><code>samples/android</code> (Gradle モジュール)、<code>samples/ios</code> (<code>xcodegen generate</code>、<code>samples/ios/README.md</code> を参照)</td></tr>
 </tbody>
 </table>
+<div class="callout warn">
+<strong>実車での確認は保留中</strong>
+<p>バージョン 1.0.0 には、FakeVehicle のテストには通っていますが、まだ実車で確認していない機能が含まれています。特にインフォテインメントのコマンドと <code>getState()</code> です (チェックリスト: issue #118)。Android はまだ実機で確認していません。各領域の状態は<a href="#sec-status">現在できること</a>の表にあります。</p>
+</div>
 
 <h2 id="sec-map">どのページを読むか</h2>
 <table>
 <thead><tr><th>やりたいこと</th><th>読むページ</th></tr></thead>
 <tbody>
+<tr><td>アプリにライブラリを追加する (iOS の Swift パッケージ、Android のソースビルド)</td><td><a href="#sec-install">インストール</a>, <a href="12-lib-getting-started.html#sec-install">12. ライブラリ入門</a>, <a href="17-lib-platform-notes.html#sec-ios">17. プラットフォームノート</a></td></tr>
 <tr><td>アプリでスキャン、接続し、車両の状態を表示する</td><td><a href="12-lib-getting-started.html">12. ライブラリ入門</a>, <a href="14-lib-reading-state.html">14. 車両状態の取得</a></td></tr>
 <tr><td>車両のブロードキャストからライブの状態を表示する</td><td><a href="12-lib-getting-started.html#sec-events">12. ライブラリ入門</a>, <a href="14-lib-reading-state.html#sec-b-library">14. 車両状態の取得</a></td></tr>
 <tr><td><code>getState</code> でインフォテインメントの状態を読む (バッテリー、空調、速度、位置など)</td><td><a href="14-lib-reading-state.html#sec-a-getstate">14. 車両状態の取得</a>, <a href="16-lib-errors.html#sec-getstate">16. エラー処理</a>, <a href="17-lib-platform-notes.html#sec-swift-generated">17. プラットフォームノート</a></td></tr>

@@ -452,7 +452,7 @@ main.content { min-width:0; width:100%; max-width:none; margin:0; padding:36px 4
 <a class="skip-link" href="#guide-top">Tesla BLE KMP 사용 가이드</a>
 <header class="guide-header"><strong>Teslable / BLE SDK</strong><div class="languages"><a href="../ko/11-lib-user-guide.html" lang="ko" aria-current="page">한국어</a><a href="../en/11-lib-user-guide.html" lang="en">English</a><a href="../ja/11-lib-user-guide.html" lang="ja">日本語</a></div><button id="print-guide" type="button">인쇄 / PDF 저장</button></header>
 <div class="guide-layout"><nav class="guide-nav" aria-label="목차"><strong>목차</strong><a href="#setup">설치와 프로젝트 설정</a><a href="#api">메서드별 API 레퍼런스</a><a href="#models">클래스와 반환 데이터 구조</a><a href="#schemas">getState 전체 필드 스키마</a><a href="#ch11">11. 라이브러리 개요</a><a href="#ch12">12. 라이브러리 시작하기</a><a href="#ch13">13. 키와 페어링</a><a href="#ch14">14. 차량 상태 조회</a><a href="#ch15">15. 명령</a><a href="#ch16">16. 에러 처리</a><a href="#ch17">17. 플랫폼 노트</a><a href="#ch18">18. 문제 해결</a><a href="#ch19">19. 아키텍처</a></nav>
-<main class="content" id="guide-top"><div class="guide-intro"><h1>Tesla BLE KMP 사용 가이드</h1><p class="lead">설치부터 키 등록, 상태 조회, 모든 제어 API까지. 앱을 만드는 데 필요한 설명과 예제를 한 문서에 모았습니다.</p><p class="guide-meta">M6 1단계 기준(iOS Swift 패키지) · Android 12+ · iOS 16+<br>문서 기준 커밋: <code>3b3f2d9</code><br>이 파일은 스타일과 스크립트를 포함해 오프라인으로 열 수 있습니다. 언어 전환에는 다른 언어의 파일이 필요합니다.</p></div>
+<main class="content" id="guide-top"><div class="guide-intro"><h1>Tesla BLE KMP 사용 가이드</h1><p class="lead">설치부터 키 등록, 상태 조회, 모든 제어 API까지. 앱을 만드는 데 필요한 설명과 예제를 한 문서에 모았습니다.</p><p class="guide-meta">M6 1단계 기준(iOS Swift 패키지) · Android 12+ · iOS 16+<br>문서 기준 커밋: <code>812fbbb</code><br>이 파일은 스타일과 스크립트를 포함해 오프라인으로 열 수 있습니다. 언어 전환에는 다른 언어의 파일이 필요합니다.</p></div>
 <section class="chapter" id="setup"><h2>설치와 프로젝트 설정</h2><p>iOS 라이브러리는 1.0.0부터 Swift 패키지로 배포됩니다. Android와 JVM은 아직 배포 전(Maven Central은 나중)이므로 소스 체크아웃에서 빌드하고, 임의의 Maven 좌표를 만들어 쓰지 마세요. CocoaPods는 지원하지 않습니다. 빌드할 때 의존성 다운로드에는 인터넷이 필요하지만 차량 통신은 BLE만 사용합니다.</p>
 <h3>iOS: Swift Package Manager</h3><p>Xcode에서 File &gt; Add Package Dependencies를 선택하고 아래 URL을 입력한 뒤, 의존성 규칙 Up to Next Major Version과 시작 버전 1.0.0을 고르고 Teslable 제품을 앱 타깃에 추가하세요. Package.swift에서는 패키지를 dependencies에, 제품을 타깃의 dependencies에 넣습니다.</p><pre><code class="language-swift">.<span class="f">package</span>(url: <span class="s">"https://github.com/smallmiro/tesla-ble-kmp"</span>, from: <span class="s">"1.0.0"</span>)
 .<span class="f">product</span>(name: <span class="s">"Teslable"</span>, package: <span class="s">"tesla-ble-kmp"</span>)</code></pre><p>요구 사항: iOS 16 이상, Info.plist의 NSBluetoothAlwaysUsageDescription. 프레임워크는 정적(static)이며 기기용 arm64 슬라이스와 시뮬레이터용 arm64 슬라이스만 있습니다. 시뮬레이터는 Apple Silicon Mac에서 쓰고, 모든 아키텍처를 빌드하는 시뮬레이터 빌드(예: Release)에는 EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64를 설정하세요. 시뮬레이터에는 Bluetooth가 없어 스캔과 연결은 실제 iPhone이 필요하고, 시뮬레이터에서 Keychain을 쓰려면 앱이 서명되어 있어야 합니다(ad-hoc 서명으로 충분). 자세한 내용은 <a href="#ch17">플랫폼 설정</a>과 <a href="#ch18">문제 해결</a>에 있습니다.</p><p>import Teslable을 사용하세요. Swift는 Kotlin 기본 인자의 오버로드를 만들지 않으므로 timeout: nil을 포함한 모든 인자를 넘깁니다. withSeconds와 Timeouts로 시간 제한을 설정합니다. 전체 Swift 예제는 <a href="#ch12">시작하기</a> 및 <a href="#ch17">플랫폼 설정</a>에 있습니다. 아래 설정은 로그를 남기지 않습니다.</p><pre><code class="language-swift"><span class="k">import</span> <span class="t">Teslable</span>
@@ -2688,7 +2688,7 @@ message PreconditionSchedule {
 </ol></div>
 
 <h3 id="ch11-sec-status">현재 동작하는 기능</h3>
-<p>라이브러리는 마일스톤 단위로 만들어집니다. 이 페이지들은 <code>main</code>의 코드를 설명하며, 현재 <strong>M4</strong> 단계이고, 이슈 #91의 브로드캐스트 이벤트와 키 접근성 선택, 그리고 M5의 라이브러리 부분인 <code>getState()</code>와 인포테인먼트 명령 51개가 더해졌습니다.</p>
+<p>라이브러리는 마일스톤 단위로 만들어집니다. 이 페이지들은 <code>main</code>의 코드를 설명합니다. <strong>M0~M5</strong>(프로토콜 코어, 스캔과 연결, 키와 페어링, <code>getState()</code>로 상태 읽기와 인포테인먼트 명령 51개 전부), 이슈 #91의 브로드캐스트 이벤트와 키 접근성 선택, 그리고 <strong>M6 1단계</strong>인 iOS Swift 패키지가 포함됩니다.</p>
 <table>
 <thead><tr><th>영역</th><th>마일스톤</th><th>상태</th><th>페이지</th></tr></thead>
 <tbody>
@@ -2703,7 +2703,8 @@ message PreconditionSchedule {
 <tr><td>저장된 세션 카운터를 사용하기 전에 예약: 앱이 <code>disconnect()</code> 없이 끝난 뒤, 다음 실행의 첫 요청이 더 이상 한 번 거부되지 않습니다(FR-017, ADR-0016, API 변경 없음)</td><td>H17 (M5와 별개)</td><td><span class="badge ok">완료</span> FakeVehicle 테스트로 확인, 실차 확인 대기</td><td><a href="#ch17-sec-cache">17</a>, <a href="#ch19-sec-cache">19</a>, <a href="#ch16">16</a></td></tr>
 <tr><td>인포테인먼트 명령: 공조, 충전과 전원, 충전 포트, 창문과 선루프, 경적과 조명, 센트리와 발레 모드, 미디어, 소프트웨어 업데이트, <code>ping()</code>까지 51개 메서드(FR-034, FR-050–053, FR-060–085, FR-090–092)</td><td>M5</td><td><span class="badge ok">완료</span> FakeVehicle 테스트와 Swift 타입 검사로 확인. 실차 확인 전(#118)</td><td><a href="#ch15-sec-cc">15</a>, <a href="#ch16-sec-invalid-argument">16</a>, <a href="#ch17-sec-swift-commands">17</a></td></tr>
 <tr><td>샘플 앱의 공조와 충전(SFR-001, SFR-002, SFR-025)</td><td>M5</td><td><span class="badge ok">완료</span> Android와 iOS 샘플 단위 테스트로 확인. 실기기 확인 전(#118)</td><td>샘플 앱 스펙(<code>samples/documents/</code>)</td></tr>
-<tr><td>패키지: GitHub Packages와 Swift Package Manager</td><td>M6</td><td><span class="badge warn">예정</span></td><td><a href="#ch11-sec-install">설치</a></td></tr>
+<tr><td>iOS 패키지: Swift Package Manager, GitHub Release에 첨부한 정적 <code>Teslable.xcframework</code>(ADR-0017)</td><td>M6 1단계</td><td><span class="badge ok">완료</span> 첫 릴리스 <code>1.0.0</code>은 대기 중. 격리된 소비자 앱으로 확인(기기 빌드와 시뮬레이터 테스트)</td><td><a href="#ch11-sec-install">설치</a>, <a href="#ch12-sec-install">12</a>, <a href="#ch17-sec-ios">17</a></td></tr>
+<tr><td>Android와 JVM 패키지: Maven Central</td><td>M6 2단계</td><td><span class="badge warn">예정</span> 개발은 끝났지만 실제 Android 기기에서의 확인이 끝나지 않았습니다. 그때까지는 소스에서 빌드하세요</td><td><a href="#ch11-sec-install">설치</a></td></tr>
 </tbody>
 </table>
 <div class="callout warn">
@@ -2716,24 +2717,50 @@ message PreconditionSchedule {
 <li>Android 12(API 31) 이상, iOS 16 이상을 지원합니다. 앱은 포그라운드에 있다고 가정합니다.</li>
 <li>테스트와 실험용 JVM 타깃이 있습니다. 이 타깃의 키와 세션 캐시는 메모리에만 존재합니다.</li>
 <li>패키지 루트는 <code>dev.mirolab.teslable</code>입니다. 파사드는 <code>dev.mirolab.teslable</code>, 값과 결과는 <code>dev.mirolab.teslable.model</code>, 키 보관소와 스캔, 로깅은 <code>dev.mirolab.teslable.port</code>에 있습니다. Wire가 생성한 프로토콜 타입은 <code>com.tesla.generated.*</code>에 있습니다. 예: <code>com.tesla.generated.carserver.vehicle.VehicleData</code>.</li>
-<li>iOS 프레임워크 이름은 <code>Teslable</code>입니다. Swift는 SKIE를 통해 Kotlin을 봅니다(<code>async</code> 함수, <code>AsyncSequence</code>, <code>onEnum(of:)</code>).</li>
+<li>iOS 프레임워크 이름은 <code>Teslable</code>입니다. Swift는 SKIE를 통해 Kotlin을 봅니다(<code>async</code> 함수, <code>AsyncSequence</code>, <code>onEnum(of:)</code>). Swift 패키지로 배포되며, 기기용(<code>ios-arm64</code>)과 Apple Silicon Mac의 시뮬레이터용(<code>ios-arm64-simulator</code>) 정적 XCFramework입니다.</li>
+<li>Android와 JVM은 아직 배포되지 않았습니다(M6 2단계에서 Maven Central). 소스에서 빌드하세요.</li>
 </ul>
 
 <h3 id="ch11-sec-install">설치</h3>
-<p>라이브러리는 아직 배포되지 않았습니다. M6에서 GitHub Packages와 Swift Package Manager 배포가 추가됩니다. 지금은 소스에서 빌드하세요.</p>
+<h4>iOS: Swift Package Manager</h4>
+<p>iOS 라이브러리는 Swift 패키지입니다. 저장소 루트의 <code>Package.swift</code>가 각 GitHub Release에 첨부된 정적 <code>Teslable.xcframework</code>를 가리키므로, 패키지 URL은 저장소 URL과 같습니다.</p>
+<ol class="steps">
+<li>Xcode에서 <strong>File &gt; Add Package Dependencies…</strong>를 선택하고 <code>https://github.com/smallmiro/tesla-ble-kmp</code>를 입력합니다.</li>
+<li>의존성 규칙으로 <code>1.0.0</code>부터 <strong>Up to Next Major Version</strong>을 선택하고, 앱 타깃에 <code>Teslable</code> 프로덕트를 추가합니다.</li>
+<li>Swift 코드에 <code>import Teslable</code>을 씁니다.</li>
+</ol>
+<p><code>Package.swift</code>에서는 다음 두 줄을 씁니다.</p>
+<pre><code class="language-swift">.<span class="f">package</span>(url: <span class="s">"https://github.com/smallmiro/tesla-ble-kmp"</span>, from: <span class="s">"1.0.0"</span>)
+<span class="c">// 타깃의 dependencies에 추가:</span>
+.<span class="f">product</span>(name: <span class="s">"Teslable"</span>, package: <span class="s">"tesla-ble-kmp"</span>)</code></pre>
+<ul>
+<li><strong>요구사항:</strong> iOS 16 이상, 그리고 <code>Info.plist</code>의 <code>NSBluetoothAlwaysUsageDescription</code>. 프레임워크는 정적입니다.</li>
+<li><strong>시뮬레이터:</strong> Apple Silicon Mac에서만 됩니다. Release 빌드처럼 모든 아키텍처를 빌드하는 시뮬레이터 빌드에는 <code>EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64</code>가 필요합니다. <a href="#ch17-sec-ios">17. 플랫폼 노트</a>를 참고하세요.</li>
+<li><strong>버전</strong>은 유의적 버전(SemVer)을 따릅니다. 공개 API를 깨는 릴리스는 새 메이저 버전이므로, <strong>Up to Next Major Version</strong>은 호환되는 릴리스만 받습니다.</li>
+<li><strong>CocoaPods는 지원하지 않습니다.</strong> CocoaPods trunk는 2026-12-02부터 읽기 전용입니다.</li>
+</ul>
+<p>단계별 설명과 전체 패키지 매니페스트: <a href="#ch12-sec-install">12. 라이브러리 시작하기</a>.</p>
+
+<h4>소스에서 빌드(Android, JVM, 기여자)</h4>
+<p>Android와 JVM은 아직 배포되지 않았습니다. 개발은 끝났지만 실제 Android 기기에서의 확인이 끝나지 않았고, Maven Central은 M6 2단계에서 나옵니다. 그때까지는 이 저장소의 Gradle 빌드 안에서 빌드하세요(<a href="#ch12-sec-install">12. 라이브러리 시작하기</a>).</p>
 <table>
 <thead><tr><th>대상</th><th>명령</th></tr></thead>
 <tbody>
 <tr><td>Android / JVM</td><td><code>./gradlew :sdk:assemble</code></td></tr>
-<tr><td>iOS 시뮬레이터 프레임워크</td><td><code>./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64</code></td></tr>
+<tr><td>iOS 시뮬레이터 프레임워크(라이브러리와 샘플 앱 작업용)</td><td><code>./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64</code></td></tr>
 <tr><td>샘플 앱</td><td><code>samples/android</code>(Gradle 모듈), <code>samples/ios</code>(<code>xcodegen generate</code>, <code>samples/ios/README.md</code> 참고)</td></tr>
 </tbody>
 </table>
+<div class="callout warn">
+<strong>실차 확인 대기 중</strong>
+<p>1.0.0에는 FakeVehicle 테스트는 통과했지만 아직 실제 차량에서 확인하지 못한 기능이 들어 있습니다. 특히 인포테인먼트 명령과 <code>getState()</code>가 그렇습니다(체크리스트: 이슈 #118). Android는 아직 실기기에서 확인하지 않았습니다. 영역별 상태는 <a href="#ch11-sec-status">현재 동작하는 기능</a>의 표에 있습니다.</p>
+</div>
 
 <h3 id="ch11-sec-map">어떤 페이지를 읽을지</h3>
 <table>
 <thead><tr><th>하려는 일</th><th>읽을 페이지</th></tr></thead>
 <tbody>
+<tr><td>앱에 라이브러리 추가하기(iOS Swift 패키지, Android 소스 빌드)</td><td><a href="#ch11-sec-install">설치</a>, <a href="#ch12-sec-install">12. 라이브러리 시작하기</a>, <a href="#ch17-sec-ios">17. 플랫폼 노트</a></td></tr>
 <tr><td>앱에서 스캔, 연결하고 차량 상태 표시하기</td><td><a href="#ch12">12. 라이브러리 시작하기</a>, <a href="#ch14">14. 차량 상태 조회</a></td></tr>
 <tr><td>차량 브로드캐스트로 실시간 상태 표시하기</td><td><a href="#ch12-sec-events">12. 라이브러리 시작하기</a>, <a href="#ch14-sec-b-library">14. 차량 상태 조회</a></td></tr>
 <tr><td><code>getState</code>로 인포테인먼트 상태 읽기(배터리, 공조, 속도, 위치 등)</td><td><a href="#ch14-sec-a-getstate">14. 차량 상태 조회</a>, <a href="#ch16-sec-getstate">16. 에러 처리</a>, <a href="#ch17-sec-swift-generated">17. 플랫폼 노트</a></td></tr>
@@ -2757,9 +2784,10 @@ message PreconditionSchedule {
 </section>
 <section class="chapter" id="ch12">
 <h2>12. 라이브러리 시작하기</h2>
-<p class="lead">라이브러리 생성, 키 확보, 차량 찾기, 연결, 상태 읽기, 연결 해제까지 전체 흐름을 따라갑니다. 마지막 두 절에서는 새 키를 페어링하고 첫 명령을 보내는 방법(M4)과 차량 브로드캐스트를 받는 방법을 보여 줍니다.</p>
+<p class="lead">앱에 라이브러리를 추가하는 것에서 시작해, 라이브러리 생성, 키 확보, 차량 찾기, 연결, 상태 읽기, 연결 해제까지 전체 흐름을 따라갑니다. 마지막 두 절에서는 새 키를 페어링하고 첫 명령을 보내는 방법(M4)과 차량 브로드캐스트를 받는 방법을 보여 줍니다.</p>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
+<li><a href="#ch12-sec-install">라이브러리 추가</a></li>
 <li><a href="#ch12-sec-flow">흐름</a></li>
 <li><a href="#ch12-sec-rules">다섯 가지 규칙</a></li>
 <li><a href="#ch12-sec-kotlin">Kotlin (Android)</a></li>
@@ -2769,6 +2797,49 @@ message PreconditionSchedule {
 <li><a href="#ch12-sec-events">브로드캐스트 이벤트</a></li>
 <li><a href="#ch12-sec-next">다음 단계</a></li>
 </ol></div>
+
+<h3 id="ch12-sec-install">라이브러리 추가</h3>
+<h4>iOS: Swift Package Manager</h4>
+<ol class="steps">
+<li>Xcode에서 <strong>File &gt; Add Package Dependencies…</strong>를 선택하고 <code>https://github.com/smallmiro/tesla-ble-kmp</code>를 입력합니다.</li>
+<li>의존성 규칙으로 <code>1.0.0</code>부터 <strong>Up to Next Major Version</strong>을 선택하고, 앱 타깃에 라이브러리 프로덕트 <code>Teslable</code>을 추가합니다.</li>
+<li>앱의 배포 타깃을 iOS 16.0 이상으로 설정하고, <code>Info.plist</code>에 <code>NSBluetoothAlwaysUsageDescription</code>을 추가합니다(<a href="#ch17-sec-ios">플랫폼 노트</a>).</li>
+<li>시뮬레이터는 Apple Silicon Mac에서 사용하세요. Release 빌드처럼 시뮬레이터 빌드가 모든 아키텍처를 빌드한다면, 앱 타깃에 <code>EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64</code>를 설정합니다.</li>
+<li><code>import Teslable</code>을 쓰고 아래의 <a href="#ch12-sec-swift">Swift (iOS)</a>로 이어 갑니다.</li>
+</ol>
+<p>라이브러리에 의존하는 Swift 패키지:</p>
+<pre><code class="language-swift"><span class="c">// swift-tools-version:5.9</span>
+<span class="k">import</span> <span class="t">PackageDescription</span>
+
+<span class="k">let</span> package = <span class="t">Package</span>(
+    name: <span class="s">"VehicleFeature"</span>,
+    platforms: [.<span class="f">iOS</span>(.v16)],
+    products: [.<span class="f">library</span>(name: <span class="s">"VehicleFeature"</span>, targets: [<span class="s">"VehicleFeature"</span>])],
+    dependencies: [
+        .<span class="f">package</span>(url: <span class="s">"https://github.com/smallmiro/tesla-ble-kmp"</span>, from: <span class="s">"1.0.0"</span>),
+    ],
+    targets: [
+        .<span class="f">target</span>(name: <span class="s">"VehicleFeature"</span>, dependencies: [.<span class="f">product</span>(name: <span class="s">"Teslable"</span>, package: <span class="s">"tesla-ble-kmp"</span>)]),
+    ]
+)</code></pre>
+<ul>
+<li>패키지의 프로덕트는 <code>Teslable</code> 하나입니다. 기기용(<code>ios-arm64</code>)과 Apple Silicon Mac의 시뮬레이터용(<code>ios-arm64-simulator</code>) 정적 XCFramework이며, 소스에서 빌드할 것은 없습니다.</li>
+<li><code>.product(name:package:)</code>의 <code>package</code>에는 패키지 이름이 아니라 URL에서 얻은 식별자 <code>tesla-ble-kmp</code>를 씁니다.</li>
+<li><strong>Up to Next Major Version</strong>은 1.x 릴리스만 받습니다. 공개 API를 깨는 릴리스는 새 메이저 버전입니다.</li>
+<li>이 저장소의 샘플 앱은 패키지를 쓰지 않고 소스에서 빌드한 프레임워크를 링크합니다(<code>samples/ios/README.md</code>).</li>
+<li>CocoaPods는 지원하지 않습니다.</li>
+</ul>
+<h4>Android와 JVM: 소스에서 빌드</h4>
+<p>아직 배포되지 않았습니다. 개발은 끝났지만 실제 Android 기기에서의 확인이 끝나지 않았고, Maven Central은 M6 2단계에서 나옵니다. 그때까지 검증된 방법은 이 저장소의 Gradle 빌드 안에 <code>:sdk</code>에 의존하는 앱 모듈을 두는 것입니다. <code>:sdk</code> 폴더만 복사해서는 빌드되지 않습니다. 다른 라이브러리 모듈과 빌드 플러그인이 필요하기 때문입니다.</p>
+<pre><code class="language-bash"><span class="f">git</span> clone https://github.com/smallmiro/tesla-ble-kmp
+<span class="f">cd</span> tesla-ble-kmp
+./gradlew :sdk:assemble
+./gradlew :samples:android:assembleDebug</code></pre>
+<pre><code class="language-kotlin"><span class="c">// 이 저장소의 settings.gradle.kts에 포함한 앱 모듈의 build.gradle.kts</span>
+<span class="f">dependencies</span> {
+    <span class="f">implementation</span>(<span class="f">project</span>(<span class="s">":sdk"</span>))
+}</code></pre>
+<p>앱의 <code>minSdk</code>는 31 이상으로 설정하세요. 권한과 백업 규칙: <a href="#ch17-sec-android">플랫폼 노트</a>.</p>
 
 <h3 id="ch12-sec-flow">흐름</h3>
 <ol class="steps">
@@ -4705,7 +4776,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 </section>
 <section class="chapter" id="ch17">
 <h2>17. 플랫폼 노트</h2>
-<p class="lead">Android나 iOS 앱이 설정해야 할 것, 라이브러리가 키와 세션을 보관하는 위치, 알아 두면 좋은 플랫폼 동작, Swift에서 라이브러리를 호출하는 방법을 정리합니다. 실기기에서 아직 확인되지 않은 항목은 그렇다고 표시합니다.</p>
+<p class="lead">Android나 iOS 앱이 설정해야 할 것, iOS Swift 패키지에 들어 있는 것, 라이브러리가 키와 세션을 보관하는 위치, 알아 두면 좋은 플랫폼 동작, Swift에서 라이브러리를 호출하는 방법을 정리합니다. 실기기에서 아직 확인되지 않은 항목은 그렇다고 표시합니다.</p>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
 <li><a href="#ch17-sec-support">지원 범위</a></li>
@@ -4756,11 +4827,16 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <ul>
 <li><code>Info.plist</code>에 <code>NSBluetoothAlwaysUsageDescription</code>을 추가하세요. <strong>첫 스캔에서 권한 요청 창이 표시됩니다</strong>. 사용자가 거부하면 호출이 <code>PermissionDenied</code>를 반환합니다.</li>
 <li>라이브러리는 <code>PlatformContext()</code>로 만듭니다.</li>
-<li>시뮬레이터에는 블루투스가 없습니다. 스캔과 연결은 실제 iPhone에서만 시험할 수 있습니다.</li>
+<li>Swift 패키지(<a href="#ch11-sec-install">설치</a>)에는 <strong>정적</strong> <code>Teslable.xcframework</code>가 들어 있으며, 슬라이스는 정확히 둘입니다. 기기용 <code>ios-arm64</code>와 시뮬레이터용 <code>ios-arm64-simulator</code>(arm64 전용)이고, iOS 16.0 이상을 대상으로 합니다. 정적이므로 라이브러리 코드는 앱 바이너리에 링크됩니다.</li>
+<li>시뮬레이터에는 블루투스가 없습니다. 스캔과 연결은 실제 iPhone에서만 시험할 수 있습니다. 시뮬레이터에서 <code>scan(vin)</code>은 곧바로 <code>ScanEvent.Failed</code> 하나를 보고하며, 오류는 <code>ConnectFailed</code>이고 이유는 <code>IllegalStateException: This device doesn't support the Bluetooth low energy central or client role</code>입니다(Xcode 27.2에서 확인). <code>BluetoothOff</code>나 <code>PermissionDenied</code>가 아닙니다. <code>target</code> 없이 <code>connect</code>를 부르면 곧바로 같은 방식으로 실패합니다. 이유는 사람과 로그를 위한 텍스트이므로 그 값으로 분기하지 마세요. 키 저장소는 서명된 앱이라면 시뮬레이터에서도 동작합니다(<a href="#ch17-sec-keys">키 저장</a> 참고).</li>
 <li>iOS에는 MTU 협상 API가 없으므로 라이브러리는 시스템이 정한 쓰기 길이를 사용합니다. 실제 iPhone에서 관찰한 블록 길이는 512입니다. 응답 특성은 notification과 indication을 모두 지원하며, Kable 기본 구독(notify)이 실차에서 동작함을 확인했습니다(ADR-0003).</li>
 <li>Swift는 SKIE를 통해 Kotlin을 호출합니다. <code>suspend</code> 함수는 <code>async throws</code>가 되고, <code>Flow</code>는 <code>AsyncSequence</code>가 되며, sealed 타입은 <code>switch onEnum(of:)</code>로 다루고, companion 멤버는 <code>.companion</code>으로 접근합니다.</li>
 <li>Swift에서 공개 <code>VehicleStatus</code>는 <code>VehicleStatus_</code>라는 이름이 됩니다. 생성된 VCSEC 메시지 타입이 원래 이름을 이미 쓰기 때문입니다. <code>vehicleStatus()</code>의 결과와 <code>VehicleEvent.Status.status</code>가 이 타입입니다.</li>
 </ul>
+<div class="callout warn">
+<strong>시뮬레이터: Apple Silicon Mac에서만</strong>
+<p>Swift 패키지에는 <code>x86_64</code> 시뮬레이터 슬라이스가 없습니다. Intel Mac은 앱을 기기용으로 빌드할 수는 있지만 시뮬레이터에서 라이브러리를 실행할 수는 없습니다. <code>x86_64</code>까지 빌드하는 시뮬레이터 빌드는 <code>Teslable</code> 파일이 <code>arm64</code>용으로 빌드되었다는 경고 뒤에 <code>ld: symbol(s) not found for architecture x86_64</code>로 링크에 실패합니다. 시뮬레이터용 Release 빌드는 모든 아키텍처를 빌드하므로, 앱 타깃에 <code>EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64</code>를 설정하세요. Xcode 기본값처럼 활성 아키텍처만 빌드하는 Debug 빌드는 Apple Silicon Mac에서 영향을 받지 않습니다. Xcode 27.2에서 확인했습니다.</p>
+</div>
 
 <h3 id="ch17-sec-ios-bg">샘플 앱의 iOS 백그라운드 사용</h3>
 <p>라이브러리는 포그라운드 사용을 지원합니다(지원 범위 참고). iOS 샘플의 모니터 앱은 <code>UIBackgroundModes: [bluetooth-central]</code>를 선언하고 Android 샘플과 같은 재연결 루프를 실행합니다. 아직 실제 iPhone에서 확인하지 <strong>않았으므로</strong>, 백그라운드에서의 라이브러리 동작은 확인되지 않은 것으로 보세요.</p>
@@ -4786,6 +4862,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <li>iOS에서 Secure Enclave 조회가 실패하면 "키 없음"이 아니라 오류로 보고하므로, 정상 키를 실수로 덮어쓰는 일이 없습니다.</li>
 <li>개인키를 내보내는 API는 없습니다.</li>
 <li>키 핸들은 자동으로 해제됩니다. iOS에서는 키 객체마다 Security 프레임워크 참조(<code>SecKeyRef</code>)를 하나씩 가집니다. 이 참조는 앱도 연결된 <code>Vehicle</code>도 더는 그 키를 쓰지 않고 Kotlin/Native 가비지 컬렉터가 돈 뒤에 해제됩니다. 닫을 것이 없고, 키를 다시 읽어도 핸들이 쌓이지 않습니다.</li>
+<li>시뮬레이터에서 키체인은 <strong>코드 서명된 앱</strong>에서만 동작합니다. 임시(ad-hoc) 서명이면 충분합니다(<code>CODE_SIGN_IDENTITY = -</code>, Xcode에서는 "Sign to Run Locally"). 서명하지 않은 빌드(<code>CODE_SIGNING_ALLOWED = NO</code>)는 키체인에 접근할 수 없고, 키 저장소는 <code>keychain status -34018</code>(<code>errSecMissingEntitlement</code>)과 함께 <code>PlatformFailure</code>를 돌려줍니다. Swift 패키지의 릴리스 검사는 시뮬레이터 테스트를 이 방식으로 서명합니다.</li>
 </ul>
 <h4>휴대폰이 잠겨 있을 때 키 쓰기</h4>
 <p>키마다 접근성 설정 <code>VehicleKey.accessibility</code>가 있습니다. 고르는 방법과 키를 바꾸는 절차는 <a href="#ch13-sec-accessibility">13. 키와 페어링</a>에 있습니다.</p>
@@ -4883,7 +4960,7 @@ _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class=
 </section>
 <section class="chapter" id="ch18">
 <h2>18. 문제 해결</h2>
-<p class="lead">스캔, 연결, 키, 페어링, 명령, <code>getState</code>에서 자주 겪는 문제와 보통의 원인, 대처 방법입니다. 마지막에는 개발용 관찰 로그를 설명합니다.</p>
+<p class="lead">스캔, 연결, 키, 페어링, 명령, <code>getState</code>, iOS 시뮬레이터에서 자주 겪는 문제와 보통의 원인, 대처 방법입니다. 마지막에는 개발용 관찰 로그를 설명합니다.</p>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
 <li><a href="#ch18-sec-scan">스캔과 연결</a></li>
@@ -4905,7 +4982,8 @@ _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class=
 <tbody>
 <tr><td><code>PermissionDenied</code></td><td>블루투스 권한이 없거나 거부됨</td><td>Android: 런타임에 <code>BLUETOOTH_SCAN</code>과 <code>BLUETOOTH_CONNECT</code>를 요청. iOS: <code>NSBluetoothAlwaysUsageDescription</code>을 추가하고, 거부되었으면 사용자를 설정으로 안내</td></tr>
 <tr><td><code>BluetoothOff</code></td><td>블루투스가 꺼져 있음</td><td>사용자에게 켜 달라고 요청</td></tr>
-<tr><td>스캔에서 아무것도 찾지 못하고, 연결이 <code>ScanTimeout</code>으로 끝남</td><td>범위 밖, 잘못된 VIN, 또는 iOS 시뮬레이터</td><td>가까이 가고, VIN을 확인하고(차량은 VIN에서 만든 이름으로 찾음), 실기기를 사용</td></tr>
+<tr><td>스캔에서 아무것도 찾지 못하고, 연결이 <code>ScanTimeout</code>으로 끝남</td><td>범위 밖 또는 잘못된 VIN</td><td>가까이 가고, VIN을 확인(차량은 VIN에서 만든 이름으로 찾음)</td></tr>
+<tr><td>iOS 시뮬레이터에서 스캔이 곧바로 이유 <code>IllegalStateException: This device doesn't support the Bluetooth low energy central or client role</code>와 함께 <code>ConnectFailed</code>를 보고하고, 연결도 같은 방식으로 실패함</td><td>시뮬레이터에는 블루투스가 없고, iOS는 이 기기가 블루투스 센트럴 역할을 할 수 없다고 보고합니다. <code>BluetoothOff</code>나 <code>PermissionDenied</code>로 보고되지 않습니다</td><td>스캔과 연결은 실제 iPhone에서 하세요. 사용자에게 블루투스가 꺼져 있다고 알리지 말고, 반복문으로 재시도하지 마세요(<a href="#ch17-sec-ios">플랫폼 노트</a>)</td></tr>
 <tr><td>연결이 <code>ConnectFailed</code>로 끝났고, 이유에 제한 시간 안에 연결을 끝내지 못했다고 적혀 있음</td><td>이유에 <code>vehicle found</code>가 있으면 라이브러리의 스캔이 차량을 찾았지만(그 <code>[connect:scan-hit]</code> 줄이 발견을 보여 줍니다) 링크가 제시간에 열리지 않은 것입니다. 이유에 <code>remembered target</code>이 있으면 스캔을 돌리지 않았으므로 차량이 아직 있는지 알 수 없습니다. 범위 밖에 있는 기억한 <code>target</code>은 <code>ConnectFailed</code>를 돌려주고 <code>ScanTimeout</code>이 되지 않습니다. <code>ScanTimeout</code>은 언제나 광고를 찾지 못했다는 뜻입니다</td><td>다시 시도. 기억한 <code>target</code>으로 실패했으면 스캔이 돌도록 그 값 없이 연결. 차량이 범위 안에 있는데 반복되면 로그 줄을 보고</td></tr>
 <tr><td><code>MaxConnectionsExceeded</code></td><td>차량에 이미 블루투스 연결이 세 개 있음</td><td>다른 휴대폰이나 앱의 연결을 끊고, 내 앱에서는 항상 <code>disconnect()</code>를 호출</td></tr>
 <tr><td><code>ConnectFailed</code>가 계속 발생</td><td>약한 신호 또는 바쁜 차량</td><td>라이브러리가 이미 30초 동안 재시도함. 나중에 다시 시도</td></tr>
@@ -4991,6 +5069,8 @@ _ = <span class="k">try</span> <span class="k">await</span> vehicle.<span class=
 <tr><td><code>WARN</code> <code>Dropping plain broadcast because the broadcast buffer is full</code></td><td><code>vehicle.events</code>의 수집자가 프레임 64개보다 더 뒤처짐</td><td>수집 코드는 가볍게 하고 느린 작업은 다른 코루틴으로 옮김(<a href="#ch16-sec-events">16. 에러 처리</a>)</td></tr>
 <tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UNKNOWN</code>으로 읽히는 값</td><td>새 차량 펌웨어</td><td>라이브러리 업데이트 확인</td></tr>
 <tr><td>시뮬레이터에서 키체인 테스트가 -25291로 실패</td><td>일반 Kotlin/Native 테스트 바이너리는 키체인을 쓸 수 없음</td><td>키체인 동작은 샘플 앱에서 확인</td></tr>
+<tr><td>iOS 시뮬레이터에서 키 저장소가 <code>keychain status -34018</code>(<code>errSecMissingEntitlement</code>)과 함께 <code>PlatformFailure</code>를 돌려줌</td><td>앱이 코드 서명되지 않아(예: <code>CODE_SIGNING_ALLOWED = NO</code>) 키체인에 접근할 수 없음</td><td>앱에 서명하세요. 임시 서명이면 충분합니다(<code>CODE_SIGN_IDENTITY = -</code>, "Sign to Run Locally"). <a href="#ch17-sec-keys">플랫폼 노트</a> 참고</td></tr>
+<tr><td>Xcode, 시뮬레이터 빌드: <code>Teslable</code> 파일이 <code>x86_64</code>가 아니라 <code>arm64</code>용으로 빌드되었다는 경고 뒤에 <code>ld: symbol(s) not found for architecture x86_64</code></td><td>Swift 패키지의 시뮬레이터 슬라이스는 arm64 전용인데, 이 빌드는 <code>x86_64</code>도 빌드함(Release 빌드는 모든 아키텍처를 빌드)</td><td>앱 타깃에 <code>EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64</code>를 설정하세요. Intel Mac에서는 기기를 쓰세요. 시뮬레이터는 라이브러리를 실행할 수 없습니다(<a href="#ch17-sec-ios">플랫폼 노트</a>)</td></tr>
 </tbody>
 </table>
 
