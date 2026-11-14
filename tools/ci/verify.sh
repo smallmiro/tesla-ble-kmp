@@ -12,6 +12,7 @@
 #   (f) tools/ci/scan-secrets.sh   → secrets 잡
 #   (g) tools/ci/check-manual-i18n.sh → (CI 잡 없음) 매뉴얼 언어 규칙, AGENTS.md §3 규칙 12
 #   (h) tools/analysis 단위 테스트   → (CI 잡 없음) 로그 분석 도구(pbwire.py)
+#   (i) tools/release/test_release_scripts.sh → (CI 잡 없음) 릴리스 스크립트 prepare.sh·publish.sh 오프라인 시험 (ADR-0017)
 set -euo pipefail
 
 if [ "$(uname -s)" != "Darwin" ]; then
@@ -22,7 +23,7 @@ fi
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
-TOTAL_STEPS=8
+TOTAL_STEPS=9
 STEP=0
 START_TIME=$(date +%s)
 
@@ -92,6 +93,10 @@ tools/ci/check-manual-i18n.sh || fail "check-manual-i18n.sh"
 # (h) 로그 분석 도구 단위 테스트 (protocol-analyst 가 쓰는 tools/analysis/*.py).
 step "python3 -I -m unittest discover -s tools/analysis"
 python3 -I -m unittest discover -s tools/analysis -p 'test_*.py' || fail "tools/analysis unit tests"
+
+# (i) 릴리스 스크립트 시험 — 임시 git 저장소와 gh·curl 대역으로 오프라인 실행 (네트워크, Gradle, Xcode 없음, ADR-0017).
+step "tools/release/test_release_scripts.sh"
+tools/release/test_release_scripts.sh || fail "release script tests"
 
 END_TIME=$(date +%s)
 ELAPSED=$((END_TIME - START_TIME))
