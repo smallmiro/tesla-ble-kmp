@@ -139,7 +139,7 @@ run the first one.
 | A **command** whose write was started and failed, so the same bytes went out again, gets a reply that would start a new attempt (any error in the first row) or any protocol-layer rejection: `ProtocolFault` with any code except `RESPONSE_MTU_EXCEEDED` (including `REPEATED_COUNTER`), `KeyNotPaired`, `InsufficientPrivileges`, `UnknownFault` | **No new copy is authorized.** The reply may answer a duplicate of a copy the vehicle already ran (the vehicle rejects a repeated counter with `INVALID_TOKEN_OR_COUNTER`). The library logs a `WARN` (tag `Dispatcher`) with `possible duplicate` and keeps waiting on the same request until a reply settles it: a success (the first copy's late reply, or the repeated copy's own when the first never arrived), an application-level rejection (`VcsecRejected`, `KeychainRejected`, `InfotainmentRejected`) or a `mayHaveSucceeded` error (`RESPONSE_MTU_EXCEEDED`, an unparsable reply) ends the call as usual. With no such reply the result is `Uncertain(Timeout(afterSend = true))` when `timeout` runs out. Commands: every VCSEC command, `addKey()`, `removeKey()`, and every Infotainment command (M5) |
 | The same for a **read**: `vehicleStatus()`, `keySummary()`, `listKeys()`, `getState()` | Retried as in the first row (a new request or a new copy). A read changes nothing on the vehicle, so running it twice is harmless |
 | `mayHaveSucceeded` errors (timeout after the request's write was started, `RESPONSE_MTU_EXCEEDED`, unparsable VCSEC or Infotainment response) | **Never resent automatically** (prevents running a toggle twice). Returned as `Uncertain`; query state again |
-| Timeout (`timeout`, default 5 s) before the request's first BLE write was started: waiting for the previous VCSEC command, waiting for the link to be free (another request is being written), or a check before writing (`listKeys()` with no time left) | `Failure(Timeout(afterSend = false))` |
+| Timeout (`timeout`, default 5 s) before the request's first BLE write was started: waiting for the previous VCSEC command, storing the session cache's counter reservation (ADR-0016), waiting for the link to be free (another request is being written), or a check before writing (`listKeys()` with no time left) | `Failure(Timeout(afterSend = false))` |
 | Timeout while waiting to retry after a reply that asked for a retry (busy, `WAIT`, expired, …) | `Failure(Timeout(afterSend = false))` |
 | Timeout after the request's first BLE write was started: the write had not completed, it failed and the library was resending, or the response did not come | `Uncertain(Timeout(afterSend = true))` |
 | Handshake timeout (`handshakeTimeout`, default 20 s) | `Failure(Timeout(afterSend = false))`; no session, no side effect |
@@ -175,6 +175,20 @@ this path: it may answer the duplicate (removing your own key, for example, make
 Without a failed write nothing changes: when the vehicle answers with a fault and fresh session info, for example on the
 first request with a cached session that is out of step, the library applies it and retries as in the first row. The Go
 original never gets here, because its BLE connector ends the command on the failed write.
+
+**Counter reservation in the session cache (ADR-0016, 2026-11-14).** Before an authenticated request uses an
+anti-replay counter the session cache does not hold yet, the library writes a reservation (16 counters ahead) to the
+cache and only then authorizes and writes the request. This happens before the first authenticated request of a
+connection and then once per 16 requests; reads and commands are treated alike, unauthenticated requests never write.
+For an app it changes three things:
+
+- A process that ended without `disconnect()` no longer makes the next process's first request draw
+  `INVALID_TOKEN_OR_COUNTER` and a resend about 1.2 s later (`18-lib-troubleshooting.md` lists what can still cause it).
+- The cache write counts against the call's `timeout`. A timeout during it is `Failure(Timeout(afterSend = false))`:
+  nothing was sent and no counter was used. If the cache write fails, the request is still sent and a `WARN` is logged.
+  If the connection is closing, the call returns `Failure(NotConnected)` without sending.
+- A session that has used the last counter (`0xFFFFFFFF`, not expected in practice) returns `Failure(NoSession)` without
+  sending; call `startSession()` and send again. Go retries that local rollover until the deadline.
 
 ## Per-command re-query (FR-102)
 

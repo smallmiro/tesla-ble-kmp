@@ -125,7 +125,7 @@
 <ul>
 <li><strong>Exactly one receive coroutine per connection.</strong> It never waits on another coroutine; it hands data over with non-blocking <code>trySend</code> (<code>tryEmit</code> for broadcasts, so a slow <code>events</code> collector cannot delay replies). The only wait: a new receive coroutine waits for the previous one to finish.</li>
 <li><strong>One VCSEC command at a time per connection.</strong> Waiting for the previous one counts against the timeout. Infotainment commands may run in parallel.</li>
-<li>Each domain has one session state. Its lock covers only encrypting, decrypting and session updates, so waits are short.</li>
+<li>Each domain has one session state. Its lock covers only encrypting, decrypting and session updates, so waits are short. The cache write that reserves counters (see Session cache) happens outside that lock, in the caller's coroutine, before the request's Bluetooth write.</li>
 <li>The handshakes for both domains run in parallel; if one fails, the other is cancelled.</li>
 <li>Commands, handshakes and connections each have their own timeout; see <a href="16-lib-errors.html#sec-retry">16. Error Handling</a>.</li>
 </ul>
@@ -138,6 +138,20 @@
 
 <h2 id="sec-cache">Session cache</h2>
 <p>Sessions are saved in a small binary format (version 1) so the next connection can send commands without a new handshake. They are tied to the client key (SHA-1 of its public key); sessions of other keys are ignored and deleted. They are saved when a handshake finishes, when session information changes, and on disconnect. Private keys, session encryption keys and raw VINs are never saved. Damaged or unrecognized entries are skipped and the rest restored.</p>
+<p><strong>Counter reservation (ADR-0016, differs from Go).</strong> The saved anti-replay counter is written <em>before</em> it is used, so an app that ends without <code>disconnect()</code> (force quit, the system ending a suspended app, a crash) does not leave the next launch a counter the car has already accepted. The Go command-line tool saves the real counter when it exits, which works only for a clean exit.</p>
+<table>
+<thead><tr><th>Topic</th><th>Rule</th></tr></thead>
+<tbody>
+<tr><td>Promise</td><td>A saved entry's counter is at least the highest counter used in that epoch, provided the cache write succeeded</td></tr>
+<tr><td>When it writes</td><td>Before a signed request uses a counter the cache does not hold yet: the library saves that part of the car's counter plus 16 (stopping at <code>0xFFFFFFFF</code>), then signs. One write covers the next 16 requests. The check and the signing happen under the session state's lock; if parallel requests use up a fresh reservation, it reserves again</td></tr>
+<tr><td>Other saves</td><td>Never write a counter below the saved reservation, including the save on disconnect</td></tr>
+<tr><td>Validity</td><td>A reservation belongs to one session and its epoch. A new, replaced or outdated session, or an epoch change, ends it; session information for the same epoch keeps it</td></tr>
+<tr><td>When the write fails</td><td>The request is sent as before and a warning is logged. A connection that is closing returns <code>NotConnected</code> without using a counter</td></tr>
+<tr><td>Counter limit</td><td>A saved entry with fewer than 16 counters left is not restored (a handshake follows). A session that used <code>0xFFFFFFFF</code> answers the next signed call with <code>NoSession</code>; <code>startSession()</code> builds a new one</td></tr>
+<tr><td>Not covered</td><td>A failed write the cache only logged, another app or a second live connection using the same key, and a cache saved by an older build (its first request can still be refused once and recovered)</td></tr>
+<tr><td>Cost</td><td>One cache write before the first signed request of a connection, then one per 16 requests. The car sees the counter jump by usually 16 or less on the first request after an unclean exit or a reconnect; the Go reference accepts forward jumps, a real-car check is pending</td></tr>
+</tbody>
+</table>
 
 <h2 id="sec-proto">Protocol definitions</h2>
 <p>The <code>:domain</code> module generates Kotlin from 9 <code>.proto</code> files with Wire 7.0.4. Since 2026-10-18 these files are an unmodified copy of Teslemetry/tesla-protocol at a pinned commit (<code>e6f7afb1</code>, Apache-2.0). That snapshot holds the official vehicle-command definitions plus additions marked <code>TESLEMETRY-EXT</code>; some are also marked <code>UNCONFIRMED</code> or <code>name unverified</code>. The sources are recorded in <code>NOTICE</code> and <code>PROTO_SOURCE.md</code>.</p>

@@ -95,7 +95,8 @@ collector's coroutine.
 - **One VCSEC command at a time per connection** (serialization lock). Time spent waiting for the previous command
   counts against that command's timeout. **Infotainment commands may run in parallel.**
 - Each domain (VCSEC / INFOTAINMENT) has one session state. Its internal lock guards only encrypt, decrypt and session
-  info updates, so lock waits are short and bounded.
+  info updates, so lock waits are short and bounded. The session cache write that reserves counters (§Session cache)
+  happens outside that lock, in the caller's coroutine, before the request's BLE write.
 - The handshake (sessions for both domains) runs per domain in parallel; if one fails the other is cancelled.
 - Commands, handshakes and connections each have a timeout. Timeouts and retry rules: `16-lib-errors.md`.
 
@@ -121,6 +122,32 @@ connection can send commands without a new handshake. The cache belongs to the c
 caches of other keys are ignored and deleted. It is stored when a handshake completes, when session info is updated,
 and on disconnect (wired up by the facade in M3). Private keys, session encryption keys and raw VINs are never stored.
 Corrupted entries or entries with unrecognized values are skipped and the rest restored.
+
+**Counter reservation (ADR-0016, issue H17; differs from Go).** The cached counter is written *before* it is used, so a
+process that ends without `disconnect()` (force quit, the system ending a suspended app, a crash) does not leave the
+next process a counter the vehicle has already accepted.
+
+- Invariant: a cache entry's counter is at least the highest counter used in that epoch, provided the write succeeded.
+- Before an authenticated request uses a counter the cache does not hold yet, the dispatcher stores a reservation for
+  that domain only (current counter + 16, stopping at `0xFFFFFFFF`) and then encrypts. One write covers the next 16
+  requests. The coverage check and the encryption run in one critical section of the domain's session state; if
+  parallel requests use up a fresh reservation, the dispatcher reserves again. No store ever writes a counter below the
+  stored reservation, including the store on disconnect.
+- A reservation belongs to one signer and its epoch: a new or replaced session, an invalidated (stale) session or an
+  epoch change voids it; session info for the same epoch keeps it.
+- The reservation write runs in the caller's coroutine before the BLE write (inside the VCSEC lock for VCSEC
+  requests), never on the receive coroutine and never under the session state's lock. If it cannot be stored (the
+  FR-037 lock keep declined the write, or the cache threw), the request is sent as before and a `WARN` is logged. A
+  connection that is closing returns `NotConnected` without using a counter.
+- Exhaustion: a cached entry whose counter is above `0xFFFFFFFF` − 16 is not restored (the domain handshakes). A live
+  session that has used `0xFFFFFFFF` makes the next authenticated call fail with `NoSession`; `startSession()` then
+  builds a new signer from the vehicle's session info.
+- Not covered: a failed write that the cache adapter only logged, another signer using the same key (another app, or a
+  second live connection to the same VIN with the same key in this process; the facade does not prevent that), and a
+  cache entry written by a build before this change (its first request can still be refused once and recovered).
+- Cost: one cache write before the first authenticated request of a connection and then one per 16 requests; the
+  vehicle sees a counter jump of usually 16 or less on the first request after an unclean exit or a reconnect. The Go
+  verifier accepts forward jumps (`internal/authentication/window.go`); a real-car check is pending.
 
 ## Protobuf schema
 
