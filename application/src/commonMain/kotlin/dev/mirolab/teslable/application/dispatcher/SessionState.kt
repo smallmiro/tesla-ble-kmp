@@ -5,6 +5,7 @@ package dev.mirolab.teslable.application.dispatcher
 import com.tesla.generated.signatures.SessionInfo
 import com.tesla.generated.universalmessage.MessageFault_E
 import com.tesla.generated.universalmessage.RoutableMessage
+import dev.mirolab.teslable.model.PublicKeyBytes
 import dev.mirolab.teslable.model.Vin
 import dev.mirolab.teslable.port.CryptoPrimitives
 import dev.mirolab.teslable.port.EcdhPrivateKey
@@ -89,6 +90,9 @@ public class SessionState internal constructor(
      * Go `processHello`: 세션정보를 검증해 반영한다. 첫 호출은 [Signer.createAuthenticated](태그 검증 포함), 이후는
      * [Signer.updateSignedSessionInfo]. 성공하면 준비 신호를 완료한다. challenge가 최근 요청의 uuid인지는 호출자(디스패처)가 보장한다.
      * 기존 세션이 다른 차량 공개키의 세션정보를 받으면 `UNKNOWN_KEY_ID`로 거부하고 세션은 그대로다(Go와 동일, 설계 구체화 8).
+     * 원본에 없음(H17, ADR-0016): counter를 `0xFFFFFFFF`까지 다 쓴 Signer는 갱신하지 않고 이 세션정보로 새로 만든다(같은 차량 공개키일
+     * 때만). Go는 갱신해도 counter를 내리지 않아 그 Signer로는 회복하지 못한다. 차량이 그 counter를 받지 못해 epoch가 그대로면 counter가
+     * 차량의 값으로 내려간다 — 차량이 받은 적 없는 counter라 재사용이 아니다.
      *
      * @throws dev.mirolab.teslable.port.KeyLockedException 첫 호출의 ECDH를 기기 잠금 때문에 할 수 없을 때(FR-037, #96). 세션은 그대로
      *   없다. 디스패처가 받아 요청에 표시한다.
@@ -104,10 +108,23 @@ public class SessionState internal constructor(
             val epochBefore = before?.epoch
             // counter를 다 쓴 Signer는 갱신해도 counter를 내리지 않으므로(Go 규칙) 새로 만든다(H17, ADR-0016 — Go에는 없는 회복)
             val result =
-                if (before == null || before.counter == UInt.MAX_VALUE) {
-                    createSigner(challenge, encodedInfo, tag)
-                } else {
-                    before.updateSignedSessionInfo(challenge, encodedInfo, tag)
+                when {
+                    before == null -> {
+                        createSigner(challenge, encodedInfo, tag, pinnedVehicleKey = null)
+                    }
+
+                    before.counter == UInt.MAX_VALUE -> {
+                        createSigner(
+                            challenge,
+                            encodedInfo,
+                            tag,
+                            pinnedVehicleKey = before.vehiclePublicKey,
+                        )
+                    }
+
+                    else -> {
+                        before.updateSignedSessionInfo(challenge, encodedInfo, tag)
+                    }
                 }
             if (result is SignerResult.Ok) {
                 // Signer가 바뀌었거나 epoch가 바뀌었으면 캐시에 쓴 예약은 이제 이 세션의 것이 아니다(같은 epoch의 갱신은 예약을 유지한다)
@@ -120,16 +137,26 @@ public class SessionState internal constructor(
         }
 
     // processHello의 첫 호출 분기(signer == null, 또는 counter를 다 쓴 Signer의 교체): Go NewAuthenticatedSigner. 락은 processHello가 이미 쥐고 있다.
+    // [pinnedVehicleKey]가 있으면(교체, H17) 세션 안의 차량 공개키 고정을 지킨다: 다른 키의 세션정보는 Go UpdateSessionInfo처럼 UNKNOWN_KEY_ID.
     private suspend fun createSigner(
         challenge: ByteArray,
         encodedInfo: ByteArray,
         tag: ByteArray,
+        pinnedVehicleKey: PublicKeyBytes?,
     ): SignerResult<Unit> {
         val created = Signer.createAuthenticated(privateKey, vin, challenge, encodedInfo, tag, crypto, random, timeSource)
         return when (created) {
             is SignerResult.Ok -> {
+                val replacement = created.value
+                if (pinnedVehicleKey != null && !replacement.vehiclePublicKey.toByteArray().contentEquals(pinnedVehicleKey.toByteArray())) {
+                    replacement.close()
+                    return SignerResult.Fault(
+                        MessageFault_E.MESSAGEFAULT_ERROR_UNKNOWN_KEY_ID,
+                        "public key in SessionInfo doesn't match value used to initialize Signer",
+                    )
+                }
                 signer?.close()
-                signer = created.value
+                signer = replacement
                 SignerResult.Ok(Unit)
             }
 
@@ -141,7 +168,9 @@ public class SessionState internal constructor(
 
     /**
      * Go `authorize`: 준비 신호는 락 밖에서 기다리고 [Signer.encrypt]만 락 안에서 부른다. Go는 `Encrypt` 오류를 지우고 즉시 재시도하지만
-     * 여기서는 값으로 돌려준다(설계 구체화 5; `SendWithRetry`가 `retryInterval` 뒤 재시도).
+     * 여기서는 값으로 돌려준다(설계 구체화 5; `SendWithRetry`가 `retryInterval` 뒤 재시도). 원본에 없음(H17, ADR-0016): counter를
+     * `0xFFFFFFFF`까지 다 썼으면 암호화하지 않고 준비 상태를 되돌린 뒤 `INVALID_TOKEN_OR_COUNTER`(`detail` = 소진, 디스패처가 `NoSession`으로
+     * 바꾼다)를 돌려준다. 다음 인증된 세션정보가 새 Signer를 만든다([processHello]).
      */
     public suspend fun authorize(
         message: RoutableMessage,
@@ -238,7 +267,7 @@ public class SessionState internal constructor(
         }
 
     /**
-     * [export]를 캐시에 쓴 뒤 부른다: 같은 Signer·epoch이면 그 counter까지를 확정한 예약으로 기억한다(늘리기만 한다). 그사이 Signer나
+     * [exportForCache]가 돌려준 [export]를 캐시에 쓴 뒤 부른다: 같은 Signer·epoch이면 그 counter까지를 확정한 예약으로 기억한다(늘리기만 한다). 그사이 Signer나
      * epoch가 바뀌었으면 아무것도 하지 않는다 — 옛 세션의 예약이 새 세션을 덮었다고 보면 안 된다.
      */
     internal suspend fun commitReservation(export: CacheExport): Unit =

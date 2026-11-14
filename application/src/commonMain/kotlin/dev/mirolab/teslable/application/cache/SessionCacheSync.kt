@@ -24,7 +24,7 @@ private const val TAG = "SessionCacheSync"
  * 연결(Dispatcher)당 하나만 만든다 — [markStale]한 도메인 목록이 이 객체에 산다. 스냅샷·필터·쓰기는 한 뮤텍스 안에서 해
  * 동시 [store]가 순서가 뒤바뀐 채 겹치지 않는다.
  *
- * **호출 순서 주의:** [Dispatcher.close]는 모든 세션 키를 지운다. 그 뒤에 [store]를 부르면 [Dispatcher.exportSessions]가 빈
+ * **호출 순서 주의:** [Dispatcher.close]는 모든 세션 키를 지운다. 그 뒤에 [store]를 부르면 내보내기(`Dispatcher.exportForCache`)가 빈
  * 목록을 돌려주고, [store]는 그 빈 목록을 그대로 저장해(§7.1 "빈 목록도 저장" 규칙) 이전에 저장해 둔 캐시를 지워 버린다.
  * 그래서 호출자는 반드시 [store]를 [Dispatcher.close]보다 먼저 불러야 한다(Go CLI도 disconnect 전에 저장한다).
  */
@@ -68,38 +68,40 @@ public class SessionCacheSync(
 
     /**
      * 원본에 없음(H17, ADR-0016): [domain]의 다음 counter를 캐시가 덮도록 그 도메인의 예약을 늘려 쓴다. 다른 전송이 먼저 예약해 이미
-     * 덮였으면 쓰지 않는다. 그 뒤 덮였는지를 돌려준다 — 기기 잠금 보존으로 쓰지 않았거나 그 도메인을 쓰지 않았으면(오래된 캐시로 뺀 도메인)
-     * false. 포트의 예외는 그대로 던진다(호출자 `VehicleSession`이 로그를 남긴다).
+     * 덮였으면 쓰지 않는다. 덮였거나 그 도메인의 예약을 썼으면 true다 — 쓴 사이 Signer나 epoch가 바뀌어 확정되지 않았어도 true라서
+     * 호출자는 다시 인가하고, 덮이지 않았으면 또 예약한다(예약 없이 보내지 않는다). 기기 잠금 보존으로 쓰지 않았거나 그 도메인을 쓰지
+     * 않았으면(세션 없음, 오래된 캐시로 뺀 도메인) false. 포트의 예외는 그대로 던진다(호출자 `VehicleSession`이 로그를 남긴다).
      */
     internal suspend fun reserve(
         dispatcher: Dispatcher,
         domain: Domain,
     ): Boolean =
         storeMutex.withLock {
-            if (!dispatcher.coversNextCounter(domain)) write(dispatcher, extend = domain)
-            dispatcher.coversNextCounter(domain)
+            if (dispatcher.coversNextCounter(domain)) return@withLock true
+            write(dispatcher, extend = domain) || dispatcher.coversNextCounter(domain)
         }
 
     /**
      * [store]와 [reserve]의 본문. [storeMutex] 안에서만 부른다. 각 도메인의 counter는 확정한 예약보다 낮게 쓰지 않고, [extend] 도메인만
      * 예약을 늘린다. 포트가 정상으로 돌아오면 실제로 쓴 항목의 counter를 확정한 예약으로 기억한다 — 포트는 쓰기 실패를 로그로만 알리므로
-     * 이 확정은 쓰기가 성공했다는 전제 위에 있다(ADR-0007, ADR-0016).
+     * 이 확정은 쓰기가 성공했다는 전제 위에 있다(ADR-0007, ADR-0016). [extend] 도메인을 포트에 넘겨 썼으면 true.
      */
     private suspend fun write(
         dispatcher: Dispatcher,
         extend: Domain?,
-    ) {
+    ): Boolean {
         val sessions = dispatcher.exportForCache(extend)
         val keptForLock = dispatcher.restoresBlockedByLock.filter { blocked -> sessions.none { it.domain == blocked } }
         if (keptForLock.isNotEmpty() && staleDomains.isEmpty() && !lockKeepAbandoned) {
             dispatcher.log.log(LogLevel.INFO, TAG) {
                 "Keeping the session cache: cached sessions for $keptForLock were not restored while the device was locked"
             }
-            return
+            return false
         }
         if (keptForLock.isNotEmpty()) lockKeepAbandoned = true
         val written = sessions.filter { it.domain !in staleDomains }
         cache.store(vin, keyId, written.map { it.snapshot })
         dispatcher.commitReservations(written)
+        return extend != null && written.any { it.domain == extend }
     }
 }

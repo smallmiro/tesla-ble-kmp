@@ -478,7 +478,8 @@ public class Dispatcher
 
         /**
          * Go `LoadCache`: 항목마다 [SessionState.loadFromCache](즉시 준비 상태). 손상된 항목·개인키 없음·키의 ECDH 예외는 WARN 로그 후 건너뛴다
-         * (Go는 전체 실패 — 설계 구체화 6). 기기 잠금으로 막힌 항목도 건너뛰되 [restoresBlockedByLock]에 남긴다(FR-037, #96). 복원한 도메인
+         * (Go는 전체 실패 — 설계 구체화 6). 기기 잠금으로 막힌 항목도 건너뛰되 [restoresBlockedByLock]에 남긴다(FR-037, #96). counter가
+         * 예약 하나도 남기지 못하는 항목(`0xFFFFFFFF − 16`보다 큼)도 WARN 뒤 건너뛴다(원본에 없음, H17, ADR-0016). 복원한 도메인
          * 집합을 돌려준다. Go는 세션 맵을 통째로 새로 만들어 교체하지만 이 구현은 기존 [sessions]에 도메인별로 병합한다 — 새 [Dispatcher]
          * (세션이 전부 비어 있는 상태)에서 부르면 결과는 같다.
          */
