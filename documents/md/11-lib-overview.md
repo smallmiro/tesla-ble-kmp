@@ -1,5 +1,12 @@
 # tesla-ble-kmp Library Manual (Entry Point)
 
+<!-- user-guide-entry -->
+For a single offline document with setup, every app-facing method signature, parameter tables, call examples,
+return values, model declarations and all 12 state schemas, use the [complete user guide](11-lib-user-guide.md).
+Human editions: [Korean](../html/ko/11-lib-user-guide.html), [English](../html/en/11-lib-user-guide.html),
+[Japanese](../html/ja/11-lib-user-guide.html). The standalone HTML embeds its styles and scripts.
+<!-- /user-guide-entry -->
+
 Files `11-lib-*.md` to `19-lib-*.md` document **this repository's library**, tesla-ble-kmp: a Kotlin Multiplatform
 (Android + iOS) port of the BLE path of `vehicle-command`. Files `00`–`10` document the Go original and are the
 reference for porting. The human-readable version of these pages is `../html/<lang>/11-lib-overview.html` to

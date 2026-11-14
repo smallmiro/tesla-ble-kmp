@@ -7,6 +7,23 @@ This folder holds two documents that share one layout:
 | 1–9 (HTML), `00`–`10` (MD) | **vehicle-command reference**: building applications that send end-to-end authenticated commands to Tesla vehicles over BLE and the internet, based on the `vehicle-command/` repository (Tesla Vehicle Command SDK, Go). Baseline: commit `a4b43c1` after tag `v0.4.1` (Go 1.23, module `github.com/teslamotors/vehicle-command`). The porting reference | The user; changed only with approval |
 | 11–19 (`11-lib-*` … `19-lib-*`) | **tesla-ble-kmp library manual**: how to use this repository's Kotlin Multiplatform library (Android + iOS) | Agents; updated in every PR that changes library behaviour, public API or status, before it merges (AGENTS.md absolute rule 13) |
 
+## Complete library user guide
+
+Open the standalone [Korean guide](html/ko/11-lib-user-guide.html), [English guide](html/en/11-lib-user-guide.html)
+or [Japanese guide](html/ja/11-lib-user-guide.html). Each file embeds its styles and scripts for offline use and includes
+source-build setup, all 73 Vehicle methods plus connection/key/configuration helpers, parameter defaults and units,
+call examples, result models, all 12 getState field schemas, and the existing library chapters. The API reference is searchable;
+the browser print dialog can save the full document as PDF. Implementation and real-vehicle verification status are distinguished.
+
+The English agent companion is [11-lib-user-guide.md](md/11-lib-user-guide.md). To refresh the generated guide after
+updating the source APIs or maintained library chapters, run:
+
+```bash
+python3 tools/docs/build-library-guide.py
+tools/ci/highlight-manual-code.sh
+tools/ci/check-manual-i18n.sh
+```
+
 ## Two manuals
 
 | Directory | Audience | Format | Language | Entry point |
