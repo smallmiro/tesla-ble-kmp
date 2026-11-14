@@ -12,7 +12,10 @@
 #   - style.css 의 라이트 테마 토큰 두 벌(시스템 설정용, 직접 선택용)이 같다
 #   - 샘플 세트의 assets/ 파일은 documents/html/assets/ 의 같은 이름 파일과 바이트 단위로 같다
 #   - 코드 블록 문법 색이 최신이다 (highlight-manual-code.sh --check)
-# 인자로 저장소 루트를 넘기면 그 경로를 검사한다(검사 스크립트 자체를 시험할 때).
+#   - 사용 가이드(11-lib-user-guide MD + HTML ko/en/ja)가 최신이다: tools/docs/build-library-guide.py 와 문법 색 칠하기를
+#     임시 폴더에서 다시 돌린 결과와 바이트 단위로 같다 (11~19장, 공개 Kotlin API, 생성기를 고치고 다시 만들지 않으면 실패, 규칙 13)
+# 인자로 저장소 루트를 넘기면 그 경로를 검사한다(검사 스크립트 자체를 시험할 때). 그 경로에는 가이드 생성기의 입력
+# (docs/PATHS.md, documents/, sdk·domain 의 src/commonMain)도 있어야 한다.
 set -euo pipefail
 ROOT="${1:-$(cd "$(dirname "$0")/../.." && pwd)}"
 python3 -I - "$ROOT" <<'PY'
@@ -133,3 +136,38 @@ if errors:
 print(f"manual i18n OK: md English-only, HTML ko/en/ja match, root index mirrors en/ ({'; '.join(summary)})")
 PY
 "$(dirname "$0")/highlight-manual-code.sh" --check "$ROOT"
+
+# 사용 가이드(11-lib-user-guide)가 최신이다: 생성기(build-library-guide.py --out)로 임시 폴더에 다시 만들고 문법 색을 칠한 결과가
+# 커밋된 파일과 바이트 단위로 같아야 한다. 생성기와 색칠 스크립트는 이 스크립트 옆의 것을 쓰고, 입력과 비교 대상은 ROOT 의 것이다
+# (위의 highlight --check 와 같다). 비교할 파일 목록은 생성기가 출력하며, 목록이 비거나 커밋된 파일이 없으면 실패한다.
+TOOLS="$(cd "$(dirname "$0")/.." && pwd)"
+guide_tmp="$(mktemp -d)"
+trap 'rm -rf -- "$guide_tmp"' EXIT
+guide_files="$(python3 -I "$TOOLS/docs/build-library-guide.py" --root "$ROOT" --out "$guide_tmp")" ||
+  { echo "user guide check FAILED: tools/docs/build-library-guide.py did not run (error above)"; exit 1; }
+[ -n "$guide_files" ] || { echo "user guide check FAILED: tools/docs/build-library-guide.py wrote no files"; exit 1; }
+# highlight-manual-code.sh 는 문서 세트마다 html 폴더를 요구한다. 가이드가 없는 샘플 세트 폴더는 비워 둔다.
+# shellcheck disable=SC2016 # 역따옴표는 docs/PATHS.md 표의 글자 그대로다
+samples_html="$(sed -n 's/^| `SAMPLES_DOCS_HTML_DIR` | `\([^`]*\)` |.*$/\1/p' "$ROOT/docs/PATHS.md")"
+[ -n "$samples_html" ] || { echo "user guide check FAILED: SAMPLES_DOCS_HTML_DIR not found in docs/PATHS.md"; exit 1; }
+mkdir -p "$guide_tmp/$samples_html"
+highlight_out="$("$(dirname "$0")/highlight-manual-code.sh" "$guide_tmp" 2>&1)" || {
+  printf '%s\n' "$highlight_out"
+  echo "user guide check FAILED: highlight-manual-code.sh did not run on the regenerated guide"
+  exit 1
+}
+guide_stale=0
+while IFS= read -r rel; do
+  if [ ! -f "$ROOT/$rel" ]; then
+    echo "$rel: missing (the generator writes it)"
+    guide_stale=1
+  elif ! cmp -s "$guide_tmp/$rel" "$ROOT/$rel"; then
+    echo "$rel: differs from a fresh build"
+    guide_stale=1
+  fi
+done <<< "$guide_files"
+if [ "$guide_stale" -ne 0 ]; then
+  echo "user guide is stale: run python3 tools/docs/build-library-guide.py && tools/ci/highlight-manual-code.sh"
+  exit 1
+fi
+echo "user guide OK: $(printf '%s\n' "$guide_files" | wc -l | tr -d ' ') files match a fresh build"
