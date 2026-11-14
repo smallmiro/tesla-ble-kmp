@@ -1,0 +1,5 @@
+# Package source of the consumer app. check-consumer-ios.sh --remote <version> rewrites this file in its temporary copy
+# to the published package (url: https://github.com/smallmiro/tesla-ble-kmp, exactVersion: <version>).
+packages:
+  Teslable:
+    path: LocalTeslable

@@ -1,0 +1,11 @@
+# check-consumer-ios.sh output and SwiftPM/Xcode droppings: only the sources are tracked
+*.xcodeproj/
+*.xcworkspace/
+.build/
+.swiftpm/
+DerivedData/
+Package.resolved
+LocalTeslable/.build/
+LocalTeslable/.swiftpm/
+# xcodegen regenerates the Info.plist from project.yml's info: block
+ConsumerApp/Info.plist

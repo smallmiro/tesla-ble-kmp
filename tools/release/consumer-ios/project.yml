@@ -1,0 +1,42 @@
+name: ConsumerApp
+include:
+  - packages.yml
+options:
+  bundleIdPrefix: dev.mirolab.consumer
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    # Teslable.xcframework has an arm64-only simulator slice (Apple Silicon Macs). Without this, a simulator build tries x86_64 too and fails to link.
+    ARCHS: "arm64"
+    EXCLUDED_ARCHS: "x86_64"
+    ONLY_ACTIVE_ARCH: "YES"
+    CODE_SIGN_IDENTITY: ""
+    CODE_SIGNING_REQUIRED: "NO"
+targets:
+  ConsumerApp:
+    type: application
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources: [ConsumerApp]
+    info:
+      path: ConsumerApp/Info.plist
+      properties:
+        CFBundleDisplayName: Teslable Consumer
+        UILaunchScreen: {}
+        # 17-lib-platform-notes.md §iOS: the first scan shows the permission prompt, so Info.plist needs this key.
+        NSBluetoothAlwaysUsageDescription: Bluetooth is needed to talk to the vehicle.
+    dependencies:
+      - package: Teslable
+        product: Teslable
+    scheme:
+      testTargets: [ConsumerAppTests]
+  ConsumerAppTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "16.0"
+    sources: [ConsumerAppTests]
+    dependencies:
+      - target: ConsumerApp
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: "YES"
