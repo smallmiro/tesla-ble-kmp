@@ -2,12 +2,12 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | **v1.0 승인** (2026-09-26). 2026-11-08 개정: 쓰기 실패 뒤 새 사본 금지(D29, §3.3, §3.4, §6, §9.3, §12, ADR-0010). 2026-11-08 개정: M5 PR A 공조·충전 명령(§1.3, §2.1~§2.3, §7.3, §9.2, §12, ADR-0002 개정). 2026-11-08 개정: M5 PR B 차체·보안·미디어·소프트웨어 업데이트 명령과 `ping`(§1.3, §2.2, §2.3, §9.2, §9.4, §12) |
+| 상태 | **v1.0 승인** (2026-09-26). 2026-11-08 개정: 쓰기 실패 뒤 새 사본 금지(D29, §3.3, §3.4, §6, §9.3, §12, ADR-0010). 2026-11-08 개정: M5 PR A 공조·충전 명령(§1.3, §2.1~§2.3, §7.3, §9.2, §12, ADR-0002 개정). 2026-11-08 개정: M5 PR B 차체·보안·미디어·소프트웨어 업데이트 명령과 `ping`(§1.3, §2.2, §2.3, §9.2, §9.4, §12). 2026-11-14 개정: M6 1단계 iOS SPM 배포와 두 단계 릴리스(§8.5, §11, ADR-0017) |
 | 상위 문서 | `{{PRD_FILE}}` (FR/NFR), `{{HANDOFF_FILE}}` §4, §6, §7 |
 | 정답 기준 | `{{REF_REPO_DIR}}` @ `{{REF_REPO_COMMIT}}` + `pkg/protocol/protocol.md` |
 | 1차 가이드 | `{{MANUAL_DIR}}` (`01-architecture`, `02-ble-transport`, `03-protocol`, `08-errors`, `10-porting-guide`) |
 | 설계 원본 | `{{SPECS_DIR}}2026-09-26-tesla-ble-kmp-design.md` |
-| 결정 기록 | `{{ADR_DIR}}0001` ~ `0016` (§11) |
+| 결정 기록 | `{{ADR_DIR}}0001` ~ `0017` (§11) |
 | 다음 문서 | `{{PLANS_DIR}}` (Phase 3) |
 
 경로는 `{{PATHS_FILE}}` 의 키로 참조한다. Go 파일 경로는 `{{REF_REPO_DIR}}` 기준이며, 인용한 줄 번호는 커밋 `{{REF_REPO_COMMIT}}` 기준이다.
@@ -678,11 +678,22 @@ CachedSessions v1 (little-endian 아님, 모두 big-endian; :domain 순수 Kotli
 | 런타임 확인 | `checkSelfPermission` 두 가지 → 없으면 `TransportError.PermissionDenied`. 어댑터 꺼짐 → `BluetoothOff` | `CBCentralManager.state` → `.unauthorized` → `PermissionDenied`, `.poweredOff` → `BluetoothOff` |
 | 백그라운드 | v1 포그라운드 전제. `platform-notes.md`에 제약 명시 | 백그라운드에서는 Local Name 광고가 제한될 수 있어 스캔이 실패할 수 있음. v1 포그라운드 전제 |
 
-### 8.5 산출물과 배포 형태 (D13)
+### 8.5 산출물과 배포 형태 (D13, ADR-0017)
 
-- Android/JVM: `:sdk` AAR + KLIB 변형. `maven-publish` → GitHub Packages(M6). 그 전엔 `mavenLocal`.
-- iOS: `:sdk`가 `Teslable` static XCFramework를 만든다(`binaries.framework { baseName = "Teslable"; isStatic = true }`, SKIE 적용, cryptokit 프로바이더의 Swift 코드 포함 → Swift 런타임은 iOS 16에 내장). `Package.swift`는 `binaryTarget`으로 GitHub Release의 zip을 참조(M6).
-- 샘플 앱은 M0~M5 동안 Gradle composite / 로컬 프레임워크 경로로 라이브러리를 참조한다.
+배포는 두 단계다. 1단계는 iOS Swift Package Manager, 2단계는 Android/JVM Maven Central(별도 계획). GitHub Packages와 CocoaPods는 쓰지 않는다.
+
+- **iOS (1단계, SPM, `{{SPM_PACKAGE_URL}}`)**
+  - `:sdk`의 `binaries.framework { baseName = "Teslable"; isStatic = true; export(project(":domain")) }`(`iosArm64`, `iosSimulatorArm64`)를 `XCFramework("Teslable")`에 더한다. `./gradlew :sdk:assembleTeslableReleaseXCFramework` → `sdk/build/XCFrameworks/release/Teslable.xcframework`. 슬라이스는 정확히 `ios-arm64` + `ios-arm64-simulator`(arm64만), 각 슬라이스 `MinimumOSVersion` 16.0. cryptokit 프로바이더의 Swift 코드가 들어 있고 Swift 런타임은 iOS 16에 내장돼 있다.
+  - SKIE: `produceDistributableFramework()`(Swift library evolution, `.swiftinterface`, 정적 프레임워크의 clang 모듈 breadcrumb 제거), `enableRelativeSourcePathsInDebugSymbols` 끔, `-debug-prefix-map`, 사용 통계(`analytics`) 끔. 배포(release) 링크에는 `-Xdebug-prefix-map`으로 저장소 루트와 서드파티 klib의 빌드 경로를 바꾼다. 이 SKIE 설정은 프로젝트 전체라 디버그 프레임워크에도 적용된다.
+  - `{{RELEASE_TOOLS_DIR}}build-xcframework.sh`: 빌드캐시 없이 다시 빌드하고 검사(슬라이스 구성, iOS 16, `.swiftinterface`, static 아카이브, `.pcm` 0개, zip 구조, 빌드한 Mac의 경로 없음)한 뒤 `.swiftsourceinfo`를 빼고 `build/release/Teslable.xcframework.zip`(`ditto -c -k --keepParent`)과 `.sha256`(`swift package compute-checksum`)을 만든다. 실행할 때마다 체크섬이 바뀐다.
+  - 저장소 루트 `Package.swift`(`prepare.sh`만 쓴다): `// swift-tools-version:5.9`, `name: "Teslable"`, `platforms: [.iOS(.v16)]`, product·target `Teslable`, `.binaryTarget(name: "Teslable", url: "{{SPM_PACKAGE_URL}}/releases/download/v<버전>/Teslable.xcframework.zip", checksum: "<sha256>")`. 버전은 SemVer, 첫 버전 `1.0.0`, 태그 `v<버전>`.
+  - 릴리스 두 단계(`{{RELEASE_TOOLS_DIR}}README.md`, GitHub Actions 없음, ADR-0012):
+    1. `prepare.sh <버전>`: 사전 검사(형식, 깨끗한 트리, 최신 `origin/main`, 원격 태그 없음) → 브랜치 `release/v<버전>` → `check-consumer-ios.sh`(XCFramework 빌드 + 소비자 검사) → zip·체크섬·빌드한 소스 트리를 `build/release/v<버전>/`에 보관 → `Package.swift` 작성과 `swift package dump-package` 확인 → 커밋 `chore: release <버전>`. 푸시와 PR은 사람이 한다. 체크섬을 읽은 뒤에는 아무것도 zip을 다시 만들지 않는다.
+    2. PR 머지 뒤 `publish.sh <버전>`: zip을 만들지 않는다. `Package.swift`·보관한 zip의 체크섬·소스 트리 대조 → `tools/ci/verify.sh`(커밋과 zip마다 한 번) → 주석 태그 `v<버전>`만 푸시 → GitHub Release 초안 + 자산 업로드 → 내려받아 체크섬 확인 → 정식 릴리스로 게시 → 공개 URL 체크섬 재확인 → `check-consumer-ios.sh --remote <버전>` → `RELEASED v<버전>`. 다시 실행하면 이미 끝난 단계는 건너뛴다.
+  - 격리된 소비자 검증 `{{RELEASE_TOOLS_DIR}}check-consumer-ios.sh`: `consumer-ios/`(xcodegen 앱 `ConsumerApp` + `ConsumerAppTests`, iOS 16)가 SwiftPM으로 XCFramework를 링크한다. 기기용 빌드(`generic/platform=iOS`, 서명 없음)와 시뮬레이터 시험 4개(SKIE async, Flow, sealed `switch`, 키 생성; ad-hoc 서명, Keychain이 서명된 앱을 요구). xcodebuild 경고가 있으면 실패한다(이름을 적어 둔 Xcode 도구 잡음 한 가지만 뺀다). `--no-build`는 기존 산출물, `--remote <버전>`은 게시된 패키지(`exactVersion`)로 검사한다.
+  - `tools/ci/verify.sh` 9단계 `{{RELEASE_TOOLS_DIR}}test_release_scripts.sh`가 두 릴리스 스크립트의 사전 검사와 재시도 판단을 오프라인으로 시험한다.
+- **Android/JVM (2단계, Maven Central, 별도 계획)**: `:sdk` AAR + KLIB 변형, 그룹 네임스페이스 `dev.mirolab`. 아직 배포 설정(`maven-publish`)이 없다. 그때까지 앱은 이 저장소의 Gradle 빌드 안에서 `project(":sdk")`에 의존해 소스로 빌드한다.
+- 샘플 앱은 계속 Gradle 모듈(Android)과 소스 빌드의 로컬 프레임워크(`sdk/build/bin/<target>/debugFramework`, iOS)로 라이브러리를 참조한다. SPM으로 바꾸지 않는다. `verify.sh` (c)·(d) 단계도 같은 디버그 프레임워크를 쓴다.
 
 ---
 
@@ -814,6 +825,7 @@ FakeVehicle(vin, vehicleKey: EcdhPrivateKey, crypto, random, timeSource)
 | 0014 | iOS 키 접근성 선택(잠긴 휴대폰에서 키 사용), 기본값 유지·옵트인, ADR-0008 보완 | 설계 §5.6 (2026-10-24), FR-037 |
 | 0015 | 명령 응답 인증 정책, 성공·데이터에 검증된 응답 요구, 2024.38 이전 펌웨어 미지원, Go와 의도적으로 다름 | 사용자 승인 (2026-11-01), FR-105 |
 | 0016 | 세션 캐시 counter 선예약(인증 요청이 쓰기 전에 counter + 16을 저장), 소진 처리, Go와 의도적으로 다름, ADR-0007 개정 | 사용자 승인 (2026-11-14), FR-017, H17 |
+| 0017 | iOS는 SPM으로 먼저 배포(static XCFramework, 두 단계 릴리스, 첫 버전 1.0.0), Android는 2단계 Maven Central, GitHub Packages·CocoaPods 미사용, PRD D13 개정 | 사용자 결정 (2026-11-14), D13 |
 
 ---
 

@@ -2,7 +2,7 @@
 
 | 항목 | 내용 |
 |---|---|
-| 상태 | **v1.0 승인** (2026-09-26, D13 개정 포함). NFR-012 타임아웃 문구는 SDD D29에 맞춰 갱신. 주행·미디어·목적지 조사 결과 반영(2026-11-01, §3.2, FR-033, FR-091, §8, §9). `getState` 구현에 맞춘 문구 정정(2026-11-01, FR-033, FR-101). 연결 스캔 관찰 추가(2026-11-01, FR-038, #134). 연결 시간 초과 오류 구분(2026-11-01, FR-004, #140). 시간 초과의 "전송" 정의를 첫 BLE 쓰기 호출로 정정(2026-11-07, NFR-012, ADR-0010 H1). 쓰기 실패 뒤 새 사본 재인가 금지(2026-11-08, FR-101 예외, NFR-007, ADR-0010 개정). 공조·충전 명령의 공개 시그니처 확정(2026-11-08, FR-052, FR-061~083, M5 PR A, ADR-0002 개정). `ping`과 차체·보안·미디어·SW 업데이트 명령의 공개 시그니처 확정(2026-11-08, FR-034, FR-051, FR-084~085, FR-090, FR-092, M5 PR B). 세션 캐시 counter 선예약(2026-11-14, FR-017, ADR-0016, H17) |
+| 상태 | **v1.0 승인** (2026-09-26, D13 개정 포함). NFR-012 타임아웃 문구는 SDD D29에 맞춰 갱신. 주행·미디어·목적지 조사 결과 반영(2026-11-01, §3.2, FR-033, FR-091, §8, §9). `getState` 구현에 맞춘 문구 정정(2026-11-01, FR-033, FR-101). 연결 스캔 관찰 추가(2026-11-01, FR-038, #134). 연결 시간 초과 오류 구분(2026-11-01, FR-004, #140). 시간 초과의 "전송" 정의를 첫 BLE 쓰기 호출로 정정(2026-11-07, NFR-012, ADR-0010 H1). 쓰기 실패 뒤 새 사본 재인가 금지(2026-11-08, FR-101 예외, NFR-007, ADR-0010 개정). 공조·충전 명령의 공개 시그니처 확정(2026-11-08, FR-052, FR-061~083, M5 PR A, ADR-0002 개정). `ping`과 차체·보안·미디어·SW 업데이트 명령의 공개 시그니처 확정(2026-11-08, FR-034, FR-051, FR-084~085, FR-090, FR-092, M5 PR B). 세션 캐시 counter 선예약(2026-11-14, FR-017, ADR-0016, H17). 배포 채널 개정: iOS SPM 먼저(1.0.0), Android Maven Central은 2단계, GitHub Packages·CocoaPods 미사용(2026-11-14, D13, §3.2, §9 M6, §10, ADR-0017) |
 | 저장소 | `{{REPO_URL}}` (공개, Apache-2.0) |
 | 상위 문서 | `{{HANDOFF_FILE}}` §1~§5, §8, §10~§13 |
 | 정답 기준 | `{{REF_REPO_DIR}}` @ `{{REF_REPO_COMMIT}}` + `pkg/protocol/protocol.md` |
@@ -21,7 +21,7 @@
 | D10 | 개인키 보관 | **하드웨어 기본 + 소프트웨어 대체 허용.** 실제 보관 수준(`HARDWARE` / `STRONGBOX` / `SOFTWARE`)을 조회하는 API 제공 | 에뮬레이터·시뮬레이터·CI에서도 동작. ECDH 공유 비밀과 세션 키 K는 프로토콜 구조상 앱 메모리에 존재함을 문서화. `00-agent-guide §3.3-21`, `10-porting-guide §12` |
 | D11 | 키 등록 기본 역할 | **Owner.** 역할 지정 오버로드 제공 | Go `SendAddKeyRequest`와 동일 기본값. `03-protocol §3`, `05-command-catalog B` |
 | D12 | 공개 API 스타일 | **commonMain은 `suspend` + `Flow`. iOS는 SKIE로 Swift async/await, AsyncSequence, enum 변환** | SKIE(Apache-2.0) 도입은 SDD에서 ADR로 기록. `04-go-api-reference pkg/vehicle` |
-| D13 | 공개·배포 | **저장소는 처음부터 공개(오픈소스, Apache-2.0).** 배포 채널은 **GitHub Packages(Maven 레지스트리, `{{PACKAGES_MAVEN_URL}}`)** **+ SPM**(`Package.swift` + GitHub Release의 XCFramework). Maven Central과 GitHub Pages Maven 저장소는 쓰지 않음. 배포 파이프라인 구축은 **M6의 마지막 과제**이며 그 전까지는 `mavenLocal` + 로컬 XCFramework | 앱 개발자는 공개 패키지를 받을 때도 GitHub PAT(`read:packages`)가 필요하므로 `getting-started.md`에 설정법(gradle.properties, CI 시크릿)을 명시. `LICENSE`·`NOTICE`는 저장소 생성 시(Phase 1) 커밋됨 |
+| D13 | 공개·배포 | **저장소는 처음부터 공개(오픈소스, Apache-2.0).** **2026-11-14 개정(ADR-0017):** 배포는 두 단계. **1단계 iOS는 SPM**(`{{SPM_PACKAGE_URL}}`, 저장소 루트 `Package.swift`의 `binaryTarget`이 GitHub Release의 static `Teslable.xcframework` zip을 가리킴), 첫 버전 `1.0.0`. **2단계 Android/JVM은 Maven Central**(`dev.mirolab` 네임스페이스, 별도 계획). GitHub Packages, GitHub Pages Maven 저장소, CocoaPods는 쓰지 않음. 배포 파이프라인 구축은 **M6의 마지막 과제**이며, 2단계 전까지 Android는 소스 빌드, 샘플 앱은 계속 소스 빌드의 로컬 프레임워크 | 원안(2026-09-26)은 GitHub Packages + SPM이었으나, GitHub Packages Maven은 공개 패키지도 소비자 PAT(`read:packages`)가 필요하고 CocoaPods trunk는 2026-12-02부터 읽기 전용이라 개정(사용자 결정 2026-11-14). iOS 소비자는 토큰 없이 Xcode에서 추가한다. 릴리스는 두 단계 로컬 스크립트(`{{RELEASE_TOOLS_DIR}}`, ADR-0012). 실차 확인 대기 항목(#118, Android 실기기)은 릴리스 노트와 문서에 적는다. `LICENSE`·`NOTICE`는 저장소 생성 시(Phase 1) 커밋됨 |
 | D14 | 패키지 루트 | **`dev.mirolab.teslable`** (`{{PATHS_FILE}}` `BASE_PACKAGE`에 기록됨) | 프로젝트 도메인 `mirolab.dev` 의 역도메인 규칙. 처음에는 `io.github.smallmiro.teslable` 이었으나 2026-10-17에 변경 (ADR-0013) |
 | D15 | 샘플 앱 UI | **Android Jetpack Compose + iOS SwiftUI** (각각 네이티브) | 실제 소비자 앱과 같은 구성. SKIE가 만든 Swift 표면을 검증 |
 | D16 | 동시 연결 차량 수 | **설계는 차량 단위 객체(연결마다 독립 인스턴스). v1 검증은 1대.** 다중 연결은 막지 않되 "미검증"으로 문서화 | Go와 동일 (연결 1 = Vehicle 1). `01-architecture §5`, `02-ble-transport §11` |
@@ -83,7 +83,7 @@ Tesla 공식 Go SDK `vehicle-command`는 BLE로 차량과 직접 통신하는 �
 - 2021년 이전 Model S/X
 - 백그라운드 자동 잠금 해제(Phone-as-Key). **v2 후보**
 - 다중 차량 동시 연결의 검증(D16). 설계상 허용, 테스트·실차 확인은 v1 범위 밖
-- 배포 파이프라인(GitHub Packages, SPM) 구축은 M6 마지막 과제(D13). Maven Central·GitHub Pages 배포는 범위 밖. 그 전 마일스톤의 DoD에는 포함하지 않음
+- 배포 파이프라인 구축은 M6 마지막 과제(D13, ADR-0017): 1단계 iOS SPM, 2단계 Android/JVM Maven Central(별도 계획). GitHub Packages·GitHub Pages·CocoaPods 배포는 범위 밖. 그 전 마일스톤의 DoD에는 포함하지 않음
 - 소프트웨어 키 전용 경로(API 31 미만)(D9)
 - 에러 메시지 현지화(D19)
 - **목적지 설정**(`navigation*` 명령): 공식 Go에 없고 `pkg/proxy/command.go`의 `navigation_request`는 REST로 넘긴다. `car_server.proto`의 관련 항목은 `TESLEMETRY-EXT`라 ADR-0002 결정 3에 따라 공개 API에 연결하지 않는다. BLE 가능 여부는 PoC(#119)로 확인하고, 지원으로 올리려면 ADR·PRD 개정과 사용자 승인이 필요하다. 현재 목적지 **조회**는 `getState(Drive)`로 범위 안이다(FR-033)
@@ -378,7 +378,7 @@ Infotainment 명령(FR-034, FR-050~053, FR-060~085, FR-090~092)의 시그니처�
 | #91 (M4 뒤, M5 전) | 차량 브로드캐스트 이벤트, 기어, iOS 키 접근성 선택 (모니터 샘플의 선행 작업, 원래 M5 항목이던 `vehicle.events`를 앞당김) | FR-035, FR-036, FR-037 | FakeVehicle 시나리오 테스트·가짜 Keychain 테스트 PASS, 사용 문서 갱신. 실차·실기기 확인은 모니터 샘플로 |
 | #134 (M5와 별개, 빌드 18 분석의 링크 안정화) | `connect`의 스캔 발견 시각과 RSSI를 공개 API로 제공 | FR-038 | 가짜 커넥터 테스트 PASS, 사용 문서 갱신. 실차 확인은 모니터 샘플에서 |
 | M5 | Infotainment 제어 + GetState (P0/P1). **진행(2026-11-08):** 라이브러리 명령 전부 완료 — `getState`(FR-033, #115), 공조·충전(FR-052, FR-060~083, PR A), `ping`과 차체·보안·미디어·SW 업데이트(FR-034, FR-050·051·053, FR-084~085, FR-090~092, PR B). FakeVehicle 시험 통과, 실차 미확인(#118). 남은 것: 샘플의 공조·충전 항목(PR C, FR-110~111 → SFR-001~002) | FR-033~034, FR-050~053, FR-060~085, FR-090~092, FR-110~111(전체, → SFR-001~002) | P0/P1 항목 완료, 실차 체크리스트 전달 |
-| M6 | 문서화, 배포 준비 | `{{LIB_DOCS_DIR}}` 완성, API 문서, NOTICE, mavenLocal/XCFramework 빌드. **마지막 과제**: GitHub Packages + SPM 배포 파이프라인(D13), 소비자용 PAT 설정 문서 | 문서 링크 검증, 배포 설정 |
+| M6 | 문서화, 배포 | `{{LIB_DOCS_DIR}}` 완성, API 문서, NOTICE, XCFramework 빌드. **마지막 과제**(D13, ADR-0017): **1단계** iOS SPM — 배포용 static XCFramework, 격리된 iOS 소비자 앱 검증, 두 단계 릴리스 스크립트(`{{RELEASE_TOOLS_DIR}}`), 설치 문서, 첫 릴리스 `1.0.0`. **2단계** Android/JVM Maven Central(별도 계획) | 문서 링크 검증. 1단계: GitHub Release `v1.0.0`과 원격 체크섬·소비자 검증 통과. 2단계: Central 배포와 격리된 Android/JVM 소비자 검증 |
 | v1.1 | P2 기능, BLE 목적지 설정 PoC(#119, 요구사항 아님, §3.2) | FR-054, FR-086~089, FR-093~094 | PoC는 실차 결과 기록과 지원 여부 판단 |
 
 ---
@@ -390,12 +390,12 @@ Infotainment 명령(FR-034, FR-050~053, FR-060~085, FR-090~092)의 시그니처�
 | 페이지 | 내용 | 갱신 시점 |
 |---|---|---|
 | `11-lib-overview` | 목차, 상태, 지원 플랫폼(D9), 한 줄 설치 | M0 |
-| `12-lib-getting-started` | 의존성 추가(mavenLocal/XCFramework, M6 이후 GitHub Packages + PAT 설정 / SPM), 권한 설정(Android 12+ BLE, iOS Info.plist), 첫 페어링 코드 | M3, M4 |
+| `12-lib-getting-started` | 의존성 추가(iOS: SPM `{{SPM_PACKAGE_URL}}`, Android: 소스 빌드, 2단계 이후 Maven Central), 권한 설정(Android 12+ BLE, iOS Info.plist), 첫 페어링 코드 | M3, M4, M6 |
 | `13-lib-pairing` | 키 생성·보관 수준(D10), add-key-request 흐름과 NFC 안내, 역할(D11), 등록 확인, 키 목록·삭제 | M4 |
 | `14-lib-reading-state` | `vehicleStatus`(인증 불필요) vs `getState`(깨우기 필요), 12개 카테고리 필드 표, 깨우기 정책 | M3, M5 |
 | `15-lib-commands` | 제어 API 전체 표: 메서드 ↔ FR ↔ 도메인 ↔ 인증 ↔ 우선순위 | M4, M5 |
 | `16-lib-errors` | 성공/실패/불확실 3분류, sealed 에러 계층, 코드 표, 재시도 정책, 재조회 안내 | M2, M5 |
-| `17-lib-platform-notes` | iOS(Security.framework, GCM 공급자, 백그라운드 제한, SKIE 사용법), Android(Keystore, 권한), 세션 캐시 저장 위치(D18) | M3 |
+| `17-lib-platform-notes` | iOS(Security.framework, GCM 공급자, 백그라운드 제한, SKIE 사용법, SPM 바이너리 조건: static, 시뮬레이터는 Apple Silicon만), Android(Keystore, 권한), 세션 캐시 저장 위치(D18) | M3, M6 |
 | `18-lib-troubleshooting` | 슬롯 초과, 세션 오류, 페어링 직후 동기화, 디버그 로그 수집, 골든 픽스처 재수집 | M5 |
 | `19-lib-architecture` | 기여자용 SDD 요약, 모듈 의존 방향, Go 원본 대응표 | M2, M6 |
 

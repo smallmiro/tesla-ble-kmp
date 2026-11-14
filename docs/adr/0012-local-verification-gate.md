@@ -19,6 +19,7 @@ GitHub Actions CI(`.github/workflows/ci.yml`)를 삭제한다. `tools/ci/verify.
 - 자체 호스팅 러너 시도(PR #37, CLOSED·병합 안 됨)를 대체한다 — 이 ADR이 그 자리를 대신한다.
 - **2026-10-17 추가:** 게이트에 7번째 단계 `tools/ci/check-manual-i18n.sh`를 더했다(사용자 결정). 예전 CI에는 없던 검사로, `{{AGENTS_FILE}}` §3 규칙 12(매뉴얼 언어)를 체크리스트가 아니라 게이트로 강제한다.
 - **2026-11-14 추가:** 8번째 단계는 `tools/analysis` 단위 테스트, 9번째 단계는 `tools/release/test_release_scripts.sh`다. 9번째는 M6 릴리스 스크립트(ADR-0017)의 사전 검사와 재시도 판단을 네트워크 없이 시험한다(약 25초).
+- **2026-11-14 추가:** M6 릴리스도 GitHub Actions 워크플로 없이 이 Mac의 로컬 스크립트로 한다(`{{RELEASE_TOOLS_DIR}}` `prepare.sh`·`publish.sh`, ADR-0017). 위의 "릴리스 전용 워크플로" 항목은 쓰지 않기로 했다. `publish.sh`는 태그를 올리기 전에 `tools/ci/verify.sh`를 돌린다.
 
 ## 대안
 - **자체 호스팅 러너(PR #37, 실제로 시도함)**: Docker 러너 2대 + macOS 호스트 러너로 과금 문제는 풀 수 있었지만, amd64/Rosetta 에뮬레이션 때문에 GitHub-hosted보다 약 10배 느렸고 `android` 잡이 컨테이너 OOM으로 실패했다. 러너와 저장소 설정을 되돌리고 기각(2026-09-27).
