@@ -3,7 +3,70 @@
 Scope: M3 (scan, connect, key list, vehicle status), M4 (pairing, VCSEC commands: see "Pair, then lock"), what `connect`
 saw when it scanned (`Vehicle.scanObservation`, FR-038: see "Connect scan observation") and broadcast events
 (`Vehicle.events`, FR-035: see "Broadcast events"). The main examples below use only the unauthenticated queries.
-Installation: `11-lib-overview.md` §Installation. Permissions: `17-lib-platform-notes.md`. Errors: `16-lib-errors.md`.
+Adding the library: "Add the library" below (summary in `11-lib-overview.md` §Installation). Permissions:
+`17-lib-platform-notes.md`. Errors: `16-lib-errors.md`.
+
+## Add the library
+
+### iOS: Swift Package Manager
+
+1. In Xcode choose **File > Add Package Dependencies…** and enter `https://github.com/smallmiro/tesla-ble-kmp`.
+2. Dependency rule **Up to Next Major Version**, from `1.0.0`. Add the library product `Teslable` to the app target.
+3. App target: deployment target iOS 16.0 or later, and `NSBluetoothAlwaysUsageDescription` in `Info.plist`
+   (`17-lib-platform-notes.md` §iOS).
+4. Simulator builds work on an Apple Silicon Mac only. If a simulator build builds every architecture (for example a
+   Release build), set `EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64` on the app target (`17-lib-platform-notes.md`
+   §iOS).
+5. `import Teslable`, then follow "Swift (iOS)" below.
+
+A Swift package that depends on the library:
+
+```swift
+// swift-tools-version:5.9
+import PackageDescription
+
+let package = Package(
+    name: "VehicleFeature",
+    platforms: [.iOS(.v16)],
+    products: [.library(name: "VehicleFeature", targets: ["VehicleFeature"])],
+    dependencies: [
+        .package(url: "https://github.com/smallmiro/tesla-ble-kmp", from: "1.0.0"),
+    ],
+    targets: [
+        .target(name: "VehicleFeature", dependencies: [.product(name: "Teslable", package: "tesla-ble-kmp")]),
+    ]
+)
+```
+
+- The package has one product, `Teslable`, backed by a binary target: a static XCFramework with the slices
+  `ios-arm64` (devices) and `ios-arm64-simulator` (simulator, arm64 only). `package:` is the package identity from the
+  URL, `tesla-ble-kmp`, not the package name.
+- **Up to Next Major Version** accepts `1.x` releases only; a release that breaks the public API is a new major version.
+- The sample app in this repository does not use the package: it links the framework of a source build
+  (`samples/ios/README.md`).
+- CocoaPods is not supported.
+
+### Android and JVM: build from source
+
+Not published yet: development is complete, the Android real-device check is not finished, and Maven Central comes in
+M6 stage 2. Until then the verified path is an app module inside this repository's Gradle build that depends on `:sdk`.
+Copying the `:sdk` folder alone does not build: it needs the other library modules and the build plugins.
+
+```bash
+git clone https://github.com/smallmiro/tesla-ble-kmp
+cd tesla-ble-kmp
+./gradlew :sdk:assemble
+./gradlew :samples:android:assembleDebug
+```
+
+```kotlin
+// build.gradle.kts of an app module included in this repository's settings.gradle.kts
+dependencies {
+    implementation(project(":sdk"))
+}
+```
+
+The app's `minSdk` is 31 or higher. Permissions and backup rules: `17-lib-platform-notes.md` §Android.
 
 ## Flow
 
@@ -72,7 +135,8 @@ The app must request `BLUETOOTH_SCAN` and `BLUETOOTH_CONNECT` at runtime before 
 ## Swift (iOS)
 
 SKIE turns `suspend` into `async throws`, `Flow` into `AsyncSequence`, and sealed types into enums reachable with
-`onEnum(of:)`. The shape below matches `samples/ios/Sources/SampleModel.swift`.
+`onEnum(of:)`. The shape below matches `samples/ios/Sources/SampleModel.swift`. The repository `README.md` quick start
+repeats this example; keep the two identical.
 
 ```swift
 import Teslable

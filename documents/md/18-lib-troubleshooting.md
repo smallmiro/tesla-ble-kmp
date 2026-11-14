@@ -1,6 +1,6 @@
 # Troubleshooting
 
-Scope: M3–M4 (scan, connect, key store, read-only queries, pairing, VCSEC commands, observation log), broadcast events (`Vehicle.events`, FR-035), key accessibility on a locked iPhone (FR-037), `getState` (FR-033) and the Infotainment commands (M5).
+Scope: M3–M4 (scan, connect, key store, read-only queries, pairing, VCSEC commands, observation log), broadcast events (`Vehicle.events`, FR-035), key accessibility on a locked iPhone (FR-037), `getState` (FR-033), the Infotainment commands (M5) and the iOS Swift package on the simulator (M6 stage 1).
 Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 
 ## Symptom → cause → action
@@ -9,7 +9,8 @@ Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 |---|---|---|
 | `ScanEvent.Failed(PermissionDenied)` or `Failure(PermissionDenied)` | Bluetooth permission missing or denied | Android: request `BLUETOOTH_SCAN` / `BLUETOOTH_CONNECT` at runtime. iOS: add `NSBluetoothAlwaysUsageDescription`; if denied, send the user to Settings |
 | `ScanEvent.Failed(BluetoothOff)` | Bluetooth is off | Ask the user to turn it on |
-| `scan(vin)` emits nothing, `connect` ends with `ScanTimeout` | Out of range, wrong VIN, or iOS simulator (no Bluetooth) | Move closer, check the VIN (the filter is an exact match on the advertised name `S<hash of VIN>C`), use a real device |
+| `scan(vin)` emits nothing, `connect` ends with `ScanTimeout` | Out of range or wrong VIN | Move closer, check the VIN (the filter is an exact match on the advertised name `S<hash of VIN>C`) |
+| iOS simulator: `scan(vin)` emits `ScanEvent.Failed(ConnectFailed)` at once, `cause` `IllegalStateException: This device doesn't support the Bluetooth low energy central or client role`; `connect` returns the same `Failure` | The simulator has no Bluetooth, and CoreBluetooth reports the central role as unsupported. It is not reported as `BluetoothOff` or `PermissionDenied` | Use a real iPhone for scan and connect. Do not show it as "Bluetooth is off" and do not retry it in a loop (`17-lib-platform-notes.md` §iOS) |
 | `connect` ends with `ConnectFailed` and the `cause` says the connection did not complete before the deadline | `vehicle found …`: a scan run by this `connect` found the vehicle (its `[connect:scan-hit]` line shows the discovery), but the link did not open in time. `connection to the remembered target … (no scan ran)`: `connect` opened a `target` the library remembers, so nothing shows the vehicle is still there. A remembered `target` that is out of range reports `ConnectFailed`, not `ScanTimeout`. `ScanTimeout` always means no advertisement was found (`16-lib-errors.md` §Transport and key store errors) | Try again. After a remembered `target`, connect without it so that a scan runs. If it repeats while the car is in range, report the log lines |
 | `Failure(MaxConnectionsExceeded)`, advertisement has `isConnectable == false` | The vehicle already has 3 BLE connections (phone keys, other apps) | Disconnect another device; always call `disconnect()` in your own app |
 | `ConnectFailed` repeats | Link unstable or the vehicle is busy | The library already retries inside `connectTimeout` (30 s); try again later |
@@ -60,6 +61,8 @@ Go original troubleshooting: `08-errors.md`, `02-ble-transport.md`.
 | `WARN` `Dropping plain broadcast because the broadcast buffer is full (dropped N since connect)` | A collector of `vehicle.events` fell more than 64 frames behind | Keep the collector light; move slow work to another coroutine (`16-lib-errors.md`) |
 | `UnknownFault`, `UnknownKeychainCode`, enum values read as `UNKNOWN` | Newer vehicle firmware | Check for a library update |
 | Keychain test fails with -25291 on the simulator | Plain Kotlin/Native test binaries cannot use the Keychain | Verify Keychain behaviour in the sample app |
+| iOS simulator: the key store returns `PlatformFailure("keychain status -34018")` (`errSecMissingEntitlement`) | The app is not code-signed (for example `CODE_SIGNING_ALLOWED = NO`), so it has no Keychain entitlement | Sign the app; ad-hoc signing is enough (`CODE_SIGN_IDENTITY = -`, "Sign to Run Locally") (`17-lib-platform-notes.md` §Key storage) |
+| Xcode, simulator build: `ld: symbol(s) not found for architecture x86_64`, after `ignoring file … Teslable … found architecture 'arm64', required architecture 'x86_64'` | The Swift package's simulator slice is arm64 only, and this build also builds `x86_64` (a Release build builds every architecture) | Set `EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64` on the app target. On an Intel Mac use a device: the simulator cannot run the library (`17-lib-platform-notes.md` §iOS) |
 
 ## `connect` time budget
 

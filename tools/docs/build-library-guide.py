@@ -44,11 +44,12 @@ def tr(ko, en, ja):
 TEXT = {
     "title": tr("Tesla BLE KMP 사용 가이드", "Tesla BLE KMP User Guide", "Tesla BLE KMP 利用ガイド"),
     "intro": tr(
-        "소스 빌드부터 키 등록, 상태 조회, 모든 제어 API까지. 앱을 만드는 데 필요한 설명과 예제를 한 문서에 모았습니다.",
-        "From a source build to key enrollment, state queries and every control API. Instructions and examples for app developers in one document.",
-        "ソースビルドからキー登録、状態取得、すべての制御 API まで。アプリ開発に必要な説明と例を一つの文書にまとめました。"),
+        "설치부터 키 등록, 상태 조회, 모든 제어 API까지. 앱을 만드는 데 필요한 설명과 예제를 한 문서에 모았습니다.",
+        "From installation to key enrollment, state queries and every control API. Instructions and examples for app developers in one document.",
+        "インストールからキー登録、状態取得、すべての制御 API まで。アプリ開発に必要な説明と例を一つの文書にまとめました。"),
     "snapshot": tr("문서 기준 커밋", "Source revision", "文書の基準コミット"),
-    "status": tr("M5 구현 기준 · Android 12+ · iOS 16+", "M5 implementation · Android 12+ · iOS 16+", "M5 実装時点 · Android 12+ · iOS 16+"),
+    "status": tr("M6 1단계 기준(iOS Swift 패키지) · Android 12+ · iOS 16+", "M6 stage 1 (iOS Swift package) · Android 12+ · iOS 16+",
+                 "M6 第1段階時点(iOS Swift パッケージ) · Android 12+ · iOS 16+"),
     "offline": tr("이 파일은 스타일과 스크립트를 포함해 오프라인으로 열 수 있습니다. 언어 전환에는 다른 언어의 파일이 필요합니다.",
                   "Styles and scripts are embedded for offline use. Switching languages requires the other language files.",
                   "スタイルとスクリプトを含むためオフラインで開けます。言語切り替えには他の言語のファイルが必要です。"),
@@ -556,23 +557,41 @@ def schemas_html(lang):
 
 
 def setup_html(lang):
+    # iOS ships as a Swift package (ADR-0017); Android and JVM are built from source until Maven Central (M6 stage 2).
+    # The three languages must keep identical markup: tools/ci/check-manual-i18n.sh compares tag counts and hrefs.
     text = tr(
-        """<p>현재 Maven 아티팩트와 SPM 패키지는 배포 전(M6)입니다. 임의 버전의 implementation 좌표나 SPM URL을 사용하지 말고, 소스 체크아웃에서 빌드하세요. 빌드 시 의존성 다운로드에는 인터넷이 필요하지만 차량 통신은 BLE만 사용합니다.</p>
-<h3>준비물과 소스 빌드</h3><p>Git, JDK 17 툴체인(Gradle이 자동 확보), Android SDK 37 및 Android API 31 이상 기기가 필요합니다. iOS는 macOS, Xcode, 명령줄 도구와 실제 iPhone(iOS 16+)을 준비하세요. 시뮬레이터는 컴파일·테스트용이며 BLE가 없습니다. 저장소의 Gradle Wrapper와 고정 의존성 버전을 사용하세요.</p>
-<h3>Android 앱에 연결</h3><p>현재 검증된 방식은 전체 소스의 Gradle 빌드 안에서 앱 모듈이 :sdk를 의존하는 것입니다. 기존 Android 샘플로 먼저 빌드한 후, 같은 빌드에 앱 모듈을 추가하고 아래 의존성을 넣으세요. :sdk 폴더만 복사하면 내부 모듈과 빌드 플러그인이 없어 빌드할 수 없습니다.</p>""",
-        """<p>Maven artifacts and the SPM package are not published yet (M6). Build from a source checkout rather than inventing version coordinates or an SPM URL. Dependency downloads need Internet access during a build; vehicle communication uses BLE only.</p>
-<h3>Prerequisites and source build</h3><p>Use Git, a JDK 17 toolchain (provisioned by Gradle), Android SDK 37 and an Android API 31+ device. For iOS, use macOS, Xcode with command-line tools and a real iPhone on iOS 16+. The simulator supports compilation/tests but has no Bluetooth. Use the repository Gradle Wrapper and pinned dependency versions.</p>
-<h3>Connect an Android app</h3><p>The verified path is an app module depending on :sdk within the complete source Gradle build. Build the Android sample first, then add your app module to that same build and add this dependency. Copying only :sdk omits required internal modules and build plugins.</p>""",
-        """<p>Maven アーティファクトと SPM パッケージは未公開(M6)です。仮のバージョン座標や SPM URL を使わず、ソースからビルドしてください。ビルド時の依存関係の取得にはインターネットが必要ですが、車両との通信は BLE のみです。</p>
-<h3>必要環境とソースビルド</h3><p>Git、JDK 17 ツールチェーン(Gradle が取得)、Android SDK 37 と API 31 以上の Android 端末が必要です。iOS は macOS、Xcode とコマンドラインツール、iOS 16 以上の実機 iPhone を用意します。シミュレーターはコンパイル・テスト用で Bluetooth はありません。リポジトリの Gradle Wrapper と固定した依存バージョンを使います。</p>
-<h3>Android アプリへの接続</h3><p>検証済みの方法は、完全なソースの Gradle ビルド内でアプリモジュールから :sdk に依存する構成です。まず Android サンプルをビルドし、同じビルドにアプリモジュールを追加して以下を設定します。:sdk だけをコピーすると内部モジュールやビルドプラグインが不足します。</p>""")[lang]
+        """<p>iOS 라이브러리는 1.0.0부터 Swift 패키지로 배포됩니다. Android와 JVM은 아직 배포 전(Maven Central은 나중)이므로 소스 체크아웃에서 빌드하고, 임의의 Maven 좌표를 만들어 쓰지 마세요. CocoaPods는 지원하지 않습니다. 빌드할 때 의존성 다운로드에는 인터넷이 필요하지만 차량 통신은 BLE만 사용합니다.</p>
+<h3>iOS: Swift Package Manager</h3><p>Xcode에서 File &gt; Add Package Dependencies를 선택하고 아래 URL을 입력한 뒤, 의존성 규칙 Up to Next Major Version과 시작 버전 1.0.0을 고르고 Teslable 제품을 앱 타깃에 추가하세요. Package.swift에서는 패키지를 dependencies에, 제품을 타깃의 dependencies에 넣습니다.</p>""",
+        """<p>The iOS library is published as a Swift package from version 1.0.0. Android and JVM are not published yet (Maven Central comes later): build them from a source checkout and do not invent Maven coordinates. CocoaPods is not supported. Dependency downloads need Internet access during a build; vehicle communication uses BLE only.</p>
+<h3>iOS: Swift Package Manager</h3><p>In Xcode choose File &gt; Add Package Dependencies, enter the URL below, choose the dependency rule Up to Next Major Version from 1.0.0, and add the Teslable product to the app target. In a Package.swift, add the package to dependencies and the product to the dependencies of your target.</p>""",
+        """<p>iOS ライブラリは 1.0.0 から Swift パッケージとして公開されています。Android と JVM はまだ公開されていない(Maven Central は後日)ため、ソースからビルドし、仮の Maven 座標を作って使わないでください。CocoaPods はサポートしません。ビルド時の依存関係の取得にはインターネットが必要ですが、車両との通信は BLE のみです。</p>
+<h3>iOS: Swift Package Manager</h3><p>Xcode で File &gt; Add Package Dependencies を選び、下の URL を入力し、依存関係ルール Up to Next Major Version と開始バージョン 1.0.0 を選んで Teslable プロダクトをアプリターゲットに追加します。Package.swift では、パッケージを dependencies に、プロダクトをターゲットの dependencies に追加します。</p>""")[lang]
+    text += code("\n".join([
+        '.package(url: "' + PATHS["SPM_PACKAGE_URL"] + '", from: "1.0.0")',
+        '.product(name: "Teslable", package: "' + PATHS["LIB_NAME"] + '")',
+    ]), "swift")
+    text += tr(
+        '<p>요구 사항: iOS 16 이상, Info.plist의 NSBluetoothAlwaysUsageDescription. 프레임워크는 정적(static)이며 기기용 arm64 슬라이스와 시뮬레이터용 arm64 슬라이스만 있습니다. 시뮬레이터는 Apple Silicon Mac에서 쓰고, 모든 아키텍처를 빌드하는 시뮬레이터 빌드(예: Release)에는 EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64를 설정하세요. 시뮬레이터에는 Bluetooth가 없어 스캔과 연결은 실제 iPhone이 필요하고, 시뮬레이터에서 Keychain을 쓰려면 앱이 서명되어 있어야 합니다(ad-hoc 서명으로 충분). 자세한 내용은 <a href="#ch17">플랫폼 설정</a>과 <a href="#ch18">문제 해결</a>에 있습니다.</p>',
+        '<p>Requirements: iOS 16 or later and NSBluetoothAlwaysUsageDescription in Info.plist. The framework is static, with an arm64 device slice and an arm64 simulator slice only: use the simulator on an Apple Silicon Mac, and set EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64 for simulator builds of every architecture (for example Release). The simulator has no Bluetooth, so scanning and connecting need a real iPhone, and its Keychain needs a signed app (ad-hoc signing is enough). Details are in <a href="#ch17">Platform notes</a> and <a href="#ch18">Troubleshooting</a>.</p>',
+        '<p>要件: iOS 16 以上、Info.plist の NSBluetoothAlwaysUsageDescription。フレームワークは静的(static)で、実機用 arm64 とシミュレーター用 arm64 のスライスだけを含みます。シミュレーターは Apple Silicon Mac で使い、すべてのアーキテクチャをビルドするシミュレータービルド(例: Release)では EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64 を設定します。シミュレーターには Bluetooth がないためスキャンと接続には実機 iPhone が必要で、シミュレーターで Keychain を使うにはアプリの署名が必要です(ad-hoc 署名で十分)。詳細は<a href="#ch17">プラットフォーム設定</a>と<a href="#ch18">トラブルシューティング</a>を参照。</p>')[lang]
+    text += tr(
+        '<p>import Teslable을 사용하세요. Swift는 Kotlin 기본 인자의 오버로드를 만들지 않으므로 timeout: nil을 포함한 모든 인자를 넘깁니다. withSeconds와 Timeouts로 시간 제한을 설정합니다. 전체 Swift 예제는 <a href="#ch12">시작하기</a> 및 <a href="#ch17">플랫폼 설정</a>에 있습니다. 아래 설정은 로그를 남기지 않습니다.</p>',
+        '<p>Then import Teslable. Swift gets no Kotlin default-argument overloads, so pass every argument, including timeout: nil. Use withSeconds and Timeouts for time limits. Full Swift examples are in <a href="#ch12">Getting started</a> and <a href="#ch17">Platform notes</a>. The configuration below does not log.</p>',
+        '<p>import Teslable を使います。Swift には Kotlin のデフォルト引数のオーバーロードがないため、timeout: nil を含む全引数を指定します。時間制限は withSeconds と Timeouts を使います。Swift の全例は<a href="#ch12">開始手順</a>と<a href="#ch17">プラットフォーム設定</a>を参照。以下の設定はログを出力しません。</p>')[lang]
+    text += code("""import Teslable
+let ble = TeslaBle.companion.create(
+    platform: PlatformContext(),
+    config: TeslaBleConfig.companion.default(logger: TeslaLoggerCompanion.shared.NoOp)
+)""", "swift")
+    text += tr(
+        """<h3>Android와 JVM: 소스 빌드</h3><p>개발은 끝났지만 Android 실기기 확인이 남아 있어 Maven 아티팩트는 아직 없습니다. Git, JDK 17 툴체인(Gradle이 자동 확보), Android SDK 37 및 Android API 31 이상 기기가 필요하며, 저장소의 Gradle Wrapper와 고정 의존성 버전을 사용하세요. 현재 검증된 방식은 전체 소스의 Gradle 빌드 안에서 앱 모듈이 :sdk를 의존하는 것입니다. 기존 Android 샘플로 먼저 빌드한 후, 같은 빌드에 앱 모듈을 추가하고 아래 의존성을 넣으세요. :sdk 폴더만 복사하면 내부 모듈과 빌드 플러그인이 없어 빌드할 수 없습니다.</p>""",
+        """<h3>Android and JVM: build from source</h3><p>Development is complete, but the Android real-device check is not finished, so there is no Maven artifact yet. Use Git, a JDK 17 toolchain (provisioned by Gradle), Android SDK 37 and an Android API 31+ device, with the repository Gradle Wrapper and pinned dependency versions. The verified path is an app module depending on :sdk within the complete source Gradle build. Build the Android sample first, then add your app module to that same build and add this dependency. Copying only :sdk omits required internal modules and build plugins.</p>""",
+        """<h3>Android と JVM: ソースビルド</h3><p>開発は完了していますが、Android 実機での確認が終わっていないため、Maven アーティファクトはまだありません。Git、JDK 17 ツールチェーン(Gradle が取得)、Android SDK 37 と API 31 以上の Android 端末が必要で、リポジトリの Gradle Wrapper と固定した依存バージョンを使います。検証済みの方法は、完全なソースの Gradle ビルド内でアプリモジュールから :sdk に依存する構成です。まず Android サンプルをビルドし、同じビルドにアプリモジュールを追加して以下を設定します。:sdk だけをコピーすると内部モジュールやビルドプラグインが不足します。</p>""")[lang]
     commands = "\n".join([
         "git clone " + PATHS["REPO_URL"],
         "cd " + PATHS["LIB_NAME"],
         "./gradlew :sdk:assemble",
         "./gradlew :samples:android:assembleDebug",
-        "./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64",
-        "./gradlew :sdk:linkDebugFrameworkIosArm64",
     ])
     text += code(commands, "bash")
     text += code('dependencies {\n    implementation(project(":sdk"))\n}', "kotlin")
@@ -581,24 +600,19 @@ def setup_html(lang):
         '<p>Set app minSdk to at least 31. Declare and request BLUETOOTH_SCAN and BLUETOOTH_CONNECT before scanning. Exclude key files from backup. Exact XML and storage settings are in <a href="#ch17">Platform notes</a>. The default configuration below does not log.</p>',
         '<p>アプリの minSdk は31以上です。スキャン前に BLUETOOTH_SCAN と BLUETOOTH_CONNECT を宣言し実行時に許可を取得します。キーファイルはバックアップから除外します。XML と保存設定は<a href="#ch17">プラットフォーム設定</a>を参照。以下の既定設定はログを出力しません。</p>')[lang]
     text += code("val ble = TeslaBle.create(PlatformContext(context), TeslaBleConfig())")
-    text += '<h3>iOS / Swift</h3>' + tr(
-        '<p>실기기에는 iosArm64, Apple Silicon 시뮬레이터에는 iosSimulatorArm64 정적 프레임워크를 링크합니다. 출력 폴더를 Framework Search Paths에 추가하고 Teslable.framework를 Do Not Embed(정적)로 링크하세요. Kotlin 코드가 바뀌면 다시 빌드합니다. 기존 XcodeGen 샘플에 두 구성이 있습니다.</p>',
-        '<p>Link the iosArm64 static framework for a device, and the iosSimulatorArm64 framework for an Apple Silicon simulator. Add the matching output directory to Framework Search Paths and link Teslable.framework with Do Not Embed (it is static). Rebuild the framework when Kotlin code changes. The existing XcodeGen sample shows both configurations.</p>',
-        '<p>実機は iosArm64、Apple Silicon シミュレーターは iosSimulatorArm64 の静的フレームワークをリンクします。出力先を Framework Search Paths に追加し、Teslable.framework を Do Not Embed(静的)でリンクします。Kotlin コードの変更時は再ビルドします。XcodeGen サンプルに両方の構成があります。</p>')[lang]
+    text += tr(
+        '<h3>소스에서 빌드한 iOS 프레임워크</h3><p>라이브러리를 고치거나 샘플 앱을 실행할 때는 패키지 대신 소스에서 프레임워크를 빌드합니다. 실기기에는 iosArm64, Apple Silicon 시뮬레이터에는 iosSimulatorArm64 정적 프레임워크를 링크합니다. 출력 폴더를 Framework Search Paths에 추가하고 Teslable.framework를 Do Not Embed(정적)로 링크하세요. Kotlin 코드가 바뀌면 다시 빌드합니다. 기존 XcodeGen 샘플에 두 구성이 있습니다.</p>',
+        '<h3>iOS framework from source</h3><p>To change the library or run the sample app, build the framework from source instead of using the package. Link the iosArm64 static framework for a device, and the iosSimulatorArm64 framework for an Apple Silicon simulator. Add the matching output directory to Framework Search Paths and link Teslable.framework with Do Not Embed (it is static). Rebuild the framework when Kotlin code changes. The existing XcodeGen sample shows both configurations.</p>',
+        '<h3>ソースからビルドする iOS フレームワーク</h3><p>ライブラリを変更する場合やサンプルアプリを実行する場合は、パッケージの代わりにソースからフレームワークをビルドします。実機は iosArm64、Apple Silicon シミュレーターは iosSimulatorArm64 の静的フレームワークをリンクします。出力先を Framework Search Paths に追加し、Teslable.framework を Do Not Embed(静的)でリンクします。Kotlin コードの変更時は再ビルドします。XcodeGen サンプルに両方の構成があります。</p>')[lang]
+    text += code("\n".join([
+        "./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64",
+        "./gradlew :sdk:linkDebugFrameworkIosArm64",
+    ]), "bash")
     sdk_rel = "sdk"
     text += code("\n".join([
         sdk_rel + "/build/bin/iosArm64/debugFramework/Teslable.framework",
         sdk_rel + "/build/bin/iosSimulatorArm64/debugFramework/Teslable.framework",
     ]), "text")
-    text += tr(
-        '<p>Info.plist에 NSBluetoothAlwaysUsageDescription을 추가하고 import Teslable을 사용하세요. Swift는 Kotlin 기본 인자의 오버로드를 만들지 않으므로 timeout: nil을 포함한 모든 인자를 넘깁니다. withSeconds와 Timeouts로 시간 제한을 설정합니다. 전체 Swift 예제는 <a href="#ch12">시작하기</a> 및 <a href="#ch17">플랫폼 설정</a>에 있습니다.</p>',
-        '<p>Add NSBluetoothAlwaysUsageDescription to Info.plist and import Teslable. Swift gets no Kotlin default-argument overloads, so pass every argument, including timeout: nil. Use withSeconds and Timeouts for time limits. Full Swift examples are in <a href="#ch12">Getting started</a> and <a href="#ch17">Platform notes</a>.</p>',
-        '<p>Info.plist に NSBluetoothAlwaysUsageDescription を追加し、import Teslable を使います。Swift には Kotlin のデフォルト引数のオーバーロードがないため、timeout: nil を含む全引数を指定します。時間制限は withSeconds と Timeouts を使います。Swift の全例は<a href="#ch12">開始手順</a>と<a href="#ch17">プラットフォーム設定</a>を参照。</p>')[lang]
-    text += code("""import Teslable
-let ble = TeslaBle.companion.create(
-    platform: PlatformContext(),
-    config: TeslaBleConfig.companion.default(logger: TeslaLoggerCompanion.shared.NoOp)
-)""", "swift")
     return '<section class="chapter" id="setup"><h2>' + t("setup", lang) + '</h2>' + text + '</section>'
 
 

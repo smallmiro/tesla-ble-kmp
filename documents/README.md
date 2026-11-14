@@ -11,7 +11,7 @@ This folder holds two documents that share one layout:
 
 Open the standalone [Korean guide](html/ko/11-lib-user-guide.html), [English guide](html/en/11-lib-user-guide.html)
 or [Japanese guide](html/ja/11-lib-user-guide.html). Each file embeds its styles and scripts for offline use and includes
-source-build setup, all 73 Vehicle methods plus connection/key/configuration helpers, parameter defaults and units,
+installation (the iOS Swift package, the Android source build), all 73 Vehicle methods plus connection/key/configuration helpers, parameter defaults and units,
 call examples, result models, all 12 getState field schemas, and the existing library chapters. The API reference is searchable;
 the browser print dialog can save the full document as PDF. Implementation and real-vehicle verification status are distinguished.
 

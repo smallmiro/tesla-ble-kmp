@@ -16,7 +16,7 @@ These pages describe the code on `main`. They are maintained by agents: every PR
 public API or milestone status updates the affected `1x-lib-*.md` page **and** the matching HTML page in `ko/`, `en/`
 and `ja/` in the same PR (AGENTS.md §3 rule 13).
 
-## Status (M5)
+## Status (M6 stage 1)
 
 | Area | State | Page |
 |---|---|---|
@@ -31,7 +31,8 @@ and `ja/` in the same PR (AGENTS.md §3 rule 13).
 | Session cache counter reservation: the cached anti-replay counter is stored before it is used, so the first request after a process ended without `disconnect()` is no longer refused once (FR-017, ADR-0016, issue H17; no API change) | Done (checked with FakeVehicle tests; real-vehicle check pending, analysis scenario N10) | `17-lib-platform-notes.md` §Session cache, `19-lib-architecture.md` §Session cache, `16-lib-errors.md` §Retries and timeouts |
 | Infotainment commands: 51 `Vehicle` methods for climate, charging and power, charge port, body, security, media, software update and `ping()` (FR-034, FR-050–053, FR-060–085, FR-090–092; M5) | Done (checked with FakeVehicle tests and a Swift typecheck; real-vehicle check pending, #118) | `15-lib-commands.md` §Implemented: Infotainment, `16-lib-errors.md` §Invalid arguments, `17-lib-platform-notes.md` §Swift: command arguments |
 | Sample apps: climate and charging in the samples (M5, SFR-001, SFR-002, SFR-025) | Done (Android and iOS sample unit tests; real-device check pending, #118) | `samples/documents/md/05-key-control-tab.md` |
-| Packaging: GitHub Packages + Swift Package Manager (M6) | **Not implemented** | this page, "Installation" |
+| Packaging, iOS: Swift Package Manager, a static `Teslable.xcframework` attached to a GitHub Release (M6 stage 1, ADR-0017) | Done, first release pending (`1.0.0`, tag `v1.0.0`; checked with an isolated consumer app: device build and simulator tests) | this page, "Installation"; `12-lib-getting-started.md` §Add the library; `17-lib-platform-notes.md` §iOS |
+| Packaging, Android / JVM: Maven Central (M6 stage 2) | **Planned** (development is complete; the Android real-device check is not finished. Build from source until then) | this page, "Installation" |
 
 Do not document or call an API that is listed as not implemented. Planned names come from `docs/prd/PRD.md` and may
 change when the milestone lands.
@@ -43,22 +44,59 @@ change when the milestone lands.
 - Package root `dev.mirolab.teslable`. Public types live in `dev.mirolab.teslable` (facade),
   `dev.mirolab.teslable.model` (values and results) and `dev.mirolab.teslable.port` (key store, scan, logger). Wire
   generated protocol types are in `com.tesla.generated.*`, for example `com.tesla.generated.carserver.vehicle.VehicleData`.
-- iOS framework name `Teslable` (exported by `:sdk`, Swift interop through SKIE).
+- iOS framework name `Teslable` (exported by `:sdk`, Swift interop through SKIE). Shipped as a Swift package: a
+  static XCFramework with the slices `ios-arm64` (devices) and `ios-arm64-simulator` (Apple Silicon simulator only).
+- Android and JVM: not published yet (Maven Central in M6 stage 2); build from source.
 
 ## Installation
 
-Not published yet (M6 adds GitHub Packages + SPM). Build from source:
+### iOS: Swift Package Manager
+
+The repository-root `Package.swift` points at a static `Teslable.xcframework` attached to each GitHub Release
+(ADR-0017). The package URL is the repository URL.
+
+- Xcode: **File > Add Package Dependencies…**, enter `https://github.com/smallmiro/tesla-ble-kmp`, choose the
+  dependency rule **Up to Next Major Version** from `1.0.0`, and add the product `Teslable` to the app target. Then
+  `import Teslable`.
+- In a `Package.swift`:
+
+```swift
+.package(url: "https://github.com/smallmiro/tesla-ble-kmp", from: "1.0.0")
+// in the target's dependencies:
+.product(name: "Teslable", package: "tesla-ble-kmp")
+```
+
+- Requirements: iOS 16 or later; `NSBluetoothAlwaysUsageDescription` in `Info.plist`; the simulator slice is arm64
+  only (Apple Silicon Mac), so a simulator build for every architecture needs
+  `EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64`; the framework is static. Details: `17-lib-platform-notes.md` §iOS.
+- Versions follow SemVer: a release that breaks the public API is a new major version, so **Up to Next Major Version**
+  takes only compatible releases.
+- CocoaPods is not supported (the CocoaPods trunk is read-only from 2026-12-02).
+- Step by step, with a complete package manifest: `12-lib-getting-started.md` §Add the library.
+
+### Build from source (Android, JVM, contributors)
+
+Android and JVM are not published yet: development is complete, but the Android real-device check is not finished.
+Maven Central comes in M6 stage 2. Until then, build inside this repository's Gradle build
+(`12-lib-getting-started.md` §Add the library):
 
 | Target | Command |
 |---|---|
 | Android / JVM | `./gradlew :sdk:assemble` |
-| iOS simulator framework | `./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64` |
+| iOS simulator framework (library work, sample app) | `./gradlew :sdk:linkDebugFrameworkIosSimulatorArm64` |
 | Sample apps | `samples/android` (Gradle module), `samples/ios` (`xcodegen generate`, see `samples/ios/README.md`) |
+
+### Real-vehicle check pending
+
+Version `1.0.0` includes features that pass the FakeVehicle tests but are not confirmed on a real car yet, notably
+the Infotainment commands and `getState` (checklist: issue #118). Android has not been checked on a real device yet.
+The status table above gives the state of each area.
 
 ## Reference files by task
 
 | Task | Files to read |
 |---|---|
+| Add the library to an app (iOS Swift package, Android source build) | this page, "Installation"; `12-lib-getting-started.md` §Add the library; `17-lib-platform-notes.md` §iOS |
 | Write app code that scans, connects and reads state | `12-lib-getting-started.md`, `14-lib-reading-state.md`, `16-lib-errors.md` |
 | Show live state from the vehicle's broadcasts (`vehicle.events`) | `12-lib-getting-started.md` §Broadcast events, `14-lib-reading-state.md` B2, `16-lib-errors.md` |
 | Read Infotainment state with `getState` (battery, climate, speed, location…) | `14-lib-reading-state.md` A8, `16-lib-errors.md` §`getState` results, `17-lib-platform-notes.md` §Swift: generated types |
@@ -78,11 +116,11 @@ Not published yet (M6 adds GitHub Packages + SPM). Build from source:
 | File | Contents |
 |---|---|
 | `11-lib-overview.md` | This page: status, platforms, installation, reading order |
-| `12-lib-getting-started.md` | End-to-end flow and full Kotlin / Swift examples |
+| `12-lib-getting-started.md` | Adding the library (iOS Swift package, Android source build), end-to-end flow and full Kotlin / Swift examples |
 | `13-lib-pairing.md` | `VehicleKeyStore`, `KeyPolicy`, `KeyProtection`, `KeyAccessibility` (locked phone), public key bytes, enrollment check, `addKeyRequest` and `PairingEvent`, `sessionInfo`, `addKey`, `removeKey` |
 | `14-lib-reading-state.md` | Part A, data you request: `vehicleStatus()`, `keySummary()`, `listKeys()`, `sessionInfo()` with protocol payloads and enum tables, and `getState()` (A8, wrapper fields in A8.6). Part B, data the vehicle broadcasts (confirmed on a real car) and how `vehicle.events` delivers it, result types, wake behaviour |
 | `15-lib-commands.md` | Session API, the VCSEC control commands and the Infotainment commands (method ↔ FR ↔ payload, call order, local checks, re-query, Kotlin / Swift examples), and the items deferred to v1.1 |
 | `16-lib-errors.md` | `VehicleResult`, `VehicleError` hierarchy, invalid arguments, transport and key store errors, retry and timeouts, per-command re-query, `getState` results, response size limit, reply authenticity |
-| `17-lib-platform-notes.md` | Android / iOS requirements, key storage, session cache, clocks, connection slots, Swift timeouts, generated types and command arguments |
-| `18-lib-troubleshooting.md` | Symptom → cause → action table, debug logging |
+| `17-lib-platform-notes.md` | Android / iOS requirements, the iOS Swift package binary (static, Apple Silicon simulator), key storage, session cache, clocks, connection slots, Swift timeouts, generated types and command arguments |
+| `18-lib-troubleshooting.md` | Symptom → cause → action table (including the iOS simulator), debug logging |
 | `19-lib-architecture.md` | Contributor summary: modules, command path, concurrency, adapters |
