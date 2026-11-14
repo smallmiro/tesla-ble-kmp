@@ -719,7 +719,7 @@ main.content { min-width:0; width:100%; max-width:none; margin:0; padding:36px 4
 @media print { .guide-header,.guide-nav,.api-tools,.skip-link { display:none!important; }.guide-layout { display:block; }main.content { border:0; padding:0; }.chapter { break-before:page; }.api-entry { break-inside:avoid; }.content pre { white-space:pre-wrap; overflow-wrap:anywhere; }.content table { display:table; font-size:10px; }.content td { overflow-wrap:anywhere; }.content a { color:inherit; }body { background:white; } }
 """
 
-JS = """
+JS = r"""
 (() => {
   const search = document.getElementById('api-search');
   const entries = [...document.querySelectorAll('.api-entry')];
