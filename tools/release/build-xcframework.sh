@@ -9,6 +9,8 @@
 #     - 각 슬라이스 Teslable.framework/Info.plist MinimumOSVersion = 16.0 (NFR-009)
 #     - 각 슬라이스 Modules/Teslable.swiftmodule/*.swiftinterface 존재 (Swift library evolution)
 #     - 각 슬라이스 바이너리가 정적 라이브러리(ar 아카이브)이고 clang 모듈 breadcrumb(*.pcm)가 0개 (SKIE produceDistributableFramework())
+#     - 각 슬라이스 Kotlin/Native 오브젝트(Teslable.framework.o)의 DWARF 컴파일 단위 이름이 절대 경로이고 빌드한 Mac의 경로가 없음
+#       (상대 경로면 소비자 앱의 dSYM 에 Kotlin 디버그 정보가 빠진다. sdk/build.gradle.kts releaseDebugPrefixMap 의 가짜 루트 /teslable)
 #     - zip 안의 항목이 모두 Teslable.xcframework/ 아래이고 ._* AppleDouble·__MACOSX 항목이 없음
 #     - zip 안 어느 파일에도 빌드한 Mac의 경로(/Users/, $HOME, 저장소 루트)가 없음 (사용자 이름·폴더 구조 노출 방지)
 #   산출물 (tools/release 의 다른 스크립트가 쓴다):
@@ -77,7 +79,7 @@ remove_outputs
 work_tmp="$(mktemp -d)"
 
 # --no-build-cache --rerun-tasks: 빌드 캐시나 다른 폴더(다른 worktree)에서 컴파일한 klib에는 그 폴더의 절대 경로가 들어 있어
-# 디버그 경로 매핑(-Xdebug-prefix-map=<저장소 루트>=.)이 닿지 않는다. 배포 빌드는 이 저장소에서 처음부터 다시 컴파일한다.
+# 디버그 경로 매핑(-Xdebug-prefix-map=<저장소 루트>=/teslable)이 닿지 않는다. 배포 빌드는 이 저장소에서 처음부터 다시 컴파일한다.
 echo "==> ./gradlew $GRADLE_TASK --no-build-cache --rerun-tasks"
 ./gradlew "$GRADLE_TASK" --no-build-cache --rerun-tasks --console=plain ||
   fail "./gradlew $GRADLE_TASK (see the Gradle output above)"
@@ -136,6 +138,35 @@ for id in $SLICES; do
       npcm="$(grep -c . <<< "$pcm")"
       violate "$id: Teslable.framework/Teslable has $npcm clang module breadcrumb(s) (*.pcm): SKIE produceDistributableFramework() is off"
     fi
+  fi
+  # K/N 은 DW_AT_comp_dir 없이 컴파일 단위 이름(DW_AT_name, 링크 출력 경로)만 쓴다. 이 이름이 상대 경로면 소비자 앱을 링크하는
+  # Xcode ld 가 이 오브젝트의 디버그 맵(N_OSO)을 만들지 않고, dsymutil 이 "could not open '…(Teslable.framework.o)'" 경고와 함께
+  # 앱 dSYM 에서 Kotlin DWARF 를 뺀다. 그래서 이름은 가짜 절대 경로(/teslable/…)여야 하고, 빌드한 Mac의 경로가 없어야 한다.
+  # 멤버가 없거나 읽지 못하거나 이름을 찾지 못해도 위반이다 (fail closed).
+  if [ -f "$fw/Teslable" ]; then
+    kn_cu_names=""
+    if ar -p "$fw/Teslable" Teslable.framework.o > "$work_tmp/kn.o" 2>/dev/null && [ -s "$work_tmp/kn.o" ]; then
+      kn_cus="$(xcrun dwarfdump --debug-info --recurse-depth=0 "$work_tmp/kn.o" 2>/dev/null)" || kn_cus=""
+      kn_name_sed='/DW_AT_producer.*"kotlin-compiler/,/DW_AT_name/ s/^[[:space:]]*DW_AT_name[[:space:]]*("\(.*\)")$/\1/p'
+      kn_cu_names="$(sed -n "$kn_name_sed" <<< "$kn_cus")"
+    fi
+    rm -f "$work_tmp/kn.o"
+    if [ -z "$kn_cu_names" ]; then
+      violate "$id: no Kotlin/Native compile unit name in Teslable.framework/Teslable(Teslable.framework.o)"
+    fi
+    while IFS= read -r name; do
+      [ -n "$name" ] || continue
+      case "$name" in
+        /*) ;;
+        *)
+          violate "$id: Kotlin compile unit name '$(mask_home "$name")' is relative: app dSYMs would lose the Kotlin debug info"
+          continue
+          ;;
+      esac
+      if grep -q -F "${leak_args[@]}" <<< "$name"; then
+        violate "$id: Kotlin compile unit name '$(mask_home "$name")' has a build-machine path"
+      fi
+    done <<< "$kn_cu_names"
   fi
 done
 exit_if_violations "$SRC_XCF"
