@@ -10,7 +10,7 @@
 #   (d) xcodegen + xcodebuild      → ios 잡의 샘플 앱 빌드 스텝 + Swift 단위 테스트(XCTest)
 #   (e) tools/ci/check-license.sh  → license 잡
 #   (f) tools/ci/scan-secrets.sh   → secrets 잡
-#   (g) tools/ci/check-manual-i18n.sh → (CI 잡 없음) 매뉴얼 언어 규칙, AGENTS.md §3 규칙 12
+#   (g) tools/ci/check-manual-i18n.sh → (CI 잡 없음) 매뉴얼 언어 규칙(AGENTS.md §3 규칙 12) + 생성한 사용 가이드 최신 여부(규칙 13)
 #   (h) tools/analysis 단위 테스트   → (CI 잡 없음) 로그 분석 도구(pbwire.py)
 #   (i) tools/release/test_release_scripts.sh → (CI 잡 없음) 릴리스 스크립트 prepare.sh·publish.sh 오프라인 시험 (ADR-0017)
 set -euo pipefail
@@ -87,6 +87,7 @@ step "tools/ci/scan-secrets.sh"
 tools/ci/scan-secrets.sh || fail "scan-secrets.sh"
 
 # (g) 매뉴얼 언어 규칙 — MD는 영어로만, HTML은 ko/en/ja가 같은 구성 (AGENTS.md §3 규칙 12).
+#     사용 가이드(11-lib-user-guide)가 11~19장·공개 API에서 다시 만든 결과와 같은지도 본다 (규칙 13).
 step "tools/ci/check-manual-i18n.sh"
 tools/ci/check-manual-i18n.sh || fail "check-manual-i18n.sh"
 

@@ -3,17 +3,32 @@
 
 Paths are resolved from {{PATHS_FILE}}. Run from any directory; no third-party packages are needed.
 This is a documentation assembler, not a Kotlin compiler. Unknown example parameters fail the build.
+Run tools/ci/highlight-manual-code.sh afterwards. tools/ci/check-manual-i18n.sh rebuilds the guide with --out
+into a temporary folder and fails when the committed guide differs.
 """
 
+import argparse
 import html
 import pathlib
 import re
-import subprocess
 from collections import Counter
 from html.parser import HTMLParser
 
-ROOT = pathlib.Path(__file__).resolve().parents[2]
-PATHS = dict(re.findall(r"\| `(\w+)` \| `([^`]+)` \|", (ROOT / "docs/PATHS.md").read_text()))
+
+def arguments():
+    parser = argparse.ArgumentParser(description="Build the offline library user guide (11-lib-user-guide).")
+    parser.add_argument("--root", type=pathlib.Path, default=pathlib.Path(__file__).resolve().parents[2],
+                        help="repository to read every source from (default: the one holding this script)")
+    parser.add_argument("--out", type=pathlib.Path,
+                        help="write the guide under this folder, at the repository-relative paths, and print those "
+                             "paths instead of writing it in place (used by tools/ci/check-manual-i18n.sh)")
+    return parser.parse_args()
+
+
+ARGS = arguments()
+ROOT = ARGS.root.resolve()
+OUT = ARGS.out.resolve() if ARGS.out else ROOT
+PATHS = dict(re.findall(r"\| `(\w+)` \| `([^`]+)` \|", (ROOT / "docs/PATHS.md").read_text(encoding="utf-8")))
 
 
 def path(key):
@@ -33,7 +48,7 @@ CHAPTERS = [
     "15-lib-commands", "16-lib-errors", "17-lib-platform-notes", "18-lib-troubleshooting",
     "19-lib-architecture",
 ]
-REV = subprocess.check_output(["git", "rev-parse", "--short", "HEAD"], cwd=ROOT, text=True).strip()
+# No commit or date stamp: the same sources give byte-identical output (tools/ci/check-manual-i18n.sh compares it).
 BT = chr(96)
 
 
@@ -47,7 +62,6 @@ TEXT = {
         "설치부터 키 등록, 상태 조회, 모든 제어 API까지. 앱을 만드는 데 필요한 설명과 예제를 한 문서에 모았습니다.",
         "From installation to key enrollment, state queries and every control API. Instructions and examples for app developers in one document.",
         "インストールからキー登録、状態取得、すべての制御 API まで。アプリ開発に必要な説明と例を一つの文書にまとめました。"),
-    "snapshot": tr("문서 기준 커밋", "Source revision", "文書の基準コミット"),
     "status": tr("M6 1단계 기준(iOS Swift 패키지) · Android 12+ · iOS 16+", "M6 stage 1 (iOS Swift package) · Android 12+ · iOS 16+",
                  "M6 第1段階時点(iOS Swift パッケージ) · Android 12+ · iOS 16+"),
     "offline": tr("이 파일은 스타일과 스크립트를 포함해 오프라인으로 열 수 있습니다. 언어 전환에는 다른 언어의 파일이 필요합니다.",
@@ -124,7 +138,7 @@ def split_params(source):
 
 
 def functions(file, owner, receiver):
-    source = strip_comments(file.read_text())
+    source = strip_comments(file.read_text(encoding="utf-8"))
     out = []
     for match in re.finditer(r"public\s+(?:(?:expect|suspend)\s+)*fun\s+([\w.]+)\s*\(", source):
         start = match.end() - 1
@@ -428,7 +442,7 @@ def api_html(lang):
 
 
 def chapter_html(name, lang):
-    source = (HTML / lang / (name + ".html")).read_text()
+    source = (HTML / lang / (name + ".html")).read_text(encoding="utf-8")
     body = re.search(r'<main class="content">(.*?)</main>', source, re.S)[1]
     body = re.sub(r'<footer class="page-nav">.*?</footer>', "", body, flags=re.S)
     body = re.sub(r'<p class="guide-entry">.*?</p>', "", body, flags=re.S)
@@ -455,7 +469,7 @@ def chapter_html(name, lang):
 
 def outline(file):
     """Readable signature inventory. Function bodies and private state are deliberately omitted."""
-    source = strip_comments(file.read_text())
+    source = strip_comments(file.read_text(encoding="utf-8"))
     lines = []
     for match in re.finditer(r"(?:public\s+)?(?:(?:data|sealed|enum|fun|expect)\s+)*(?:class|interface|object)\s+\w+(?:<[^>\n]+>)?", source):
         if "companion object" in source[max(0, match.start() - 10):match.end()]:
@@ -510,13 +524,13 @@ def models_html(lang):
         title = file.stem
         if title == "Vehicle":
             # Method bodies are already documented, this block indexes the facade properties.
-            value = "\n".join(re.findall(r"public val \w+: [^\n=]+", strip_comments(file.read_text())))
+            value = "\n".join(re.findall(r"public val \w+: [^\n=]+", strip_comments(file.read_text(encoding="utf-8"))))
         else:
             value = outline(file)
         out += ['<h3 id="model-' + title + '">' + e(title) + '</h3>', code(value)]
     # These generated constructor fields are inputs and outputs and are not hand-written models.
     for name in ["ChargeSchedule", "PreconditionSchedule"]:
-        source = (ROOT / "domain/src/commonMain/proto/common.proto").read_text()
+        source = (ROOT / "domain/src/commonMain/proto/common.proto").read_text(encoding="utf-8")
         match = re.search(r"message " + name + r"\s*\{(.*?)\n\}", source, re.S)
         if not match:
             raise ValueError("Schedule schema not found: " + name)
@@ -527,7 +541,7 @@ def models_html(lang):
 
 
 def schemas_html(lang):
-    source = (ROOT / "domain/src/commonMain/proto/vehicle.proto").read_text()
+    source = (ROOT / "domain/src/commonMain/proto/vehicle.proto").read_text(encoding="utf-8")
     # Keep offsets while ignoring comments for balanced-brace matching.
     masked = re.sub(r"/\*.*?\*/|//[^\n]*", lambda m: " " * len(m[0]), source, flags=re.S)
     names = [
@@ -551,7 +565,7 @@ def schemas_html(lang):
                 depth -= 1
             end += 1
         out += ['<h3 id="schema-' + name + '">' + name + '</h3>', code(source[match.start():end], "protobuf")]
-    common = (ROOT / "domain/src/commonMain/proto/common.proto").read_text().split("// ===== TESLEMETRY-EXT BEGIN")[0]
+    common = (ROOT / "domain/src/commonMain/proto/common.proto").read_text(encoding="utf-8").split("// ===== TESLEMETRY-EXT BEGIN")[0]
     out += ['<h3 id="schema-common">CarServer common</h3>', code(common, "protobuf"), '</section>']
     return "\n".join(out)
 
@@ -726,7 +740,18 @@ JS = """
 """
 
 
+def write(target, text):
+    """Write one output, under OUT at the same repository-relative path, and return that path."""
+    relative = target.relative_to(ROOT)
+    destination = OUT / relative
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with open(destination, "w", encoding="utf-8", newline="\n") as file:
+        file.write(text)
+    return relative.as_posix()
+
+
 def build():
+    written = []
     for lang in ("ko", "en", "ja"):
         chapters = [chapter_html(name, lang) for name in CHAPTERS]
         labels = [html.unescape(re.sub("<[^>]+>", "", re.search(r"<h2[^>]*>(.*?)</h2>", c, re.S)[1])) for c in chapters]
@@ -737,7 +762,7 @@ def build():
                                  (' aria-current="page"' if loc == lang else '') + '>' + label + '</a>'
                                  for loc, label in [("ko", "한국어"), ("en", "English"), ("ja", "日本語")])
         # Reuse the manual palette/syntax foundations, then apply a light reading layout locally.
-        css = (HTML / "assets/style.css").read_text() + "\n" + CSS
+        css = (HTML / "assets/style.css").read_text(encoding="utf-8") + "\n" + CSS
         body = '\n'.join([
             '<!DOCTYPE html><html lang="' + lang + '"><head><meta charset="utf-8">',
             '<script>document.documentElement.dataset.theme="light";</script>',
@@ -750,12 +775,11 @@ def build():
             '<div class="guide-layout"><nav class="guide-nav" aria-label="' + t("nav", lang) + '"><strong>' + t("nav", lang) + '</strong>' +
             ''.join('<a href="#' + ident + '">' + e(label) + '</a>' for ident, label in nav) + '</nav>',
             '<main class="content" id="guide-top"><div class="guide-intro"><h1>' + t("title", lang) + '</h1><p class="lead">' +
-            t("intro", lang) + '</p><p class="guide-meta">' + t("status", lang) + '<br>' + t("snapshot", lang) +
-            ': <code>' + e(REV) + '</code><br>' + t("offline", lang) + '</p></div>',
+            t("intro", lang) + '</p><p class="guide-meta">' + t("status", lang) + '<br>' + t("offline", lang) + '</p></div>',
             setup_html(lang), api_html(lang), models_html(lang), schemas_html(lang), *chapters,
             '</main></div><script>' + JS + '</script></body></html>',
         ])
-        (HTML / lang / (NAME + ".html")).write_text(body)
+        written.append(write(HTML / lang / (NAME + ".html"), body))
 
     md = [
         "# Tesla BLE KMP User Guide",
@@ -786,13 +810,18 @@ def build():
         md += ["", BT * 3 + "kotlin", call_example(api), BT * 3, "", result_text(api, "en")]
     md += ["", markdown_text(models_html("en")), "", markdown_text(schemas_html("en"))]
     for name in CHAPTERS:
-        source = (MD / (name + ".md")).read_text()
+        source = (MD / (name + ".md")).read_text(encoding="utf-8")
         source = re.sub(r"<!-- user-guide-entry -->.*?<!-- /user-guide-entry -->", "", source, flags=re.S)
         md += ["", "---", "", source]
-    (MD / (NAME + ".md")).write_text("\n".join(md) + "\n")
-    print("Built " + str(len(APIS)) + " method entries, " + str(len(MODEL_FILES)) +
-          " model groups and " + str(len(CHAPTERS)) + " chapters in ko/en/ja + English Markdown.")
+    written.append(write(MD / (NAME + ".md"), "\n".join(md) + "\n"))
+    return written
 
 
 if __name__ == "__main__":
-    build()
+    outputs = build()
+    if ARGS.out:
+        # The list of files tools/ci/check-manual-i18n.sh compares with the committed guide.
+        print("\n".join(outputs))
+    else:
+        print("Built " + str(len(APIS)) + " method entries, " + str(len(MODEL_FILES)) +
+              " model groups and " + str(len(CHAPTERS)) + " chapters in ko/en/ja + English Markdown.")

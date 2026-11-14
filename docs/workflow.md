@@ -203,7 +203,7 @@ Refs: FR-012
 | 샘플 빌드 (iOS) | `xcodegen generate` + `xcodebuild` (`CODE_SIGNING_ALLOWED=NO`) | 4/9 |
 | 라이선스 | NOTICE 존재 확인, 포팅 파일 헤더 확인 (`tools/ci/check-license.sh`) | 5/9 |
 | 비밀 스캔 | VIN 패턴(`[A-HJ-NPR-Z0-9]{17}`)과 PEM 개인키 탐지 (테스트 벡터 허용 목록 제외, `tools/ci/scan-secrets.sh`) | 6/9 |
-| 매뉴얼 언어 | `{{MANUAL_DIR}}` 에 한글 없음, `{{MANUAL_HTML_DIR}}` 의 `ko/`·`en/`·`ja/` 페이지 목록·`lang`·id·href 일치, 루트 `index.html` 이 `en/index.html` 과 일치, 코드 블록 문법 색 최신 (`{{AGENTS_FILE}}` 규칙 12, `tools/ci/check-manual-i18n.sh`) | 7/9 |
+| 매뉴얼 언어 | `{{MANUAL_DIR}}` 에 한글 없음, `{{MANUAL_HTML_DIR}}` 의 `ko/`·`en/`·`ja/` 페이지 목록·`lang`·id·href 일치, 루트 `index.html` 이 `en/index.html` 과 일치, 코드 블록 문법 색 최신, 사용 가이드(`11-lib-user-guide`)가 `tools/docs/build-library-guide.py` 로 다시 만든 결과와 같음 (`{{AGENTS_FILE}}` 규칙 12·13, `tools/ci/check-manual-i18n.sh`) | 7/9 |
 | 로그 분석 도구 | `tools/analysis` 단위 테스트 (`python3 -I -m unittest`, protocol-analyst 가 쓰는 `pbwire.py` 등) | 8/9 |
 | 릴리스 스크립트 | `tools/release/test_release_scripts.sh`: `prepare.sh`·`publish.sh` 의 사전 검사, 빌드 순서, 재시도 판단을 임시 git 저장소와 `gh`·`curl` 대역으로 오프라인 시험 (ADR-0017) | 9/9 |
 
