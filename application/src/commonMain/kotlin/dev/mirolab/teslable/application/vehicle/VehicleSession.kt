@@ -3,6 +3,7 @@ package dev.mirolab.teslable.application.vehicle
 
 import com.tesla.generated.universalmessage.Domain
 import dev.mirolab.teslable.application.cache.SessionCacheSync
+import dev.mirolab.teslable.application.dispatcher.CounterReservation
 import dev.mirolab.teslable.application.dispatcher.Dispatcher
 import dev.mirolab.teslable.application.dispatcher.HandshakeFlow
 import dev.mirolab.teslable.application.dispatcher.SessionEvent
@@ -78,7 +79,10 @@ public class VehicleSession(
     /** 전송 계층의 재전송 간격. */
     public val retryInterval: Duration get() = dispatcher.retryInterval
 
-    /** Go `NewVehicle`(캐시 복원) + `Connect`(수신 시작). 멱등. [disconnect] 뒤에는 다시 쓸 수 없다(설계 구체화 13). */
+    /**
+     * Go `NewVehicle`(캐시 복원) + `Connect`(수신 시작). 멱등. [disconnect] 뒤에는 다시 쓸 수 없다(설계 구체화 13).
+     * [cacheSync]가 있으면 디스패처에 counter 예약 훅을 단다(원본에 없음, H17, ADR-0016): 인증 요청은 캐시가 덮는 counter만 쓴다.
+     */
     public suspend fun connect(): Set<Domain> =
         connectMutex.withLock {
             check(!disconnected) { "VehicleSession cannot be reused after disconnect(); connect again through TeslaBle" }
@@ -86,6 +90,7 @@ public class VehicleSession(
             val restored = cacheSync?.load(dispatcher) ?: emptySet()
             restoredDomains = restored
             hasLoadedCache = true
+            if (cacheSync != null) dispatcher.counterReservation = CounterReservation(::reserveCounter)
             startEventCollector()
             dispatcher.start()
             restored
@@ -210,6 +215,33 @@ public class VehicleSession(
                 LogLevel.WARN,
                 "VehicleSession",
             ) { "Failed to store session cache after session update: ${e::class.simpleName}" }
+        }
+    }
+
+    /**
+     * [Dispatcher]의 counter 예약 훅(H17, ADR-0016). [disconnectMutex] 안에서 [SessionCacheSync.reserve]를 불러 핸드셰이크·해제 저장과
+     * 겹치지 않는다. [disconnect]가 닫기에 들어갔으면 쓰지 않고 [CounterReservation.Outcome.CLOSING](전송은 `NotConnected`)이다.
+     * 포트의 예외는 WARN을 남기고 [CounterReservation.Outcome.NOT_COVERED](예약 없이 보낸다, 이전 동작)로 바꾸고, 취소는 그대로 전파한다.
+     */
+    private suspend fun reserveCounter(domain: Domain): CounterReservation.Outcome {
+        val sync = cacheSync ?: return CounterReservation.Outcome.NOT_COVERED
+        return try {
+            disconnectMutex.withLock {
+                when {
+                    closing -> CounterReservation.Outcome.CLOSING
+                    sync.reserve(dispatcher, domain) -> CounterReservation.Outcome.COVERED
+                    else -> CounterReservation.Outcome.NOT_COVERED
+                }
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (
+            @Suppress("TooGenericExceptionCaught") e: Exception,
+        ) {
+            dispatcher.log.log(LogLevel.WARN, "VehicleSession") {
+                "Failed to store the counter reservation for $domain: ${e::class.simpleName}"
+            }
+            CounterReservation.Outcome.NOT_COVERED
         }
     }
 
