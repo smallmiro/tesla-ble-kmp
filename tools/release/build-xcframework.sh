@@ -33,13 +33,13 @@ OUT_SHA="$OUT_ZIP.sha256"
 SLICES="ios-arm64 ios-arm64-simulator" # 정렬한 값. 이 둘만 허용한다
 MIN_OS="16.0"
 
-swiftpm_scratch="" # swift package 가 현재 폴더에 만드는 .build/ 대신 쓰는 임시 폴더
+work_tmp="" # 임시 폴더: swift package 가 현재 폴더에 만드는 .build/ 대신 쓰는 곳
 
 remove_outputs() { rm -rf "$OUT_XCF" "$OUT_ZIP" "$OUT_SHA" "$OUT_SHA.tmp"; }
 # 실패하면 반쯤 만든 산출물을 지운다. 지난 실행의 zip이나 체크섬을 이번 결과로 착각하지 않게 한다.
 on_exit() {
   local status=$?
-  [ -z "$swiftpm_scratch" ] || rm -rf "$swiftpm_scratch"
+  [ -z "$work_tmp" ] || rm -rf "$work_tmp"
   [ "$status" -eq 0 ] || remove_outputs
 }
 trap on_exit EXIT
@@ -62,6 +62,7 @@ exit_if_violations() {
 has_match() { [ -e "$1" ]; } # 글롭이 하나라도 맞으면 참
 
 remove_outputs
+work_tmp="$(mktemp -d)"
 
 echo "==> ./gradlew $GRADLE_TASK"
 ./gradlew "$GRADLE_TASK" --console=plain || fail "./gradlew $GRADLE_TASK (see the Gradle output above)"
@@ -128,8 +129,7 @@ junk="$(grep -E '(^|/)(\._|__MACOSX)' <<< "$entries" || true)"
 grep -q -x -F 'Teslable.xcframework/Info.plist' <<< "$entries" || violate "zip has no Teslable.xcframework/Info.plist"
 exit_if_violations "$OUT_ZIP"
 
-swiftpm_scratch="$(mktemp -d)"
-checksum="$(swift package --scratch-path "$swiftpm_scratch" compute-checksum "$OUT_ZIP")" ||
+checksum="$(swift package --scratch-path "$work_tmp/swiftpm" compute-checksum "$OUT_ZIP")" ||
   fail "swift package compute-checksum $OUT_ZIP"
 case "$checksum" in
   *[!0-9a-f]* | '') fail "unexpected checksum from swift package compute-checksum: '$checksum'" ;;
