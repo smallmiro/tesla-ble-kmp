@@ -32,10 +32,16 @@ internal fun interface CounterReservation {
 
     /** [reserve]의 결과. */
     enum class Outcome {
-        /** 다음 counter가 확정한 예약 안에 있다. 디스패처는 다시 인가한다(그사이 다른 전송이 예약을 다 썼으면 또 부른다). */
+        /**
+         * 이미 덮였거나 그 도메인의 예약을 썼다. 디스패처는 다시 인가하고, 그래도 덮이지 않았으면(다른 전송이 예약을 다 썼거나, 쓰는 사이
+         * Signer나 epoch가 바뀌어 확정되지 않았으면) 또 부른다.
+         */
         RESERVED,
 
-        /** 예약을 쓰지 못했다(기기 잠금 보존으로 쓰지 않음, 저장 실패). 디스패처는 WARN을 남기고 예약 없이 인가한다(이전 동작). */
+        /**
+         * 예약을 쓰지 못했다(기기 잠금 보존으로 쓰지 않음, 포트 예외, 그 도메인에 세션이 없음). 디스패처는 예약 없이 인가하고, 실제로
+         * 보내면 WARN을 남긴다(이전 동작).
+         */
         NOT_RESERVED,
 
         /** 연결이 닫히는 중이다. 디스패처는 counter를 쓰지 않고 `NotConnected`로 끝낸다. */
@@ -45,8 +51,9 @@ internal fun interface CounterReservation {
 
 /**
  * `Dispatcher.authorize`의 인가(Go `session.authorize`): [reservation]이 있으면 캐시가 다음 counter를 덮을 때까지 예약을 늘린 뒤에만
- * 암호화한다. [CounterReservation.Outcome.RESERVED] 뒤에도 덮이지 않았으면(동시 전송이 그 예약을 다 썼으면) 다시 예약하고, 예약을 쓰지
- * 못했을 때([CounterReservation.Outcome.NOT_RESERVED])만 WARN을 남기고 예약 없이 인가한다(이전 동작). 닫히는 중이면 counter를 쓰지 않고
+ * 암호화한다. [CounterReservation.Outcome.RESERVED] 뒤에도 덮이지 않았으면(동시 전송이 그 예약을 다 썼거나, 쓰는 사이 Signer·epoch가
+ * 바뀌었으면) 다시 예약하고, 예약을 쓰지 못했을 때([CounterReservation.Outcome.NOT_RESERVED])만 예약 없이 인가한다(이전 동작, 보내면
+ * WARN). 고리는 끝난다: 매번 쓰기 I/O를 하거나, 세션이 닫히거나 무효가 되면 `NO_SESSION`으로 빠진다. 닫히는 중이면 counter를 쓰지 않고
  * `NotConnected`. 결과: 세션 없음(닫힘·무효화·counter 소진)은 [VehicleError.NoSession], 그 밖의 fault는 공개 오류.
  */
 internal suspend fun SessionState.authorizeReserving(
@@ -65,11 +72,15 @@ internal suspend fun SessionState.authorizeReserving(
                 }
 
                 CounterReservation.Outcome.NOT_RESERVED -> {
-                    logger.log(LogLevel.WARN, TAG) {
-                        "Sending on $domain with a counter the session cache does not cover " +
-                            "(the reservation was not stored); after an unclean exit the vehicle may refuse it once"
+                    authorizeNow(message, lifetime, requireReservation = false).also { uncovered ->
+                        // 실제로 암호화했을 때만 알린다(세션이 없어 보내지 않으면 경고할 일이 아니다)
+                        if (uncovered is SignerResult.Ok) {
+                            logger.log(LogLevel.WARN, TAG) {
+                                "Sending on $domain with a counter the session cache does not cover " +
+                                    "(the reservation was not stored); after an unclean exit the vehicle may refuse it once"
+                            }
+                        }
                     }
-                    authorizeNow(message, lifetime, requireReservation = false)
                 }
 
                 CounterReservation.Outcome.CLOSING -> {

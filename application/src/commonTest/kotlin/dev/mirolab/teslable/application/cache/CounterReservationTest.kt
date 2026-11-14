@@ -2,6 +2,7 @@ package dev.mirolab.teslable.application.cache
 
 import com.tesla.generated.signatures.SessionInfo
 import com.tesla.generated.universalmessage.Domain
+import com.tesla.generated.universalmessage.MessageFault_E
 import com.tesla.generated.universalmessage.RoutableMessage
 import dev.mirolab.teslable.application.dispatcher.CounterReservation
 import dev.mirolab.teslable.application.dispatcher.DispatcherHarness
@@ -15,15 +16,19 @@ import dev.mirolab.teslable.application.vehicle.VehicleSession
 import dev.mirolab.teslable.cache.SessionCacheCodec
 import dev.mirolab.teslable.cache.SessionSnapshot
 import dev.mirolab.teslable.model.KeyId
+import dev.mirolab.teslable.model.PublicKeyBytes
 import dev.mirolab.teslable.model.VehicleError
 import dev.mirolab.teslable.model.VehicleResult
 import dev.mirolab.teslable.model.Vin
 import dev.mirolab.teslable.port.AuthMethod
+import dev.mirolab.teslable.port.EcdhPrivateKey
 import dev.mirolab.teslable.port.SessionCache
 import dev.mirolab.teslable.protocol.SignerResult
 import dev.mirolab.teslable.testing.FakeVehicle
+import dev.mirolab.teslable.testing.LockableEcdhKey
 import dev.mirolab.teslable.testing.RecordingSessionCache
 import dev.mirolab.teslable.testing.TestCrypto
+import dev.mirolab.teslable.testing.TestVerifier
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -320,6 +325,27 @@ class CounterReservationTest {
         }
 
     @Test
+    fun anEpochChangeWhileTheReservationIsBeingWrittenReservesAgainInsteadOfSendingUncovered() =
+        // 리뷰 1번: 쓰는 사이 epoch가 바뀌면(수신 코루틴이 이 연결의 세션정보를 반영) 그 쓰기는 예약으로 확정되지 않는다.
+        // 쓰기는 성공했으니 예약 없이 보낼 이유가 아니다 — 다시 인가하고, 덮이지 않았으면 새 epoch로 다시 예약한다
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val ledger = LedgerCache(fake)
+            val (session, h) = process(fake, ledger, events = false)
+            session.connect()
+            assertIs<VehicleResult.Success<Unit>>(session.startSession(setOf(infotainment), timeout = 1.seconds))
+            ledger.slowStore = 10.milliseconds
+            val tap = async { session.tap(infotainment) }
+            runCurrent() // 요청이 예약 쓰기 안에서 멈춘다
+            fake.rotateEpoch(infotainment)
+            val query = h.dispatcher.querySessionInfo(infotainment, TestCrypto.clientPublicKey)
+            assertIs<VehicleResult.Success<PendingRequest>>(query).value.use { it.receive() } // 새 epoch의 세션정보가 반영됐다
+            assertIs<VehicleResult.Success<*>>(tap.await())
+            assertFalse(h.logger.contains("does not cover"))
+            assertEveryCounterWasStoredFirst(fake, ledger)
+        }
+
+    @Test
     fun concurrentRequestsBeyondOneReservationAllUseStoredCounters() =
         // 예약 폭보다 많은 Infotainment 요청이 동시에(쓰기가 느린 동안) 나가도 모든 counter를 캐시가 먼저 덮는다
         runTest {
@@ -328,11 +354,15 @@ class CounterReservationTest {
             val (session, _) = process(fake, ledger)
             session.connect()
             assertIs<VehicleResult.Success<Unit>>(session.startSession(setOf(infotainment), timeout = 1.seconds))
+            runCurrent() // 핸드셰이크의 Updated 저장까지 끝낸다
+            val writesBefore = ledger.writes.size
             ledger.slowStore = 10.milliseconds
             val results = List(2 * reservation + 2) { async { session.tap(infotainment) } }.awaitAll()
             assertTrue(results.all { it is VehicleResult.Success<*> }, "$results")
             assertEquals(2 * reservation + 2, fake.authenticatedPayloads(infotainment).size)
             assertEveryCounterWasStoredFirst(fake, ledger)
+            // 이미 덮였으면 쓰지 않는다: 1번째, 17번째, 33번째 요청 앞에서만 쓴다(기다리던 요청마다 쓰지 않는다)
+            assertEquals(3, ledger.writes.size - writesBefore)
         }
 
     @Test
@@ -387,27 +417,33 @@ class CounterReservationTest {
 
     @Test
     fun aTimeoutWhileStoringTheReservationSendsNothingAndUsesNoCounter() =
-        // ADR-0010: 쓰기 전의 시간 초과는 Failure(Timeout(afterSend = false)) — 예약 저장은 쓰기 전이다
+        // ADR-0010: 쓰기 전의 시간 초과는 Failure(Timeout(afterSend = false)) — 예약 저장은 쓰기 전이다(VCSEC 경로, Infotainment 경로)
         runTest {
-            val fake = FakeVehicle(timeSource = testTimeSource)
-            val ledger = LedgerCache(fake)
-            val (session, h) = process(fake, ledger)
-            session.connect()
-            assertIs<VehicleResult.Success<Unit>>(session.startSession(setOf(vcsec), timeout = 1.seconds))
-            runCurrent()
-            val counterBefore = checkNotNull(h.dispatcher.session(vcsec)).counter()
-            val receivedBefore = fake.received.size
-            ledger.slowStore = 10.seconds
-            val result =
-                session.vcsec.execute(
-                    byteArrayOf(0x10, 0x01),
-                    AuthMethod.GCM,
-                    VcsecResponses.COMMAND_STATUS_ABSENT,
-                    timeout = 1.seconds,
-                )
-            assertEquals(VehicleResult.Failure(VehicleError.Timeout(afterSend = false)), result)
-            assertEquals(receivedBefore, fake.received.size)
-            assertEquals(counterBefore, checkNotNull(h.dispatcher.session(vcsec)).counter())
+            for (domain in listOf(vcsec, infotainment)) {
+                val fake = FakeVehicle(timeSource = testTimeSource)
+                val ledger = LedgerCache(fake)
+                val (session, h) = process(fake, ledger)
+                session.connect()
+                assertIs<VehicleResult.Success<Unit>>(session.startSession(setOf(domain), timeout = 1.seconds))
+                runCurrent()
+                val counterBefore = checkNotNull(h.dispatcher.session(domain)).counter()
+                val receivedBefore = fake.received.size
+                ledger.slowStore = 10.seconds
+                val result =
+                    if (domain == vcsec) {
+                        session.vcsec.execute(
+                            byteArrayOf(0x10, 0x01),
+                            AuthMethod.GCM,
+                            VcsecResponses.COMMAND_STATUS_ABSENT,
+                            timeout = 1.seconds,
+                        )
+                    } else {
+                        session.send.send(infotainment, "tap".encodeToByteArray(), AuthMethod.GCM, timeout = 1.seconds)
+                    }
+                assertEquals(VehicleResult.Failure(VehicleError.Timeout(afterSend = false)), result, "$domain")
+                assertEquals(receivedBefore, fake.received.size, "$domain")
+                assertEquals(counterBefore, checkNotNull(h.dispatcher.session(domain)).counter(), "$domain")
+            }
         }
 
     @Test
@@ -530,6 +566,106 @@ class CounterReservationTest {
             assertIs<VehicleResult.Success<Unit>>(session.startSession(setOf(infotainment), timeout = 1.seconds))
             assertIs<VehicleResult.Success<*>>(session.tap(infotainment))
             assertTrue(checkNotNull(checkNotNull(h.dispatcher.session(infotainment)).counter()) < UInt.MAX_VALUE)
+        }
+
+    @Test
+    fun anExhaustedSessionIsReplacedOnlyBySessionInfoForTheSameVehicleKey() =
+        // 리뷰 4번: 다 쓴 Signer를 새로 만들 때도 세션 안의 차량 공개키 고정(설계 구체화 8)을 지킨다
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val h = dispatcherHarness(fake = fake)
+            assertIs<VehicleResult.Success<Unit>>(HandshakeFlow(h.dispatcher).startSession(infotainment))
+            val session = checkNotNull(h.dispatcher.session(infotainment))
+            val info = fake.verifier(infotainment).sessionInfo().copy(counter = UInt.MAX_VALUE.toInt())
+            session.loadFromCache(SessionInfo.ADAPTER.encode(info), Duration.ZERO)
+            val exhausted = assertIs<SignerResult.Fault>(session.authorizeNow(testCommand(infotainment), 5.seconds))
+            assertEquals(SessionState.COUNTER_EXHAUSTED, exhausted.detail)
+            assertFalse(session.isReady)
+
+            val challenge = ByteArray(16) { 7 }
+            val otherCar =
+                TestVerifier.create(
+                    TestCrypto.goKnownVerifierKey(),
+                    fake.vin.toByteArray(),
+                    infotainment,
+                    TestCrypto.clientPublicKey,
+                    TestCrypto.primitives,
+                    TestCrypto.random,
+                    testTimeSource,
+                )
+            val foreign = otherCar.signedSessionInfo(challenge)
+            val rejected = assertIs<SignerResult.Fault>(session.processHello(challenge, foreign.encoded, foreign.tag))
+            assertEquals(MessageFault_E.MESSAGEFAULT_ERROR_UNKNOWN_KEY_ID, rejected.fault)
+            assertFalse(session.isReady)
+
+            val own = fake.verifier(infotainment).signedSessionInfo(challenge)
+            assertIs<SignerResult.Ok<Unit>>(session.processHello(challenge, own.encoded, own.tag))
+            assertTrue(session.isReady)
+            assertTrue(checkNotNull(session.counter()) < UInt.MAX_VALUE)
+        }
+
+    @Test
+    fun whileTheLockKeepsTheCacheTheRequestGoesOutWithoutAReservationAndTheCacheIsKept() =
+        // FR-037(#96) 잠금 보존: 막힌 도메인의 옛 항목을 지키려고 아무것도 쓰지 않으므로 예약도 쓰지 못한다 — 예약 없이 보내고 캐시는 그대로
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val cache = RecordingSessionCache()
+            val (first, _) = process(fake, cache)
+            first.connect()
+            assertIs<VehicleResult.Success<Unit>>(first.startSession(timeout = 1.seconds))
+            val key = LockableEcdhKey()
+            val unlocksAfterOneAttempt =
+                object : EcdhPrivateKey by key {
+                    override suspend fun sharedX(peer: PublicKeyBytes): ByteArray =
+                        try {
+                            key.sharedX(peer)
+                        } finally {
+                            key.locked = false
+                        }
+                }
+            val h = dispatcherHarness(privateKey = unlocksAfterOneAttempt, fake = fake, start = false)
+            val second = VehicleSession(h.dispatcher, cacheSync = SessionCacheSync(cache, fake.vin, keyId), eventScope = backgroundScope)
+            assertEquals(setOf(infotainment), second.connect()) // VCSEC 항목은 잠금 때문에 복원하지 못했다
+            val storesBefore = cache.stores.size
+            assertIs<VehicleResult.Success<*>>(second.tap(infotainment))
+            assertTrue(h.logger.contains("Keeping the session cache"))
+            assertTrue(h.logger.contains("Sending on DOMAIN_INFOTAINMENT with a counter the session cache does not cover"))
+            assertEquals(storesBefore, cache.stores.size)
+            assertEquals(setOf(vcsec, infotainment), cache.load(fake.vin, keyId).map { it.domain }.toSet())
+        }
+
+    @Test
+    fun theHookOfASessionThatIsClosingReportsClosing() =
+        // 실제 VehicleSession 훅의 닫힘 분기: disconnect()가 닫기에 들어간 뒤의 예약 요청은 쓰지 않고 CLOSING이다
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val ledger = LedgerCache(fake)
+            val (session, h) = process(fake, ledger)
+            session.connect()
+            assertIs<VehicleResult.Success<Unit>>(session.startSession(setOf(vcsec), timeout = 1.seconds))
+            val hook = checkNotNull(h.dispatcher.counterReservation)
+            session.disconnect()
+            val writesAfterDisconnect = ledger.writes.size
+            assertEquals(CounterReservation.Outcome.CLOSING, hook.reserve(vcsec))
+            assertEquals(writesAfterDisconnect, ledger.writes.size)
+        }
+
+    @Test
+    fun anExhaustedSessionStillDecryptsTheReplyToARequestAlreadySent() =
+        // 리뷰 B 4번: 소진 뒤에도 Signer는 바뀔 때까지 남아 이미 보낸 요청의 응답을 복호화한다(그 요청을 Uncertain으로 만들지 않는다)
+        runTest {
+            val fake = FakeVehicle(timeSource = testTimeSource)
+            val (session, h) = process(fake, LedgerCache(fake))
+            session.connect()
+            assertIs<VehicleResult.Success<Unit>>(session.startSession(setOf(infotainment), timeout = 1.seconds))
+            val info = fake.verifier(infotainment).sessionInfo().copy(counter = (UInt.MAX_VALUE - 1u).toInt())
+            checkNotNull(h.dispatcher.session(infotainment)).loadFromCache(SessionInfo.ADAPTER.encode(info), Duration.ZERO)
+            fake.holdNextReplies(1)
+            val last = async { session.tap(infotainment) } // 0xFFFFFFFF을 쓰고, 응답은 붙잡혀 있다
+            runCurrent()
+            assertEquals(VehicleResult.Failure(VehicleError.NoSession), session.tap(infotainment))
+            assertEquals(1, fake.releaseHeldReplies())
+            assertIs<VehicleResult.Success<*>>(last.await())
         }
 
     /** [domain]의 캐시 항목을 [counter]만 바꿔 다시 심는다(지금 세션의 epoch·차량 공개키 그대로). */
