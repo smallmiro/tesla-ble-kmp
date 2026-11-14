@@ -38,7 +38,8 @@
 | `ANALYSIS_DIR` | `docs/analysis/` | 프로토콜 분석 보고서 (`YYYY-MM-DD-<topic>.md`, `protocol-analyst` 산출물) |
 | `LIB_NAME` | `tesla-ble-kmp` | 라이브러리 / Gradle 루트 이름 (= GitHub 저장소 이름, 2026-09-26 확정) |
 | `REPO_URL` | `https://github.com/smallmiro/tesla-ble-kmp` | 공개 저장소 (Apache-2.0). 브랜치 `main` 보호 |
-| `PACKAGES_MAVEN_URL` | `https://maven.pkg.github.com/smallmiro/tesla-ble-kmp` | GitHub Packages Maven 레지스트리 (M6에서 첫 배포). 소비자는 `read:packages` 토큰 필요 |
+| `SPM_PACKAGE_URL` | `https://github.com/smallmiro/tesla-ble-kmp` | Swift Package Manager 패키지 URL (= `{{REPO_URL}}`). 저장소 루트 `Package.swift` 가 GitHub Release 의 static `Teslable.xcframework` zip 을 가리킨다. iOS 앱은 Xcode Add Package Dependencies 에 이 URL 을 넣는다. 첫 버전 `1.0.0` (ADR-0017). Android 는 2단계(Maven Central)까지 소스 빌드 |
+| `RELEASE_TOOLS_DIR` | `tools/release/` | 릴리스 스크립트: `build-xcframework.sh`, `check-consumer-ios.sh`, `prepare.sh`(1단계, PR), `publish.sh`(2단계, 머지 뒤), 절차는 `README.md`. GitHub Actions 없이 Apple Silicon Mac 한 대에서 실행 (ADR-0012, ADR-0017) |
 | `BASE_PACKAGE` | `dev.mirolab.teslable` | Kotlin 패키지 루트 (Phase 1 Q5-b에서 확정, 도메인 `mirolab.dev` 에 맞춰 ADR-0013에서 변경) |
 
 ## 규칙
