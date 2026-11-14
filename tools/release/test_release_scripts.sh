@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
-# tools/release/test_release_scripts.sh — prepare.sh, publish.sh 시험 (오프라인, ADR-0017).
+# tools/release/test_release_scripts.sh — prepare.sh, publish.sh, check-consumer-ios.sh 인자 검사 시험 (오프라인, ADR-0017).
 #   사용: tools/release/test_release_scripts.sh   (인자 없음. 시험이 하나라도 실패하면 exit 1)
 #   임시 git 저장소(repo/)와 가짜 원격(remote.git, bare)을 한 번 만들어 시험마다 복사한다. 이 폴더의 prepare.sh·publish.sh·
 #   release-lib.sh 를 그 저장소의 tools/release/ 에 두고 실행한다. 네트워크, GitHub, Gradle, Xcode는 쓰지 않는다:
-#     - build-xcframework.sh, check-consumer-ios.sh, tools/ci/verify.sh 는 임시 저장소 안의 대역이다 (부른 기록을 남긴다)
+#     - build-xcframework.sh, check-consumer-ios.sh, tools/ci/verify.sh 는 임시 저장소 안의 대역이다 (부른 기록을 남긴다).
+#       check-consumer-ios.sh 인자 검사 시험만 진짜 스크립트를 복사해 두고, xcodegen 을 부르기 전에 멈추는지 본다
 #     - PATH 맨 앞의 gh, curl 대역이 GitHub Release 하나를 흉내 내고, xcodebuild·xcodegen·gradle 대역은 불리면 실패한다
 #     - git 은 임시 설정만 읽고(GIT_CONFIG_GLOBAL, GIT_CONFIG_NOSYSTEM), github.com URL 은 가짜 원격이나 없는 경로로 바뀐다(insteadOf)
 #   swift package dump-package, compute-checksum 과 python3 은 진짜를 쓴다 (모두 네트워크를 쓰지 않는다).
@@ -693,6 +694,33 @@ case_publish_rejects_a_hand_edited_package_swift() {
   expect_no_side_effects
 }
 
+# ---- check-consumer-ios.sh 의 인자 검사 (대역 대신 진짜 스크립트, xcodegen 을 부르기 전에 멈춘다) ----
+
+real_consumer_check() { cp "$HERE/check-consumer-ios.sh" tools/release/check-consumer-ios.sh; }
+
+case_consumer_check_takes_only_versions_publish_takes() {
+  # publish.sh 가 거절하는 버전(prerelease, 빌드 메타데이터, 앞자리 0, v 접두어)은 --remote 로도 검사하지 않는다
+  real_consumer_check
+  local v
+  for v in 1.0.0-rc.1 1.0.0+build.5 01.0.0 v1.0.0 1.0; do
+    run check-consumer-ios.sh --remote "$v"
+    expect_exit 1
+    expect_out "check-consumer-ios: FAIL: version must be X.Y.Z"
+  done
+  [ ! -s "$T/calls" ] || fail_case "the consumer check ran a tool before rejecting the version" "$(cat "$T/calls")"
+}
+
+case_consumer_check_looks_for_the_tag_in_the_release_repository() {
+  # --remote 는 release-lib.sh 의 REPO_URL 에서 태그를 찾는다 (여기서는 insteadOf 로 가짜 원격, 태그 없음)
+  real_consumer_check
+  mkdir -p tools/release/consumer-ios
+  : > tools/release/consumer-ios/project.yml
+  run check-consumer-ios.sh --remote "$VERSION"
+  expect_exit 1
+  expect_out "check-consumer-ios: FAIL: tag v$VERSION does not exist in $REPO_URL"
+  [ ! -s "$T/calls" ] || fail_case "the consumer check ran a tool although the tag is missing" "$(cat "$T/calls")"
+}
+
 # ---- 저장소 설정 ----
 
 case_gitignore_covers_release_and_swiftpm_output() {
@@ -754,6 +782,8 @@ for name in \
   publish_rejects_a_zip_changed_after_prepare \
   publish_rejects_source_changed_after_prepare \
   publish_rejects_a_hand_edited_package_swift \
+  consumer_check_takes_only_versions_publish_takes \
+  consumer_check_looks_for_the_tag_in_the_release_repository \
   gitignore_covers_release_and_swiftpm_output; do
   run_case "$name"
 done

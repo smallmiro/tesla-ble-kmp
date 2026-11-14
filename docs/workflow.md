@@ -205,7 +205,7 @@ Refs: FR-012
 | 비밀 스캔 | VIN 패턴(`[A-HJ-NPR-Z0-9]{17}`)과 PEM 개인키 탐지 (테스트 벡터 허용 목록 제외, `tools/ci/scan-secrets.sh`) | 6/9 |
 | 매뉴얼 언어 | `{{MANUAL_DIR}}` 에 한글 없음, `{{MANUAL_HTML_DIR}}` 의 `ko/`·`en/`·`ja/` 페이지 목록·`lang`·id·href 일치, 루트 `index.html` 이 `en/index.html` 과 일치, 코드 블록 문법 색 최신, 사용 가이드(`11-lib-user-guide`)가 `tools/docs/build-library-guide.py` 로 다시 만든 결과와 같음 (`{{AGENTS_FILE}}` 규칙 12·13, `tools/ci/check-manual-i18n.sh`) | 7/9 |
 | 로그 분석 도구 | `tools/analysis` 단위 테스트 (`python3 -I -m unittest`, protocol-analyst 가 쓰는 `pbwire.py` 등) | 8/9 |
-| 릴리스 스크립트 | `tools/release/test_release_scripts.sh`: `prepare.sh`·`publish.sh` 의 사전 검사, 빌드 순서, 재시도 판단을 임시 git 저장소와 `gh`·`curl` 대역으로 오프라인 시험 (ADR-0017) | 9/9 |
+| 릴리스 스크립트 | `tools/release/test_release_scripts.sh`: `prepare.sh`·`publish.sh` 의 사전 검사, 빌드 순서, 재시도 판단과 `check-consumer-ios.sh` 의 인자 검사를 임시 git 저장소와 `gh`·`curl` 대역으로 오프라인 시험 (ADR-0017) | 9/9 |
 
 > **"Red를 트렁크에 올리지 않는다"** 가 Trunk-based의 생명줄입니다. 푸시·병합 전에 로컬에서 `tools/ci/verify.sh` 를 돌립니다.
 > `tools/ci/verify.sh`는 M0에서 작성한 `.github/workflows/ci.yml`이 하던 일을 그대로 재현하며, ADR-0012(2026-09-27)로

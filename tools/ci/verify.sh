@@ -12,7 +12,7 @@
 #   (f) tools/ci/scan-secrets.sh   → secrets 잡
 #   (g) tools/ci/check-manual-i18n.sh → (CI 잡 없음) 매뉴얼 언어 규칙(AGENTS.md §3 규칙 12) + 생성한 사용 가이드 최신 여부(규칙 13)
 #   (h) tools/analysis 단위 테스트   → (CI 잡 없음) 로그 분석 도구(pbwire.py)
-#   (i) tools/release/test_release_scripts.sh → (CI 잡 없음) 릴리스 스크립트 prepare.sh·publish.sh 오프라인 시험 (ADR-0017)
+#   (i) tools/release/test_release_scripts.sh → (CI 잡 없음) 릴리스 스크립트 prepare.sh·publish.sh 와 check-consumer-ios.sh 인자 검사 오프라인 시험 (ADR-0017)
 set -euo pipefail
 
 if [ "$(uname -s)" != "Darwin" ]; then
