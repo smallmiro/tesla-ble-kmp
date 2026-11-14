@@ -38,3 +38,6 @@ tools/fixtures/captures/
 
 # Monitor logs pulled from devices (real vehicle data; never commit)
 samples/logs/
+
+# Release artifacts from tools/release/build-xcframework.sh (ADR-0017): the checksummed zip is uploaded as is, never committed
+build/release/
