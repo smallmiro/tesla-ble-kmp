@@ -10,6 +10,7 @@ settings:
     ARCHS: "arm64"
     EXCLUDED_ARCHS: "x86_64"
     ONLY_ACTIVE_ARCH: "YES"
+    # check-consumer-ios.sh overrides CODE_SIGN_IDENTITY ("-", ad-hoc) for the simulator test: the Keychain needs a signed app.
     CODE_SIGN_IDENTITY: ""
     CODE_SIGNING_REQUIRED: "NO"
 targets:
@@ -23,6 +24,9 @@ targets:
       properties:
         CFBundleDisplayName: Teslable Consumer
         UILaunchScreen: {}
+        # Without these Xcode warns "All interface orientations must be supported unless the app requires full screen".
+        UISupportedInterfaceOrientations: [UIInterfaceOrientationPortrait, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
+        UISupportedInterfaceOrientations~ipad: [UIInterfaceOrientationPortrait, UIInterfaceOrientationPortraitUpsideDown, UIInterfaceOrientationLandscapeLeft, UIInterfaceOrientationLandscapeRight]
         # 17-lib-platform-notes.md §iOS: the first scan shows the permission prompt, so Info.plist needs this key.
         NSBluetoothAlwaysUsageDescription: Bluetooth is needed to talk to the vehicle.
     dependencies:
@@ -33,7 +37,9 @@ targets:
   ConsumerAppTests:
     type: bundle.unit-test
     platform: iOS
-    deploymentTarget: "16.0"
+    # The app stays at iOS 16 (the library's minimum). The test bundle is 17.0 because Xcode's XCTest libraries are built for 17.0 and
+    # a 16.0 bundle makes the linker warn; the tests only run on the current simulator.
+    deploymentTarget: "17.0"
     sources: [ConsumerAppTests]
     dependencies:
       - target: ConsumerApp

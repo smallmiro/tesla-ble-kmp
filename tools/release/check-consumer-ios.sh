@@ -93,6 +93,12 @@ derived="$work_tmp/DerivedData"
 echo "check-consumer-ios: xcodegen generate ($project_dir)"
 ( cd "$project_dir" && xcodegen generate --quiet ) || fail "xcodegen generate failed"
 
+# 건너뛰는 경고는 이 한 가지뿐이다 (Xcode 도구 잡음, 우리 코드나 XCFramework와 무관):
+#   "appintentsmetadataprocessor[<pid>:<tid>] warning: Metadata extraction skipped, no AppIntents.framework dependency found"
+#   소비자 앱은 App Intents를 쓰지 않으므로 Xcode의 이 안내는 항상 나온다.
+# 다른 경고는 모두 실패다. 새 잡음이 나오면 그 줄만 정확히 이름 붙여 추가하고 이유를 적는다.
+NOISE_WARNING_PATTERNS='appintentsmetadataprocessor\[[0-9:]+\] warning: Metadata extraction skipped, no AppIntents\.framework dependency found'
+
 xcb() { # xcodebuild 를 조용히 돌리고, 실패하면 로그 끝부분을 보여 준다
   local name="$1"; shift
   local log="$work_tmp/$name.log"
@@ -102,6 +108,15 @@ xcb() { # xcodebuild 를 조용히 돌리고, 실패하면 로그 끝부분을 �
     fail "xcodebuild $name failed"
   fi
   tail -n 3 "$log"
+  # 경고도 발견 사항으로 본다: 초록 빌드라도 컴파일러·링커·Swift 6 경고가 있으면 실패한다. 경고는 소비자 코드에서 고친다.
+  # 건너뛰는 패턴 (Xcode/시스템 잡음만): NOISE_WARNING_PATTERNS 아래 주석 참조.
+  local warnings
+  warnings="$(grep -a 'warning:' "$log" | grep -a -v -E "$NOISE_WARNING_PATTERNS" | sort -u || true)"
+  if [ -n "$warnings" ]; then
+    echo "--- warnings in xcodebuild $name ---" >&2
+    printf '%s\n' "$warnings" >&2
+    fail "warnings in $name"
+  fi
 }
 
 echo "check-consumer-ios: device build (generic/platform=iOS)"
