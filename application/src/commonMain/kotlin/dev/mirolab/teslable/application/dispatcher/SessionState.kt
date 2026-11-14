@@ -2,6 +2,7 @@
 // session, processHello, authorize, decrypt, export; LoadCache (dispatcher.go)
 package dev.mirolab.teslable.application.dispatcher
 
+import com.tesla.generated.signatures.SessionInfo
 import com.tesla.generated.universalmessage.MessageFault_E
 import com.tesla.generated.universalmessage.RoutableMessage
 import dev.mirolab.teslable.model.Vin
@@ -27,8 +28,12 @@ import kotlin.time.TimeSource
  *
  * `Signer` 멤버 분류 — 상태 변경: `encrypt`(counter++), `updateSessionInfo`, `updateSignedSessionInfo`, `close`.
  * 읽기 전용: `decrypt`, `exportSessionInfo`, `timestamp`, `counter`/`epoch`/공개키 getter. `decrypt`는 `close`와 경쟁하므로 Go처럼 락 안에서 부른다.
+ *
+ * counter 예약(원본에 없음, H17, ADR-0016): 캐시에 쓴 counter(확정한 예약)를 기억해, 그보다 큰 counter는 예약을 늘려 쓴 뒤에만
+ * 인가한다([authorizeNow]의 `requireReservation`, [exportForCache], [commitReservation]). 예약은 이 [Signer]와 그 epoch에만 유효하다:
+ * Signer를 새로 만들거나 바꾸거나 버리거나, epoch가 바뀌면 [generation]이 올라 예약이 무효가 된다.
  */
-@Suppress("TooManyFunctions") // session.go의 메서드와 1:1 대응
+@Suppress("TooManyFunctions") // session.go의 메서드와 1:1 대응 + counter 예약
 public class SessionState internal constructor(
     private val vin: Vin,
     private val privateKey: EcdhPrivateKey,
@@ -38,6 +43,11 @@ public class SessionState internal constructor(
 ) {
     private val mutex = Mutex()
     private var signer: Signer? = null
+
+    // 아래 셋은 mutex 안에서만 읽고 쓴다(H17). generation = 지금 Signer와 그 epoch의 식별자.
+    private var generation = 0L
+    private var reservedThrough: UInt? = null
+    private var reservedGeneration = -1L
 
     @Volatile
     private var readySignal = CompletableDeferred<Unit>()
@@ -90,8 +100,18 @@ public class SessionState internal constructor(
     ): SignerResult<Unit> =
         mutex.withLock {
             if (closed) return@withLock SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INTERNAL, "session closed")
-            val result = signer?.updateSignedSessionInfo(challenge, encodedInfo, tag) ?: createSigner(challenge, encodedInfo, tag)
+            val before = signer
+            val epochBefore = before?.epoch
+            // counter를 다 쓴 Signer는 갱신해도 counter를 내리지 않으므로(Go 규칙) 새로 만든다(H17, ADR-0016 — Go에는 없는 회복)
+            val result =
+                if (before == null || before.counter == UInt.MAX_VALUE) {
+                    createSigner(challenge, encodedInfo, tag)
+                } else {
+                    before.updateSignedSessionInfo(challenge, encodedInfo, tag)
+                }
             if (result is SignerResult.Ok) {
+                // Signer가 바뀌었거나 epoch가 바뀌었으면 캐시에 쓴 예약은 이제 이 세션의 것이 아니다(같은 epoch의 갱신은 예약을 유지한다)
+                if (signer !== before || !epochBefore.contentEquals(signer?.epoch)) generation++
                 unconfirmedRestore = false
                 reportedStale = false
                 readySignal.complete(Unit)
@@ -99,7 +119,7 @@ public class SessionState internal constructor(
             result
         }
 
-    // processHello의 첫 호출 분기(signer == null): Go NewAuthenticatedSigner. 락은 processHello가 이미 쥐고 있다.
+    // processHello의 첫 호출 분기(signer == null, 또는 counter를 다 쓴 Signer의 교체): Go NewAuthenticatedSigner. 락은 processHello가 이미 쥐고 있다.
     private suspend fun createSigner(
         challenge: ByteArray,
         encodedInfo: ByteArray,
@@ -108,6 +128,7 @@ public class SessionState internal constructor(
         val created = Signer.createAuthenticated(privateKey, vin, challenge, encodedInfo, tag, crypto, random, timeSource)
         return when (created) {
             is SignerResult.Ok -> {
+                signer?.close()
                 signer = created.value
                 SignerResult.Ok(Unit)
             }
@@ -125,15 +146,38 @@ public class SessionState internal constructor(
     public suspend fun authorize(
         message: RoutableMessage,
         lifetime: Duration,
+    ): SignerResult<RoutableMessage> = authorize(message, lifetime, requireReservation = false)
+
+    private suspend fun authorize(
+        message: RoutableMessage,
+        lifetime: Duration,
+        requireReservation: Boolean,
     ): SignerResult<RoutableMessage> {
         val signal = readySignal
         signal.await()
         return mutex.withLock {
             val current = signer
-            if (closed || signal !== readySignal || current == null) {
-                SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INTERNAL, NO_SESSION)
-            } else {
-                current.encrypt(message, lifetime)
+            when {
+                closed || signal !== readySignal || current == null -> {
+                    SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INTERNAL, NO_SESSION)
+                }
+
+                current.counter == UInt.MAX_VALUE -> {
+                    // 원본에 없음(H17, ADR-0016): 마지막 counter까지 썼다. Go는 롤오버 오류를 ctx가 끝날 때까지 되풀이하고 이 Signer로는
+                    // 회복하지 못한다(epoch가 바뀐 세션정보도 counter를 내리지 않는다). 준비 상태만 되돌려 startSession()이 새로 핸드셰이크하게
+                    // 하고, 다음 인증된 세션정보가 새 Signer를 만든다([processHello]). 이미 보낸 요청의 응답은 그때까지 이 Signer로 복호화한다.
+                    generation++
+                    if (readySignal.isCompleted) readySignal = CompletableDeferred()
+                    SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INVALID_TOKEN_OR_COUNTER, COUNTER_EXHAUSTED)
+                }
+
+                requireReservation && !covers(current) -> {
+                    SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INTERNAL, RESERVATION_NEEDED)
+                }
+
+                else -> {
+                    current.encrypt(message, lifetime)
+                }
             }
         }
     }
@@ -141,13 +185,17 @@ public class SessionState internal constructor(
     /**
      * [authorize]의 비대기 변형: 호출 시점의 준비 신호가 아직 완료되지 않았으면 기다리지 않고 [NO_SESSION] fault를 돌려준다.
      * 디스패처는 `isReady` 확인과 인가 사이에 세션이 무효화돼도 새 핸드셰이크를 기다리며 매달리지 않도록 이쪽을 쓴다.
+     *
+     * [requireReservation]이면(H17) 다음 counter가 확정한 예약 안에 있을 때만 암호화하고, 아니면 counter를 쓰지 않고
+     * [RESERVATION_NEEDED] fault를 돌려준다. 확인과 암호화가 한 임계 구역이라 동시 전송이 예약 밖 counter를 쓰지 못한다.
      */
     internal suspend fun authorizeNow(
         message: RoutableMessage,
         lifetime: Duration,
+        requireReservation: Boolean = false,
     ): SignerResult<RoutableMessage> {
         if (!readySignal.isCompleted) return SignerResult.Fault(MessageFault_E.MESSAGEFAULT_ERROR_INTERNAL, NO_SESSION)
-        return authorize(message, lifetime)
+        return authorize(message, lifetime, requireReservation)
     }
 
     /**
@@ -157,16 +205,83 @@ public class SessionState internal constructor(
     internal suspend fun invalidate(): Unit =
         mutex.withLock {
             if (closed) return@withLock
-            signer?.close()
-            signer = null
-            unconfirmedRestore = false
-            if (readySignal.isCompleted) readySignal = CompletableDeferred()
+            dropSigner()
         }
+
+    // invalidate의 본문. mutex 안에서만 부른다
+    private fun dropSigner() {
+        signer?.close()
+        signer = null
+        generation++
+        unconfirmedRestore = false
+        if (readySignal.isCompleted) readySignal = CompletableDeferred()
+    }
+
+    /** 캐시에 쓸 내용 하나(H17). [counter]는 [sessionInfo]에 실린 값이고, [generation]은 내보낼 때의 Signer·epoch 식별자다. */
+    internal class CacheExport(
+        val generation: Long,
+        val counter: UInt,
+        val sessionInfo: ByteArray,
+    )
+
+    /**
+     * 캐시에 쓸 `SessionInfo`(H17, ADR-0016). Go `export`와 같되 counter는 이미 확정한 예약보다 낮지 않다: 확정한 예약 안의 counter는
+     * 다시 예약하지 않고 쓰이므로, 낮은 값을 쓰면 그 counter를 다음 프로세스가 다시 쓸 수 있다. [extend]면 지금 counter + [COUNTER_RESERVATION]
+     * (넘치면 `0xFFFFFFFF`)까지 늘린다. 세션이 없으면 null.
+     */
+    internal suspend fun exportForCache(extend: Boolean): CacheExport? =
+        mutex.withLock {
+            val current = signer ?: return@withLock null
+            val target = if (extend) reserveAhead(current.counter) else current.counter
+            val written = committedReservation()?.let { maxOf(it, target) } ?: target
+            CacheExport(generation, written, current.exportSessionInfo().withCounter(written))
+        }
+
+    /**
+     * [export]를 캐시에 쓴 뒤 부른다: 같은 Signer·epoch이면 그 counter까지를 확정한 예약으로 기억한다(늘리기만 한다). 그사이 Signer나
+     * epoch가 바뀌었으면 아무것도 하지 않는다 — 옛 세션의 예약이 새 세션을 덮었다고 보면 안 된다.
+     */
+    internal suspend fun commitReservation(export: CacheExport): Unit =
+        mutex.withLock {
+            if (closed || export.generation != generation) return@withLock
+            val committed = committedReservation()
+            if (committed == null || export.counter > committed) {
+                reservedThrough = export.counter
+                reservedGeneration = generation
+            }
+        }
+
+    /** 다음 counter가 확정한 예약 안에 있는지(H17). 세션이 없으면 false. */
+    internal suspend fun coversNextCounter(): Boolean = mutex.withLock { signer?.let { covers(it) } == true }
+
+    // 아래 둘은 mutex 안에서만 부른다
+    private fun committedReservation(): UInt? = if (reservedGeneration == generation) reservedThrough else null
+
+    private fun covers(current: Signer): Boolean = committedReservation()?.let { current.counter < it } == true
 
     /** 상수. */
     public companion object {
         /** [authorize]가 세션 없음(닫힘·무효화)으로 실패할 때의 `detail`. 디스패처가 `NoSession`으로 바꾼다. */
         public const val NO_SESSION: String = "no session"
+
+        /** [authorizeNow]가 예약을 먼저 늘려야 해서 암호화하지 않았을 때의 `detail`(H17). 디스패처만 본다. */
+        internal const val RESERVATION_NEEDED: String = "counter reservation needed"
+
+        /**
+         * 마지막 counter(`0xFFFFFFFF`)까지 써서 준비 상태를 되돌렸을 때의 `detail`(H17). 디스패처가 `NoSession`으로 바꾼다. Signer는 다음 인증된
+         * 세션정보가 새로 만들 때까지 남아 이미 보낸 요청의 응답을 복호화한다.
+         */
+        internal const val COUNTER_EXHAUSTED: String = "counter exhausted"
+
+        /**
+         * 예약 폭 R(H17, ADR-0016): 예약 하나가 덮는 counter 수. 저장 한 번이 다음 R개 인증 요청을 덮고, 깨끗하지 않은 종료 뒤
+         * 차량이 보는 counter 건너뜀은 보통 R 이하다.
+         */
+        internal const val COUNTER_RESERVATION: UInt = 16u
+
+        /** [counter] + [COUNTER_RESERVATION]. 넘치면 `0xFFFFFFFF`에서 멈춘다(되감지 않는다). */
+        internal fun reserveAhead(counter: UInt): UInt =
+            if (counter > UInt.MAX_VALUE - COUNTER_RESERVATION) UInt.MAX_VALUE else counter + COUNTER_RESERVATION
     }
 
     /** Go `session.decrypt`의 Signer 부분. 세션이 없으면 null(Go `ErrNoDecryptionContext`). 윈도우 검사는 디스패처가 한다. */
@@ -197,6 +312,7 @@ public class SessionState internal constructor(
                 is SignerResult.Ok -> {
                     signer?.close()
                     signer = imported.value
+                    generation++
                     unconfirmedRestore = true
                     readySignal.complete(Unit)
                     SignerResult.Ok(Unit)
@@ -221,5 +337,10 @@ public class SessionState internal constructor(
             unconfirmedRestore = false
             signer?.close()
             signer = null
+            generation++
         }
 }
+
+/** Go `ExportSessionInfo`의 바이트에서 counter만 [counter]로 바꾼다(H17 예약). 다른 필드와 Go의 인코딩 규칙은 그대로다. */
+private fun ByteArray.withCounter(counter: UInt): ByteArray =
+    SessionInfo.ADAPTER.encode(SessionInfo.ADAPTER.decode(this).copy(counter = counter.toInt()))

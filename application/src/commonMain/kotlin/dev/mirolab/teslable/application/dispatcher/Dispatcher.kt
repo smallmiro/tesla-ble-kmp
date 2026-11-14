@@ -470,6 +470,13 @@ public class Dispatcher
             }
 
         /**
+         * 원본에 없음(H17, ADR-0016): 인증 요청이 캐시에 예약되지 않은 counter를 쓰기 전에 부를 훅. `VehicleSession.connect`가 단다.
+         * 없으면(세션 캐시가 없는 연결, 디스패처만 쓰는 시험) Go처럼 예약 없이 인가한다.
+         */
+        @Volatile
+        internal var counterReservation: CounterReservation? = null
+
+        /**
          * Go `LoadCache`: 항목마다 [SessionState.loadFromCache](즉시 준비 상태). 손상된 항목·개인키 없음·키의 ECDH 예외는 WARN 로그 후 건너뛴다
          * (Go는 전체 실패 — 설계 구체화 6). 기기 잠금으로 막힌 항목도 건너뛰되 [restoresBlockedByLock]에 남긴다(FR-037, #96). 복원한 도메인
          * 집합을 돌려준다. Go는 세션 맵을 통째로 새로 만들어 교체하지만 이 구현은 기존 [sessions]에 도메인별로 병합한다 — 새 [Dispatcher]
@@ -491,6 +498,12 @@ public class Dispatcher
             val session = sessions[entry.domain]
             if (session == null) {
                 logger.log(LogLevel.WARN, TAG) { "invalid cache: ${entry.domain}: no session (private key missing)" }
+                return false
+            }
+            if (entry.hasExhaustedCounter()) {
+                // 원본에 없음(H17, ADR-0016): 예약은 0xFFFFFFFF에서 멈추므로, 남은 counter가 예약 하나도 안 되는 항목은 곧 롤오버한다.
+                // 차량은 그 counter를 받아야만 epoch를 바꾸므로 핸드셰이크로 차량의 counter에서 다시 시작한다.
+                logger.log(LogLevel.WARN, TAG) { "invalid cache: ${entry.domain}: anti-replay counter exhausted" }
                 return false
             }
             val result =
@@ -540,24 +553,9 @@ public class Dispatcher
                 logger.log(LogLevel.WARN, TAG) { "No session available for $domain" }
                 return VehicleResult.Failure(VehicleError.NoSession)
             }
-            return authorized(session.authorizeNow(message, lifetime))
+            // H17 (ADR-0016): 세션 캐시가 있는 연결이면 캐시가 덮는 counter로만 인가한다([authorizeReserving])
+            return session.authorizeReserving(domain, message, lifetime, counterReservation, logger)
         }
-
-        /** [authorize]의 인가 결과를 값으로: 세션 없음(닫힘·무효화)은 [VehicleError.NoSession], 그 밖의 fault는 공개 오류. */
-        private fun authorized(result: SignerResult<RoutableMessage>): VehicleResult<RoutableMessage> =
-            when (result) {
-                is SignerResult.Ok -> {
-                    VehicleResult.Success(result.value)
-                }
-
-                is SignerResult.Fault -> {
-                    if (result.detail == SessionState.NO_SESSION) {
-                        VehicleResult.Failure(VehicleError.NoSession)
-                    } else {
-                        VehicleResult.Failure(result.toVehicleError())
-                    }
-                }
-            }
 
         /**
          * Go `Send`의 전송 루프. 넘겨주지 못했으면(오류·취소) `finally`에서 등록을 푼다. [onWriteInvoked]는 시도마다 전송에 넘긴다 —

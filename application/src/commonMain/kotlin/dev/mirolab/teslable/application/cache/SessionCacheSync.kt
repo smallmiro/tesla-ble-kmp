@@ -3,6 +3,9 @@ package dev.mirolab.teslable.application.cache
 
 import com.tesla.generated.universalmessage.Domain
 import dev.mirolab.teslable.application.dispatcher.Dispatcher
+import dev.mirolab.teslable.application.dispatcher.commitReservations
+import dev.mirolab.teslable.application.dispatcher.coversNextCounter
+import dev.mirolab.teslable.application.dispatcher.exportForCache
 import dev.mirolab.teslable.model.KeyId
 import dev.mirolab.teslable.model.Vin
 import dev.mirolab.teslable.port.LogLevel
@@ -59,12 +62,33 @@ public class SessionCacheSync(
      * 뒤에는 지킬 항목이 없으므로 그 연결이 끝날 때까지 이 예외를 다시 쓰지 않는다(오래된 도메인이 새 세션으로 돌아와도).
      */
     public suspend fun store(dispatcher: Dispatcher) {
-        storeMutex.withLock { write(dispatcher) }
+        storeMutex.withLock { write(dispatcher, extend = null) }
     }
 
-    /** [store]의 본문. [storeMutex] 안에서만 부른다. */
-    private suspend fun write(dispatcher: Dispatcher) {
-        val sessions = dispatcher.exportSessions()
+    /**
+     * 원본에 없음(H17, ADR-0016): [domain]의 다음 counter를 캐시가 덮도록 그 도메인의 예약을 늘려 쓴다. 다른 전송이 먼저 예약해 이미
+     * 덮였으면 쓰지 않는다. 그 뒤 덮였는지를 돌려준다 — 기기 잠금 보존으로 쓰지 않았거나 그 도메인을 쓰지 않았으면(오래된 캐시로 뺀 도메인)
+     * false. 포트의 예외는 그대로 던진다(호출자 `VehicleSession`이 로그를 남긴다).
+     */
+    internal suspend fun reserve(
+        dispatcher: Dispatcher,
+        domain: Domain,
+    ): Boolean =
+        storeMutex.withLock {
+            if (!dispatcher.coversNextCounter(domain)) write(dispatcher, extend = domain)
+            dispatcher.coversNextCounter(domain)
+        }
+
+    /**
+     * [store]와 [reserve]의 본문. [storeMutex] 안에서만 부른다. 각 도메인의 counter는 확정한 예약보다 낮게 쓰지 않고, [extend] 도메인만
+     * 예약을 늘린다. 포트가 정상으로 돌아오면 실제로 쓴 항목의 counter를 확정한 예약으로 기억한다 — 포트는 쓰기 실패를 로그로만 알리므로
+     * 이 확정은 쓰기가 성공했다는 전제 위에 있다(ADR-0007, ADR-0016).
+     */
+    private suspend fun write(
+        dispatcher: Dispatcher,
+        extend: Domain?,
+    ) {
+        val sessions = dispatcher.exportForCache(extend)
         val keptForLock = dispatcher.restoresBlockedByLock.filter { blocked -> sessions.none { it.domain == blocked } }
         if (keptForLock.isNotEmpty() && staleDomains.isEmpty() && !lockKeepAbandoned) {
             dispatcher.log.log(LogLevel.INFO, TAG) {
@@ -73,6 +97,8 @@ public class SessionCacheSync(
             return
         }
         if (keptForLock.isNotEmpty()) lockKeepAbandoned = true
-        cache.store(vin, keyId, sessions.filter { it.domain !in staleDomains })
+        val written = sessions.filter { it.domain !in staleDomains }
+        cache.store(vin, keyId, written.map { it.snapshot })
+        dispatcher.commitReservations(written)
     }
 }
