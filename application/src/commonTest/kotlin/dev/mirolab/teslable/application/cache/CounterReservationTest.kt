@@ -360,7 +360,7 @@ class CounterReservationTest {
                             )
                         }
                     }
-                    if (covered) CounterReservation.Outcome.COVERED else CounterReservation.Outcome.NOT_COVERED
+                    if (covered) CounterReservation.Outcome.RESERVED else CounterReservation.Outcome.NOT_RESERVED
                 }
             val pending = h.dispatcher.send(testCommand(infotainment, flags = FakeVehicle.FLAG_ENCRYPT_RESPONSE), AuthMethod.GCM)
             assertIs<VehicleResult.Success<PendingRequest>>(pending).value.close()
