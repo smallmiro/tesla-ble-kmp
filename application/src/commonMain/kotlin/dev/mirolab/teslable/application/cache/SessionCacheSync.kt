@@ -16,7 +16,8 @@ import kotlinx.coroutines.sync.withLock
 private const val TAG = "SessionCacheSync"
 
 /**
- * [SessionCache] 포트와 [Dispatcher] 사이의 동기화(SDD §2.2 `SessionCacheSync`). 저장 시점: 핸드셰이크 완료·해제·세션정보 갱신(§7.1).
+ * [SessionCache] 포트와 [Dispatcher] 사이의 동기화(SDD §2.2 `SessionCacheSync`). 저장 시점: 핸드셰이크 완료·해제·세션정보 갱신(§7.1), 그리고
+ * 인증 요청이 캐시가 덮지 않는 counter를 쓰기 전의 예약([reserve], 원본에 없음, H17, ADR-0016). 어떤 저장도 확정한 예약보다 낮은 counter를 쓰지 않는다.
  * 갱신 트리거는 수신 코루틴이 아니라 `VehicleSession`이 `Dispatcher.sessionEvents`를 수집해 건다 — 수신 코루틴이 캐시 I/O로
  * suspend해서는 안 되기 때문이다(SDD §5).
  *
