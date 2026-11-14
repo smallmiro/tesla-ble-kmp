@@ -540,7 +540,12 @@ public class Dispatcher
                 logger.log(LogLevel.WARN, TAG) { "No session available for $domain" }
                 return VehicleResult.Failure(VehicleError.NoSession)
             }
-            return when (val result = session.authorizeNow(message, lifetime)) {
+            return authorized(session.authorizeNow(message, lifetime))
+        }
+
+        /** [authorize]의 인가 결과를 값으로: 세션 없음(닫힘·무효화)은 [VehicleError.NoSession], 그 밖의 fault는 공개 오류. */
+        private fun authorized(result: SignerResult<RoutableMessage>): VehicleResult<RoutableMessage> =
+            when (result) {
                 is SignerResult.Ok -> {
                     VehicleResult.Success(result.value)
                 }
@@ -553,7 +558,6 @@ public class Dispatcher
                     }
                 }
             }
-        }
 
         /**
          * Go `Send`의 전송 루프. 넘겨주지 못했으면(오류·취소) `finally`에서 등록을 푼다. [onWriteInvoked]는 시도마다 전송에 넘긴다 —

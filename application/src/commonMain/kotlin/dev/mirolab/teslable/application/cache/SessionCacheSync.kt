@@ -59,17 +59,20 @@ public class SessionCacheSync(
      * 뒤에는 지킬 항목이 없으므로 그 연결이 끝날 때까지 이 예외를 다시 쓰지 않는다(오래된 도메인이 새 세션으로 돌아와도).
      */
     public suspend fun store(dispatcher: Dispatcher) {
-        storeMutex.withLock {
-            val sessions = dispatcher.exportSessions()
-            val keptForLock = dispatcher.restoresBlockedByLock.filter { blocked -> sessions.none { it.domain == blocked } }
-            if (keptForLock.isNotEmpty() && staleDomains.isEmpty() && !lockKeepAbandoned) {
-                dispatcher.log.log(LogLevel.INFO, TAG) {
-                    "Keeping the session cache: cached sessions for $keptForLock were not restored while the device was locked"
-                }
-                return@withLock
+        storeMutex.withLock { write(dispatcher) }
+    }
+
+    /** [store]의 본문. [storeMutex] 안에서만 부른다. */
+    private suspend fun write(dispatcher: Dispatcher) {
+        val sessions = dispatcher.exportSessions()
+        val keptForLock = dispatcher.restoresBlockedByLock.filter { blocked -> sessions.none { it.domain == blocked } }
+        if (keptForLock.isNotEmpty() && staleDomains.isEmpty() && !lockKeepAbandoned) {
+            dispatcher.log.log(LogLevel.INFO, TAG) {
+                "Keeping the session cache: cached sessions for $keptForLock were not restored while the device was locked"
             }
-            if (keptForLock.isNotEmpty()) lockKeepAbandoned = true
-            cache.store(vin, keyId, sessions.filter { it.domain !in staleDomains })
+            return
         }
+        if (keptForLock.isNotEmpty()) lockKeepAbandoned = true
+        cache.store(vin, keyId, sessions.filter { it.domain !in staleDomains })
     }
 }
