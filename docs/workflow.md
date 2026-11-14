@@ -228,7 +228,7 @@ Refs: FR-012
 
 ### 8.1 프로토콜 정확성
 - 작업을 시작하기 전에 해당 주제의 `{{MANUAL_DIR}}` 매뉴얼 문서를 먼저 읽습니다. 계획과 PR에 참고한 매뉴얼 문서를 표기합니다.
-- 매뉴얼 언어 규칙(`{{AGENTS_FILE}}` 절대 규칙 12): `{{MANUAL_DIR}}` 는 영어로만 씁니다. `{{MANUAL_HTML_DIR}}` 는 `ko/`, `en/`, `ja/` 세 벌을 같은 내용으로 유지하며, 한 언어를 고치면 같은 PR에서 세 언어를 모두 갱신합니다. `en/index.html` 을 고쳤다면 `tools/ci/sync-manual-root-index.sh` 로 루트 `index.html` 을 다시 만듭니다. HTML 코드 블록을 고쳤다면 `tools/ci/highlight-manual-code.sh` 로 문법 색을 다시 입힙니다(루트 `index.html` 도 함께 칠하므로 두 스크립트의 순서는 상관없습니다).
+- 매뉴얼 언어 규칙(`{{AGENTS_FILE}}` 절대 규칙 12): `{{MANUAL_DIR}}` 는 영어로만 씁니다. `{{MANUAL_HTML_DIR}}` 는 `ko/`, `en/`, `ja/` 세 벌을 같은 내용으로 유지하며, 한 언어를 고치면 같은 PR에서 세 언어를 모두 갱신합니다. `en/index.html` 을 고쳤다면 `tools/ci/sync-manual-root-index.sh` 로 루트 `index.html` 을 다시 만듭니다. HTML 코드 블록을 고쳤다면 `tools/ci/highlight-manual-code.sh` 로 문법 색을 다시 입힙니다(루트 `index.html` 도 함께 칠하므로 두 스크립트의 순서는 상관없습니다). 라이브러리 사용 문서 11~19장(MD, 어느 언어의 HTML이든)이나 `sdk/`·`domain/` 의 공개 Kotlin API를 고쳤다면 `python3 tools/docs/build-library-guide.py` 로 사용 가이드(`11-lib-user-guide`)를 다시 만든 뒤 `tools/ci/highlight-manual-code.sh` 를 돌리고 함께 커밋합니다. 가이드는 손으로 고치지 않습니다(`tools/ci/check-manual-i18n.sh` 가 다시 만든 결과와 다르면 실패합니다).
 - 바이트 수준 동작(TLV 순서, 플래그 포함 규칙, 요청 해시 절단, counter 규칙)은 **원본 코드 줄을 인용**해 테스트로 고정합니다.
 - VCSEC는 **요청을 직렬화**합니다(동시 요청 금지). Infotainment는 uuid로 매칭합니다.
 - 응답이 유실되면 결과를 **불확실(PossibleSuccess)** 로 반환합니다. 실패로 단정하지 않습니다.

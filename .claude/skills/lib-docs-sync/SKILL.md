@@ -10,6 +10,7 @@ AGENTS.md rules 12 and 13: a PR that changes what the library or a sample does u
 | What changed | Markdown (English, agents) | HTML (ko/en/ja, people) |
 |---|---|---|
 | Library behaviour, public API, milestone status | `{{LIB_DOCS_DIR}}` `11-lib-*.md`–`19-lib-*.md` | `{{LIB_DOCS_HTML_DIR}}<lang>/11-lib-*.html`–`19-lib-*.html` |
+| Any of the above, or a public Kotlin API file under `sdk/` or `domain/` | `11-lib-user-guide.md` (generated, step 5) | `<lang>/11-lib-user-guide.html` (generated, step 5) |
 | Sample behaviour, sample requirements | `{{SAMPLES_DOCS_DIR}}` | `{{SAMPLES_DOCS_HTML_DIR}}<lang>/` |
 
 ## Steps
@@ -22,12 +23,19 @@ AGENTS.md rules 12 and 13: a PR that changes what the library or a sample does u
    markup; do not invent new CSS classes.
 4. **Korean and Japanese** with identical markup: hand the English page to `docs-translator`.
 5. **Regenerate and check:**
-   - `tools/ci/highlight-manual-code.sh` (code block colours)
+   - `python3 tools/docs/build-library-guide.py` (the single-page user guide `11-lib-user-guide`, MD + HTML ko/en/ja,
+     built from pages 11–19 and the public Kotlin API; run it whenever one of them changed, in any language, and after
+     the ko/ja translations land)
+   - `tools/ci/highlight-manual-code.sh` (code block colours, including the regenerated guide)
    - `tools/ci/sync-manual-root-index.sh` (only if an `en/index.html` changed)
-   - `tools/ci/check-manual-i18n.sh` → must print `manual i18n OK` for both doc sets
+   - `tools/ci/check-manual-i18n.sh` → must print `manual i18n OK` for both doc sets and `user guide OK`. It fails with
+     `user guide is stale` when the first two commands were not run after the last change.
+   Commit the regenerated guide with the pages it came from.
 6. **PR body:** list the pages changed, or write "문서 영향 없음" with the reason.
 
 ## Do not
 
 - Edit the Go reference pages (`{{MANUAL_DIR}}` `00`–`10`, `{{MANUAL_HTML_DIR}}` `01`–`09`) without the user's approval.
 - Put Korean text in any Markdown page, or Hangul in `en/`/`ja/` pages (except the "한국어" switcher label).
+- Edit `11-lib-user-guide.md` or `<lang>/11-lib-user-guide.html` by hand: change the source page or
+  `tools/docs/build-library-guide.py`, then regenerate.
