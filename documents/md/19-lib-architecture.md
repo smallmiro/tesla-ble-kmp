@@ -131,20 +131,25 @@ next process a counter the vehicle has already accepted.
 - Before an authenticated request uses a counter the cache does not hold yet, the dispatcher stores a reservation for
   that domain only (current counter + 16, stopping at `0xFFFFFFFF`) and then encrypts. One write covers the next 16
   requests. The coverage check and the encryption run in one critical section of the domain's session state; if
-  parallel requests use up a fresh reservation, the dispatcher reserves again. No store ever writes a counter below the
-  stored reservation, including the store on disconnect.
+  parallel requests use up a fresh reservation, or the signer or epoch changed while it was being written, the
+  dispatcher reserves again. No store ever writes a counter below the stored reservation, including the store on
+  disconnect.
 - A reservation belongs to one signer and its epoch: a new or replaced session, an invalidated (stale) session or an
   epoch change voids it; session info for the same epoch keeps it.
 - The reservation write runs in the caller's coroutine before the BLE write (inside the VCSEC lock for VCSEC
   requests), never on the receive coroutine and never under the session state's lock. If it cannot be stored (the
   FR-037 lock keep declined the write, or the cache threw), the request is sent as before and a `WARN` is logged. A
-  connection that is closing returns `NotConnected` without using a counter.
+  write the cache only logged as failed (the built-in caches do this) counts as stored. A connection that is closing
+  returns `NotConnected` without using a counter.
 - Exhaustion: a cached entry whose counter is above `0xFFFFFFFF` − 16 is not restored (the domain handshakes). A live
   session that has used `0xFFFFFFFF` makes the next authenticated call fail with `NoSession`; `startSession()` then
-  builds a new signer from the vehicle's session info.
-- Not covered: a failed write that the cache adapter only logged, another signer using the same key (another app, or a
-  second live connection to the same VIN with the same key in this process; the facade does not prevent that), and a
-  cache entry written by a build before this change (its first request can still be refused once and recovered).
+  builds a new signer from the vehicle's session info, only for the same vehicle public key. If the vehicle never
+  accepted that last counter, the new signer starts from the vehicle's lower counter in the same epoch (none of the
+  skipped counters was accepted). Until then the old signer still decrypts replies to requests already sent.
+- Not covered: a failed write that the cache adapter only logged, another signer using the same key (another app, a
+  second live connection to the same VIN with the same key in this process, or an old dropped connection whose
+  `disconnect()` runs after a new connection reserved; the facade does not prevent that), and a cache entry written by
+  a build before this change (its first request can still be refused once and recovered).
 - Cost: one cache write before the first authenticated request of a connection and then one per 16 requests; the
   vehicle sees a counter jump of usually 16 or less on the first request after an unclean exit or a reconnect. The Go
   verifier accepts forward jumps (`internal/authentication/window.go`); a real-car check is pending.
