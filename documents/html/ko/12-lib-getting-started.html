@@ -55,9 +55,10 @@
 </nav>
 <main class="content">
 <h1>12. 라이브러리 시작하기</h1>
-<p class="lead">라이브러리 생성, 키 확보, 차량 찾기, 연결, 상태 읽기, 연결 해제까지 전체 흐름을 따라갑니다. 마지막 두 절에서는 새 키를 페어링하고 첫 명령을 보내는 방법(M4)과 차량 브로드캐스트를 받는 방법을 보여 줍니다.</p>
+<p class="lead">앱에 라이브러리를 추가하는 것에서 시작해, 라이브러리 생성, 키 확보, 차량 찾기, 연결, 상태 읽기, 연결 해제까지 전체 흐름을 따라갑니다. 마지막 두 절에서는 새 키를 페어링하고 첫 명령을 보내는 방법(M4)과 차량 브로드캐스트를 받는 방법을 보여 줍니다.</p>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
+<li><a href="#sec-install">라이브러리 추가</a></li>
 <li><a href="#sec-flow">흐름</a></li>
 <li><a href="#sec-rules">다섯 가지 규칙</a></li>
 <li><a href="#sec-kotlin">Kotlin (Android)</a></li>
@@ -67,6 +68,49 @@
 <li><a href="#sec-events">브로드캐스트 이벤트</a></li>
 <li><a href="#sec-next">다음 단계</a></li>
 </ol></div>
+
+<h2 id="sec-install">라이브러리 추가</h2>
+<h3>iOS: Swift Package Manager</h3>
+<ol class="steps">
+<li>Xcode에서 <strong>File &gt; Add Package Dependencies…</strong>를 선택하고 <code>https://github.com/smallmiro/tesla-ble-kmp</code>를 입력합니다.</li>
+<li>의존성 규칙으로 <code>1.0.0</code>부터 <strong>Up to Next Major Version</strong>을 선택하고, 앱 타깃에 라이브러리 프로덕트 <code>Teslable</code>을 추가합니다.</li>
+<li>앱의 배포 타깃을 iOS 16.0 이상으로 설정하고, <code>Info.plist</code>에 <code>NSBluetoothAlwaysUsageDescription</code>을 추가합니다(<a href="17-lib-platform-notes.html#sec-ios">플랫폼 노트</a>).</li>
+<li>시뮬레이터는 Apple Silicon Mac에서 사용하세요. Release 빌드처럼 시뮬레이터 빌드가 모든 아키텍처를 빌드한다면, 앱 타깃에 <code>EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64</code>를 설정합니다.</li>
+<li><code>import Teslable</code>을 쓰고 아래의 <a href="#sec-swift">Swift (iOS)</a>로 이어 갑니다.</li>
+</ol>
+<p>라이브러리에 의존하는 Swift 패키지:</p>
+<pre><code class="language-swift"><span class="c">// swift-tools-version:5.9</span>
+<span class="k">import</span> <span class="t">PackageDescription</span>
+
+<span class="k">let</span> package = <span class="t">Package</span>(
+    name: <span class="s">"VehicleFeature"</span>,
+    platforms: [.<span class="f">iOS</span>(.v16)],
+    products: [.<span class="f">library</span>(name: <span class="s">"VehicleFeature"</span>, targets: [<span class="s">"VehicleFeature"</span>])],
+    dependencies: [
+        .<span class="f">package</span>(url: <span class="s">"https://github.com/smallmiro/tesla-ble-kmp"</span>, from: <span class="s">"1.0.0"</span>),
+    ],
+    targets: [
+        .<span class="f">target</span>(name: <span class="s">"VehicleFeature"</span>, dependencies: [.<span class="f">product</span>(name: <span class="s">"Teslable"</span>, package: <span class="s">"tesla-ble-kmp"</span>)]),
+    ]
+)</code></pre>
+<ul>
+<li>패키지의 프로덕트는 <code>Teslable</code> 하나입니다. 기기용(<code>ios-arm64</code>)과 Apple Silicon Mac의 시뮬레이터용(<code>ios-arm64-simulator</code>) 정적 XCFramework이며, 소스에서 빌드할 것은 없습니다.</li>
+<li><code>.product(name:package:)</code>의 <code>package</code>에는 패키지 이름이 아니라 URL에서 얻은 식별자 <code>tesla-ble-kmp</code>를 씁니다.</li>
+<li><strong>Up to Next Major Version</strong>은 1.x 릴리스만 받습니다. 공개 API를 깨는 릴리스는 새 메이저 버전입니다.</li>
+<li>이 저장소의 샘플 앱은 패키지를 쓰지 않고 소스에서 빌드한 프레임워크를 링크합니다(<code>samples/ios/README.md</code>).</li>
+<li>CocoaPods는 지원하지 않습니다.</li>
+</ul>
+<h3>Android와 JVM: 소스에서 빌드</h3>
+<p>아직 배포되지 않았습니다. 개발은 끝났지만 실제 Android 기기에서의 확인이 끝나지 않았고, Maven Central은 M6 2단계에서 나옵니다. 그때까지 검증된 방법은 이 저장소의 Gradle 빌드 안에 <code>:sdk</code>에 의존하는 앱 모듈을 두는 것입니다. <code>:sdk</code> 폴더만 복사해서는 빌드되지 않습니다. 다른 라이브러리 모듈과 빌드 플러그인이 필요하기 때문입니다.</p>
+<pre><code class="language-bash"><span class="f">git</span> clone https://github.com/smallmiro/tesla-ble-kmp
+<span class="f">cd</span> tesla-ble-kmp
+./gradlew :sdk:assemble
+./gradlew :samples:android:assembleDebug</code></pre>
+<pre><code class="language-kotlin"><span class="c">// 이 저장소의 settings.gradle.kts에 포함한 앱 모듈의 build.gradle.kts</span>
+<span class="f">dependencies</span> {
+    <span class="f">implementation</span>(<span class="f">project</span>(<span class="s">":sdk"</span>))
+}</code></pre>
+<p>앱의 <code>minSdk</code>는 31 이상으로 설정하세요. 권한과 백업 규칙: <a href="17-lib-platform-notes.html#sec-android">플랫폼 노트</a>.</p>
 
 <h2 id="sec-flow">흐름</h2>
 <ol class="steps">

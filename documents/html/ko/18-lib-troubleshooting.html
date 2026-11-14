@@ -55,7 +55,7 @@
 </nav>
 <main class="content">
 <h1>18. 문제 해결</h1>
-<p class="lead">스캔, 연결, 키, 페어링, 명령, <code>getState</code>에서 자주 겪는 문제와 보통의 원인, 대처 방법입니다. 마지막에는 개발용 관찰 로그를 설명합니다.</p>
+<p class="lead">스캔, 연결, 키, 페어링, 명령, <code>getState</code>, iOS 시뮬레이터에서 자주 겪는 문제와 보통의 원인, 대처 방법입니다. 마지막에는 개발용 관찰 로그를 설명합니다.</p>
 
 <div class="toc"><strong>이 페이지의 내용</strong><ol>
 <li><a href="#sec-scan">스캔과 연결</a></li>
@@ -77,7 +77,8 @@
 <tbody>
 <tr><td><code>PermissionDenied</code></td><td>블루투스 권한이 없거나 거부됨</td><td>Android: 런타임에 <code>BLUETOOTH_SCAN</code>과 <code>BLUETOOTH_CONNECT</code>를 요청. iOS: <code>NSBluetoothAlwaysUsageDescription</code>을 추가하고, 거부되었으면 사용자를 설정으로 안내</td></tr>
 <tr><td><code>BluetoothOff</code></td><td>블루투스가 꺼져 있음</td><td>사용자에게 켜 달라고 요청</td></tr>
-<tr><td>스캔에서 아무것도 찾지 못하고, 연결이 <code>ScanTimeout</code>으로 끝남</td><td>범위 밖, 잘못된 VIN, 또는 iOS 시뮬레이터</td><td>가까이 가고, VIN을 확인하고(차량은 VIN에서 만든 이름으로 찾음), 실기기를 사용</td></tr>
+<tr><td>스캔에서 아무것도 찾지 못하고, 연결이 <code>ScanTimeout</code>으로 끝남</td><td>범위 밖 또는 잘못된 VIN</td><td>가까이 가고, VIN을 확인(차량은 VIN에서 만든 이름으로 찾음)</td></tr>
+<tr><td>iOS 시뮬레이터에서 스캔이 곧바로 이유 <code>IllegalStateException: This device doesn't support the Bluetooth low energy central or client role</code>와 함께 <code>ConnectFailed</code>를 보고하고, 연결도 같은 방식으로 실패함</td><td>시뮬레이터에는 블루투스가 없고, iOS는 이 기기가 블루투스 센트럴 역할을 할 수 없다고 보고합니다. <code>BluetoothOff</code>나 <code>PermissionDenied</code>로 보고되지 않습니다</td><td>스캔과 연결은 실제 iPhone에서 하세요. 사용자에게 블루투스가 꺼져 있다고 알리지 말고, 반복문으로 재시도하지 마세요(<a href="17-lib-platform-notes.html#sec-ios">플랫폼 노트</a>)</td></tr>
 <tr><td>연결이 <code>ConnectFailed</code>로 끝났고, 이유에 제한 시간 안에 연결을 끝내지 못했다고 적혀 있음</td><td>이유에 <code>vehicle found</code>가 있으면 라이브러리의 스캔이 차량을 찾았지만(그 <code>[connect:scan-hit]</code> 줄이 발견을 보여 줍니다) 링크가 제시간에 열리지 않은 것입니다. 이유에 <code>remembered target</code>이 있으면 스캔을 돌리지 않았으므로 차량이 아직 있는지 알 수 없습니다. 범위 밖에 있는 기억한 <code>target</code>은 <code>ConnectFailed</code>를 돌려주고 <code>ScanTimeout</code>이 되지 않습니다. <code>ScanTimeout</code>은 언제나 광고를 찾지 못했다는 뜻입니다</td><td>다시 시도. 기억한 <code>target</code>으로 실패했으면 스캔이 돌도록 그 값 없이 연결. 차량이 범위 안에 있는데 반복되면 로그 줄을 보고</td></tr>
 <tr><td><code>MaxConnectionsExceeded</code></td><td>차량에 이미 블루투스 연결이 세 개 있음</td><td>다른 휴대폰이나 앱의 연결을 끊고, 내 앱에서는 항상 <code>disconnect()</code>를 호출</td></tr>
 <tr><td><code>ConnectFailed</code>가 계속 발생</td><td>약한 신호 또는 바쁜 차량</td><td>라이브러리가 이미 30초 동안 재시도함. 나중에 다시 시도</td></tr>
@@ -163,6 +164,8 @@
 <tr><td><code>WARN</code> <code>Dropping plain broadcast because the broadcast buffer is full</code></td><td><code>vehicle.events</code>의 수집자가 프레임 64개보다 더 뒤처짐</td><td>수집 코드는 가볍게 하고 느린 작업은 다른 코루틴으로 옮김(<a href="16-lib-errors.html#sec-events">16. 에러 처리</a>)</td></tr>
 <tr><td><code>UnknownFault</code>, <code>UnknownKeychainCode</code>, <code>UNKNOWN</code>으로 읽히는 값</td><td>새 차량 펌웨어</td><td>라이브러리 업데이트 확인</td></tr>
 <tr><td>시뮬레이터에서 키체인 테스트가 -25291로 실패</td><td>일반 Kotlin/Native 테스트 바이너리는 키체인을 쓸 수 없음</td><td>키체인 동작은 샘플 앱에서 확인</td></tr>
+<tr><td>iOS 시뮬레이터에서 키 저장소가 <code>keychain status -34018</code>(<code>errSecMissingEntitlement</code>)과 함께 <code>PlatformFailure</code>를 돌려줌</td><td>앱이 코드 서명되지 않아(예: <code>CODE_SIGNING_ALLOWED = NO</code>) 키체인에 접근할 수 없음</td><td>앱에 서명하세요. 임시 서명이면 충분합니다(<code>CODE_SIGN_IDENTITY = -</code>, "Sign to Run Locally"). <a href="17-lib-platform-notes.html#sec-keys">플랫폼 노트</a> 참고</td></tr>
+<tr><td>Xcode, 시뮬레이터 빌드: <code>Teslable</code> 파일이 <code>x86_64</code>가 아니라 <code>arm64</code>용으로 빌드되었다는 경고 뒤에 <code>ld: symbol(s) not found for architecture x86_64</code></td><td>Swift 패키지의 시뮬레이터 슬라이스는 arm64 전용인데, 이 빌드는 <code>x86_64</code>도 빌드함(Release 빌드는 모든 아키텍처를 빌드)</td><td>앱 타깃에 <code>EXCLUDED_ARCHS[sdk=iphonesimulator*] = x86_64</code>를 설정하세요. Intel Mac에서는 기기를 쓰세요. 시뮬레이터는 라이브러리를 실행할 수 없습니다(<a href="17-lib-platform-notes.html#sec-ios">플랫폼 노트</a>)</td></tr>
 </tbody>
 </table>
 
