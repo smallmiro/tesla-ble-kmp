@@ -189,21 +189,23 @@ Refs: FR-012
 
 | 게이트 | 내용 | `verify.sh` 단계 |
 |---|---|---|
-| 포맷 | `ktlintCheck`(`lintKotlin`) | 1/7 |
-| 정적 분석 | `detekt` (경고 0) | 1/7 |
-| 빌드 | 경고를 에러로 처리 (`allWarningsAsErrors`) | 1/7 |
-| 아키텍처 | 모듈 의존 방향 (빌드에 내포) | 1/7 |
-| 공개 API | `apiCheck` | 1/7 |
-| 공통 테스트 | `jvmTest` (벡터, 골든, 도메인, 유스케이스) | 1/7 |
-| Android 단위 | `testAndroidHostTest` (AGP 9 내장 Kotlin) | 1/7 |
-| iOS 테스트 | `iosSimulatorArm64Test` | 1/7 |
-| 샘플 빌드 (Android) | `:samples:android:assembleDebug` | 1/7 |
-| 서버 없음 확인 | 병합 매니페스트에 `INTERNET` 권한 없음 (NFR-014) | 2/7 |
-| iOS 최소 버전 | `Teslable.framework`의 `MinimumOSVersion` 16.0 (NFR-009) | 3/7 |
-| 샘플 빌드 (iOS) | `xcodegen generate` + `xcodebuild` (`CODE_SIGNING_ALLOWED=NO`) | 4/7 |
-| 라이선스 | NOTICE 존재 확인, 포팅 파일 헤더 확인 (`tools/ci/check-license.sh`) | 5/7 |
-| 비밀 스캔 | VIN 패턴(`[A-HJ-NPR-Z0-9]{17}`)과 PEM 개인키 탐지 (테스트 벡터 허용 목록 제외, `tools/ci/scan-secrets.sh`) | 6/7 |
-| 매뉴얼 언어 | `{{MANUAL_DIR}}` 에 한글 없음, `{{MANUAL_HTML_DIR}}` 의 `ko/`·`en/`·`ja/` 페이지 목록·`lang`·id·href 일치, 루트 `index.html` 이 `en/index.html` 과 일치, 코드 블록 문법 색 최신 (`{{AGENTS_FILE}}` 규칙 12, `tools/ci/check-manual-i18n.sh`) | 7/7 |
+| 포맷 | `ktlintCheck`(`lintKotlin`) | 1/9 |
+| 정적 분석 | `detekt` (경고 0) | 1/9 |
+| 빌드 | 경고를 에러로 처리 (`allWarningsAsErrors`) | 1/9 |
+| 아키텍처 | 모듈 의존 방향 (빌드에 내포) | 1/9 |
+| 공개 API | `apiCheck` | 1/9 |
+| 공통 테스트 | `jvmTest` (벡터, 골든, 도메인, 유스케이스) | 1/9 |
+| Android 단위 | `testAndroidHostTest` (AGP 9 내장 Kotlin) | 1/9 |
+| iOS 테스트 | `iosSimulatorArm64Test` | 1/9 |
+| 샘플 빌드 (Android) | `:samples:android:assembleDebug` | 1/9 |
+| 서버 없음 확인 | 병합 매니페스트에 `INTERNET` 권한 없음 (NFR-014) | 2/9 |
+| iOS 최소 버전 | `Teslable.framework`의 `MinimumOSVersion` 16.0 (NFR-009) | 3/9 |
+| 샘플 빌드 (iOS) | `xcodegen generate` + `xcodebuild` (`CODE_SIGNING_ALLOWED=NO`) | 4/9 |
+| 라이선스 | NOTICE 존재 확인, 포팅 파일 헤더 확인 (`tools/ci/check-license.sh`) | 5/9 |
+| 비밀 스캔 | VIN 패턴(`[A-HJ-NPR-Z0-9]{17}`)과 PEM 개인키 탐지 (테스트 벡터 허용 목록 제외, `tools/ci/scan-secrets.sh`) | 6/9 |
+| 매뉴얼 언어 | `{{MANUAL_DIR}}` 에 한글 없음, `{{MANUAL_HTML_DIR}}` 의 `ko/`·`en/`·`ja/` 페이지 목록·`lang`·id·href 일치, 루트 `index.html` 이 `en/index.html` 과 일치, 코드 블록 문법 색 최신 (`{{AGENTS_FILE}}` 규칙 12, `tools/ci/check-manual-i18n.sh`) | 7/9 |
+| 로그 분석 도구 | `tools/analysis` 단위 테스트 (`python3 -I -m unittest`, protocol-analyst 가 쓰는 `pbwire.py` 등) | 8/9 |
+| 릴리스 스크립트 | `tools/release/test_release_scripts.sh`: `prepare.sh`·`publish.sh` 의 사전 검사, 빌드 순서, 재시도 판단을 임시 git 저장소와 `gh`·`curl` 대역으로 오프라인 시험 (ADR-0017) | 9/9 |
 
 > **"Red를 트렁크에 올리지 않는다"** 가 Trunk-based의 생명줄입니다. 푸시·병합 전에 로컬에서 `tools/ci/verify.sh` 를 돌립니다.
 > `tools/ci/verify.sh`는 M0에서 작성한 `.github/workflows/ci.yml`이 하던 일을 그대로 재현하며, ADR-0012(2026-09-27)로
