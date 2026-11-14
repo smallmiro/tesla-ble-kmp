@@ -9,7 +9,10 @@
 #   검사 (하나라도 실패하면 exit 1):
 #     1) xcodegen generate
 #     2) xcodebuild build -destination 'generic/platform=iOS'                      기기용 링크 (CryptoKit·Swift 런타임 심볼 누락 확인)
-#     3) xcodebuild test  -destination 'platform=iOS Simulator,name=iPhone 17'     ConsumerSmokeTests (앱 번들 안에서 실행, ad-hoc 서명: Keychain 사용)
+#     3) xcodebuild archive -configuration Release -destination 'generic/platform=iOS'
+#                                                                                  앱 dSYM 에 Kotlin 컴파일 단위가 있고 앱과 UUID 가 같음
+#        (dsymutil 은 Release 에서만 돈다. Kotlin 오브젝트의 디버그 맵이 빠지면 dsymutil 의 "could not open" 경고로도 실패한다)
+#     4) xcodebuild test  -destination 'platform=iOS Simulator,name=iPhone 17'     ConsumerSmokeTests (앱 번들 안에서 실행, ad-hoc 서명: Keychain 사용)
 #   빌드 산출물(DerivedData)은 임시 폴더에 두고 끝나면 지운다. 생성한 .xcodeproj 는 로컬 모드에서만 consumer-ios/ 에 남고 git이 무시한다.
 set -euo pipefail
 
@@ -121,6 +124,23 @@ xcb() { # xcodebuild 를 조용히 돌리고, 실패하면 로그 끝부분을 �
 
 echo "check-consumer-ios: device build (generic/platform=iOS)"
 xcb device-build build -destination 'generic/platform=iOS' CODE_SIGNING_ALLOWED=NO
+
+echo "check-consumer-ios: device archive, Release (the app dSYM must carry the Kotlin debug info)"
+# Debug 빌드는 dSYM 을 만들지 않아(DEBUG_INFORMATION_FORMAT=dwarf) 이 검사를 대신하지 못한다. 앱 dSYM 에 Kotlin DWARF 가 없으면
+# 크래시 리포트의 Kotlin 프레임에 파일:줄과 인라인 프레임이 없다 (sdk/build.gradle.kts releaseDebugPrefixMap). Kotlin 오브젝트의
+# 디버그 맵이 빠지면 dsymutil 이 "could not open '…/Teslable(Teslable.framework.o)'" 경고를 내고, xcb 가 그 경고로 실패한다.
+archive="$work_tmp/ConsumerApp.xcarchive"
+xcb release-archive archive -configuration Release -destination 'generic/platform=iOS' -archivePath "$archive" CODE_SIGNING_ALLOWED=NO
+dsym="$archive/dSYMs/ConsumerApp.app.dSYM"
+app_bin="$archive/Products/Applications/ConsumerApp.app/ConsumerApp"
+[ -d "$dsym" ] && [ -f "$app_bin" ] || fail "release archive has no ConsumerApp.app.dSYM or no app binary"
+dsym_cus="$(xcrun dwarfdump --debug-info --recurse-depth=0 "$dsym")" || fail "dwarfdump cannot read $dsym"
+grep -q 'DW_AT_producer.*"kotlin-compiler' <<< "$dsym_cus" ||
+  fail "release archive dSYM has no Kotlin compile unit (Kotlin frames in crash reports would lose file:line)"
+app_uuid="$(xcrun dwarfdump --uuid "$app_bin" | cut -d' ' -f2)" || fail "dwarfdump --uuid cannot read $app_bin"
+dsym_uuid="$(xcrun dwarfdump --uuid "$dsym" | cut -d' ' -f2)" || fail "dwarfdump --uuid cannot read $dsym"
+[ -n "$app_uuid" ] && [ "$app_uuid" = "$dsym_uuid" ] || fail "release archive app UUID '$app_uuid' differs from its dSYM '$dsym_uuid'"
+echo "check-consumer-ios: release archive dSYM has a Kotlin compile unit (UUID $app_uuid)"
 
 echo "check-consumer-ios: simulator tests ($SIM_DESTINATION)"
 # 시뮬레이터 시험만 ad-hoc 서명("-", 팀·인증서 없음)으로 돌린다. 서명이 없으면 앱에 keychain entitlement가 없어

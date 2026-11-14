@@ -9,8 +9,8 @@ The iOS library ships as a static `Teslable.xcframework` in a zip attached to a 
 
 | File | What it does |
 |---|---|
-| `build-xcframework.sh` | Full release build of `Teslable.xcframework`, checks (slices, iOS 16, Swift interface, static, no build-machine paths), then `build/release/Teslable.xcframework.zip` and its `.sha256` (`swift package compute-checksum`). Every run gives a new checksum. |
-| `check-consumer-ios.sh` | Builds an isolated consumer app (`consumer-ios/`) that links the XCFramework through SwiftPM: device build and 4 simulator tests. No arguments: rebuilds first. `--no-build`: uses `build/release/`. `--remote <version>`: uses the published package. |
+| `build-xcframework.sh` | Full release build of `Teslable.xcframework`, checks (slices, iOS 16, Swift interface, static, an absolute Kotlin compile unit name, no build-machine paths), then `build/release/Teslable.xcframework.zip` and its `.sha256` (`swift package compute-checksum`). Every run gives a new checksum. |
+| `check-consumer-ios.sh` | Builds an isolated consumer app (`consumer-ios/`) that links the XCFramework through SwiftPM: device build, a Release device archive whose app dSYM must hold the Kotlin debug info, and 4 simulator tests. No arguments: rebuilds first. `--no-build`: uses `build/release/`. `--remote <version>`: uses the published package. |
 | `prepare.sh <version>` | Release phase 1: a branch with one commit that writes `Package.swift`. |
 | `publish.sh <version>` | Release phase 2: tag, GitHub Release, remote checks. |
 | `release-lib.sh` | Values and functions shared by `prepare.sh` and `publish.sh` (sourced, not run). |

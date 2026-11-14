@@ -7,7 +7,7 @@
 #        build/release/v<version>/ 없음(다른 준비본을 덮어쓰지 않음), git 사용자 설정, swift·python3
 #     2) release/v<version> 브랜치를 만들거나 그 브랜치로 바꾼다
 #     3) tools/release/check-consumer-ios.sh (인자 없음): build-xcframework.sh 로 zip 과 .sha256 을 만들고, 소비자 앱을
-#        기기용으로 빌드하고 시뮬레이터에서 시험한다
+#        기기용으로 빌드하고, Release 아카이브의 앱 dSYM 에 Kotlin 디버그 정보가 있는지 보고, 시뮬레이터에서 시험한다
 #     4) zip 과 .sha256 을 build/release/v<version>/ 에 보관하고(빌드한 git tree 도 적는다), 그 체크섬으로 Package.swift 를 쓴 뒤
 #        swift package dump-package 로 확인한다 (네트워크 없음)
 #     5) 커밋 "chore: release <version>" (Package.swift 만)
@@ -126,8 +126,9 @@ chore: release $version
 Package.swift points at $ZIP_NAME of GitHub Release $tag
 (SwiftPM checksum $checksum), built from origin/main $(short "$head")
 (tree $(cat "$archive/source-tree")). tools/release/check-consumer-ios.sh passed:
-device build and simulator tests. After this merges, publish from main on the
-same Mac: tools/release/publish.sh $version
+device build, Release archive with the Kotlin debug info in the app dSYM, and
+simulator tests. After this merges, publish from main on the same Mac:
+tools/release/publish.sh $version
 
 Refs: ADR-0017
 MSG
