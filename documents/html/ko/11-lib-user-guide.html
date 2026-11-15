@@ -3389,7 +3389,7 @@ vehicle.<span class="f">addKeyRequest</span>(key.publicKey).<span class="f">coll
 <tr><td>3</td><td><code>vehicleSleepStatus</code></td><td><code>VehicleSleepStatus_E</code></td><td>인포테인먼트 절전 상태</td><td><code>sleepStatus</code></td></tr>
 <tr><td>4</td><td><code>userPresence</code></td><td><code>UserPresence_E</code></td><td>차 안이나 차 곁의 사람(문을 열고 밖에 서 있어도 <code>PRESENT</code>, B3.1)</td><td><code>userPresence</code></td></tr>
 <tr><td>5</td><td><code>detailedClosureStatus</code></td><td><code>DetailedClosureStatus</code></td><td><code>tonneauPercentOpen</code>(1, uint32), Cybertruck</td><td><code>tonneauPercentOpen</code>(없으면 <code>null</code>)</td></tr>
-<tr><td>6</td><td><code>uiDesire</code></td><td><code>UIDesire_E</code>(Teslemetry)</td><td>스키마에만 있음</td><td><strong>노출하지 않음</strong>(M5 예정)</td></tr>
+<tr><td>6</td><td><code>uiDesire</code></td><td><code>UIDesire_E</code>(Teslemetry)</td><td>스키마에만 있음</td><td><strong>노출하지 않음</strong>(의미가 확립되지 않아 계획 없음. 관찰 로그에는 출력됨)</td></tr>
 <tr><td>7</td><td><code>gear</code></td><td><code>Gear_E</code>(Teslemetry, 브로드캐스트에서 실차 확정, 조회 응답은 유력)</td><td>현재 기어</td><td><code>gear</code>. 없거나 스키마 밖의 값이면 <code>UNKNOWN</code></td></tr>
 <tr><td>8</td><td>(미확인, 스키마에 없음)</td><td>message</td><td>실차에서 관찰: <code>{1: 1|2, 2: 1|2, 3: 1|2}</code>. 의미 미확인(B3.1)</td><td>노출하지 않음</td></tr>
 </tbody>
@@ -3828,7 +3828,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <tr><td><code>gear</code></td><td><code>PARK</code>, <code>REVERSE</code>, <code>NEUTRAL</code>, <code>DRIVE</code>, <code>UNKNOWN</code>. 차량이 보내지 않은 경우에도 <code>UNKNOWN</code>(proto3에서는 <code>GEAR_UNKNOWN</code>과 구분할 수 없음). Go에 대응하는 것이 없는 Teslemetry 확장 필드이며, 생성자의 마지막 인자. 브로드캐스트에서는 확정, 조회 응답에서는 유력</td></tr>
 </tbody>
 </table>
-<p>여덟 개 개폐부는 <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code>, <code>tonneau</code>입니다. 각각 <code>CLOSED</code>, <code>OPEN</code>, <code>AJAR</code>, <code>OPENING</code>, <code>CLOSING</code>, <code>FAILED_UNLATCH</code>, <code>UNKNOWN</code> 중 하나입니다. <code>uiDesire</code>는 아직 이 모델에 없습니다(M5 예정).</p>
+<p>여덟 개 개폐부는 <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code>, <code>tonneau</code>입니다. 각각 <code>CLOSED</code>, <code>OPEN</code>, <code>AJAR</code>, <code>OPENING</code>, <code>CLOSING</code>, <code>FAILED_UNLATCH</code>, <code>UNKNOWN</code> 중 하나입니다. <code>uiDesire</code>는 이 모델에 없습니다. 의미가 확립되지 않아 추가할 계획이 없습니다(관찰 로그에는 원래 값이 출력됩니다).</p>
 <div class="callout">
 <strong>알 수 없는 값은 실패로 처리하지 않습니다</strong>
 <p>새 차량 펌웨어가 라이브러리가 아직 모르는 값을 보내면, 조회를 실패시키지 않고 해당 필드를 <code>UNKNOWN</code>으로 읽습니다.</p>
