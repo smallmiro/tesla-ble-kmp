@@ -378,7 +378,7 @@ Infotainment 명령(FR-034, FR-050~053, FR-060~085, FR-090~092)의 시그니처�
 | #91 (M4 뒤, M5 전) | 차량 브로드캐스트 이벤트, 기어, iOS 키 접근성 선택 (모니터 샘플의 선행 작업, 원래 M5 항목이던 `vehicle.events`를 앞당김) | FR-035, FR-036, FR-037 | FakeVehicle 시나리오 테스트·가짜 Keychain 테스트 PASS, 사용 문서 갱신. 실차·실기기 확인은 모니터 샘플로 |
 | #134 (M5와 별개, 빌드 18 분석의 링크 안정화) | `connect`의 스캔 발견 시각과 RSSI를 공개 API로 제공 | FR-038 | 가짜 커넥터 테스트 PASS, 사용 문서 갱신. 실차 확인은 모니터 샘플에서 |
 | M5 | Infotainment 제어 + GetState (P0/P1). **진행(2026-11-08):** 라이브러리 명령 전부 완료 — `getState`(FR-033, #115), 공조·충전(FR-052, FR-060~083, PR A), `ping`과 차체·보안·미디어·SW 업데이트(FR-034, FR-050·051·053, FR-084~085, FR-090~092, PR B). FakeVehicle 시험 통과, 실차 미확인(#118). 남은 것: 샘플의 공조·충전 항목(PR C, FR-110~111 → SFR-001~002) | FR-033~034, FR-050~053, FR-060~085, FR-090~092, FR-110~111(전체, → SFR-001~002) | P0/P1 항목 완료, 실차 체크리스트 전달 |
-| M6 | 문서화, 배포 | `{{LIB_DOCS_DIR}}` 완성, API 문서, NOTICE, XCFramework 빌드. **마지막 과제**(D13, ADR-0017): **1단계** iOS SPM — 배포용 static XCFramework, 격리된 iOS 소비자 앱 검증, 두 단계 릴리스 스크립트(`{{RELEASE_TOOLS_DIR}}`), 설치 문서, 첫 릴리스 `1.0.0`. **2단계** Android/JVM Maven Central(별도 계획) | 문서 링크 검증. 1단계: GitHub Release `v1.0.0`과 원격 체크섬·소비자 검증 통과. 2단계: Central 배포와 격리된 Android/JVM 소비자 검증 |
+| M6 | 문서화, 배포. **1단계 완료(2026-11-15):** iOS SPM `v1.0.0` 릴리스(PR #163, #164), 원격 체크섬과 원격 소비자 검증 통과. 2단계(Android) 남음 | `{{LIB_DOCS_DIR}}` 완성, API 문서, NOTICE, XCFramework 빌드. **마지막 과제**(D13, ADR-0017): **1단계** iOS SPM — 배포용 static XCFramework, 격리된 iOS 소비자 앱 검증, 두 단계 릴리스 스크립트(`{{RELEASE_TOOLS_DIR}}`), 설치 문서, 첫 릴리스 `1.0.0`. **2단계** Android/JVM Maven Central(별도 계획) | 문서 링크 검증. 1단계: GitHub Release `v1.0.0`과 원격 체크섬·소비자 검증 통과. 2단계: Central 배포와 격리된 Android/JVM 소비자 검증 |
 | v1.1 | P2 기능, BLE 목적지 설정 PoC(#119, 요구사항 아님, §3.2) | FR-054, FR-086~089, FR-093~094 | PoC는 실차 결과 기록과 지원 여부 판단 |
 
 ---
