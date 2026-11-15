@@ -4083,7 +4083,7 @@ suspend fun vehicleStatus(timeout: Duration? = null): VehicleResult<VehicleStatu
 | 3 | `vehicleSleepStatus` | `VehicleSleepStatus_E` | Infotainment sleep state | `sleepStatus` |
 | 4 | `userPresence` | `UserPresence_E` | Person in or at the vehicle (also `PRESENT` while standing outside with a door open, B3.1) | `userPresence` |
 | 5 | `detailedClosureStatus` | `DetailedClosureStatus` | `tonneauPercentOpen` (1, uint32), Cybertruck | `tonneauPercentOpen` (`null` if absent) |
-| 6 | `uiDesire` | `UIDesire_E` (TESLEMETRY-EXT) | In schema only | **Not surfaced** (planned M5) |
+| 6 | `uiDesire` | `UIDesire_E` (TESLEMETRY-EXT) | In schema only | **Not surfaced** (not planned while its meaning is not established; the observation log prints it, `18-lib-troubleshooting.md`) |
 | 7 | `gear` | `Gear_E` (TESLEMETRY-EXT; confirmed in broadcasts; Likely in query replies) | Current gear | `gear`; absent or outside the schema becomes `UNKNOWN` |
 | 8 | (unknown, not in schema) | message | Seen on a real car: `{1: 1\|2, 2: 1\|2, 3: 1\|2}`; meaning unknown (B3.1) | Not surfaced |
 
@@ -4610,7 +4610,7 @@ func climateKeeperOn(_ mode: ClimateState.ClimateKeeperMode?) -> Bool? {
 `Closures` has eight `ClosureState` fields: `frontDriverDoor`, `frontPassengerDoor`, `rearDriverDoor`,
 `rearPassengerDoor`, `rearTrunk`, `frontTrunk`, `chargePort`, `tonneau`. `ClosureState` values: `CLOSED`, `OPEN`, `AJAR`,
 `UNKNOWN`, `FAILED_UNLATCH`, `OPENING`, `CLOSING`. Every enum maps values the library does not know to `UNKNOWN`
-(newer firmware) instead of failing. `uiDesire` is not in this model yet (planned M5).
+(newer firmware) instead of failing. `uiDesire` is not in this model: its meaning is not established, so it is not planned (the observation log prints the raw value).
 
 ## `WhitelistSummary` and `WhitelistEntry`
 

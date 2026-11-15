@@ -162,7 +162,7 @@
 <tr><td>3</td><td><code>vehicleSleepStatus</code></td><td><code>VehicleSleepStatus_E</code></td><td>Infotainment sleep state</td><td><code>sleepStatus</code></td></tr>
 <tr><td>4</td><td><code>userPresence</code></td><td><code>UserPresence_E</code></td><td>A person in or at the car (also <code>PRESENT</code> while standing outside with a door open, B3.1)</td><td><code>userPresence</code></td></tr>
 <tr><td>5</td><td><code>detailedClosureStatus</code></td><td><code>DetailedClosureStatus</code></td><td><code>tonneauPercentOpen</code> (1, uint32), Cybertruck</td><td><code>tonneauPercentOpen</code> (<code>null</code> if absent)</td></tr>
-<tr><td>6</td><td><code>uiDesire</code></td><td><code>UIDesire_E</code> (Teslemetry)</td><td>In the schema only</td><td><strong>Not surfaced</strong> (planned M5)</td></tr>
+<tr><td>6</td><td><code>uiDesire</code></td><td><code>UIDesire_E</code> (Teslemetry)</td><td>In the schema only</td><td><strong>Not surfaced</strong> (not planned while its meaning is not established; the observation log prints it)</td></tr>
 <tr><td>7</td><td><code>gear</code></td><td><code>Gear_E</code> (Teslemetry; confirmed in broadcasts; Likely in query replies)</td><td>Current gear</td><td><code>gear</code>; absent or outside the schema becomes <code>UNKNOWN</code></td></tr>
 <tr><td>8</td><td>(unknown, not in the schema)</td><td>message</td><td>Seen on a real car: <code>{1: 1|2, 2: 1|2, 3: 1|2}</code>; meaning unknown (B3.1)</td><td>Not surfaced</td></tr>
 </tbody>
@@ -601,7 +601,7 @@ Asleep:   connect → vehicleStatus() shows ASLEEP → startSession(setOf(VCSEC)
 <tr><td><code>gear</code></td><td><code>PARK</code>, <code>REVERSE</code>, <code>NEUTRAL</code>, <code>DRIVE</code>, <code>UNKNOWN</code>. <code>UNKNOWN</code> also when the car did not send it (proto3 cannot tell that apart from <code>GEAR_UNKNOWN</code>). A Teslemetry extension field with no Go counterpart; it is the last constructor parameter. Confirmed in broadcasts; Likely in query replies</td></tr>
 </tbody>
 </table>
-<p>The eight openings are <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code> and <code>tonneau</code>. Each is <code>CLOSED</code>, <code>OPEN</code>, <code>AJAR</code>, <code>OPENING</code>, <code>CLOSING</code>, <code>FAILED_UNLATCH</code> or <code>UNKNOWN</code>. <code>uiDesire</code> is not in this model yet (planned M5).</p>
+<p>The eight openings are <code>frontDriverDoor</code>, <code>frontPassengerDoor</code>, <code>rearDriverDoor</code>, <code>rearPassengerDoor</code>, <code>rearTrunk</code>, <code>frontTrunk</code>, <code>chargePort</code> and <code>tonneau</code>. Each is <code>CLOSED</code>, <code>OPEN</code>, <code>AJAR</code>, <code>OPENING</code>, <code>CLOSING</code>, <code>FAILED_UNLATCH</code> or <code>UNKNOWN</code>. <code>uiDesire</code> is not in this model: its meaning is not established, so it is not planned (the observation log prints the raw value).</p>
 <div class="callout">
 <strong>Unknown values do not fail</strong>
 <p>When newer car firmware sends a value the library does not know yet, the field reads <code>UNKNOWN</code> instead of failing the query.</p>
